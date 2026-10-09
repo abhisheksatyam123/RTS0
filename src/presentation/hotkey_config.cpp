@@ -62,7 +62,11 @@ PackedStringArray RtsoHotkeyConfig::get_conflicts(const String &combo) const {
 bool RtsoHotkeyConfig::save_user() const { return hk::save_user_cfg(); }
 
 void RtsoHotkeyConfig::reset_user() {
-	if (FileAccess::file_exists(hk::kUserCfgPath)) DirAccess::remove_absolute(hk::kUserCfgPath);
+	// Back to default.cfg's hotkeys; the options page's settings stay in user.cfg.
+	hk::HotkeyTable fresh;
+	fresh.load_cfg(hk::default_cfg());
+	hk::table() = fresh;
+	hk::save_user_cfg();
 	reload();
 }
 

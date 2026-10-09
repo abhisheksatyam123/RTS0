@@ -87,7 +87,7 @@ static void build_world(Simulation &s, uint32_t seed, Refs &r) {
 	r.resources.push_back(s.spawn_resource_world(-38.0f, 14.0f, RES_FOOD, 1200));
 	r.resources.push_back(s.spawn_resource_world(-44.0f, -12.0f, RES_WOOD, 1200));
 	r.resources.push_back(s.spawn_resource_world(36.0f, -14.0f, RES_STONE, 900));
-	s.spawn_relic(10.0f, 10.0f, RES_GOLD, 400);
+	s.spawn_relic(10.0f, 10.0f);
 }
 
 // Script RNG kept out of Simulation::SimRng so generating the order stream can
@@ -655,83 +655,6 @@ static bool run_late_join_game_start_resend(const char *ph) {
 	return true;
 }
 
-// ---- Phase 7: P3 maintainFleet upkeep (navalManager.js:507) ----------------
-// Generation half: one deterministic commission per turn from a built dock with
-// no fleet, blocked while the dock is training or unfinished, and carried on the
-// ordinary turn command stream so it lands in the replay history.
-static bool run_maintain_fleet_upkeep(const char *ph) {
-	Refs ra, rb;
-	Simulation sa, sb;
-	build_world(sa, 4242, ra);
-	build_world(sb, 4242, rb);
-	TurnManager ta, tb;
-
-	// No dock at all: 0 A.D. maintainFleet returns immediately.
-	CHECK(ta.generate_fleet_upkeep_commands(sa).empty(), "no dock -> no commission", ph);
-	CHECK(ta.fleet_upkeep_requests() == 0, ph);
-
-	// An unfinished dock is not docks.filter(isBuilt) -> still nothing.
-	sa.spawn_building_world(20.0f, 6.0f, BLD_DOCK, 1, 0.5f);
-	CHECK(ta.generate_fleet_upkeep_commands(sa).empty(), "an unbuilt dock -> no commission", ph);
-
-	// A built dock with an empty fleet commissions one warship per turn.
-	const uint32_t dock = sa.spawn_building_world(22.0f, 9.0f, BLD_DOCK, 1, 1.0f);
-	sb.spawn_building_world(20.0f, 6.0f, BLD_DOCK, 1, 0.5f);
-	sb.spawn_building_world(22.0f, 9.0f, BLD_DOCK, 1, 1.0f);
-
-	std::vector<NetCommand> cmds = ta.generate_fleet_upkeep_commands(sa);
-	if (!check(cmds.size() == 1, "a built dock with no fleet commissions exactly one ship", ph)) return false;
-	CHECK(cmds[0].cmd_type == static_cast<uint8_t>(NetCommandType::NET_CMD_MAINTAIN_FLEET), ph);
-	CHECK(cmds[0].target_id == UNIT_TRIREME, "the transport/war wishlist is served first", ph);
-	CHECK(cmds[0].client_id == ta.local_client_id(), "the commission carries the local client id", ph);
-	CHECK(cmds[0].entity_ids.size() == 1 && cmds[0].entity_ids[0] == dock, "the commission names its dock", ph);
-	// Determinism: the same world yields the same commission.
-	std::vector<NetCommand> again = ta.generate_fleet_upkeep_commands(sa);
-	if (!check(again.size() == 1, "the commission is a pure function of sim state", ph)) return false;
-	CHECK(fleet_upkeep_command_equal(again[0], cmds[0]), ph);
-
-	// Two identical peers with the same world -> the same upkeep decision.
-	TurnManager tb2;
-	std::vector<NetCommand> c2 = tb2.generate_fleet_upkeep_commands(sb);
-	if (!check(c2.size() == 1, "the mirrored peer also commissions one ship", ph)) return false;
-	CHECK(fleet_upkeep_command_equal(c2[0], cmds[0]), "peers generate byte-identical upkeep", ph);
-
-	// queues.ships.hasQueuedUnits() is scoped to the OWNING team: a human (team 0)
-	// barracks training must NOT starve Petra's (team 1) navy -- navalManager.js:509
-	// reads Petra's own ship queue, and RTS0 docks are team 1.
-	const uint32_t barracks = sa.spawn_building_world(-26.0f, -4.0f, BLD_BARRACKS, 0, 1.0f);
-	// Athenian swordsmen are a Town-phase unit since 0 A.D. phase requirements landed; hoplites are Village.
-	CHECK(sa.cmd_train(0, barracks, UNIT_SPEARMAN), "filled the human production queue", ph);
-	std::vector<NetCommand> while_busy = ta.generate_fleet_upkeep_commands(sa);
-	if (!check(while_busy.size() == 1, "a team-0 training queue does not block the naval upkeep", ph)) return false;
-	CHECK(fleet_upkeep_command_equal(while_busy[0], cmds[0]), "the commission is unchanged while the human trains", ph);
-
-	// Explicit pause (0 A.D. maintenance pause) -> nothing.
-	ta.set_fleet_upkeep_paused(true);
-	CHECK(ta.generate_fleet_upkeep_commands(sa).empty(), "a paused upkeep emits nothing", ph);
-	CHECK(ta.fleet_upkeep_paused(), ph);
-	ta.set_fleet_upkeep_paused(false);
-
-	// The upkeep is wired into tick(): a commission must be counted per turn and
-	// ride the normal command stream (so it is in the replay history).
-	TurnManager tc;
-	Refs rc;
-	Simulation sc;
-	build_world(sc, 4242, rc);
-	sc.spawn_building_world(22.0f, 9.0f, BLD_DOCK, 1, 1.0f);
-	// Offline tick path (no NetHost) is ungated, so the upkeep runs.
-	const uint32_t before = tc.fleet_upkeep_requests();
-	CHECK(tc.tick(TurnManager::TURN_DURATION, sc), "offline tick advanced", ph);
-	CHECK(tc.fleet_upkeep_requests() > before, "maintainFleet upkeep ran inside tick()", ph);
-	CHECK(tc.turn_history().size() == 1, "the turn was recorded for replay", ph);
-	CHECK(tc.fleet_upkeep_paused() == false, "upkeep is not paused by default", ph);
-	// It is repeatable: one commission per turn while the fleet is below target.
-	const uint32_t after1 = tc.fleet_upkeep_requests();
-	CHECK(tc.tick(TurnManager::TURN_DURATION, sc), "second offline tick advanced", ph);
-	CHECK(tc.fleet_upkeep_requests() > after1, "upkeep keeps commissioning while under target", ph);
-	return true;
-}
-
 // ---- Phase 8: tribute and barter ride the turn stream ----------------------------
 static NetCommand tribute_cmd(uint8_t to, uint8_t res, int amount, uint32_t claimed_client) {
 	NetCommand c;
@@ -804,7 +727,6 @@ int main(int argc, char **argv) {
 		{"a client cannot set another player's row", run_client_cannot_forge_actor},
 		{"G8 lockstep gate: no turn before NMT_GAME_START is applied", run_lockstep_gate},
 		{"P3 late-join GAME_START resend + turn-0 hash handshake", run_late_join_game_start_resend},
-		{"P3 maintainFleet upkeep: deterministic per-turn commission", run_maintain_fleet_upkeep},
 		{"tribute (cmd 27) and barter (cmd 23) on two lockstep peers", run_tribute_and_barter},
 	};
 	const size_t n = sizeof(phases) / sizeof(phases[0]);

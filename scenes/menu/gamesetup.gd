@@ -111,6 +111,8 @@ const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonde
 	"Conquest Units — kill every enemy unit", "Conquest Structures — raze every enemy structure", "Regicide — kill the enemy hero, keep yours"]
 const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
+# Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
+const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
@@ -265,6 +267,8 @@ func _update_preview() -> void:
 	if lbl:
 		lbl.text = "%s\n[%s • %s • %dm • %d players]\n\n%s\n\n%s" % [
 			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt, m["desc"]]
+		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
+			lbl.text += "\n\nNo Human slot: you watch the AIs play with the map revealed."
 	# Civ preview follows slot 0 (the human player).
 	var civ := _slot_civ(0)
 	if crest and civ >= 0 and civ < CIVS.size():
@@ -288,8 +292,9 @@ func _ensure_slot_rows(n: int) -> void:
 			"kind": 1 if i > 0 else 0,
 			"civ": i % CIVS.size(),
 			"team": i + 1,
-			"diff": 3,
-			"beh": 2,
+			# 0 A.D. gui.gamesetup.aidifficulty / aibehavior from the options page.
+			"diff": clampi(int(UserSettings.cfg.get_number("gui.gamesetup.aidifficulty")), 0, 5),
+			"beh": AI_BEHAVIOR_IDS.get(UserSettings.cfg.get_value("gui.gamesetup.aibehavior"), 0),
 			"color": _unused_color(),
 		})
 	if _slot_rows.size() > n:
@@ -328,18 +333,17 @@ func refresh_slots() -> void:
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
 	var name := Label.new()
-	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 else ""]
+	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
 	grid.add_child(name)
 	# kind
 	var kind_slot := Control.new()
 	kind_slot.custom_minimum_size = Vector2(92, 28)
 	grid.add_child(kind_slot)
 	var kind := _make_option(kind_slot)
-	for k in SLOT_KINDS:
+	# Slot 1 is you, or AI: with no Human slot you watch the AIs play (0 A.D. lets every slot be AI).
+	for k in (SLOT_KINDS if i > 0 else SLOT_KINDS.slice(0, 2)):
 		kind.add_item(k)
-	kind.select(int(row["kind"]) if i > 0 else 0)
-	if i == 0:
-		kind.select(0)
+	kind.select(int(row["kind"]) if i > 0 else mini(int(row["kind"]), 1))
 	kind.item_selected.connect(_on_slot_kind.bind(i))
 	# civ
 	var civ_slot := Control.new()
@@ -394,6 +398,8 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["kind"] = idx
+	if slot == 0:
+		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
 	_update_preview()
 
 func _on_slot_civ(idx: int, slot: int) -> void:
@@ -586,7 +592,7 @@ func _restore_settings() -> void:
 			if i < scolors.size():
 				_slot_rows[i]["color"] = clampi(int(scolors[i]), 0, PLAYER_COLORS.size() - 1)
 			if i == 0:
-				_slot_rows[i]["kind"] = 0
+				_slot_rows[i]["kind"] = mini(int(_slot_rows[i]["kind"]), 1)
 		refresh_slots()
 
 # ---------------------------------------------------------------- start ---
@@ -622,7 +628,7 @@ func _collect_setup() -> Dictionary:
 	for i in range(n):
 		var k := int(_slot_rows[i]["kind"])
 		if i == 0:
-			k = 0
+			k = mini(k, 1) # Human or AI, never closed
 		if k == 2:
 			continue # closed: 0 A.D. drops the slot, so later players move up
 		types.append(k)
@@ -700,11 +706,14 @@ func _on_start_pressed() -> void:
 	if st["map"].is_empty():
 		_show_error("No map selected.")
 		return
-	if int(st["humans"]) < 1:
-		_show_error("Slot 1 must be Human.")
+	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
+		_show_error("Watching a game needs at least 2 AI players.")
 		return
 	if int(st["ai"]) < 1:
 		_show_error("Need at least 1 AI opponent.")
+		return
+	if int(st["humans"]) > 0 and int(st["types"][0]) != 0:
+		_show_error("Slot 1 must be Human, or make every slot AI to watch.")
 		return
 	var m: Dictionary = st["map"]
 	if str(m["kind"]) == "Scenario" and int(st["slots"]) != int(m["players"]):

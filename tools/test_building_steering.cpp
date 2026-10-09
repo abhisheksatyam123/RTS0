@@ -488,11 +488,11 @@ static void sea_setup(Simulation &s) {
 }
 
 static void ships_that_cannot_get_there() {
-	// A trireme sent ashore stops at the shore (MakeGoalReachable).
+	// A trireme a player sends ashore stops at the shore (MakeGoalReachable).
 	Simulation s;
 	sea_setup(s);
 	const uint32_t ship = s.spawn_unit(0.0f, -5.0f, 0, UNIT_TRIREME, 0.0f);
-	s.cmd_move(&ship, 1, 0.0f, 30.0f);
+	s.order_walk(&ship, 1, 0.0f, 30.0f, false, true); // a player's walk
 	int idle = -1;
 	for (int t = 0; t < 1200 && idle < 0; ++t) {
 		s.tick(DT);

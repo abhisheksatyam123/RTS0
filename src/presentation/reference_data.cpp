@@ -2,6 +2,8 @@
 
 #include "../simulation/sim_types.h"
 
+#include <cmath>
+
 namespace {
 
 String cost_text(int food, int wood, int stone, int metal) {
@@ -18,20 +20,103 @@ String cost_text(int food, int wood, int stone, int metal) {
 	return s;
 }
 
-// 0 A.D. structree: a structure's own phase is the earliest phase of anything
-// RTS0 lets it build; the building table has no phase column.
-int building_phase(uint8_t type) {
-	switch (type) {
-		case rtso::BLD_MARKET: case rtso::BLD_TEMPLE: case rtso::BLD_TOWER: case rtso::BLD_FORGE:
-		case rtso::BLD_STABLE: case rtso::BLD_RANGE: case rtso::BLD_GATE: case rtso::BLD_WALL_SEGMENT:
-		case rtso::BLD_WALL_TOWER: case rtso::BLD_DOCK: case rtso::BLD_THEATER:
-			return 2;
-		case rtso::BLD_FORTRESS: case rtso::BLD_WONDER: case rtso::BLD_ARSENAL: case rtso::BLD_ELEPHANT_STABLE:
-		case rtso::BLD_EMBASSY:
-			return 3;
-		default:
-			return 1;
+Dictionary cost_dict(int food, int wood, int stone, int metal) {
+	Dictionary c;
+	c["food"] = food;
+	c["wood"] = wood;
+	c["stone"] = stone;
+	c["metal"] = metal;
+	return c;
+}
+
+// 0 A.D. Identity classes the combat tables carry (civ_attack_data.h CombatClass order).
+static_assert(rtso::COMBAT_CLASS_COUNT == 10, "combat classes changed: update kCombatClassNames");
+const char *const kCombatClassNames[rtso::COMBAT_CLASS_COUNT] = {
+	"Cavalry", "Field", "Hero", "Human", "Organic", "Ship", "Siege", "Soldier", "Structure", "Unit",
+};
+
+String class_list(const rtso::CombatClasses &c) {
+	String s;
+	for (uint8_t k = 0; k < rtso::COMBAT_CLASS_COUNT; ++k) {
+		if (!c.has(k)) continue;
+		if (!s.is_empty()) s += " ";
+		s += kCombatClassNames[k];
 	}
+	return s;
+}
+
+// 0 A.D. tooltips.js getResistanceTooltip: level and the damage it stops (0.9^level).
+Dictionary armour_dict(float hack, float pierce, float crush) {
+	Dictionary a;
+	a["hack"] = hack;
+	a["pierce"] = pierce;
+	a["crush"] = crush;
+	a["hack_pct"] = (1.0 - std::pow(0.9, (double)hack)) * 100.0;
+	a["pierce_pct"] = (1.0 - std::pow(0.9, (double)pierce)) * 100.0;
+	a["crush_pct"] = (1.0 - std::pow(0.9, (double)crush)) * 100.0;
+	return a;
+}
+
+Array bonus_list(const rtso::CombatProfile &p) {
+	Array out;
+	for (uint8_t k = 0; k < p.bonus_count && k < 4; ++k) {
+		const rtso::CombatBonus &b = p.bonus[k];
+		Dictionary d;
+		String target = class_list(b.classes);
+		if (b.civ < rtso::CIV_COUNT) target = String(rtso::civ_info(b.civ).name) + " " + target;
+		d["classes"] = target;
+		d["multiplier"] = b.multiplier;
+		out.push_back(d);
+	}
+	return out;
+}
+
+// RTS0 distances and speeds back in 0 A.D. metres (extract_0ad_rosters.py scales).
+constexpr float kSpeedScale = 0.356f;
+constexpr float kMeleeRangeScale = 0.6f;
+
+String unit_portrait(uint8_t unit_type) {
+	return String("res://assets/textures/ui/portraits/") + rtso::unit_type_portrait(unit_type) + ".png";
+}
+
+String building_portrait(uint8_t type) {
+	return String("res://assets/textures/ui/portraits/") + rtso::building_type_portrait(type) + ".png";
+}
+
+Dictionary unit_entry(uint16_t t) {
+	const auto &u = rtso::civ_unit_template(t);
+	Dictionary ud;
+	ud["tmpl"] = t;
+	ud["id"] = String::utf8(u.id);
+	ud["name"] = String::utf8(u.name);
+	ud["specific_name"] = String::utf8(u.specific_name ? u.specific_name : "");
+	ud["portrait"] = unit_portrait(u.unit_type);
+	ud["phase"] = u.phase;
+	ud["cost"] = cost_text(u.food_cost, u.wood_cost, u.stone_cost, u.gold_cost);
+	ud["flags"] = u.flags;
+	return ud;
+}
+
+Dictionary tech_entry(uint8_t id) {
+	const auto &ti = rtso::tech_info(id);
+	Dictionary td;
+	td["id"] = id;
+	td["name"] = String::utf8(ti.name);
+	td["description"] = String::utf8(ti.desc ? ti.desc : "");
+	td["phase"] = ti.required_phase;
+	td["cost"] = cost_text(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
+	td["portrait"] = RtsoReference::phase_icon(ti.required_phase);
+	td["template"] = String(ti.template_name ? ti.template_name : "");
+	return td;
+}
+
+bool tech_civ_specific(uint8_t id) {
+	// 0 A.D. civinfo "Specific Technologies": requirements that name a civ. A
+	// tech most civs may research is generic even if a few are excluded.
+	int civs = 0;
+	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
+		if (rtso::tech_available_to_civ(id, c)) ++civs;
+	return civs * 2 < rtso::CIV_COUNT;
 }
 
 } // namespace
@@ -40,6 +125,10 @@ void RtsoReference::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_civs"), &RtsoReference::get_civs);
 	ClassDB::bind_method(D_METHOD("get_civ_info", "civ"), &RtsoReference::get_civ_info);
 	ClassDB::bind_method(D_METHOD("get_structure_tree", "civ"), &RtsoReference::get_structure_tree);
+	ClassDB::bind_method(D_METHOD("get_unit", "tmpl"), &RtsoReference::get_unit);
+	ClassDB::bind_method(D_METHOD("get_structure", "type", "civ"), &RtsoReference::get_structure);
+	ClassDB::bind_method(D_METHOD("get_tech", "id", "civ"), &RtsoReference::get_tech);
+	ClassDB::bind_static_method("RtsoReference", D_METHOD("phase_icon", "phase"), &RtsoReference::phase_icon);
 }
 
 Array RtsoReference::get_civs() const {
@@ -59,11 +148,12 @@ Array RtsoReference::get_civs() const {
 Dictionary RtsoReference::get_civ_info(int civ) const {
 	Dictionary d;
 	if (civ < 0 || civ >= rtso::CIV_COUNT) return d;
-	const auto &ci = rtso::civ_info((uint8_t)civ);
+	const uint8_t c = (uint8_t)civ;
+	const auto &ci = rtso::civ_info(c);
 	d["name"] = ci.name;
 	d["code"] = ci.code;
 	d["emblem"] = ci.emblem_path;
-	d["bonus_text"] = String::utf8(rtso::civ_bonus_text((uint8_t)civ));
+	d["bonus_text"] = String::utf8(rtso::civ_bonus_text(c));
 	Array team;
 	const rtso::CivTeamBonus *tb = rtso::civ_team_bonus_table();
 	String last;
@@ -79,14 +169,10 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	}
 	d["team_bonuses"] = team;
 	Array heroes;
-	for (uint16_t t = rtso::civ_roster_begin((uint8_t)civ); t < rtso::civ_roster_end((uint8_t)civ); ++t) {
+	for (uint16_t t : rtso::civ_roster_ids(c)) {
 		const auto &u = rtso::civ_unit_template(t);
 		if (!(u.flags & rtso::ROSTER_HERO)) continue;
-		Dictionary h;
-		h["name"] = String::utf8(u.name);
-		h["specific_name"] = String::utf8(u.specific_name ? u.specific_name : "");
-		h["phase"] = u.phase;
-		h["cost"] = cost_text(u.food_cost, u.wood_cost, u.stone_cost, u.gold_cost);
+		Dictionary h = unit_entry(t);
 		Array auras;
 		for (int16_t a : u.auras) {
 			if (a < 0) continue;
@@ -100,45 +186,249 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 		heroes.push_back(h);
 	}
 	d["heroes"] = heroes;
+	// civinfo StructuresSubsection ("CivSpecific Structure") and TechnologiesSubsection.
+	Array structures;
+	for (uint8_t b = rtso::CIV_BUILDING_FIRST; b < rtso::BLD_TYPE_COUNT; ++b) {
+		if (!rtso::civ_can_build(c, b)) continue;
+		Dictionary sd;
+		sd["type"] = b;
+		sd["name"] = String::utf8(rtso::building_type_info(b).name);
+		sd["portrait"] = building_portrait(b);
+		sd["phase"] = rtso::building_required_phase(b);
+		structures.push_back(sd);
+	}
+	d["structures"] = structures;
+	Array techs;
+	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id)
+		if (rtso::tech_available_to_civ(id, c) && tech_civ_specific(id)) techs.push_back(tech_entry(id));
+	d["techs"] = techs;
 	return d;
 }
 
 Array RtsoReference::get_structure_tree(int civ) const {
 	Array out;
 	if (civ < 0 || civ >= rtso::CIV_COUNT) return out;
+	const uint8_t c = (uint8_t)civ;
 	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
+		if (!rtso::civ_can_build(c, b)) continue; // other civs' own structures
 		const auto &bi = rtso::building_type_info(b);
-		Array units, techs;
-		for (uint16_t t = rtso::civ_roster_begin((uint8_t)civ); t < rtso::civ_roster_end((uint8_t)civ); ++t) {
-			const auto &u = rtso::civ_unit_template(t);
-			if (!(u.trainers & rtso::bld_bit(b))) continue;
-			Dictionary ud;
-			ud["name"] = String::utf8(u.name);
-			ud["specific_name"] = String::utf8(u.specific_name ? u.specific_name : "");
-			ud["phase"] = u.phase;
-			ud["cost"] = cost_text(u.food_cost, u.wood_cost, u.stone_cost, u.gold_cost);
-			ud["flags"] = u.flags;
-			units.push_back(ud);
+		Array units, techs, upgrades;
+		for (uint16_t t : rtso::civ_roster_ids(c)) {
+			if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) units.push_back(unit_entry(t));
 		}
 		for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
 			const auto &ti = rtso::tech_info(id);
-			if (ti.researcher != b || !(ti.civ_mask & rtso::civ_bit((uint8_t)civ))) continue;
-			Dictionary td;
-			td["name"] = String::utf8(ti.name);
-			td["description"] = String::utf8(ti.desc ? ti.desc : "");
-			td["phase"] = ti.required_phase;
-			td["cost"] = cost_text(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
-			techs.push_back(td);
+			if (ti.researcher == b && rtso::tech_available_to_civ(id, c)) techs.push_back(tech_entry(id));
+		}
+		const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
+		if (up.to < rtso::BLD_TYPE_COUNT) {
+			Dictionary ud;
+			ud["type"] = up.to;
+			ud["name"] = String::utf8(rtso::building_type_info(up.to).name);
+			upgrades.push_back(ud);
 		}
 		Dictionary d;
 		d["type"] = b;
-		d["name"] = bi.name;
-		d["portrait"] = String("res://assets/textures/ui/portraits/") + bi.portrait_id + ".png";
-		d["phase"] = building_phase(b);
+		d["name"] = String::utf8(bi.name);
+		d["portrait"] = building_portrait(b);
+		d["phase"] = rtso::building_required_phase(b);
 		d["cost"] = cost_text(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
 		d["units"] = units;
 		d["techs"] = techs;
+		d["upgrades"] = upgrades;
 		out.push_back(d);
 	}
 	return out;
+}
+
+String RtsoReference::phase_icon(int phase) {
+	static const char *const kIcons[] = {"village", "village", "town", "city"};
+	return String("res://assets/textures/ui/phases/") + kIcons[phase < 0 ? 0 : phase > 3 ? 3 : phase] + ".png";
+}
+
+Dictionary RtsoReference::get_unit(int tmpl) const {
+	Dictionary d;
+	if (tmpl < 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return d;
+	const uint16_t t = (uint16_t)tmpl;
+	const auto &u = rtso::civ_unit_template(t);
+	const auto &info = rtso::civ_template_unit_info(t, u.unit_type);
+	d = unit_entry(t);
+	d["kind"] = "unit";
+	d["civ"] = u.civ;
+	d["civ_name"] = rtso::civ_info(u.civ).name;
+	d["cost"] = cost_dict(u.food_cost, u.wood_cost, u.stone_cost, u.gold_cost);
+	d["cost_text"] = cost_text(u.food_cost, u.wood_cost, u.stone_cost, u.gold_cost);
+	d["time"] = u.train_time;
+	d["pop"] = u.pop_cost;
+	d["hp"] = u.hp;
+	d["armour"] = armour_dict(u.hack_armor, u.pierce_armor, u.crush_armor);
+	d["walk_speed"] = u.speed / kSpeedScale;
+	d["vision"] = rtso::unit_vision_range(u.unit_type) * 4.0f; // RTS0 units are 4 m tiles
+	d["carry"] = info.carry_capacity;
+	const rtso::CombatProfile &cp = rtso::unit_combat(t, u.unit_type);
+	if (u.attack_damage > 0.0f) {
+		const bool ranged = (u.flags & rtso::ROSTER_RANGED) != 0;
+		Dictionary a;
+		a["type"] = ranged ? "Ranged" : "Melee";
+		a["hack"] = u.hack_damage;
+		a["pierce"] = u.pierce_damage;
+		a["crush"] = u.crush_damage;
+		a["interval"] = u.attack_cooldown;
+		a["range"] = u.attack_range / (ranged ? rtso::COMBAT_DISTANCE_SCALE : kMeleeRangeScale);
+		a["spread"] = cp.spread;
+		a["bonuses"] = bonus_list(cp);
+		a["restricted"] = class_list(cp.restricted);
+		d["attack"] = a;
+	}
+	const float capture = rtso::unit_capture_attack(t, u.unit_type);
+	if (capture > 0.0f) d["capture"] = capture;
+	if (u.unit_type == rtso::UNIT_HEALER) {
+		Dictionary h;
+		h["hp"] = rtso::HEAL_HP;
+		h["interval"] = rtso::HEAL_INTERVAL_S;
+		h["range"] = 12.0f * 4.0f;
+		d["heal"] = h;
+	}
+	Array auras;
+	for (int16_t a : u.auras) {
+		if (a < 0) continue;
+		const auto &aura = rtso::civ_hero_aura(a);
+		Dictionary ad;
+		ad["name"] = String::utf8(aura.name);
+		ad["description"] = String::utf8(aura.description ? aura.description : "");
+		ad["radius"] = aura.radius;
+		auras.push_back(ad);
+	}
+	d["auras"] = auras;
+	const rtso::LootInfo loot = rtso::unit_loot(t, u.unit_type);
+	d["loot"] = cost_dict(loot.food, loot.wood, loot.stone, loot.metal);
+	d["loot_xp"] = loot.xp;
+	Array trained_at;
+	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
+		if (!(u.trainers & rtso::bld_bit(b))) continue;
+		Dictionary bd;
+		bd["type"] = b;
+		bd["name"] = String::utf8(rtso::building_type_info(b).name);
+		trained_at.push_back(bd);
+	}
+	d["trained_at"] = trained_at;
+	if (u.unlock_tech != rtso::TECH_NONE) {
+		Dictionary td;
+		td["id"] = u.unlock_tech;
+		td["name"] = String::utf8(rtso::tech_info(u.unlock_tech).name);
+		d["requires"] = td;
+	}
+	Array roles;
+	if (u.flags & rtso::ROSTER_HERO) roles.push_back("Hero");
+	if (u.flags & rtso::ROSTER_CHAMPION) roles.push_back("Champion");
+	if (u.flags & rtso::ROSTER_CITIZEN) roles.push_back("Citizen");
+	if (u.flags & rtso::ROSTER_MERCENARY) roles.push_back("Mercenary");
+	d["roles"] = roles;
+	d["classes"] = class_list(cp.classes);
+	return d;
+}
+
+Dictionary RtsoReference::get_structure(int type, int civ) const {
+	Dictionary d;
+	if (type < 0 || type >= rtso::BLD_TYPE_COUNT) return d;
+	const uint8_t b = (uint8_t)type;
+	const uint8_t c = (civ >= 0 && civ < rtso::CIV_COUNT) ? (uint8_t)civ : 0;
+	const auto &bi = rtso::building_type_info(b);
+	d["kind"] = "structure";
+	d["type"] = b;
+	d["civ"] = c;
+	d["civ_name"] = rtso::civ_info(c).name;
+	d["name"] = String::utf8(bi.name);
+	d["specific_name"] = "";
+	d["portrait"] = building_portrait(b);
+	d["phase"] = rtso::building_required_phase(b);
+	d["cost"] = cost_dict(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
+	d["cost_text"] = cost_text(bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost);
+	d["time"] = bi.build_time;
+	d["hp"] = bi.max_hp;
+	const rtso::CombatProfile &cp = rtso::building_combat(b);
+	d["armour"] = armour_dict(cp.hack_armor, cp.pierce_armor, cp.crush_armor);
+	d["pop_bonus"] = bi.pop_bonus;
+	d["garrison"] = bi.garrison_cap;
+	d["garrison_heal"] = rtso::building_garrison_heal(b);
+	d["capture_points"] = bi.capture_max_points;
+	d["capture_regen"] = bi.capture_regen_rate;
+	d["territory_decay"] = bi.territory_decay_rate;
+	// BuildingAI.js: DefaultArrowCount arrows per RepeatTime, plus garrison arrows up to MaxArrowCount.
+	if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(b); ai.shoots()) {
+		Dictionary a;
+		a["type"] = "Ranged";
+		a["hack"] = ai.hack;
+		a["pierce"] = ai.pierce;
+		a["crush"] = ai.crush;
+		a["interval"] = ai.repeat_time;
+		a["range"] = ai.max_range / rtso::COMBAT_DISTANCE_SCALE;
+		a["arrows"] = ai.default_arrows;
+		a["max_arrows"] = ai.max_arrows;
+		a["bonuses"] = Array();
+		a["restricted"] = "";
+		d["attack"] = a;
+	}
+	const rtso::LootInfo loot = rtso::building_loot(b);
+	d["loot"] = cost_dict(loot.food, loot.wood, loot.stone, loot.metal);
+	d["loot_xp"] = loot.xp;
+	Array trains, researches, upgrades;
+	for (uint16_t t : rtso::civ_roster_ids(c))
+		if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) trains.push_back(unit_entry(t));
+	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id)
+		if (rtso::tech_info(id).researcher == b && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id));
+	const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
+	if (up.to < rtso::BLD_TYPE_COUNT) {
+		Dictionary ud;
+		ud["type"] = up.to;
+		ud["name"] = String::utf8(rtso::building_type_info(up.to).name);
+		ud["cost_text"] = cost_text(up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost);
+		ud["time"] = up.time;
+		ud["tooltip"] = String::utf8(up.tooltip ? up.tooltip : "");
+		upgrades.push_back(ud);
+	}
+	d["trains"] = trains;
+	d["researches"] = researches;
+	d["upgrades"] = upgrades;
+	d["available"] = rtso::civ_can_build(c, b);
+	return d;
+}
+
+Dictionary RtsoReference::get_tech(int id, int civ) const {
+	Dictionary d;
+	if (id <= 0 || id >= rtso::TECH_COUNT) return d;
+	const uint8_t tid = (uint8_t)id;
+	const auto &ti = rtso::tech_info(tid);
+	d = tech_entry(tid);
+	d["kind"] = "tech";
+	d["specific_name"] = "";
+	d["cost"] = cost_dict(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
+	d["cost_text"] = cost_text(ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost);
+	d["time"] = ti.research_time;
+	Dictionary r;
+	r["type"] = ti.researcher;
+	r["name"] = String::utf8(rtso::building_type_info(ti.researcher).name);
+	d["researched_at"] = r;
+	if (ti.prerequisite != rtso::TECH_NONE) {
+		Dictionary p;
+		p["id"] = ti.prerequisite;
+		p["name"] = String::utf8(rtso::tech_info(ti.prerequisite).name);
+		d["requires"] = p;
+	}
+	Array civs;
+	for (uint8_t c = 0; c < rtso::CIV_COUNT; ++c)
+		if (rtso::tech_available_to_civ(tid, c)) civs.push_back(String(rtso::civ_info(c).name));
+	d["civs"] = civs;
+	d["civ"] = civ;
+	// Technologies this one unlocks (their prerequisite) and the units it unlocks.
+	Array unlocks;
+	for (uint8_t o = 1; o < rtso::TECH_COUNT; ++o)
+		if (rtso::tech_info(o).prerequisite == tid && (civ < 0 || rtso::tech_available_to_civ(o, (uint8_t)civ))) unlocks.push_back(tech_entry(o));
+	d["unlocks"] = unlocks;
+	Array units;
+	if (civ >= 0 && civ < rtso::CIV_COUNT)
+		for (uint16_t t : rtso::civ_roster_ids((uint8_t)civ))
+			if (rtso::civ_unit_template(t).unlock_tech == tid) units.push_back(unit_entry(t));
+	d["unlocks_units"] = units;
+	return d;
 }

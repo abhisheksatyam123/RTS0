@@ -2,6 +2,7 @@
 #define RTSO_SIM_TYPES_H
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -243,7 +244,9 @@ enum UnitType : uint8_t {
 	UNIT_ARCHER_MAIDEN = 20,
 	UNIT_CAMEL = 21,
 	UNIT_SCYTHED_CHARIOT = 22,
-	UNIT_TYPE_COUNT = 23,
+	UNIT_MINISTER = 23, // Han Imperial Minister (units/han/support_minister)
+	UNIT_CATAFALQUE = 24, // a relic (template_unit_catafalque)
+	UNIT_TYPE_COUNT = 25,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -342,7 +345,7 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
 	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
-	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): 4x a rock's gather rate
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -382,7 +385,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
 	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
-	ORDER_KIND_COUNT = 14
+	ORDER_CAPTURE_RELIC = 14, // target catafalque unit (UnitAI Attack with the Capture attack)
+	ORDER_KIND_COUNT = 15
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -411,15 +415,18 @@ struct UnitOrder {
 };
 static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 
-// 0 A.D. template_unit.xml UnitAI/FleeDistance and the 64 m search of
-// UnitAI FindNearbyResource / FindNearbyFoundation.
-inline constexpr float FLEE_DISTANCE = 12.0f;
-inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
+// 0 A.D. template_unit.xml UnitAI/FleeDistance (12 m) and the 64 m search of
+// UnitAI FindNearbyResource / FindNearbyFoundation, in RTS0 units (metres x 0.28).
+inline constexpr float FLEE_DISTANCE = 12.0f * 0.28f;
+inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
 // measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
 // MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
 inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
+// template_unit_catafalque.xml Capturable: CapturePoints 250, RegenRate 10 a second.
+inline constexpr int RELIC_CAPTURE_POINTS = 250;
+inline constexpr int RELIC_REGEN_RATE = 10;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
@@ -427,7 +434,7 @@ inline constexpr float HEAL_HP = 5.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
-inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
+inline constexpr float CHEER_NOTIFY_RANGE = 30.0f * 0.28f; // metres x 0.28
 // AlertRaiser.js per structure template: the classes it alerts (FemaleCitizen, or
 // Trader+!Ship for the market) and its ranges in RTS0 units (0 A.D. metres x 0.28;
 // a negative range reaches the whole map).
@@ -569,7 +576,9 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Mauryan Worker Elephant", "worker_elephant", "worker_elephant", 600.0f, 3.2f, 2.0f, 12.0f, 1.2f, 100, 6.0f, 4.0f, 6.0f, 20.0f, 180, 80, 0, 0, 2, 25.0f, 8.0f, 0.0f, 4.0f},
 		{"Mauryan Archer Maiden", "archer_maiden", "archer_maiden", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
 		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
-		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f}
+		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f},
+		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f},
+		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -600,6 +609,8 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_ARCHER_MAIDEN: return 0.50f;
 		case UNIT_CAMEL: return 0.90f;
 		case UNIT_SCYTHED_CHARIOT: return 1.35f;
+		case UNIT_MINISTER: return 0.50f;
+		case UNIT_CATAFALQUE: return 1.20f; // Footprint 5 x 12 m
 		default: return 0.55f;
 	}
 }
@@ -617,6 +628,7 @@ inline float unit_capture_strength(uint8_t type) {
 		case UNIT_ARCHER_MAIDEN: case UNIT_ELEPHANT: case UNIT_CARNYX:
 		case UNIT_WAR_DOG: return 2.5f;
 		case UNIT_HERO: return 10.0f;
+		case UNIT_MINISTER: return 8.0f; // units/han/support_minister Attack/Capture
 		default: return 0.0f;
 	}
 }
@@ -674,7 +686,7 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 }
 
 // 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
-// civilian ships are passive, so they flee when attacked.
+// civilian ships are passive, so they flee when attacked; stone and bolt throwers stand ground.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
 		case UNIT_FISHING_BOAT:
@@ -682,7 +694,13 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_TRADER:
 		case UNIT_FEMALE_CITIZEN:
 		case UNIT_HEALER:
+		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
+		case UNIT_CATAFALQUE:
+			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
+		case UNIT_CATAPULT: // template_unit_siege_stonethrower / _boltshooter
+		case UNIT_BOLT_SHOOTER:
+			return STANCE_STAND_GROUND;
 		default:
 			return STANCE_AGGRESSIVE;
 	}
@@ -722,9 +740,7 @@ struct BuildingTypeInfo {
 	int pop_bonus;
 	int garrison_cap;
 	float build_time;
-	float attack_range;
-	float attack_damage;
-	float attack_cooldown;
+	// Arrows: building_ai_info() (0 A.D. BuildingAI and Attack/Ranged).
 	// 0 A.D. Capturable.js / TerritoryDecay.js template values.
 	float capture_max_points;
 	float capture_regen_rate;
@@ -734,40 +750,40 @@ struct BuildingTypeInfo {
 
 inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	static const BuildingTypeInfo kTable[BLD_TYPE_COUNT] = {
-		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time, range, dmg, cd,
+		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time,
 		// capture max, regen, garrison regen, territory decay (Capturable from
 		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
 		// farmstead 300)
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 16.0f, 18.0f, 1.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 18.0f, 20.0f, 1.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 0.0f, 0.0f, 0.0f, 300.0f, 0.5f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 22.0f, 30.0f, 0.8f, 4000.0f, 10.0f, 1.0f, 40.0f},
-		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 0.0f, 0.0f, 0.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 16.0f, 15.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
 		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
-		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 16.0f, 12.0f, 1.2f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 0.0f, 0.0f, 0.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -876,6 +892,7 @@ enum TechStat : uint8_t {
 	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
 	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
+	TSTAT_TRADE_INTERNATIONAL, // Market/InternationalBonus of markets and docks
 	TSTAT_COUNT
 };
 
@@ -907,6 +924,7 @@ struct TechInfo {
 };
 
 #include "tech_data.h"
+#include "building_ai_data.h"
 
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {
@@ -947,6 +965,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CAMEL: return cs | TC_CAVALRY | TC_MELEE;
 		case UNIT_TRADER: return org | TC_TRADER | TC_CIVILIAN;
 		case UNIT_HEALER: return org | TC_HEALER | TC_CIVILIAN;
+		case UNIT_MINISTER: return org | TC_CIVILIAN | TC_MINISTER; // Support (Civilian) Minister
 		case UNIT_HERO: return org | TC_HERO | TC_SOLDIER | TC_INFANTRY | TC_MELEE; // template_unit_hero VisibleClasses: Soldier
 		case UNIT_ELEPHANT: return org | TC_SOLDIER | TC_ELEPHANT | TC_CHAMPION | TC_MELEE;
 		case UNIT_CHARIOT: return org | TC_SOLDIER | TC_CAVALRY | TC_CHARIOT | TC_RANGED | TC_CHAMPION;
@@ -1057,7 +1076,8 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
-	ROSTER_SIEGE_TOWER = 64
+	ROSTER_SIEGE_TOWER = 64,
+	ROSTER_RELIC = 128 // a catafalque (template_unit_catafalque): Capture the Relic
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -1244,6 +1264,67 @@ inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
 }
 
+// 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
+// workers (template_unit_support_female_citizen, and template_unit_support_civilian for RTS0's
+// villager, 0 A.D.'s male Civilian), citizen cavalry (template_unit_cavalry) and fishing ships
+// (template_unit_ship_fishing). Champions, heroes, siege and the Mauryan worker elephant
+// (a mobile dropsite) gather nothing.
+enum GatherClass : uint8_t { GATHER_NONE, GATHER_INFANTRY, GATHER_SUPPORT, GATHER_CAVALRY, GATHER_FISHING };
+
+inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER) return GATHER_SUPPORT;
+	if (unit_type == UNIT_FISHING_BOAT) return GATHER_FISHING;
+	const bool infantry = unit_type == UNIT_SWORDSMAN || unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER;
+	const bool cavalry = unit_type == UNIT_CAVALRY || unit_type == UNIT_CAMEL;
+	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
+		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
+		// template_unit_infantry too) gather.
+		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+	}
+	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// ResourceGatherer/Rates in units a second, by Simulation::GatherKind
+// (grain, fruit, meat, fish, wood, stone, metal); 0 = can't gather it.
+inline float gather_class_rate(uint8_t cls, uint8_t kind) {
+	static const float kRates[5][7] = {
+		{0, 0, 0, 0, 0, 0, 0},
+		{0.25f, 0.5f, 1.0f, 0, 0.75f, 0.5f, 0.5f}, // infantry
+		{0.5f, 1.0f, 1.0f, 0, 0.7f, 0.35f, 0.35f},  // support: female citizen, civilian
+		{0, 0, 5.0f, 0, 0, 0, 0},                   // cavalry: food.meat only
+		{0, 0, 0, 1.8f, 0, 0, 0},                   // fishing ship: food.fish only
+	};
+	return cls < 5 && kind < 7 ? kRates[cls][kind] : 0.0f;
+}
+
+// Rates for template_gaia_ruins supplies: wood.ruins 5, stone.ruins and metal.ruins 2, the
+// same for citizen infantry and women; cavalry and ships have none.
+inline float gather_class_ruins_rate(uint8_t cls, uint8_t res_type) {
+	if (cls != GATHER_INFANTRY && cls != GATHER_SUPPORT) return 0.0f;
+	return res_type == RES_WOOD ? 5.0f : (res_type == RES_STONE || res_type == RES_GOLD) ? 2.0f : 0.0f;
+}
+
+// ResourceGatherer/Capacities (the same for every type the class gathers).
+inline int32_t gather_class_capacity(uint8_t cls) {
+	switch (cls) {
+		case GATHER_INFANTRY: case GATHER_SUPPORT: return 10;
+		case GATHER_CAVALRY: return 20;
+		case GATHER_FISHING: return 40;
+		default: return 0;
+	}
+}
+
+// ResourceSupply/MaxGatherers from the gaia templates: trees and fruit 8 (template_gaia_tree,
+// _fruit), mines 12 and large mines 24 (template_gaia_ore/_rock and their _large), fish 4,
+// fields 5, carcasses 8 unless their animal says otherwise.
+inline uint8_t resource_default_max_gatherers(uint8_t type, uint8_t subtype, int32_t amount) {
+	if (subtype == RES_SUB_FISH) return FISH_MAX_GATHERERS;
+	if (subtype == RES_SUB_GRAIN) return 5; // FIELD_MAX_GATHERERS
+	if (type == RES_GOLD || type == RES_STONE) return amount >= 5000 ? 24 : 12;
+	return 8;
+}
+
 inline const CivHeroAura &civ_hero_aura(int16_t idx) {
 	const CivHeroAura *a = civ_hero_aura_table();
 	return a[(idx >= 0 && idx < CIV_HERO_AURA_COUNT) ? idx : 0];
@@ -1258,6 +1339,22 @@ inline uint16_t civ_roster_begin(uint8_t civ) {
 inline uint16_t civ_roster_end(uint8_t civ) {
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
 	return civ_roster_offsets()[civ + 1];
+}
+
+// Every trainable row of a civ: its block [civ_roster_begin, civ_roster_end) and the
+// rows added after the promotion-only ones (template ids, which saves and replays
+// store, never move; tools/extract_0ad_rosters.py keep_previous_ids).
+inline const std::vector<uint16_t> &civ_roster_ids(uint8_t civ) {
+	static const auto kIds = [] {
+		std::array<std::vector<uint16_t>, CIV_COUNT> ids;
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) ids[c].push_back(i);
+			for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (civ_unit_template(i).civ == c && civ_unit_template(i).trainers) ids[c].push_back(i);
+		}
+		return ids;
+	}();
+	return kIds[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
 }
 
 // The civ's standard unit for an RTS0 class: the citizen-soldier or support
@@ -1275,7 +1372,7 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				uint16_t best = CIV_UNIT_TEMPLATE_NONE;
 				int best_score = 1 << 30;
-				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
+				for (uint16_t i : civ_roster_ids(c)) {
 					const CivUnitTemplate &u = civ_unit_template(i);
 					// Siege towers share the bolt shooter's class but are only trained by name;
 					// units only reached by promotion (no trainer) are never trained.
@@ -1342,6 +1439,13 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 	}();
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return table.info[tmpl];
 	return unit_type_info(type);
+}
+
+// The civ's catafalque (units/{civ}/catafalque), or CIV_UNIT_TEMPLATE_NONE.
+inline uint16_t civ_catafalque_template(uint8_t civ) {
+	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+		if ((civ_unit_template(i).flags & ROSTER_RELIC) && civ_unit_template(i).civ == civ) return i;
+	return CIV_UNIT_TEMPLATE_NONE;
 }
 
 // Stats of the unit a civ fields for an RTS0 class (its default template).
@@ -1416,6 +1520,8 @@ inline LootInfo unit_class_loot(uint8_t type) {
 		{150, 8, 6, 0, 8},    // ARCHER_MAIDEN: champion_infantry_archer
 		{130, 10, 5, 0, 0},   // CAMEL: template_unit_cavalry
 		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
+		{150, 10, 0, 0, 10},  // MINISTER: units/han/support_minister
+		{0, 0, 0, 0, 0},      // CATAFALQUE: no Loot
 	};
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }
@@ -1569,7 +1675,7 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 	static const CivTrainMasks masks = [] {
 		CivTrainMasks out{};
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
-			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i)
+			for (uint16_t i : civ_roster_ids(c))
 				if (!(civ_unit_template(i).flags & ROSTER_SIEGE_TOWER))
 					out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
 		return out;
@@ -1600,53 +1706,56 @@ struct CivInfo {
 	float metal_gather_mult; // Athenian "Silver Owls"
 	float trade_gain_mult; // land traders: Persian "Darics" (units/pers/support_trader GainMultiplier)
 	float ship_trade_gain_mult; // merchant ships: Carthaginian (units/cart/ship_merchant GainMultiplier)
+	// Added to the Market/InternationalBonus of the civ's markets and docks:
+	// Carthaginian "Desirable Products" (structures/cart/{market,dock}.xml op="add" 0.1).
+	float international_bonus_add;
 };
 
 inline const CivInfo &civ_info(uint8_t civ) {
 	static const CivInfo kTable[CIV_COUNT] = {
-		// civ, code, name, emblem, desc, metal_mult, trader gain mult, merchant ship gain mult
+		// civ, code, name, emblem, desc, metal_mult, trader gain mult, merchant ship gain mult, international bonus add
 		{CIV_ATHENIANS, "athen", "Athenians", "res://assets/textures/ui/emblems/athenians.png",
 		 civ_bonus_text(CIV_ATHENIANS),
-		 1.10f, 1.0f, 1.0f},
+		 1.10f, 1.0f, 1.0f, 0.0f},
 		{CIV_SPARTANS, "spart", "Spartans", "res://assets/textures/ui/emblems/spartans.png",
 		 civ_bonus_text(CIV_SPARTANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_PERSIANS, "pers", "Persians", "res://assets/textures/ui/emblems/persians.png",
 		 civ_bonus_text(CIV_PERSIANS),
-		 1.0f, 1.25f, 1.0f},
+		 1.0f, 1.25f, 1.0f, 0.0f},
 		{CIV_ROMANS, "rome", "Romans", "res://assets/textures/ui/emblems/romans.png",
 		 civ_bonus_text(CIV_ROMANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
 		 civ_bonus_text(CIV_CARTHAGINIANS),
-		 1.0f, 1.0f, 1.25f},
+		 1.0f, 1.0f, 1.25f, 0.1f},
 		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
 		 civ_bonus_text(CIV_MACEDONIANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/britons.png",
 		 civ_bonus_text(CIV_BRITONS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/gauls.png",
 		 civ_bonus_text(CIV_GAULS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/iberians.png",
 		 civ_bonus_text(CIV_IBERIANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/mauryans.png",
 		 civ_bonus_text(CIV_MAURYANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/kushites.png",
 		 civ_bonus_text(CIV_KUSHITES),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/ptolemies.png",
 		 civ_bonus_text(CIV_PTOLEMIES),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
 		 civ_bonus_text(CIV_SELEUCIDS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
 		 civ_bonus_text(CIV_HAN),
-		 1.0f, 1.0f, 1.0f}
+		 1.0f, 1.0f, 1.0f, 0.0f}
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];

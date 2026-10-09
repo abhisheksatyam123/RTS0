@@ -220,12 +220,14 @@ int main() {
 			s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 1, 1.0f);   // enemy tower
 			uint32_t sp = s.spawn_unit(8.0f, 0.0f, 0, UNIT_SPEARMAN, 400.0f); // under its arrows
 			uint32_t healer = s.spawn_unit(22.0f, 0.0f, 0, UNIT_HEALER);
+			s.order_set_stance(&healer, 1, STANCE_STAND_GROUND); // heals only whom its range reaches
 			s.cmd_stop(&healer, 1);
 			s.cmd_stop(&sp, 1);
-			run(s, 10.0f);
+			s.order_set_stance(&sp, 1, STANCE_STAND_GROUND); // stays put rather than charging the tower
+			run(s, 30.0f); // long enough that healing outweighs which arrows happen to land
 			hp_left[with] = unit_hp(s, sp);
 		}
-		std::printf("spearman hp after 10 s under fire: %.0f healed, %.0f not\n", hp_left[1], hp_left[0]);
+		std::printf("spearman hp after 30 s under fire: %.0f healed, %.0f not\n", hp_left[1], hp_left[0]);
 		CHECK(hp_left[0] >= 0.0f && hp_left[1] > hp_left[0]);
 	}
 
@@ -367,6 +369,8 @@ int main() {
 			}
 			uint32_t foe = s.spawn_unit(-12.0f, -30.0f, 1, UNIT_SWORDSMAN, 4000.0f);
 			s.cmd_stop(&foe, 1);
+			// Stays out of the tower's MinRange rather than walking up to hack at it.
+			s.order_set_stance(&foe, 1, STANCE_STAND_GROUND);
 			float hp0 = unit_hp(s, foe);
 			run(s, 12.0f);
 			dmg[with] = hp0 - unit_hp(s, foe);
@@ -473,8 +477,8 @@ int main() {
 	run(b, tech_info(TECH_FARMING_1).research_time + 1.0f);
 	CHECK(a.is_tech_researched(TECH_FARMING_1) && !b.is_tech_researched(TECH_FARMING_1));
 	CHECK(tm.compute_sim_hash(a) != tm.compute_sim_hash(b));
-	int with = farm_for(a, 40.0f), without = farm_for(b, 40.0f);
-	std::printf("food in 40 s: %d with Iron Plow, %d without\n", with, without);
+	int with = farm_for(a, 150.0f), without = farm_for(b, 150.0f);
+	std::printf("food in 150 s: %d with Iron Plow, %d without\n", with, without);
 	CHECK(without > 0 && with > without);
 
 	// Lockstep: identical research on two sims keeps them in sync.
