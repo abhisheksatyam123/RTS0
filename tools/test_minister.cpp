@@ -11,6 +11,7 @@
 #include "simulation/simulation.h"
 #undef private
 #include "network/turn_manager.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -62,6 +63,12 @@ int main() {
 		CHECK(near(ct.hp, 200.0f));
 		CHECK((ct.tech_classes & TC_MINISTER) && !(ct.tech_classes & TC_SOLDIER));
 		CHECK(unit_default_stance(UNIT_MINISTER) == STANCE_PASSIVE);
+		// Added after the promotion-only rows so no saved template id moved, and still
+		// part of the Han roster.
+		CHECK(mt >= CIV_ROSTER_PROMOTION_ONLY_FIRST);
+		const auto &han = civ_roster_ids(CIV_HAN);
+		CHECK(std::find(han.begin(), han.end(), mt) != han.end());
+		CHECK(han.front() == civ_roster_begin(CIV_HAN));
 	}
 
 	static Simulation s;

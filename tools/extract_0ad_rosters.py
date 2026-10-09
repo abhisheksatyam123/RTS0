@@ -824,6 +824,27 @@ def rts0_aura_effect(a):
     return best[0], best[1], rng
 
 
+RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
+
+
+def keep_previous_ids(rows):
+    """Saves, replays and lockstep commands store roster template ids, so rows the
+    previous civ_roster_data.h had keep their ids; new rows go after all of them
+    (a new trainable row lands after the promotion-only ones; civ_roster_ids()
+    in sim_types.h adds it to its civ)."""
+    if RENUMBER or not os.path.exists(OUT_HEADER):
+        return rows
+    with open(OUT_HEADER, encoding="utf-8") as fh:
+        prev = re.findall(r'^\t\t\{"([^"]+)", "[^"]*", "[^"]*", CIV_[A-Z]+, UNIT_', fh.read(), re.M)
+    by_id = {r["id"]: r for r in rows}
+    gone = [i for i in prev if i not in by_id]
+    if gone:
+        sys.exit("roster rows gone from 0 A.D. (%s): re-run with --renumber and bump the save version"
+                 % ", ".join(gone))
+    seen = set(prev)
+    return [by_id[i] for i in prev] + [r for r in rows if r["id"] not in seen]
+
+
 def collect(sim_root):
     loader = TemplateLoader(sim_root)
     civ_json = {}
@@ -984,6 +1005,7 @@ def collect(sim_root):
     # Units only reached by promotion (no trainer) go after every civ's block, so
     # the template ids of trainable rows, which saves store, stay where they were.
     rows = [r for r in rows if r["trainers"]] + [r for r in rows if not r["trainers"]]
+    rows = keep_previous_ids(rows)
     # Which roster units each aura affects (0 A.D. "affects" class lists).
     for a in auras:
         a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
@@ -1131,8 +1153,11 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("// [first, last) rows of civ_unit_template_table() for each civ. Rows from")
     w("// CIV_ROSTER_PROMOTION_ONLY_FIRST on are units no structure trains, reached only by")
     w("// promotion (0 A.D. Promotion/Entity), after every civ's block so that adding one")
-    w("// never moves a trainable row's template id.")
-    trainable = sum(1 for r in rows if r["trainers"])
+    w("// never moves a trainable row's template id. Trainable rows added later follow them")
+    w("// (template ids never move); civ_roster_ids() gives a civ's block and its added rows.")
+    trainable = next((i for i, r in enumerate(rows) if not r["trainers"]), len(rows))
+    for i in range(1, trainable):
+        assert CIVS.index(rows[i]["civ"]) >= CIVS.index(rows[i - 1]["civ"]), "civ blocks out of order"
     w("inline constexpr uint16_t CIV_ROSTER_PROMOTION_ONLY_FIRST = %d;" % trainable)
     w("inline const uint16_t *civ_roster_offsets() {")
     offs = []
@@ -1310,7 +1335,11 @@ def main():
     ap.add_argument("--0ad", dest="zad", required=True, help="0 A.D. source checkout")
     ap.add_argument("--check", action="store_true", help="fail if outputs are stale")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--renumber", action="store_true",
+                    help="lay the rows out afresh instead of keeping civ_roster_data.h's template ids")
     args = ap.parse_args()
+    global RENUMBER
+    RENUMBER = args.renumber
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
     rows, auras, skipped, civ_json, bonuses, team = collect(sim_root)
     header = emit_header(rows, auras, civ_json, bonuses, team)

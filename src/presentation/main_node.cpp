@@ -3220,7 +3220,7 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		roster_list->set_visible(roster_list->get_item_count() > 0);
 		return;
 	}
-	for (uint16_t i = rtso::civ_roster_begin(civ); i < rtso::civ_roster_end(civ); ++i) {
+	for (uint16_t i : rtso::civ_roster_ids(civ)) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
 		float cost[rtso::RES_COUNT];

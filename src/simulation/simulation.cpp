@@ -1593,7 +1593,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
 		const uint8_t civ = civ_of(b.team);
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
-		for (uint16_t i = civ_roster_begin(civ); i < civ_roster_end(civ); ++i) {
+		for (uint16_t i : civ_roster_ids(civ)) {
 			const CivUnitTemplate &u = civ_unit_template(i);
 			if (u.unit_type != (uint8_t)u_type || (u.flags & ROSTER_SIEGE_TOWER) || !(u.trainers & bld_bit(b.type))) continue;
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
@@ -9330,7 +9330,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	// temple for heroes).
 	const uint8_t ai_civ = petra_ps().civ;
 	uint64_t trainer_types = 0;
-	for (uint16_t k = civ_roster_begin(ai_civ); k < civ_roster_end(ai_civ); ++k)
+	for (uint16_t k : civ_roster_ids(ai_civ))
 		trainer_types |= civ_unit_template(k).trainers;
 	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
@@ -9480,7 +9480,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		uint32_t bld_id;
 	};
 	std::vector<Option> options;
-	for (uint16_t tmpl = civ_roster_begin(ai_civ); tmpl < civ_roster_end(ai_civ); ++tmpl) {
+	for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.phase > phase) continue;
 		float score;

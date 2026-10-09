@@ -2,6 +2,7 @@
 #define RTSO_SIM_TYPES_H
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -1224,6 +1225,22 @@ inline uint16_t civ_roster_end(uint8_t civ) {
 	return civ_roster_offsets()[civ + 1];
 }
 
+// Every trainable row of a civ: its block [civ_roster_begin, civ_roster_end) and the
+// rows added after the promotion-only ones (template ids, which saves and replays
+// store, never move; tools/extract_0ad_rosters.py keep_previous_ids).
+inline const std::vector<uint16_t> &civ_roster_ids(uint8_t civ) {
+	static const auto kIds = [] {
+		std::array<std::vector<uint16_t>, CIV_COUNT> ids;
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) ids[c].push_back(i);
+			for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (civ_unit_template(i).civ == c && civ_unit_template(i).trainers) ids[c].push_back(i);
+		}
+		return ids;
+	}();
+	return kIds[civ < CIV_COUNT ? civ : CIV_ATHENIANS];
+}
+
 // The civ's standard unit for an RTS0 class: the citizen-soldier or support
 // unit a generic "train a spearman" request should produce. Prefers non-hero,
 // non-champion units with the earliest phase. CIV_UNIT_TEMPLATE_NONE if the
@@ -1239,7 +1256,7 @@ inline uint16_t civ_default_template(uint8_t civ, uint8_t type) {
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				uint16_t best = CIV_UNIT_TEMPLATE_NONE;
 				int best_score = 1 << 30;
-				for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i) {
+				for (uint16_t i : civ_roster_ids(c)) {
 					const CivUnitTemplate &u = civ_unit_template(i);
 					// Siege towers share the bolt shooter's class but are only trained by name;
 					// units only reached by promotion (no trainer) are never trained.
@@ -1534,7 +1551,7 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 	static const CivTrainMasks masks = [] {
 		CivTrainMasks out{};
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
-			for (uint16_t i = civ_roster_begin(c); i < civ_roster_end(c); ++i)
+			for (uint16_t i : civ_roster_ids(c))
 				if (!(civ_unit_template(i).flags & ROSTER_SIEGE_TOWER))
 					out.mask[c] |= unit_bit(civ_unit_template(i).unit_type);
 		return out;

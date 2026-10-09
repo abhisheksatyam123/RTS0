@@ -393,13 +393,13 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_female_citizen
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_female_citizen_house
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_healer_b
-		{{1, {{0, 0x10, 0x04}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_minister
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_trader
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/rts0_villager
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // spart/champion_infantry_spear_olympian
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/cavalry_auxiliary_b
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // rome/infantry_antesignanus
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // mace/champion_infantry_spearman_02
+		{{1, {{0, 0x10, 0x04}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x11}, // han/support_minister
 	};
 	return kTable;
 }

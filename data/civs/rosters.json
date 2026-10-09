@@ -689,9 +689,9 @@
     "han/support_female_citizen",
     "han/support_female_citizen_house",
     "han/support_healer_b",
-    "han/support_minister",
     "han/support_trader",
-    "han/rts0_villager"
+    "han/rts0_villager",
+    "han/support_minister"
    ],
    "auto_bonuses": [
     {
@@ -19745,57 +19745,6 @@
    }
   },
   {
-   "id": "han/support_minister",
-   "civ": "han",
-   "class": "UNIT_MINISTER",
-   "name": "Imperial Minister",
-   "specific_name": "Guānlì",
-   "phase": 2,
-   "trainers": [
-    "BLD_MINISTRY"
-   ],
-   "trained_at_0ad": [
-    "ministry"
-   ],
-   "flags": [],
-   "unlock_tech": "TECH_NONE",
-   "auras": [
-    66,
-    67,
-    65,
-    68
-   ],
-   "civ_bonuses": [],
-   "classes": [
-    "ConquestCritical",
-    "Human",
-    "Minister",
-    "Organic",
-    "Support",
-    "Unit"
-   ],
-   "stats": {
-    "hp": 200.0,
-    "cooldown": 1.0,
-    "hack_dmg": 10.0,
-    "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
-    "hack_armor": 2.0,
-    "pierce_armor": 4.0,
-    "crush_armor": 6.0,
-    "food": 100,
-    "wood": 0,
-    "gold": 100,
-    "stone": 0,
-    "train_time": 15.0,
-    "pop": 1,
-    "speed": 3.2039999999999997,
-    "damage": 10.0,
-    "range": 1.7999999999999998,
-    "carry": 0
-   }
-  },
-  {
    "id": "han/support_trader",
    "civ": "han",
    "class": "UNIT_TRADER",
@@ -20078,6 +20027,57 @@
     "speed": 3.2039999999999997,
     "damage": 12.100000000000001,
     "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/support_minister",
+   "civ": "han",
+   "class": "UNIT_MINISTER",
+   "name": "Imperial Minister",
+   "specific_name": "Guānlì",
+   "phase": 2,
+   "trainers": [
+    "BLD_MINISTRY"
+   ],
+   "trained_at_0ad": [
+    "ministry"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    66,
+    67,
+    65,
+    68
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Human",
+    "Minister",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 1.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 2.0,
+    "pierce_armor": 4.0,
+    "crush_armor": 6.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 100,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "damage": 10.0,
+    "range": 1.7999999999999998,
     "carry": 0
    }
   }
