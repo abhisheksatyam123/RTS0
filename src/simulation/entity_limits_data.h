@@ -520,6 +520,20 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // rome/infantry_antesignanus
 	{LIMIT_NONE, 0}, // mace/champion_infantry_spearman_02
 	{LIMIT_MINISTER, 0}, // han/support_minister
+	{LIMIT_NONE, 0}, // athen/catafalque
+	{LIMIT_NONE, 0}, // spart/catafalque
+	{LIMIT_NONE, 0}, // pers/catafalque
+	{LIMIT_NONE, 0}, // rome/catafalque
+	{LIMIT_NONE, 0}, // cart/catafalque
+	{LIMIT_NONE, 0}, // mace/catafalque
+	{LIMIT_NONE, 0}, // brit/catafalque
+	{LIMIT_NONE, 0}, // gaul/catafalque
+	{LIMIT_NONE, 0}, // iber/catafalque
+	{LIMIT_NONE, 0}, // maur/catafalque
+	{LIMIT_NONE, 0}, // kush/catafalque
+	{LIMIT_NONE, 0}, // ptol/catafalque
+	{LIMIT_NONE, 0}, // sele/catafalque
+	{LIMIT_NONE, 0}, // han/catafalque
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
@@ -550,6 +564,7 @@ inline constexpr uint8_t UNIT_TYPE_LIMIT_CATEGORY[UNIT_TYPE_COUNT] = {
 	LIMIT_NONE, // UNIT_CAMEL
 	LIMIT_NONE, // UNIT_SCYTHED_CHARIOT
 	LIMIT_MINISTER, // UNIT_MINISTER
+	LIMIT_NONE, // UNIT_CATAFALQUE
 };
 
 // BuildRestrictions/Category per BuildingType.
