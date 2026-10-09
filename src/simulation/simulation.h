@@ -758,7 +758,15 @@ public:
 	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
 	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
-	int heroes_of(uint8_t player_id) const; // alive or queued (EntityLimits Hero: 1)
+	// 0 A.D. EntityLimits (entity_limits_data.h): a player's entities of a limit
+	// category, alive or queued, foundations included; its limit with the
+	// LimitChangers it owns, or -1 while a LimitRemover lifts it (or there is none).
+	int entity_limit_count(uint8_t player_id, uint8_t category) const;
+	int entity_limit(uint8_t player_id, uint8_t category) const;
+	// AllowedToTrain / AllowedToBuild: room for `count` more of the unit (roster
+	// row `tmpl`, else the class) or of the structure.
+	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
+	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
@@ -1182,7 +1190,6 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
 	void tick_gates(float dt);
 	void tick_waves(float dt);
@@ -1363,7 +1370,7 @@ private:
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
 	float upkeep_timer_ = 0.0f; // unused since soldier upkeep was removed (no 0 A.D. template has Upkeep); kept for the save layout
-	float entity_limits_timer_ = 0.0f;
+	float entity_limits_timer_ = 0.0f; // unused since EntityLimits checks creation; kept for the save format
 	float gate_timer_ = 0.0f;
 	static constexpr size_t MAX_RECENT_DEATHS = 64;
 	std::array<RecentDeath, MAX_RECENT_DEATHS> recent_deaths_{};
