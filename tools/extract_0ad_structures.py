@@ -83,6 +83,11 @@ TEMPLATES = {
     "gate": ("wall_gate",),
     "wall_segment": ("wall_long",),
     "palisade": ("palisades_long",),
+    # WallSet segments (Simulation::cmd_build_wall), drawn by Building::half_size.
+    "wall_short": ("wall_short",),
+    "wall_medium": ("wall_medium",),
+    "wall_long": ("wall_long",),
+    "wall_gate": ("wall_gate",),
 }
 CIV_BUILDING_DATA = os.path.join(REPO, "src", "simulation", "civ_building_data.h")
 
@@ -112,7 +117,10 @@ UNIQUE_FIT = {"pillar": ("width", 1.4), "monument": ("width", 1.6)}
 # Generic models with no GLB yet: model id -> template under structures/.
 GENERIC = {"palisade": "palisades_long"}
 # Fit for ids extract_0ad_assets.py never sized (width in model units).
-EXTRA_FIT = {"palisade": ("width", 3.0)}
+EXTRA_FIT = {"palisade": ("width", 3.0),
+             # 1 RTS0 unit = 4 m: WallSet segments keep 0 A.D.'s 12, 24 and 36 m.
+             "wall_short": ("scale", 0.25), "wall_medium": ("scale", 0.25), "wall_long": ("scale", 0.25),
+             "wall_gate": ("scale", 0.25)}
 
 
 def template_actor(tdir, name):
@@ -318,8 +326,15 @@ def convert(art, model_id, actor, fit, target, masks, tex_cache):
     pos = np.array([p for part in parts for p in part.pos])
     lo, hi = pos.min(axis=0), pos.max(axis=0)
     dim = hi - lo
-    scale = target / max(dim[0], dim[2], 1e-6) if fit == "width" else target / max(dim[1], 1e-6)
-    centre = np.array([(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2])
+    if fit == "scale":
+        scale = target
+    elif fit == "width":
+        scale = target / max(dim[0], dim[2], 1e-6)
+    else:
+        scale = target / max(dim[1], 1e-6)
+    # Walls keep 0 A.D.'s ground plane: their foundations reach below it and the
+    # terrain hides them, as in 0 A.D. Everything else stands on its lowest vertex.
+    centre = np.array([(lo[0] + hi[0]) / 2, 0.0 if fit == "scale" else lo[1], (lo[2] + hi[2]) / 2])
 
     glb = GlbBuilder()
     mask_rows = {}
@@ -393,9 +408,11 @@ def main():
                     continue
                 cid = f"{civ}_{mid}"
                 generic = ASSETS.get(mid, ("",))[0] == "art/actors/" + actor
-                if not generic and not os.path.exists(os.path.join(OUT_DIR, cid + ".glb")):
+                # The Han batch's han_wall_<length>.glb are sized for one cell, not the WallSet.
+                if not generic and (mid.startswith("wall_") and mid != "wall_segment"
+                                    or not os.path.exists(os.path.join(OUT_DIR, cid + ".glb"))):
                     gid = "s_" + os.path.splitext(actor)[0].replace("structures/", "").replace("/", "_")
-                    if mid in EXTRA_FIT or ASSETS[mid][1:3] != ASSETS[jobs.get(gid, (None, mid))[1]][1:3]:
+                    if mid == "palisade" or fit_of(mid) != fit_of(jobs.get(gid, (None, mid))[1]):
                         gid += "_" + mid
                     jobs.setdefault(gid, (actor, mid))
                     aliases[cid] = gid
