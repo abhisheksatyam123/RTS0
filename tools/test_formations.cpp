@@ -12,10 +12,15 @@
 //  3. The formation command forms units up in place; too few or the wrong units don't form.
 //  4. A formation walks as one: at its slowest member's pace, in column for long walks,
 //     in its own shape at the goal.
-//  5. Attack-walk: the formation halts while its members fight, then walks on.
+//  5. Attack-walk: the formation halts while its members fight (MEMBER), then walks on.
 //  6. One unit ordered alone leaves; the null formation disbands; deaths below the minimum disband.
 //  7. Save/load mid-walk keeps the controllers and the hash.
 //  8. Lockstep command 8 forms up the sender's own units only.
+//  9. Twin formations (one command, two clusters) merge when they meet.
+// 10. Attack: the formation walks into range in formation, the members fight, then re-form.
+// 11. Patrol: walk-and-fight to the point, wait 2 s, walk back.
+// 12. Guard: the members guard and the formation disbands.
+// 13. Save/load mid-approach keeps the attack order.
 //  Exit: 0 = PASS, 1 = FAIL.
 #define private public
 #include "simulation/simulation.h"
@@ -291,7 +296,8 @@ static void test_attack_walk() {
 	int fighting = 0;
 	for (uint32_t id : inf) fighting += s.units_.action_state[idx_of(s, id)] == ACTION_ATTACK;
 	check(fighting > 0 && cx < 8.0f, "it stops at the enemy and fights");
-	check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_ATTACK_WALK, "still attack-walking while it fights");
+	check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_MEMBER &&
+			ctrl(s, fid)->returning == Simulation::FORDER_ATTACK_WALK, "it waits for its fighters, then attack-walks again (MEMBER)");
 	for (uint32_t id : foes) {
 		const int i = idx_of(s, id);
 		s.units_.hp[i] = 0.0f;
@@ -369,6 +375,146 @@ static void test_lockstep() {
 	check(form_of(s, theirs[0]) == FORMATION_NONE, "and not another player's");
 }
 
+static void test_twins() {
+	std::printf("9. twin formations\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto a = spawn_block(s, 8, -40, -20, 0, UNIT_SWORDSMAN);
+	auto b = spawn_block(s, 8, -40, 18, 0, UNIT_SWORDSMAN);
+	std::vector<uint32_t> all = a;
+	all.insert(all.end(), b.begin(), b.end());
+	s.order_set_formation(all.data(), all.size(), FORMATION_BOX);
+	check(s.formations().size() == 2, "two clusters farther apart than 60 m make two formations");
+	check(s.formations()[0].twins.size() == 1 && s.formations()[1].twins.size() == 1, "registered as twins");
+	run(s, 3.0f);
+	s.cmd_move(all.data(), all.size(), 30.0f, 0.0f);
+	check(s.formations().size() == 2, "the walk keeps both until they meet");
+	run(s, 25.0f);
+	check(s.formations().size() == 1 && s.formations()[0].members.size() == 16, "they merge into one formation of 16");
+	check(form_of(s, b[0]) == FORMATION_BOX && s.formation_of_unit(b[0]) == s.formation_of_unit(a[0]),
+			"the twin's members joined it");
+}
+
+static void test_attack() {
+	std::printf("10. formation attack\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SWORDSMAN);
+	s.order_set_stance(inf.data(), inf.size(), STANCE_AGGRESSIVE);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 3.0f);
+	uint32_t foe = s.spawn_unit(10.0f, 0.0f, 1, UNIT_SPEARMAN, 1.0e6f);
+	s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+	s.order_attack(inf.data(), inf.size(), foe);
+	const uint32_t fid = s.formations()[0].id;
+	check(ctrl(s, fid)->order == Simulation::FORDER_APPROACH && ctrl(s, fid)->target_unit == foe,
+			"out of range, the formation approaches (COMBAT.APPROACHING)");
+	run(s, 2.0f);
+	check(ctrl(s, fid)->order == Simulation::FORDER_APPROACH && max_slot_error(s, *ctrl(s, fid)) < 2.5f,
+			"it walks there in formation");
+	run(s, 12.0f);
+	int fighting = 0;
+	for (uint32_t id : inf) {
+		const int i = idx_of(s, id);
+		fighting += s.units_.action_state[i] == ACTION_ATTACK && s.units_.target_unit_id[i] == foe;
+	}
+	check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_MEMBER && fighting == 8,
+			"in range, every member attacks the target (MEMBER)");
+	const int fi = idx_of(s, foe);
+	s.units_.hp[fi] = 0.0f;
+	s.units_.alive[fi] = 0;
+	s.units_.action_state[fi] = ACTION_DYING;
+	run(s, 6.0f);
+	check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_IDLE && ctrl(s, fid)->members.size() == 8,
+			"once they are done the formation goes idle with all 8");
+	check(ctrl(s, fid) && max_slot_error(s, *ctrl(s, fid)) < 1.0f, "and the members re-form");
+
+	// A structure: the members go for it once the formation is in range.
+	Simulation t;
+	setup(t, CIV_ATHENIANS);
+	auto sq = spawn_block(t, 8, 20, 30, 0, UNIT_SWORDSMAN);
+	t.order_set_formation(sq.data(), sq.size(), FORMATION_BOX);
+	run(t, 3.0f);
+	uint32_t tc = 0;
+	for (const auto &b : t.buildings()) if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = b.id;
+	t.order_attack_building(sq.data(), sq.size(), tc);
+	const uint32_t tfid = t.formations()[0].id;
+	check(ctrl(t, tfid)->order == Simulation::FORDER_APPROACH && ctrl(t, tfid)->target_building == tc,
+			"a structure out of range: the formation approaches it");
+	run(t, 15.0f);
+	int on_it = 0;
+	for (uint32_t id : sq) on_it += t.units_.target_building_id[idx_of(t, id)] == tc;
+	check(ctrl(t, tfid) && ctrl(t, tfid)->order == Simulation::FORDER_MEMBER && on_it == 8,
+			"in range, the members attack the structure");
+}
+
+static void test_patrol() {
+	std::printf("11. formation patrol\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -20, 0, 0, UNIT_SWORDSMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 3.0f);
+	s.order_patrol(inf.data(), inf.size(), 20.0f, 0.0f);
+	const uint32_t fid = s.formations()[0].id;
+	check(ctrl(s, fid)->order == Simulation::FORDER_PATROL, "the formation patrols (PATROL.PATROLLING)");
+	float cx, cz;
+	bool waited = false, reached = false;
+	for (int k = 0; k < 400 && !waited; ++k) {
+		run(s, 0.1f);
+		waited = ctrl(s, fid)->order == Simulation::FORDER_PATROL_WAIT;
+	}
+	centroid(s, inf, cx, cz);
+	reached = cx > 16.0f;
+	check(waited && reached, "it reaches the far end and surveys it (CHECKINGWAYPOINT)");
+	run(s, 1.5f);
+	check(ctrl(s, fid)->order == Simulation::FORDER_PATROL_WAIT, "for PatrolWaitTime");
+	run(s, 2.0f);
+	check(ctrl(s, fid)->order == Simulation::FORDER_PATROL && ctrl(s, fid)->goal_x < -15.0f, "then patrols back");
+	waited = false;
+	for (int k = 0; k < 400 && !waited; ++k) {
+		run(s, 0.1f);
+		waited = ctrl(s, fid)->order == Simulation::FORDER_PATROL_WAIT;
+	}
+	centroid(s, inf, cx, cz);
+	check(waited && cx < -12.0f && s.formations().size() == 1, "and comes back to the start, still in formation");
+}
+
+static void test_guard() {
+	std::printf("12. formation guard\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -20, 0, 0, UNIT_SWORDSMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	uint32_t vip = s.spawn_unit(-10.0f, 10.0f, 0, UNIT_ARCHER, 0.0f);
+	s.order_guard(inf.data(), inf.size(), vip);
+	check(s.formations().empty() && form_of(s, inf[0]) == FORMATION_NONE, "the formation disbands");
+	check(s.units_.action_state[idx_of(s, inf[0])] == ACTION_GUARD, "and its members guard");
+}
+
+static void test_save_attack(const char *path) {
+	std::printf("13. save/load mid-approach\n");
+	Simulation a;
+	setup(a, CIV_ATHENIANS);
+	auto inf = spawn_block(a, 8, -30, 0, 0, UNIT_SWORDSMAN);
+	a.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(a, 3.0f);
+	uint32_t foe = a.spawn_unit(15.0f, 5.0f, 1, UNIT_SPEARMAN, 1.0e6f);
+	a.order_set_stance(&foe, 1, STANCE_PASSIVE);
+	a.order_attack(inf.data(), inf.size(), foe);
+	run(a, 3.0f);
+	check(a.save_state(path), "saved");
+	Simulation b;
+	check(b.load_state(path), "loaded");
+	check(b.formations().size() == 1 && b.formations()[0].order == Simulation::FORDER_APPROACH &&
+			b.formations()[0].target_unit == foe, "the approach and its target come back");
+	run(a, 12.0f);
+	run(b, 12.0f);
+	bool same = a.formations()[0].order == b.formations()[0].order;
+	for (uint32_t id : inf) same = same && x_of(a, id) == x_of(b, id) && z_of(a, id) == z_of(b, id);
+	check(same, "both runs fight the same afterwards");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_formations.sav";
 	test_templates();
@@ -379,6 +525,11 @@ int main(int argc, char **argv) {
 	test_leave();
 	test_save_load(save.c_str());
 	test_lockstep();
+	test_twins();
+	test_attack();
+	test_patrol();
+	test_guard();
+	test_save_attack(save.c_str());
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;

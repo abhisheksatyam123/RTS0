@@ -161,7 +161,6 @@ TRAINER_BUILDING = {
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
     "practice_range": "BLD_RANGE",
     "temple_mars": "BLD_TEMPLE", "temple_vesta": "BLD_TEMPLE", "tophet": "BLD_TEMPLE",
-    "super_dock": "BLD_DOCK",
 }
 # Civ-specific 0 A.D. structures RTS0 models as their own BuildingType
 # (appended after BLD_EMBASSY): enum, 0 A.D. file stems, model id, portrait id.
@@ -192,6 +191,7 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
     ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
+    ("BLD_SUPER_DOCK", ["super_dock"], "dock", "super_dock"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -810,7 +810,9 @@ def load_team_bonuses(sim_root, rows):
 
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
-AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4}
+AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
+             "AURA_HEALTH": 5, "AURA_VISION": 6}
+MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
 
@@ -842,6 +844,10 @@ def rts0_aura_effect(a):
             kind, value = "AURA_ATTACK", 1.0 / m["multiply"]
         elif v == "UnitMotion/WalkSpeed" and "multiply" in m:
             kind, value = "AURA_SPEED", m["multiply"]
+        elif v == "Health/Max" and "multiply" in m:
+            kind, value = "AURA_HEALTH", m["multiply"]
+        elif v == "Vision/Range" and "multiply" in m:
+            kind, value = "AURA_VISION", m["multiply"]
         elif v.startswith("Resistance/Entity/Damage/") and "add" in m:
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
@@ -850,8 +856,8 @@ def rts0_aura_effect(a):
             kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
         if kind is None:
             continue
-        gain = value - 1.0 if kind in ("AURA_ATTACK", "AURA_SPEED") else value
-        if enemy and kind in ("AURA_ATTACK", "AURA_SPEED", "AURA_ARMOR"):
+        gain = value - 1.0 if kind in MULTIPLY_AURAS else value
+        if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR",):
             gain = -gain
         if gain <= 0:
             continue
@@ -1285,7 +1291,7 @@ def unique_building_rows(sim_root):
             "capture": t.num("Capturable/CapturePoints", 500.0),
             "regen": t.num("Capturable/RegenRate", 5.0),
             "garrison_regen": t.num("Capturable/GarrisonRegenRate", 1.0),
-            "decay": t.num("TerritoryDecay/DecayRate", 20.0),
+            "decay": t.num("TerritoryDecay/DecayRate", 0.0),  # disable="" (Cothon): no decay,
             "phase": phase_of(t),
             # TerritoryInfluence roots on RTS0's scale (0 A.D. civil centre 140 m -> 32).
             "territory": (t.num("TerritoryInfluence/Radius") * 32.0 / 140.0

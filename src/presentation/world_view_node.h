@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "../simulation/simulation.h"
+#include "../graphics/assets/unit_template_models.h"
 #include "fog_mirage.h"
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
@@ -219,10 +220,13 @@ class RtsoWorldView : public Node3D {
 		bool no_scene = false; // model has no skinned scene: rest pose only
 		bool player_color = false; // has 0 A.D. player_trans surfaces (owner colour in custom data)
 	};
-	// Crowd keys: a unit type, or UNIT_TYPE_COUNT + type for a siege engine
-	// shown packed (its 0 A.D. wagon, packed_siege_models.h).
-	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT;
+	// Crowd keys: a unit type, UNIT_TYPE_COUNT + type for a siege engine
+	// shown packed (its 0 A.D. wagon, packed_siege_models.h), or
+	// 2 * UNIT_TYPE_COUNT + k for a roster template drawn with its own 0 A.D.
+	// actor (unit_template_draw_model(k), unit_template_models.h).
+	static constexpr int CROWD_KEY_COUNT = 2 * rtso::UNIT_TYPE_COUNT + rtso::UNIT_TEMPLATE_DRAW_MODEL_COUNT;
 	std::unique_ptr<CrowdBatch> crowd_[rtso::CIV_COUNT][CROWD_KEY_COUNT];
+	uint8_t crowd_key_utype_[CROWD_KEY_COUNT] = {}; // a unit type drawn by each key
 	Node3D *crowd_bake_root = nullptr;
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 
@@ -340,7 +344,7 @@ private:
 	static Node *instantiate_building_id(const String &id);
 	void play_unit_clip(UnitVis &v, const StringName &clip, bool loop);
 	void hide_unit_vis(UnitVis &v);
-	CrowdBatch &crowd_batch(uint8_t civ, uint8_t key);
+	CrowdBatch &crowd_batch(uint8_t civ, uint16_t key);
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
 	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
@@ -351,7 +355,7 @@ private:
 	// Parents the carry shuttle for `clip` (a carry variant) to its 0 A.D. prop point.
 	Node3D *attach_carry_prop(Node *model, uint8_t clip, bool female);
 	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, uint32_t death_slots);
-	void ensure_crowd_frames(uint8_t civ, uint8_t key, const int *counts);
+	void ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
 };
