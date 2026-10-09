@@ -20,6 +20,7 @@
 #include <godot_cpp/classes/gpu_particles3d.hpp>
 #include <godot_cpp/classes/particle_process_material.hpp>
 #include <godot_cpp/classes/quad_mesh.hpp>
+#include <godot_cpp/classes/environment.hpp>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -29,6 +30,7 @@
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/shader_material.hpp>
+#include <godot_cpp/classes/shader.hpp>
 #include "../graphics/assets/assets.h"
 #include "../graphics/assets/procedural.h"
 #include "../graphics/assets/model_library.h"
@@ -95,6 +97,10 @@ class RtsoWorldView : public Node3D {
 	int tree_kind_count = 1;
 	std::string tree_biome_;
 	void pick_tree_kinds(const std::string &biome);
+	// Swaying copies of tree meshes (shaders/tree_wind.gdshader), by source mesh.
+	std::unordered_map<int64_t, Ref<Mesh>> wind_cache_;
+	Ref<Shader> wind_shader_;
+	Ref<Mesh> wind_mesh(const Ref<Mesh> &src);
 	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
 	MultiMeshInstance3D *stone_mmi = nullptr;  // stone_mine.glb
 	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
@@ -134,6 +140,9 @@ class RtsoWorldView : public Node3D {
 	Ref<ImageTexture> paint_tex_;
 	bool paint_dirty_ = true;
 	void build_ground_paint(const rtso::Simulation *sim);
+	// Per-biome sun, ambient, fog, sky and water (0 A.D. rmbiome Environment).
+	Ref<Environment> env_base_;
+	void apply_biome_environment(const std::string &biome);
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;
