@@ -413,10 +413,10 @@ struct UnitOrder {
 };
 static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 
-// 0 A.D. template_unit.xml UnitAI/FleeDistance and the 64 m search of
-// UnitAI FindNearbyResource / FindNearbyFoundation.
-inline constexpr float FLEE_DISTANCE = 12.0f;
-inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
+// 0 A.D. template_unit.xml UnitAI/FleeDistance (12 m) and the 64 m search of
+// UnitAI FindNearbyResource / FindNearbyFoundation, in RTS0 units (metres x 0.28).
+inline constexpr float FLEE_DISTANCE = 12.0f * 0.28f;
+inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
 // measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
 // MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
@@ -429,7 +429,7 @@ inline constexpr float HEAL_HP = 5.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
-inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
+inline constexpr float CHEER_NOTIFY_RANGE = 30.0f * 0.28f; // metres x 0.28
 // AlertRaiser.js per structure template: the classes it alerts (FemaleCitizen, or
 // Trader+!Ship for the market) and its ranges in RTS0 units (0 A.D. metres x 0.28;
 // a negative range reaches the whole map).
@@ -666,7 +666,7 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 }
 
 // 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
-// civilian ships are passive, so they flee when attacked.
+// civilian ships are passive, so they flee when attacked; stone and bolt throwers stand ground.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
 		case UNIT_FISHING_BOAT:
@@ -676,6 +676,9 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
+		case UNIT_CATAPULT: // template_unit_siege_stonethrower / _boltshooter
+		case UNIT_BOLT_SHOOTER:
+			return STANCE_STAND_GROUND;
 		default:
 			return STANCE_AGGRESSIVE;
 	}
