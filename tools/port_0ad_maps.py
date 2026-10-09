@@ -143,9 +143,8 @@ def template_info(source, name):
     return info
 
 
-# 0 A.D. structure template class -> RTS0 building name (main_node.cpp building_type_by_name).
-# template_structure_resource_field (a Gaia field nobody may farm), template_structure_special
-# and plain template_structure (fences, columns, benches: scenery) are not ported.
+# 0 A.D. structure template class -> RTS0 building name (main_node.cpp map_building_type).
+# template_structure_special is not ported; plain template_structure is scenery (gaia_owned).
 GAIA_STRUCTURE_CLASSES = [
     ("template_structure_civic_civil_centre", "town_center"),
     ("template_structure_civic_house", "house"),
@@ -166,6 +165,7 @@ GAIA_STRUCTURE_CLASSES = [
     ("template_structure_defensive_wall_gate", "gate"),
     ("template_structure_defensive_wall", "wall_segment"),
     ("template_structure_resource_corral", "corral"),
+    ("template_structure_resource_field", "field_plot"),  # anyone may farm a Gaia field
 ]
 
 

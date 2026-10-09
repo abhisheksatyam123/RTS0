@@ -13649,6 +13649,150 @@
       "template": "structures/celt_hut",
       "x": -70.26,
       "z": -50.96
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/gaul/field",
+      "x": -29.84,
+      "z": 20.53
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/gaul/field",
+      "x": -34.29,
+      "z": 25.22
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/gaul/field",
+      "x": -38.73,
+      "z": 29.47
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/gaul/field",
+      "x": -34.53,
+      "z": 33.41
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/gaul/field",
+      "x": -30.12,
+      "z": 29.11
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/gaul/field",
+      "x": -25.95,
+      "z": 24.47
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 17.15,
+      "z": -15.71
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 21.18,
+      "z": -11.58
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 25.92,
+      "z": -16.25
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 21.94,
+      "z": -20.28
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 30.31,
+      "z": -20.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 26.4,
+      "z": -24.53
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -49.84,
+      "z": 20.75
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -53.8,
+      "z": 16.88
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -45.3,
+      "z": 16.06
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -41.77,
+      "z": 12.49
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -49.68,
+      "z": 12.38
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": -45.51,
+      "z": 8.22
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 5.99,
+      "z": -26.0
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 2.07,
+      "z": -29.83
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 10.08,
+      "z": -29.97
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 5.89,
+      "z": -33.7
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 14.68,
+      "z": -33.75
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/athen/field",
+      "x": 10.04,
+      "z": -37.87
     }
   ],
   "gaia_units": [],
