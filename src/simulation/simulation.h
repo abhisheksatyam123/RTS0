@@ -1185,6 +1185,8 @@ private:
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
+		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
+		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
