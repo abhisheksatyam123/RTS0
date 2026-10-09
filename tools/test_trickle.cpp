@@ -1,7 +1,8 @@
 // 0 A.D. ResourceTrickle.js: the Wonder (1 of each every 2 s), the Han Imperial Ministry
 // (0.1 wood, stone and metal every 2 s), animals garrisoned in a corral (1, 2 or 3 food
 // every 5 s by size, at most 8 animals) and the Ptolemaic team bonus (+1 food a second).
-// Farmsteads and markets trickle nothing. Corrals train their civ's animals.
+// Farmsteads and markets trickle nothing. Corrals train their civ's animals. The Persian
+// ice house trickles food, more after Subterranean Aqueducts.
 //   g++ -std=c++20 -O2 -Isrc tools/test_trickle.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_trickle && /tmp/test_trickle
@@ -149,6 +150,28 @@ int main() {
 		CHECK(Simulation::corral_animal_for(CIV_HAN, FAUNA_SHEEP_TRAINABLE) == FAUNA_GOAT_TRAINABLE);
 		CHECK(Simulation::corral_animal_for(CIV_KUSHITES, FAUNA_CATTLE_SANGA_TRAINABLE) == FAUNA_CATTLE_SANGA_TRAINABLE);
 		std::printf("corral: cow 150 food, 60 s; penned on arrival\n");
+	}
+
+	// 7. The Persian ice house (structures/pers/ice_house.xml): 1 food every 2 s, 2 after
+	//    Subterranean Aqueducts, researched at the ice house. Other civs can't build one.
+	{
+		fresh(s);
+		s.players_[0].civ = CIV_PERSIANS;
+		CHECK(civ_building_civ_mask(BLD_ICE_HOUSE) == civ_bit(CIV_PERSIANS));
+		const uint32_t ice = s.spawn_building_world(-30.0f, -20.0f, BLD_ICE_HOUSE, 0, 1.0f);
+		float f0 = s.players_[0].res[RES_FOOD];
+		run(s, 10.0f);
+		CHECK(near(s.players_[0].res[RES_FOOD] - f0, 5.0f));
+		CHECK(tech_info(TECH_SUBTERRANEAN_AQUEDUCTS).researcher == BLD_ICE_HOUSE);
+		s.players_[0].phase = 3;
+		for (int r = 0; r < RES_COUNT; ++r) s.players_[0].res[r] = 1000.0f;
+		CHECK(s.cmd_research(0, ice, TECH_SUBTERRANEAN_AQUEDUCTS));
+		run(s, 41.0f);
+		CHECK(s.players_[0].has_tech(TECH_SUBTERRANEAN_AQUEDUCTS));
+		f0 = s.players_[0].res[RES_FOOD];
+		run(s, 10.0f);
+		CHECK(near(s.players_[0].res[RES_FOOD] - f0, 10.0f));
+		std::printf("ice house: +%.0f food in 10 s with Subterranean Aqueducts\n", s.players_[0].res[RES_FOOD] - f0);
 	}
 
 	if (failures) {

@@ -187,6 +187,7 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
     ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
+    ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -287,9 +288,10 @@ def merge_into(base, elem):
                 elif tok not in old:
                     old.append(tok)
             node.text = " ".join(old)
-        elif op in ("add", "mul", "mul_round") and node.text not in (None, ""):
+        elif op in ("add", "mul", "mul_round"):
+            # CParamNode::ApplyLayer: a missing value counts as 0 (ToFixed of "").
             try:
-                a = float(node.text)
+                a = float(node.text) if node.text not in (None, "") else 0.0
                 b = float(text)
                 r = a + b if op == "add" else a * b
                 if op == "mul_round":
