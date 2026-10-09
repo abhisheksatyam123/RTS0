@@ -104,6 +104,10 @@ class RtsoWorldView : public Node3D {
 	MultiMeshInstance3D *ruins_mmi = nullptr;
 	MultiMeshInstance3D *treasure_mmi = nullptr;
 	Ref<MultiMesh> ruins_mm, treasure_mm;
+	// Gaia scenery (fences, columns, obelisks): boxes of each obstruction's size until the
+	// rendering pipeline has their 0 A.D. actors.
+	MultiMeshInstance3D *scenery_mmi = nullptr;
+	Ref<MultiMesh> scenery_mm;
 
 	// flying projectiles (arrows + warship bolts + catapult stones)
 	MultiMeshInstance3D *arrow_mmi = nullptr;

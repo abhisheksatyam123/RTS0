@@ -14,6 +14,8 @@
 #include <godot_cpp/classes/geometry_instance3d.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/sphere_mesh.hpp>
+#include <godot_cpp/classes/box_mesh.hpp>
+#include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/shader.hpp>
 #include <godot_cpp/classes/gradient.hpp>
 #include <godot_cpp/classes/gradient_texture1_d.hpp>
@@ -289,6 +291,20 @@ void RtsoWorldView::_ready() {
 	treasure_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "treasure_chest").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
 	treasure_mmi = memnew(MultiMeshInstance3D); treasure_mmi->set_multimesh(treasure_mm); add_child(treasure_mmi);
+	{
+		Ref<BoxMesh> box;
+		box.instantiate();
+		box->set_size(Vector3(1.0f, 1.0f, 1.0f));
+		Ref<StandardMaterial3D> mat;
+		mat.instantiate();
+		mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+		mat->set_roughness(0.9f);
+		scenery_mm = create_multimesh(box, true);
+		scenery_mmi = memnew(MultiMeshInstance3D);
+		scenery_mmi->set_multimesh(scenery_mm);
+		scenery_mmi->set_material_override(mat);
+		add_child(scenery_mmi);
+	}
 	fish_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fish").mesh), true);
 	fish_mmi = memnew(MultiMeshInstance3D); fish_mmi->set_multimesh(fish_mm); add_child(fish_mmi);
 	fish_mmi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
@@ -2219,6 +2235,27 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
 			treasure_mm->set_instance_transform(it, xf);
 			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));
+		}
+	}
+
+	// Gaia scenery: a box the size of its 0 A.D. obstruction, turned by its map orientation
+	// (Basis about y by `angle` takes local x to (cos, -sin), CCmpObstruction's u axis).
+	{
+		const auto &sv = sim->scenery();
+		int ns = 0;
+		for (const auto &sc : sv) if (los_brightness(sc.x, sc.z) > 0.0f) ++ns;
+		scenery_mm->set_instance_count(ns);
+		int is = 0;
+		for (const auto &sc : sv) {
+			const float lit = los_brightness(sc.x, sc.z);
+			if (lit <= 0.0f) continue;
+			const rtso::SceneryTypeInfo &info = rtso::scenery_type_info(sc.type);
+			const float scale = info.width > 0.0f ? 2.0f * sc.half_w / info.width : 0.25f;
+			const float h = std::max(0.2f, info.height * scale * (info.wooden ? 0.35f : 0.6f));
+			Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(2.0f * sc.half_w, h, 2.0f * sc.half_d));
+			scenery_mm->set_instance_transform(is, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z) + 0.5f * h, sc.z)));
+			const Color base = info.wooden ? Color(0.45f, 0.32f, 0.2f) : Color(0.72f, 0.69f, 0.62f);
+			scenery_mm->set_instance_color(is++, Color(base.r * lit, base.g * lit, base.b * lit, 1.0f));
 		}
 	}
 
