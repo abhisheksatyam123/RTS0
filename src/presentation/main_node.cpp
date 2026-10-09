@@ -70,6 +70,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
+	ClassDB::bind_method(D_METHOD("_on_dropsite_sharing_pressed", "shared"), &RtsoMain::_on_dropsite_sharing_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
 	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
@@ -2037,6 +2038,16 @@ void RtsoMain::_on_autoqueue_pressed(int on) {
 		sim->cmd_set_autoqueue(local_player(), selected_building_id, on != 0);
 }
 
+// 0 A.D. set-dropsite-sharing through lockstep command 45.
+void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
+	if (selected_building_id == 0) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_DROPSITE_SHARING, nullptr, 0, 0, 0, selected_building_id,
+				shared ? 1 : 0);
+	else
+		sim->cmd_set_dropsite_sharing(local_player(), selected_building_id, shared != 0);
+}
+
 // 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35.
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
@@ -3118,6 +3129,17 @@ void RtsoMain::update_command_panel() {
 				btn->set_tooltip_text(found_b->gate_locked ? "Let your and your allies' units through again"
 						: "Keep the gate shut, even for your own units");
 				btn->connect("pressed", Callable(this, "_on_gate_lock_pressed").bind(found_b->gate_locked ? 0 : 1));
+				production_bar->add_child(btn);
+			}
+
+			// Dropsite sharing (0 A.D. ResourceDropsite.js): shown once the owner has Diaspora.
+			if (found_b->team == local_player() && rtso::Simulation::is_dropsite_type(found_b->type) &&
+					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES)) {
+				Button *btn = memnew(Button);
+				btn->set_text(found_b->dropsite_shared ? "Stop sharing dropsite" : "Share dropsite");
+				btn->set_tooltip_text(found_b->dropsite_shared ? "Allies can no longer drop resources here"
+						: "Let allies with Diaspora drop resources here");
+				btn->connect("pressed", Callable(this, "_on_dropsite_sharing_pressed").bind(found_b->dropsite_shared ? 0 : 1));
 				production_bar->add_child(btn);
 			}
 

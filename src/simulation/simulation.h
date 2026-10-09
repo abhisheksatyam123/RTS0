@@ -160,7 +160,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 50; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 51; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -300,6 +301,9 @@ public:
 		// closed and blocks both.
 		bool gate_open = false;
 		bool gate_locked = false;
+		// 0 A.D. ResourceDropsite IsShared: allies with Diaspora may drop resources here. Sharable
+		// dropsites (Civic Centres, storehouses, farmsteads, docks) start shared.
+		bool dropsite_shared = true;
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {
@@ -666,7 +670,17 @@ public:
 	// dropsite, drop it, then take the next queued order or idle.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
-	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const; // carries a load b accepts
+	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
+	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
+	// mutual ally once `player` has researched Diaspora (Player/sharedDropsites).
+	bool dropsite_usable_by(uint8_t player, const Building &b) const;
+	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
+	// only an owner with Diaspora sees the toggle. False if nothing changed.
+	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
+	static bool is_dropsite_type(uint8_t type) {
+		return type == BLD_TOWN_CENTER || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+			civ_building_is_dropsite(type);
+	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)

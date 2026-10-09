@@ -134,10 +134,11 @@ enum TechnologyId : uint8_t {
 	TECH_TOWER_CRENELLATIONS = 125, // tower_crenellations
 	TECH_TOWER_MURDERHOLES = 126, // tower_murderholes
 	TECH_UNLOCK_SHARED_LOS = 127, // unlock_shared_los
-	TECH_REFORMED_ARMY_SELE = 128, // reformed_army_sele
-	TECH_TRADITIONAL_ARMY_SELE = 129, // traditional_army_sele
-	TECH_WONDER_POPULATION_CAP = 130, // wonder_population_cap
-	TECH_COUNT = 131
+	TECH_UNLOCK_SHARED_DROPSITES = 128, // unlock_shared_dropsites (hand-added: Player/sharedDropsites)
+	TECH_REFORMED_ARMY_SELE = 129, // reformed_army_sele
+	TECH_TRADITIONAL_ARMY_SELE = 130, // traditional_army_sele
+	TECH_WONDER_POPULATION_CAP = 131, // wonder_population_cap
+	TECH_COUNT = 132
 };
 
 enum TechClass : uint64_t {
@@ -611,6 +612,9 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Crenellations", "Sentry and Stone Towers +40% more arrows per garrisoned Soldier.", 0, 0, 250, 500, 40.0f, 2, BLD_TOWER, TECH_NONE, 0x3fff, 180, 1, "tower_crenellations"},
 		{"Murder Holes", "Fortresses, Sentry Towers, and Stone Towers have 0 minimum attack range.", 0, 250, 0, 150, 40.0f, 3, BLD_TOWER, TECH_NONE, 0x3fff, 181, 1, "tower_murderholes"},
 		{"Cartography", "See what your allies see, browse their summary and check their resources and population count in the top panel.", 100, 0, 100, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x3fff, 182, 0, "unlock_shared_los"},
+		// Hand-added from technologies/unlock_shared_dropsites.json: its only modification,
+		// Player/sharedDropsites, has no TechStat; Simulation::dropsite_usable_by reads the tech.
+		{"Diaspora", "Allows using allied dropsites.", 200, 200, 100, 100, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0x3fff, 170, 0, "unlock_shared_dropsites"},
 		{"Reform Army", "Unlock the Champion Infantry Swordsman.", 0, 0, 0, 0, 0.0f, 3, BLD_BARRACKS, TECH_NONE, 0x1000, 182, 0, "reformed_army_sele"},
 		{"Traditional Army", "Unlock the Champion Infantry Pikeman.", 0, 0, 0, 0, 0.0f, 3, BLD_BARRACKS, TECH_NONE, 0x1000, 182, 0, "traditional_army_sele"},
 		{"Glorious Expansion", "Enable the “Glorious Expansion” aura: +20% maximum population limit per Wonder owned.", 2000, 3000, 500, 500, 120.0f, 3, BLD_WONDER, TECH_NONE, 0x3fff, 182, 0, "wonder_population_cap"},
