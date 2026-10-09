@@ -60,8 +60,8 @@
 // 38. UnitAI audit batch: a queued order after a gather goes first (with a drop-off ahead
 //     of it); arrows from a structure are attacks; a capturing unit answers a ranged attacker;
 //     garrisoning at a dropsite drops the load; the killer of a wolf cheers; CanGuard; guards
-//     repair the structure they guard; idle healers in a formation heal; a worker with nothing
-//     left to gather heads to the dropsite; a siege engine (un)packing ignores attacks.
+//     repair the structure they guard; idle healers in a formation heal; a siege engine
+//     (un)packing ignores attacks.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1471,24 +1471,6 @@ static void test_unitai_audit() {
 		s.set_unit_hp(ids[0], 20.0f);
 		const bool heals = run_until(s, 6.0f, [&] { return act_of(s, ids[4]) == ACTION_HEAL; });
 		check(heals, "an idle healer in a formation heals a hurt member (FORMATIONMEMBER.IDLE)");
-	}
-	{
-		Simulation s;
-		setup(s);
-		const uint32_t store = s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
-		const uint32_t only = s.spawn_resource_world(0, 0, RES_WOOD, 500);
-		uint32_t w = s.spawn_unit(-1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
-		s.order_gather(&w, 1, only);
-		run(s, 2.0f);
-		s.units_.carry[idx_of(s, w)] = 0;
-		for (size_t r = 0; r < s.resources_.count; ++r)
-			if (s.resources_.id[r] == only) s.resources_.amount[r] = 0;
-		const bool went = run_until(s, 30.0f, [&] {
-			const auto *b = bld(s, store);
-			return act_of(s, w) == ACTION_IDLE &&
-					std::max(std::fabs(x_of(s, w) - b->x), std::fabs(z_of(s, w) - b->z)) < b->half_size + 3.0f;
-		});
-		check(went, "with nothing left to gather an empty-handed worker idles at the dropsite");
 	}
 	{
 		Simulation s;

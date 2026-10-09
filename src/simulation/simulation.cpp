@@ -9084,9 +9084,8 @@ void Simulation::finish_order(size_t i) {
 			apply_order(uid, o);
 			return;
 		}
-		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries,
-		// or head to the dropsite anyway, "a nice enough place to congregate and idle".
-		if (units_.carry[i] > 0 || nearest_dropsite(i) != 0) {
+		// GATHER FINDINGNEWTARGET: nothing left to gather nearby; drop off what it carries.
+		if (units_.carry[i] > 0) {
 			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 			units_.target_resource_id[i] = 0;
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
