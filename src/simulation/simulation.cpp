@@ -4598,7 +4598,7 @@ void Simulation::tick(float dt) {
 	tick_capture(dt);        // 0 A.D. Capturable.js: multi-team structure capture & regeneration
 	tick_status_effects(dt);
 	tick_projectiles(dt);
-	tick_death_damage(dt);   // 0 A.D. DeathDamage.js:38-58: on-death splash damage to nearby units
+	tick_death_damage(dt);   // 0 A.D. DeathDamage.js: fire ships explode on death
 
 	// 4. Infrastructure & Production
 	tick_construction(dt);   // 0 A.D. Foundation.js / Builder.js: building construction
@@ -7563,13 +7563,24 @@ static bool template_is(uint16_t tmpl, const char *name) {
 	return std::strcmp(slash ? slash + 1 : id, name) == 0;
 }
 
+// The fire ship templates (template_unit_ship_fire.xml), looked up once: the
+// Health regen loop asks this for every unit every tick.
+static bool is_fire_ship(uint16_t tmpl) {
+	static const auto table = [] {
+		std::array<bool, CIV_UNIT_TEMPLATE_COUNT> t{};
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire");
+		return t;
+	}();
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT && table[tmpl];
+}
+
 const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
-	return template_is(units_.tmpl[i], "ship_fire") ? &FIRESHIP_DEATH_DAMAGE : nullptr;
+	return is_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
 }
 
 // Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
 float Simulation::unit_template_regen(size_t i) const {
-	return template_is(units_.tmpl[i], "ship_fire") ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
+	return is_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
 }
 
 // DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the
