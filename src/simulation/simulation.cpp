@@ -10753,6 +10753,25 @@ void Simulation::petra_manage_economy(float dt) {
 			const bool soldier = gcls == GATHER_INFANTRY;
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_ ||
 					get_threat_at(units_.pos_x[i], units_.pos_z[i]) >= 7.0f)) continue;
+			// worker.js returnResources: an idle worker still carrying something takes it to the
+			// nearest dropsite on its own land first (an explicit ReturnResource order; UnitAI does
+			// not drop off by itself), and is reassigned once empty.
+			if (units_.carry[i] > 0) {
+				const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+				uint32_t best = 0;
+				float best_d2 = 0.0f;
+				for (const Building &b : buildings_) {
+					if (!dropsite_accepts(i, b) || petra_building_land(b) != land) continue;
+					const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
+					const float d2 = dx * dx + dz * dz;
+					if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
+				}
+				if (best != 0) {
+					const uint32_t uid = units_.id[i];
+					order_return_resource(&uid, 1, best);
+					continue;
+				}
+			}
 			reassignable_workers.push_back(i);
 		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
 			workers_food++; // hunting: the carcass is gathered next

@@ -1435,6 +1435,37 @@ static void test_retreat_walk_forced() {
 	CHECK(moved > 5.0f, "a retreat walk packs the catapult and leaves (forced walk)");
 }
 
+// worker.js returnResources: an idle Petra worker still carrying a load is ordered to
+// a dropsite (ReturnResource) rather than left to UnitAI, which drops off nothing by itself.
+static void test_idle_return() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	auto &u = s->units_;
+	uint32_t uid = 0;
+	for (size_t i = 0; i < u.count && !uid; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
+	CHECK(uid != 0, "Petra has a villager");
+	if (!uid) return;
+	s->cmd_stop(&uid, 1);
+	const int32_t i = s->lookup_unit(uid);
+	u.carry[i] = 5; // a partial load: under the carry cap
+	u.res_type_carried[i] = RES_WOOD;
+	bool ordered = false, dropped = false;
+	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t j = s->lookup_unit(uid);
+		if (j < 0) break;
+		ordered |= u.order_kind[j] == ORDER_RETURN_RESOURCE;
+		dropped = ordered && u.carry[j] == 0;
+	}
+	std::printf("  idle worker with a load: return order %s, dropped off %s\n", ordered ? "yes" : "no", dropped ? "yes" : "no");
+	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -1463,6 +1494,7 @@ int main() {
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
 	test_repairs();
+	test_idle_return();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
