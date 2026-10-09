@@ -4,7 +4,10 @@ extends SceneTree
 #   1. plays a short single-player match with a few orders, saves it with a
 #      description, and leaves it (which writes its replay);
 #   2. replays it from the replay menu's folder and checks every turn's hash;
-#   3. loads the save as the load dialog does and checks the game time.
+#   3. loads the save as the load dialog does, checks the game time, plays on
+#      and leaves, which records a replay that starts from the save;
+#   4. watches that replay (hash-checked from the save onwards) and switches
+#      the player view between a player and the observer.
 #
 #   godot --headless --path . --fixed-fps 60 -s tools/e2e_match_archive.gd
 # Exit code 0 = pass.
@@ -87,13 +90,41 @@ func run() -> void:
 	check(st.finished, "the replay reaches its last turn")
 	check(not st.out_of_sync, "every replayed turn matches its recorded hash")
 	check(int(st.turns) >= turns_recorded, "the replay holds every recorded turn")
+	check(int(st.view) == -1, "a replay starts in the observer view")
+	m.set_replay_view(1)
+	check(int(m.get_replay_status().view) == 1, "the player view follows player 2")
+	m.set_replay_view(-1)
+	check(int(m.get_replay_status().view) == -1, "and goes back to the observer")
 
 	print("3. load the save from the menu")
 	ms.load_save_path = "user://saves/e2e_test.rts0sav"
 	m = await start_scene()
 	var summary: Dictionary = m.get_match_statistics()
 	check(float(summary.game_time) >= 39.0, "the loaded game resumes at the saved time (%.1f s)" % float(summary.game_time))
-	check(not m.get_replay_status().recording, "a loaded game is not recorded as a replay")
+	st = m.get_replay_status()
+	check(st.recording, "a loaded game goes on as a new replay")
+	var continued_dir: String = st.replay_dir
+	await frames(1200)
+	var turns_continued: int = m.get_replay_status().turn
+	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
+	await frames(5)
+	check(FileAccess.file_exists(continued_dir + "start.rts0sav"), "its replay keeps the save it started from")
+	var meta = JSON.parse_string(FileAccess.get_file_as_string(continued_dir + "metadata.json"))
+	check(meta is Dictionary and float(meta.get("start_time", 0.0)) >= 39.0, "its replay starts at the saved time")
+
+	print("4. watch the replay of the continued game")
+	ms.replay_dir = continued_dir
+	m = await start_scene()
+	check(m.is_replay_playback(), "the match scene plays the continued replay")
+	guard = 0
+	while not m.get_replay_status().finished and guard < 20000:
+		await process_frame
+		guard += 1
+	st = m.get_replay_status()
+	print("  replayed to turn ", st.turn, " of ", st.turns, " from ", st.start_time, " s")
+	check(st.finished, "the continued replay reaches its last turn")
+	check(not st.out_of_sync, "every turn after the save matches its recorded hash")
+	check(int(st.turns) >= turns_continued, "the continued replay holds every recorded turn")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/e2e_test.rts0sav"))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/e2e_test.json"))
 
