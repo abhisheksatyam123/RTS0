@@ -7543,6 +7543,21 @@
     "Relic"
    ],
    "builds": []
+  },
+  "pers/champion_infantry_archer_upgrade": {
+   "generic_name": "Persian Immortal",
+   "specific_name": "Anušiya",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Ranged",
+    "Archer",
+    "Immortal"
+   ],
+   "builds": []
   }
  },
  "structures": {
