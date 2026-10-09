@@ -21,6 +21,18 @@
 //     and cavalry raid an enemy structure inside Petra's territory.
 //  7. Each AI slot keeps its own difficulty and behaviour (game setup's
 //     per-player AI settings), through its turns and a save and load.
+//  8. Hunting (worker.js startHunting): gatherers collect a treasure nearby,
+//     food gatherers kill the livestock by their dropsite first, citizen
+//     cavalry hunt animals that flee, and no one hunts inside enemy territory.
+//  9. First base (startingStrategy.js buildFirstBase): with its civic centre
+//     gone and the wood for a new one only in a treasure, Petra collects the
+//     treasure and founds a new Town Center where its workers stand.
+// 10. Barter and trading goods (tradeManager.js): Petra sells spare food for
+//     a resource its queues wait on, and with plenty of everything it sells food
+//     for the scarcest finite resource; its trading goods favour what it lacks.
+// 11. Kush builds its Blemmye and Noba camps and Temple of Amun, Rome its
+//     Temple of Vesta (config.js buildings), and Rome researches its champion
+//     unlock and trains champions (researchWantedTechs unlock_champion).
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -630,6 +642,194 @@ static void test_garrisons() {
 	CHECK(sheltered, "an attacked support unit below 55%% health shelters");
 }
 
+// diplomacyManager.js sendDiplomacyRequest between AIs: AI 1 asks the AI it
+// shares the most enemies with for a neutrality pact; that AI answers through
+// its own handleDiplomacyRequest (accepting, or asking a tribute AI 1 pays), and
+// AI 1 matches the stance it took.
+static void test_diplomacy_requests() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
+	s->set_player_active(0, true, false);
+	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
+	s->players_[3].civ = s->players_[1].civ; // the same civ never declines for good at once
+	run_for(*s, 20.0f);
+	s->petra_send_diplomacy_request(); // as AI 1, which runs between ticks
+	int target = -1;
+	for (int p = 0; p < 8; ++p) if (s->petra_sent_diplo_.sent_type[p]) target = p;
+	CHECK(target == 3, "asks the last of the players sharing the most enemies");
+	if (target != 3) return;
+	const bool asked_neutral = s->petra_sent_diplo_.sent_type[3] == 2;
+	float t = 0.0f;
+	for (; t < 120.0f && !(s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL); t += Simulation::FIXED_STEP)
+		s->tick(Simulation::FIXED_STEP);
+	const auto &answer = s->petra_slots_[3].petra_diplo_.received[1];
+	std::printf("  AI 1 asks AI 3 for a %s: AI 3 %s, stances 1->3 %d and 3->1 %d after %.0fs\n",
+	            asked_neutral ? "neutrality pact" : "alliance",
+	            answer.status == PetraReceivedRequest::ACCEPTED ? "accepted" :
+	            answer.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE ? "wants a tribute" : "declined",
+	            s->get_diplomacy(1, 3), s->get_diplomacy(3, 1), t);
+	CHECK(asked_neutral, "asks an enemy for a neutrality pact first");
+	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
+	      "both AIs end up neutral to each other");
+}
+
+// worker.js startHunting: Petra's food gatherers slaughter the chickens by
+// their Town Center, its citizen cavalry chase the deer, and an animal grazing
+// in the enemy's territory is left alone.
+static void test_hunting() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	CHECK(s->territory_owner_at(ex + 6.0f, ez) == 0, "the enemy's Town Center holds its land");
+	const uint32_t foreign = s->spawn_fauna(ex + 6.0f, ez, FAUNA_SHEEP);
+	float px = 0.0f, pz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { px = b.x; pz = b.z; }
+	const uint32_t treasure = s->spawn_resource_treasure(px + 9.0f, pz - 3.0f, RES_WOOD);
+	auto &u = s->units_;
+	auto &f = s->fauna_;
+	std::vector<uint32_t> chickens;
+	for (size_t i = 0; i < f.count; ++i)
+		if (f.alive[i] && f.fauna_type[i] == FAUNA_CHICKEN && f.pos_x[i] < 0.0f) chickens.push_back(f.id[i]);
+	CHECK(chickens.size() == 4, "Petra's base has its four chickens");
+	bool cav_hunted_deer = false, worker_on_chicken = false, foreign_hunted = false;
+	for (float t = 0.0f; t < 90.0f; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		for (size_t i = 0; i < u.count; ++i) {
+			if (!u.alive[i] || u.team[i] != 1 || u.action_state[i] != ACTION_ATTACK) continue;
+			const uint32_t tid = u.target_unit_id[i];
+			auto it = s->fauna_id_to_idx_.find(tid);
+			if (it == s->fauna_id_to_idx_.end() || s->lookup_unit(tid) >= 0) continue;
+			const uint8_t ft = f.fauna_type[it->second];
+			if (u.unit_type[i] == UNIT_CAVALRY && ft == FAUNA_DEER) cav_hunted_deer = true;
+			if ((u.unit_type[i] == UNIT_VILLAGER || u.unit_type[i] == UNIT_FEMALE_CITIZEN) && ft == FAUNA_CHICKEN) worker_on_chicken = true;
+			if (tid == foreign) foreign_hunted = true;
+		}
+	}
+	int chickens_left = 0;
+	for (uint32_t id : chickens) {
+		auto it = s->fauna_id_to_idx_.find(id);
+		if (it != s->fauna_id_to_idx_.end() && f.alive[it->second]) ++chickens_left;
+	}
+	const bool treasure_taken = !s->is_treasure_id(treasure);
+	std::printf("  treasure by Petra's Town Center collected: %s\n", treasure_taken ? "yes" : "no");
+	CHECK(treasure_taken, "Petra's gatherers collect a treasure by their base (gatherTreasure)");
+	std::printf("  hunting: workers slaughter chickens %s (%d of %zu left after 90s), cavalry hunt deer %s, sheep in enemy land hunted %s\n",
+	            worker_on_chicken ? "yes" : "no", chickens_left, chickens.size(), cav_hunted_deer ? "yes" : "no", foreign_hunted ? "yes" : "no");
+	CHECK(worker_on_chicken && chickens_left * 2 <= (int)chickens.size(), "food gatherers slaughter the livestock by their dropsite");
+	CHECK(cav_hunted_deer, "citizen cavalry hunt animals that flee");
+	CHECK(!foreign_hunted, "no one hunts in enemy territory");
+}
+
+// startingStrategy.js buildFirstBase: Petra loses its Town Center; the wood for a
+// new one is in a treasure by its workers, so it collects that first, then
+// founds a civic centre where they stand and builds it.
+static void test_first_base() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; s->destroy_building(b); }
+	run_for(*s, 0.1f);
+	auto &u = s->units_;
+	for (size_t i = 0; i < u.count; ++i) // a nomad start: everyone stands idle
+		if (u.alive[i] && u.team[i] == 1) { u.action_state[i] = ACTION_IDLE; u.has_order[i] = 0; u.target_resource_id[i] = 0; }
+	PlayerState &ps = s->players_[1];
+	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 100.0f; ps.stone() = 200.0f;
+	const uint32_t treasure = s->spawn_resource_treasure(tx + 9.0f, tz + 9.0f, RES_WOOD); // 300 wood, outside the wreck
+	bool founded = false, built = false;
+	float t = 0.0f;
+	for (; t < 180.0f && !built; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.hp > 0.0f) { founded = true; built = b.build_progress >= 1.0f; }
+	}
+	std::printf("  first base: treasure collected %s, new Town Center founded %s and built %s (%.0fs)\n",
+	            s->is_treasure_id(treasure) ? "no" : "yes", founded ? "yes" : "no", built ? "yes" : "no", t);
+	CHECK(!s->is_treasure_id(treasure), "Petra collects the treasure it needs for a civic centre");
+	CHECK(founded && built, "and founds and builds a new Town Center");
+}
+
+// tradeManager.js performBarter and setTradingGoods, called as AI 1 between ticks.
+static void test_barter() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	CHECK(!s->petra_perform_barter(), "no barter without a market");
+	const uint32_t market = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	CHECK(market != 0, "a market for AI 1");
+	PlayerState &ps = s->players_[1];
+	for (auto &a : s->petra_queues_.accounts) a = PetraQueueAccount{};
+	for (auto &w : s->petra_queues_.wants) w = PetraQueueAccount{};
+	for (float &g : ps.gathered_window) g = 0.0f;
+	ps.food() = 3000.0f; ps.wood() = 0.0f; ps.gold() = 0.0f; ps.stone() = 0.0f;
+	s->petra_queues_.wants[Simulation::PETRA_QUEUE_MILITARY].wood = 300.0f; // a plan waits on wood
+	const bool necessity = s->petra_perform_barter();
+	std::printf("  barter: necessity deal %s, food %.0f wood %.0f\n", necessity ? "yes" : "no", ps.food(), ps.wood());
+	CHECK(necessity && ps.wood() > 0.0f && ps.food() < 3000.0f, "sells spare food for the wood a plan waits on");
+
+	s->petra_queues_.wants[Simulation::PETRA_QUEUE_MILITARY] = PetraQueueAccount{};
+	ps.food() = 6000.0f; ps.wood() = 2000.0f; ps.gold() = 300.0f; ps.stone() = 2000.0f;
+	const float gold_before = ps.gold();
+	const bool contingency = s->petra_perform_barter();
+	std::printf("  barter: contingency deal %s, gold %.0f -> %.0f\n", contingency ? "yes" : "no", gold_before, ps.gold());
+	CHECK(contingency && ps.gold() > gold_before, "sells spare food for the scarcest finite resource");
+
+	ps.food() = 100.0f; ps.wood() = 3000.0f; ps.gold() = 100.0f; ps.stone() = 3000.0f;
+	s->petra_set_trading_goods();
+	const uint8_t *g = s->trading_goods(1);
+	std::printf("  trading goods: food %d wood %d stone %d gold %d\n", g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD]);
+	CHECK(g[RES_FOOD] + g[RES_WOOD] + g[RES_STONE] + g[RES_GOLD] == 100, "trading goods add up to 100");
+	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
+}
+
+static void test_civ_structures() {
+	for (uint8_t civ : { (uint8_t)CIV_KUSHITES, (uint8_t)CIV_ROMANS }) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->players_[1].civ = (Civilization)civ;
+		s->set_victory_condition(VICTORY_ENDLESS);
+		bool camp = false, temple = false, champion = false;
+		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			if (s->ticks_ % 20 != 0) continue;
+			for (const auto &b : s->buildings()) {
+				if (b.team != 1 || b.build_progress < 1.0f || b.wrecked) continue;
+				if (b.type == BLD_CAMP_BLEMMYE || b.type == BLD_CAMP_NOBA) camp = true;
+				if (b.type == BLD_TEMPLE_AMUN || b.type == BLD_TEMPLE_VESTA) temple = true;
+			}
+			const auto u = s->units();
+			for (size_t i = 0; i < u.count; ++i)
+				if (u.alive[i] && u.team[i] == 1 && u.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
+				    (civ_unit_template(u.tmpl[i]).flags & ROSTER_CHAMPION)) champion = true;
+		}
+		std::printf("  %s by 20 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
+		            camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no");
+		if (civ == CIV_KUSHITES) CHECK(camp && temple, "Kush builds its camps and the Temple of Amun");
+		else CHECK(temple && champion, "Rome builds the Temple of Vesta and unlocks its champions");
+	}
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -642,6 +842,11 @@ int main() {
 	test_slot_config();
 	test_allow_capture();
 	test_garrisons();
+	test_diplomacy_requests();
+	test_hunting();
+	test_first_base();
+	test_barter();
+	test_civ_structures();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

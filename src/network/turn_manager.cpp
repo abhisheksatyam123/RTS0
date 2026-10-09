@@ -821,6 +821,9 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u8(sim.defeated_mask());
 	mix_u8(sim.winner_mask());
 	mix_u8(sim.is_game_over() ? 1 : 0);
+	// Map triggers (Trigger.js timers) and the water level the rising-water maps move.
+	mix_u32(sim.trigger_hash());
+	mix_float(sim.water_height());
 
 	// 6. Active Projectiles & Relics
 	const auto &projs = sim.projectiles();
@@ -853,6 +856,21 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u8(r.res_type);
 		mix_i32(r.amount);
 		mix_u8(r.claimed ? 1 : 0);
+	}
+
+	const auto &treasures = sim.treasures();
+	mix_u32((uint32_t)treasures.size());
+	for (const auto &t : treasures) {
+		mix_u32(t.id);
+		mix_u8(t.type);
+		mix_float(t.collect_progress);
+		mix_u32(t.collector_id);
+	}
+	mix_u32((uint32_t)sim.scenery().size());
+	for (const auto &sc : sim.scenery()) {
+		mix_u32(sc.id);
+		mix_u8(sc.type);
+		mix_float(sc.hp);
 	}
 
 	// Wildlife: animals move, fight and die in the sim, so they are lockstep state.
@@ -1335,6 +1353,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 17) { // Hunt / herd
 			if (c.param == 1)
 				sim.order_herd(ids, n, c.target_id);
+			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
+				sim.order_collect_treasure(ids, n, c.target_id, queued);
 			else
 				sim.order_hunt(ids, n, c.target_id);
 		} else if (c.cmd_type == 18) { // Board
@@ -1352,6 +1372,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_back_to_work(ids, n);
 		} else if (c.cmd_type == 32) { // Heal
 			sim.order_heal(ids, n, c.target_id, queued);
+		} else if (c.cmd_type == 34) { // Return resource
+			sim.order_return_resource(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
 			else sim.cmd_upgrade_building(pl, c.target_id);

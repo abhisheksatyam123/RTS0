@@ -147,6 +147,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 4. Banner Overlay
 	Panel *banner_panel = nullptr;
 	Label *banner_label = nullptr;
+	// Map trigger messages (0 A.D. GuiInterface AddTimeNotification), centred under the top bar.
+	Label *time_notification_label_ = nullptr;
 
 	// 5/6. In-Game Chat Overlay + Diplomacy & Tribute Dialog: P4.1 leaf
 	// widgets (chat_window.h / diplomacy_dialog.h) own their panel trees;
@@ -285,6 +287,8 @@ public:
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
+	Dictionary get_trade_dialog_state() const;
+	void _on_trading_goods_requested(const PackedInt32Array &shares);
 
 	// ---- barter_panel.xml parity (docs/REMAINING_GAPS.md:187) -------------
 	// Runtime quick-amount (100/500) buy/sell buttons + live price/fee labels
@@ -315,6 +319,7 @@ public:
 
 	void toggle_diplomacy();
 	void toggle_objectives();
+	void _toggle_session_dialog(String name);
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 

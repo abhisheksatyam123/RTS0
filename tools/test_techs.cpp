@@ -253,6 +253,44 @@ int main() {
 		CHECK(s.cmd_train_template(0, bar, warrior));
 	}
 
+	// Civ-only techs at civ structures: the Spartan Agoge at the Gerousia makes
+	// champion hoplites (0 A.D. classes Champion Infantry Spearman) 25% sturdier
+	// and leaves citizen hoplites, which share their RTS0 unit type, alone.
+	{
+		fresh(s);
+		s.set_player_civ(CIV_SPARTANS);
+		s.player(0).phase = 3;
+		uint16_t champ = CIV_UNIT_TEMPLATE_NONE, citizen = CIV_UNIT_TEMPLATE_NONE, neo = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t i = civ_roster_begin(CIV_SPARTANS); i < civ_roster_end(CIV_SPARTANS); ++i) {
+			if (std::strcmp(civ_unit_template(i).id, "spart/champion_infantry_spear") == 0) champ = i;
+			if (std::strcmp(civ_unit_template(i).id, "spart/infantry_spearman_b") == 0) citizen = i;
+			if (std::strcmp(civ_unit_template(i).id, "spart/infantry_spearman_neodamodes") == 0) neo = i;
+		}
+		CHECK(champ != CIV_UNIT_TEMPLATE_NONE && citizen != CIV_UNIT_TEMPLATE_NONE && neo != CIV_UNIT_TEMPLATE_NONE);
+		CHECK(civ_unit_template(champ).unit_type == civ_unit_template(citizen).unit_type);
+		CHECK(tech_info(TECH_AGOGE).researcher == BLD_GEROUSIA);
+		CHECK(!tech_available_to_civ(TECH_AGOGE, CIV_ATHENIANS));
+		uint32_t ger = s.spawn_building_world(20.0f, -20.0f, BLD_GEROUSIA, 0, 1.0f);
+		uint32_t bar = s.spawn_building_world(-20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		CHECK(s.research_check(0, TECH_AGOGE, bar) == Simulation::TECH_ERR_BUILDING);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, (UnitType)civ_unit_template(champ).unit_type, 0.0f, champ);
+		uint32_t b = s.spawn_unit(2.0f, 0.0f, 0, (UnitType)civ_unit_template(citizen).unit_type, 0.0f, citizen);
+		float champ_hp = unit_max_hp(s, a), citizen_hp = unit_max_hp(s, b);
+		CHECK(s.cmd_research(0, ger, TECH_AGOGE));
+		run(s, tech_info(TECH_AGOGE).research_time + 1.0f);
+		CHECK(std::fabs(unit_max_hp(s, a) - 1.25f * champ_hp) < 0.01f);
+		CHECK(std::fabs(unit_max_hp(s, b) - citizen_hp) < 0.01f);
+		uint32_t a2 = s.spawn_unit(4.0f, 0.0f, 0, (UnitType)civ_unit_template(champ).unit_type, 0.0f, champ);
+		CHECK(std::fabs(unit_max_hp(s, a2) - 1.25f * champ_hp) < 0.01f);
+		// Neodamodes train at the barracks only after Unlock Neodamodes.
+		const uint8_t nt = civ_unit_template(neo).unit_type;
+		CHECK(!s.cmd_train_template(0, bar, neo));
+		CHECK(s.cmd_research(0, ger, TECH_UNLOCK_NEODAMODES));
+		run(s, tech_info(TECH_UNLOCK_NEODAMODES).research_time + 1.0f);
+		CHECK(s.can_train_at(0, nt, BLD_BARRACKS, neo));
+		CHECK(s.cmd_train_template(0, bar, neo));
+	}
+
 	// Fertility Festival: houses train citizens, and only citizens.
 	{
 		fresh(s);
@@ -272,13 +310,15 @@ int main() {
 		for (int with = 0; with < 2; ++with) {
 			fresh(s);
 			s.player(0).phase = 2;
-			uint32_t tower = s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+			// Inside the civic centre's territory: a tower alone in no-man's land makes a cut-off
+			// patch of territory and decays to Gaia (TerritoryDecay).
+			uint32_t tower = s.spawn_building_world(-20.0f, -30.0f, BLD_TOWER, 0, 1.0f);
 			if (with) {
 				CHECK(s.cmd_research(0, tower, TECH_TOWER_WATCH));
 				run(s, tech_info(TECH_TOWER_WATCH).research_time + 1.0f);
 				CHECK(s.is_tech_researched(TECH_TOWER_WATCH));
 			}
-			uint32_t foe = s.spawn_unit(8.0f, 0.0f, 1, UNIT_SWORDSMAN, 4000.0f);
+			uint32_t foe = s.spawn_unit(-12.0f, -30.0f, 1, UNIT_SWORDSMAN, 4000.0f);
 			s.cmd_stop(&foe, 1);
 			float hp0 = unit_hp(s, foe);
 			run(s, 12.0f);

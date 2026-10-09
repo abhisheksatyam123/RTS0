@@ -1,5 +1,6 @@
 #include "main_node.h"
 #include <godot_cpp/classes/os.hpp>
+#include <unordered_set>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -32,6 +33,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
+	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
+	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
@@ -70,6 +73,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
+	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
@@ -158,6 +162,11 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "MILITARY_COLONY", rtso::BLD_MILITARY_COLONY);
 	bind_enum("BuildingType", "ACADEMY", rtso::BLD_ACADEMY);
 	bind_enum("BuildingType", "MINISTRY", rtso::BLD_MINISTRY);
+	bind_enum("BuildingType", "CAMP_BLEMMYE", rtso::BLD_CAMP_BLEMMYE);
+	bind_enum("BuildingType", "CAMP_NOBA", rtso::BLD_CAMP_NOBA);
+	bind_enum("BuildingType", "TEMPLE_AMUN", rtso::BLD_TEMPLE_AMUN);
+	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
+	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
 
 	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
 	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
@@ -202,6 +211,51 @@ static Ref<Texture2D> load_tex(const String &path) {
 		if (tex.is_valid()) return tex;
 	}
 	return Ref<Texture2D>();
+}
+
+// Building names in data/maps/*.json "structures" and "gaia_structures" (tools/port_0ad_maps.py).
+// BLD_TYPE_COUNT for a name it doesn't know.
+static uint8_t map_building_type(const String &n) {
+	if (n == "town_center" || n == "civic" || n == "civil_centre") return rtso::BLD_TOWN_CENTER;
+	if (n == "house" || n == "apartment" || n == "hut" || n == "longhouse") return rtso::BLD_HOUSE;
+	if (n == "barracks" || n == "hall" || n == "arsenal" || n == "elephant_stable") return rtso::BLD_BARRACKS;
+	if (n == "stable") return rtso::BLD_STABLE;
+	if (n == "range") return rtso::BLD_RANGE;
+	if (n == "storehouse" || n == "forge") return rtso::BLD_STOREHOUSE;
+	if (n == "farmstead" || n == "field" || n == "mill" || n == "rotarymill") return rtso::BLD_FARMSTEAD;
+	if (n == "market") return rtso::BLD_MARKET;
+	if (n == "tower" || n == "defense_tower") return rtso::BLD_TOWER;
+	if (n == "sentry_tower") return rtso::BLD_SENTRY_TOWER;
+	if (n == "outpost") return rtso::BLD_OUTPOST;
+	if (n == "fortress" || n == "palisades_fort" || n == "keep") return rtso::BLD_FORTRESS;
+	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
+	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
+	if (n == "wonder") return rtso::BLD_WONDER;
+	if (n == "dock") return rtso::BLD_DOCK;
+	if (n == "wall" || n == "wall_segment") return rtso::BLD_WALL_SEGMENT;
+	if (n == "palisade") return rtso::BLD_PALISADE;
+	if (n == "wall_tower") return rtso::BLD_WALL_TOWER;
+	if (n == "corral") return rtso::BLD_CORRAL;
+	if (n == "field_plot") return rtso::BLD_FIELD; // a Gaia field (map "field" stays a farmstead)
+	if (n == "mercenary_camp") return rtso::BLD_MERCENARY_CAMP;
+	return rtso::BLD_TYPE_COUNT;
+}
+
+// Unit class names in data/maps/*.json "units" and "gaia_units".
+static rtso::UnitType map_unit_type(const String &n) {
+	static const struct { const char *name; rtso::UnitType type; } kTypes[] = {
+		{"swordsman", rtso::UNIT_SWORDSMAN}, {"spearman", rtso::UNIT_SPEARMAN}, {"archer", rtso::UNIT_ARCHER},
+		{"cavalry", rtso::UNIT_CAVALRY}, {"trader", rtso::UNIT_TRADER}, {"catapult", rtso::UNIT_CATAPULT},
+		{"hero", rtso::UNIT_HERO}, {"trireme", rtso::UNIT_TRIREME}, {"elephant", rtso::UNIT_ELEPHANT},
+		{"siege_ram", rtso::UNIT_SIEGE_RAM}, {"healer", rtso::UNIT_HEALER}, {"chariot", rtso::UNIT_CHARIOT},
+		{"war_dog", rtso::UNIT_WAR_DOG}, {"bolt_shooter", rtso::UNIT_BOLT_SHOOTER}, {"fishing_boat", rtso::UNIT_FISHING_BOAT},
+		{"merchant_ship", rtso::UNIT_MERCHANT_SHIP}, {"female_citizen", rtso::UNIT_FEMALE_CITIZEN}, {"carnyx", rtso::UNIT_CARNYX},
+		{"worker_elephant", rtso::UNIT_WORKER_ELEPHANT}, {"archer_maiden", rtso::UNIT_ARCHER_MAIDEN}, {"camel", rtso::UNIT_CAMEL},
+		{"scythed_chariot", rtso::UNIT_SCYTHED_CHARIOT},
+	};
+	for (const auto &t : kTypes)
+		if (n == t.name) return t.type;
+	return rtso::UNIT_VILLAGER;
 }
 
 void RtsoMain::_ready() {
@@ -354,6 +408,30 @@ void RtsoMain::_ready() {
 	top_hud_panel->add_child(top_hbox);
 
 	top_panel_.build(this, top_hbox, sim->player_civ());
+	{
+		auto first_key = [](const char *name) {
+			const auto *combos = rtso::hotkeys::table().get(name);
+			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
+		};
+		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
+				first_key("session.gui.barter.toggle"), first_key("session.gui.objectives.toggle"));
+	}
+
+	time_notification_label_ = memnew(Label);
+	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
+	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
+	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
+	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
+	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
+	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
+	time_notification_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	time_notification_label_->add_theme_font_size_override("font_size", 16);
+	time_notification_label_->add_theme_color_override("font_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
+	time_notification_label_->add_theme_constant_override("outline_size", 4);
+	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	ui_layer->add_child(time_notification_label_);
 
 	// Speed & Menu
 	speed_btn = memnew(Button);
@@ -382,6 +460,7 @@ void RtsoMain::_ready() {
 		map_selector->add_item(title, i);
 	}
 	map_selector->connect("item_selected", Callable(this, "_on_map_selected"));
+	map_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(map_selector);
 
 	civ_selector = memnew(RtsoSafeSelect);
@@ -402,6 +481,7 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Han Chinese", rtso::CIV_HAN);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	civ_selector->select((int)sim->player_civ());
+	civ_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(civ_selector);
 
 	ai_diff_selector = memnew(RtsoSafeSelect);
@@ -414,6 +494,7 @@ void RtsoMain::_ready() {
 	ai_diff_selector->add_item("AI Very Hard", rtso::PETRA_VERY_HARD);
 	ai_diff_selector->select(rtso::PETRA_MEDIUM);
 	ai_diff_selector->connect("item_selected", Callable(this, "_on_ai_diff_selected"));
+	ai_diff_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(ai_diff_selector);
 
 	ai_behavior_selector = memnew(RtsoSafeSelect);
@@ -423,6 +504,7 @@ void RtsoMain::_ready() {
 	ai_behavior_selector->add_item("AI Aggressive", rtso::PETRA_BEHAVIOR_AGGRESSIVE);
 	ai_behavior_selector->add_item("AI Random", rtso::PETRA_BEHAVIOR_RANDOM);
 	ai_behavior_selector->connect("item_selected", Callable(this, "_on_ai_behavior_selected"));
+	ai_behavior_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(ai_behavior_selector);
 
 	victory_selector = memnew(RtsoSafeSelect);
@@ -438,6 +520,7 @@ void RtsoMain::_ready() {
 	victory_selector->set_disabled(true);
 	victory_selector->set_tooltip_text("Victory condition (set in Game Setup)");
 	victory_selector->connect("item_selected", Callable(this, "_on_victory_selected"));
+	victory_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(victory_selector);
 
 	voice_btn = memnew(Button);
@@ -445,6 +528,7 @@ void RtsoMain::_ready() {
 	voice_btn->set_text("Voice: EN");
 	voice_btn->add_theme_font_size_override("font_size", 12);
 	voice_btn->connect("pressed", Callable(this, "_on_voice_button_pressed"));
+	voice_btn->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
 	top_hbox->add_child(voice_btn);
 
 	lobby_btn = memnew(Button);
@@ -911,6 +995,7 @@ void RtsoMain::_ready() {
 	Node *barter = get_node_or_null(NodePath("BarterDialog"));
 	if (barter) {
 		barter->connect("barter_requested", Callable(this, "_on_barter_requested"));
+		barter->connect("trading_goods_requested", Callable(this, "_on_trading_goods_requested"));
 	}
 
 	apply_match_settings();
@@ -1294,6 +1379,10 @@ void RtsoMain::update_cursor() {
 				}
 			}
 			if (!*want) {
+				for (const auto &t : sim->treasures())
+					if (near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
+			}
+			if (!*want) {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
@@ -1320,7 +1409,9 @@ void RtsoMain::update_cursor() {
 					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
 					// 0 A.D. "capture" is the default on enemy structures; session.attack
 					// (or attack-move's Ctrl) attacks instead.
-					if (b.team != me)
+					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
+						want = "action-gather-grain";
+					else if (b.team != me)
 						want = !sim->is_hostile(me, b.team) ? ""
 								: (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
 										  b.max_capture_points <= 0.0f)
@@ -1475,6 +1566,91 @@ void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {
 		play_sfx("res://assets/sounds/ui/bonus.ogg");
 		// Price labels will be refreshed on next update_hud / barter dialog visibility
 	}
+}
+
+// 0 A.D. TradeDialog: everything the barter and trade panels show for the local
+// player. Barter quotes follow BarterButton.update (sell 100, or 500 with
+// session.massbarter); trader counts follow GuiInterface.GetTraderNumber, where a
+// land trader counts as garrisoned while it rides a merchant ship that is trading.
+Dictionary RtsoMain::get_trade_dialog_state() const {
+	Dictionary d;
+	if (!sim) return d;
+	const uint8_t me = local_player();
+	const auto &ps = sim->player(me);
+	d["player"] = (int)me;
+	d["can_barter"] = sim->can_barter(me);
+	d["controls"] = !sim->is_defeated(me);
+	// Barter.js: 100 per click, 5x with session.massbarter (the only amounts cmd_barter takes).
+	const int multiplier = 5;
+	const int amount = 100 * (rtso::hotkeys::held("session.massbarter") ? multiplier : 1);
+	d["amount"] = amount;
+	d["multiplier"] = multiplier;
+	PackedInt32Array stock, goods, quotes;
+	for (int r = 0; r < rtso::RES_COUNT; ++r) {
+		stock.push_back((int)ps.res[r]);
+		goods.push_back((int)sim->trading_goods(me)[r]);
+	}
+	// quotes[sell * RES_COUNT + buy]: what one click buys.
+	for (int sell = 0; sell < rtso::RES_COUNT; ++sell)
+		for (int buy = 0; buy < rtso::RES_COUNT; ++buy)
+			quotes.push_back(sim->barter_quote((rtso::ResourceType)sell, (rtso::ResourceType)buy, amount));
+	d["stock"] = stock;
+	d["trading_goods"] = goods;
+	d["quotes"] = quotes;
+
+	auto uv = sim->units();
+	std::unordered_set<uint32_t> trading_ships;
+	int land_total = 0, land_trading = 0, ship_total = 0, ship_trading = 0, land_garrisoned = 0;
+	for (size_t i = 0; i < uv.count; ++i) {
+		if (uv.team[i] != me || uv.hp[i] <= 0.0f || !rtso::unit_is_trader(uv.unit_type[i])) continue;
+		if (uv.action_state[i] == rtso::ACTION_DYING) continue;
+		const bool trading = uv.alive[i] && uv.action_state[i] == rtso::ACTION_TRADE;
+		if (uv.unit_type[i] == rtso::UNIT_MERCHANT_SHIP) {
+			++ship_total;
+			if (trading) { ++ship_trading; trading_ships.insert(uv.id[i]); }
+		} else {
+			++land_total;
+			if (trading) ++land_trading;
+		}
+	}
+	for (const auto &[ship, passengers] : sim->transport_passengers()) {
+		if (!trading_ships.count(ship)) continue;
+		for (uint32_t pid : passengers)
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.id[i] == pid) {
+					if (uv.unit_type[i] == rtso::UNIT_TRADER && uv.team[i] == me && uv.hp[i] > 0.0f) ++land_garrisoned;
+					break;
+				}
+	}
+	Dictionary land, ship;
+	land["total"] = land_total;
+	land["trading"] = land_trading;
+	land["garrisoned"] = land_garrisoned;
+	ship["total"] = ship_total;
+	ship["trading"] = ship_trading;
+	d["land"] = land;
+	d["ship"] = ship;
+	return d;
+}
+
+// TradeButtonManager.setTradingGoods: shares by ResourceType, summing to 100.
+// Lockstep command 33 packs one percent byte per resource into target_id.
+void RtsoMain::_on_trading_goods_requested(const PackedInt32Array &shares) {
+	if (!sim || shares.size() != rtso::RES_COUNT) return;
+	uint8_t pct[rtso::RES_COUNT];
+	int sum = 0;
+	uint32_t packed = 0;
+	for (int r = 0; r < rtso::RES_COUNT; ++r) {
+		if (shares[r] < 0 || shares[r] > 100) return;
+		pct[r] = (uint8_t)shares[r];
+		sum += pct[r];
+		packed |= (uint32_t)pct[r] << (8 * r);
+	}
+	if (sum != 100) return;
+	if (net_lockstep())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_TRADING_GOODS, nullptr, 0, 0, 0, packed, 0);
+	else
+		sim->cmd_set_trading_goods(local_player(), pct);
 }
 
 bool RtsoMain::save_game(String path) {
@@ -1692,6 +1868,14 @@ void RtsoMain::_process(double delta) {
 	debug_overlay->update_info(perf_txt);
 
 	update_hud();
+	if (sim && time_notification_label_) {
+		String txt;
+		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
+			if (!txt.is_empty()) txt += "\n";
+			txt += String::utf8(n->text);
+		}
+		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
+	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
 			if (line.to != 0xFF && line.to != local_player()) continue; // addressed to someone else
@@ -1912,11 +2096,13 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 
 void RtsoMain::update_hud() {
 	top_panel_.update(sim, local_player(), match_elapsed_time);
+	// GameSpeedButton is hidden in networked games.
+	if (speed_btn) speed_btn->set_visible(!net_lockstep());
 }
 
 // Selection details (0 A.D. gui/session/selection_details.js): real values
 // only. Health always; capture points for capturable structures; experience
-// toward the next rank for units (thresholds from Simulation::tick_promotion);
+// toward the next rank for units (Simulation::promotion_required_xp);
 // construction, upgrade or research progress for structures; aura names from
 // the unit's roster template; carried resources. Several units show the
 // multi-selection icon grid (selection_panels.js "Selection") and a structure
@@ -2051,9 +2237,8 @@ void RtsoMain::update_inspector() {
 		inspector_class->set_text("Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
 				") - Kills: " + String::num_int64(uview.kills[u]));
 
-		// Experience toward the next rank (Simulation::tick_promotion: 300, 700).
-		if (rank < 3) {
-			const float need = rank < 2 ? 300.0f : 700.0f;
+		// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
+		if (const float need = sim->promotion_required_xp(u); need > 0.0f) {
 			set_bar(inspector_xp_bar, inspector_xp_label, (float)uview.xp[u], need,
 					"Experience: " + String::num_int64(uview.xp[u]) + " / " + String::num(need, 0));
 		} else {
@@ -3361,6 +3546,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
+			// 1c. A Gaia treasure: collect it (0 A.D. unit_actions "collect-treasure").
+			{
+				uint32_t treasure_id = 0;
+				float best_td2 = 2.0f * 2.0f;
+				for (const auto &t : sim->treasures()) {
+					const float dx = t.x - click_pos.x, dz = t.z - click_pos.z;
+					if (dx * dx + dz * dz < best_td2) { best_td2 = dx * dx + dz * dz; treasure_id = t.id; }
+				}
+				if (treasure_id != 0) {
+					if (net_lockstep())
+						post_lockstep(17, sel_ptr, sel_n, 0, 0, treasure_id, (uint8_t)(2 | qbit));
+					else
+						sim->order_collect_treasure(sel_ptr, sel_n, treasure_id, queue_shift);
+					play_civ_voice("gather");
+					return;
+				}
+			}
+
 			// 2. Right click on Enemy Unit (Attack)
 			uint32_t clicked_enemy_id = 0;
 			float best_ed2 = 2.2f * 2.2f;
@@ -3443,14 +3646,30 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float dz = b.z - click_pos.z;
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
-					if (b.team != local_player()) {
+					const uint32_t gaia_grain = b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
+					if (gaia_grain) { // a Gaia field: anyone may farm it (0 A.D. "gather" comes before "capture")
+						if (net_lockstep())
+							post_lockstep(4, sel_ptr, sel_n, 0, 0, gaia_grain, qbit);
+						else
+							sim->order_gather(sel_ptr, sel_n, gaia_grain, queue_shift);
+						play_civ_voice("gather");
+					} else if (b.team != local_player()) {
 						if (net_lockstep())
 							post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, qbit); // capture (0 A.D. default)
 						else
 							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
 						play_civ_voice("attack");
 					} else {
-						if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
+						// 0 A.D. "returnresource" comes first: carriers take their load to this dropsite.
+						bool carriers = false;
+						for (size_t k = 0; k < sel_n && !carriers; ++k) carriers = sim->can_return_resource(sel_ptr[k], b.id);
+						if (carriers) {
+							if (net_lockstep())
+								post_lockstep(34, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_return_resource(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("gather");
+						} else if (b.build_progress < 1.0f || b.hp < b.max_hp || b.type == rtso::BLD_FIELD) { // finished fields: farm
 							if (net_lockstep())
 								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
@@ -3548,6 +3767,8 @@ void RtsoMain::apply_match_settings() {
 	sim->set_wonder_duration(60.0f * (float)std::clamp((int)ms->get("wonder_min"), 0, 60));
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
+	sim->set_water_level_mode(std::clamp((int)ms->get("water_level"), 0, 2));
+	sim->set_sea_level_rise_minutes(std::clamp((int)ms->get("sea_level_rise_min"), 0, 60));
 	// Game-setup teams (1-based T1..T4) decide allied victory, shared vision and territory.
 	Array slot_teams = ms->get("slot_teams");
 	for (int p = 0; p < 8 && p < slot_teams.size(); ++p) {
@@ -3819,6 +4040,19 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (ftype >= rtso::FAUNA_COUNT) ftype = rtso::FAUNA_DEER;
 		sim->spawn_fauna(fx, fz, ftype);
 	}
+	// 0 A.D. gaia/treasure/* and gaia/ruins/* by template stem (tools/port_0ad_maps.py).
+	Array treasure_arr = d.get("treasures", Array());
+	for (int i = 0; i < treasure_arr.size(); ++i) {
+		Dictionary t = treasure_arr[i];
+		const uint8_t tt = rtso::treasure_type_by_name(String(t.get("type", "")).utf8().get_data());
+		if (tt < rtso::TREASURE_TYPE_COUNT) sim->spawn_treasure((float)t.get("x", 0.0), (float)t.get("z", 0.0), tt);
+	}
+	Array ruins_arr = d.get("ruins", Array());
+	for (int i = 0; i < ruins_arr.size(); ++i) {
+		Dictionary r = ruins_arr[i];
+		const uint8_t rt = rtso::ruins_type_by_name(String(r.get("type", "")).utf8().get_data());
+		if (rt < rtso::RUINS_TYPE_COUNT) sim->spawn_ruins((float)r.get("x", 0.0), (float)r.get("z", 0.0), rt);
+	}
 
 	// Spawn Structures. Each finished building would otherwise rebuild the
 	// whole nav grid and territory map; do that once after the last one.
@@ -3833,23 +4067,28 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		uint8_t btype = rtso::BLD_HOUSE;
-		if (stype_str == "town_center" || stype_str == "civic" || stype_str == "civil_centre") btype = rtso::BLD_TOWN_CENTER;
-		else if (stype_str == "house" || stype_str == "apartment" || stype_str == "hut" || stype_str == "longhouse") btype = rtso::BLD_HOUSE;
-		else if (stype_str == "barracks" || stype_str == "range" || stype_str == "stable" || stype_str == "hall" || stype_str == "arsenal" || stype_str == "elephant_stable") btype = rtso::BLD_BARRACKS;
-		else if (stype_str == "storehouse" || stype_str == "forge") btype = rtso::BLD_STOREHOUSE;
-		else if (stype_str == "farmstead" || stype_str == "field" || stype_str == "mill" || stype_str == "rotarymill") btype = rtso::BLD_FARMSTEAD;
-		else if (stype_str == "market") btype = rtso::BLD_MARKET;
-		else if (stype_str == "tower" || stype_str == "defense_tower" || stype_str == "sentry_tower" || stype_str == "outpost") btype = rtso::BLD_TOWER;
-		else if (stype_str == "fortress" || stype_str == "palisades_fort" || stype_str == "keep") btype = rtso::BLD_FORTRESS;
-		else if (stype_str == "gate" || stype_str == "wall_gate") btype = rtso::BLD_GATE;
-		else if (stype_str == "temple" || stype_str == "tophet" || stype_str == "shrine" || stype_str == "pyramid") btype = rtso::BLD_TEMPLE;
-		else if (stype_str == "wonder") btype = rtso::BLD_WONDER;
-		else if (stype_str == "dock") btype = rtso::BLD_DOCK;
-		else if (stype_str == "wall" || stype_str == "wall_segment" || stype_str == "palisade") btype = rtso::BLD_WALL_SEGMENT;
-		else if (stype_str == "corral") btype = rtso::BLD_CORRAL;
-
+		uint8_t btype = map_building_type(stype_str);
+		if (btype >= rtso::BLD_TYPE_COUNT) btype = rtso::BLD_HOUSE;
 		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
+	}
+	// Gaia-owned structures (Player 0 in 0 A.D.'s map: towers, palisades, houses, docks,
+	// structures/merc_camp_egyptian): hostile to everyone, captured or destroyed like 0 A.D.'s.
+	Array gaia_str_arr = d.get("gaia_structures", Array());
+	std::vector<uint32_t> gaia_structure_ids(gaia_str_arr.size(), 0);
+	for (int i = 0; i < gaia_str_arr.size(); ++i) {
+		Dictionary b = gaia_str_arr[i];
+		const uint8_t btype = map_building_type(b.get("type", ""));
+		if (btype >= rtso::BLD_TYPE_COUNT) continue;
+		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+	}
+	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
+	Array scenery_arr = d.get("scenery", Array());
+	for (int i = 0; i < scenery_arr.size(); ++i) {
+		Dictionary sc = scenery_arr[i];
+		const uint8_t st = rtso::scenery_type_by_name(String(sc.get("type", "")).utf8().get_data());
+		if (st < rtso::SCENERY_TYPE_COUNT)
+			sim->spawn_scenery((float)sc.get("x", 0.0), (float)sc.get("z", 0.0), st, (float)sc.get("angle", 0.0),
+					(float)sc.get("scale", 0.25));
 	}
 	sim->end_bulk_spawn();
 
@@ -3865,30 +4104,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		rtso::UnitType utype = rtso::UNIT_VILLAGER;
-		if (utype_str == "swordsman") utype = rtso::UNIT_SWORDSMAN;
-		else if (utype_str == "spearman") utype = rtso::UNIT_SPEARMAN;
-		else if (utype_str == "archer") utype = rtso::UNIT_ARCHER;
-		else if (utype_str == "cavalry") utype = rtso::UNIT_CAVALRY;
-		else if (utype_str == "trader") utype = rtso::UNIT_TRADER;
-		else if (utype_str == "catapult") utype = rtso::UNIT_CATAPULT;
-		else if (utype_str == "hero") utype = rtso::UNIT_HERO;
-		else if (utype_str == "trireme") utype = rtso::UNIT_TRIREME;
-		else if (utype_str == "elephant") utype = rtso::UNIT_ELEPHANT;
-		else if (utype_str == "siege_ram") utype = rtso::UNIT_SIEGE_RAM;
-		else if (utype_str == "healer") utype = rtso::UNIT_HEALER;
-		else if (utype_str == "chariot") utype = rtso::UNIT_CHARIOT;
-		else if (utype_str == "war_dog") utype = rtso::UNIT_WAR_DOG;
-		else if (utype_str == "bolt_shooter") utype = rtso::UNIT_BOLT_SHOOTER;
-		else if (utype_str == "fishing_boat") utype = rtso::UNIT_FISHING_BOAT;
-		else if (utype_str == "merchant_ship") utype = rtso::UNIT_MERCHANT_SHIP;
-		else if (utype_str == "female_citizen") utype = rtso::UNIT_FEMALE_CITIZEN;
-		else if (utype_str == "carnyx") utype = rtso::UNIT_CARNYX;
-		else if (utype_str == "worker_elephant") utype = rtso::UNIT_WORKER_ELEPHANT;
-		else if (utype_str == "archer_maiden") utype = rtso::UNIT_ARCHER_MAIDEN;
-		else if (utype_str == "camel") utype = rtso::UNIT_CAMEL;
-		else if (utype_str == "scythed_chariot") utype = rtso::UNIT_SCYTHED_CHARIOT;
-
+		const rtso::UnitType utype = map_unit_type(utype_str);
 		const auto &uinfo = rtso::unit_type_info(utype);
 		unit_ids[i] = sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
 	}
@@ -3899,6 +4115,24 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		int holder = (int)u.get("garrison_in", -1);
 		if (holder < 0 || holder >= (int)unit_ids.size() || !unit_ids[i] || !unit_ids[holder]) continue;
 		sim->order_board_transport(&unit_ids[i], 1, unit_ids[holder]);
+	}
+	// Gaia-owned units: 0 A.D. template ("gaul/infantry_javelineer_a"), its rank, and the
+	// Gaia ship or structure it starts in.
+	Array gaia_units_arr = d.get("gaia_units", Array());
+	std::vector<uint32_t> gaia_unit_ids(gaia_units_arr.size(), 0);
+	for (int i = 0; i < gaia_units_arr.size(); ++i) {
+		Dictionary u = gaia_units_arr[i];
+		gaia_unit_ids[i] = sim->spawn_gaia_unit((float)u.get("x", 0.0), (float)u.get("z", 0.0),
+				map_unit_type(u.get("type", "")), String(u.get("template", "")).utf8().get_data(), (int)u.get("rank", 1));
+	}
+	for (int i = 0; i < gaia_units_arr.size(); ++i) {
+		Dictionary u = gaia_units_arr[i];
+		if (!gaia_unit_ids[i]) continue;
+		const int ship = (int)u.get("garrison_in", -1), str = (int)u.get("garrison_in_structure", -1);
+		if (ship >= 0 && ship < (int)gaia_unit_ids.size() && gaia_unit_ids[ship])
+			sim->order_board_transport(&gaia_unit_ids[i], 1, gaia_unit_ids[ship]);
+		else if (str >= 0 && str < (int)gaia_structure_ids.size() && gaia_structure_ids[str])
+			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
 	// Rebuild World View 3D terrain and bounds
@@ -4053,6 +4287,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 			if (i < sdiffs.size()) setup.diffs[i] = (uint8_t)std::clamp((int)sdiffs[i], 0, 5);
 			if (i < sbehs.size()) setup.behs[i] = (uint8_t)std::clamp((int)sbehs[i], 0, 3);
 		}
+		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
+		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
 		setup.difficulty = (uint8_t)((int)ms->get("ai_difficulty"));
@@ -4147,6 +4383,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_wonder_duration(60.0f * (float)setup.wonder_min);
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
+	sim->set_water_level_mode(setup.water_level);
+	sim->set_sea_level_rise_minutes(setup.sea_rise_min);
 	for (uint8_t p = 0; p < 8 && p < setup.slot_count; ++p) {
 		if (setup.teams[p] >= 1 && setup.teams[p] <= 8) sim->set_player_team(p, (uint8_t)(setup.teams[p] - 1));
 	}
@@ -4200,6 +4438,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		}
 		ms->set("slot_diffs", sdiffs);
 		ms->set("slot_behs", sbehs);
+		ms->set("water_level", sim->water_level_mode());
+		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
 		ms->set("ai_behavior", (int)sim->petra_behavior());
@@ -4366,6 +4606,13 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 
 void RtsoMain::toggle_objectives() {
 	objectives_dialog_.toggle(sim, local_player());
+}
+
+// Top panel IconButtons: DiplomacyDialogButton, TradeDialogButton, ObjectivesDialogButton.
+void RtsoMain::_toggle_session_dialog(String name) {
+	if (name == "DiplomacyDialog") toggle_diplomacy();
+	else if (name == "Objectives") toggle_objectives();
+	else if (Node *n = get_node_or_null(NodePath(name))) n->call("toggle");
 }
 
 void RtsoMain::toggle_diplomacy() {

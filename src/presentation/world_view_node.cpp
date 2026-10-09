@@ -14,7 +14,14 @@
 #include <godot_cpp/classes/geometry_instance3d.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/sphere_mesh.hpp>
+#include <godot_cpp/classes/box_mesh.hpp>
+#include <godot_cpp/classes/standard_material3d.hpp>
 #include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/procedural_sky_material.hpp>
+#include <godot_cpp/classes/sky.hpp>
+#include <godot_cpp/classes/environment.hpp>
+#include <godot_cpp/classes/world_environment.hpp>
+#include <godot_cpp/classes/directional_light3d.hpp>
 #include <godot_cpp/classes/gradient.hpp>
 #include <godot_cpp/classes/gradient_texture1_d.hpp>
 #include <godot_cpp/classes/curve.hpp>
@@ -56,6 +63,36 @@ static void enable_instance_tint(const Ref<Mesh> &mesh) {
 		Ref<BaseMaterial3D> bm = mesh->surface_get_material(s);
 		if (bm.is_valid()) bm->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
 	}
+}
+
+// Flora sways like 0 A.D.'s basic_trans_wind materials: a copy of the mesh
+// whose surfaces use shaders/tree_wind.gdshader with the original skin.
+Ref<Mesh> RtsoWorldView::wind_mesh(const Ref<Mesh> &src) {
+	auto &cache = wind_cache_;
+	Ref<ArrayMesh> am = src;
+	if (am.is_null()) return src;
+	auto it = cache.find(am->get_instance_id());
+	if (it != cache.end()) return it->second;
+	Ref<Shader> &sh = wind_shader_;
+	if (sh.is_null()) sh = ResourceLoader::get_singleton()->load("res://shaders/tree_wind.gdshader");
+	if (sh.is_null()) return src;
+	Ref<ArrayMesh> out = am->duplicate(false);
+	for (int s = 0; s < out->get_surface_count(); ++s) {
+		Ref<BaseMaterial3D> bm = am->surface_get_material(s);
+		Ref<ShaderMaterial> m;
+		m.instantiate();
+		m->set_shader(sh);
+		if (bm.is_valid()) {
+			m->set_shader_parameter("albedo_tex", bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO));
+			m->set_shader_parameter("albedo", bm->get_albedo());
+			m->set_shader_parameter("srgb_vertex_color", bm->get_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR));
+			if (bm->get_transparency() == BaseMaterial3D::TRANSPARENCY_ALPHA_SCISSOR)
+				m->set_shader_parameter("alpha_scissor", bm->get_alpha_scissor_threshold());
+		}
+		out->surface_set_material(s, m);
+	}
+	cache[am->get_instance_id()] = out;
+	return out;
 }
 
 RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
@@ -285,6 +322,24 @@ void RtsoWorldView::_ready() {
 	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
 	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
+	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
+	treasure_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "treasure_chest").mesh), true);
+	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
+	treasure_mmi = memnew(MultiMeshInstance3D); treasure_mmi->set_multimesh(treasure_mm); add_child(treasure_mmi);
+	{
+		Ref<BoxMesh> box;
+		box.instantiate();
+		box->set_size(Vector3(1.0f, 1.0f, 1.0f));
+		Ref<StandardMaterial3D> mat;
+		mat.instantiate();
+		mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+		mat->set_roughness(0.9f);
+		scenery_mm = create_multimesh(box, true);
+		scenery_mmi = memnew(MultiMeshInstance3D);
+		scenery_mmi->set_multimesh(scenery_mm);
+		scenery_mmi->set_material_override(mat);
+		add_child(scenery_mmi);
+	}
 	fish_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fish").mesh), true);
 	fish_mmi = memnew(MultiMeshInstance3D); fish_mmi->set_multimesh(fish_mm); add_child(fish_mmi);
 	fish_mmi->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_OFF);
@@ -1294,10 +1349,10 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		{ "polar", { { "pine", 1.0f }, { "pine", 0.8f }, { nullptr, 1.0f } } },
 		{ "temperate", { { "oak", 1.15f }, { "tree", 1.0f }, { "pine", 1.0f } } },
 		{ "steppe", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
-		{ "savanna", { { "baobab", 0.8f }, { "acacia", 0.9f }, { "acacia", 0.8f } } },
-		{ "oasis", { { "palm", 1.0f }, { "palm", 1.2f }, { "acacia", 0.8f } } },
-		{ "desert", { { "palm", 1.0f }, { "acacia", 0.8f }, { nullptr, 1.0f } } },
-		{ "persia", { { "palm", 1.0f }, { "acacia", 0.8f }, { "tree", 0.9f } } },
+		{ "savanna", { { "baobab", 0.45f }, { "acacia", 0.6f }, { "acacia", 0.5f } } },
+		{ "oasis", { { "palm", 1.0f }, { "palm", 1.2f }, { "acacia", 0.5f } } },
+		{ "desert", { { "palm", 1.0f }, { "acacia", 0.5f }, { nullptr, 1.0f } } },
+		{ "persia", { { "palm", 1.0f }, { "acacia", 0.5f }, { "tree", 0.9f } } },
 		{ "india", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "tree", 1.0f } } },
 		{ "tropical", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "palm", 1.2f } } },
 		{ "volcanic", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
@@ -1315,7 +1370,7 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		enable_instance_tint(e.mesh);
 		const int slot = tree_kind_count++;
 		tree_mm[slot]->set_instance_count(0);
-		tree_mm[slot]->set_mesh(e.mesh);
+		tree_mm[slot]->set_mesh(wind_mesh(e.mesh));
 		tree_scale[slot] = kd.scale;
 		tree_y[slot] = e.y_offset * kd.scale;
 	}
@@ -1375,6 +1430,97 @@ void RtsoWorldView::build_ground_paint(const rtso::Simulation *sim) {
 	tm->set_shader_parameter("paint_tex", paint_tex_);
 	tm->set_shader_parameter("paint_half", half);
 	paint_dirty_ = false;
+}
+
+// Per-map sun, ambient light, fog, sky and water, from the Environment block
+// of the 0 A.D. random-map biome each RTS0 biome follows
+// (maps/random/rmbiome/generic/*.json, named after each row).
+void RtsoWorldView::apply_biome_environment(const std::string &biome) {
+	struct Rgb { float r, g, b; };
+	struct Env {
+		const char *biome;
+		const char *sky; // SkySet
+		Rgb sun;
+		float sun_elevation, sun_rotation; // radians
+		Rgb ambient, water_color, water_tint;
+		float murkiness;
+		Rgb fog;
+	};
+	static const Env kEnvs[] = {
+		{ "mediterranean", "default", { 1.023f, 0.923f, 0.714f }, 0.800f, -0.909f, { 0.400f, 0.400f, 0.400f }, { 0.024f, 0.212f, 0.212f }, { 0.133f, 0.725f, 0.855f }, 0.80f, { 0.800f, 0.850f, 0.900f } }, // aegean
+		{ "aegean", "default", { 1.023f, 0.923f, 0.714f }, 0.800f, -0.909f, { 0.400f, 0.400f, 0.400f }, { 0.024f, 0.212f, 0.212f }, { 0.133f, 0.725f, 0.855f }, 0.80f, { 0.800f, 0.850f, 0.900f } }, // aegean
+		{ "latium", "default", { 1.032f, 0.990f, 0.866f }, 0.846f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // temperate
+		{ "alpine", "cloudless", { 1.019f, 1.040f, 0.973f }, 0.589f, -1.443f, { 0.390f, 0.374f, 0.524f }, { 0.078f, 0.247f, 0.420f }, { 0.471f, 1.000f, 0.502f }, 0.88f, { 0.800f, 0.800f, 0.900f } }, // alpine
+		{ "oasis", "default", { 0.976f, 0.859f, 0.749f }, 0.650f, -0.300f, { 0.231f, 0.282f, 0.357f }, { 0.376f, 0.267f, 0.122f }, { 0.502f, 0.502f, 0.000f }, 0.90f, { 0.992f, 0.949f, 0.839f } }, // sahara
+		{ "temperate", "default", { 1.032f, 0.990f, 0.866f }, 0.846f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // temperate
+		{ "steppe", "sunrise", { 0.859f, 0.851f, 0.733f }, 0.421f, -1.526f, { 0.504f, 0.462f, 0.604f }, { 0.420f, 0.365f, 0.344f }, { 0.502f, 0.502f, 0.307f }, 0.97f, { 0.800f, 0.850f, 0.900f } }, // steppe
+		{ "savanna", "cloudless", { 1.246f, 1.109f, 0.989f }, 0.600f, -0.450f, { 0.351f, 0.402f, 0.477f }, { 0.060f, 0.205f, 0.224f }, { 0.202f, 0.302f, 0.047f }, 0.92f, { 0.847f, 0.737f, 0.482f } }, // savanna
+		{ "polar", "stormy", { 0.980f, 1.010f, 1.045f }, 0.502f, -0.626f, { 0.294f, 0.392f, 0.494f }, { 0.078f, 0.247f, 0.420f }, { 0.471f, 1.000f, 0.502f }, 0.88f, { 0.784f, 0.886f, 0.976f } }, // arctic
+		{ "india", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
+		{ "desert", "default", { 0.976f, 0.859f, 0.749f }, 0.650f, -0.300f, { 0.231f, 0.282f, 0.357f }, { 0.376f, 0.267f, 0.122f }, { 0.502f, 0.502f, 0.000f }, 0.90f, { 0.992f, 0.949f, 0.839f } }, // sahara
+		{ "persia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
+		{ "volcanic", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
+		{ "tropical", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
+	};
+	const Env *e = &kEnvs[0];
+	for (const auto &x : kEnvs)
+		if (biome == x.biome) { e = &x; break; }
+	auto col = [](const Rgb &c, float k = 1.0f) { return Color(c.r * k, c.g * k, c.b * k, 1.0f); };
+
+	Node *scene = get_parent();
+	if (scene) {
+		for (int i = 0; i < scene->get_child_count(); ++i) {
+			if (DirectionalLight3D *sun = Object::cast_to<DirectionalLight3D>(scene->get_child(i))) {
+				// 0 A.D. gives the sun's height above the horizon and its bearing;
+				// above 90 degrees it shines from the other side. Bearings are taken
+				// relative to the Aegean sun, which matches the scene's default light.
+				float elev = e->sun_elevation, rot = e->sun_rotation;
+				if (elev > Math_PI * 0.5f) {
+					elev = (float)Math_PI - elev;
+					rot += (float)Math_PI;
+				}
+				elev = Math::clamp(elev, 0.35f, 1.3f);
+				const float peak = std::max(e->sun.r, std::max(e->sun.g, e->sun.b));
+				sun->set_color(col(e->sun, 1.0f / peak));
+				sun->set_param(Light3D::PARAM_ENERGY, 1.25f * peak);
+				sun->set_rotation(Vector3(-elev, Math::deg_to_rad(45.0f) + (rot - (-0.909f)), 0.0f));
+			} else if (WorldEnvironment *we = Object::cast_to<WorldEnvironment>(scene->get_child(i))) {
+				Ref<Environment> env = we->get_environment();
+				if (env.is_null()) continue;
+				if (!env_base_.is_valid()) env_base_ = env->duplicate(true);
+				env = env_base_->duplicate(true);
+				we->set_environment(env);
+				// AmbientColor 0.4 grey is 0 A.D.'s neutral; scale to the scene's level.
+				env->set_ambient_light_color(col(e->ambient, 0.85f / 0.4f));
+				env->set_fog_light_color(col(e->fog));
+				Ref<Sky> sky = env->get_sky();
+				Ref<ProceduralSkyMaterial> psm = sky.is_valid() ? Ref<ProceduralSkyMaterial>(sky->get_material()) : Ref<ProceduralSkyMaterial>();
+				if (psm.is_valid()) {
+					const Color fog = col(e->fog);
+					psm->set_sky_horizon_color(psm->get_sky_horizon_color().lerp(fog, 0.5f));
+					if (std::strcmp(e->sky, "stormy") == 0) {
+						psm->set_sky_top_color(Color(0.38f, 0.45f, 0.55f));
+						psm->set_sky_horizon_color(Color(0.66f, 0.70f, 0.75f));
+					} else if (std::strcmp(e->sky, "sunrise") == 0) {
+						psm->set_sky_horizon_color(Color(0.95f, 0.78f, 0.60f));
+					} else if (std::strcmp(e->sky, "cloudless") == 0) {
+						psm->set_sky_top_color(Color(0.16f, 0.45f, 0.86f));
+					}
+				}
+			}
+		}
+	}
+	if (water_mesh_node) {
+		Ref<ShaderMaterial> wsm = water_mesh_node->get_material_override();
+		if (wsm.is_valid()) {
+			const Color deep = col(e->water_color);
+			const Color tint = col(e->water_tint);
+			wsm->set_shader_parameter("deep_color", Color(deep.r, deep.g, deep.b, 0.94f));
+			const Color shallow = deep.lerp(tint, 0.5f);
+			wsm->set_shader_parameter("shallow_color", Color(shallow.r, shallow.g, shallow.b, 0.78f));
+			wsm->set_shader_parameter("murkiness", e->murkiness);
+		}
+	}
 }
 
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
@@ -1490,6 +1636,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	} else if (water_mesh_node) {
 		water_mesh_node->set_visible(false);
 	}
+	apply_biome_environment(sim->current_map_biome());
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {
@@ -1498,6 +1645,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (delta > 0.05f) delta = 0.05f;
 	anim_time += delta;
 	unit_vis_stamp++;
+	// Map triggers (Flood, Extinct Volcano) raise the water during the match.
+	if (water_mesh_node && water_mesh_node->is_visible() &&
+	    water_mesh_node->get_position().y != sim->water_height()) {
+		water_mesh_node->set_position(Vector3(0.0f, sim->water_height(), 0.0f));
+	}
 	if (unit_vis_stamp == 0) unit_vis_stamp = 1;
 
 	update_fog(sim, delta);
@@ -2123,10 +2275,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
 	const auto &fres = mirages_.resources();
-	size_t n_tree = 0, g = 0, st = 0, fd = 0, fish_n = 0;
+	size_t n_tree = 0, g = 0, st = 0, fd = 0, nru = 0, fish_n = 0;
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
-		if (r.type == rtso::RES_WOOD) n_tree++;
+		if (r.subtype == rtso::RES_SUB_RUINS) nru++;
+		else if (r.type == rtso::RES_WOOD) n_tree++;
 		else if (r.type == rtso::RES_GOLD) g++;
 		else if (r.type == rtso::RES_STONE) st++;
 		else if (r.subtype == rtso::RES_SUB_FISH) fish_n++;
@@ -2142,9 +2295,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	stone_mm->set_instance_count((int)st);
 	if (food_mm.is_valid())
 		food_mm->set_instance_count((int)fd);
+	ruins_mm->set_instance_count((int)nru);
 	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia[TREE_KINDS] = {}, ig = 0, ist = 0, ifd = 0, ifish = 0;
+	size_t ia[TREE_KINDS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
+	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
 	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
@@ -2159,7 +2314,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const float lit = los_brightness(rx, rz);
 		const Color tint(lit, lit, lit, 1.0f);
 
-		if (r.type == rtso::RES_WOOD) {
+		if (r.subtype == rtso::RES_SUB_RUINS) {
+			Transform3D xf(rot, Vector3(rx, ry + e_ruins.y_offset, rz));
+			ruins_mm->set_instance_transform((int)iru, xf);
+			ruins_mm->set_instance_color((int)iru++, tint);
+		} else if (r.type == rtso::RES_WOOD) {
 			const int k = (int)(h % (uint32_t)tree_kind_count);
 			const float sc = tree_scale[k];
 			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k], rz));
@@ -2185,6 +2344,45 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot, Vector3(rx, ry + e_food.y_offset, rz));
 			food_mm->set_instance_transform((int)ifd, xf);
 			food_mm->set_instance_color((int)ifd++, tint);
+		}
+	}
+
+	// Treasures sit still, so an explored one stays drawn (darker) in the fog.
+	{
+		const auto &tv = sim->treasures();
+		auto e_chest = rtso::ModelLibrary::get("vegetation", "treasure_chest");
+		int nt = 0;
+		for (const auto &t : tv) if (los_brightness(t.x, t.z) > 0.0f) ++nt;
+		treasure_mm->set_instance_count(nt);
+		int it = 0;
+		for (const auto &t : tv) {
+			const float lit = los_brightness(t.x, t.z);
+			if (lit <= 0.0f) continue;
+			Basis rot(Vector3(0, 1, 0), (float)(t.id % 12) * 0.52f);
+			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
+			treasure_mm->set_instance_transform(it, xf);
+			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));
+		}
+	}
+
+	// Gaia scenery: a box the size of its 0 A.D. obstruction, turned by its map orientation
+	// (Basis about y by `angle` takes local x to (cos, -sin), CCmpObstruction's u axis).
+	{
+		const auto &sv = sim->scenery();
+		int ns = 0;
+		for (const auto &sc : sv) if (los_brightness(sc.x, sc.z) > 0.0f) ++ns;
+		scenery_mm->set_instance_count(ns);
+		int is = 0;
+		for (const auto &sc : sv) {
+			const float lit = los_brightness(sc.x, sc.z);
+			if (lit <= 0.0f) continue;
+			const rtso::SceneryTypeInfo &info = rtso::scenery_type_info(sc.type);
+			const float scale = info.width > 0.0f ? 2.0f * sc.half_w / info.width : 0.25f;
+			const float h = std::max(0.2f, info.height * scale * (info.wooden ? 0.35f : 0.6f));
+			Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(2.0f * sc.half_w, h, 2.0f * sc.half_d));
+			scenery_mm->set_instance_transform(is, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z) + 0.5f * h, sc.z)));
+			const Color base = info.wooden ? Color(0.45f, 0.32f, 0.2f) : Color(0.72f, 0.69f, 0.62f);
+			scenery_mm->set_instance_color(is++, Color(base.r * lit, base.g * lit, base.b * lit, 1.0f));
 		}
 	}
 

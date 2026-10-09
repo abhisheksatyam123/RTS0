@@ -8,6 +8,7 @@
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "triggers.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -130,7 +131,7 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 26; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 30; // save_state's format; see the history beside it
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -254,7 +255,24 @@ public:
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE);
 	// Stats of the unit at SoA index i (its civ roster template, else its class).
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
+	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
+	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
+	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
+	bool unit_can_target(size_t i, size_t j) const { return combat_can_target(unit_combat_at(i), unit_combat_at(j)); }
+	bool unit_can_target_building(size_t i, uint8_t building_type) const {
+		return combat_can_target(unit_combat_at(i), building_combat(building_type));
+	}
 	uint16_t unit_template(uint32_t unit_id) const;
+	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
+	// or -1 when the unit has no next rank.
+	float promotion_required_xp(size_t i) const;
+	// Training time multiplier of a template trained above Basic (Cost/BuildTime per rank).
+	static float promotion_train_time_mult(uint16_t tmpl);
+	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
+	float rank_melee_armor(size_t i) const;
+	float unit_capture_attack_at(size_t i) const;
+	float healer_range_of(size_t h) const;
+	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
 	// from its own civ's bonus and its allies' (same team, still in the match).
 	// See civ_team_bonus_mult() for the arguments.
@@ -310,6 +328,7 @@ public:
 	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
 	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
+	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive);
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
@@ -377,7 +396,7 @@ public:
 		std::vector<uint32_t> members;
 		std::vector<FormationSlot> slots;
 		WaypointPath path;
-		// v26: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
+		// v30: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
 		uint32_t target_unit = 0;       // Order.Attack target unit
 		uint32_t target_building = 0;   // Order.Attack target structure
 		uint8_t allow_capture = 0;      // Attack.js allowCapture for the members
@@ -406,6 +425,11 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
+	// dropsite, drop it, then take the next queued order or idle.
+	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
+	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
+	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const; // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
@@ -467,6 +491,27 @@ public:
 	void set_relic_duration(float s) { relic_duration_ = std::max(0.0f, s); }
 	int relic_count() const { return relic_count_; }
 	void set_relic_count(int n) { relic_count_ = std::clamp(n, 0, 16); }
+	// Rising-water maps (0 A.D. Flood's "WaterLevels" and Extinct Volcano's "SeaLevelRise"
+	// Game Setup options): Flood's water rises (0, default), stays (1, Shallow) or starts a
+	// metre higher (2, Deep); Extinct Volcano's water starts rising after N minutes (default 25).
+	enum WaterLevelMode : uint8_t { WATER_LEVEL_RISING = 0, WATER_LEVEL_SHALLOW = 1, WATER_LEVEL_DEEP = 2 };
+	uint8_t water_level_mode() const { return water_level_mode_; }
+	void set_water_level_mode(uint8_t m) { water_level_mode_ = m <= WATER_LEVEL_DEEP ? m : WATER_LEVEL_RISING; }
+	int sea_level_rise_minutes() const { return sea_level_rise_min_; }
+	void set_sea_level_rise_minutes(int m) { sea_level_rise_min_ = (uint8_t)std::clamp(m, 0, 60); }
+
+	// Map trigger scripts (0 A.D. Trigger.js; see triggers.h). Map generation registers
+	// the map's own triggers; tick() runs their timers and the sim calls trigger_event().
+	const TriggerState &trigger_state() const { return triggers_; }
+	uint32_t trigger_hash() const { return triggers_.hash(); }
+	void trigger_event(uint8_t event, const TriggerEventData &data = {});
+	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
+	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
+	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
+	// to `h`, drowns organic units and animals more than `drown_depth` below it, and
+	// takes away submerged structures and resources (0 A.D. turns them into
+	// decorative actors). Ships and docks float.
+	void set_water_level(float h, float drown_depth);
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
@@ -905,6 +950,57 @@ public:
 		uint8_t owner_team = 255;
 	};
 
+	// Treasure.js / TreasureCollector.js: a Gaia treasure any land unit can be ordered to
+	// collect; after CollectTime in range its owner gets the treasure's resources.
+	struct Treasure {
+		uint32_t id;
+		float x, z;
+		float collect_progress;   // seconds spent collecting by collector_id
+		uint32_t collector_id;
+		uint8_t type;             // TreasureType (gaia_data.h)
+		uint8_t pad[3];
+	};
+	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
+	const std::vector<Treasure> &treasures() const { return treasures_; }
+	bool is_treasure_id(uint32_t id) const {
+		for (const auto &t : treasures_) if (t.id == id) return true;
+		return false;
+	}
+	// One plain treasure of a resource (rmgen placePlayersNomad's food_bin / wood / stone / metal);
+	// its amount is the kind's, treasure_type_info(treasure_type_for_resource(res)).amount.
+	uint32_t spawn_resource_treasure(float x, float z, uint8_t res_type) {
+		return spawn_treasure(x, z, treasure_type_for_resource(res_type));
+	}
+	void clear_treasures() { treasures_.clear(); } // Game Setup "Treasures" off
+	// Gaia scenery from a 0 A.D. map (structures/fence_*, column_*, obelisk; gaia_data.h):
+	// an oriented obstruction. angle is the map's Orientation y (radians); scale is RTS0
+	// units per 0 A.D. metre on this map.
+	struct Scenery {
+		uint32_t id;
+		float x, z;
+		float angle;
+		float half_w, half_d; // RTS0 units along the rotated x and z axes
+		float hp;
+		uint8_t type;         // SceneryType (scenery_type_info)
+		uint8_t pad[3];
+	};
+	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
+	// The grain supply of a finished field (0 if none): a Gaia field is farmed through it.
+	uint32_t field_resource_id(uint32_t building_id) const {
+		auto it = field_res_by_bld_.find(building_id);
+		return it != field_res_by_bld_.end() && res_id_to_idx_.count(it->second) ? it->second : 0;
+	}
+	const std::vector<Scenery> &scenery() const { return scenery_; }
+	// A Gaia-owned unit from a 0 A.D. map (Player 0): roster template `template_id`
+	// ("gaul/infantry_javelineer_a"; a rank suffix falls back to the _b template), else the
+	// u_type class. rank 2/3 = Advanced/Elite, reached through Promotion xp on the next tick.
+	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
+	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
+	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
+	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
+	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
+
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<TreasureRelic> &relics() const { return relics_; }
@@ -964,6 +1060,8 @@ private:
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
+		float regen[UNIT_TYPE_COUNT];       // Health.js RegenRate, hp per second
+		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -973,12 +1071,26 @@ private:
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
+		// The same unit multipliers per civ roster template, matched against the
+		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
+		// which its RTS0 unit_type only approximates.
+		struct Template {
+			float gather[GK_COUNT];
+			float attack, health, speed, range, train_time;
+			float armor[3];
+		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
 	void rebuild_all_tech_mods();
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
+	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
+	struct UnitTechMods { float attack, health, speed, range, train_time; const float *armor, *gather; };
+	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
+	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
+		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
+	}
 	int32_t carry_cap(size_t unit_idx, uint8_t res) const;
 	uint32_t find_free_field(uint8_t team, float x, float z);
 	void tick_combat(float dt);
@@ -1011,6 +1123,9 @@ private:
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
+	void promote_if_due(size_t i); // Promotion.js IncreaseXp: promote while xp covers RequiredXp
+	void promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank); // Promotion.js Promote
+	void apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank);
 	void tick_capture(float dt);
 	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
@@ -1019,6 +1134,10 @@ private:
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	void tick_repair(float dt);
+	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static float foundation_build_multiplier(int builders);
+	float builder_rate(size_t unit_idx) const;
+	float structure_build_time(const Building &b, uint8_t builder_team) const;
 	void tick_production(float dt);
 	void tick_research(float dt);
 	void tick_upgrades(float dt);
@@ -1038,7 +1157,6 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	void tick_upkeep(float dt);
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
 	void tick_gates(float dt);
@@ -1081,7 +1199,11 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
+	static float projectile_speed(uint8_t visual);
+	int32_t projectile_hit_unit(const Projectile &p) const;
+	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b);
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	void bind_unit_index(uint32_t id, size_t idx);
@@ -1134,6 +1256,8 @@ private:
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
 	std::vector<TreasureRelic> relics_;
+	std::vector<Treasure> treasures_;
+	void tick_treasures(float dt);
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;
@@ -1153,6 +1277,15 @@ private:
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
+	std::unordered_map<uint32_t, FieldGatherers> ruins_gatherers_; // per tick, keyed by ruins resource id
+	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
+	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
+	std::vector<RuinsCap> ruins_caps_;
+	std::vector<Scenery> scenery_; // saved
+	int ruins_cap(uint32_t res_id) const {
+		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
+		return 1;
+	}
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1185,7 +1318,7 @@ private:
 	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && is_hostile(petra_pid_, (uint8_t)t); }
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
-	float upkeep_timer_ = 0.0f;
+	float upkeep_timer_ = 0.0f; // unused since soldier upkeep was removed (no 0 A.D. template has Upkeep); kept for the save layout
 	float entity_limits_timer_ = 0.0f;
 	float gate_timer_ = 0.0f;
 	static constexpr size_t MAX_RECENT_DEATHS = 64;
@@ -1218,6 +1351,16 @@ private:
 	float relic_duration_ = 180.0f;
 	int relic_count_ = 0;
 	void apply_relic_count();
+	uint8_t water_level_mode_ = WATER_LEVEL_RISING; // saved with the trigger state (v18)
+	uint8_t sea_level_rise_min_ = 25;
+	TriggerState triggers_;
+	void tick_triggers(float dt);
+	void register_map_triggers(MapType type);
+	void run_trigger_action(uint16_t action, float arg, const TriggerEventData &data);
+	// Ported map scripts (simulation.cpp, "Map trigger scripts").
+	void trigger_flood_rise_step(float final_level);
+	void trigger_volcano_rise_step();
+	void trigger_volcano_garrison_towers();
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
@@ -1278,6 +1421,13 @@ private:
 	PetraDiplomacy petra_diplo_;
 	// Tribute paid to each player since its Petra last looked: [to][from][resource].
 	float petra_tribute_inbox_[MAX_PLAYERS][MAX_PLAYERS][RES_COUNT] = {};
+	// AI-to-AI diplomacy (0 A.D. DiplomacyRequest / TributeRequest events), [to][from], save v27:
+	// the stance asked for (0 none, 1 ally, 2 neutral) and a tribute asked for in return.
+	uint8_t petra_diplo_request_inbox_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	int32_t petra_tribute_request_wanted_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	uint8_t petra_tribute_request_res_[MAX_PLAYERS][MAX_PLAYERS] = {};
+	PetraSentDiplomacy petra_sent_diplo_;
+	void petra_send_diplomacy_request();
 	float petra_defense_timer_ = 0.0f;
 	float petra_victory_timer_ = 0.0f;
 	float petra_diplo_timer_ = 0.0f;
@@ -1344,6 +1494,22 @@ private:
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields(int target_food);
+	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
+	struct PetraHuntScan {
+		std::vector<std::pair<float, float>> food_drops;
+		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
+		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
+		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
+	};
+	PetraHuntScan petra_hunt_scan() const;
+	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
+	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
+	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
+	void petra_manage_hunters(PetraHuntScan &scan);
+	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_resource_demand(float out[RES_COUNT]) const;
+	bool petra_perform_barter();      // tradeManager.js performBarter
+	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
@@ -1377,7 +1543,8 @@ private:
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
-	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_)
+	X(petra_fow_) X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
+	X(petra_sent_diplo_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -1402,6 +1569,25 @@ private:
 	NavGrid nav_grid_; // Phase1: SoA nav mesh (buildings + water), mirrors 0AD Grid<NavcellData>
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
+	// CCmpTerritoryManager connectivity, derived from territory_grid_ and the territory roots
+	// (civic centres and wonders): each 4-connected patch of one player's territory is a region,
+	// connected when it holds one of that player's roots. Unconnected regions keep the count of
+	// tiles of connected foreign regions bordering them (GetNeighbours(filterConnected)).
+	// Rebuilt on demand after the grid changes; not saved or hashed.
+	struct TerritoryRegion {
+		uint8_t owner;
+		bool connected;
+		std::array<uint32_t, MAX_PLAYERS> neighbours;
+	};
+	Grid<uint16_t> territory_region_;
+	std::vector<TerritoryRegion> territory_regions_;
+	bool territory_regions_dirty_ = true;
+	// Off until build placement keeps structures out of neutral land (see territory_decay_targets).
+	static constexpr bool TERRITORY_DECAY_IN_NEUTRAL_LAND = false;
+	void ensure_territory_regions();
+	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
+	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
+	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: territory roots in buildings_
 	// order, the grid size and the map extent. Same inputs, same grids, so the 1 Hz refresh skips.
 	struct TerritoryRoot {
@@ -1426,7 +1612,7 @@ private:
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
-	struct CaptureTally { int count[4]; float strength[4]; };
+	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
 	struct CaptureReach { uint32_t building; float x, z; };
 	std::vector<CaptureTally> capture_tally_;
 	std::vector<uint32_t> capture_cell_start_;
@@ -1445,6 +1631,7 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	float unit_height(size_t i) const; // terrain, or the water surface under a ship
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);

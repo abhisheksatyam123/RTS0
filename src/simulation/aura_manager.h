@@ -19,16 +19,28 @@ enum AuraType : uint8_t {
     AURA_COUNT  = 5
 };
 
+// 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
+enum AuraPlayers : uint8_t {
+    AURA_PLAYERS_OWNER = 1,
+    AURA_PLAYERS_ALLIES = 2, // the owner's allies other than itself
+    AURA_PLAYERS_ENEMIES = 4,
+    AURA_PLAYERS_ALLY = AURA_PLAYERS_OWNER | AURA_PLAYERS_ALLIES // "Ally" / "MutualAlly"
+};
+
+// Bit of player p in AuraSource::affected; Gaia and other ids past the slots share bit 8.
+inline uint16_t aura_player_bit(uint8_t p) { return (uint16_t)(1u << (p < 8 ? p : 8)); }
+
 struct AuraSource {
     uint32_t source_id = 0;
     AuraType type = AURA_GATHER;
     float range = 0.0f;
     float value = 0.0f;
-    uint8_t team = 0;
+    uint16_t affected = 0; // aura_player_bit() of every player the aura reaches
     float x = 0.0f;
     float z = 0.0f;
     bool alive = true;
-    int16_t aura = -1; // civ_hero_aura_table() index: buffs only the roster units that aura affects
+    int16_t aura = -1; // civ_hero_aura_table() index: reaches only the roster units that aura affects
+    uint8_t need_class = 0xFF; // CombatClass the unit must have (0xFF = any), for non-roster auras
 };
 
 class AuraManager {
@@ -37,18 +49,21 @@ public:
 
     void clear() { sources.clear(); }
 
-    void register_source(uint32_t id, AuraType type, float range, float value, uint8_t team, float x, float z,
-            int16_t aura = -1) {
+    // affected: aura_player_bit() mask of the players the aura reaches (the caller
+    // resolves 0 A.D. affectedPlayers against diplomacy).
+    void register_source(uint32_t id, AuraType type, float range, float value, uint16_t affected, float x, float z,
+            int16_t aura = -1, uint8_t need_class = 0xFF) {
         AuraSource s;
         s.source_id = id;
         s.type = type;
         s.range = range;
         s.value = value;
-        s.team = team;
+        s.affected = affected;
         s.x = x;
         s.z = z;
         s.alive = true;
         s.aura = aura;
+        s.need_class = need_class;
         sources.push_back(s);
     }
 
@@ -57,39 +72,39 @@ public:
             [id](const AuraSource &s) { return s.source_id == id; }), sources.end());
     }
 
-    // qtmpl is the querying unit's roster template; hero auras skip units their
-    // 0 A.D. "affects" classes exclude.
-    float query_modifier(float qx, float qz, uint8_t qteam, AuraType type,
-            uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE) const {
-        float mod = 0.0f;
-        if (type == AURA_HEAL) {
-            // Sum-stacking for healing
-            for (const auto &s : sources) {
-                if (!s.alive) continue;
-                if (s.team != qteam) continue;
-                if (s.type != type) continue;
-                if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
-                float dx = qx - s.x;
-                float dz = qz - s.z;
-                if (dx * dx + dz * dz <= s.range * s.range) {
-                    mod += s.value;
-                }
-            }
-        } else {
-            // Max-stacking for buffs (GATHER, ATTACK, SPEED, ARMOR)
-            for (const auto &s : sources) {
-                if (!s.alive) continue;
-                if (s.team != qteam) continue;
-                if (s.type != type) continue;
-                if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
-                float dx = qx - s.x;
-                float dz = qz - s.z;
-                if (dx * dx + dz * dz <= s.range * s.range) {
-                    if (s.value > mod) mod = s.value;
-                }
+    // Combined modifier on a unit of player qowner at (qx, qz). qtmpl is its roster
+    // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
+    // qclasses its 0 A.D. classes.
+    //   AURA_HEAL: sum of hp/s. AURA_GATHER: strongest bonus.
+    //   AURA_ATTACK / AURA_SPEED: strongest bonus times strongest penalty
+    //     (0 when none reaches the unit).
+    //   AURA_ARMOR: strongest bonus plus strongest penalty.
+    float query_modifier(float qx, float qz, uint8_t qowner, AuraType type,
+            uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE, const CombatClasses *qclasses = nullptr) const {
+        const uint16_t qbit = aura_player_bit(qowner);
+        bool any = false;
+        float sum = 0.0f, up = 0.0f, down = 0.0f;
+        const bool mul = type == AURA_ATTACK || type == AURA_SPEED;
+        if (mul) up = down = 1.0f;
+        for (const auto &s : sources) {
+            if (!s.alive || s.type != type || !(s.affected & qbit)) continue;
+            if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
+            if (s.need_class != 0xFF && !(qclasses && qclasses->has(s.need_class))) continue;
+            float dx = qx - s.x;
+            float dz = qz - s.z;
+            if (dx * dx + dz * dz > s.range * s.range) continue;
+            any = true;
+            if (type == AURA_HEAL) {
+                sum += s.value;
+            } else {
+                if (s.value > up) up = s.value;
+                if (s.value < down) down = s.value;
             }
         }
-        return mod;
+        if (!any) return 0.0f;
+        if (type == AURA_HEAL) return sum;
+        if (mul) return up * down;
+        return up + down;
     }
 };
 

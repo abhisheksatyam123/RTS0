@@ -112,7 +112,10 @@ enum MapType : uint8_t {
 	MAP_ENGLISH_CHANNEL = 54,
 	MAP_DODECANESE = 55,
 	MAP_FORTRESS = 56,
-	MAP_TYPE_COUNT = 57
+	// 0 A.D. trigger maps (maps/random/*_triggers.js run as map triggers, triggers.h)
+	MAP_FLOOD = 57,
+	MAP_EXTINCT_VOLCANO = 58,
+	MAP_TYPE_COUNT = 59
 };
 
 struct MapTypeInfo {
@@ -182,7 +185,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
-		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
+		{MAP_FLOOD, "flood", "Flood (RMS)", "temperate", true, "A great flood moves across the valley. The home islands go under, so evacuate your units by ship to the mainland."},
+		{MAP_EXTINCT_VOLCANO, "extinct_volcano", "Extinct Volcano (RMS)", "volcanic", true, "Rains raise the water from the 25th minute until only the hills and the great cone stay dry. Gaia towers guard the lowlands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -194,7 +199,8 @@ inline bool is_procedural_map(uint8_t type) {
 
 // Naval maps: bases may sit on separate land, so armies need ships to meet.
 inline bool map_is_naval(int type) {
-	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE;
+	// Flood (flood.js): each player starts on a home island in a sea.
+	return type == MAP_ENGLISH_CHANNEL || type == MAP_DODECANESE || type == MAP_FLOOD;
 }
 
 enum UnitType : uint8_t {
@@ -294,7 +300,12 @@ enum BuildingType : uint8_t {
 	BLD_MILITARY_COLONY = 43, // ptol, sele military_colony
 	BLD_ACADEMY = 44,         // han/academy
 	BLD_MINISTRY = 45,        // han/ministry
-	BLD_TYPE_COUNT = 46
+	BLD_CAMP_BLEMMYE = 46,    // kush/camp_blemmye
+	BLD_CAMP_NOBA = 47,       // kush/camp_noba
+	BLD_TEMPLE_AMUN = 48,     // kush/temple_amun
+	BLD_TEMPLE_VESTA = 49,    // rome/temple_vesta
+	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
+	BLD_TYPE_COUNT = 51
 };
 
 #include "civ_building_data.h"
@@ -313,7 +324,8 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_NONE = 0,
 	RES_SUB_MEAT = 1,
 	RES_SUB_GRAIN = 2,
-	RES_SUB_FISH = 3 // food.fish: only fishing boats gather it
+	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
+	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): 4x a rock's gather rate
 };
 
 // 0 A.D. template_gaia_fish.xml ResourceSupply: 1000 food, at most 4 gatherers,
@@ -351,7 +363,9 @@ enum UnitOrderKind : uint8_t {
 	ORDER_GUARD = 9,          // target unit (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
-	ORDER_KIND_COUNT = 12
+	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
+	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
+	ORDER_KIND_COUNT = 14
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -383,8 +397,10 @@ static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 // UnitAI FindNearbyResource / FindNearbyFoundation.
 inline constexpr float FLEE_DISTANCE = 12.0f;
 inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
-// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000.
-inline constexpr float CAPTURE_RANGE = 4.0f;
+// Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
+// measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
+// MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
+inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
@@ -394,7 +410,7 @@ inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
 inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
-inline constexpr float GARRISON_LOADING_RANGE = 2.0f;
+inline constexpr float GARRISON_LOADING_RANGE = 2.0f * 0.28f; // 0 A.D. metres to RTS0, plus the unit's radius
 // Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
 // 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
@@ -802,6 +818,7 @@ enum TechStat : uint8_t {
 	TSTAT_HEALTH, TSTAT_SPEED, TSTAT_POP_BONUS, TSTAT_TRADE_GAIN, TSTAT_RANGE,
 	TSTAT_BUILD_TIME, TSTAT_RESEARCH_TIME, TSTAT_HEAL_RANGE, TSTAT_HEAL_INTERVAL, TSTAT_ARROWS,
 	TSTAT_PACK_TIME, TSTAT_GARRISON_HEAL,
+	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
 	TSTAT_COUNT
 };
 
@@ -999,6 +1016,7 @@ struct CivHeroAura {
 	uint8_t kind;
 	float value;
 	float range; // RTS0 units
+	uint8_t players; // AuraPlayers bits (0 A.D. affectedPlayers)
 	uint64_t affects[CIV_TEMPLATE_WORDS_MAX]; // bitset of roster rows the aura buffs
 };
 
@@ -1075,9 +1093,11 @@ struct CivUnitTemplate {
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
+	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 };
 
 #include "civ_roster_data.h"
+#include "civ_attack_data.h"
 #include "formation.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
@@ -1385,6 +1405,41 @@ inline LootInfo building_loot(uint8_t type) {
 // 0 A.D. unit_advanced.json and unit_elite.json each multiply Loot/* by 1.2.
 inline float loot_rank_multiplier(uint8_t rank) {
 	return rank >= 3 ? 1.44f : (rank == 2 ? 1.2f : 1.0f);
+}
+
+// 0 A.D. combat classes (civ_attack_data.h, from tools/extract_0ad_attack.py).
+static_assert(COMBAT_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT,
+		"rosters changed: re-run tools/extract_0ad_attack.py");
+static_assert(COMBAT_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_attack.py");
+static_assert(COMBAT_BUILDING_ROWS == BLD_TYPE_COUNT, "building types changed: re-run tools/extract_0ad_attack.py");
+inline const CombatProfile &unit_combat(uint16_t tmpl, uint8_t type) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return combat_template_table()[tmpl];
+	return combat_class_table()[type < UNIT_TYPE_COUNT ? type : UNIT_VILLAGER];
+}
+// A building type past the table (a civ-unique structure added later) is a generic structure.
+inline const CombatProfile &building_combat(uint8_t type) {
+	return combat_building_table()[type < COMBAT_BUILDING_ROWS ? type : COMBAT_BUILDING_ROWS];
+}
+// 0 A.D. Attack.js CanAttack: an attack never targets its RestrictedClasses.
+inline bool combat_can_target(const CombatProfile &attacker, const CombatProfile &target) {
+	return !target.classes.any_of(attacker.restricted);
+}
+// 0 A.D. helpers/Attack.js GetAttackBonus: each bonus whose Classes (and Civ) the target
+// has multiplies the damage.
+inline float combat_bonus(const CombatProfile &attacker, const CombatProfile &target, uint8_t target_civ) {
+	float m = 1.0f;
+	for (uint8_t k = 0; k < attacker.bonus_count; ++k) {
+		const CombatBonus &b = attacker.bonus[k];
+		if (b.civ != 255 && b.civ != target_civ) continue;
+		if (target.classes.all_of(b.classes)) m *= b.multiplier;
+	}
+	return m;
+}
+// A projectile's footprint test radius in RTS0 units (PositionHelper.TestCollision).
+inline float combat_footprint(const CombatProfile &p) { return p.footprint * COMBAT_DISTANCE_SCALE; }
+// unit_advanced.json and unit_elite.json each multiply Attack/Ranged/Spread by 0.8.
+inline float spread_rank_multiplier(uint8_t rank) {
+	return rank >= 3 ? 0.64f : (rank == 2 ? 0.8f : 1.0f);
 }
 
 // Units this civilization can train: every RTS0 class its 0 A.D. roster has.
