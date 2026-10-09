@@ -1908,7 +1908,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 		v.ring_on = is_selected;
 
-		bool show_hp = is_selected && uview.alive[i];
+		// Selected units, or every visible one while Tab is toggled (0 A.D. g_ShowAllStatusBars).
+		bool show_hp = (is_selected || show_all_status_bars_) && uview.alive[i];
 		v.hp_bg->set_visible(show_hp);
 		v.hp_fg->set_visible(show_hp);
 		if (show_hp) {
@@ -2098,7 +2099,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 
 		// Building Health & Construction Progress Bar
-		bool show_bhp = !destroyed && (b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
+		bool show_bhp = !destroyed && (show_all_status_bars_ || b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
 		v.hp_bg->set_visible(show_bhp);
 		v.hp_fg->set_visible(show_bhp);
 

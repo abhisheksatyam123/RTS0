@@ -3538,6 +3538,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("rts0.debug.battle1000")) { spawn_large_battle(1000); return; }
 		if (fired("rts0.debug.battle2000")) { spawn_large_battle(2000); return; }
 
+		// gui/session/hotkeys/misc.xml session.showstatusbars -> toggleStatusBars().
+		if (fired("session.showstatusbars")) {
+			if (view) view->set_show_all_status_bars(!view->show_all_status_bars());
+			return;
+		}
 		if (fired("session.toggleattackrange")) { range_overlays_.show_attack = !range_overlays_.show_attack; return; }
 		if (fired("session.toggleaurasrange")) { range_overlays_.show_auras = !range_overlays_.show_auras; return; }
 		if (fired("session.togglehealrange")) { range_overlays_.show_heal = !range_overlays_.show_heal; return; }
