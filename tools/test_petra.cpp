@@ -24,6 +24,9 @@
 //  8. Hunting (worker.js startHunting): gatherers collect a treasure nearby,
 //     food gatherers kill the livestock by their dropsite first, citizen
 //     cavalry hunt animals that flee, and no one hunts inside enemy territory.
+//  9. First base (startingStrategy.js buildFirstBase): with its civic centre
+//     gone and the wood for a new one only in a treasure, Petra collects the
+//     treasure and founds a new Town Center where its workers stand.
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -720,6 +723,39 @@ static void test_hunting() {
 	CHECK(!foreign_hunted, "no one hunts in enemy territory");
 }
 
+// startingStrategy.js buildFirstBase: Petra loses its Town Center; the wood for a
+// new one is in a treasure by its workers, so it collects that first, then
+// founds a civic centre where they stand and builds it.
+static void test_first_base() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; s->destroy_building(b); }
+	run_for(*s, 0.1f);
+	auto &u = s->units_;
+	for (size_t i = 0; i < u.count; ++i) // a nomad start: everyone stands idle
+		if (u.alive[i] && u.team[i] == 1) { u.action_state[i] = ACTION_IDLE; u.has_order[i] = 0; u.target_resource_id[i] = 0; }
+	PlayerState &ps = s->players_[1];
+	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 100.0f; ps.stone() = 200.0f;
+	const uint32_t treasure = s->spawn_resource_treasure(tx + 9.0f, tz + 9.0f, RES_WOOD); // 300 wood, outside the wreck
+	bool founded = false, built = false;
+	float t = 0.0f;
+	for (; t < 180.0f && !built; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.hp > 0.0f) { founded = true; built = b.build_progress >= 1.0f; }
+	}
+	std::printf("  first base: treasure collected %s, new Town Center founded %s and built %s (%.0fs)\n",
+	            s->is_treasure_id(treasure) ? "no" : "yes", founded ? "yes" : "no", built ? "yes" : "no", t);
+	CHECK(!s->is_treasure_id(treasure), "Petra collects the treasure it needs for a civic centre");
+	CHECK(founded && built, "and founds and builds a new Town Center");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -734,6 +770,7 @@ int main() {
 	test_garrisons();
 	test_diplomacy_requests();
 	test_hunting();
+	test_first_base();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

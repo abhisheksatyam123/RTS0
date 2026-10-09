@@ -19961,6 +19961,54 @@
       "template": "structures/mill_indian",
       "x": -74.2,
       "z": 6.95
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -78.31,
+      "z": 11.37
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -83.53,
+      "z": 7.0
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -79.04,
+      "z": 2.44
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -74.92,
+      "z": -1.79
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -69.89,
+      "z": 1.79
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -65.28,
+      "z": 6.52
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -73.21,
+      "z": 15.78
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -69.48,
+      "z": 11.62
     }
   ],
   "gaia_units": [
@@ -20019,6 +20067,15 @@
       "rank": 2,
       "x": 104.31,
       "z": -7.04
+    }
+  ],
+  "scenery": [
+    {
+      "type": "fence_short",
+      "x": -1.33,
+      "z": -5.89,
+      "angle": -0.978,
+      "scale": 0.25
     }
   ]
 }

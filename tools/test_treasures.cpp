@@ -195,6 +195,51 @@ int main() {
 		CHECK(fought);
 	}
 
+	// 6c. Gaia scenery (structures/fence_long, a 1.5 x 13 m obstruction): it blocks the navcells
+	//    along its length, turned by its orientation, and foundations on top; saved and loaded.
+	{
+		fresh(s);
+		const uint8_t fence = scenery_type_by_name("fence_long");
+		CHECK(fence < SCENERY_TYPE_COUNT && scenery_type_info(fence).depth == 13.0f);
+		CHECK(scenery_type_by_name("nothing") == SCENERY_TYPE_COUNT);
+		const uint32_t f0 = s.spawn_scenery(0.0f, 0.0f, fence, 0.0f, 0.25f);       // along z
+		const uint32_t f1 = s.spawn_scenery(20.0f, 0.0f, fence, 1.5707963f, 0.25f); // along x
+		CHECK(f0 != 0 && f1 != 0 && s.scenery().size() == 2);
+		auto blocked = [&](float x, float z) {
+			auto [cx, cy] = s.nav_grid_.world_to_cell(x, z);
+			return s.nav_grid_.cells.at(cx, cy) == NAV_OBSTRUCTED;
+		};
+		CHECK(blocked(0.0f, 1.4f) && blocked(0.0f, -1.4f) && !blocked(0.0f, 4.0f));
+		CHECK(blocked(21.4f, 0.0f) && blocked(18.6f, 0.0f) && !blocked(20.0f, 4.0f));
+		CHECK(s.check_placement(0, -1, -1, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+		const char *path = "/tmp/rts0_test_scenery.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		CHECK(l.scenery().size() == 2 && l.scenery()[1].angle == s.scenery()[1].angle);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
+		std::remove(path);
+		std::printf("scenery: 2 fences block the nav grid and a house foundation\n");
+	}
+
+	// 6d. A Gaia field (a map's structures/*/field owned by Player 0): anyone may farm it.
+	{
+		fresh(s);
+		const uint32_t field = s.spawn_building_world(0.0f, 0.0f, BLD_FIELD, GAIA_PLAYER, 1.0f);
+		s.spawn_building_world(0.0f, 8.0f, BLD_FARMSTEAD, 0, 1.0f);
+		run(s, 0.5f);
+		const uint32_t grain = s.field_resource_id(field);
+		CHECK(grain != 0);
+		uint32_t w = s.spawn_unit(3.0f, 3.0f, 0, UNIT_FEMALE_CITIZEN);
+		const float food0 = s.player(0).res[RES_FOOD];
+		s.order_gather(&w, 1, grain);
+		run(s, 40.0f);
+		const int32_t wi = s.lookup_unit(w);
+		const float got = s.player(0).res[RES_FOOD] - food0 + (wi >= 0 ? (float)s.units_.carry[wi] : 0.0f);
+		std::printf("gaia field: %.0f food farmed in 40 s\n", got);
+		CHECK(got > 0.0f);
+	}
+
 	// 7. Random maps place treasures and ruins where 0 A.D.'s scripts do.
 	{
 		s.generate_random_map(MAP_FORTRESS, 3, 2, 96.0f);

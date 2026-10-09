@@ -20272,6 +20272,78 @@
       "z": 21.8
     },
     {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 16.74,
+      "z": 29.9
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 9.89,
+      "z": 31.11
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 3.95,
+      "z": 32.86
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -5.02,
+      "z": 35.21
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -10.81,
+      "z": 38.69
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": -16.68,
+      "z": 41.59
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 12.64,
+      "z": -36.93
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 6.97,
+      "z": -33.74
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 0.97,
+      "z": -30.73
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 21.43,
+      "z": -43.61
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 26.03,
+      "z": -48.02
+    },
+    {
+      "type": "field_plot",
+      "template": "structures/mill_field_wheat",
+      "x": 30.09,
+      "z": -52.11
+    },
+    {
       "type": "sentry_tower",
       "template": "structures/pers/sentry_tower",
       "x": -27.24,
@@ -20284,5 +20356,679 @@
       "z": 2.56
     }
   ],
-  "gaia_units": []
+  "gaia_units": [],
+  "scenery": [
+    {
+      "type": "fence_stone",
+      "x": 16.59,
+      "z": -45.39,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 18.33,
+      "z": -47.06,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 20.19,
+      "z": -48.98,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 25.39,
+      "z": -54.02,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 23.65,
+      "z": -52.35,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 27.25,
+      "z": -55.94,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 28.94,
+      "z": -57.57,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 19.26,
+      "z": -39.39,
+      "angle": -2.5475,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 20.56,
+      "z": -37.36,
+      "angle": -2.5475,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 17.72,
+      "z": -41.58,
+      "angle": -2.5475,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 16.44,
+      "z": -43.54,
+      "angle": -2.5475,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 23.82,
+      "z": -38.84,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 22.07,
+      "z": -37.17,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 25.68,
+      "z": -40.76,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 27.36,
+      "z": -42.39,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 30.72,
+      "z": -45.83,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 28.97,
+      "z": -44.17,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 32.58,
+      "z": -47.76,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 34.39,
+      "z": -49.43,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 34.59,
+      "z": -54.48,
+      "angle": 4.0294,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 36.42,
+      "z": -52.91,
+      "angle": 4.0294,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 32.48,
+      "z": -56.13,
+      "angle": 4.0294,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 30.68,
+      "z": -57.64,
+      "angle": 4.0294,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 36.13,
+      "z": -51.26,
+      "angle": 2.3562,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 10.07,
+      "z": -41.2,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 4.32,
+      "z": -27.06,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 15.14,
+      "z": -39.92,
+      "angle": 3.7463,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -0.98,
+      "z": -35.15,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -1.55,
+      "z": -25.22,
+      "angle": -2.8306,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 8.43,
+      "z": -29.41,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -3.12,
+      "z": -34.05,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 1.35,
+      "z": -36.49,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 3.42,
+      "z": -37.58,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 7.74,
+      "z": -39.86,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 12.14,
+      "z": -42.29,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -2.23,
+      "z": -27.53,
+      "angle": -2.8306,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -3.09,
+      "z": -30.07,
+      "angle": -2.8306,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -3.78,
+      "z": -32.31,
+      "angle": -2.8306,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 1.99,
+      "z": -25.73,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -0.15,
+      "z": -24.62,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 6.39,
+      "z": -28.16,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 10.57,
+      "z": -30.52,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 12.89,
+      "z": -31.85,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 15.1,
+      "z": -32.94,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 16.7,
+      "z": -37.74,
+      "angle": 3.7463,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 18.02,
+      "z": -35.72,
+      "angle": 3.7463,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 13.84,
+      "z": -41.86,
+      "angle": 3.7463,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 17.28,
+      "z": -34.22,
+      "angle": 2.0731,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 5.28,
+      "z": 37.27,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 14.94,
+      "z": 25.45,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 0.82,
+      "z": 34.56,
+      "angle": 0.3059,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 17.62,
+      "z": 34.75,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 21.09,
+      "z": 25.42,
+      "angle": -6.271,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 10.32,
+      "z": 26.49,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 19.99,
+      "z": 34.32,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 15.01,
+      "z": 35.34,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 7.9,
+      "z": 36.68,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 10.27,
+      "z": 36.25,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 2.98,
+      "z": 37.71,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 21.06,
+      "z": 27.83,
+      "angle": -6.271,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 21.14,
+      "z": 30.51,
+      "angle": -6.271,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 21.13,
+      "z": 32.85,
+      "angle": -6.271,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 17.55,
+      "z": 24.87,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 19.93,
+      "z": 24.44,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 12.64,
+      "z": 25.89,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 7.95,
+      "z": 26.92,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 5.34,
+      "z": 27.5,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 2.9,
+      "z": 27.9,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -0.04,
+      "z": 32.02,
+      "angle": 0.3059,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -0.7,
+      "z": 29.7,
+      "angle": 0.3059,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 1.49,
+      "z": 36.8,
+      "angle": 0.3059,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": 0.44,
+      "z": 28.48,
+      "angle": -1.3673,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -14.09,
+      "z": 45.96,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -8.12,
+      "z": 31.92,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -19.14,
+      "z": 44.6,
+      "angle": 0.5887,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -2.95,
+      "z": 40.1,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -2.22,
+      "z": 30.17,
+      "angle": -5.9882,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -12.26,
+      "z": 34.2,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -0.79,
+      "z": 39.02,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -5.3,
+      "z": 41.39,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -7.38,
+      "z": 42.45,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -11.75,
+      "z": 44.67,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -16.18,
+      "z": 47.02,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -1.58,
+      "z": 32.5,
+      "angle": -5.9882,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -0.75,
+      "z": 35.05,
+      "angle": -5.9882,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -0.11,
+      "z": 37.3,
+      "angle": -5.9882,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -5.77,
+      "z": 30.63,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -3.61,
+      "z": 29.55,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -10.2,
+      "z": 32.98,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -14.42,
+      "z": 35.28,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -16.77,
+      "z": 36.57,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -18.99,
+      "z": 37.63,
+      "angle": -1.0845,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -20.67,
+      "z": 42.4,
+      "angle": 0.5887,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -21.96,
+      "z": 40.36,
+      "angle": 0.5887,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -17.87,
+      "z": 46.57,
+      "angle": 0.5887,
+      "scale": 0.25
+    },
+    {
+      "type": "fence_stone",
+      "x": -21.19,
+      "z": 38.87,
+      "angle": -1.0845,
+      "scale": 0.25
+    }
+  ]
 }
