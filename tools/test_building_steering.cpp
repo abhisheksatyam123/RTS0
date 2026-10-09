@@ -36,6 +36,9 @@
 // 13. Walk into a closed gate: an enemy's long path goes through an unlocked gate, which then
 //     stops it dead; the walk ends after 35 turns (7 s) of failed movement (0 A.D. UnitMotion
 //     MAX_FAILED_MOVEMENTS), instead of pushing at the gate for good.
+// 14. Crowds at the shore: ships packed against the shore and soldiers packed at the water's edge
+//     push each other apart, but never onto terrain they can't cross (0 A.D. pushing checks
+//     CheckMovement), so no ship runs aground and no soldier is pushed out to sea.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -468,6 +471,33 @@ static void ships_that_cannot_get_there() {
 
 }
 
+static void crowds_at_the_shore() {
+	Simulation s;
+	sea_setup(s);
+	std::vector<uint32_t> ships, men;
+	// Two tight 4 x 3 clumps, one each side of the shore line at z = 16.
+	for (int k = 0; k < 12; ++k) {
+		const float dx = 0.2f * (float)(k % 4), dz = 0.2f * (float)(k / 4);
+		ships.push_back(s.spawn_unit(dx, 14.0f + dz, 0, UNIT_TRIREME, 0.0f));
+		men.push_back(s.spawn_unit(20.0f + dx, 17.0f + dz, 0, UNIT_SWORDSMAN, 0.0f));
+	}
+	int aground = 0, at_sea = 0;
+	for (int t = 0; t < 200; ++t) {
+		s.tick(DT);
+		const Simulation::UnitView u = s.units();
+		auto on = [&](uint32_t id, uint8_t pass) {
+			const int i = index_of(s, id);
+			const auto [cx, cy] = s.nav_grid_.world_to_cell(u.pos_x[i], u.pos_z[i]);
+			return s.nav_grid_.is_passable_for(cx, cy, pass);
+		};
+		for (uint32_t id : ships) aground += !on(id, PASS_SHIP);
+		for (uint32_t id : men) at_sea += !on(id, PASS_INFANTRY);
+	}
+	std::printf("  crowds at the shore: ship-ticks aground %d, soldier-ticks at sea %d (of %d each)\n", aground, at_sea, 200 * 12);
+	check(aground == 0, "pushing ran a ship aground");
+	check(at_sea == 0, "pushing carried a soldier out to sea");
+}
+
 // An enemy walking through a closed gate in a long wall: the long path goes through the gate
 // (unlocked gates don't block pathfinding), the gate stops the unit dead, and the walk ends after
 // 35 turns of not moving (MoveFailed) instead of pushing at the gate for good.
@@ -518,6 +548,7 @@ int main() {
 	walk_to_one_point();
 	ships_that_cannot_get_there();
 	walk_into_closed_gate();
+	crowds_at_the_shore();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

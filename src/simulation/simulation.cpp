@@ -5344,8 +5344,21 @@ void Simulation::separation(float dt, Arena &arena) {
 		float max_push = 3.5f;
 		float push_x = std::clamp(fx[i] * dt * 10.0f, -max_push, max_push);
 		float push_z = std::clamp(fz[i] * dt * 10.0f, -max_push, max_push);
-		px[i] = std::clamp(px[i] + push_x, -map_half_ + ri, map_half_ - ri);
-		pz[i] = std::clamp(pz[i] + push_z, -map_half_ + ri, map_half_ - ri);
+		const float nx = std::clamp(px[i] + push_x, -map_half_ + ri, map_half_ - ri);
+		const float nz = std::clamp(pz[i] + push_z, -map_half_ + ri, map_half_ - ri);
+		// CCmpUnitMotionManager::Move: a push never carries a unit onto a navcell its passability
+		// class can't cross (CheckMovement), so ships stay afloat and land units ashore. A unit
+		// already off its terrain (a swimmer, or one beside a building) is pushed as before.
+		if (!nav_grid_.cells.blank() && (nx != px[i] || nz != pz[i])) {
+			const uint8_t pass = unit_is_ship(units_.unit_type[i]) ? PASS_SHIP : PASS_INFANTRY;
+			const auto [tcx, tcy] = nav_grid_.world_to_cell(nx, nz);
+			if (!nav_grid_.is_passable_for(tcx, tcy, pass)) {
+				const auto [cx, cy] = nav_grid_.world_to_cell(px[i], pz[i]);
+				if (nav_grid_.is_passable_for(cx, cy, pass)) return;
+			}
+		}
+		px[i] = nx;
+		pz[i] = nz;
 	});
 }
 
