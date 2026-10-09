@@ -1660,7 +1660,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
 		const uint8_t civ = civ_of(b.team);
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
-		for (uint16_t i = civ_roster_begin(civ); i < civ_roster_end(civ); ++i) {
+		for (uint16_t i : civ_roster_ids(civ)) {
 			const CivUnitTemplate &u = civ_unit_template(i);
 			if (u.unit_type != (uint8_t)u_type || (u.flags & ROSTER_SIEGE_TOWER) || !(u.trainers & bld_bit(b.type))) continue;
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
@@ -1891,8 +1891,11 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
 	const uint8_t civ = civ_of(player_id);
 	const uint16_t allies = ally_civ_mask(player_id);
+	// han_minister_garrison.json (Excellency of Works): each minister garrisoned in a
+	// structure other than the Imperial Ministry cuts its technologies' cost and time by 2%.
+	const float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
 	auto team = [&](uint8_t stat, int8_t r) {
-		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type);
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers;
 	};
 	players_[player_id].pay(std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD)),
 		std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD)),
@@ -2675,6 +2678,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		// ResourceGatherer Rates: fishing boats only have food.fish, land gatherers none.
 		if ((units_.unit_type[uidx] == UNIT_FISHING_BOAT) != (resources_.subtype[ridx] == RES_SUB_FISH)) continue;
+		// The Han minister has no ResourceGatherer (units/han/support_minister).
+		if (units_.unit_type[uidx] == UNIT_MINISTER) continue;
 		// Citizen cavalry gather meat only (template_unit_cavalry); champion cavalry gather nothing.
 		if (units_.unit_type[uidx] == UNIT_CAVALRY &&
 		    (resources_.subtype[ridx] != RES_SUB_MEAT || units_.carry_capacity[uidx] <= 0)) continue;
@@ -7722,7 +7727,9 @@ void Simulation::tick_trickle(float dt) {
 			if (b.type == BLD_WONDER) {
 				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
 			} else if (b.type == BLD_MINISTRY) {
-				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f;
+				// han_minister_garrison_ministry.json (Nationalized Industries): +0.1 wood,
+				// stone and metal for each minister garrisoned inside.
+				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f * (1 + garrisoned_ministers(b));
 			} else if (b.type == BLD_ICE_HOUSE) {
 				rate[RES_FOOD] = 1.0f;
 			} else {
@@ -7755,6 +7762,15 @@ void Simulation::tick_trickle(float dt) {
 			players_[b.team].res[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
 		}
 	}
+}
+
+int Simulation::garrisoned_ministers(const Building &b) const {
+	int n = 0;
+	for (uint32_t id : b.garrisoned_units) {
+		const int32_t u = lookup_unit(id);
+		n += u >= 0 && units_.unit_type[u] == UNIT_MINISTER;
+	}
+	return n;
 }
 
 // Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
@@ -9402,7 +9418,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	// temple for heroes).
 	const uint8_t ai_civ = petra_ps().civ;
 	uint64_t trainer_types = 0;
-	for (uint16_t k = civ_roster_begin(ai_civ); k < civ_roster_end(ai_civ); ++k)
+	for (uint16_t k : civ_roster_ids(ai_civ))
 		trainer_types |= civ_unit_template(k).trainers;
 	std::vector<uint32_t> trainers;
 	for (const auto &b : buildings_) {
@@ -9552,7 +9568,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		uint32_t bld_id;
 	};
 	std::vector<Option> options;
-	for (uint16_t tmpl = civ_roster_begin(ai_civ); tmpl < civ_roster_end(ai_civ); ++tmpl) {
+	for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
 		const CivUnitTemplate &t = civ_unit_template(tmpl);
 		if (t.phase > phase) continue;
 		float score;

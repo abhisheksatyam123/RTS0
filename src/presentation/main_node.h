@@ -309,7 +309,8 @@ public:
 	// In a replay it is the player whose panels the viewer follows.
 	uint8_t local_player() const {
 		if (turn_mgr_.is_replaying()) return replay_hud_player_;
-		return net_lockstep() ? turn_mgr_.local_player() : (uint8_t)0;
+		if (net_lockstep()) return turn_mgr_.local_player();
+		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0; // 0xFF: no player, as a multiplayer observer
 	}
 	// Whose sight the world, minimap and fog show: the local player, or in a
 	// replay the perspective picked (a player, or rtso::OBSERVER_VIEW).
@@ -458,6 +459,9 @@ private:
 	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	uint8_t replay_hud_player_ = 0;
+	// Single player with no Human slot (0 A.D. Game Setup lets every slot be AI):
+	// you watch the AIs play with the map revealed and give no orders.
+	bool local_observer_ = false;
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
 	void build_replay_view_picker();
 	void begin_recording_from_save(const String &save_path);
