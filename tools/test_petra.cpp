@@ -456,9 +456,12 @@ static void test_attack_plans() {
 		// The kind of each plan as it starts mustering (whether a HugeAttack
 		// marches before the idle player runs out of buildings depends on timing).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		// A fortress in the far corner keeps the idle player standing after the second Attack
-		// razes its base, so there is still a target to plan the HugeAttack against.
+		// Fortresses on the far side keep the idle player standing after the Attacks raze its
+		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
+		// still a target to plan the HugeAttack against.
 		s->spawn_building_world(50.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(55.0f, 10.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(10.0f, 55.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
