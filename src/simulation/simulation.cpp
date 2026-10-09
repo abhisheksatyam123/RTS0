@@ -9058,13 +9058,13 @@ void Simulation::petra_manage_scouting(float dt) {
 		}
 
 		if (target_found) {
-			cmd_move(&petra_scout_unit_id_, 1, target_wx, target_wz);
+			order_walk(&petra_scout_unit_id_, 1, target_wx, target_wz, false);
 		} else {
 			// Exploration sweep: patrol perimeter of friendly territory towards center
 			float sweep_x = -origin_x * 0.4f + (float)sim_rng_.range_int(-8, 7);
 			float sweep_z = -origin_z * 0.4f + (float)sim_rng_.range_int(-8, 7);
 			if (!(village && enemy_land_at(sweep_x, sweep_z)))
-				cmd_move(&petra_scout_unit_id_, 1, sweep_x, sweep_z);
+				order_walk(&petra_scout_unit_id_, 1, sweep_x, sweep_z, false);
 		}
 	}
 }
@@ -9983,7 +9983,7 @@ void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
 		for (const auto &base : petra_bases_) {
 			bool live = false;
 			if (petra_find_hunt(i, base.x, base.z, scan, live) == 0) continue;
-			cmd_move(&units_.id[i], 1, base.x, base.z);
+			order_walk(&units_.id[i], 1, base.x, base.z, false);
 			break;
 		}
 	}
@@ -10774,7 +10774,7 @@ void Simulation::petra_manage_naval(float dt) {
 			const size_t ship = i;
 			if (!nearest_water_for_ship(ship, wx, wz, wx, wz)) break;
 			const uint32_t uid = units_.id[i];
-			cmd_move(&uid, 1, wx, wz);
+			order_walk(&uid, 1, wx, wz, false);
 			break;
 		}
 	}
@@ -11797,7 +11797,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					petra_attack_plan_.staging_x = petra_strike_force_.staging_x = petra_transport_.drop_x;
 					petra_attack_plan_.staging_z = petra_strike_force_.staging_z = petra_transport_.drop_z;
 				} else {
-					cmd_move(squad.data(), squad.size(), sx, sz);
+					order_walk(squad.data(), squad.size(), sx, sz, false);
 				}
 				petra_say(PETRA_CHAT_ATTACK, tx, tz);
 				++petra_attack_mgr_.launched[petra_attack_mgr_.kind];
@@ -11860,13 +11860,15 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			}
 
 			float cx = 0.0f, cz = 0.0f;
-			int alive_count = 0;
+			int alive_count = 0, attacked = 0;
 			for (uint32_t uid : squad) {
 				int32_t idx = lookup_unit(uid);
 				if (idx >= 0 && units_.alive[idx]) {
 					cx += units_.pos_x[idx];
 					cz += units_.pos_z[idx];
 					alive_count++;
+					const int32_t a = units_.attacked_by[idx] ? lookup_unit(units_.attacked_by[idx]) : -1;
+					if (a >= 0 && units_.alive[a] && is_hostile(petra_pid_, units_.team[a])) ++attacked;
 				}
 			}
 			if (alive_count > 0) {
@@ -11877,7 +11879,9 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			float dsq_to_staging = (cx - petra_attack_plan_.staging_x) * (cx - petra_attack_plan_.staging_x) +
 			                       (cz - petra_attack_plan_.staging_z) * (cz - petra_attack_plan_.staging_z);
 
-			if (dsq_to_staging <= 144.0f || petra_attack_plan_.state_timer >= 18.0f) {
+			// The march is a forced walk that answers no one on its own; attackPlan.js
+			// UpdateWalking stops it to fight once more than one of the army is hit.
+			if (dsq_to_staging <= 144.0f || petra_attack_plan_.state_timer >= 18.0f || attacked > 1) {
 				float tx = 0.0f, tz = 0.0f;
 				uint32_t target_id = petra_next_target(tx, tz);
 				if (target_id == 0) {
@@ -11957,7 +11961,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				petra_attack_plan_.state = AttackPlan::REGROUP;
 				petra_attack_plan_.state_timer = 0.0f;
 				if (!squad.empty()) {
-					cmd_move(squad.data(), squad.size(), ret_x, ret_z);
+					order_walk(squad.data(), squad.size(), ret_x, ret_z, false);
 				}
 				return;
 			}
@@ -12006,7 +12010,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 					petra_attack_plan_.retreat_z = base_z;
 					petra_attack_plan_.state_timer = 0.0f;
 					if (!squad.empty()) {
-						cmd_move(squad.data(), squad.size(), base_x, base_z);
+						order_walk(squad.data(), squad.size(), base_x, base_z, false);
 					}
 				}
 			}
@@ -12019,7 +12023,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			float ret_z = petra_attack_plan_.retreat_z;
 
 			if (!squad.empty() && petra_attack_plan_.state_timer < 1.0f) {
-				cmd_move(squad.data(), squad.size(), ret_x, ret_z);
+				order_walk(squad.data(), squad.size(), ret_x, ret_z, false);
 			}
 
 			// Compute centroid to check arrival at base
@@ -12050,7 +12054,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 		case AttackPlan::ABORT: {
 			petra_strike_force_.state = PetraStrikeForce::MUSTER;
 			if (!squad.empty()) {
-				cmd_move(squad.data(), squad.size(), base_x, base_z);
+				order_walk(squad.data(), squad.size(), base_x, base_z, false);
 			}
 			petra_attack_plan_.state = AttackPlan::REGROUP;
 			petra_attack_plan_.retreat_x = base_x;
@@ -12252,7 +12256,7 @@ void Simulation::petra_manage_raid(float dt) {
 			plan.retreat_z = base_z;
 			plan.state_timer = 0.0f;
 			if (!plan.squad.empty())
-				cmd_move(plan.squad.data(), plan.squad.size(), base_x, base_z);
+				order_walk(plan.squad.data(), plan.squad.size(), base_x, base_z, false);
 			return;
 		}
 		bool target_ok = false;
@@ -12276,7 +12280,7 @@ void Simulation::petra_manage_raid(float dt) {
 				plan.retreat_z = base_z;
 				plan.state_timer = 0.0f;
 				if (!plan.squad.empty())
-					cmd_move(plan.squad.data(), plan.squad.size(), base_x, base_z);
+					order_walk(plan.squad.data(), plan.squad.size(), base_x, base_z, false);
 			}
 		} else if (plan.state_timer > 36.0f) {
 			plan.state = AttackPlan::REGROUP;
@@ -12284,7 +12288,7 @@ void Simulation::petra_manage_raid(float dt) {
 			plan.retreat_z = base_z;
 			plan.state_timer = 0.0f;
 			if (!plan.squad.empty())
-				cmd_move(plan.squad.data(), plan.squad.size(), base_x, base_z);
+				order_walk(plan.squad.data(), plan.squad.size(), base_x, base_z, false);
 		} else {
 			plan.state = AttackPlan::ATTACKED;
 			petra_check_captures(plan.squad, plan.target_x, plan.target_z);
@@ -12615,8 +12619,8 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 		petra_transport_.failed = true;
 		return false;
 	}
-	cmd_move(&ship, 1, pickup_x, pickup_z);
-	cmd_move(petra_transport_.passenger_ids.data(), petra_transport_.passenger_ids.size(), pickup_x, pickup_z);
+	order_walk(&ship, 1, pickup_x, pickup_z, false);
+	order_walk(petra_transport_.passenger_ids.data(), petra_transport_.passenger_ids.size(), pickup_x, pickup_z, false);
 	return true;
 }
 
@@ -12648,7 +12652,7 @@ void Simulation::petra_manage_transport(float dt) {
 		}
 		float x, z;
 		sail_point(x, z);
-		cmd_move(&tp.ship_id, 1, x, z);
+		order_walk(&tp.ship_id, 1, x, z, false);
 		tp.state = PetraTransportPlan::SAILING;
 		tp.state_timer = 0.0f;
 	};
@@ -12996,7 +13000,7 @@ void Simulation::petra_manage_defense(float dt) {
 				if (incoming.empty()) incoming = petra_garrison_incoming();
 				if (petra_garrison_attacked_unit((size_t)idx, false, incoming)) continue;
 			}
-			if (home && units_.action_state[idx] == ACTION_ATTACK) cmd_move(&uid, 1, home->x, home->z);
+			if (home && units_.action_state[idx] == ACTION_ATTACK) order_walk(&uid, 1, home->x, home->z, false);
 		}
 		army.active = false;
 		army.defender_ids.clear();
@@ -13050,7 +13054,7 @@ void Simulation::petra_manage_defense(float dt) {
 		if (best_foe != 0 && !on_foe) {
 			order_attack(&uid, 1, best_foe);
 		} else if (best_foe == 0 && home && units_.action_state[idx] == ACTION_ATTACK) {
-			cmd_move(&uid, 1, home->x, home->z);
+			order_walk(&uid, 1, home->x, home->z, false);
 		}
 	}
 }
@@ -13106,7 +13110,7 @@ void Simulation::petra_manage_victory(float dt) {
 			uint32_t uid = units_.id[i];
 			float ox = gx + (float)((assigned % 3) - 1) * 2.4f;
 			float oz = gz + (float)((assigned / 3) - 1) * 2.4f;
-			if (units_.action_state[i] == ACTION_IDLE) cmd_move(&uid, 1, ox, oz);
+			if (units_.action_state[i] == ACTION_IDLE) order_walk(&uid, 1, ox, oz, false);
 			assigned++;
 		}
 	};
@@ -13194,7 +13198,7 @@ void Simulation::petra_retreat_critical_ent(size_t i, bool emergency, std::vecto
 		const float dx = units_.pos_x[i] - base.x, dz = units_.pos_z[i] - base.z;
 		if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = &base; }
 	}
-	if (best) cmd_move(&uid, 1, best->x, best->z);
+	if (best) order_walk(&uid, 1, best->x, best->z, false);
 }
 
 // manageCriticalEntGuards: 4 + 5 * defensive soldiers guard each hero,
@@ -13335,7 +13339,7 @@ void Simulation::petra_capture_gaia_relics() {
 		std::sort(near.begin(), near.end());
 		for (size_t k = 0; k < near.size() && heading < 2; ++k, ++heading) {
 			const uint32_t uid = near[k].second;
-			cmd_move(&uid, 1, rel.x, rel.z);
+			order_walk(&uid, 1, rel.x, rel.z, false);
 		}
 	}
 }
