@@ -307,6 +307,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_turrets
           /tmp/test_turrets
 
+      - name: Han Imperial Minister
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_minister.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_minister
+          /tmp/test_minister
+
       - name: Paired technologies
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_paired_techs.cpp src/simulation/simulation.cpp \
