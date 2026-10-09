@@ -203,6 +203,7 @@ static void test_corner_reach() {
 static int hits_at(float dist, int shots, int *fired_out) {
 	Simulation s;
 	setup(s);
+	s.set_player_active(1, true, false); // no Petra: its defense would send the dummy at the archer
 	uint32_t ar = s.spawn_unit(0, 0, 0, UNIT_ARCHER);
 	uint32_t d = dummy(s, dist, 0, UNIT_SPEARMAN);
 	int di = idx(s, d), ai = idx(s, ar);
