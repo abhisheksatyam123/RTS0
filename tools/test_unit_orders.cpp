@@ -38,6 +38,9 @@
 // 27. Ungarrison (Garrisonable.UnGarrison): units leaving a structure follow its rally point
 //     (except one that only garrisons back in), their old queue is dropped; unload picks
 //     units (UnloadTemplate), an enemy can't unload, lockstep cmd 13 carries the units.
+// 28. AlertRaiser: raising an alert at a storehouse sends nearby women into the nearest
+//     structures with room (not soldiers, not women far away); ending it unloads them and
+//     sends them back to work; lockstep cmd 35.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -873,6 +876,52 @@ static void test_ungarrison_rally() {
 	check(l.get_garrisoned_units(h2)->size() == 1 && alive(l, c2) && !alive(l, c1), "lockstep unload of one unit (13)");
 }
 
+static void test_alert() {
+	std::printf("28. raise and end an alert\n");
+	Simulation s;
+	setup(s);
+	const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(8, 0, BLD_HOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(4, 8, RES_WOOD, 5000);
+	uint32_t w[3];
+	for (int k = 0; k < 3; ++k) w[k] = s.spawn_unit(3.0f + k, 6.5f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(w, 3, tree);
+	uint32_t far_w = s.spawn_unit(40, 0, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t sp = s.spawn_unit(2, 4, 0, UNIT_SPEARMAN);
+	run(s, 3.0f);
+	check(s.cmd_raise_alert(0, store), "a storehouse raises the alert");
+	check(!s.cmd_raise_alert(0, house) && !s.cmd_raise_alert(1, store), "a house can't, nor can an enemy");
+	check(s.unit_order(w[0]).kind == ORDER_GARRISON && s.unit_order(far_w).kind == ORDER_NONE &&
+			s.unit_order(sp).kind == ORDER_NONE, "nearby women head for shelter, the far one and soldiers don't");
+	const bool in = run_until(s, 20.0f, [&] { return !alive(s, w[0]) && !alive(s, w[1]) && !alive(s, w[2]); });
+	check(in, "all three are inside");
+	size_t inside = 0;
+	for (uint32_t b : {store, house}) {
+		const auto *g = s.get_garrisoned_units(b);
+		inside += g ? g->size() : 0;
+	}
+	check(inside == 3, "in the storehouse or the house");
+	s.cmd_set_rally_point(0, house, 30, 30, 0, 0);
+	check(s.cmd_end_alert(0, store), "end of alert");
+	check(alive(s, w[0]) && alive(s, w[1]) && alive(s, w[2]), "they come out");
+	check(s.unit_order(w[0]).kind == ORDER_GATHER && s.unit_order(w[0]).target == tree, "and go back to their tree, not the rally point");
+
+	// Lockstep cmd 35.
+	Simulation l;
+	setup(l);
+	const uint32_t st2 = l.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+	l.spawn_building_world(8, 0, BLD_HOUSE, 0, 1.0f);
+	uint32_t x = l.spawn_unit(3, 6.5f, 0, UNIT_FEMALE_CITIZEN);
+	TurnManager tm;
+	NetCommand c;
+	c.client_id = 0;
+	c.cmd_type = (uint8_t)NetCommandType::NET_CMD_ALERT;
+	c.target_id = st2;
+	tm.post_local_command(c);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, l);
+	check(c.cmd_type == 35 && l.unit_order(x).kind == ORDER_GARRISON, "lockstep raise alert (35)");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -902,6 +951,7 @@ int main(int argc, char **argv) {
 	test_trade_orders();
 	test_return_resource();
 	test_ungarrison_rally();
+	test_alert();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

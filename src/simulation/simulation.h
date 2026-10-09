@@ -411,6 +411,11 @@ public:
 	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
 	// ally only its own units. count 0 unloads every unit `player` may unload.
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
+	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
+	// market's land traders) into the nearest structures with room, or stops them;
+	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
+	bool cmd_raise_alert(uint8_t player, uint32_t building_id);
+	bool cmd_end_alert(uint8_t player, uint32_t building_id);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
