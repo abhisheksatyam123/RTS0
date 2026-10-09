@@ -163,14 +163,29 @@ static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t 
 	}
 }
 
-static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, float x, float z) {
+// Range-manager distance from a structure's obstruction to a point: the gap to its
+// footprint as it stands, turned or not (nav/footprint.h).
+static float edge_distance(const Simulation::Building &b, float x, float z) {
+	const nav::Vec2 gap = nav::footprint_gap(b, x, z);
+	return std::sqrt(gap.x * gap.x + gap.y * gap.y);
+}
+
+// 0 A.D. ObstructionManager IsInTargetRange against a structure: the gap between the
+// unit's obstruction (a circle of its collision radius) and the structure's footprint,
+// not the distance to its centre, so a long wall or a dock on the shore is reached from
+// any side at the same range.
+static float structure_gap(const Simulation::Building &b, float x, float z, float radius) {
+	return std::max(0.0f, edge_distance(b, x, z) - radius);
+}
+
+static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, float x, float z, float radius) {
 	float minx = bx - hx, maxx = bx + hx;
 	float minz = bz - hz, maxz = bz + hz;
 	if (x > minx && x < maxx && z > minz && z < maxz)
 		return false;
 	float cx = std::clamp(x, minx, maxx);
 	float cz = std::clamp(z, minz, maxz);
-	return std::hypot(x - cx, z - cz) <= kBuildReach;
+	return std::hypot(x - cx, z - cz) - radius <= kBuildReach; // edge to edge, as structure_gap
 }
 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
@@ -185,10 +200,10 @@ static void stand_outside(const Simulation::Building &b, uint32_t uid, float fro
 	*oz = w.y;
 }
 
-static bool outside_and_in_build_range(const Simulation::Building &b, float x, float z) {
-	if (nav::footprint_aligned(b)) return outside_and_in_build_range(b.x, b.z, b.hu, b.hv, x, z);
+static bool outside_and_in_build_range(const Simulation::Building &b, float x, float z, float radius) {
+	if (nav::footprint_aligned(b)) return outside_and_in_build_range(b.x, b.z, b.hu, b.hv, x, z, radius);
 	const nav::Vec2 l = nav::footprint_local(b, x, z);
-	return outside_and_in_build_range(0.0f, 0.0f, b.hu, b.hv, l.x, l.y);
+	return outside_and_in_build_range(0.0f, 0.0f, b.hu, b.hv, l.x, l.y, radius);
 }
 
 struct UnitGrid {
@@ -4187,12 +4202,6 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	}
 }
 
-// Range-manager distance from a structure's obstruction to a point.
-static float edge_distance(const Simulation::Building &b, float x, float z) {
-	const nav::Vec2 gap = nav::footprint_gap(b, x, z);
-	return std::sqrt(gap.x * gap.x + gap.y * gap.y);
-}
-
 static bool alert_filter(uint8_t unit_type, bool traders) {
 	const uint64_t c = unit_tech_classes(unit_type);
 	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
@@ -5107,11 +5116,10 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		}
 		const float dx = dest.x - px[ti];
 		const float dz = dest.z - pz[ti];
-		const nav::Vec2 edge = nav::footprint_gap(dest, px[ti], pz[ti]);
-		const float edge_dx = edge.x, edge_dz = edge.y;
 		// A ship stops in the water beside the dock, a little further out.
 		const float reach = ttype == UNIT_MERCHANT_SHIP ? 4.0f : 2.0f;
-		if (dx * dx + dz * dz >= 2.5f * 2.5f && edge_dx * edge_dx + edge_dz * edge_dz >= reach * reach) continue;
+		if (dx * dx + dz * dz >= 2.5f * 2.5f &&
+				structure_gap(dest, px[ti], pz[ti], unit_collision_radius(ttype)) >= reach) continue;
 
 		// Arrived. Goods loaded at the other market pay out here (Trader.js
 		// GenerateResources): the trader's owner, and with markets of two
@@ -5350,10 +5358,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
+				// Capture reach only where tick_combat captures (a palisade can't be: it is attacked).
 				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
-						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f;
+						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
+						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				const float reach = capture ? CAPTURE_RANGE : units_.attack_range[i];
-				const float eff_d = std::hypot(px[i] - b.x, pz[i] - b.z) - b.half_size;
+				const float eff_d = structure_gap(b, px[i], pz[i], unit_collision_radius(units_.unit_type[i]));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
 			}
@@ -5963,7 +5973,8 @@ void Simulation::tick_gather(float dt) {
 				float edge_dx = edge.x, edge_dz = edge.y;
 				// A boat unloads from the water beside the dock, a little further out.
 				const float drop_reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
-				if (dx * dx + dz * dz < 2.5f * 2.5f || edge_dx * edge_dx + edge_dz * edge_dz < drop_reach * drop_reach) {
+				if (dx * dx + dz * dz < 2.5f * 2.5f || std::sqrt(edge_dx * edge_dx + edge_dz * edge_dz) -
+						unit_collision_radius(units_.unit_type[i]) < drop_reach) {
 					int amt = units_.carry[i];
 					uint8_t rt = units_.res_type_carried[i];
 					if (rt < RES_COUNT) {
@@ -6202,7 +6213,8 @@ void Simulation::tick_construction(float dt) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			if (bit == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[bit->second];
-			if (b.build_progress < 1.0f && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i]))
+			if (b.build_progress < 1.0f && outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
+				unit_collision_radius(units_.unit_type[i])))
 				builders_per_bld[b.id]++;
 		}
 	}
@@ -6232,7 +6244,8 @@ void Simulation::tick_construction(float dt) {
 			continue;
 		}
 
-		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i])) {
+		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
+				unit_collision_radius(units_.unit_type[i]))) {
 			// 0 A.D. Foundation.Commit: the first builder on a clear site starts it; until the
 			// units standing on it have left, nobody builds.
 			if (!b.committed) {
@@ -6340,7 +6353,8 @@ void Simulation::tick_repair(float dt) {
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
 				if (b.build_progress >= 1.0f && b.hp > 0.0f && b.hp < b.max_hp &&
-						outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i])) {
+						outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
+				unit_collision_radius(units_.unit_type[i]))) {
 					repairers_per_bld[b.id]++;
 				}
 			}
@@ -6354,7 +6368,8 @@ void Simulation::tick_repair(float dt) {
 		Building &b = buildings_[bit->second];
 		if (b.build_progress < 1.0f || b.hp <= 0.0f || b.hp >= b.max_hp) continue;
 
-		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i])) {
+		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
+				unit_collision_radius(units_.unit_type[i]))) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
 			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
@@ -6464,9 +6479,8 @@ void Simulation::tick_pack(float dt) {
 			if (bit != building_id_to_idx_.end()) {
 				const Building &b = buildings_[bit->second];
 				if (is_hostile(units_.team[i], b.team)) {
-					float dx = units_.pos_x[i] - b.x;
-					float dz = units_.pos_z[i] - b.z;
-					float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size);
+					const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i],
+							unit_collision_radius(units_.unit_type[i]));
 					target_in_range = in_parabolic_range(eff_d * eff_d, att_y, get_terrain_height(b.x, b.z),
 							units_.attack_range[i]);
 				}
@@ -6931,12 +6945,11 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 
-		float dx = units_.pos_x[i] - b.x;
-		float dz = units_.pos_z[i] - b.z;
-		float d = sqrtf(dx * dx + dz * dz);
+		const float dx = units_.pos_x[i] - b.x;
+		const float dz = units_.pos_z[i] - b.z;
 		// 0 A.D. ObstructionManager IsInTargetRange: the gap between the two obstructions,
 		// so the attacker's own radius counts (melee units could not reach a wall otherwise).
-		float eff_d = std::max(0.0f, d - b.half_size - unit_collision_radius(units_.unit_type[i]));
+		const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i]));
 
 		float att_y = unit_height(i);
 		float bld_y = get_terrain_height(b.x, b.z);
@@ -9021,10 +9034,9 @@ void Simulation::tick_unit_ai(float dt) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
 			if (bit == building_id_to_idx_.end() || !order_still_valid(i, current_order(i))) { finish_order(i); continue; }
 			const Building &b = buildings_[bit->second];
-			const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
-			const float ex = gap.x, ez = gap.y;
 			const float reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
-			if (now == ACTION_IDLE || ex * ex + ez * ez < reach * reach) {
+			if (now == ACTION_IDLE ||
+					structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i])) < reach) {
 				units_.action_state[i] = ACTION_RETURN_DROPSITE;
 				units_.target_resource_id[i] = 0;
 			}
