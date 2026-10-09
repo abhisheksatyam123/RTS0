@@ -11,10 +11,10 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 
 | Item | Manifest | On disk |
 |---|---|---|
-| models | **995** (units 539, buildings 444, vegetation 12) | 539 / 444 / 12 `.glb` (vegetation 12 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`) |
+| models | **1009** (units 539, buildings 458, vegetation 12) | 539 / 458 / 12 `.glb` (vegetation 12 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`) |
 | props | not in the manifest | 8 `.glb` in `assets/models/props/` (7 carried-resource shuttles, the garrison flag) from `tools/dae_to_glb.gd` with `prop`; 11 flag skins in `assets/textures/garrison_flags/` |
 | scenery | not in the manifest | 22 `.glb` in `assets/models/scenery/` for the 19 Gaia scenery types (`data/scenery_actors.json`), from `tools/extract_0ad_scenery.py` |
-| player masks | not in the manifest | 364 L8 `.png` in `assets/textures/player_masks/` (1 - alpha of 0 A.D.'s `player_trans` skins) and `data/player_masks.json` (1533 GLB images), from `tools/extract_player_masks.py` and `tools/extract_0ad_structures.py` |
+| player masks | not in the manifest | 471 L8 `.png` in `assets/textures/player_masks/` (1 - alpha of 0 A.D.'s `player_trans` skins) and `data/player_masks.json` (1926 GLB images), from `tools/extract_player_masks.py` and `tools/extract_0ad_structures.py` |
 | particles | **3** | `flame.png`, `smoke_64a.png`, `dust_256a.png` in `assets/textures/particles/` |
 | animations | **1316** | 1316 `.psa` + 1316 `.json` in `assets/animations/` |
 | skeletons | **98** | 98 `.xml` in `assets/skeletons/` |
@@ -22,7 +22,7 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 
 - `python3 tools/audit_assets.py` exits 0: `282 unit/fauna assets, 17 static hulls, 0 missing wanted clips` (2026-10-08).
 - The 0 A.D. PMD comparison (`audit_assets.py --pmd-diff`, `check_parity.py`) cannot run on 2026-10-08: `public.zip` is not present in this checkout. The last measured PMD coverage (2026-10-05, 599 models / 4280 PMD) is superseded by the table above.
-- The manifest grew from 599 models (G7-Q log, 2026-10-05) to 918 with no dated log entry in this file (the 134 unit template GLBs among them). 2026-10-09: the civ buildings PR adds 77 building GLBs (75 civ structures, the palisade, the Han bamboo palisade) for 995.
+- The manifest grew from 599 models (G7-Q log, 2026-10-05) to 918 with no dated log entry in this file (the 134 unit template GLBs among them). 2026-10-09: the civ buildings PR adds 77 building GLBs (75 civ structures, the palisade, the Han bamboo palisade) for 995, and the civ special buildings PR 14 more for 1009.
 
 ### Silhouette coverage
 
@@ -134,7 +134,7 @@ Open terrain items:
 
 Models:
 - **Units.** Every roster template whose 0 A.D. actor exists draws that actor (360 of 391; checked 2026-10-09). `tools/extract_0ad_assets.py --templates` adds 134 template GLBs and writes `src/graphics/assets/unit_template_models.h`; `world_view_node` draws 207 templates with their own model and the rest with the civ class model, which is already their actor. 41 template GLBs carry no clips and play their class model's (same bones, `clips_from` in the manifest); the others got Capture, Idle2 and Death2 from `tools/add_0ad_clips.py` like the class models. Not drawn per template: the 14 `rts0_villager` rows (no 0 A.D. template) and packed siege (wagon models). Template ship rams and scouts have no clips, like the class ships.
-- **Buildings (52 types × 14 civs).** Civ structures with their own 0 A.D. actor use it (civ buildings PR): `tools/extract_0ad_structures.py` converted 75 distinct actors (stables, ranges, arsenals, forges, outposts, sentry towers, Han walls and gate, elephant stables, theaters, the Spartan syssiton, Gallic assembly and Persian hall, libraries, the Kushite pyramid, the Persian palace) plus the palisade and the Han bamboo palisade. `data/building_models.json` maps 95 civ model ids onto them. Civs whose 0 A.D. actor is the generic one keep it. Still generic: the Carthaginian Celtic, Iberian and Italic embassies (one model), the Spartan gerousia (drawn as the syssiton), and wall towers and ends are not laid out as 0 A.D.'s WallSet does. Field plots are generic in 0 A.D. too.
+- **Buildings (53 types × 14 civs).** Civ structures with their own 0 A.D. actor use it (civ buildings PR): `tools/extract_0ad_structures.py` converted 75 distinct actors (stables, ranges, arsenals, forges, outposts, sentry towers, Han walls and gate, elephant stables, theaters, the Spartan syssiton, Gallic assembly and Persian hall, libraries, the Kushite pyramid, the Persian palace) plus the palisade and the Han bamboo palisade. `data/building_models.json` maps 95 civ model ids onto them. Civs whose 0 A.D. actor is the generic one keep it. The civ special buildings PR gives 16 civ-specific BuildingTypes that drew a stand-in their own model (the Spartan gerousia and syssiton, Gallic assembly, Persian tachara and ice house, Roman army camp and temples of Mars and Vesta, Iberian monument, Ashoka pillar, Ptolemaic mercenary camp, Ptolemaic and Seleucid military colonies, Kushite Blemmye and Noba camps, the temple of Amun, and the Carthaginian Cothon) through 14 more converted actors; a civ that owns one without having the template draws the original civ's model. Still generic: the Carthaginian Celtic, Iberian and Italic embassies (one model), and wall towers and ends are not laid out as 0 A.D.'s WallSet does. Field plots are generic in 0 A.D. too.
 - **Fauna.** 61 species use 51 models (checked 2026-10-09). The 10 remaining pairs share one 0 A.D. actor too (for example both sheep, both camels, the wild and domestic zebu). The 29 converted with `tools/extract_0ad_fauna_models.py` (Collada source, PR #179) have 0 A.D.'s own mesh, texture and Idle/Walk/Run/Attack/Death clips. Still missing: per-species idle and death variants.
 - **Props and scenery.** 19 Gaia scenery types now use 0 A.D. actors (22 GLBs); ambient hawks fly on 34 maps. Turreted units stand at 0 A.D.'s turret point.
 
