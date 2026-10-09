@@ -1507,7 +1507,7 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready()) return;
 	String who = gaia ? String("Gaia")
-			: "Player " + String::num_int64(attacker + 1) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
+			: player_display_name(attacker) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
 	(void)structure; // 0 A.D. words unit and structure attacks the same way
 	const String what = "You have been attacked";
 	const String key = rtso::hotkeys::table().label("camera.lastattackfocus").c_str();
@@ -2116,7 +2116,7 @@ void RtsoMain::_process(double delta) {
 				String who;
 				for (uint32_t c : turn_mgr_.paused_clients()) {
 					const uint8_t pl = turn_mgr_.player_for_client(c);
-					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer");
+					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? player_display_name(pl) : String("an observer"));
 				}
 				lobby_status->set_text("Game paused by " + who);
 			} else if (lobby_status) {
@@ -2226,7 +2226,7 @@ void RtsoMain::_process(double delta) {
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
 			if (line.to != 0xFF && line.to != local_player()) continue; // addressed to someone else
-			chat_window_.append_line("[color=#88ccff]Player " + String::num_int64(line.from + 1) + " (AI):[/color] " +
+			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + " (AI):[/color] " +
 			                         String(line.text) + "\n");
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
@@ -2497,7 +2497,7 @@ void RtsoMain::update_inspector() {
 			inspector_title->set_text(String(binfo.name));
 			const uint8_t owner = found_b->team;
 			String owner_name = owner == rtso::GAIA_PLAYER ? String("Gaia")
-					: "Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
+					: player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
 			inspector_class->set_text(owner_name + (found_b->garrison_cap > 0
 					? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
 					: String()));
@@ -2592,7 +2592,7 @@ void RtsoMain::update_inspector() {
 		}
 		inspector_title->set_text(name);
 		const uint8_t owner = uview.team[u];
-		inspector_class->set_text("Player " + String::num_int64(owner + 1) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
+		inspector_class->set_text(player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
 				") - Kills: " + String::num_int64(uview.kills[u]));
 
 		// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
@@ -2824,7 +2824,8 @@ void RtsoMain::update_command_panel() {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
 				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
-				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV) continue;
+				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
+				    || rc == rtso::Simulation::TECH_ERR_PAIRED) continue;
 				Button *btn = memnew(Button);
 				String cost;
 				auto add_cost = [&](int v, const char *suffix) {
@@ -4207,7 +4208,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (turn_cmds())
 				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 			else
-				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift);
+				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
 			play_civ_voice("move");
 		}
 	}
@@ -4337,6 +4338,7 @@ void RtsoMain::apply_match_settings() {
 			sim->set_player_active((uint8_t)t, seated || t == 0, t > 0 && seated && ty == 1);
 		}
 	}
+	apply_player_names(ms->get("slot_names")); // after seating: the diplomacy labels read civ and AI
 	UtilityFunctions::print("[RtsoMain] GameSetup ", map_id, " seed ", (int64_t)seed,
 			" civ ", rtso::civ_info(sim->player_civ()).name,
 			" vs ", rtso::civ_info(sim->team_civ(1)).name);
@@ -4692,6 +4694,29 @@ void RtsoMain::_on_ai_behavior_selected(int index) {
 	sim->set_petra_behavior((uint8_t)ai_behavior_selector->get_item_id(index));
 }
 
+String RtsoMain::player_display_name(uint8_t pid) const {
+	if (pid >= rtso::MAX_PLAYERS) return pid == rtso::GAIA_PLAYER ? String("Gaia") : String("an observer");
+	// 0 A.D. onFinalizeAttributes: a seated client's own name replaces the slot's.
+	if (net_lockstep())
+		for (const auto &e : net_host_.playerAssignment())
+			if (e.player == pid && !e.name.empty()) return String::utf8(e.name.c_str());
+	if (!player_names_[pid].is_empty()) return player_names_[pid];
+	return "Player " + String::num_int64(pid + 1);
+}
+
+void RtsoMain::apply_player_names(const Array &names) {
+	for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
+		player_names_[p] = p < names.size() ? String(names[p]).strip_edges().left(48) : String();
+	if (!sim) return;
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		const auto &ps = sim->player(p);
+		String label = ps.active ? player_display_name(p) + " (" + String(rtso::civ_info(ps.civ).name) + ")" : String("-");
+		if (ps.active && p == local_player()) label += " (You)";
+		else if (ps.active && ps.is_ai) label += " (AI)";
+		diplo_dialog_.set_player_label(p, label);
+	}
+}
+
 void RtsoMain::sync_victory_selector() {
 	if (!sim || !victory_selector) return;
 	for (int i = 0; i < victory_selector->get_item_count(); ++i) {
@@ -4818,6 +4843,8 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
+		Array snames = ms->get("slot_names");
+		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
@@ -4981,6 +5008,10 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("nomad", setup.nomad != 0);
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
+		Array snames;
+		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));
+		ms->set("slot_names", snames);
+		apply_player_names(snames);
 		ms->set("water_level", sim->water_level_mode());
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
