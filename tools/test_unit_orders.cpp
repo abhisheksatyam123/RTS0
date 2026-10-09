@@ -74,6 +74,8 @@
 //     farther than the one fled from, and the source survives a save.
 // 44. UnitAI REPAIRING autoharvest: a forced build turns into autoharvest at work, and only
 //     such builders farm the field or gather near the dropsite they finish.
+// 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
+//     nearest dropsite to idle.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1712,6 +1714,26 @@ static void test_autoharvest() {
 	check(s.unit_order(sent).kind != ORDER_GATHER, "the other one doesn't");
 }
 
+
+static void test_idle_at_dropsite() {
+	std::printf("45. an empty-handed gatherer with nothing left heads to the dropsite (FINDINGNEWTARGET)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t store = s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(10, 0, RES_WOOD, 500);
+	uint32_t w = s.spawn_unit(8, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	const bool working = run_until(s, 10.0f, [&] { return act_of(s, w) == ACTION_GATHER; });
+	const int wi = idx_of(s, w);
+	s.units_.carry[wi] = 0;
+	const int ti = (int)s.res_id_to_idx_.at(tree);
+	s.resources_.amount[ti] = 0;
+	s.resources_.alive[ti] = 0;
+	const bool walked = run_until(s, 30.0f, [&] { return dist(s, w, -20, 0) < 6.0f; });
+	check(working && walked, "she walks back to the storehouse to idle there");
+	(void)store;
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1759,6 +1781,7 @@ int main(int argc, char **argv) {
 	test_rally_positions();
 	test_flee_source();
 	test_autoharvest();
+	test_idle_at_dropsite();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
