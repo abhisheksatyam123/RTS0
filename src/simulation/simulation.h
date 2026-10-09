@@ -8,6 +8,7 @@
 #include "aura_manager.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "statistics_tracker.h"
 #include "triggers.h"
 #include <cstdint>
 #include <vector>
@@ -90,6 +91,7 @@ static constexpr uint8_t GAIA_PLAYER = 0xFE;
 struct PlayerState {
 	float res[RES_COUNT] = {};             // indexed by ResourceType
 	float gathered_window[RES_COUNT] = {}; // decaying gather-rate window for the HUD
+	float used[RES_COUNT] = {};            // everything pay() took (StatisticsTracker resourcesUsed)
 	TechSet techs;                         // researched TechnologyIds
 	uint8_t phase = 1;                     // 1=Village, 2=Town, 3=City
 	Civilization civ = CIV_ATHENIANS;
@@ -113,7 +115,14 @@ struct PlayerState {
 	bool pay(float f, float w, float g, float s) {
 		if (!can_afford(f, w, g, s)) return false;
 		res[RES_FOOD] -= f; res[RES_WOOD] -= w; res[RES_GOLD] -= g; res[RES_STONE] -= s;
+		used[RES_FOOD] += f; used[RES_WOOD] += w; used[RES_GOLD] += g; used[RES_STONE] += s;
 		return true;
+	}
+	// Gives back a cancelled payment (ProductionQueue.RemoveItem, Upgrade.CancelUpgrade):
+	// the statistics count it as never used.
+	void refund(float f, float w, float g, float s) {
+		add(f, w, g, s);
+		used[RES_FOOD] -= f; used[RES_WOOD] -= w; used[RES_GOLD] -= g; used[RES_STONE] -= s;
 	}
 	void add(float f, float w, float g, float s) {
 		res[RES_FOOD] += f; res[RES_WOOD] += w; res[RES_GOLD] += g; res[RES_STONE] += s;
@@ -131,7 +140,8 @@ public:
 	static constexpr float ARRIVE_DIST = 0.5f;
 	static constexpr float UNIT_RADIUS = 0.55f;
 	static constexpr size_t UNIT_CAP = 4096;
-	static constexpr uint32_t SAVE_VERSION = 29; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 30; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -255,7 +265,24 @@ public:
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE);
 	// Stats of the unit at SoA index i (its civ roster template, else its class).
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
+	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
+	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
+	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
+	bool unit_can_target(size_t i, size_t j) const { return combat_can_target(unit_combat_at(i), unit_combat_at(j)); }
+	bool unit_can_target_building(size_t i, uint8_t building_type) const {
+		return combat_can_target(unit_combat_at(i), building_combat(building_type));
+	}
 	uint16_t unit_template(uint32_t unit_id) const;
+	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
+	// or -1 when the unit has no next rank.
+	float promotion_required_xp(size_t i) const;
+	// Training time multiplier of a template trained above Basic (Cost/BuildTime per rank).
+	static float promotion_train_time_mult(uint16_t tmpl);
+	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
+	float rank_melee_armor(size_t i) const;
+	float unit_capture_attack_at(size_t i) const;
+	float healer_range_of(size_t h) const;
+	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
 	// from its own civ's bonus and its allies' (same team, still in the match).
 	// See civ_team_bonus_mult() for the arguments.
@@ -311,6 +338,7 @@ public:
 	bool cmd_train(uint8_t player, uint32_t building_id, UnitType u_type);
 	// Train a specific roster unit (a hero, a champion, a second unit of the same class).
 	bool cmd_train_template(uint8_t player, uint32_t building_id, uint16_t tmpl);
+	bool cmd_train_template_at(uint8_t player, uint32_t building_id, uint16_t tmpl, bool exclusive);
 	// P3 maintainFleet upkeep seam (0 A.D. navalManager.js:507-543): team-aware
 	// naval queue entry used by TurnManager NET_CMD_MAINTAIN_FLEET. Unlike
 	// cmd_train (team-0/human only) this honours the building's own team
@@ -390,6 +418,9 @@ public:
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
 	float structure_garrison_heal(const Building &b) const;
 	void order_ungarrison_single(uint32_t building_id, uint32_t unit_id);
+	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
+	// ally only its own units. count 0 unloads every unit `player` may unload.
+	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
@@ -705,6 +736,7 @@ public:
 	// With `tmpl` (a roster row) the row's own 0 A.D. unlock tech decides.
 	uint8_t train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
+	int heroes_of(uint8_t player_id) const; // alive or queued (EntityLimits Hero: 1)
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE) const;
 	// 0 A.D. phase_town / phase_city requirement: finished Village (1) or Town (2) class structures.
@@ -1004,6 +1036,19 @@ public:
 	};
 	const MatchRecord &record() const { return record_; }
 
+	// 0 A.D. StatisticsTracker.js, one per player (statistics_tracker.h).
+	PlayerStatistics statistics(uint8_t player) const;
+	// GetPercentMapExplored / GetTeamPercentMapExplored, 0..100.
+	float percent_map_explored(uint8_t player) const;
+	float team_percent_map_explored(uint8_t player) const;
+	// GetPercentMapControlled / GetTeamPercentMapControlled, 0..100.
+	float percent_map_controlled(uint8_t player) const;
+	float team_percent_map_controlled(uint8_t player) const;
+	// One row every STATISTICS_SAMPLE_INTERVAL seconds of game time (the summary charts).
+	const std::vector<StatisticsSample> &statistics_samples() const { return stat_samples_; }
+	// The row a sample would hold right now (the summary's final column).
+	StatisticsSample statistics_snapshot() const;
+
 private:
 	void move_units(float dt, Arena &arena);
 	void separation(float dt, Arena &arena);
@@ -1028,6 +1073,8 @@ private:
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
+		float regen[UNIT_TYPE_COUNT];       // Health.js RegenRate, hp per second
+		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -1037,6 +1084,8 @@ private:
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
+		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
+		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		// The same unit multipliers per civ roster template, matched against the
 		// template's own 0 A.D. classes (Champion Infantry Spearman, Javelineer, ...),
 		// which its RTS0 unit_type only approximates.
@@ -1044,6 +1093,7 @@ private:
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
 			float armor[3];
+			float cost[RES_COUNT];
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
@@ -1076,7 +1126,9 @@ private:
 	void formation_stop(const uint32_t *unit_ids, size_t count);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
-	void promote_if_due(size_t i); // Promotion.js thresholds for unit index i
+	void promote_if_due(size_t i); // Promotion.js IncreaseXp: promote while xp covers RequiredXp
+	void promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_rank); // Promotion.js Promote
+	void apply_rank_bonus(size_t i, uint8_t from_rank, uint8_t to_rank);
 	void tick_capture(float dt);
 	// 0 A.D. UnitAI per-unit order logic, before movement: answers attacks (fight back or
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
@@ -1108,7 +1160,6 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	void tick_upkeep(float dt);
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
 	void tick_gates(float dt);
@@ -1151,9 +1202,23 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
-	void mark_building_wreck(Building &b);
+	static float projectile_speed(uint8_t visual);
+	int32_t projectile_hit_unit(const Projectile &p) const;
+	void random_normal_2d(float &x, float &z);
+	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
+	// StatisticsTracker hooks. `killer` is the player credited with the kill
+	// (out of range or the victim's own owner credits nobody).
+	void stat_unit_trained(size_t idx);
+	void stat_unit_lost(size_t idx, uint8_t killer);
+	void stat_building_constructed(const Building &b);
+	void stat_building_lost(const Building &b, uint8_t killer);
+	void stat_building_captured(const Building &b, uint8_t from);
+	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
+	void tick_statistics();
+	void update_statistics_explored();
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
@@ -1266,7 +1331,7 @@ private:
 	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && is_hostile(petra_pid_, (uint8_t)t); }
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
-	float upkeep_timer_ = 0.0f;
+	float upkeep_timer_ = 0.0f; // unused since soldier upkeep was removed (no 0 A.D. template has Upkeep); kept for the save layout
 	float entity_limits_timer_ = 0.0f;
 	float gate_timer_ = 0.0f;
 	static constexpr size_t MAX_RECENT_DEATHS = 64;
@@ -1319,6 +1384,13 @@ private:
 	float wonder_hold_[MAX_PLAYERS] = {}; // seconds each player has held a finished wonder
 
 	MatchRecord record_;
+	// StatisticsTracker state, saved through tick_state_io (save v19+).
+	std::array<PlayerStatistics, MAX_PLAYERS> stats_{};
+	std::vector<StatisticsSample> stat_samples_;
+	static constexpr size_t MAX_STATISTICS_SAMPLES = 4096; // 34 hours of 30 s rows
+	// Cells each player has seen, STATISTICS_EXPLORE_CELL wide (1 = explored).
+	int32_t stats_explore_res_ = 0;
+	std::array<std::vector<uint8_t>, MAX_PLAYERS> stats_explored_;
 
 	uint64_t tick_us_ = 0;
 	uint64_t ticks_ = 0;
@@ -1455,6 +1527,9 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_resource_demand(float out[RES_COUNT]) const;
+	bool petra_perform_barter();      // tradeManager.js performBarter
+	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
@@ -1576,6 +1651,7 @@ private:
 	void drop_orders(size_t i);      // orders UnitAI doesn't model (trade, hunt, board): no order, no queue
 	// Splits a Shift order: busy units get it queued, the rest are returned to run now.
 	// Without Shift every unit's queue is dropped and all of them run it now.
+	float unit_height(size_t i) const; // terrain, or the water surface under a ship
 	bool trade_route_ok(size_t i, uint32_t market_a_id, uint32_t market_b_id) const;
 	std::vector<uint32_t> split_queued(const uint32_t *ids, size_t count, const UnitOrder &o, bool queued);
 	void apply_order(uint32_t uid, const UnitOrder &o);
@@ -1585,7 +1661,8 @@ private:
 	void respond_to_attack(size_t i);
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
-	void apply_rally_point(uint32_t uid, const Building &b);
+	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
+	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
 	void on_construction_finished(const Building &b, size_t builder);
 	void destroy_building(Building &b);
 	bool can_capture_building(uint8_t player, const Building &b) const;

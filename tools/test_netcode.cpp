@@ -549,6 +549,11 @@ std::string goods_of(const Simulation &sim) {
     return out;
 }
 
+int carry_of(const Simulation &sim, uint32_t id) {
+    const int32_t i = sim.lookup_unit(id);
+    return i >= 0 && sim.units_.alive[i] ? (int)sim.units_.carry[i] : -1;
+}
+
 float hp_of(const Simulation &sim, uint32_t id) {
     auto uv = sim.units();
     for (size_t i = 0; i < uv.count; ++i)
@@ -649,6 +654,18 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     // A squad the host forms up (cmd 8, 0 A.D. Formation.js), walks and attack-moves.
     std::vector<uint32_t> host_squad;
     for (int i = 0; i < 4; ++i) host_squad.push_back(sim.spawn_unit(-36.0f + 2.0f * (float)i, 22.0f, 0, UNIT_SPEARMAN));
+    // A villager carrying wood the host sends to drop it off (cmd 34, UnitAI ReturnResource).
+    const uint32_t host_carrier = sim.spawn_unit(-40.0f, 2.0f, 0, UNIT_VILLAGER, 100.0f);
+    {
+        const int32_t ci = sim.lookup_unit(host_carrier);
+        sim.units_.res_type_carried[ci] = RES_WOOD;
+        sim.units_.carry[ci] = 10;
+    }
+    // Two markets and a trader the host walks off, then sends on a Shift-queued
+    // route between them (cmd 35, 0 A.D. setup-trade-route).
+    const uint32_t host_market_a = sim.spawn_building_world(-50.0f, -24.0f, BLD_MARKET, 0, 1.0f);
+    const uint32_t host_market_b = sim.spawn_building_world(-50.0f, 26.0f, BLD_MARKET, 0, 1.0f);
+    const uint32_t host_trader = sim.spawn_unit(-46.0f, 0.0f, 0, UNIT_TRADER);
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);
         for (uint8_t t = 0; t < MAX_PLAYERS; ++t) {
@@ -881,6 +898,27 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 else { fm.cmd_type = 10; fm.target_x = -36.0f; fm.target_z = 24.0f; }
                 batch.push_back(fm);
             }
+            if (st == 430) {
+                NetCommand rr;
+                rr.client_id = 0;
+                rr.cmd_type = 34;
+                rr.entity_ids.push_back(host_carrier);
+                rr.target_id = refs.town_center;
+                batch.push_back(rr);
+            }
+            if (st == 420 || st == 422) {
+                NetCommand tr;
+                tr.client_id = 0;
+                tr.entity_ids.push_back(host_trader);
+                if (st == 420) { tr.cmd_type = 1; tr.target_x = -44.0f; tr.target_z = -8.0f; }
+                else {
+                    tr.cmd_type = 35;
+                    tr.target_id = host_market_a;
+                    tr.target_x = (float)host_market_b;
+                    tr.param = NET_PARAM_QUEUED;
+                }
+                batch.push_back(tr);
+            }
             if (st == 410) {
                 NetCommand hl;
                 hl.client_id = 0;
@@ -979,7 +1017,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 if (cu.alive[i]) wounds += cu.max_hp[i] - cu.hp[i];
                 else ++dead;
             }
-            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f goods=%s form=%s\n",
+            std::fprintf(log, "%u %08X %zu d01=%u d10=%u cf=%d wounds=%.0f dead=%u defeated=%u over=%d stone=%d,%d wall=%u locked=%d pack=%u work=%u queue=%zu heal=%u patient=%.0f goods=%s form=%s carry=%u:%d trade=%u:%zu\n",
                          f.turn_index, f.sim_state_hash, f.commands.size(), sim.get_diplomacy(0, 1),
                          sim.get_diplomacy(1, 0), sim.ceasefire_active() ? 1 : 0, wounds, dead,
                          (unsigned)sim.defeated_mask(), sim.is_game_over() ? 1 : 0,
@@ -987,7 +1025,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                          (unsigned)building_type_of(sim, host_wall), gate_locked_of(sim, host_wall),
                          pack_state_of(sim, host_catapult), order_kind_of(sim, host_worker),
                          order_queue_len_of(sim, host_worker), order_kind_of(sim, host_healer),
-                         hp_of(sim, host_patient), goods_of(sim).c_str(), formation_state_of(sim, host_squad[0]).c_str());
+                         hp_of(sim, host_patient), goods_of(sim).c_str(), formation_state_of(sim, host_squad[0]).c_str(),
+                         order_kind_of(sim, host_carrier), carry_of(sim, host_carrier),
+                         order_kind_of(sim, host_trader), order_queue_len_of(sim, host_trader));
         }
         if (tm.has_out_of_sync() && !opt.force_oos) {
             std::fprintf(stderr, "[net-peer] %s: OOS at turn %u local=%08X peer=%08X\n",
