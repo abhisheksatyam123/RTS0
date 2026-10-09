@@ -2420,6 +2420,14 @@ void RtsoMain::_process(double delta) {
 		banner_panel->set_visible(true);
 		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
+	} else if ((sim->is_victory() || sim->is_game_over()) && local_player() >= rtso::MAX_PLAYERS) {
+		// An observer has no side: name the winners instead (0 A.D. summary "Winner").
+		String winners;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+			if ((sim->winner_mask() >> p) & 1) winners += (winners.is_empty() ? "" : ", ") + player_display_name(p);
+		banner_panel->set_visible(true);
+		banner_label->set_text("MATCH OVER\n" + (winners.is_empty() ? String("No one prevailed.") : winners + String(" prevailed.")));
+		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
 	} else if (sim->is_victory() || sim->is_game_over()) {
 		banner_panel->set_visible(true);
 		banner_label->set_text("DEFEAT!\nYour side has been defeated.");
@@ -2433,6 +2441,11 @@ void RtsoMain::_process(double delta) {
 		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
 		selected_ids.clear();
+	} else if (local_observer_ && !turn_mgr_.is_replaying()) {
+		// Every Game Setup slot was AI: say so for the first few seconds.
+		banner_panel->set_visible(match_elapsed_time < 6.0);
+		banner_label->set_text("OBSERVING\nEvery player is an AI. The map is revealed.");
+		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
 	}
 }
 
@@ -4258,6 +4271,9 @@ void RtsoMain::apply_match_settings() {
 	for (int i = 0; i < slot_types.size() && i < rtso::MAX_PLAYERS; ++i)
 		if ((int)slot_types[i] != 2) seats = i + 1;
 	random_map_players = std::max(2, seats);
+	local_observer_ = seats > 0;
+	for (int i = 0; i < seats; ++i)
+		if ((int)slot_types[i] == 0) local_observer_ = false;
 	{
 		Array slot_teams_arr = ms->get("slot_teams");
 		for (int i = 0; i < rtso::MAX_PLAYERS; ++i) {
@@ -4335,8 +4351,9 @@ void RtsoMain::apply_match_settings() {
 	if (seats > 0) {
 		for (int t = 0; t < rtso::MAX_PLAYERS; ++t) {
 			const int ty = t < slot_types.size() ? (int)slot_types[t] : 2;
-			const bool seated = t < seats && ty != 2 && (t > 0 || ty == 0);
-			sim->set_player_active((uint8_t)t, seated || t == 0, t > 0 && seated && ty == 1);
+			// Slot 1 is you unless every slot is AI (local_observer_); then Petra plays it too.
+			const bool seated = t < seats && ty != 2 && (t > 0 || ty == 0 || local_observer_);
+			sim->set_player_active((uint8_t)t, seated || t == 0, (t > 0 || local_observer_) && seated && ty == 1);
 		}
 	}
 	apply_player_names(ms->get("slot_names")); // after seating: the diplomacy labels read civ and AI
@@ -4430,6 +4447,7 @@ bool RtsoMain::load_map(String map_id) {
 		sim->set_biome_override(-1); // a map picked in game keeps its own biome
 		sim->set_nomad(false);
 	}
+	local_observer_ = false; // a map picked in game is played from slot 1
 	return load_map_seeded(map_id, seed);
 }
 
