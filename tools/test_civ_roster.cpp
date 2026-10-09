@@ -47,6 +47,7 @@ int main()
 	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
 		const CivUnitTemplate &u = civ_unit_template(i);
 		if (u.trainers != 0) continue; // a trainable row added later (civ_roster_ids)
+		if (u.flags & ROSTER_RELIC) continue; // a catafalque: Capture the Relic places it
 		if (!is_promotion_target(u.id) || u.civ >= CIV_COUNT || u.hp <= 0.0f) {
 			tail_ok = false;
 			std::printf("      bad promotion-only row %u %s\n", i, u.id);

@@ -44,7 +44,8 @@
     "athen/support_female_citizen_house",
     "athen/support_healer_b",
     "athen/support_trader",
-    "athen/rts0_villager"
+    "athen/rts0_villager",
+    "athen/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -96,7 +97,8 @@
     "spart/support_healer_b",
     "spart/support_trader",
     "spart/rts0_villager",
-    "spart/champion_infantry_spear_olympian"
+    "spart/champion_infantry_spear_olympian",
+    "spart/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -154,7 +156,8 @@
     "pers/support_female_citizen_house",
     "pers/support_healer_b",
     "pers/support_trader",
-    "pers/rts0_villager"
+    "pers/rts0_villager",
+    "pers/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -215,7 +218,8 @@
     "rome/support_trader",
     "rome/rts0_villager",
     "rome/cavalry_auxiliary_b",
-    "rome/infantry_antesignanus"
+    "rome/infantry_antesignanus",
+    "rome/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -269,7 +273,8 @@
     "cart/support_female_citizen_house",
     "cart/support_healer_b",
     "cart/support_trader",
-    "cart/rts0_villager"
+    "cart/rts0_villager",
+    "cart/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -312,7 +317,8 @@
     "mace/support_healer_b",
     "mace/support_trader",
     "mace/rts0_villager",
-    "mace/champion_infantry_spearman_02"
+    "mace/champion_infantry_spearman_02",
+    "mace/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -363,7 +369,8 @@
     "brit/support_healer_b",
     "brit/support_trader",
     "brit/war_dog",
-    "brit/rts0_villager"
+    "brit/rts0_villager",
+    "brit/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -411,7 +418,8 @@
     "gaul/support_female_citizen_house",
     "gaul/support_healer_b",
     "gaul/support_trader",
-    "gaul/rts0_villager"
+    "gaul/rts0_villager",
+    "gaul/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -462,7 +470,8 @@
     "iber/support_female_citizen_house",
     "iber/support_healer_b",
     "iber/support_trader",
-    "iber/rts0_villager"
+    "iber/rts0_villager",
+    "iber/catafalque"
    ],
    "auto_bonuses": []
   },
@@ -496,7 +505,8 @@
     "maur/support_female_citizen_house",
     "maur/support_healer_b",
     "maur/support_trader",
-    "maur/rts0_villager"
+    "maur/rts0_villager",
+    "maur/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -555,7 +565,8 @@
     "kush/support_healer_b",
     "kush/support_healer_e",
     "kush/support_trader",
-    "kush/rts0_villager"
+    "kush/rts0_villager",
+    "kush/catafalque"
    ],
    "auto_bonuses": []
   },
@@ -603,7 +614,8 @@
     "ptol/support_female_citizen_house",
     "ptol/support_healer_b",
     "ptol/support_trader",
-    "ptol/rts0_villager"
+    "ptol/rts0_villager",
+    "ptol/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -648,7 +660,8 @@
     "sele/support_female_citizen_house",
     "sele/support_healer_b",
     "sele/support_trader",
-    "sele/rts0_villager"
+    "sele/rts0_villager",
+    "sele/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -691,7 +704,8 @@
     "han/support_healer_b",
     "han/support_trader",
     "han/rts0_villager",
-    "han/support_minister"
+    "han/support_minister",
+    "han/catafalque"
    ],
    "auto_bonuses": [
     {
@@ -1040,8 +1054,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    0,
-    1
+    2,
+    3
    ],
    "civ_bonuses": [],
    "classes": [
@@ -1093,8 +1107,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    2,
-    3
+    4,
+    5
    ],
    "civ_bonuses": [],
    "classes": [
@@ -1147,8 +1161,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    4,
-    5
+    6,
+    7
    ],
    "civ_bonuses": [],
    "classes": [
@@ -1201,8 +1215,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    6,
-    7
+    8,
+    9
    ],
    "civ_bonuses": [],
    "classes": [
@@ -2388,8 +2402,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    8,
-    9
+    13,
+    14
    ],
    "civ_bonuses": [],
    "classes": [
@@ -2442,7 +2456,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    10
+    15
    ],
    "civ_bonuses": [],
    "classes": [
@@ -2495,7 +2509,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    11
+    16
    ],
    "civ_bonuses": [],
    "classes": [
@@ -3769,7 +3783,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    12
+    18
    ],
    "civ_bonuses": [],
    "classes": [
@@ -3828,7 +3842,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    13
+    19
    ],
    "civ_bonuses": [],
    "classes": [
@@ -3888,7 +3902,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    14
+    20
    ],
    "civ_bonuses": [],
    "classes": [
@@ -5013,8 +5027,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    15,
-    16
+    23,
+    24
    ],
    "civ_bonuses": [],
    "classes": [
@@ -5068,7 +5082,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    17
+    25
    ],
    "civ_bonuses": [],
    "classes": [
@@ -5122,7 +5136,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    18
+    26
    ],
    "civ_bonuses": [],
    "classes": [
@@ -6614,8 +6628,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    19,
-    20
+    28,
+    29
    ],
    "civ_bonuses": [],
    "classes": [
@@ -6669,7 +6683,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    21
+    30
    ],
    "civ_bonuses": [],
    "classes": [
@@ -6721,7 +6735,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    22
+    31
    ],
    "civ_bonuses": [],
    "classes": [
@@ -8116,9 +8130,9 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    23,
-    24,
-    25
+    34,
+    35,
+    36
    ],
    "civ_bonuses": [],
    "classes": [
@@ -8172,7 +8186,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    26
+    37
    ],
    "civ_bonuses": [],
    "classes": [
@@ -8225,7 +8239,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    27
+    38
    ],
    "civ_bonuses": [],
    "classes": [
@@ -9396,7 +9410,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    28
+    41
    ],
    "civ_bonuses": [],
    "classes": [
@@ -9451,7 +9465,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    29
+    42
    ],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -9506,7 +9520,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    30
+    43
    ],
    "civ_bonuses": [],
    "classes": [
@@ -10629,7 +10643,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    31
+    46
    ],
    "civ_bonuses": [],
    "classes": [
@@ -10682,7 +10696,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    32
+    47
    ],
    "civ_bonuses": [],
    "classes": [
@@ -10736,7 +10750,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    33
+    48
    ],
    "civ_bonuses": [],
    "classes": [
@@ -11695,8 +11709,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    34,
-    35
+    51,
+    52
    ],
    "civ_bonuses": [],
    "classes": [
@@ -11749,7 +11763,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    36
+    53
    ],
    "civ_bonuses": [],
    "classes": [
@@ -11803,8 +11817,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    37,
-    38
+    54,
+    55
    ],
    "civ_bonuses": [],
    "classes": [
@@ -13031,7 +13045,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    39
+    58
    ],
    "civ_bonuses": [],
    "classes": [
@@ -13087,8 +13101,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    40,
-    41
+    59,
+    60
    ],
    "civ_bonuses": [],
    "classes": [
@@ -13139,8 +13153,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    42,
-    43
+    61,
+    62
    ],
    "civ_bonuses": [],
    "classes": [
@@ -14315,7 +14329,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    44
+    65
    ],
    "civ_bonuses": [],
    "classes": [
@@ -14370,9 +14384,9 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    45,
-    46,
-    47
+    66,
+    67,
+    68
    ],
    "civ_bonuses": [],
    "classes": [
@@ -14424,8 +14438,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    48,
-    49
+    69,
+    70
    ],
    "civ_bonuses": [],
    "classes": [
@@ -15715,9 +15729,9 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    50,
-    51,
-    52
+    72,
+    73,
+    74
    ],
    "civ_bonuses": [],
    "classes": [
@@ -15770,8 +15784,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    53,
-    54
+    75,
+    76
    ],
    "civ_bonuses": [],
    "classes": [
@@ -15823,7 +15837,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    55
+    77
    ],
    "civ_bonuses": [],
    "classes": [
@@ -17376,7 +17390,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    56
+    81
    ],
    "civ_bonuses": [],
    "classes": [
@@ -17430,7 +17444,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    57
+    82
    ],
    "civ_bonuses": [],
    "classes": [
@@ -17484,7 +17498,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    58
+    83
    ],
    "civ_bonuses": [],
    "classes": [
@@ -18861,8 +18875,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    59,
-    60
+    86,
+    87
    ],
    "civ_bonuses": [],
    "classes": [
@@ -18918,8 +18932,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    61,
-    62
+    88,
+    89
    ],
    "civ_bonuses": [],
    "classes": [
@@ -18976,8 +18990,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    63,
-    64
+    90,
+    91
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20073,10 +20087,10 @@
    "flags": [],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    66,
-    67,
-    65,
-    68
+    93,
+    94,
+    92,
+    95
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20107,9 +20121,666 @@
     "range": 1.7999999999999998,
     "carry": 0
    }
+  },
+  {
+   "id": "athen/catafalque",
+   "civ": "athen",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Athenian Catafalque",
+   "specific_name": "Solon",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    0,
+    1
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "spart/catafalque",
+   "civ": "spart",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Spartan Catafalque",
+   "specific_name": "Lycurgus",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    10,
+    11,
+    12
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "pers/catafalque",
+   "civ": "pers",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Persian Catafalque",
+   "specific_name": "Artaxšaçā",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    17
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/catafalque",
+   "civ": "rome",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Roman Catafalque",
+   "specific_name": "Lūcius Iūnius Brūtus",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    21,
+    22
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "cart/catafalque",
+   "civ": "cart",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Carthaginian Catafalque",
+   "specific_name": "Hasdrubal (Quartermaster)",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    27
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/catafalque",
+   "civ": "mace",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Macedonian Catafalque",
+   "specific_name": "Philip V",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    32,
+    33
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "brit/catafalque",
+   "civ": "brit",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Briton Catafalque",
+   "specific_name": "Cassiuellaunos",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    39,
+    40
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "gaul/catafalque",
+   "civ": "gaul",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Gallic Catafalque",
+   "specific_name": "Ambiorix",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    44,
+    45
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "iber/catafalque",
+   "civ": "iber",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Iberian Catafalque",
+   "specific_name": "Mandonius",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    49,
+    50
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "maur/catafalque",
+   "civ": "maur",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Mauryan Catafalque",
+   "specific_name": "Bindusara",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    56,
+    57
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "kush/catafalque",
+   "civ": "kush",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Kushite Catafalque",
+   "specific_name": "Shanakdakheto",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    63,
+    64
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "ptol/catafalque",
+   "civ": "ptol",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Ptolemaic Catafalque",
+   "specific_name": "Ptolemy III Euergetes (Benefactor)",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    71
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "sele/catafalque",
+   "civ": "sele",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Seleucid Catafalque",
+   "specific_name": "Antiochus I Soter (Savior)",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    78,
+    79,
+    80
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "han/catafalque",
+   "civ": "han",
+   "class": "UNIT_CATAFALQUE",
+   "name": "Han Catafalque",
+   "specific_name": "Emperor Wǔ (Liu Che)",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RELIC"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    84,
+    85
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "Relic",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 1000,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 0.0,
+    "pierce_armor": 0.0,
+    "crush_armor": 0.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 0.0,
+    "pop": 0,
+    "speed": 1.7622,
+    "damage": 0.0,
+    "range": 1.0,
+    "carry": 0
+   }
   }
  ],
  "auras": [
+  {
+   "id": "athen_catafalque_1",
+   "name": "Economic Reforms",
+   "description": "Solon instituted several economic reforms encouraging commerce and agriculture.\nWorkers +15% gather speed.",
+   "type": "range",
+   "radius": 80.0,
+   "affects": [
+    "Worker"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceGatherer/BaseSpeed",
+     "multiply": 1.15
+    }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.13043478260869557,
+    22.400000000000002
+   ]
+  },
+  {
+   "id": "athen_catafalque_2",
+   "name": "Economic Fortune",
+   "description": "Solon brought in a new system of weights and measures, fathers were encouraged to find trades for their sons.\nEconomic technologies −10% resource costs.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Economic"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Researcher/TechCostMultiplier/food",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/wood",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/stone",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/metal",
+     "multiply": 0.9
+    }
+   ],
+   "rts0": null
+  },
   {
    "id": "athen_hero_hippocrates_1",
    "name": "Father of Medicine",
@@ -20351,6 +21022,94 @@
    "rts0": null
   },
   {
+   "id": "spart_catafalque_1",
+   "name": "Lycurgan Military Reforms",
+   "description": "Lycurgus instituted several military reforms, thus the complete and undivided allegiance to Sparta from its citizens was implemented under his form of government.\nCitizen Infantry Spearmen −10% resource costs.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Citizen Infantry Spearman"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Cost/Resources/food",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/wood",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/stone",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/metal",
+     "multiply": 0.9
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "spart_catafalque_2",
+   "name": "Lycurgan Military Reforms",
+   "description": "Champion Infantry Spearmen −5% resource costs.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Champion Infantry Spearman"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Cost/Resources/food",
+     "multiply": 0.95
+    },
+    {
+     "value": "Cost/Resources/wood",
+     "multiply": 0.95
+    },
+    {
+     "value": "Cost/Resources/stone",
+     "multiply": 0.95
+    },
+    {
+     "value": "Cost/Resources/metal",
+     "multiply": 0.95
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "spart_catafalque_3",
+   "name": "Iron Pelanors",
+   "description": "To further support equality, Lycurgus forbade the use of gold and silver, introducing a new iron currency called pelanors.\nWorkers +15% metal gather rate.",
+   "type": "range",
+   "radius": 80.0,
+   "affects": [
+    "Worker"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceGatherer/Rates/metal.ore",
+     "multiply": 1.15
+    }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.13043478260869557,
+    22.400000000000002
+   ]
+  },
+  {
    "id": "spart_hero_agis_1",
    "name": "Great Revolt",
    "description": "Soldiers −25% metal cost, and training time.",
@@ -20460,6 +21219,42 @@
    ]
   },
   {
+   "id": "pers_catafalque",
+   "name": "Great Builder",
+   "description": "Throughout his reign, much of Artaxerxes' wealth was spent on building projects. He restored the Palace of Darius I at Susa and restored the ancient city of Ecbatana.\nStructures −10% resource costs and +5% health.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Structure"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Cost/Resources/food",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/wood",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/stone",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/metal",
+     "multiply": 0.9
+    },
+    {
+     "value": "Health/Max",
+     "multiply": 1.05
+    }
+   ],
+   "rts0": null
+  },
+  {
    "id": "pers_hero_cyrus_ii",
    "name": "Forefront Leader",
    "description": "Cavalry +1 capture attack strength, +20% melee and ranged attack damage.",
@@ -20560,6 +21355,67 @@
     "AURA_GATHER",
     0.13043478260869557,
     16.8
+   ]
+  },
+  {
+   "id": "rome_catafalque_1",
+   "name": "Avenger of Lucretia",
+   "description": "After the rape of Lucretia by the son of King Tarquinius Superbus and her subsequent suicide, Brutus vowed to avenge her and overthrow the monarchy.\nFemale Citizens −20% food cost and +10% gather speed.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "FemaleCitizen"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Cost/Resources/food",
+     "multiply": 0.8
+    },
+    {
+     "value": "ResourceGatherer/BaseSpeed",
+     "multiply": 1.1
+    }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.09090909090909094,
+    1000.0
+   ]
+  },
+  {
+   "id": "rome_catafalque_2",
+   "name": "Founder and Defender of the Republic",
+   "description": "Brutus was one of the key figures in the overthrow of the monarchy and the founding of the Roman Republic. Later, as consul he led a Roman army to victory against the Etruscan King Tarquinius who sought to retake the throne.\nHumans and Siege Engines +1 crush, hack, pierce resistance.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Human",
+    "Siege"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Resistance/Entity/Damage/Hack",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Pierce",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Crush",
+     "add": 1
+    }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    1000.0
    ]
   },
   {
@@ -20733,6 +21589,42 @@
    ]
   },
   {
+   "id": "cart_catafalque",
+   "name": "Commander of Heavy Cavalry",
+   "description": "Leader of the Carthaginian heavy cavalry at Trebia and Cannae, where his triple charge had devastating effects on the enemy.\nMelee Cavalry +1 crush, hack, pierce resistance and +10% health.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Melee Cavalry"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Health/Max",
+     "multiply": 1.1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Hack",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Pierce",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Crush",
+     "add": 1
+    }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    1000.0
+   ]
+  },
+  {
    "id": "cart_hero_hamilcar_1",
    "name": "Lightning General",
    "description": "Soldiers and Siege Engines +15% movement speed.",
@@ -20881,6 +21773,51 @@
     1.3,
     16.8
    ]
+  },
+  {
+   "id": "mace_catafalque_1",
+   "name": "Sacker of Cities",
+   "description": "During the First Macedonian War, Philip and his troops sacked Thermum, the religious and political center of Aetolia.\nHumans, Siege Engines, Ships, and Structures gain +5 food and wood loot.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Human",
+    "Siege",
+    "Ship",
+    "Structure"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Looter/Resource/food",
+     "add": 5
+    },
+    {
+     "value": "Looter/Resource/wood",
+     "add": 5
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "mace_catafalque_2",
+   "name": "Financial Reorganization",
+   "description": "Allied with Rome, Philip reorganized the country's internal affairs and finances, leaving as a legacy reopened mines and a new currency.\nGain a slow trickle of metal.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceTrickle/Rates/metal",
+     "add": 1
+    }
+   ],
+   "rts0": null
   },
   {
    "id": "mace_hero_alexander_iii_1",
@@ -21108,6 +22045,54 @@
    ]
   },
   {
+   "id": "brit_catafalque_1",
+   "name": "Guerrilla Tactics",
+   "description": "Seeing entrenched defense to be useless against the Roman army, Cassivellaunus resorted to guerrilla tactics. This was later employed by other chieftains too.\nSoldiers +15% movement speed and +15% vision range.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "UnitMotion/WalkSpeed",
+     "multiply": 1.15
+    },
+    {
+     "value": "Vision/Range",
+     "multiply": 1.15
+    }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.15,
+    1000.0
+   ]
+  },
+  {
+   "id": "brit_catafalque_2",
+   "name": "Skirmisher Harassment",
+   "description": "Cassivellaunus deployed fast-moving skirmishers to harass Roman troops and foragers.\nJavelineers +20% attack range.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Javelineer"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Ranged/MaxRange",
+     "multiply": 1.2
+    }
+   ],
+   "rts0": null
+  },
+  {
    "id": "brit_hero_boudicca",
    "name": "Champion Army",
    "description": "Champions +2 capture attack strength, +20% melee and ranged attack damage, +10% movement speed.",
@@ -21221,6 +22206,74 @@
    ]
   },
   {
+   "id": "gaul_catafalque_1",
+   "name": "Ambush Slaughter",
+   "description": "Warring with the Romans, Ambiorix realized the futility of open warfare and instead resorted to ambush tactics. The Gauls quickly learned where and when to execute surprise attacks.\nSoldiers +5% melee and ranged attack damage and −25% promotion experience.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 1.05
+    },
+    {
+     "value": "Promotion/RequiredXp",
+     "multiply": 0.75
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.05,
+    1000.0
+   ]
+  },
+  {
+   "id": "gaul_catafalque_2",
+   "name": "Tribute to Rome",
+   "description": "When the Roman army fell short of food supplies, the Gallic tribes were ordered to give up a part of their already meagre harvest. The Eburones under Ambiorix were reluctant to do so, therefore Caesar sent troops to take them by force.\nWorkers −10% grain gather rate.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Worker"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceGatherer/Rates/food.grain",
+     "multiply": 0.9
+    }
+   ],
+   "rts0": null
+  },
+  {
    "id": "gaul_hero_brennus",
    "name": "Sacker of Rome",
    "description": "Humans, Siege Engines, and Ships gain +15 metal loot.",
@@ -21314,6 +22367,46 @@
     0.13043478260869557,
     1000.0
    ]
+  },
+  {
+   "id": "iber_catafalque_1",
+   "name": "Mercenary Commander",
+   "description": "Along with his brother Indibil, Mandonius commanded the Iberian recruits and mercenaries that took part in the Punic Wars.\nAllied Citizen Mercenaries −25% metal cost.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Citizen Mercenary"
+   ],
+   "players": [
+    "Ally"
+   ],
+   "modifications": [
+    {
+     "value": "Cost/Resources/metal",
+     "multiply": 0.75
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "iber_catafalque_2",
+   "name": "Saver of Lives",
+   "description": "Following the fall of Indibil in battle, Mandonius led the survivors to safety.\nSoldiers +10% health.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Health/Max",
+     "multiply": 1.1
+    }
+   ],
+   "rts0": null
   },
   {
    "id": "iber_hero_caros_1",
@@ -21461,6 +22554,46 @@
     {
      "value": "Looter/Resource/metal",
      "multiply": 2
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "maur_catafalque_1",
+   "name": "Consolidator of the Empire",
+   "description": "Son of Chandragupta Maurya, Bindusara consolidated the empire, creating a stable state for his son Ashoka to inherit.\nStructures +20% territory influence radius.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Structure"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "TerritoryInfluence/Radius",
+     "multiply": 1.2
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "maur_catafalque_2",
+   "name": "Vamba Moriyar",
+   "description": "Bindusara is said to have conquered lands to the south of the empire.\nSoldiers +15% capture attack strength.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Capture/Capture",
+     "multiply": 1.15
     }
    ],
    "rts0": null
@@ -21636,6 +22769,46 @@
     1.1764705882352942,
     1000.0
    ]
+  },
+  {
+   "id": "kush_catafalque_1",
+   "name": "Earliest Nubian Queen",
+   "description": "Ruling with full power in the Meroë Empire and also playing a significant role in the Meroitic religion, Shanakdakheto represented the might of Kush, something not to be taken lightly.\nEnemy Female Citizens −15% gather speed.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "FemaleCitizen"
+   ],
+   "players": [
+    "Enemy"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceGatherer/BaseSpeed",
+     "multiply": 0.85
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "kush_catafalque_2",
+   "name": "Temple at Naqa",
+   "description": "As in all cultures, religion played a significant part in Kush. Shanakdakheto had the temple built around 160 BC as a symbol of the advancedness of Meroë.\nTemples +1 garrison heal rate.",
+   "type": "range",
+   "radius": 80.0,
+   "affects": [
+    "Temple"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "GarrisonHolder/BuffHeal",
+     "add": 1
+    }
+   ],
+   "rts0": null
   },
   {
    "id": "kush_hero_amanirenas",
@@ -21864,6 +23037,38 @@
    "rts0": null
   },
   {
+   "id": "ptol_catafalque",
+   "name": "Great Librarian",
+   "description": "Continuing his predecessors' work on the Great Library of Alexandria, he seized every book brought to the city, thus leaving to his people a vast amount of hoarded wisdom.\nStructure technologies −10% resource costs.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Structure"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Researcher/TechCostMultiplier/food",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/wood",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/stone",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/metal",
+     "multiply": 0.9
+    }
+   ],
+   "rts0": null
+  },
+  {
    "id": "ptol_hero_cleopatra_vii_1",
    "name": "Patriot",
    "description": "Soldiers and Siege Engines −20% melee and ranged attack repeat time.",
@@ -22005,6 +23210,106 @@
    "rts0": null
   },
   {
+   "id": "sele_catafalque_1",
+   "name": "Founder of the Ezida Temple",
+   "description": "Antiochus I laid the foundation for the Ezida Temple in Borsippa.\nTemples −10% resource costs; Temple technologies −10% resource costs.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Temple"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Cost/Resources/food",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/wood",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/stone",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/metal",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/food",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/wood",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/stone",
+     "multiply": 0.9
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/metal",
+     "multiply": 0.9
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "sele_catafalque_2",
+   "name": "Immigration",
+   "description": "Antiochus encouraged Greek immigration to his realm and established many new cities in Asia Minor to serve as counterweights to the Gauls.\n+5% maximum population limit.",
+   "type": "player",
+   "radius": 0.0,
+   "affects": [
+    "Player"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Player/MaxPopulation",
+     "multiply": 1.05
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "sele_catafalque_3",
+   "name": "Basileus Megas",
+   "description": "Son of Seleucus Nicator, Antiochus succeeded in the formidable task of keeping the empire together, meanwhile founding temples and defeating the invading Gauls with war elephants.\nChampion Elephants −10% resource costs.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Elephant Champion"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Cost/Resources/food",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/wood",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/stone",
+     "multiply": 0.9
+    },
+    {
+     "value": "Cost/Resources/metal",
+     "multiply": 0.9
+    }
+   ],
+   "rts0": null
+  },
+  {
    "id": "sele_hero_antiochus_iii",
    "name": "Ilarchès",
    "description": "Cavalry +2 crush, hack, pierce resistance.",
@@ -22093,6 +23398,62 @@
     1.2,
     16.8
    ]
+  },
+  {
+   "id": "han_catafalque_1",
+   "name": "Territorial Expansion",
+   "description": "At its height, the Empire's borders spanned from the Fergana Valley in the west, to Korea in the east, and to northern Vietnam in the south.\nTerritory influence bonus +20%.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Structure"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "TerritoryInfluence/Radius",
+     "multiply": 1.2
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "han_catafalque_2",
+   "name": "Imperial Music Bureau",
+   "description": "The Music Bureau was charged directly by Emperor Wu to perform various tasks related to music, poetry, entertainment, or religious worship.\nTechnologies −50% resource cost and research time.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Structure"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Researcher/TechCostMultiplier/food",
+     "multiply": 0.5
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/wood",
+     "multiply": 0.5
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/stone",
+     "multiply": 0.5
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/metal",
+     "multiply": 0.5
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/time",
+     "multiply": 0.5
+    }
+   ],
+   "rts0": null
   },
   {
    "id": "han_hero_han_xin_1",

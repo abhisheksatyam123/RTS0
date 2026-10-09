@@ -43,8 +43,13 @@ FIRST = ["fauna_deer", "fauna_boar", "fauna_sheep", "fauna_wolf"]
 
 STANCES = ["passive", "skittish", "passive-defensive", "defensive", "aggressive", "violent"]
 
-# RTS0 has models for these animals (assets/models/units/<id>.glb); the rest borrow
-# the closest one so every species is drawn.
+# Animals whose 0 A.D. actor tools/extract_0ad_fauna_models.py converts get that
+# model (fauna_<actor>.glb). The rest use the models extract_0ad_assets.py made
+# (assets/models/units/<id>.glb), picked by template name below.
+from extract_0ad_fauna_models import MODELS as ACTOR_MODELS  # noqa: E402
+
+MODEL_BY_ACTOR = {spec[0]: model_id for model_id, spec in ACTOR_MODELS.items()}
+
 MODEL = {
     "bear": "bear", "boar": "boar", "camel": "camel", "cattle": "cow", "chicken": "chicken",
     "crocodile": "crocodile", "deer": "deer", "dog_mastiff": "mastiff_gaia",
@@ -59,7 +64,9 @@ MODEL = {
 }
 
 
-def model_for(stem):
+def model_for(stem, actor):
+    if actor in MODEL_BY_ACTOR:
+        return MODEL_BY_ACTOR[actor]
     key = stem[len("fauna_"):]
     best = None
     for k, v in MODEL.items():
@@ -109,7 +116,7 @@ def fauna_rows(loader):
         rows.append({
             "stem": stem,
             "name": t.value("Identity/GenericName", stem),
-            "model": model_for(stem),
+            "model": model_for(stem, t.value("VisualActor/Actor", "")),
             "hp": t.num("Health/Max"),
             "speed": r1(t.num("UnitMotion/WalkSpeed") * SPEED_SCALE),
             "run": r1(t.num("UnitMotion/RunMultiplier", 1.0)),
