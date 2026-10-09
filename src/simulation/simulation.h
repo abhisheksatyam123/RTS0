@@ -464,7 +464,9 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	bool cmd_breed_livestock(uint8_t player, uint32_t building_id);
+	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE);
+	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
+	float livestock_train_time(uint8_t player, uint8_t ftype) const;
 
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
 	static constexpr int TRANSPORT_CAPACITY = 30; // 0 A.D. template_unit_ship_warship_arrow GarrisonHolder Max
@@ -637,6 +639,17 @@ public:
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false);
 	void order_trade_auto(const uint32_t *unit_ids, size_t count); // farthest pair of tradable markets
+	// Read-only: the trader's route (Trader.js markets) and which market it heads to
+	// next (0 = market_b, 1 = market_a). False when it has no route.
+	bool trader_route(uint32_t unit_id, uint32_t &market_a, uint32_t &market_b, int &leg) const {
+		auto it = trader_routes_.find(unit_id);
+		if (it == trader_routes_.end()) return false;
+		market_a = it->second.first;
+		market_b = it->second.second;
+		auto lit = trader_leg_.find(unit_id);
+		leg = lit == trader_leg_.end() ? 0 : lit->second;
+		return true;
+	}
 	float get_market_buy_price(ResourceType t) const { return market_buy_price(t); }
 	float get_market_sell_price(ResourceType t) const { return market_sell_price(t); }
 	int get_market_history(ResourceType t) const { return market_trade_history_[t]; }
