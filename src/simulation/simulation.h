@@ -282,7 +282,12 @@ public:
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
-	bool unit_can_target(size_t i, size_t j) const { return combat_can_target(unit_combat_at(i), unit_combat_at(j)); }
+	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
+	bool unit_can_target(size_t i, size_t j) const {
+		return units_.unit_type[j] != UNIT_CATAFALQUE && combat_can_target(unit_combat_at(i), unit_combat_at(j));
+	}
+	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
+	bool can_capture_relic(size_t i, int32_t r) const;
 	bool unit_can_target_building(size_t i, uint8_t building_type) const {
 		return combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
@@ -348,7 +353,11 @@ public:
 	}
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
-	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
+	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
+	uint32_t spawn_relic(float x, float z);
+	// Right-click on a relic that is not ours or an ally's: walk up and Capture it.
+	void order_capture_relic(const uint32_t *unit_ids, size_t count, uint32_t relic_id, bool queued = false);
+	bool is_relic_unit(int32_t i) const { return i >= 0 && units_.unit_type[i] == UNIT_CATAFALQUE; }
 
 	float get_terrain_height(float x, float z) const;
 	float map_half() const { return map_half_; }
@@ -415,7 +424,9 @@ public:
 	// (MakeGoalReachable). Internal walks (Petra, rally points) keep their goal.
 	void order_walk(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false,
 			bool beach_goal = false);
-	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false);
+	// A player's Gather and Repair are forced (UnitAI Gather / Repair) until work starts;
+	// UnitAI's own follow-up gathers and repairs (PerformGather force false) are not.
+	void order_gather(const uint32_t *unit_ids, size_t count, uint32_t resource_id, bool queued = false, bool force = true);
 	void order_attack(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// allow_capture: capture the structure (0 A.D.'s default right-click) instead of
 	// damaging it (Ctrl). Units that can't capture, or structures that can't be
@@ -427,7 +438,7 @@ public:
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
 			bool queued = false, bool units_only = false, bool allow_capture = false);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
-	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
+	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
 	// structures (not ones it holds under half the capture points of).
 	void cmd_delete(uint8_t player, const uint32_t *ids, size_t count);
@@ -1060,12 +1071,14 @@ public:
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
-	struct TreasureRelic {
+	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
+	// unit's; x, z and the owner follow the unit each tick.
+	struct Relic {
 		uint32_t id;
 		float x, z;
-		uint8_t res_type;
-		int amount;
-		bool claimed;
+		uint8_t civ;            // whose catafalque
+		int capture_cp;         // the owner's Capturable points x100 (0..RELIC_CAPTURE_POINTS*100)
+		bool claimed;           // owned by a player, not Gaia
 		uint8_t owner_team = 255;
 	};
 
@@ -1122,7 +1135,7 @@ public:
 
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
 	bool is_wonder_active() const { return has_active_wonder_; }
-	const std::vector<TreasureRelic> &relics() const { return relics_; }
+	const std::vector<Relic> &relics() const { return relics_; }
 
 	std::vector<uint32_t> get_idle_workers(uint8_t team = 0) const;
 
@@ -1420,9 +1433,10 @@ private:
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
-	std::vector<TreasureRelic> relics_;
+	std::vector<Relic> relics_;
 	std::vector<Treasure> treasures_;
 	void tick_treasures(float dt);
+	void tick_relics();
 	float wonder_victory_timer_ = 0.0f;
 	bool has_active_wonder_ = false;
 	VictoryCondition victory_condition_ = VICTORY_CONQUEST;

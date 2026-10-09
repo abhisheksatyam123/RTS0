@@ -31,7 +31,7 @@ inline const SplashProfile *splash_profiles() {
 	return kTable;
 }
 
-inline constexpr uint16_t SPLASH_TEMPLATE_COUNT = 377; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t SPLASH_TEMPLATE_COUNT = 391; // = CIV_UNIT_TEMPLATE_COUNT
 // Splash row of each civ roster template's primary attack.
 inline const uint8_t *splash_template_index() {
 	static const uint8_t kTable[SPLASH_TEMPLATE_COUNT] = {
@@ -412,11 +412,25 @@ inline const uint8_t *splash_template_index() {
 		0,
 		0,
 		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
 	};
 	return kTable;
 }
 
-inline constexpr uint8_t SPLASH_CLASS_ROWS = 24; // = UNIT_TYPE_COUNT
+inline constexpr uint8_t SPLASH_CLASS_ROWS = 25; // = UNIT_TYPE_COUNT
 // Units without a roster template, by UnitType (extract_0ad_rosters.py GENERIC).
 inline const uint8_t *splash_class_index() {
 	static const uint8_t kTable[SPLASH_CLASS_ROWS] = {
@@ -444,6 +458,7 @@ inline const uint8_t *splash_class_index() {
 		0, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
 		0, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
 		0, // UNIT_MINISTER: units/han/support_minister
+		0, // UNIT_CATAFALQUE: template_unit_catafalque
 	};
 	return kTable;
 }

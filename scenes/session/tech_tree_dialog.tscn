@@ -38,7 +38,7 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 
 [node name="Panel" type="PanelContainer" parent="Center"]
-custom_minimum_size = Vector2(780, 520)
+custom_minimum_size = Vector2(1000, 620)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
@@ -54,104 +54,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 20
 theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
-text = "CIVILIZATION STRUCTURE TREE (PHASE PROGRESSION)"
+text = "Structure Tree"
 
 [node name="BtnClose" type="Button" parent="Center/Panel/VBox/Header"]
 custom_minimum_size = Vector2(90, 32)
 layout_mode = 2
 text = "Close"
-
-[node name="PhasesContainer" type="HBoxContainer" parent="Center/Panel/VBox"]
-layout_mode = 2
-size_flags_vertical = 3
-theme_override_constants/separation = 14
-
-[node name="Phase1" type="PanelContainer" parent="Center/Panel/VBox/PhasesContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="VBox" type="VBoxContainer" parent="Center/Panel/VBox/PhasesContainer/Phase1"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Label" type="Label" parent="Center/Panel/VBox/PhasesContainer/Phase1/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_colors/font_color = Color(0.4, 0.8, 1, 1)
-text = "Phase I - Village"
-
-[node name="List" type="Label" parent="Center/Panel/VBox/PhasesContainer/Phase1/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "* Civic Center (TC)
-* Houses (+5 pop)
-* Storehouse (Resource Drop)
-* Farmstead (Food Drop)
-* Citizens (Gather & Build)
-
-Technologies:
-* Farming Tools (+25% Food)
-* Iron Axes (+25% Wood)
-* Shaft Mining (+25% Metal/Stone)"
-
-[node name="Phase2" type="PanelContainer" parent="Center/Panel/VBox/PhasesContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="VBox" type="VBoxContainer" parent="Center/Panel/VBox/PhasesContainer/Phase2"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Label" type="Label" parent="Center/Panel/VBox/PhasesContainer/Phase2/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_colors/font_color = Color(1, 0.75, 0.3, 1)
-text = "Phase II - Town"
-
-[node name="List" type="Label" parent="Center/Panel/VBox/PhasesContainer/Phase2/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Requires: 500 Food, 500 Wood
-
-Structures:
-* Barracks (Infantry & Ranged)
-* Defense Towers
-* Market & Agora (Trade & Barter)
-* Blacksmith (Armor & Weapons)
-
-Units:
-* Swordsmen & Spearmen
-* Archers & Skirmishers
-* Cavalry & Traders"
-
-[node name="Phase3" type="PanelContainer" parent="Center/Panel/VBox/PhasesContainer"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="VBox" type="VBoxContainer" parent="Center/Panel/VBox/PhasesContainer/Phase3"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Label" type="Label" parent="Center/Panel/VBox/PhasesContainer/Phase3/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 15
-theme_override_colors/font_color = Color(1, 0.45, 0.4, 1)
-text = "Phase III - City"
-
-[node name="List" type="Label" parent="Center/Panel/VBox/PhasesContainer/Phase3/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Requires: 800 Food, 800 Wood, 500 Metal
-
-Structures:
-* Fortress & Stone Walls
-* Temple & Shrines
-* Civic Wonder
-
-Units:
-* Siege Engines (Catapults & Rams)
-* Civil Heroes & Champions
-* War Elephants & Chariots
-* Warships & Triremes"
 
 [connection signal="pressed" from="Center/Panel/VBox/Header/BtnClose" to="." method="_on_close_pressed"]
