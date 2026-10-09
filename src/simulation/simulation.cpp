@@ -5224,10 +5224,6 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 
 		if (!has[i]) {
 			vx[i] = vz[i] = 0;
-			if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
-				npx[i] = std::clamp(px[i] + units_.knockback_dir_x[i] * 14.0f * dt, -map_half_, map_half_);
-				npz[i] = std::clamp(pz[i] + units_.knockback_dir_z[i] * 14.0f * dt, -map_half_, map_half_);
-			}
 			return;
 		}
 
@@ -5439,19 +5435,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		float spd = unit_walk_speed(i);
-		if (units_.status_effects[i] & (EFFECT_SNARE | EFFECT_SLOW)) {
-			spd *= 0.55f; // Slow/Snare speed penalty (0 A.D. status effect)
-		}
+		const float spd = unit_walk_speed(i);
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * spd * dt;
 		float move_dz = uz * spd * dt;
 		// A short-path waypoint reached this tick is done: next tick searches from the corner.
 		if (steered && d2 <= (spd * dt) * (spd * dt)) units_.short_path[i].key = 0;
-		if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
-			move_dx += units_.knockback_dir_x[i] * 14.0f * dt;
-			move_dz += units_.knockback_dir_z[i] * 14.0f * dt;
-		}
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
@@ -15079,7 +15068,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 the aura sources in force and each unit's kept short path and failed movements (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -15657,9 +15646,7 @@ bool Simulation::load_state(const char *filepath) {
 			units_.status_effects[u] = 0;
 			units_.xp[u] = 0;
 			units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
-			units_.poison_timer[u] = units_.snare_timer[u] = units_.knockback_timer[u] = 0.0f;
-			units_.knockback_dir_x[u] = units_.knockback_dir_z[u] = 0.0f;
-			units_.slow_timer[u] = units_.bleed_timer[u] = units_.burning_timer[u] = 0.0f;
+			units_.poison_timer[u] = units_.burning_timer[u] = 0.0f;
 		}
 		for (WaypointPath &wp : unit_paths_) wp.clear();
 		projectiles_.clear();
@@ -15788,9 +15775,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	for (size_t i = 0; i < U.count; ++i) {
 		ar.pod(U.vel_x[i]); ar.pod(U.vel_z[i]); ar.pod(U.anchor_x[i]); ar.pod(U.anchor_z[i]);
 		ar.pod(U.status_effects[i]); ar.pod(U.xp[i]); ar.pod(U.waypoint_cur[i]); ar.pod(U.waypoint_count[i]);
-		ar.pod(U.poison_timer[i]); ar.pod(U.snare_timer[i]); ar.pod(U.knockback_timer[i]);
-		ar.pod(U.knockback_dir_x[i]); ar.pod(U.knockback_dir_z[i]);
-		ar.pod(U.slow_timer[i]); ar.pod(U.bleed_timer[i]); ar.pod(U.burning_timer[i]);
+		ar.pod(U.poison_timer[i]);
+		if (ar.version < SAVE_VERSION_MOTION) // the snare, knockback (time, x, z), slow and bleed timers that went
+			for (int k = 0; k < 6; ++k) { float gone = 0.0f; ar.pod(gone); }
+		ar.pod(U.burning_timer[i]);
 		if (ar.version >= SAVE_VERSION_LOOT) ar.pod(U.xp_partial[i]);
 		else U.xp_partial[i] = 0.0f;
 		if (ar.version >= SAVE_VERSION_HEALTH_AURAS) ar.pod(U.aura_hp_mult[i]);

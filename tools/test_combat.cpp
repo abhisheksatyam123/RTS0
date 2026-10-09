@@ -415,7 +415,7 @@ static void test_status() {
 	bool snared = false;
 	for (int k = 0; k < 200; ++k) {
 		m.tick(DT);
-		if (m.units_.status_effects[idx(m, cav)] & (EFFECT_SNARE | EFFECT_KNOCKBACK | EFFECT_SLOW | EFFECT_BLEED)) snared = true;
+		if (m.units_.status_effects[idx(m, cav)] & ~(EFFECT_POISON | EFFECT_BURNING)) snared = true;
 	}
 	check(!snared, "spearmen hitting cavalry apply no invented snare");
 }

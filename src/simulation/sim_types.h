@@ -556,10 +556,8 @@ enum StatusEffect : uint8_t {
 	EFFECT_NONE = 0,
 	EFFECT_POISON = 1,
 	EFFECT_BURNING = 2,
-	EFFECT_SNARE = 4,
-	EFFECT_KNOCKBACK = 8,
-	EFFECT_SLOW = 16,
-	EFFECT_BLEED = 32
+	// Bits 4-32 were RTS0's invented snare, knockback, slow and bleed; tick_status_effects
+	// clears them from saves made before they went.
 };
 
 enum VictoryCondition : uint8_t {
