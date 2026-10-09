@@ -435,6 +435,20 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x007cfu, 0x070u}, // rome/infantry_antesignanus
 		{0x0879fu, 0x02au}, // mace/champion_infantry_spearman_02
 		{0x0078fu, 0x000u}, // han/support_minister
+		{0x00000u, 0x000u}, // athen/catafalque
+		{0x00000u, 0x000u}, // spart/catafalque
+		{0x00000u, 0x000u}, // pers/catafalque
+		{0x00000u, 0x000u}, // rome/catafalque
+		{0x00000u, 0x000u}, // cart/catafalque
+		{0x00000u, 0x000u}, // mace/catafalque
+		{0x00000u, 0x000u}, // brit/catafalque
+		{0x00000u, 0x000u}, // gaul/catafalque
+		{0x00000u, 0x000u}, // iber/catafalque
+		{0x00000u, 0x000u}, // maur/catafalque
+		{0x00000u, 0x000u}, // kush/catafalque
+		{0x00000u, 0x000u}, // ptol/catafalque
+		{0x00000u, 0x000u}, // sele/catafalque
+		{0x00000u, 0x000u}, // han/catafalque
 	};
 	return kRows;
 }
@@ -466,6 +480,7 @@ inline FormationUnitInfo formation_generic_info(uint8_t unit_type) {
 		{0x007efu, 0x114u}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
 		{0x007afu, 0x00eu}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
 		{0x0078fu, 0x000u}, // UNIT_MINISTER: units/han/support_minister
+		{0x00000u, 0x000u}, // UNIT_CATAFALQUE: template_unit_catafalque
 	};
 	return unit_type < UNIT_TYPE_COUNT ? kGeneric[unit_type] : FormationUnitInfo{0u, 0u};
 }

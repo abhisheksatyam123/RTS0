@@ -7,6 +7,8 @@
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/script.hpp>
+#include "user_config.h"
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -44,6 +46,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
 	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
+	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
+	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
@@ -136,6 +140,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("UnitType", "CAMEL", rtso::UNIT_CAMEL);
 	bind_enum("UnitType", "SCYTHED_CHARIOT", rtso::UNIT_SCYTHED_CHARIOT);
 	bind_enum("UnitType", "MINISTER", rtso::UNIT_MINISTER);
+	bind_enum("UnitType", "CATAFALQUE", rtso::UNIT_CATAFALQUE);
 	bind_enum("UnitType", "NONE", rtso::UNIT_TYPE_NONE);
 
 	bind_enum("BuildingType", "TOWN_CENTER", rtso::BLD_TOWN_CENTER);
@@ -217,6 +222,11 @@ RtsoMain::~RtsoMain() {
 }
 
 void RtsoMain::_notification(int p_what) {
+	// 0 A.D. "pauseonfocusloss": a single-player game pauses when the window loses focus.
+	if (p_what == NOTIFICATION_APPLICATION_FOCUS_OUT && sim && !net_lockstep() && !is_game_paused() &&
+			rtso::user_config::get_bool("pauseonfocusloss")) {
+		toggle_pause();
+	}
 	if (p_what == NOTIFICATION_EXIT_TREE) {
 		write_replay(); // leaving the match keeps its replay
 		// Menus get the normal arrow back (update_cursor sets action cursors).
@@ -276,6 +286,7 @@ static rtso::UnitType map_unit_type(const String &n) {
 		{"merchant_ship", rtso::UNIT_MERCHANT_SHIP}, {"female_citizen", rtso::UNIT_FEMALE_CITIZEN}, {"carnyx", rtso::UNIT_CARNYX},
 		{"worker_elephant", rtso::UNIT_WORKER_ELEPHANT}, {"archer_maiden", rtso::UNIT_ARCHER_MAIDEN}, {"camel", rtso::UNIT_CAMEL},
 		{"scythed_chariot", rtso::UNIT_SCYTHED_CHARIOT}, {"minister", rtso::UNIT_MINISTER},
+		{"catafalque", rtso::UNIT_CATAFALQUE},
 	};
 	for (const auto &t : kTypes)
 		if (n == t.name) return t.type;
@@ -302,7 +313,7 @@ void RtsoMain::_ready() {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
 				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
-				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), RtsoRangeOverlays::kFlareMarkerTime);
+				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
 				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 			}
 			return;
@@ -786,6 +797,17 @@ void RtsoMain::_ready() {
 	ungarrison_btn->set_visible(false);
 	inspector_panel->add_child(ungarrison_btn);
 
+	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
+	// (gui/reference/viewer) for the selected unit or structure.
+	template_info_btn_ = memnew(Button);
+	template_info_btn_->set_position(Vector2(72, 72));
+	template_info_btn_->set_size(Vector2(22, 22));
+	template_info_btn_->set_text("i");
+	template_info_btn_->add_theme_font_size_override("font_size", 12);
+	template_info_btn_->set_focus_mode(Control::FOCUS_NONE);
+	template_info_btn_->connect("pressed", Callable(this, "_on_template_info_pressed"));
+	inspector_panel->add_child(template_info_btn_);
+
 	// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
 	selection_grid_.build(inspector_panel, Vector2(102, 60), Vector2(404, 120), this, "_on_selection_group_clicked", 10, 36.0f);
 	garrison_grid_.build(inspector_panel, Vector2(102, 148), Vector2(404, 34), this, "_on_garrison_group_clicked", 12, 30.0f);
@@ -937,12 +959,16 @@ void RtsoMain::_ready() {
 	// =========================================================================
 	voice_player = memnew(AudioStreamPlayer);
 	voice_player->set_volume_db(-2.0f);
+	// Busses for 0 A.D.'s sound.*gain options (created by scenes/menu/user_settings.gd).
+	voice_player->set_bus("Action");
 	add_child(voice_player);
 
 	alarm_player = memnew(AudioStreamPlayer);
 	alarm_player->set_volume_db(-4.0f);
+	alarm_player->set_bus("UI");
 	sfx_player = memnew(AudioStreamPlayer);
 	sfx_player->set_volume_db(-3.0f);
+	sfx_player->set_bus("Action");
 	add_child(sfx_player);
 	add_child(alarm_player);
 
@@ -964,6 +990,7 @@ void RtsoMain::_ready() {
 			ambient_player->set_stream(amb_stream);
 			ambient_player->set_autoplay(true);
 			ambient_player->set_volume_db(-12.0f);
+			ambient_player->set_bus("Ambient");
 			add_child(ambient_player);
 			ambient_player->play();
 		}
@@ -976,6 +1003,7 @@ void RtsoMain::_ready() {
 			ambient_wind_player->set_stream(wind_stream);
 			ambient_wind_player->set_autoplay(true);
 			ambient_wind_player->set_volume_db(-25.0f);
+			ambient_wind_player->set_bus("Ambient");
 			add_child(ambient_wind_player);
 			ambient_wind_player->play();
 		}
@@ -988,12 +1016,14 @@ void RtsoMain::_ready() {
 			ambient_water_player->set_stream(water_stream);
 			ambient_water_player->set_autoplay(true);
 			ambient_water_player->set_volume_db(-80.0f);
+			ambient_water_player->set_bus("Ambient");
 			add_child(ambient_water_player);
 			ambient_water_player->play();
 		}
 	}
 
 	spatial_sfx_player = memnew(AudioStreamPlayer3D);
+	spatial_sfx_player->set_bus("Action");
 	spatial_sfx_player->set_max_distance(75.0f);
 	spatial_sfx_player->set_unit_size(10.0f);
 	spatial_sfx_player->set_volume_db(0.0f);
@@ -1439,62 +1469,23 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	play_civ_voice("select");
 }
 
-// Under-attack alerts. 0 A.D. raises them from the sim's Attacked message
-// (AttackDetection.js OnGlobalAttacked); RTS0's sim has no attack events, so
-// the UI notices a local unit or structure losing health with a hostile unit
-// near it, and runs 0 A.D.'s suppression rules (attack_detection.h) on that.
-void RtsoMain::detect_attacks() {
+// Under-attack alerts (0 A.D. AttackDetection.js AttackAlert, called for every
+// Attacked message): a hit on one of the local player's entities by another
+// player runs 0 A.D.'s suppression rules (attack_detection.h) and may notify.
+void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks) {
 	if (!sim) return;
 	const uint8_t me = local_player();
 	if (me != attack_watch_player_) {
-		// New match seat (load, net start): forget old health so nothing fires.
+		// New match seat (load, net start): forget suppressed attacks.
 		attack_watch_player_ = me;
-		prev_unit_hp_.clear();
-		prev_building_hp_.clear();
 		attack_detection_.clear();
 	}
-	auto uview = sim->units();
-	// Nearest hostile unit within reach of (x, z): the attacker, if any.
-	auto attacker_near = [&](float x, float z, float reach) -> int {
-		int best = -1;
-		float best_d2 = reach * reach;
-		for (size_t i = 0; i < uview.count; ++i) {
-			if (!uview.alive[i] || !sim->is_hostile(me, uview.team[i])) continue;
-			const float dx = uview.pos_x[i] - x, dz = uview.pos_z[i] - z;
-			const float d2 = dx * dx + dz * dz;
-			if (d2 < best_d2) {
-				best_d2 = d2;
-				best = (int)uview.team[i];
-			}
-		}
-		return best;
-	};
-	// Longest RTS0 attack reach (siege and archers) plus a margin.
-	constexpr float kReach = 30.0f;
-	std::unordered_map<uint32_t, float> unit_hp;
-	unit_hp.reserve(prev_unit_hp_.size() + 8);
-	for (size_t i = 0; i < uview.count; ++i) {
-		if (!uview.alive[i] || uview.team[i] != me) continue;
-		unit_hp[uview.id[i]] = uview.hp[i];
-		auto it = prev_unit_hp_.find(uview.id[i]);
-		if (it == prev_unit_hp_.end() || uview.hp[i] >= it->second) continue;
-		const int attacker = attacker_near(uview.pos_x[i], uview.pos_z[i], kReach);
-		if (attacker >= 0 && attack_detection_.report(uview.pos_x[i], uview.pos_z[i], match_elapsed_time))
-			notify_attack(Vector3(uview.pos_x[i], 0, uview.pos_z[i]), (uint8_t)attacker, false);
+	for (const auto &a : attacks) {
+		// Attacks against other players, or dealt by myself, are not registered.
+		if (a.target_owner != me || a.attacker_owner == me) continue;
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time))
+			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0);
 	}
-	prev_unit_hp_.swap(unit_hp);
-	std::unordered_map<uint32_t, float> bld_hp;
-	bld_hp.reserve(prev_building_hp_.size() + 4);
-	for (const auto &b : sim->buildings()) {
-		if (b.team != me || b.wrecked) continue;
-		bld_hp[b.id] = b.hp;
-		auto it = prev_building_hp_.find(b.id);
-		if (it == prev_building_hp_.end() || b.hp >= it->second) continue;
-		const int attacker = attacker_near(b.x, b.z, kReach + b.half_size);
-		if (attacker >= 0 && attack_detection_.report(b.x, b.z, match_elapsed_time))
-			notify_attack(Vector3(b.x, 0, b.z), (uint8_t)attacker, true);
-	}
-	prev_building_hp_.swap(bld_hp);
 }
 
 // 0 A.D. messages.js "attack" notification: remember the spot for
@@ -1506,7 +1497,7 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 	if (minimap_view) minimap_view->add_ping(Vector2(pos.x, pos.z), Color(1.0f, 0.15f, 0.1f));
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
-	if (!chat_window_.is_ready()) return;
+	if (!chat_window_.is_ready() || !user_opts_.attack_notice) return;
 	String who = gaia ? String("Gaia")
 			: player_display_name(attacker) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
 	(void)structure; // 0 A.D. words unit and structure attacks the same way
@@ -1726,6 +1717,56 @@ void RtsoMain::_on_menu_button_pressed() {
 void RtsoMain::set_menu_paused(bool paused) {
 	paused_via_menu = paused;
 	if (net_lockstep()) turn_mgr_.set_local_paused(paused || hotkey_paused_);
+}
+
+// Template Viewer for the selection: the selected structure, else the first
+// selected unit's roster template (0 A.D. selection_details.js "i" button).
+void RtsoMain::_on_template_info_pressed() {
+	if (!sim || !ui_layer) return;
+	String kind;
+	int id = -1, civ = 0;
+	if (selected_building_id != 0) {
+		for (const auto &b : sim->buildings()) {
+			if (b.id != selected_building_id) continue;
+			kind = "structure";
+			id = b.type;
+			civ = b.team == rtso::GAIA_PLAYER ? sim->player_civ(local_player()) : sim->player_civ(b.team);
+			break;
+		}
+	} else if (!selected_ids.is_empty()) {
+		auto uv = sim->units();
+		const uint32_t want = (uint32_t)(int64_t)selected_ids[0];
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (uv.id[i] != want) continue;
+			if (uv.tmpl && uv.tmpl[i] != rtso::CIV_UNIT_TEMPLATE_NONE) {
+				kind = "unit";
+				id = uv.tmpl[i];
+			}
+			break;
+		}
+	}
+	if (kind.is_empty()) {
+		show_notice("No details for this selection.");
+		return;
+	}
+	Ref<Script> viewer = ResourceLoader::get_singleton()->load("res://scenes/reference/template_viewer.gd");
+	if (viewer.is_valid()) viewer->call("open", ui_layer, kind, id, civ);
+}
+
+// Tests: select the local player's first structure or first live unit.
+bool RtsoMain::select_first_own(bool building) {
+	if (!sim) return false;
+	selected_ids.clear();
+	selected_building_id = 0;
+	if (building) {
+		for (const auto &b : sim->buildings())
+			if (b.team == local_player()) { selected_building_id = b.id; return true; }
+		return false;
+	}
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.alive[i] && uv.team[i] == local_player()) { selected_ids.push_back((int32_t)uv.id[i]); return true; }
+	return false;
 }
 
 void RtsoMain::_on_ungarrison_pressed() {
@@ -2035,7 +2076,24 @@ void RtsoMain::update_ghost_mesh() {
 	}
 }
 
+// Options page settings the session reads (rtso::user_config, 0 A.D.
+// ConfigDB), refreshed whenever the options page changes one.
+void RtsoMain::refresh_user_options() {
+	namespace uc = rtso::user_config;
+	if (user_opts_.generation == uc::generation()) return;
+	user_opts_.generation = uc::generation();
+	user_opts_.batch_size = std::clamp((int)uc::get_number("gui.session.batchtrainingsize"), 1, 20);
+	user_opts_.wounded_fraction = (float)std::clamp(uc::get_number("gui.session.woundedunithotkeythreshold"), 0.0, 100.0) / 100.0f;
+	user_opts_.flare_time = (float)std::clamp(uc::get_number("gui.session.flarelifetime"), 0.0, 60.0);
+	user_opts_.drag_delta = (float)std::clamp(uc::get_number("gui.session.dragdelta"), 1.0, 200.0);
+	user_opts_.attack_notice = uc::get_bool("gui.session.notifications.attack");
+	range_overlays_.show_attack = uc::get_bool("gui.session.attackrange");
+	range_overlays_.show_auras = uc::get_bool("gui.session.aurasrange");
+	range_overlays_.show_heal = uc::get_bool("gui.session.healrange");
+}
+
 void RtsoMain::_process(double delta) {
+	refresh_user_options();
 	if (net_host_.getRole() != rtso::NetRole::None) {
 		net_host_.poll(net_arena_);
 		net_arena_.reset();
@@ -2234,7 +2292,8 @@ void RtsoMain::_process(double delta) {
 	}
 	update_inspector();
 	update_command_panel();
-	detect_attacks();
+	const auto attacks = sim->take_attacked_events();
+	detect_attacks(attacks);
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
@@ -3415,6 +3474,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("toggle");
 			return;
 		}
+		if (fired("civinfo")) {
+			if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("toggle_civinfo");
+			return;
+		}
 		if (fired("session.gui.toggle")) {
 			if (ui_layer) ui_layer->set_visible(!ui_layer->is_visible());
 			return;
@@ -3537,7 +3600,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < roster_list->get_item_count() && !roster_list->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)roster_list->get_item_metadata(q - 1);
-					const int batch = rtso::hotkeys::held("session.batchtrain") ? 5 : 1;
+					const int batch = rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
 					for (int b = 0; b < batch; ++b) try_train_template(selected_building_id, tmpl);
 				}
 				return;
@@ -3553,9 +3616,20 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("rts0.debug.battle1000")) { spawn_large_battle(1000); return; }
 		if (fired("rts0.debug.battle2000")) { spawn_large_battle(2000); return; }
 
-		if (fired("session.toggleattackrange")) { range_overlays_.show_attack = !range_overlays_.show_attack; return; }
-		if (fired("session.toggleaurasrange")) { range_overlays_.show_auras = !range_overlays_.show_auras; return; }
-		if (fired("session.togglehealrange")) { range_overlays_.show_heal = !range_overlays_.show_heal; return; }
+		// gui/session/hotkeys/misc.xml session.showstatusbars -> toggleStatusBars().
+		if (fired("session.showstatusbars")) {
+			if (view) view->set_show_all_status_bars(!view->show_all_status_bars());
+			return;
+		}
+		// 0 A.D. hotkeys/misc.xml: the toggles save the choice (ConfigDB_CreateAndSaveValue).
+		auto toggle_overlay = [this](const char *key) {
+			rtso::user_config::set(key, rtso::user_config::get_bool(key) ? "false" : "true");
+			rtso::user_config::save();
+			refresh_user_options();
+		};
+		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
+		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
+		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
 
 		if (fired("fps.toggle")) {
 			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());
@@ -3594,7 +3668,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (now < last_flare_time_ + 3.0) return;
 					last_flare_time_ = now;
 					Vector3 click_pos = get_ground_click_pos(mouse_pos);
-					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1.0f, 0.45f, 0.1f), RtsoRangeOverlays::kFlareMarkerTime);
+					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
 					if (minimap_view) minimap_view->add_ping(Vector2(click_pos.x, click_pos.z), Color(1.0f, 0.4f, 0.2f));
 					_on_flare_requested(Vector2(click_pos.x, click_pos.z));
 					play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
@@ -3723,7 +3797,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const bool wounded_only = rtso::hotkeys::held("selection.woundedonly");
 					const bool offscreen = rtso::hotkeys::held("selection.offscreen");
 
-					if (drag_start.distance_to(drag_end) < 8.0f) {
+					if (drag_start.distance_to(drag_end) < user_opts_.drag_delta) {
 						// Single click selection
 						Vector3 click_pos = get_ground_click_pos(mouse_pos);
 						auto uview = sim->units();
@@ -3837,7 +3911,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								if ((military_only && !military) || (nonmilitary_only && military)) continue;
 								if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;
 								// gui.session.woundedunithotkeythreshold = 33 %.
-								if (wounded_only && uview.hp[i] >= uview.max_hp[i] * 0.33f) continue;
+								if (wounded_only && uview.hp[i] >= uview.max_hp[i] * user_opts_.wounded_fraction) continue;
 								Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
 								if (cam->is_position_behind(world_pos)) continue;
 								Vector2 screen_pos = cam->unproject_position(world_pos);
@@ -4282,6 +4356,15 @@ void RtsoMain::apply_match_settings() {
 		}
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
+	// Civs before the map: spawn_unit gives each starting unit its owner's
+	// roster template (Simulation::reset keeps civs), as 0 A.D. spawns
+	// StartEntities from the player's own civ.
+	if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
+	if (ai >= 0 && ai < rtso::CIV_COUNT) sim->set_team_civ(1, (uint8_t)ai);
+	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_civs.size(); ++t) {
+		const int sc = (int)slot_civs[t];
+		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
+	}
 	sim->set_nomad((bool)ms->get("nomad")); // random maps only (generate_random_map)
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
@@ -4948,6 +5031,10 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
+	// Civs before the map, so starting units take their owner's roster templates.
+	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
+		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
+	}
 	sim->set_nomad(setup.nomad != 0);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
@@ -5141,6 +5228,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 	Array blds, techs;
 	if (!sim) { d["buildings"] = blds; d["techs"] = techs; return d; }
 	uint8_t civ = sim->player_civ(local_player());
+	d["civ"] = (int)civ;
 	d["phase"] = (int)sim->player_phase(local_player());
 	for (uint8_t t = 0; t < rtso::BLD_TYPE_COUNT; ++t) {
 		if (!rtso::civ_can_build(civ, t)) continue; // other civs' own structures

@@ -245,7 +245,8 @@ enum UnitType : uint8_t {
 	UNIT_CAMEL = 21,
 	UNIT_SCYTHED_CHARIOT = 22,
 	UNIT_MINISTER = 23, // Han Imperial Minister (units/han/support_minister)
-	UNIT_TYPE_COUNT = 24,
+	UNIT_CATAFALQUE = 24, // a relic (template_unit_catafalque)
+	UNIT_TYPE_COUNT = 25,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -384,7 +385,8 @@ enum UnitOrderKind : uint8_t {
 	ORDER_TRADE = 11,         // target = first market, x2 holds the second market's id bits (UnitAI Trade)
 	ORDER_RETURN_RESOURCE = 12, // target = the dropsite (UnitAI ReturnResource)
 	ORDER_COLLECT_TREASURE = 13, // target treasure (UnitAI CollectTreasure)
-	ORDER_KIND_COUNT = 14
+	ORDER_CAPTURE_RELIC = 14, // target catafalque unit (UnitAI Attack with the Capture attack)
+	ORDER_KIND_COUNT = 15
 };
 
 enum UnitOrderFlag : uint8_t {
@@ -413,15 +415,18 @@ struct UnitOrder {
 };
 static_assert(sizeof(UnitOrder) == 24, "UnitOrder is saved raw");
 
-// 0 A.D. template_unit.xml UnitAI/FleeDistance and the 64 m search of
-// UnitAI FindNearbyResource / FindNearbyFoundation.
-inline constexpr float FLEE_DISTANCE = 12.0f;
-inline constexpr float NEARBY_SEARCH_RANGE = 64.0f;
+// 0 A.D. template_unit.xml UnitAI/FleeDistance (12 m) and the 64 m search of
+// UnitAI FindNearbyResource / FindNearbyFoundation, in RTS0 units (metres x 0.28).
+inline constexpr float FLEE_DISTANCE = 12.0f * 0.28f;
+inline constexpr float NEARBY_SEARCH_RANGE = 64.0f * 0.28f;
 // Attack.js Capture: template_unit_*.xml Capture MaxRange 4, RepeatTime 1000. 0 A.D.
 // measures edge to edge; RTS0 melee reach is ~0.28 x R plus the radii, so Capture
 // MaxRange 4 is the spearman's reach, as in 0 A.D. (Melee MaxRange 4): 2.4.
 inline constexpr float CAPTURE_RANGE = 2.4f;
 inline constexpr float CAPTURE_REPEAT_S = 1.0f;
+// template_unit_catafalque.xml Capturable: CapturePoints 250, RegenRate 10 a second.
+inline constexpr int RELIC_CAPTURE_POINTS = 250;
+inline constexpr int RELIC_REGEN_RATE = 10;
 // template_unit_support_healer.xml Heal (Health 5 every Interval 2000 ms) and Heal.js
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
@@ -429,7 +434,7 @@ inline constexpr float HEAL_HP = 5.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
-inline constexpr float CHEER_NOTIFY_RANGE = 30.0f;
+inline constexpr float CHEER_NOTIFY_RANGE = 30.0f * 0.28f; // metres x 0.28
 // AlertRaiser.js per structure template: the classes it alerts (FemaleCitizen, or
 // Trader+!Ship for the market) and its ranges in RTS0 units (0 A.D. metres x 0.28;
 // a negative range reaches the whole map).
@@ -572,7 +577,8 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Mauryan Archer Maiden", "archer_maiden", "archer_maiden", 95.0f, 3.6f, 17.0f, 8.5f, 1.1f, 0, 17.0f, 2.0f, 2.0f, 15.0f, 40, 60, 40, 0, 1, 14.0f, 0.0f, 8.5f, 0.0f},
 		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
 		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f},
-		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f}
+		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f},
+		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -604,6 +610,7 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_CAMEL: return 0.90f;
 		case UNIT_SCYTHED_CHARIOT: return 1.35f;
 		case UNIT_MINISTER: return 0.50f;
+		case UNIT_CATAFALQUE: return 1.20f; // Footprint 5 x 12 m
 		default: return 0.55f;
 	}
 }
@@ -666,7 +673,7 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 }
 
 // 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
-// civilian ships are passive, so they flee when attacked.
+// civilian ships are passive, so they flee when attacked; stone and bolt throwers stand ground.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
 		case UNIT_FISHING_BOAT:
@@ -676,6 +683,11 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
+		case UNIT_CATAFALQUE:
+			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
+		case UNIT_CATAPULT: // template_unit_siege_stonethrower / _boltshooter
+		case UNIT_BOLT_SHOOTER:
+			return STANCE_STAND_GROUND;
 		default:
 			return STANCE_AGGRESSIVE;
 	}
@@ -862,6 +874,7 @@ enum TechStat : uint8_t {
 	TSTAT_REGEN, TSTAT_IDLE_REGEN, // Health/RegenRate, Health/IdleRegenRate (hp per second)
 	TSTAT_CAPTURE_POINTS, TSTAT_COST_FOOD, TSTAT_COST_WOOD, TSTAT_COST_STONE, TSTAT_COST_METAL,
 	TSTAT_TRICKLE_FOOD, TSTAT_TRICKLE_WOOD, TSTAT_TRICKLE_STONE, TSTAT_TRICKLE_METAL, // ResourceTrickle/Rates/<res>
+	TSTAT_TRADE_INTERNATIONAL, // Market/InternationalBonus of markets and docks
 	TSTAT_COUNT
 };
 
@@ -1044,7 +1057,8 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
-	ROSTER_SIEGE_TOWER = 64
+	ROSTER_SIEGE_TOWER = 64,
+	ROSTER_RELIC = 128 // a catafalque (template_unit_catafalque): Capture the Relic
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -1386,6 +1400,13 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 	return unit_type_info(type);
 }
 
+// The civ's catafalque (units/{civ}/catafalque), or CIV_UNIT_TEMPLATE_NONE.
+inline uint16_t civ_catafalque_template(uint8_t civ) {
+	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+		if ((civ_unit_template(i).flags & ROSTER_RELIC) && civ_unit_template(i).civ == civ) return i;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
 // Stats of the unit a civ fields for an RTS0 class (its default template).
 inline const UnitTypeInfo &civ_unit_info(uint8_t civ, uint8_t type) {
 	return civ_template_unit_info(civ_default_template(civ, type), type);
@@ -1459,6 +1480,7 @@ inline LootInfo unit_class_loot(uint8_t type) {
 		{130, 10, 5, 0, 0},   // CAMEL: template_unit_cavalry
 		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
 		{150, 10, 0, 0, 10},  // MINISTER: units/han/support_minister
+		{0, 0, 0, 0, 0},      // CATAFALQUE: no Loot
 	};
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }
@@ -1647,53 +1669,56 @@ struct CivInfo {
 	float metal_gather_mult; // Athenian "Silver Owls"
 	float trade_gain_mult; // land traders: Persian "Darics" (units/pers/support_trader GainMultiplier)
 	float ship_trade_gain_mult; // merchant ships: Carthaginian (units/cart/ship_merchant GainMultiplier)
+	// Added to the Market/InternationalBonus of the civ's markets and docks:
+	// Carthaginian "Desirable Products" (structures/cart/{market,dock}.xml op="add" 0.1).
+	float international_bonus_add;
 };
 
 inline const CivInfo &civ_info(uint8_t civ) {
 	static const CivInfo kTable[CIV_COUNT] = {
-		// civ, code, name, emblem, desc, metal_mult, trader gain mult, merchant ship gain mult
+		// civ, code, name, emblem, desc, metal_mult, trader gain mult, merchant ship gain mult, international bonus add
 		{CIV_ATHENIANS, "athen", "Athenians", "res://assets/textures/ui/emblems/athenians.png",
 		 civ_bonus_text(CIV_ATHENIANS),
-		 1.10f, 1.0f, 1.0f},
+		 1.10f, 1.0f, 1.0f, 0.0f},
 		{CIV_SPARTANS, "spart", "Spartans", "res://assets/textures/ui/emblems/spartans.png",
 		 civ_bonus_text(CIV_SPARTANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_PERSIANS, "pers", "Persians", "res://assets/textures/ui/emblems/persians.png",
 		 civ_bonus_text(CIV_PERSIANS),
-		 1.0f, 1.25f, 1.0f},
+		 1.0f, 1.25f, 1.0f, 0.0f},
 		{CIV_ROMANS, "rome", "Romans", "res://assets/textures/ui/emblems/romans.png",
 		 civ_bonus_text(CIV_ROMANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_CARTHAGINIANS, "cart", "Carthaginians", "res://assets/textures/ui/emblems/carthaginians.png",
 		 civ_bonus_text(CIV_CARTHAGINIANS),
-		 1.0f, 1.0f, 1.25f},
+		 1.0f, 1.0f, 1.25f, 0.1f},
 		{CIV_MACEDONIANS, "mace", "Macedonians", "res://assets/textures/ui/emblems/macedonians.png",
 		 civ_bonus_text(CIV_MACEDONIANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_BRITONS, "brit", "Britons", "res://assets/textures/ui/emblems/britons.png",
 		 civ_bonus_text(CIV_BRITONS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_GAULS, "gaul", "Gauls", "res://assets/textures/ui/emblems/gauls.png",
 		 civ_bonus_text(CIV_GAULS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_IBERIANS, "iber", "Iberians", "res://assets/textures/ui/emblems/iberians.png",
 		 civ_bonus_text(CIV_IBERIANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_MAURYANS, "maur", "Mauryans", "res://assets/textures/ui/emblems/mauryans.png",
 		 civ_bonus_text(CIV_MAURYANS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_KUSHITES, "kush", "Kushites", "res://assets/textures/ui/emblems/kushites.png",
 		 civ_bonus_text(CIV_KUSHITES),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_PTOLEMIES, "ptol", "Ptolemies", "res://assets/textures/ui/emblems/ptolemies.png",
 		 civ_bonus_text(CIV_PTOLEMIES),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_SELEUCIDS, "sele", "Seleucids", "res://assets/textures/ui/emblems/seleucids.png",
 		 civ_bonus_text(CIV_SELEUCIDS),
-		 1.0f, 1.0f, 1.0f},
+		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
 		 civ_bonus_text(CIV_HAN),
-		 1.0f, 1.0f, 1.0f}
+		 1.0f, 1.0f, 1.0f, 0.0f}
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];
