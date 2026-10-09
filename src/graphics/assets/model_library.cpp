@@ -94,6 +94,8 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		else if (base == "corral") return 2.8f;
 		else if (base == "house" || base == "farmstead" || base == "storehouse") return 3.4f;
 		else if (base == "ruins") return 2.4f;
+		// tools/extract_0ad_structures.py sized it already (data/building_models.json).
+		if (building_glb_id(id) != id) return natural_h;
 		return Math::clamp(natural_h, 2.0f, 8.0f);
 	}
 	if (id == "pine") return 8.0f;
@@ -846,6 +848,8 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 		int us = id.find("_");
 		if (us > 0 && us < id.length() - 1) {
 			String base = id.substr(us + 1);
+			const String glb = building_glb_id(base);
+			if (glb != base) candidates.push_back(String("res://assets/models/buildings/") + glb + String(".glb"));
 			candidates.push_back(String("res://assets/models/buildings/") + base + String(".glb"));
 		}
 		if (id.ends_with("gate") || id == "gate") {

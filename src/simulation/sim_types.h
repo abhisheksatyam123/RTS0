@@ -855,11 +855,34 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	return kTable[type];
 }
 
+// 0 A.D. WallSet (template_structure_wallset.xml, structures/*_wallset_stone.xml): a wall is
+// laid as towers joined by long, medium and short segments (WallPiece/Length 36, 24 and 12 m,
+// here in world units of 4 m), each segment reaching between MinTowerOverlap and MaxTowerOverlap
+// of the way into the towers at its ends. A tower's WallPiece/Length is 7 m (athen/wall_tower;
+// most civs' towers are about that wide), its obstruction one cell. A segment's obstruction is
+// its length by 5 m (athen/wall_long Static depth 5).
+inline constexpr float WALL_SEGMENT_LENGTHS[3] = {36.0f / 4.0f, 24.0f / 4.0f, 12.0f / 4.0f};
+inline constexpr float WALL_TOWER_LENGTH = 7.0f / 4.0f;
+inline constexpr float WALL_MIN_TOWER_OVERLAP = 0.05f, WALL_MAX_TOWER_OVERLAP = 0.90f;
+inline constexpr float WALL_HALF_DEPTH = 5.0f / 4.0f * 0.5f;
+// 0 A.D. wall_long Health 3000, Cost stone 36 and BuildTime 36 s (x0.25 like every RTS0 build
+// time); wall_medium and wall_short have two thirds and a third of each, as of the length.
+inline constexpr float WALL_LONG_HEALTH = 3000.0f, WALL_LONG_STONE = 36.0f, WALL_LONG_BUILD_TIME = 36.0f * 0.25f;
+
+// Whether a wall segment or gate of half width `half_w` is a WallSet piece. The one-cell segment
+// (and the gate it upgrades to) that maps and older saves place keeps its square footprint and
+// its building_type_info row.
+inline bool is_wallset_piece(uint8_t type, float half_w) {
+	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
+}
+
+// A WallSet segment's share of a long one, by length: 1 long, 2/3 medium, 1/3 short.
+inline float wallset_share(float half_w) { return 2.0f * half_w / WALL_SEGMENT_LENGTHS[0]; }
+
 // Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
-// width is `half_w`. Every RTS0 building so far is square; 0 A.D.'s walls are long and thin.
+// width is `half_w`. RTS0's buildings are square but for WallSet pieces, long and thin.
 inline float building_half_depth(uint8_t type, float half_w) {
-	(void)type;
-	return half_w;
+	return is_wallset_piece(type, half_w) ? WALL_HALF_DEPTH : half_w;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1191,6 +1214,7 @@ struct CivHeroAura {
 	float range; // RTS0 units
 	uint8_t players; // AuraPlayers bits (0 A.D. affectedPlayers)
 	uint64_t affects[CIV_TEMPLATE_WORDS_MAX]; // bitset of roster rows the aura buffs
+	bool structures; // "Structure" in its affects classes (Antiochus IV's Health/Max on enemy structures)
 };
 
 enum CivBonusStat : uint8_t {
