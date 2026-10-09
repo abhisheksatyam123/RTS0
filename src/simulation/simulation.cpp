@@ -391,6 +391,7 @@ void Simulation::reset() {
 	fauna_id_to_idx_.clear();
 	transport_passengers_.clear();
 	turret_height_.clear();
+	for (double &d : battle_damage_) d = 0.0;
 	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
@@ -4249,6 +4250,14 @@ void Simulation::gain_xp(size_t idx, float amount) {
 
 // 0 A.D. Health.js TakeDamage: the attacker gains Loot/xp * health taken / max health
 // (the health actually lost, so overkill gives nothing). Call before applying damage.
+// 0 A.D. BattleDetection.js OnGlobalAttacked: a player's detector counts the damage its
+// own entities deal to another player's (not Gaia's, not its own). The total feeds the
+// battle music; it is presentation state, so it is neither saved nor hashed.
+void Simulation::note_attacked(uint8_t attacker_owner, uint8_t target_owner, float damage) {
+	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
+	if (damage > 0.0f) battle_damage_[attacker_owner] += damage;
+}
+
 void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float damage) {
 	if (attacker_id == 0 || victim >= units_.count) return;
 	int32_t a = lookup_unit(attacker_id);
@@ -6288,6 +6297,7 @@ void Simulation::tick_combat(float dt) {
 			}
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
+			note_attacked(units_.team[i], units_.team[t], final_dmg);
 			units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
@@ -6331,6 +6341,7 @@ void Simulation::tick_combat(float dt) {
 					float s_hack = unit_info_at(s_idx).hack_armor + rank_melee_armor((size_t)s_idx);
 					float s_dmg = std::max(1.0f, final_dmg * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
 					award_damage_xp(units_.id[i], (size_t)s_idx, s_dmg);
+					note_attacked(units_.team[i], units_.team[s_idx], s_dmg);
 					units_.hp[s_idx] -= s_dmg;
 					if (units_.hp[s_idx] <= 0) {
 						units_.alive[s_idx] = 0;
@@ -6466,6 +6477,7 @@ void Simulation::tick_combat(float dt) {
 			           b.x, land_y, b.z,
 			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis, units_.id[i]);
 		} else {
+			note_attacked(units_.team[i], b.team, bld_dmg);
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
 				raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -7037,6 +7049,7 @@ void Simulation::tick_projectiles(float dt) {
 				hit_unit = tidx;
 				if (tidx >= 0 && units_.alive[tidx]) {
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
+					note_attacked(p.team, units_.team[tidx], p.damage);
 					units_.hp[tidx] -= p.damage;
 					if (units_.team[tidx] == 0) {
 						raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[tidx], units_.pos_z[tidx], units_.id[tidx], units_.team[tidx]);
@@ -7068,6 +7081,7 @@ void Simulation::tick_projectiles(float dt) {
 				if (bit != building_id_to_idx_.end()) {
 					Building &b = buildings_[bit->second];
 					if (!b.wrecked && b.hp > 0.0f) {
+						note_attacked(p.team, b.team, p.damage);
 						b.hp -= p.damage;
 						if (b.team == 0)
 							raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -7110,6 +7124,7 @@ void Simulation::tick_projectiles(float dt) {
 					float s_hack = unit_info_at(s_idx).hack_armor + rank_melee_armor((size_t)s_idx);
 					float s_dmg = std::max(1.0f, p.damage * 0.60f * falloff * powf(0.9f, s_hack * 0.5f));
 					award_damage_xp(p.source_id, s_idx, s_dmg);
+					note_attacked(p.team, units_.team[s_idx], s_dmg);
 					units_.hp[s_idx] -= s_dmg;
 					if (units_.hp[s_idx] <= 0) {
 						units_.alive[s_idx] = 0;
@@ -7712,6 +7727,7 @@ void Simulation::tick_death_damage(float dt) {
 			if (std::fabs(dx) > r + 2.0f || std::fabs(dz) > r + 2.0f) continue;
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
 			if (d >= r) continue;
+			note_attacked(owner, units_.team[i], dd.damage * (1.0f - d * d / r2));
 			units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
 			if (units_.hp[i] > 0.0f) continue;
 			units_.hp[i] = 0.0f;
@@ -7729,6 +7745,7 @@ void Simulation::tick_death_damage(float dt) {
 			const float ez = std::max(0.0f, std::fabs(b.z - oz) - b.half_size);
 			const float d2 = ex * ex + ez * ez;
 			if (d2 >= r2) continue;
+			note_attacked(owner, b.team, dd.damage * (1.0f - d2 / r2));
 			b.hp -= dd.damage * (1.0f - d2 / r2);
 			if (b.hp <= 0.0f) mark_building_wreck(b, owner);
 		}

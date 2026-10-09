@@ -292,7 +292,10 @@ public:
 	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
 	// walls, gates and outposts, visible and fighting from the structure's height.
 	bool unit_turretable(size_t i) const;
-	uint32_t turret_holder_of(uint32_t unit_id) const; // 0 when not on a turret
+	uint32_t turret_holder_of(uint32_t unit_id) const;
+	// Total damage `player`'s entities have dealt to other (non-Gaia) players this session
+	// (0 A.D. BattleDetection input); not saved, starts again at 0 after a load.
+	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
 	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
 		if (turret_height_.empty()) return 0.0f;
 		auto it = turret_height_.find(units_.id[i]);
@@ -1290,6 +1293,8 @@ private:
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
 	void gain_xp(size_t idx, float amount);
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	void note_attacked(uint8_t attacker_owner, uint8_t target_owner, float damage);
+	double battle_damage_[MAX_PLAYERS] = {};
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);

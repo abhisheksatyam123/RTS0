@@ -308,6 +308,12 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_trickle
           /tmp/test_trickle
 
+      - name: Battle detection (damage dealt to other players)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_battle_detection.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_battle_detection
+          /tmp/test_battle_detection
+
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live
 
