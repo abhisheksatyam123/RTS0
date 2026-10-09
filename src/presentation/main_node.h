@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/option_button.hpp>
+#include <godot_cpp/classes/popup_menu.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
@@ -254,6 +255,19 @@ public:
 	void _on_flare_requested(Vector2 world_pos);
 	void _on_idle_worker_clicked();
 	void _on_speed_button_pressed();
+	void _on_speed_selected(int id);
+	void set_game_speed(float speed);
+	float get_game_speed() const { return game_speed; }
+	void toggle_pause();
+	void quicksave();
+	void quickload();
+	void show_notice(const String &text);
+	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
+	void _on_replay_speed_selected(int index);
+	static String speed_text(float speed);
+	static Array speed_choices(bool replay);
+	bool is_game_paused() const { return hotkey_paused_ || paused_via_menu; }
+	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
 	void _on_alert_pressed(int end);
@@ -430,6 +444,8 @@ private:
 	uint32_t replay_written_turn_ = 0;
 	Label *replay_label_ = nullptr;
 	OptionButton *replay_view_picker_ = nullptr;
+	OptionButton *replay_speed_picker_ = nullptr;
+	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	uint8_t replay_hud_player_ = 0;
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
@@ -446,6 +462,7 @@ private:
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
 	bool write_save_metadata(const String &path, const String &description) const;
+	void write_save_thumbnail(const String &path);
 };
 
 #endif
