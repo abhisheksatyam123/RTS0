@@ -573,6 +573,14 @@ static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
 }
 
+// 0 A.D. player_trans surfaces take the owner's colour (model_common.fs).
+static void push_player_color(Node *model, int64_t &last, const Color &c) {
+	const int64_t key = (int64_t)c.to_rgba32();
+	if (!model || last == key) return;
+	rtso::ModelLibrary::set_player_color(model, c);
+	last = key;
+}
+
 void RtsoWorldView::load_garrison_flags() {
 	flags_loaded_ = true;
 	Ref<FileAccess> f = FileAccess::open("res://data/garrison_flags.json", FileAccess::READ);
@@ -1305,6 +1313,7 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 		v.model = nullptr;
 	}
 	v.model_id = model_name;
+	v.player_rgba = -1;
 	v.clip = StringName();
 	v.carry_prop = nullptr; // freed with the old model
 	v.carry_clip = 0;
@@ -1371,6 +1380,7 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 			if (!slot) return;
 			v.root->add_child(slot);
 			v.fog_dim = -1.0f;
+			v.player_rgba = -1;
 			String cat = "buildings";
 			const auto &se = rtso::ModelLibrary::get(cat, String(id));
 			if (Node3D *n3 = Object::cast_to<Node3D>(slot)) {
@@ -1401,6 +1411,7 @@ void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_na
 	}
 	v.model_id = model_name;
 	v.fog_dim = -1.0f; // new nodes: re-apply the fog overlay
+	v.player_rgba = -1;
 	v.model = instantiate_building_id(model_name);
 	if (!v.model) {
 		MeshInstance3D *mi = memnew(MeshInstance3D);
@@ -1493,6 +1504,8 @@ RtsoWorldView::CrowdBatch &RtsoWorldView::crowd_batch(uint8_t civ, uint8_t key) 
 		auto entry = rtso::ModelLibrary::get("units", crowd_key_model(civ, key));
 		slot->rest = entry.crowd_mesh.is_valid() ? entry.crowd_mesh : entry.mesh;
 		slot->no_scene = !entry.scene.is_valid();
+		for (int s = 0; slot->rest.is_valid() && s < slot->rest->get_surface_count(); ++s)
+			if (rtso::ModelLibrary::is_player_color_material(slot->rest->surface_get_material(s))) slot->player_color = true;
 	}
 	return *slot;
 }
@@ -1501,6 +1514,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 	if (!b.mmi[clip]) {
 		Ref<Mesh> m = b.puppet[clip].posed_frames[0].is_valid() ? Ref<Mesh>(b.puppet[clip].posed_frames[0]) : b.rest;
 		b.mm[clip] = create_multimesh(m, true);
+		b.mm[clip]->set_use_custom_data(true); // owner colour for player_color.gdshader
 		b.mmi[clip] = memnew(MultiMeshInstance3D);
 		b.mmi[clip]->set_multimesh(b.mm[clip]);
 		// 0 A.D. unit actors carry <castshadow/>.
@@ -2305,12 +2319,18 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				cmm->set_instance_transform(slot, xf);
 			}
 			// model_common.fs: color *= LOS. Own units in the fog read darker.
+			// Models without player_trans skins keep a friend/foe tint.
 			const float lit = los_brightness(x, z);
-			Color tint = is_player ? col_player : col_enemy;
+			const bool owner_coloured = crowd_[uciv][ckey]->player_color;
+			Color tint = owner_coloured ? Color(1, 1, 1) : (is_player ? col_player : col_enemy);
 			tint.r *= lit;
 			tint.g *= lit;
 			tint.b *= lit;
 			cmm->set_instance_color(slot, tint);
+			// Custom data reaches the shader raw; the close-up path's source_color
+			// instance uniform is converted to linear, so match it here.
+			const Color pc = player_display_color(sim, uview.team[i]).srgb_to_linear();
+			cmm->set_instance_custom_data(slot, Color(pc.r, pc.g, pc.b, 1.0f));
 		}
 
 		if (detailed.count(id) == 0) continue;
@@ -2319,6 +2339,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.vis_stamp = unit_vis_stamp;
 		v.yaw = yaw;
 		attach_unit_model(v, utype_str);
+		push_player_color(v.model, v.player_rgba, player_display_color(sim, uview.team[i]));
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 			ensure_runtime_clips(v.anim, unit_is_female(utype));
 
@@ -2550,6 +2571,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				v.fog_dim = q;
 			}
 		}
+		push_player_color(v.root, v.player_rgba, player_display_color(sim, b.team));
 
 		{
 			const float frac = b.max_hp > 0.0f ? b.hp / b.max_hp : 1.0f;
