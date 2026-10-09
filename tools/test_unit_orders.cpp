@@ -1314,6 +1314,52 @@ static void test_remove_guard_call_to_arms() {
 	}
 }
 
+static void test_guard_structure() {
+	std::printf("37. guarding a structure (Guard.js on any entity)\n");
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t theirs = s.spawn_building_world(40, 40, BLD_STOREHOUSE, 1, 1.0f);
+		uint32_t g = s.spawn_unit(20, 0, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, theirs);
+		check(s.unit_order(g).kind != ORDER_GUARD, "an enemy structure can't be guarded");
+		s.order_guard(&g, 1, store);
+		check(s.unit_order(g).kind == ORDER_GUARD && act_of(s, g) == ACTION_GUARD, "a soldier guards our storehouse");
+		const float h = bld(s, store)->half_size;
+		const bool near = run_until(s, 20.0f, [&] {
+			return std::max(std::fabs(s.units().pos_x[idx_of(s, g)]) - h, std::fabs(s.units().pos_z[idx_of(s, g)]) - h) < 3.0f;
+		});
+		check(near, "and walks over to stand by it");
+		// An enemy archer out of the guard's sight shoots the storehouse.
+		uint32_t a = post(s, -h - 12.0f, 0, UNIT_ARCHER);
+		s.order_attack_building(&a, 1, store);
+		const bool answers = run_until(s, 10.0f, [&] { return target_of(s, g) == a && act_of(s, g) == ACTION_ATTACK; });
+		check(answers, "the guard goes for whoever attacks the structure (GuardedAttacked)");
+		s.set_unit_hp(a, 0.0f);
+		const bool back = run_until(s, 20.0f, [&] { return act_of(s, g) == ACTION_GUARD; });
+		check(back && s.unit_order(g).kind == ORDER_GUARD && s.unit_order(g).target == store, "then guards it again");
+		for (auto &b : s.buildings_) if (b.id == store) b.team = 1;
+		run(s, 1.0f);
+		check(s.unit_order(g).kind != ORDER_GUARD, "a guard lets go of a structure that is no longer ours");
+	}
+	{
+		Simulation l;
+		setup(l);
+		const uint32_t store = l.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t g = l.spawn_unit(20, 0, 0, UNIT_SPEARMAN);
+		TurnManager tm;
+		NetCommand c;
+		c.client_id = 0;
+		c.cmd_type = 21;
+		c.entity_ids = {g};
+		c.target_id = store;
+		tm.post_local_command(c);
+		for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, l);
+		check(l.unit_order(g).kind == ORDER_GUARD && l.unit_order(g).target == store, "lockstep guard on a structure (21)");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1353,6 +1399,7 @@ int main(int argc, char **argv) {
 	test_forced_work_orders();
 	test_loads_and_guards();
 	test_remove_guard_call_to_arms();
+	test_guard_structure();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
