@@ -539,7 +539,8 @@ struct RejoinMsg {
 	uint8_t kind = REQUEST;
 	uint32_t turn = 0;
 	uint32_t total = 0;  // HEADER: saved-world size; CHUNK: offset of these bytes
-	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started
+	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started, 6 = no late observers;
+	                     // REQUEST: 1 = join as an observer (0 A.D. observer late join)
 	std::vector<uint8_t> bytes; // HEADER: the rest of the header; CHUNK: world bytes
 	static constexpr size_t CHUNK_BYTES = 1024;
 };
@@ -572,6 +573,23 @@ struct ClientPerformanceMsg {
 	};
 	std::vector<Entry> clients;
 };
+// NMT_PLAYER_ASSIGNMENT (0 A.D. CPlayerAssignmentMessage): the host's list of the
+// match's clients, sent whenever it changes: each client's id, name, the player
+// it plays (0xFF for an observer) and whether it plays, observes or has left.
+struct PlayerAssignmentMsg {
+	enum Status : uint8_t { PLAYING = 0, OBSERVER = 1, LEFT = 2 };
+	struct Entry {
+		uint32_t client = 0;
+		std::string name;
+		uint8_t player = 0xFF;
+		uint8_t status = PLAYING;
+		bool operator==(const Entry &o) const {
+			return client == o.client && name == o.name && player == o.player && status == o.status;
+		}
+	};
+	std::vector<Entry> clients;
+};
+
 // 0 A.D. session.js: a round trip above this reads as a bad connection, and a
 // client unheard for longer than this is "not responding".
 inline constexpr uint32_t NET_LAG_WARN_RTT_MS = 500;
@@ -1048,6 +1066,31 @@ public:
 		for (auto &e : msg.clients)
 			if (!NetSerde::read_u32(data, size, offset, e.client) || !NetSerde::read_u32(data, size, offset, e.rtt_ms) ||
 					!NetSerde::read_u32(data, size, offset, e.silent_ms)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_player_assignment(const PlayerAssignmentMsg &msg) {
+		std::vector<uint8_t> buf;
+		const size_t n = std::min<size_t>(msg.clients.size(), 255);
+		NetSerde::write_u8(buf, (uint8_t)n);
+		for (size_t i = 0; i < n; ++i) {
+			NetSerde::write_u32(buf, msg.clients[i].client);
+			NetSerde::write_string(buf, msg.clients[i].name);
+			NetSerde::write_u8(buf, msg.clients[i].player);
+			NetSerde::write_u8(buf, msg.clients[i].status);
+		}
+		return buf;
+	}
+
+	static bool parse_player_assignment(const uint8_t *data, size_t size, PlayerAssignmentMsg &msg) {
+		size_t offset = 0;
+		uint8_t n = 0;
+		if (!NetSerde::read_u8(data, size, offset, n)) return false;
+		msg.clients.assign(n, {});
+		for (auto &e : msg.clients)
+			if (!NetSerde::read_u32(data, size, offset, e.client) || !NetSerde::read_string(data, size, offset, e.name) ||
+					!NetSerde::read_u8(data, size, offset, e.player) || !NetSerde::read_u8(data, size, offset, e.status) ||
+					e.status > PlayerAssignmentMsg::LEFT) return false;
 		return offset == size;
 	}
 
