@@ -111,6 +111,8 @@ const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonde
 	"Conquest Units — kill every enemy unit", "Conquest Structures — raze every enemy structure", "Regicide — kill the enemy hero, keep yours"]
 const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
+# Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
+const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
@@ -290,8 +292,9 @@ func _ensure_slot_rows(n: int) -> void:
 			"kind": 1 if i > 0 else 0,
 			"civ": i % CIVS.size(),
 			"team": i + 1,
-			"diff": 3,
-			"beh": 2,
+			# 0 A.D. gui.gamesetup.aidifficulty / aibehavior from the options page.
+			"diff": clampi(int(UserSettings.cfg.get_number("gui.gamesetup.aidifficulty")), 0, 5),
+			"beh": AI_BEHAVIOR_IDS.get(UserSettings.cfg.get_value("gui.gamesetup.aibehavior"), 0),
 			"color": _unused_color(),
 		})
 	if _slot_rows.size() > n:
