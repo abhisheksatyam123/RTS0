@@ -177,6 +177,10 @@ public:
 	}
 
 	bool is_open() const { return panel_ != nullptr && panel_->is_visible(); }
+	void set_player_label(int p, const String &text) {
+		if (p >= 0 && p < 8 && player_names_[p]) player_names_[p]->set_text(text);
+	}
+
 	void close() {
 		if (panel_) panel_->set_visible(false);
 	}

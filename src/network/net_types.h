@@ -318,6 +318,7 @@ struct GameSetupParams {
 	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
 	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
 	uint8_t no_treasures = 0;      // 1 = 0 A.D. DisableTreasures
+	std::string names[8];          // per-slot player names (0 A.D. PlayerName), empty = "Player N"
 	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
 	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
@@ -329,6 +330,39 @@ struct GameSetupParams {
 	uint8_t teams[8] = {1, 2, 0, 0, 0, 0, 0, 0};
 	uint8_t slot_count = 2;
 };
+namespace detail {
+// Player names ride in the attribute string, so the separators are %-escaped; at most
+// MAX_NAME_BYTES bytes each, cut on a UTF-8 character boundary.
+constexpr size_t MAX_NAME_BYTES = 48;
+inline std::string escape_name(const std::string &n) {
+	std::string in = n.substr(0, MAX_NAME_BYTES);
+	if (n.size() > MAX_NAME_BYTES)
+		while (!in.empty() && ((unsigned char)n[in.size()] & 0xC0) == 0x80) in.pop_back();
+	std::string out;
+	for (char c : in) {
+		if (c == '%' || c == ';' || c == ',' || c == '=') {
+			static const char kHex[] = "0123456789ABCDEF";
+			out += '%'; out += kHex[(unsigned char)c >> 4]; out += kHex[(unsigned char)c & 15];
+		} else if ((unsigned char)c >= 0x20) {
+			out += c;
+		}
+	}
+	return out;
+}
+inline std::string unescape_name(const std::string &v) {
+	std::string out;
+	auto hex = [](char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; };
+	for (size_t i = 0; i < v.size(); ++i) {
+		if (v[i] == '%' && i + 2 < v.size() && hex(v[i + 1]) >= 0 && hex(v[i + 2]) >= 0) {
+			out += (char)(hex(v[i + 1]) * 16 + hex(v[i + 2]));
+			i += 2;
+		} else if ((unsigned char)v[i] >= 0x20) {
+			out += v[i];
+		}
+	}
+	return out.substr(0, MAX_NAME_BYTES);
+}
+} // namespace detail
 inline std::string format_game_start_full(const GameSetupParams &p) {
 	std::string s = "map=" + p.map_id + ";seed=" + std::to_string(p.seed);
 	s += ";victory=" + std::to_string((unsigned)p.victory);
@@ -360,6 +394,14 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";nomad=" + std::to_string((unsigned)p.nomad);
 	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
 	s += ";notreasures=" + std::to_string((unsigned)p.no_treasures);
+	{
+		std::string n;
+		for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
+			if (i) n += ',';
+			n += detail::escape_name(p.names[i]);
+		}
+		s += ";names=" + n;
+	}
 	s += ";waterlevel=" + std::to_string((unsigned)p.water_level);
 	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
@@ -434,6 +476,15 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
 			else if (k == "biome") { uint8_t x; if (detail::parse_u8(v, 0, 9, x)) out.biome = x; }
 			else if (k == "nomad") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.nomad = x; }
+			else if (k == "names") {
+				size_t a = 0;
+				for (int slot = 0; slot < 8 && a <= v.size(); ++slot) {
+					size_t b = v.find(',', a);
+					if (b == std::string::npos) b = v.size();
+					out.names[slot] = detail::unescape_name(v.substr(a, b - a));
+					a = b + 1;
+				}
+			}
 			else if (k == "notreasures") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.no_treasures = x; }
 			else if (k == "rgarrison") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.regicide_garrison = x; }
 			else if (k == "colors") {
