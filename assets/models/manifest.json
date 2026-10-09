@@ -17272,8 +17272,7 @@
     "Carry",
     "GatherFish",
     "Attack",
-    "Death",
-    "Capture"
+    "Death"
    ],
    "bones": 46,
    "file": "models/buildings/fishing_han.glb",
@@ -17292,7 +17291,6 @@
     "actor:art/actors/props/units/tools/fishing_net_hele.xml",
     "actor:art/actors/structures/han/fishing_ship.xml",
     "actor:art/actors/units/han/fisherman.xml",
-    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/fishing_net.dae",
     "mesh:props/helmet/han_ricehat.dae",
     "mesh:props/new/dude_head.dae",
@@ -20037,8 +20035,7 @@
     "Carry",
     "GatherFish",
     "Attack",
-    "Death",
-    "Capture"
+    "Death"
    ],
    "bones": 46,
    "file": "models/buildings/han_fishing_ship.glb",
@@ -20057,7 +20054,6 @@
     "actor:art/actors/props/units/tools/fishing_net_hele.xml",
     "actor:art/actors/structures/han/fishing_ship.xml",
     "actor:art/actors/units/han/fisherman.xml",
-    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/fishing_net.dae",
     "mesh:props/helmet/han_ricehat.dae",
     "mesh:props/new/dude_head.dae",
@@ -30647,8 +30643,7 @@
     "Carry",
     "GatherFish",
     "Attack",
-    "Death",
-    "Capture"
+    "Death"
    ],
    "bones": 46,
    "file": "models/buildings/merchant_han.glb",
@@ -30668,7 +30663,6 @@
     "actor:art/actors/props/units/tools/fishing_net_hele.xml",
     "actor:art/actors/structures/han/merchant_ship.xml",
     "actor:art/actors/units/han/fisherman.xml",
-    "anim:biped/infantry/capturing_a.dae",
     "mesh:props/fishing_net.dae",
     "mesh:props/han_merchant_sail.dae",
     "mesh:props/helmet/han_ricehat.dae",

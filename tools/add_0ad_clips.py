@@ -243,7 +243,8 @@ def main():
     for mid, e in sorted(man["models"].items()):
         if args.only and mid not in args.only:
             continue
-        if e.get("skeleton") != args.skeleton or not e.get("animated"):
+        # Unit GLBs only: the Han boats rig their rowers on the biped skeleton too.
+        if e.get("skeleton") != args.skeleton or not e.get("animated") or not e["file"].startswith("models/units/"):
             continue
         path = os.path.join(REPO, "assets", e["file"])
         if args.check_against:
