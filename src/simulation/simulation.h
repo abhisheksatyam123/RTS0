@@ -1413,6 +1413,7 @@ private:
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
+	void petra_build_first_base(); // startingStrategy.js buildFirstBase
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);

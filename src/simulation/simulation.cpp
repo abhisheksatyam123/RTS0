@@ -8155,6 +8155,7 @@ void Simulation::petra_manage_economy(float dt) {
 	// 1. Priority Queue 1: Economic Boom — keep the TCs training workers
 	// until the worker target (config.js Economy.targetNumWorkers) is met.
 	petra_staff_foundations();
+	PetraHuntScan hunt_scan = petra_hunt_scan();
 
 	int ai_villagers = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
@@ -8315,8 +8316,6 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
-	PetraHuntScan hunt_scan = petra_hunt_scan();
-
 	// Assign reassignable workers to nearest safe dropsite and resource
 	for (size_t widx : reassignable_workers) {
 		uint8_t chosen_res_type = RES_FOOD;
@@ -8444,7 +8443,7 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan) {
 		if (d2 > 120000.0f / 16.0f || (terr != (int)petra_pid_ && d2 > 14000.0f / 16.0f)) continue;
 		if (d2 > best_d2) continue;
 		auto [cx, cz] = nav_grid_.world_to_cell(t.x, t.z);
-		if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
 		best_d2 = d2;
 		best = t.id;
 	}
@@ -8486,7 +8485,8 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 			if ((x - d.first) * (x - d.first) + (z - d.second) * (z - d.second) < drop_d2) { near_drop = true; break; }
 		if (!near_drop) return;
 		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
-		if (!nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
+		// getLandAccess; a supply on a blocked cell (by a tree, a wreck) is reached from beside it.
+		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
 		best_d2 = d2;
 		best = id;
 		live = is_live;
@@ -8530,6 +8530,85 @@ bool Simulation::petra_start_hunting(size_t u, PetraHuntScan &scan) {
 		scan.on_carcass[target]++;
 	}
 	return true;
+}
+
+// startingStrategy.js buildFirstBase / headquarters.js checkBaseExpansion: with
+// no civic centre (a nomad start, or the last one lost) Petra founds one where
+// most of its workers stand. Short of resources, it first waits on treasures
+// its units can collect, else lays out a dock to gather from if it has none.
+void Simulation::petra_build_first_base() {
+	for (const auto &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.type == BLD_TOWN_CENTER) return; // hasPotentialBase
+	PetraHuntScan scan = petra_hunt_scan();
+	uint8_t goal = BLD_TOWN_CENTER;
+	const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
+	auto affords = [&](const BuildingTypeInfo &t, float f, float w, float g, float st) {
+		return f >= (float)t.food_cost && w >= (float)t.wood_cost && g >= (float)t.gold_cost && st >= (float)t.stone_cost;
+	};
+	if (!affords(cc, petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone())) {
+		float ef = petra_ps().food(), ew = petra_ps().wood(), eg = petra_ps().gold(), es = petra_ps().stone();
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+			if (units_.action_state[i] == ACTION_IDLE) petra_gather_treasure(i, scan);
+			if (units_.order_kind[i] != ORDER_COLLECT_TREASURE) continue;
+			for (const auto &t : treasures_) {
+				if (t.id != units_.order_target[i]) continue;
+				const auto &a = treasure_type_info(t.type).amount; // food, wood, stone, metal
+				ef += (float)a[0]; ew += (float)a[1]; es += (float)a[2]; eg += (float)a[3];
+			}
+			if (affords(cc, ef, ew, eg, es)) return; // wait for the treasures
+		}
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.hp > 0.0f && b.type == BLD_DOCK) return;
+		if (!affords(building_type_info(BLD_DOCK), petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()))
+			return;
+		goal = BLD_DOCK;
+	}
+
+	// The starting point: where most workers stand (on one land, within 2500 m²).
+	struct Point { float x, z; uint16_t land; int weight; };
+	std::vector<Point> points;
+	std::vector<uint32_t> workers;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || carry_cap(i, RES_WOOD) <= 0) continue; // Worker
+		const uint8_t ut = units_.unit_type[i];
+		if (formation_unit_mounted(ut) || unit_is_ship(ut)) continue; // FastMoving
+		workers.push_back(units_.id[i]);
+		const float x = units_.pos_x[i], z = units_.pos_z[i];
+		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+		const uint16_t land = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+		bool found = false;
+		for (auto &p : points) {
+			if (p.land != land || (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) > 2500.0f / 16.0f) continue;
+			++p.weight;
+			found = true;
+			break;
+		}
+		if (!found) points.push_back({x, z, land, 1});
+	}
+	if (points.empty()) return;
+	size_t best = 0;
+	for (size_t k = 1; k < points.size(); ++k)
+		if (points[k].weight > points[best].weight) best = k;
+
+	// The civilCentre queue outranks every other (queueManager.js priority 950): pay
+	// from the stockpile at once, ahead of this tick's other spending.
+	const BuildingTypeInfo &info = building_type_info(goal);
+	const int sx = (int)(points[best].x / GRID), sz = (int)(points[best].z / GRID);
+	const int max_r = goal == BLD_DOCK ? 24 : 12;
+	for (int r = 0; r <= max_r; ++r) {
+		for (int dx = -r; dx <= r; ++dx) {
+			for (int dz = -r; dz <= r; ++dz) {
+				if (std::abs(dx) != r && std::abs(dz) != r) continue;
+				if (!petra_can_place(sx + dx, sz + dz, info.footprint, goal)) continue;
+				petra_ps().food() -= (float)info.food_cost; petra_ps().wood() -= (float)info.wood_cost;
+				petra_ps().gold() -= (float)info.gold_cost; petra_ps().stone() -= (float)info.stone_cost;
+				const uint32_t bid = spawn_building(sx + dx, sz + dz, goal, petra_pid_, 0.0f);
+				if (bid != 0 && !workers.empty()) order_build_or_repair(workers.data(), workers.size(), bid);
+				return;
+			}
+		}
+	}
 }
 
 // worker.js "hunter" subrole: Petra's citizen cavalry hunt (baseManager.js
@@ -11842,6 +11921,9 @@ void Simulation::tick_petra_ai_player(float dt) {
 
 	// 2. Multi-Base Expansion & Base Anchors (BasesManager / headquarters.js)
 	update_petra_bases(dt);
+
+	// 2b. No civic centre (nomad, or the last one lost): found one first (startingStrategy.js)
+	petra_build_first_base();
 
 	// 3. Autonomous Scouting & FoW Exploration (scoutManager.js)
 	petra_manage_scouting(dt);
