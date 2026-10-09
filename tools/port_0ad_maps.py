@@ -25,6 +25,8 @@ import time
 zip_path = "/home/abhi/project/0ad/binaries/data/mods/public/public.zip"
 GITHUB_RAW = "https://raw.githubusercontent.com/0ad/0ad/master/binaries/data/mods/public/"
 NAV_WATER_MARGIN = 0.3
+# RTS0 height units per 0 A.D. metre (grid_nav.h HEIGHT_PER_METRE): a 4 m tile is one unit.
+HEIGHT_PER_METRE = 0.25
 
 
 class GithubSource:
@@ -45,7 +47,7 @@ def pmp_tiles(raw_pmp):
     """Map width in tiles (16 tiles per patch)."""
     return struct.unpack('<I', raw_pmp[12:16])[0] * 16
 
-def extract_pmp_heights(raw_pmp, target_res=64, height_scale=0.20):
+def extract_pmp_heights(raw_pmp, target_res=64, height_scale=HEIGHT_PER_METRE):
     magic = raw_pmp[:4].decode('ascii', errors='ignore')
     if magic != "PSMP":
         return [0.0] * (target_res * target_res), 0.0
@@ -256,7 +258,7 @@ def gaia_resource(source, ltpl, wx, wz):
         return None
     return {"type": rtype, "x": wx, "z": wz, "amount": int(amount)}
 
-def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=0.20, source=None, gaia_only=False):
+def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -276,6 +278,11 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             # One RTS0 world unit per 0 A.D. tile, as for random maps.
             world_size_m = float(min(512, max(128, pmp_tiles(raw_pmp))))
             target_res = max(64, int(world_size_m) // 4 + 1)
+        if height_scale is None:
+            # Heights shrink with the map: HEIGHT_PER_METRE where a world unit is one
+            # 0 A.D. tile, scaled by world units per tile on maps squeezed or stretched
+            # to another size, so slopes stay 0 A.D.'s.
+            height_scale = HEIGHT_PER_METRE * world_size_m / pmp_tiles(raw_pmp)
         heightmap, vert_side = extract_pmp_heights(raw_pmp, target_res=target_res, height_scale=height_scale)
 
         # Water settings
@@ -515,26 +522,26 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(gaia['gaia_structures'])} Gaia structures, {len(gaia['gaia_units'])} Gaia units, {len(players)} players (Water={water_height}m).")
 
 maps_list = [
-    ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", 256.0, "mediterranean", 0.20),
-    ("corinthian_isthmus", "maps/skirmishes/corinthian_isthmus_4p.xml", "maps/skirmishes/corinthian_isthmus_4p.pmp", 384.0, "mediterranean", 0.20),
-    ("atlas_valleys", "maps/skirmishes/atlas_valleys_8p.xml", "maps/skirmishes/atlas_valleys_8p.pmp", 384.0, "savanna", 0.20),
-    ("bactria", "maps/skirmishes/bactria_2p.xml", "maps/skirmishes/bactria_2p.pmp", 256.0, "desert", 0.15),
-    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", 320.0, "temperate", 0.20),
-    ("belgian_bog", "maps/skirmishes/belgian_bog_2p.xml", "maps/skirmishes/belgian_bog_2p.pmp", 256.0, "temperate", 0.15),
-    ("death_canyon", "maps/skirmishes/death_canyon_2p.xml", "maps/skirmishes/death_canyon_2p.pmp", 256.0, "desert", 0.25),
-    ("deccan_plateau", "maps/skirmishes/deccan_plateau_2p.xml", "maps/skirmishes/deccan_plateau_2p.pmp", 256.0, "tropical", 0.20),
-    ("cycladic_archipelago", "maps/skirmishes/cycladic_archipelago_2p.xml", "maps/skirmishes/cycladic_archipelago_2p.pmp", 256.0, "mediterranean", 0.20),
-    ("golden_island", "maps/skirmishes/golden_island_2p.xml", "maps/skirmishes/golden_island_2p.pmp", 256.0, "mediterranean", 0.20),
-    ("persian_highlands", "maps/skirmishes/persian_highlands_4p.xml", "maps/skirmishes/persian_highlands_4p.pmp", 384.0, "desert", 0.20),
-    ("saharan_oases", "maps/skirmishes/saharan_oases_4p.xml", "maps/skirmishes/saharan_oases_4p.pmp", 384.0, "desert", 0.15),
-    ("sicilia", "maps/skirmishes/sicilia_2p.xml", "maps/skirmishes/sicilia_2p.pmp", 256.0, "mediterranean", 0.20),
-    ("alpine_valleys", "maps/skirmishes/alpine_valleys_2p.xml", "maps/skirmishes/alpine_valleys_2p.pmp", 256.0, "alpine", 0.25),
-    ("tuscan_acropolis", "maps/skirmishes/tuscan_acropolis_4p.xml", "maps/skirmishes/tuscan_acropolis_4p.pmp", 384.0, "mediterranean", 0.20),
-    ("arcadia", "maps/scenarios/arcadia.xml", "maps/scenarios/arcadia.pmp", 256.0, "mediterranean", 0.20),
-    ("vesuvius", "maps/skirmishes/vesuvius_6p.xml", "maps/skirmishes/vesuvius_6p.pmp", 384.0, "mediterranean", 0.25),
-    ("mediterranean_cove", "maps/skirmishes/mediterranean_cove_2p.xml", "maps/skirmishes/mediterranean_cove_2p.pmp", 256.0, "mediterranean", 0.20),
-    ("nile_river", "maps/skirmishes/nile_river_4p.xml", "maps/skirmishes/nile_river_4p.pmp", 384.0, "desert", 0.15),
-    ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", 320.0, "temperate", 0.20),
+    ("acropolis_bay", "maps/skirmishes/acropolis_bay_2p.xml", "maps/skirmishes/acropolis_bay_2p.pmp", 256.0, "mediterranean", None),
+    ("corinthian_isthmus", "maps/skirmishes/corinthian_isthmus_4p.xml", "maps/skirmishes/corinthian_isthmus_4p.pmp", 384.0, "mediterranean", None),
+    ("atlas_valleys", "maps/skirmishes/atlas_valleys_8p.xml", "maps/skirmishes/atlas_valleys_8p.pmp", 384.0, "savanna", None),
+    ("bactria", "maps/skirmishes/bactria_2p.xml", "maps/skirmishes/bactria_2p.pmp", 256.0, "desert", None),
+    ("battle_for_the_tiber", "maps/scenarios/battle_for_the_tiber.xml", "maps/scenarios/battle_for_the_tiber.pmp", 320.0, "temperate", None),
+    ("belgian_bog", "maps/skirmishes/belgian_bog_2p.xml", "maps/skirmishes/belgian_bog_2p.pmp", 256.0, "temperate", None),
+    ("death_canyon", "maps/skirmishes/death_canyon_2p.xml", "maps/skirmishes/death_canyon_2p.pmp", 256.0, "desert", None),
+    ("deccan_plateau", "maps/skirmishes/deccan_plateau_2p.xml", "maps/skirmishes/deccan_plateau_2p.pmp", 256.0, "tropical", None),
+    ("cycladic_archipelago", "maps/skirmishes/cycladic_archipelago_2p.xml", "maps/skirmishes/cycladic_archipelago_2p.pmp", 256.0, "mediterranean", None),
+    ("golden_island", "maps/skirmishes/golden_island_2p.xml", "maps/skirmishes/golden_island_2p.pmp", 256.0, "mediterranean", None),
+    ("persian_highlands", "maps/skirmishes/persian_highlands_4p.xml", "maps/skirmishes/persian_highlands_4p.pmp", 384.0, "desert", None),
+    ("saharan_oases", "maps/skirmishes/saharan_oases_4p.xml", "maps/skirmishes/saharan_oases_4p.pmp", 384.0, "desert", None),
+    ("sicilia", "maps/skirmishes/sicilia_2p.xml", "maps/skirmishes/sicilia_2p.pmp", 256.0, "mediterranean", None),
+    ("alpine_valleys", "maps/skirmishes/alpine_valleys_2p.xml", "maps/skirmishes/alpine_valleys_2p.pmp", 256.0, "alpine", None),
+    ("tuscan_acropolis", "maps/skirmishes/tuscan_acropolis_4p.xml", "maps/skirmishes/tuscan_acropolis_4p.pmp", 384.0, "mediterranean", None),
+    ("arcadia", "maps/scenarios/arcadia.xml", "maps/scenarios/arcadia.pmp", 256.0, "mediterranean", None),
+    ("vesuvius", "maps/skirmishes/vesuvius_6p.xml", "maps/skirmishes/vesuvius_6p.pmp", 384.0, "mediterranean", None),
+    ("mediterranean_cove", "maps/skirmishes/mediterranean_cove_2p.xml", "maps/skirmishes/mediterranean_cove_2p.pmp", 256.0, "mediterranean", None),
+    ("nile_river", "maps/skirmishes/nile_river_4p.xml", "maps/skirmishes/nile_river_4p.pmp", 384.0, "desert", None),
+    ("gallic_fields", "maps/skirmishes/gallic_fields_3p.xml", "maps/skirmishes/gallic_fields_3p.pmp", 320.0, "temperate", None),
 ]
 
 # 0 A.D. skirmish maps fetched with --github: file name -> (RTS0 id, biome).
@@ -593,26 +600,26 @@ if __name__ == "__main__":
                 print(f"  !! {mid}: {e}")
         for name, (mid, bome) in sorted(github_skirmishes.items()):
             try:
-                port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, 0.20,
+                port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None,
                          source=GithubSource(), gaia_only=True)
             except Exception as e:
                 print(f"  !! {mid}: {e}")
         for name, (mid, bome) in sorted(github_scenarios.items()):
             try:
-                port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, 0.20,
+                port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
                          source=GithubSource(), gaia_only=True)
             except Exception as e:
                 print(f"  !! {mid}: {e}")
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-scenarios":
         for name in sys.argv[2:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
-            port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, 0.20,
+            port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
                      source=GithubSource())
     elif len(sys.argv) > 1 and sys.argv[1] == "--github":
         names = sys.argv[2:] or sorted(github_skirmishes)
         for name in names:
             mid, bome = github_skirmishes.get(name, (name, "mediterranean"))
-            port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, 0.20,
+            port_map(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None,
                      source=GithubSource())
     else:
         # --github-builtin: the built-in list, fetched from 0 A.D.'s GitHub.
