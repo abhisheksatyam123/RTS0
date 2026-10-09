@@ -467,7 +467,20 @@ int Simulation::pop_max(uint8_t player) const {
 			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
 		}
 	}
-	return pop_cap_ > 0 ? std::min(cap, pop_cap_) : cap;
+	const int limit = pop_cap();
+	return limit > 0 ? std::min(cap, limit) : cap;
+}
+
+int Simulation::pop_cap() const {
+	if (pop_cap_ >= 0) return pop_cap_;
+	// World Population: split among the seated players not yet defeated (players 0
+	// and 1 when no slot is seated, as petra_runs_for assumes).
+	bool any_active = false;
+	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
+	int live = 0;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p)) ++live;
+	return std::max(1, -pop_cap_ / std::max(1, live));
 }
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
@@ -11966,6 +11979,27 @@ void Simulation::petra_manage_buildings(float dt) {
 		}
 	}
 
+	// 4b. headquarters.js constructTrainingBuildings: a stable once the barracks
+	// stands, as cavalry train only there (and at the civic centre).
+	if (has_barracks) {
+		const uint8_t civ = petra_ps().civ;
+		bool trains = false, have = false, done_barracks = false;
+		for (uint16_t k : civ_roster_ids(civ))
+			if (civ_unit_template(k).trainers & bld_bit(BLD_STABLE)) { trains = true; break; }
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+			if (b.type == BLD_STABLE) have = true;
+			if (b.type == BLD_BARRACKS && b.build_progress >= 1.0f) done_barracks = true;
+		}
+		const PetraBase *home = get_primary_petra_base();
+		if (trains && !have && done_barracks && home && civ_can_build(civ, BLD_STABLE)) {
+			if (const uint32_t bid = petra_place_building(BLD_STABLE, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY)) {
+				auto idle = get_idle_workers(petra_pid_);
+				if (!idle.empty()) petra_order_builders(idle, 3, bid);
+			}
+		}
+	}
+
 	// 5. Build Defense Towers in Phase >= 2
 	if (petra_ps().phase >= 2) {
 		int tower_count = 0;
@@ -12077,8 +12111,8 @@ void Simulation::petra_build_advanced() {
 		auto idle = get_idle_workers(petra_pid_);
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
 	};
-	// canBuild: RTS0 lets every civ lay any generic structure, so the stable and
-	// arsenal count only when the civ's roster trains something there.
+	// canBuild (the civ's 0 A.D. Builder lists); the elephant stable and arsenal
+	// count only when the civ's roster trains something there.
 	auto trains_at = [civ](uint8_t t) {
 		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
 			if (civ_unit_template(k).civ == civ && (civ_unit_template(k).trainers & bld_bit(t))) return true;
