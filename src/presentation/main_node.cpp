@@ -2837,7 +2837,8 @@ void RtsoMain::update_command_panel() {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
 				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
-				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV) continue;
+				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
+				    || rc == rtso::Simulation::TECH_ERR_PAIRED) continue;
 				Button *btn = memnew(Button);
 				String cost;
 				auto add_cost = [&](int v, const char *suffix) {

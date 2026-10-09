@@ -806,7 +806,8 @@ public:
 	// now (building_id 0 skips the building checks).
 	enum ResearchCheck : uint8_t {
 		TECH_OK = 0, TECH_ERR_INVALID, TECH_ERR_RESEARCHED, TECH_ERR_IN_PROGRESS, TECH_ERR_CIV,
-		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST
+		TECH_ERR_PHASE, TECH_ERR_PREREQUISITE, TECH_ERR_STRUCTURES, TECH_ERR_BUILDING, TECH_ERR_COST,
+		TECH_ERR_PAIRED // its pair_*.json partner is researched or being researched
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
