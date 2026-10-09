@@ -9762,6 +9762,136 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 	}
 }
 
+bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, uint32_t extra,
+		const uint32_t *selected, size_t count) {
+	if (!cheats_enabled() || player >= MAX_PLAYERS || is_defeated(player) || action >= CHEAT_COUNT) return false;
+	PlayerState &ps = players_[player];
+	auto change_phase = [&]() {
+		if (!ps.has_tech(TECH_PHASE_TOWN)) complete_research(player, TECH_PHASE_TOWN);
+		else if (!ps.has_tech(TECH_PHASE_CITY)) complete_research(player, TECH_PHASE_CITY);
+	};
+	switch (action) {
+	case CHEAT_ADD_RESOURCE: // "i want pizza", "bring me my axe", "i see a mountain here", "your money or your life"
+		if (extra >= RES_COUNT) return false;
+		ps.res[extra] = std::max(0.0f, ps.res[extra] + (float)parameter);
+		return true;
+	case CHEAT_REVEAL_MAP: // "jame jam": SetLosRevealAll(-1)
+		set_reveal_map(true);
+		return true;
+	case CHEAT_CONVERT_UNITS: { // "wololo": to the given player, else to yourself
+		const uint8_t to = (parameter >= 0 && parameter < MAX_PLAYERS) || parameter == GAIA_PLAYER ? (uint8_t)parameter : player;
+		cheat_convert(to, selected, count);
+		return true;
+	}
+	case CHEAT_KILL_UNITS: // "black death": Health.Kill, whoever owns them
+		for (size_t k = 0; k < count; ++k) {
+			const int32_t i = lookup_unit(selected[k]);
+			if (i >= 0) {
+				if (!units_.alive[i] || is_relic_unit(i)) continue;
+				units_.hp[i] = 0.0f;
+				units_.alive[i] = 0;
+				units_.action_state[i] = ACTION_DYING;
+				order_queues_.erase(selected[k]);
+				record_unit_death(i, player);
+				stat_unit_lost((size_t)i, player);
+				continue;
+			}
+			auto it = building_id_to_idx_.find(selected[k]);
+			if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) destroy_building(buildings_[it->second]);
+		}
+		return true;
+	case CHEAT_DEFEAT_PLAYER: { // "exodia": Player.Defeat
+		if (parameter < 0 || parameter >= MAX_PLAYERS || is_defeated((uint8_t)parameter)) return false;
+		const uint8_t bit = (uint8_t)(1u << parameter);
+		participant_mask_ |= bit;
+		convert_to_gaia(bit);
+		defeated_mask_ |= bit;
+		return true;
+	}
+	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer
+		static const char *const kSaladBowl[] = {"athen/infantry_spearman_b", "brit/infantry_spearman_b",
+			"cart/infantry_spearman_b", "gaul/infantry_spearman_b", "iber/infantry_spearman_b",
+			"kush/infantry_spearman_b", "mace/infantry_pikeman_b", "maur/infantry_spearman_b",
+			"pers/infantry_spearman_b", "ptol/infantry_pikeman_b", "rome/infantry_spearman_b",
+			"sele/infantry_spearman_b", "spart/infantry_spearman_b"};
+		static const std::vector<uint16_t> templates = [] {
+			std::vector<uint16_t> out;
+			for (const char *name : kSaladBowl)
+				for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+					if (std::strcmp(civ_unit_template(t).id, name) == 0) { out.push_back(t); break; }
+			return out;
+		}();
+		if (!count || templates.empty()) return false;
+		auto it = building_id_to_idx_.find(selected[0]);
+		if (it == building_id_to_idx_.end()) return false;
+		const Building &b = buildings_[it->second];
+		bool trains = false;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && !trains; ++t)
+			trains = (civ_unit_template(t).trainers >> b.type) & 1;
+		if (!trains || b.wrecked || b.build_progress < 1.0f) return false;
+		const int n = std::min(parameter, pop_max(player) - pop_current(player));
+		const float sx = b.x + (b.footprint + 0.6f) * GRID, sz = b.z;
+		for (int i = 0; i < n; ++i) {
+			const uint16_t t = templates[(size_t)i % templates.size()];
+			const uint32_t uid = spawn_unit(sx, sz, b.team, (UnitType)civ_unit_template(t).unit_type, 0.0f, t);
+			if (int32_t ui = lookup_unit(uid); ui >= 0) stat_unit_trained((size_t)ui);
+			if (b.has_rally_point) apply_rally_point(uid, b);
+		}
+		return true;
+	}
+	case CHEAT_CHANGE_PHASE: // "back to the future"
+		change_phase();
+		return true;
+	case CHEAT_RESEARCH: // "brainiac": the GUI resolves the name or the selected structure's Nth tech
+		if (extra == TECH_NONE || extra >= TECH_COUNT) return false;
+		complete_research(player, (uint8_t)extra);
+		return true;
+	case CHEAT_META: // "gift from the gods": every resource and both phases (RTS0 has no pop or speed cheats yet)
+		for (uint8_t r = 0; r < RES_COUNT; ++r) ps.res[r] = std::max(0.0f, ps.res[r] + (float)parameter);
+		change_phase();
+		change_phase();
+		return true;
+	}
+	return false;
+}
+
+void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
+	// Ownership.SetOwner on each selected entity, as convert_to_gaia does for a defeated player.
+	bool roots = false;
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t u = lookup_unit(ids[k]);
+		if (u >= 0) {
+			if (!units_.alive[u] || is_relic_unit(u) || units_.team[u] == to) continue;
+			units_.team[u] = to;
+			units_.has_order[u] = 0;
+			units_.target_unit_id[u] = 0;
+			units_.target_building_id[u] = 0;
+			units_.target_resource_id[u] = 0;
+			if (units_.action_state[u] != ACTION_GARRISONED) units_.action_state[u] = ACTION_IDLE;
+			order_queues_.erase(ids[k]);
+			trader_routes_.erase(ids[k]);
+			trader_leg_.erase(ids[k]);
+			continue;
+		}
+		auto it = building_id_to_idx_.find(ids[k]);
+		if (it == building_id_to_idx_.end()) continue;
+		Building &b = buildings_[it->second];
+		if (b.wrecked || b.team == to) continue;
+		b.has_rally_point = false;
+		order_ungarrison(b.id);
+		cancel_upgrade(b, b.team);
+		b.queue.clear();
+		b.research_tech = TECH_NONE;
+		b.research_timer = 0.0f;
+		b.team = to;
+		b.capture_points_by_team.fill(0.0f);
+		if (to < MAX_PLAYERS) b.capture_points_by_team[to] = b.max_capture_points;
+		b.capture_points = to < MAX_PLAYERS ? b.max_capture_points : 0.0f;
+		roots |= b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER;
+	}
+	if (roots) rebuild_territory();
+}
+
 void Simulation::order_remove_guard(const uint32_t *unit_ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const int32_t i = lookup_unit(unit_ids[k]);
