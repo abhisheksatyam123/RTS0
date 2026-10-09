@@ -1488,14 +1488,14 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 	if (cheat->action == S::CHEAT_RESEARCH) {
 		// "brainiac N" researches the selected structure's Nth technology, else a tech by its 0 A.D. name.
 		extra = rtso::TECH_NONE;
-		const rtso::Building *b = nullptr;
+		int btype = -1; // the selected structure's type
 		for (const auto &bb : sim->buildings())
-			if (selected_building_id && bb.id == selected_building_id) b = &bb;
-		if (b && parameter.is_valid_int()) {
+			if (selected_building_id && bb.id == selected_building_id) btype = bb.type;
+		if (btype >= 0 && parameter.is_valid_int()) {
 			int nth = (int)parameter.to_int();
 			for (int t = 1; t < rtso::TECH_COUNT && nth > 0; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (ti.researcher != b->type || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
+				if (ti.researcher != btype || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
 				if (--nth == 0) extra = (uint32_t)t;
 			}
 		} else {

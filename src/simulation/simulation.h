@@ -525,9 +525,9 @@ public:
 		std::vector<FormationSlot> slots;
 		WaypointPath path;
 		// v37: the attack order (UnitAI FORMATIONCONTROLLER.COMBAT / MEMBER) and patrol.
-		uint32_t target_unit = 0;       // Order.Attack target unit
-		uint32_t target_building = 0;   // Order.Attack target structure
-		uint8_t allow_capture = 0;      // Attack.js allowCapture for the members
+		uint32_t target_unit = 0;       // Order.Attack/Heal target unit, Order.Gather resource
+		uint32_t target_building = 0;   // Order.Attack/Repair/Garrison target structure
+		uint8_t task_flags = 0;         // FormationTask << FTASK_SHIFT | FTASK_CAPTURE (Attack.js allowCapture)
 		uint8_t returning = 0;          // order.data.returningState: where MEMBER goes back to
 		float member_timer = 0.0f;      // MEMBER / CHECKINGWAYPOINT one-second timer
 		float patrol_x = 0.0f, patrol_z = 0.0f; // patrolStartPosOrder: the other end of the patrol
@@ -540,6 +540,13 @@ public:
 		FORDER_IDLE = 0, FORDER_WALK = 1, FORDER_ATTACK_WALK = 2, FORDER_APPROACH = 3,
 		FORDER_MEMBER = 4, FORDER_PATROL = 5, FORDER_PATROL_WAIT = 6
 	};
+	// The order the controller walks up for (APPROACH) and then hands to the members:
+	// FORMATIONCONTROLLER Order.Attack, Order.Gather, Order.Repair, Order.Garrison, Order.Heal.
+	enum FormationTask : uint8_t {
+		FTASK_ATTACK = 0, FTASK_GATHER = 1, FTASK_REPAIR = 2, FTASK_GARRISON = 3, FTASK_HEAL = 4
+	};
+	static constexpr uint8_t FTASK_CAPTURE = 1, FTASK_SHIFT = 4;
+	static uint8_t formation_task(const FormationController &fc) { return fc.task_flags >> FTASK_SHIFT; }
 	const std::vector<FormationController> &formations() const { return formations_; }
 	// Controller id of the formation unit_id belongs to, 0 when none.
 	uint32_t formation_of_unit(uint32_t unit_id) const;
@@ -1385,7 +1392,18 @@ private:
 	std::vector<uint32_t> formation_take_patrol(const std::vector<uint32_t> &ids, float tx, float tz); // Order.Patrol
 	bool formation_target_in_range(const FormationController &fc) const; // CheckFormationTargetAttackRange
 	bool formation_target_pos(const FormationController &fc, float &x, float &z) const;
-	void formation_members_attack(size_t ci);   // CallMemberFunction("Attack")
+	void formation_members_attack(size_t ci);   // CallMemberFunction("Attack"/"Gather"/"Repair"/...)
+	// Commands.js "gather"/"repair"/"garrison"/"heal" through GetFormationUnitAIs: whole
+	// formations in ids walk up as one (APPROACH), then their members do the work (MEMBER).
+	std::vector<uint32_t> formation_take_task(const std::vector<uint32_t> &ids, uint8_t task, uint32_t target);
+	bool formation_acting_ = false; // the members are being handed the controller's order
+	// A member at work on an order of its own (gathering, building, garrisoning, healing):
+	// UnitAI runs it, and the formation waits for it in MEMBER.
+	bool member_working(size_t i) const {
+		const uint8_t k = units_.order_kind[i];
+		return k == ORDER_GATHER || k == ORDER_BUILD || k == ORDER_GARRISON || k == ORDER_HEAL ||
+				k == ORDER_RETURN_RESOURCE;
+	}
 	void formation_merge_twins();               // Formation.js ShapeUpdate twin merge
 	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
@@ -2038,10 +2056,12 @@ private:
 	void apply_order(uint32_t uid, const UnitOrder &o);
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
+	uint32_t nearest_dropsite(size_t i) const;
+	void deposit_carry(size_t i);
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee);
+	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
