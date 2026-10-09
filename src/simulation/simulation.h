@@ -1952,6 +1952,7 @@ private:
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
 	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
+	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
 	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
 	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none

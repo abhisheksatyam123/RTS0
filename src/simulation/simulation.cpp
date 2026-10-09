@@ -14154,6 +14154,189 @@ void Simulation::petra_answer_attackers(const std::vector<uint32_t> &squad, floa
 	if (!idle.empty()) order_attack_move(idle.data(), idle.size(), tx, tz, false, false, true);
 }
 
+// attackPlan.js update while attacking ("" state). First the Attacked events: helpers
+// near a hit unit turn on its attacker (5 non-siege units for hit siege, 5 melee units
+// against a siege attacker, else the 2 nearest), and the hit unit leaves a structure or
+// support target to answer. Then units without a worthwhile target get one: siege the
+// most valuable enemy structure in reach, others the best enemy unit in reach (support
+// and units they counter first, nearer first, at most a few on one enemy), else they
+// attack-move to the target, else hit the best structure in reach, else join the
+// nearest fight. Up to 10 units are checked a turn, every unit when the attack starts.
+// Distances are attackPlan.js metres x0.28.
+void Simulation::petra_attack_units(AttackPlan &plan) {
+	auto &squad = plan.squad;
+	if (squad.empty()) return;
+	constexpr float M = 0.28f;
+	auto cls = [&](int32_t i) { return unit_tech_classes(units_.unit_type[i]); };
+	auto siege = [&](int32_t i) { return unit_is_siege_engine(units_.unit_type[i]); };
+	auto d2 = [&](int32_t a, int32_t b) {
+		const float dx = units_.pos_x[a] - units_.pos_x[b], dz = units_.pos_z[a] - units_.pos_z[b];
+		return dx * dx + dz * dz;
+	};
+	std::vector<int32_t> members;
+	for (uint32_t uid : squad) {
+		const int32_t i = lookup_unit(uid);
+		if (i >= 0 && units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && !unit_is_ship(units_.unit_type[i]))
+			members.push_back(i);
+	}
+	// The n squad members nearest unit i that pass the filter.
+	auto nearest = [&](int32_t i, size_t n, auto &&pass) {
+		std::vector<std::pair<float, int32_t>> c;
+		for (int32_t j : members)
+			if (j != i && pass(j)) c.push_back({d2(i, j), j});
+		std::sort(c.begin(), c.end());
+		if (c.size() > n) c.resize(n);
+		return c;
+	};
+	auto target_is_soft = [&](int32_t j) { // no target, or a structure or support unit
+		if (units_.target_building_id[j] != 0 || units_.target_unit_id[j] == 0) return true;
+		const int32_t t = lookup_unit(units_.target_unit_id[j]);
+		return t < 0 || !units_.alive[t] || petra_is_support_unit(units_.unit_type[t]);
+	};
+	std::unordered_set<int32_t> reacted;
+	auto hit = [&](int32_t j, int32_t a) {
+		const uint32_t uid = units_.id[j];
+		order_attack(&uid, 1, units_.id[a]);
+		reacted.insert(j);
+	};
+	for (int32_t i : std::vector<int32_t>(members)) {
+		const int32_t a = units_.attacked_by[i] ? lookup_unit(units_.attacked_by[i]) : -1;
+		if (a < 0 || !units_.alive[a] || !is_hostile(petra_pid_, units_.team[a])) continue;
+		if (siege(i)) {
+			for (auto &c : nearest(i, 5, [&](int32_t j) { return !siege(j); })) hit(c.second, a);
+			if (siege(a) && (cls(a) & TC_MELEE) && (cls(i) & TC_MELEE)) hit(i, a);
+		} else if (siege(a)) {
+			for (auto &c : nearest(i, 5, [&](int32_t j) { return (cls(j) & TC_MELEE) != 0; })) hit(c.second, a);
+		} else {
+			for (auto &c : nearest(i, 2, [&](int32_t j) { return !siege(j); }))
+				if (units_.target_unit_id[c.second] != units_.id[a] && target_is_soft(c.second)) hit(c.second, a);
+			if (units_.target_unit_id[i] == units_.id[a]) continue;
+			bool answer = target_is_soft(i);
+			if (!answer) { // a melee attacker draws a unit off a ranged target
+				const int32_t t = lookup_unit(units_.target_unit_id[i]);
+				answer = t >= 0 && (cls(t) & TC_RANGED) && (cls(a) & TC_MELEE);
+			}
+			if (answer) hit(i, a);
+		}
+	}
+
+	// How many of the army each enemy unit draws, less what it is worth: a positive
+	// count vetoes it (8 for siege or a hero, 5 for a champion or ship, else 3).
+	std::unordered_map<uint32_t, int> drawn;
+	for (int32_t i : members) {
+		const uint32_t t_id = units_.target_unit_id[i];
+		const int32_t t = t_id ? lookup_unit(t_id) : -1;
+		if (t < 0 || !units_.alive[t]) continue;
+		auto it = drawn.find(t_id);
+		if (it == drawn.end()) {
+			const int worth = siege(t) || (cls(t) & TC_HERO) ? 8 : (cls(t) & (TC_CHAMPION | TC_SHIP)) ? 5 : 3;
+			it = drawn.emplace(t_id, -worth).first;
+		}
+		++it->second;
+	}
+	std::unordered_set<uint32_t> veto;
+	for (const auto &kv : drawn)
+		if (kv.second > 0) veto.insert(kv.first);
+
+	auto building_value = [&](const Building &b, bool siege_unit) {
+		const auto &info = building_type_info(b.type);
+		float v = (float)(info.food_cost + info.wood_cost + info.gold_cost + info.stone_cost);
+		const bool walls = b.type == BLD_WALL_SEGMENT || b.type == BLD_PALISADE || b.type == BLD_WALL_TOWER;
+		if (b.type == BLD_GATE) v += 10000.0f;
+		else if (siege_unit && building_ai_info(b.type).shoots()) v += 1000.0f;
+		else if (!walls && b.type != BLD_FIELD) v += siege_unit ? 200.0f : 100.0f; // ConquestCritical
+		return v;
+	};
+	auto pick = [&](size_t n, float share) { // randIntExclusive(0, n * share)
+		const int hi = std::max(1, (int)std::ceil((float)n * share));
+		return (size_t)std::min<int>((int)n - 1, sim_rng_.range_int(0, hi - 1));
+	};
+	auto best_structure = [&](int32_t i, float range2, bool siege_unit) -> int32_t {
+		const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+		std::vector<std::pair<float, size_t>> c;
+		for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+			const Building &b = buildings_[bi];
+			if (b.hp <= 0.0f || b.wrecked || !petra_foe(b.team)) continue;
+			if (siege_unit && b.build_progress <= 0.0f) continue;
+			const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
+			if (dx * dx + dz * dz > range2 || petra_building_land(b) != land) continue;
+			c.push_back({-building_value(b, siege_unit), bi});
+		}
+		if (c.empty()) return -1;
+		std::sort(c.begin(), c.end());
+		return (int32_t)c[buildings_[c[0].second].type == BLD_GATE ? 0 : pick(c.size(), 0.2f)].second;
+	};
+	auto attack_structure = [&](int32_t i, size_t bi) {
+		const uint32_t uid = units_.id[i];
+		order_attack_building(&uid, 1, buildings_[bi].id, false, petra_allow_capture(squad, uid, buildings_[bi]));
+	};
+
+	const bool starting = plan.state_timer <= 2.0f * FIXED_STEP;
+	const size_t stride = starting || members.size() < 15 ? 1 : (members.size() + 9) / 10;
+	for (size_t k = 0; k < members.size(); ++k) {
+		if (stride > 1 && (k + (size_t)ticks_) % stride != 0) continue;
+		const int32_t i = members[k];
+		if (reacted.count(i)) continue;
+		bool needs = units_.action_state[i] == ACTION_IDLE;
+		if (!needs && units_.target_unit_id[i]) {
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			auto it = drawn.find(units_.target_unit_id[i]);
+			if (t < 0 || !units_.alive[t] || !is_hostile(petra_pid_, units_.team[t])) needs = true;
+			else if (it != drawn.end() && it->second > 0) { needs = true; --it->second; }
+		}
+		if (!needs) continue;
+		const uint64_t c = cls(i);
+		float range = 60.0f * M;
+		if (c & TC_RANGED) range = 30.0f * M + units_.attack_range[i];
+		else if (c & TC_CAVALRY) range = 90.0f * M;
+		const float range2 = range * range;
+		const uint32_t uid = units_.id[i];
+		const float tdx = plan.target_x - units_.pos_x[i], tdz = plan.target_z - units_.pos_z[i];
+		const bool far_from_target = tdx * tdx + tdz * tdz > (50.0f * M) * (50.0f * M);
+		if (siege(i)) {
+			const int32_t bi = best_structure(i, range2, true);
+			if (bi >= 0) attack_structure(i, (size_t)bi);
+			else order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true);
+			continue;
+		}
+		const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+		const bool chases_fleeing = !(c & (TC_CAVALRY | TC_RANGED));
+		std::vector<std::pair<float, int32_t>> foes;
+		for (size_t j = 0; j < units_.count; ++j) {
+			if (!units_.alive[j] || !petra_foe(units_.team[j]) || units_.action_state[j] == ACTION_GARRISONED) continue;
+			const float dist2 = d2(i, (int32_t)j);
+			if (dist2 > range2) continue;
+			if (chases_fleeing && (cls((int32_t)j) & TC_FEMALECITIZEN) && units_.action_state[j] == ACTION_FLEE) continue;
+			if (petra_land_at(units_.pos_x[j], units_.pos_z[j]) != land) continue;
+			const bool vetoed = veto.count(units_.id[j]) != 0;
+			if (vetoed && far_from_target) continue;
+			float v = petra_is_support_unit(units_.unit_type[j]) ? 50.0f : 0.0f;
+			if (combat_bonus(unit_combat_at(i), unit_combat_at(j), civ_of(units_.team[j])) > 1.0f) v += 100.0f;
+			v -= std::sqrt(dist2) / M;
+			if (vetoed) v -= 20000.0f;
+			foes.push_back({-v, (int32_t)j});
+		}
+		if (!foes.empty()) {
+			std::sort(foes.begin(), foes.end());
+			order_attack(&uid, 1, units_.id[foes[pick(foes.size(), 0.1f)].second]);
+		} else if (far_from_target) {
+			order_attack_move(&uid, 1, plan.target_x, plan.target_z, false, false, true);
+		} else if (const int32_t bi = best_structure(i, range2, false); bi >= 0) {
+			attack_structure(i, (size_t)bi);
+		} else {
+			// Nothing in reach: help the nearest of the army that is fighting.
+			float best = 1e18f;
+			uint32_t foe = 0;
+			for (int32_t j : members) {
+				if (j == i || units_.action_state[j] != ACTION_ATTACK || units_.target_unit_id[j] == 0) continue;
+				const float dist2 = d2(i, j);
+				if (dist2 < best) { best = dist2; foe = units_.target_unit_id[j]; }
+			}
+			if (foe) order_attack(&uid, 1, foe);
+		}
+	}
+}
+
 void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz) {
 	for (uint32_t uid : squad) {
 		const int32_t idx = lookup_unit(uid);
@@ -14560,7 +14743,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				return;
 			}
 
-			petra_answer_attackers(squad, plan.target_x, plan.target_z);
+			petra_attack_units(plan);
 
 			bool target_alive = false;
 			for (const auto &b : buildings_) {

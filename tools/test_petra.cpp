@@ -1158,6 +1158,10 @@ static void test_army_answers_attackers() {
 	for (const auto &b : s->buildings()) if (b.id == house) half = b.half_size;
 	CHECK(half > 0.0f, "an enemy house to attack");
 	if (half <= 0.0f) return;
+	// Clear player 0's own units away, so the only attacker is the one below.
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
 	std::vector<uint32_t> squad;
 	// Sturdy enough that player 0's own units nearby can't break up the squad first.
 	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN, 1.0e4f));
@@ -1175,9 +1179,15 @@ static void test_army_answers_attackers() {
 	run_for(*s, 4.0f);
 	const int32_t i = s->lookup_unit(squad[0]);
 	const bool turned = i >= 0 && s->units().alive[i] && s->units_.target_unit_id[i] == foe;
-	std::printf("  army under attack at a structure: the soldier hit turns on its attacker: %s (plan state %d)\n",
-	            turned ? "yes" : "no", (int)plan.state);
+	int helpers = 0; // attackPlan.js: the two nearest squad mates join in
+	for (size_t k = 1; k < squad.size(); ++k) {
+		const int32_t j = s->lookup_unit(squad[k]);
+		if (j >= 0 && s->units_.target_unit_id[j] == foe) ++helpers;
+	}
+	std::printf("  army under attack at a structure: the soldier hit turns on its attacker: %s, helpers %d (plan state %d)\n",
+	            turned ? "yes" : "no", helpers, (int)plan.state);
 	CHECK(turned, "a Petra soldier attacked while at a structure fights back at once");
+	CHECK(helpers == 2, "its two nearest squad mates turn on the attacker too");
 }
 
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
