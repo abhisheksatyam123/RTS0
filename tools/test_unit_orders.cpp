@@ -550,14 +550,15 @@ static void test_heal_order() {
 	s.order_set_stance(&w, 1, STANCE_STAND_GROUND);
 	s.order_heal(&h, 1, w);
 	check(act_of(s, h) == ACTION_HEAL, "the healer takes the order");
-	const bool near = run_until(s, 15.0f, [&] { return dist(s, h, x_of(s, w), z_of(s, w)) <= 12.0f; });
+	const float reach = s.healer_range(0); // 0 A.D. Heal/Range 12 m
+	const bool near = run_until(s, 15.0f, [&] { return dist(s, h, x_of(s, w), z_of(s, w)) <= reach; });
 	check(near, "walks into heal range");
 	run(s, 1.2f); // prepare time
 	const float hp0 = hp_of(s, w);
 	run(s, 10.0f);
 	const float gained = hp_of(s, w) - hp0;
 	check(gained >= 20.0f && gained <= 30.0f, "heals about 5 hp every 2 s");
-	check(dist(s, h, x_of(s, w), z_of(s, w)) > 10.0f, "from range, without walking up to it");
+	check(dist(s, h, x_of(s, w), z_of(s, w)) > reach * 0.75f, "from range, without walking up to it");
 	const float maxhp = s.units().max_hp[idx_of(s, w)];
 	const bool full = run_until(s, 120.0f, [&] { return hp_of(s, w) >= maxhp; });
 	check(full, "until it is fully healed");
@@ -1101,12 +1102,12 @@ static void test_unitai_combat() {
 		Simulation s;
 		setup(s);
 		// A swordsman can't catch a cavalryman riding away.
-		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN, 5000.0f);
+		uint32_t a = s.spawn_unit(-40, -30, 0, UNIT_SWORDSMAN, 5000.0f);
 		s.order_set_stance(&a, 1, violent ? STANCE_VIOLENT : STANCE_AGGRESSIVE);
-		uint32_t e = s.spawn_unit(5, 0, 1, UNIT_CAVALRY, 5000.0f);
+		uint32_t e = s.spawn_unit(-35, -30, 1, UNIT_CAVALRY, 5000.0f);
 		s.order_set_stance(&e, 1, STANCE_PASSIVE);
 		run_until(s, 5.0f, [&] { return target_of(s, a) == e; });
-		s.order_walk(&e, 1, 50, 0);
+		s.order_walk(&e, 1, 55, -30);
 		const float vision = s.unit_base_vision(idx_of(s, a));
 		run_until(s, 20.0f, [&] { return x_of(s, e) - x_of(s, a) > vision + 4.0f; });
 		const bool kept = target_of(s, a) == e;
