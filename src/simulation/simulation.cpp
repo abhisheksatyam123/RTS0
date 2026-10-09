@@ -1643,8 +1643,9 @@ bool Simulation::cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8
 
 // template_unit_support_healer.xml Heal values (Range 12, Health 5 every 2 s) after the
 // player's Healing Range / Healing Rate technologies.
+// 0 A.D. Heal/Range 12 m plus Healing Range techs, in RTS0 units (x0.28) like every range.
 float Simulation::healer_range(uint8_t player_id) const {
-	return 12.0f + tech_mods(player_id).heal_range[UNIT_HEALER];
+	return (12.0f + tech_mods(player_id).heal_range[UNIT_HEALER]) * COMBAT_DISTANCE_SCALE;
 }
 
 float Simulation::healer_rate(uint8_t player_id) const {
@@ -7435,7 +7436,7 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 
 float Simulation::healer_range_of(size_t h) const {
 	float range = healer_range(units_.team[h]);
-	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) range += rank_bonus(r).heal_range_add;
+	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) range += rank_bonus(r).heal_range_add * COMBAT_DISTANCE_SCALE;
 	return range;
 }
 
@@ -8925,7 +8926,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		return;
 	}
 	const float range = units_.attack_range[i];
-	const float vision = unit_vision_range(units_.unit_type[i]);
+	const float vision = unit_base_vision(i);
 	if (stance == STANCE_STAND_GROUND && d2 > range * range) return;
 	if (stance == STANCE_DEFENSIVE) {
 		const float hx = ax - units_.anchor_x[i], hz = az - units_.anchor_z[i];
@@ -9385,7 +9386,7 @@ bool Simulation::can_heal(size_t h, int32_t t) const {
 
 uint32_t Simulation::find_heal_target(size_t h) const {
 	// GetQueryRange(IID_Heal): passive healers search their vision too.
-	const float vision = unit_vision_range(units_.unit_type[h]);
+	const float vision = unit_base_vision(h);
 	const float range = healer_range_of(h);
 	float lim = vision;
 	if (units_.stance[h] == STANCE_STAND_GROUND) lim = std::min(range, vision);
@@ -9480,7 +9481,7 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 void Simulation::tick_heal(size_t h) {
 	const int32_t t = lookup_unit(units_.target_unit_id[h]);
 	const bool forced = (units_.order_flags[h] & ORDER_FLAG_FORCE) != 0;
-	const float vision = unit_vision_range(units_.unit_type[h]);
+	const float vision = unit_base_vision(h);
 	bool keep = can_heal(h, t);
 	float d2 = 0.0f;
 	if (keep) {
@@ -14640,7 +14641,7 @@ void Simulation::petra_capture_gaia_relics() {
 				for (size_t i = 0; i < units_.count && !go; ++i) {
 					if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 					const float dx = units_.pos_x[i] - rel.x, dz = units_.pos_z[i] - rel.z;
-					const float v = unit_vision_range(units_.unit_type[i]);
+					const float v = unit_base_vision(i);
 					go = dx * dx + dz * dz <= v * v;
 				}
 			}
@@ -17483,8 +17484,17 @@ void Simulation::apply_health_auras() {
 	}
 }
 
+// 0 A.D. Vision/Range of the unit's own template (x0.28), else its class's.
+float Simulation::unit_base_vision(size_t i) const {
+	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT) {
+		const float v = civ_unit_template(units_.tmpl[i]).vision;
+		if (v > 0.0f) return v;
+	}
+	return unit_vision_range(units_.unit_type[i]);
+}
+
 float Simulation::unit_vision_at(size_t i) const {
-	const float v = unit_vision_range(units_.unit_type[i]);
+	const float v = unit_base_vision(i);
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
 	return m > 0.0f ? v * m : v;
