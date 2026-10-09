@@ -159,6 +159,18 @@ enum MapType : uint8_t {
 	MAP_TYPE_COUNT = 83
 };
 
+// 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
+// starting-position pattern for random maps whose JSON lists TeamPlacements
+// (rmgen-common/player.js playerPlacementByPattern). Random lets the map pick.
+enum TeamPlacement : uint8_t {
+	TEAM_PLACEMENT_RANDOM = 0,
+	TEAM_PLACEMENT_RADIAL = 1,       // "Circle"
+	TEAM_PLACEMENT_LINE = 2,
+	TEAM_PLACEMENT_RANDOM_GROUP = 3,
+	TEAM_PLACEMENT_STRONGHOLD = 4,
+	TEAM_PLACEMENT_COUNT = 5
+};
+
 struct MapTypeInfo {
 	MapType type;
 	const char *id;
@@ -167,6 +179,10 @@ struct MapTypeInfo {
 	bool is_procedural;
 	const char *description;
 };
+
+// The maps that offer Team Placement: 0 A.D.'s Ambush and Frontier list
+// ["radial", "line", "randomGroup", "stronghold"].
+inline bool map_has_team_placement(uint8_t type) { return type == MAP_AMBUSH || type == MAP_FRONTIER; }
 
 inline const MapTypeInfo &map_type_info(uint8_t type) {
 	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {

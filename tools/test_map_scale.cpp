@@ -17,16 +17,20 @@
 //  4c. Explored and revealed map options.
 //  5. Generation is deterministic: the same seed gives the same map at every size.
 //  6. Stronghold keeps teammates together.
+//  6b. Team Placement (Ambush, Frontier): each pattern places every player, keeps
+//      teammates together, and the setup option survives the game-start attributes.
 //  7. Shallow water is walkable and sailable; deep water is ships only.
 //  8. Red Sea and Hellas are painted from 0 A.D.'s heightmap images.
 //  9. English Channel splits the players by sea; Fortress walls every base.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
+#include "network/net_types.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <vector>
 
 using namespace rtso;
@@ -273,6 +277,48 @@ int main() {
 		const float mate = std::hypot(tx[0] - tx[2], tz[0] - tz[2]), foe = std::hypot(tx[0] - tx[1], tz[0] - tz[1]);
 		CHECK(mate < foe, "stronghold: teammates %.1f apart, enemies %.1f", mate, foe);
 		CHECK(mate >= 17.0f, "stronghold: teammates' bases overlap (%.1f apart)", mate);
+	}
+
+	// 6b. Team Placement (0 A.D. TeamPlacement on Ambush and Frontier).
+	for (MapType mt : {MAP_AMBUSH, MAP_FRONTIER}) {
+		const uint8_t teams[4] = {1, 2, 1, 2};
+		std::set<std::vector<int>> layouts;
+		for (int tp = TEAM_PLACEMENT_RADIAL; tp < TEAM_PLACEMENT_COUNT; ++tp) {
+			Simulation sim;
+			sim.set_team_placement(tp);
+			sim.generate_random_map(mt, 31, 4, 128.0f, teams);
+			float tx[8] = {}, tz[8] = {};
+			bool has[8] = {};
+			for (const auto &b : sim.buildings())
+				if (b.type == BLD_TOWN_CENTER && b.team < 8) { has[b.team] = true; tx[b.team] = b.x; tz[b.team] = b.z; }
+			const char *name = map_type_info(mt).id;
+			CHECK(has[0] && has[1] && has[2] && has[3], "%s placement %d: a player has no town centre", name, tp);
+			auto d = [&](int a, int b) { return std::hypot(tx[a] - tx[b], tz[a] - tz[b]); };
+			const float mate = std::max(d(0, 2), d(1, 3));
+			const float foe = std::min({d(0, 1), d(0, 3), d(2, 1), d(2, 3)});
+			if (tp == TEAM_PLACEMENT_RANDOM_GROUP) {
+				// groupPlayersByArea: of the random spots, teammates get the pairing
+				// with the least distance between allies.
+				const float pairs = d(0, 2) + d(1, 3);
+				CHECK(pairs <= d(0, 1) + d(2, 3) + 1.0f && pairs <= d(0, 3) + d(1, 2) + 1.0f,
+				      "%s random group: teammates %.1f apart in all, another pairing is closer", name, pairs);
+			} else {
+				// On a circle of four the nearest foe is as close as the teammate.
+				CHECK(tp == TEAM_PLACEMENT_RADIAL ? mate <= foe + 1.0f : mate < foe,
+				      "%s placement %d: teammates %.1f apart, nearest enemies %.1f", name, tp, mate, foe);
+			}
+			std::vector<int> l;
+			for (int p = 0; p < 4; ++p) { l.push_back((int)tx[p]); l.push_back((int)tz[p]); }
+			layouts.insert(l);
+		}
+		CHECK(layouts.size() == 4, "%s: the four placements gave %zu layouts", map_type_info(mt).id, layouts.size());
+	}
+	{
+		GameSetupParams p, q;
+		p.map_id = "random_frontier";
+		p.team_placement = TEAM_PLACEMENT_STRONGHOLD;
+		CHECK(parse_game_start_full(format_game_start_full(p), q) && q.team_placement == TEAM_PLACEMENT_STRONGHOLD,
+		      "Team Placement does not survive the game-start attributes");
 	}
 
 	// 7. Shallow water (0 A.D. pathfinder.xml MaxWaterDepth 2): land units wade
