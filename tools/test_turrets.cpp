@@ -1,0 +1,166 @@
+// 0 A.D. TurretHolder / Turretable: ranged infantry on the turret points of walls, gates
+// and outposts. They stay visible and alive up there, shoot from the point's height,
+// hold their ground, and step down on any order but an attack.
+//   g++ -std=c++20 -O2 -Isrc tools/test_turrets.cpp src/simulation/simulation.cpp \
+//       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+//       src/network/net_host.cpp -lpthread -o /tmp/test_turrets && /tmp/test_turrets
+#define private public
+#include "simulation/simulation.h"
+#undef private
+#include "network/turn_manager.h"
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+using namespace rtso;
+
+static int failures = 0;
+#define CHECK(cond) do { if (!(cond)) { std::printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #cond); ++failures; } } while (0)
+
+static void run(Simulation &s, float seconds) {
+	for (int t = 0; t < (int)std::lround(seconds / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
+}
+
+static void fresh(Simulation &s) {
+	s.set_sim_seed(9);
+	s.reset();
+	s.set_player_civ(CIV_ATHENIANS);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+}
+
+static uint16_t tmpl_of(const char *id) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+	std::printf("no roster template %s\n", id);
+	++failures;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
+static const Simulation::Building &bld(Simulation &s, uint32_t id) { return s.buildings_[s.building_id_to_idx_.at(id)]; }
+
+int main() {
+	// 1. The generated points: an Athenian wall segment holds 4 (two rows), a gate 2, an
+	//    outpost 1 at 8 m (2.24 RTS0 units).
+	{
+		CHECK(TURRET_POINTS[CIV_ATHENIANS][0].count == 4);
+		CHECK(TURRET_POINTS[CIV_ATHENIANS][1].count == 2);
+		CHECK(TURRET_POINTS[CIV_ATHENIANS][2].count == 1);
+		CHECK(std::fabs(TURRET_POINTS[CIV_ATHENIANS][2].pt[0].y - 2.24f) < 1e-4f);
+	}
+
+	static Simulation s;
+	const uint16_t archer = tmpl_of("athen/infantry_archer_b");
+	const uint16_t hoplite = tmpl_of("athen/infantry_spearman_b");
+
+	// 2. Archers ordered onto a wall stand on its points, alive and visible, at its height;
+	//    a hoplite (melee, not Turretable) is refused; a fifth archer finds no free point.
+	uint32_t wall = 0, a[5] = {}, hop = 0;
+	{
+		fresh(s);
+		wall = s.spawn_building_world(0.0f, 0.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+		CHECK(bld(s, wall).garrison_cap == 4);
+		for (int k = 0; k < 5; ++k) a[k] = s.spawn_unit(-3.0f + k * 0.8f, 3.0f, 0, UNIT_ARCHER, 0.0f, archer);
+		hop = s.spawn_unit(0.0f, -3.0f, 0, UNIT_SPEARMAN, 0.0f, hoplite);
+		CHECK(s.unit_turretable((size_t)s.lookup_unit(a[0])));
+		CHECK(!s.unit_turretable((size_t)s.lookup_unit(hop)));
+		s.order_garrison(a, 5, wall);
+		s.order_garrison(&hop, 1, wall);
+		run(s, 6.0f);
+		const auto &list = bld(s, wall).garrisoned_units;
+		CHECK(list.size() == 4);
+		int up = 0;
+		for (int k = 0; k < 5; ++k) {
+			const int32_t i = s.lookup_unit(a[k]);
+			if (s.turret_holder_of(a[k]) != wall) continue;
+			++up;
+			CHECK(s.units_.alive[i]);
+			CHECK(std::fabs(s.unit_height_offset((size_t)i) - 3.22f) < 1e-3f);
+			CHECK(std::fabs(s.units_.pos_x[i]) < 0.5f && std::fabs(s.units_.pos_z[i]) < 0.5f);
+			CHECK(s.units_.stance[i] == STANCE_STAND_GROUND);
+		}
+		CHECK(up == 4);
+		const int32_t h = s.lookup_unit(hop);
+		CHECK(s.units_.alive[h] && s.turret_holder_of(hop) == 0);
+		std::printf("wall: %d archers on its turret points, the hoplite stays down\n", up);
+	}
+
+	// 3. An enemy walks up: the turret archers shoot it from the wall and don't move.
+	{
+		const int32_t i0 = s.lookup_unit(bld(s, wall).garrisoned_units[0]);
+		const float x0 = s.units_.pos_x[i0], z0 = s.units_.pos_z[i0];
+		uint32_t foe = s.spawn_unit(0.0f, 9.0f, 1, UNIT_SWORDSMAN);
+		s.units_.stance[s.lookup_unit(foe)] = STANCE_PASSIVE;
+		const float hp0 = s.units_.max_hp[s.lookup_unit(foe)];
+		run(s, 6.0f);
+		const int32_t f = s.lookup_unit(foe);
+		CHECK(f < 0 || !s.units_.alive[f] || s.units_.hp[f] < hp0);
+		const int32_t i1 = s.lookup_unit(bld(s, wall).garrisoned_units[0]);
+		CHECK(s.units_.pos_x[i1] == x0 && s.units_.pos_z[i1] == z0);
+		CHECK(bld(s, wall).garrisoned_units.size() == 4);
+		std::printf("turret archers hit the swordsman (hp %.0f of %.0f)\n", f >= 0 ? s.units_.hp[f] : 0.0f, hp0);
+	}
+
+	// 4. Save/load keeps the turrets and the lockstep hash.
+	{
+		const char *path = "/tmp/rts0_test_turrets.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
+		run(s, 2.0f);
+		run(l, 2.0f);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
+		CHECK(l.turret_holder_of(bld(l, wall).garrisoned_units[0]) == wall);
+		std::remove(path);
+	}
+
+	// 5. A walk order takes an archer down beside the wall with its stance back; a killed
+	//    turret unit leaves its point; unloading the wall brings the rest down.
+	{
+		const uint32_t first = bld(s, wall).garrisoned_units[0];
+		s.cmd_move(&first, 1, 0.0f, 12.0f);
+		run(s, 0.2f);
+		const int32_t i = s.lookup_unit(first);
+		CHECK(s.turret_holder_of(first) == 0);
+		CHECK(bld(s, wall).garrisoned_units.size() == 3);
+		CHECK(s.unit_height_offset((size_t)i) == 0.0f);
+		CHECK(s.units_.stance[i] == unit_default_stance(UNIT_ARCHER));
+		CHECK(std::fabs(s.units_.pos_x[i]) > 1.0f || std::fabs(s.units_.pos_z[i]) > 1.0f);
+
+		const uint32_t second = bld(s, wall).garrisoned_units[0];
+		const int32_t j = s.lookup_unit(second);
+		s.units_.hp[j] = 0.0f;
+		s.units_.alive[j] = 0;
+		s.units_.action_state[j] = ACTION_DYING;
+		run(s, 0.2f);
+		CHECK(bld(s, wall).garrisoned_units.size() == 2);
+
+		s.order_ungarrison(wall);
+		run(s, 0.2f);
+		CHECK(bld(s, wall).garrisoned_units.empty());
+		CHECK(s.turret_height_.empty());
+	}
+
+	// 6. An outpost takes one archer at 2.24; a wall segment no longer shoots arrows itself.
+	{
+		fresh(s);
+		const uint32_t post = s.spawn_building_world(10.0f, 10.0f, BLD_OUTPOST, 0, 1.0f);
+		uint32_t two[2] = {s.spawn_unit(10.0f, 13.0f, 0, UNIT_ARCHER, 0.0f, archer),
+				s.spawn_unit(11.0f, 13.0f, 0, UNIT_ARCHER, 0.0f, archer)};
+		s.order_garrison(two, 2, post);
+		run(s, 5.0f);
+		CHECK(bld(s, post).garrisoned_units.size() == 1);
+		const int32_t up = s.lookup_unit(bld(s, post).garrisoned_units[0]);
+		CHECK(std::fabs(s.unit_height_offset((size_t)up) - 2.24f) < 1e-3f);
+		std::printf("outpost: 1 archer at height %.2f\n", s.unit_height_offset((size_t)up));
+	}
+
+	if (failures) {
+		std::printf("test_turrets: %d failure(s)\n", failures);
+		return 1;
+	}
+	std::printf("test_turrets: all passed\n");
+	return 0;
+}
