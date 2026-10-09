@@ -533,14 +533,14 @@ void Simulation::spawn_initial() {
 		spawn_resource(cx * 2, cy * 2, rtype, 800);
 	}
 
-	// 5. Wilderness Relics & Treasure Troves (Treasure.js)
+	// 5. Treasures (Treasure.js); Capture the Relic places its relics itself (apply_relic_count).
 	relics_.clear();
-	relics_.push_back({next_id_++, -42.0f, -38.0f, RES_GOLD, 250, false});
-	relics_.push_back({next_id_++, 44.0f, 40.0f, RES_GOLD, 250, false});
-	relics_.push_back({next_id_++, -46.0f, 42.0f, RES_WOOD, 300, false});
-	relics_.push_back({next_id_++, 38.0f, -44.0f, RES_FOOD, 300, false});
-	relics_.push_back({next_id_++, 0.0f, 48.0f, RES_STONE, 250, false});
-	relics_.push_back({next_id_++, 0.0f, -48.0f, RES_GOLD, 300, false});
+	spawn_resource_treasure(-42.0f, -38.0f, RES_GOLD);
+	spawn_resource_treasure(44.0f, 40.0f, RES_GOLD);
+	spawn_resource_treasure(-46.0f, 42.0f, RES_WOOD);
+	spawn_resource_treasure(38.0f, -44.0f, RES_FOOD);
+	spawn_resource_treasure(0.0f, 48.0f, RES_STONE);
+	spawn_resource_treasure(0.0f, -48.0f, RES_GOLD);
 
 	// 6. Fauna & Wildlife Packs (Animal.js / Pack.js)
 	spawn_fauna(-15.0f, 18.0f, FAUNA_DEER);
@@ -849,10 +849,15 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	return bid;
 }
 
-uint32_t Simulation::spawn_relic(float x, float z, uint8_t res_type, int amount) {
-	uint32_t rid = alloc_id();
-	relics_.push_back({rid, x, z, res_type, amount, false});
-	return rid;
+uint32_t Simulation::spawn_relic(float x, float z) {
+	// CaptureTheRelic.js picks a random catafalque template; RTS0 picks it from the
+	// id the unit will get, so every peer and replay places the same one.
+	const uint8_t civ = (uint8_t)(((next_id_ * 2654435761u) >> 16) % CIV_COUNT);
+	const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(civ));
+	const int32_t i = lookup_unit(id);
+	if (i < 0) return 0;
+	relics_.push_back({id, units_.pos_x[i], units_.pos_z[i], civ, RELIC_CAPTURE_POINTS * 100, false});
+	return id;
 }
 
 void Simulation::generate_random_map(MapType type, uint32_t seed, int num_players, float map_half, const uint8_t *teams) {
@@ -2704,7 +2709,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_GATHER;
 		units_.target_resource_id[uidx] = resource_id;
-		units_.res_type_carried[uidx] = resources_.type[ridx];
+		// A load of another type stays until gathering starts (ResourceGatherer PerformGather drops it then).
+		if (units_.carry[uidx] <= 0) units_.res_type_carried[uidx] = resources_.type[ridx];
 		units_.target_unit_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
 		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
@@ -2714,6 +2720,8 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 void Simulation::order_attack(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued) {
 	int32_t tidx = lookup_unit(target_unit_id);
 	if (tidx < 0) return;
+	// A relic has no Health: its only attack is Capture.
+	if (is_relic_unit(tidx)) return order_capture_relic(unit_ids_in, count_in, target_unit_id, queued);
 	float tx = units_.pos_x[tidx];
 	float tz = units_.pos_z[tidx];
 	UnitOrder o; o.kind = ORDER_ATTACK; o.flags = ORDER_FLAG_FORCE; o.target = target_unit_id; o.x = tx; o.z = tz;
@@ -4846,6 +4854,7 @@ void Simulation::tick(float dt) {
 	tick_petra_ai(dt);
 	tick_fauna(dt);
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
+	tick_relics();           // Capture the Relic catafalques (Capturable.js)
 	check_victory_conditions(dt);
 	tick_statistics();       // 0 A.D. StatisticsTracker.js: per-player counters and 30 s sequences
 
@@ -5791,6 +5800,8 @@ void Simulation::tick_gather(float dt) {
 				const float interval = 1.0f / rate;
 				// GATHERING enter: the player's order stops being forced once work starts.
 				units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
+				// ResourceGatherer PerformGather: a load of another type is dropped (DropResources).
+				if (units_.carry[i] > 0 && units_.res_type_carried[i] != rt) units_.carry[i] = 0;
 				units_.attack_timer[i] += dt;
 				while (units_.attack_timer[i] >= interval) {
 					units_.attack_timer[i] -= interval;
@@ -6259,6 +6270,8 @@ void Simulation::tick_combat(float dt) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
 			// Hunting (tick_hunters) or collecting a treasure (tick_treasures) drives it.
 			if (tidx < 0 && (is_fauna_id(units_.target_unit_id[i]) || is_treasure_id(units_.target_unit_id[i]))) return;
+			// Capturing a relic (tick_relics drives it).
+			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
 					unit_can_target(i, (size_t)tidx) && (explicit_target || within_stance(tidx))) {
 				const float tx = units_.pos_x[tidx] - pxi, tz = units_.pos_z[tidx] - pzi;
@@ -6866,27 +6879,7 @@ void Simulation::tick_combat(float dt) {
 
 	// 4. Wonder victory countdown lives in check_victory_conditions (wonder mode only).
 
-	// 5. Treasure.js - Wilderness Relic Collection (any team)
-	for (auto &rel : relics_) {
-		if (rel.claimed) continue;
-		for (size_t u = 0; u < n; ++u) {
-			if (!units_.alive[u]) continue;
-			float dx = units_.pos_x[u] - rel.x;
-			float dz = units_.pos_z[u] - rel.z;
-			if (dx * dx + dz * dz <= 2.5f * 2.5f) {
-				rel.claimed = true;
-				rel.owner_team = units_.team[u];
-				if (rel.res_type < RES_COUNT && units_.team[u] < MAX_PLAYERS) {
-					player(units_.team[u]).res[rel.res_type] += (float)rel.amount;
-					// TreasureCollector.js: a treasure counts as collected and as gathered.
-					stats_[units_.team[u]].treasures_collected++;
-					stat_gathered(units_.team[u], rel.res_type, rel.amount, false);
-				}
-				raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, rel.x, rel.z, rel.id, units_.team[u]);
-				break;
-			}
-		}
-	}
+	// 5. Capture the Relic relics are captured, not claimed by walking over (tick_relics).
 
 	// 6. Hero Unit Inspiration Auras via AuraManager (Auras.js / Heroes) - 16m heal 2.0 (Spartan) / speed 1.20 (Athenian)
 	for (size_t u = 0; u < n; ++u) {
@@ -7474,7 +7467,7 @@ void Simulation::check_victory_conditions(float dt) {
 		nomad_start_ = false;
 	}
 	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
-	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && relic_count_ > 0) apply_relic_count();
+	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && (relic_count_ > 0 || relics_.empty())) apply_relic_count();
 
 	// The match ends with these players as the winners; everyone else has lost.
 	auto end_match = [&](uint8_t winners) {
@@ -7505,6 +7498,7 @@ void Simulation::check_victory_conditions(float dt) {
 	for (size_t u = 0; u < units_.count; ++u) {
 		uint8_t t = units_.team[u];
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
+		if (units_.unit_type[u] == UNIT_CATAFALQUE) continue; // not ConquestCritical
 		unit_count[t]++;
 		if (units_.unit_type[u] == UNIT_HERO) hero_count[t]++;
 	}
@@ -7635,8 +7629,17 @@ void Simulation::convert_to_gaia(uint8_t players) {
 void Simulation::apply_relic_count() {
 	// CaptureTheRelic.js "relicCount": the map's relics are cut down to the setting, or
 	// topped up with copies turned about the map centre (or on a ring if it has none).
-	const size_t want = (size_t)relic_count_;
-	if (relics_.size() > want) relics_.resize(want);
+	// Setup.js: relicCount defaults to 1.
+	const size_t want = (size_t)std::max(relic_count_, 1);
+	while (relics_.size() > want) {
+		const int32_t i = lookup_unit(relics_.back().id);
+		if (i >= 0) {
+			units_.alive[i] = 0;
+			units_.hp[i] = 0.0f;
+			units_.action_state[i] = ACTION_DYING;
+		}
+		relics_.pop_back();
+	}
 	const size_t have = relics_.size();
 	const size_t rounds = have ? (want - std::min(want, have) + have - 1) / have : 0;
 	for (size_t k = 0; relics_.size() < want; ++k) {
@@ -7644,7 +7647,7 @@ void Simulation::apply_relic_count() {
 		if (have > 0) {
 			// Round r turns every original relic by 2*pi*(r+1)/(rounds+1): one extra round is
 			// the mirror through the centre, and no copy lands back on an original.
-			const TreasureRelic src = relics_[k % have];
+			const Relic src = relics_[k % have];
 			const float turn = 6.28318530718f * (float)(k / have + 1) / (float)(rounds + 1);
 			x = src.x * cosf(turn) - src.z * sinf(turn);
 			z = src.x * sinf(turn) + src.z * cosf(turn);
@@ -7653,7 +7656,7 @@ void Simulation::apply_relic_count() {
 			x = cosf(a) * map_half_ * 0.45f;
 			z = sinf(a) * map_half_ * 0.45f;
 		}
-		spawn_relic(x, z, RES_GOLD, 250);
+		spawn_relic(x, z);
 	}
 }
 
@@ -8273,6 +8276,7 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 		case ORDER_TRADE: order_trade(&uid, 1, o.target, trade_market_id(o.x2)); break;
 		case ORDER_RETURN_RESOURCE: order_return_resource(&uid, 1, o.target); break;
 		case ORDER_COLLECT_TREASURE: order_collect_treasure(&uid, 1, o.target); break;
+		case ORDER_CAPTURE_RELIC: order_capture_relic(&uid, 1, o.target); break;
 		default: break;
 	}
 	applying_queued_ = was;
@@ -8326,6 +8330,7 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			return b && units_.carry[i] > 0 && dropsite_accepts(i, *b);
 		}
 		case ORDER_COLLECT_TREASURE: return is_treasure_id(o.target);
+		case ORDER_CAPTURE_RELIC: return can_capture_relic(i, lookup_unit(o.target));
 		default: return false;
 	}
 }
@@ -8555,12 +8560,32 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 		if (k < 0) continue;
 		units_.action_state[k] = ACTION_IDLE;
 		units_.target_building_id[k] = 0;
+		next_after_construction((size_t)k, b, food, other);
+		// CanReturnResource on the new structure: always take the load there first
+		// (PushOrderFront ReturnResource, ahead of whatever comes next).
+		if (units_.carry[k] > 0 && dropsite_accepts((size_t)k, b)) {
+			if (units_.order_kind[k] != ORDER_NONE) {
+				auto &q = order_queues_[uid];
+				q.insert(q.begin(), current_order((size_t)k));
+			}
+			applying_queued_ = true; // keep the queue
+			order_return_resource(&uid, 1, b.id);
+			applying_queued_ = false;
+		}
+	}
+}
+
+// The rest of ConstructionFinished for builder k: its next order, else farm a field,
+// gather what a new dropsite takes, or help with a foundation nearby.
+void Simulation::next_after_construction(size_t k, const Building &b, bool food, bool other) {
+	const uint32_t uid = units_.id[k];
+	{
 		// A queued order goes first (FinishOrder); fields and dropsites only apply without one.
 		auto q = order_queues_.find(uid);
-		if (q != order_queues_.end() && !q->second.empty()) { finish_order((size_t)k); continue; }
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order(k); return; }
 		if (b.type == BLD_FIELD) {
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
-			continue;
+			return;
 		}
 		if (food || other || b.type == BLD_TOWN_CENTER) {
 			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
@@ -8572,11 +8597,11 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 				else for (uint8_t t : {(uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD})
 					if (r == 0) r = find_nearby_resource(b.x, b.z, t, b.team);
 			}
-			if (r != 0) { order_gather(&uid, 1, r, false, false); continue; }
+			if (r != 0) { order_gather(&uid, 1, r, false, false); return; }
 		}
 		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
-		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); continue; }
-		set_order((size_t)k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
+		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
 	}
 }
 
@@ -8592,6 +8617,15 @@ void Simulation::tick_unit_ai(float dt) {
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
 		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
 			const int32_t g = lookup_unit(units_.order_target[i]);
+			// Guard.js CheckGuards (OnOwnershipChanged / OnDiplomacyChanged): a guard only
+			// guards its own or an ally's unit.
+			if (g >= 0 && units_.team[g] != units_.team[i] && !is_ally(units_.team[i], units_.team[g])) {
+				units_.target_unit_id[i] = 0;
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				finish_order(i);
+				continue;
+			}
 			// GUARDING Timer / GuardedAttacked: a healer heals the unit it guards when it's
 			// hurt (PushOrderFront Heal), then guards again.
 			if (g >= 0 && units_.unit_type[i] == UNIT_HEALER && can_heal(i, g)) {
@@ -8650,6 +8684,9 @@ void Simulation::tick_unit_ai(float dt) {
 			}
 			continue;
 		}
+		// Capturing a relic: tick_relics walks the unit up, holds it there and ends the order.
+		if (units_.order_kind[i] == ORDER_CAPTURE_RELIC && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE))
+			continue;
 		// Garrison: get in once within LoadingRange; give up if the walk ends short of it.
 		if (units_.order_kind[i] == ORDER_GARRISON && !interrupted && (now == ACTION_MOVE || now == ACTION_IDLE)) {
 			auto bit = building_id_to_idx_.find(units_.order_target[i]);
@@ -8751,6 +8788,7 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const uint32_t id = ids[k];
 		const int32_t i = lookup_unit(id);
+		if (is_relic_unit(i)) continue; // template_unit_catafalque.xml Identity/Undeletable
 		if (i >= 0 && units_.alive[i] && units_.team[i] == player) {
 			units_.hp[i] = 0.0f;
 			units_.alive[i] = 0;
@@ -10033,8 +10071,9 @@ void Simulation::petra_manage_economy(float dt) {
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 		if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 		if (units_.action_state[i] == ACTION_IDLE) {
-			// Standing at a treasure is collecting it (UnitAI COLLECTTREASURE), not idling.
-			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE) continue;
+			// Standing at a treasure is collecting it (UnitAI COLLECTTREASURE), not idling;
+			// standing at a relic is capturing it.
+			if (units_.order_kind[i] == ORDER_COLLECT_TREASURE || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
 			const bool soldier = gcls == GATHER_INFANTRY;
 			if (soldier && (in_plan.count(units_.id[i]) || units_.id[i] == petra_scout_unit_id_ ||
 					get_threat_at(units_.pos_x[i], units_.pos_z[i]) >= 7.0f)) continue;
@@ -13718,8 +13757,7 @@ void Simulation::petra_manage_victory(float dt) {
 		petra_manage_critical_ent_healers();
 	}
 
-	// RTS0 relics are claimed for good by the first unit to reach them, so there
-	// is nothing to guard once ours; Petra only goes after Gaia's.
+	// Capture the Relic: go for Gaia's relics and bring ours home.
 	if (victory_condition_ == VICTORY_RELIC) petra_capture_gaia_relics();
 }
 
@@ -13851,18 +13889,38 @@ void Simulation::petra_manage_critical_ent_healers() {
 
 // victoryManager.js update / captureGaiaRelic: go for a Gaia relic in our
 // territory, or one our units can see outside enemy territory, one new
-// relic per update; send the nearest soldiers on its land until two are on the way.
+// relic per update; send the nearest units that can capture it until they beat its regen.
 void Simulation::petra_capture_gaia_relics() {
 	bool started = false;
 	for (const auto &rel : relics_) {
-		if (rel.claimed) continue;
-		int heading = 0;
-		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_ || !units_.has_order[i]) continue;
-			const float dx = units_.target_x[i] - rel.x, dz = units_.target_z[i] - rel.z;
-			if (dx * dx + dz * dz <= 1.0f) ++heading;
+		const int32_t r = lookup_unit(rel.id);
+		if (!is_relic_unit(r)) continue;
+		if (units_.team[r] == petra_pid_) {
+			// victoryManager.js OnOwnershipChanged: take a captured relic home to the closest base.
+			if (units_.action_state[r] != ACTION_IDLE) continue;
+			const Building *home = nullptr;
+			float best = 1e30f;
+			for (const auto &b : buildings_) {
+				if (b.team != petra_pid_ || b.type != BLD_TOWN_CENTER || b.build_progress < 1.0f) continue;
+				const float d2 = (b.x - rel.x) * (b.x - rel.x) + (b.z - rel.z) * (b.z - rel.z);
+				if (d2 < best) { best = d2; home = &b; }
+			}
+			const float near_home = home ? home->half_size + 6.0f : 0.0f;
+			if (home && best > near_home * near_home) {
+				const uint32_t uid = rel.id;
+				order_walk(&uid, 1, home->x + home->half_size + 3.0f, home->z, false);
+			}
+			continue;
 		}
-		if (heading == 0) { // not targeted yet
+		if (units_.team[r] != GAIA_PLAYER) continue;
+		// captureGaiaRelic: the capture already under way, less the relic's regen.
+		float capture = -(float)RELIC_REGEN_RATE;
+		for (size_t i = 0; i < units_.count; ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_CAPTURE_RELIC &&
+			    units_.order_target[i] == rel.id)
+				capture += unit_capture_attack_at(i);
+		if (capture > RELIC_CAPTURE_POINTS / 50.0f) continue; // enough on the way
+		if (capture <= -(float)RELIC_REGEN_RATE) { // not targeted yet
 			if (started) continue;
 			const int terr = territory_owner_at(rel.x, rel.z);
 			bool go = terr == (int)petra_pid_;
@@ -13881,21 +13939,23 @@ void Simulation::petra_capture_gaia_relics() {
 		const uint16_t land = nav_grid_.global_region_at(rx, rz, PASS_INFANTRY);
 		std::vector<std::pair<float, uint32_t>> near;
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-			if (!(unit_tech_classes(units_.unit_type[i]) & TC_SOLDIER) || unit_is_ship(units_.unit_type[i])) continue; // canCapture
-			if (units_.order_kind[i] == ORDER_GARRISON || units_.action_state[i] == ACTION_GARRISONED) continue;
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] == ORDER_CAPTURE_RELIC) continue;
+			if (!can_capture_relic(i, r) || unit_is_ship(units_.unit_type[i])) continue;
+			if (units_.order_kind[i] == ORDER_GARRISON) continue;
 			if (petra_unit_reserved(units_.id[i]) || petra_guards_critical_ent(i)) continue;
 			const float dx = units_.pos_x[i] - rel.x, dz = units_.pos_z[i] - rel.z;
-			if (dx * dx + dz * dz <= 1.0f) continue; // already there
 			auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
 			if (land != 0 && nav_grid_.global_region_at(ux, uz, PASS_INFANTRY) != land) continue;
 			near.push_back({dx * dx + dz * dz, units_.id[i]});
 		}
 		std::sort(near.begin(), near.end());
-		for (size_t k = 0; k < near.size() && heading < 2; ++k, ++heading) {
-			const uint32_t uid = near[k].second;
-			order_walk(&uid, 1, rel.x, rel.z, false);
+		// The nearest, until they out-capture the regen by a 25th of the points.
+		std::vector<uint32_t> expedition;
+		for (size_t k = 0; k < near.size() && capture <= RELIC_CAPTURE_POINTS / 25.0f; ++k) {
+			capture += unit_capture_attack_at((size_t)lookup_unit(near[k].second));
+			expedition.push_back(near[k].second);
 		}
+		order_capture_relic(expedition.data(), expedition.size(), rel.id);
 	}
 }
 
@@ -15144,10 +15204,10 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.splash = v.splash; d.source_id = v.source_id;
 		});
 	};
-	static_assert(sizeof(S::TreasureRelic) == 24, "list the new TreasureRelic field below");
-	auto relic = [&](S::TreasureRelic &r) {
-		ar.padded(r, [&](S::TreasureRelic &d, const S::TreasureRelic &v) {
-			d.id = v.id; d.x = v.x; d.z = v.z; d.res_type = v.res_type; d.amount = v.amount;
+	static_assert(sizeof(S::Relic) == 24, "list the new Relic field below");
+	auto relic = [&](S::Relic &r) {
+		ar.padded(r, [&](S::Relic &d, const S::Relic &v) {
+			d.id = v.id; d.x = v.x; d.z = v.z; d.civ = v.civ; d.capture_cp = v.capture_cp;
 			d.claimed = v.claimed; d.owner_team = v.owner_team;
 		});
 	};
@@ -16489,6 +16549,124 @@ void Simulation::tick_treasures(float dt) {
 			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
 		}
 		if (best != 0) order_collect_treasure(&nt.uid, 1, best);
+	}
+}
+
+bool Simulation::can_capture_relic(size_t i, int32_t r) const {
+	if (!is_relic_unit(r) || !units_.alive[i] || (size_t)r == i) return false;
+	const uint8_t team = units_.team[i];
+	if (team >= MAX_PLAYERS || units_.action_state[i] == ACTION_GARRISONED) return false;
+	if (units_.action_state[r] == ACTION_GARRISONED) return false;
+	// Capturable.CanCapture: only an enemy of the owner (Gaia is everyone's) captures.
+	return is_hostile(team, units_.team[r]) && unit_capture_attack_at(i) > 0.0f;
+}
+
+// UnitAI Attack with allowCapture: walk up to the catafalque and keep capturing it.
+void Simulation::order_capture_relic(const uint32_t *unit_ids, size_t count, uint32_t relic_id, bool queued) {
+	const int32_t r = lookup_unit(relic_id);
+	if (!is_relic_unit(r)) return;
+	std::vector<uint32_t> captors;
+	for (size_t k = 0; k < count; ++k) {
+		const int32_t u = lookup_unit(unit_ids[k]);
+		if (u >= 0 && can_capture_relic((size_t)u, r)) captors.push_back(unit_ids[k]);
+	}
+	const float rx = units_.pos_x[r], rz = units_.pos_z[r];
+	UnitOrder o; o.kind = ORDER_CAPTURE_RELIC; o.flags = ORDER_FLAG_FORCE; o.target = relic_id; o.x = rx; o.z = rz;
+	for (uint32_t uid : split_queued(captors.data(), captors.size(), o, queued)) {
+		const int32_t u = lookup_unit(uid);
+		if (u < 0) continue;
+		set_order((size_t)u, ORDER_CAPTURE_RELIC, ORDER_FLAG_FORCE, relic_id, rx, rz);
+		units_.action_state[u] = ACTION_MOVE;
+		units_.has_order[u] = 1;
+		units_.target_unit_id[u] = relic_id;
+		units_.target_building_id[u] = 0;
+		units_.target_resource_id[u] = 0;
+		units_.target_x[u] = rx;
+		units_.target_z[u] = rz;
+		units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
+	}
+}
+
+// Capture the Relic (template_unit_catafalque.xml, Capturable.js). Once a second each captor
+// within Capture range takes its Capture attack from the owner's points and the owner
+// regains RegenRate; at 0 the strongest captor's owner takes the relic with every point.
+// RTS0 keeps only the owner's points: 0 A.D. splits the rest among the captors, which
+// only matters when several players capture one relic at once.
+void Simulation::tick_relics() {
+	if (relics_.empty()) return;
+	const bool pulse = ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) == 0;
+	for (Relic &rel : relics_) {
+		int32_t r = lookup_unit(rel.id);
+		if (!is_relic_unit(r)) {
+			// A save from before relics were catafalques: put one where the relic lay.
+			const uint8_t owner = rel.claimed && rel.owner_team < MAX_PLAYERS ? rel.owner_team : GAIA_PLAYER;
+			rel.civ = (uint8_t)(rel.id % CIV_COUNT);
+			rel.id = spawn_unit(rel.x, rel.z, owner, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(rel.civ));
+			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
+			r = lookup_unit(rel.id);
+			if (r < 0) continue;
+		}
+		// No Health: nothing wears it down.
+		units_.hp[r] = units_.max_hp[r];
+		if (units_.team[r] != (rel.claimed ? rel.owner_team : GAIA_PLAYER)) {
+			// Changed hands outside capture (a defeated owner's units turn Gaia).
+			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
+		}
+		float cap[MAX_PLAYERS] = {};
+		const float rr = unit_collision_radius(UNIT_CATAFALQUE);
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (units_.order_kind[i] != ORDER_CAPTURE_RELIC || units_.order_target[i] != rel.id) continue;
+			if (!units_.alive[i] || units_.target_unit_id[i] != rel.id) continue;
+			const uint8_t st = units_.action_state[i];
+			if (st != ACTION_MOVE && st != ACTION_IDLE) continue;
+			const float reach = CAPTURE_RANGE + rr + unit_collision_radius(units_.unit_type[i]);
+			const float dx = units_.pos_x[i] - units_.pos_x[r], dz = units_.pos_z[i] - units_.pos_z[r];
+			if (dx * dx + dz * dz > reach * reach) {
+				units_.action_state[i] = ACTION_MOVE; // it moved: follow it
+				units_.has_order[i] = 1;
+				continue;
+			}
+			units_.action_state[i] = ACTION_IDLE;
+			units_.has_order[i] = 0;
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+			if (pulse && can_capture_relic(i, r)) cap[units_.team[i]] += unit_capture_attack_at(i);
+		}
+		if (pulse) {
+			float total = 0.0f;
+			int best = -1;
+			for (int p = 0; p < MAX_PLAYERS; ++p) {
+				total += cap[p];
+				if (cap[p] > 0.0f && (best < 0 || cap[p] > cap[best])) best = p;
+			}
+			const int delta = (int)std::lround((RELIC_REGEN_RATE - total) * 100.0f);
+			rel.capture_cp = std::clamp(rel.capture_cp + delta, 0, RELIC_CAPTURE_POINTS * 100);
+			if (rel.capture_cp == 0 && best >= 0) {
+				// Capturable.js OnCapturePointsChanged: the new owner holds all the points.
+				units_.team[r] = (uint8_t)best;
+				units_.has_order[r] = 0;
+				units_.target_unit_id[r] = 0;
+				units_.action_state[r] = ACTION_IDLE;
+				order_queues_.erase(rel.id);
+				set_order((size_t)r, ORDER_NONE, 0, 0, units_.pos_x[r], units_.pos_z[r]);
+				rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
+				raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, units_.pos_x[r], units_.pos_z[r], rel.id, (uint8_t)best);
+			}
+		}
+		rel.x = units_.pos_x[r];
+		rel.z = units_.pos_z[r];
+		rel.claimed = units_.team[r] != GAIA_PLAYER;
+		rel.owner_team = rel.claimed ? units_.team[r] : 255;
+	}
+	// Captors whose relic is now theirs or an ally's stop and take their next order.
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.order_kind[i] != ORDER_CAPTURE_RELIC) continue;
+		if (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) continue;
+		if (can_capture_relic(i, lookup_unit(units_.order_target[i]))) continue;
+		if (units_.target_unit_id[i] == units_.order_target[i]) units_.target_unit_id[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		finish_order(i);
 	}
 }
 
