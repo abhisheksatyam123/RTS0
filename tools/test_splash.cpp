@@ -44,6 +44,7 @@ static void setup(Simulation &s) {
 	s.set_victory_condition(VICTORY_ENDLESS);
 	s.spawn_building_world(-56.0f, -56.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(56.0f, 56.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s.set_player_active(1, true, false); // target dummies, not a Petra army that answers the attack
 }
 static int idx(const Simulation &s, uint32_t id) { return s.lookup_unit(id); }
 static float hp(const Simulation &s, uint32_t id) { return s.units_.hp[idx(s, id)]; }
