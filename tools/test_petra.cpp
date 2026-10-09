@@ -39,6 +39,7 @@
 #include "simulation/simulation.h"
 #undef private
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -148,6 +149,12 @@ static void test_roster_army() {
 		for (float t = 0.0f; t < 45.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			if (s->ticks_ % 20 != 0) continue; // once a second
+			// A strong economy can raze the idle player before its siege is out: give
+			// it a new fortress so the siege still has a target to march to and shell.
+			bool idle_alive = false;
+			for (const auto &b : s->buildings())
+				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
+			if (!idle_alive) s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
@@ -465,10 +472,19 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
-		// At 0 A.D.'s gather rates the third plan (HugeAttack) starts mustering around minute 15-16
-		// on this map; 20 min leaves room for map changes.
+		// At 0 A.D.'s gather rates the HugeAttack starts mustering around minute 14-16 on this
+		// map; 20 min leaves room for map changes.
+		// An army that razes the idle player finds it rebuilt, so every plan has a target.
+		float home_x = 0.0f, home_z = 0.0f;
+		for (const auto &b : s->buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) { home_x = b.x; home_z = b.z; }
+		int step = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
+			if (++step % 200 == 0) {
+				bool any = false;
+				for (const auto &b : s->buildings()) any |= b.team == 0 && b.hp > 0.0f;
+				if (!any) s->spawn_building_world(home_x, home_z, BLD_TOWN_CENTER, 0, 1.0f);
+			}
 			const auto &m = s->petra_attack_manager();
 			const auto st = s->petra_attack_plan().state;
 			if (st == Simulation::AttackPlan::MUSTER && last != st) {
@@ -901,6 +917,7 @@ static void test_regicide_hero() {
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_REGICIDE);
+	s->set_regicide_garrison(true); // victoryManager.js garrisons the hero only when it is garrisonable
 	run_for(*s, 1.0f);
 	auto &u = s->units_;
 	uint32_t hero = 0;
@@ -964,6 +981,42 @@ static void test_relic_capture() {
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 }
 
+// attackPlan.js moves armies with forced walks: a retreating army ignores what it
+// sees on the way. An unforced walk let an unpacked catapult beside an enemy
+// unpack to fire, then pack for the walk, for ever.
+static void test_retreat_walk_forced() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float cx = tx * 0.4f, cz = tz * 0.4f; // well away from Petra's base
+	const uint32_t cat = s->spawn_unit(cx, cz, 1, UNIT_CATAPULT);
+	const uint32_t spear = s->spawn_unit(cx, cz + 2.0f, 1, UNIT_SPEARMAN);
+	s->order_pack(&cat, 1, false);
+	run_for(*s, 11.0f);
+	const int32_t ci = s->lookup_unit(cat);
+	const float r = s->unit_info_at((size_t)ci).attack_range;
+	s->spawn_unit(cx + r * 0.7f, cz, 0, UNIT_SPEARMAN, 1.0e6f); // fights back and never dies
+	run_for(*s, 1.0f);
+	const bool unpacked = s->units_.pack_state[ci] == PACK_UNPACKED;
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = {cat, spear};
+	plan.initial_squad_size = 2;
+	plan.state = Simulation::AttackPlan::ABORT;
+	run_for(*s, 25.0f);
+	const int32_t c2 = s->lookup_unit(cat);
+	const float moved = c2 >= 0 ? std::hypot(s->units().pos_x[c2] - cx, s->units().pos_z[c2] - cz) : 0.0f;
+	std::printf("  retreat: unpacked catapult beside a fighting enemy %s, moved %.1f toward base in 25 s\n",
+	            unpacked ? "yes" : "no", moved);
+	CHECK(unpacked, "the catapult stood unpacked beside the enemy");
+	CHECK(moved > 5.0f, "a retreat walk packs the catapult and leaves (forced walk)");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -984,6 +1037,7 @@ int main() {
 	test_emergency();
 	test_regicide_hero();
 	test_relic_capture();
+	test_retreat_walk_forced();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

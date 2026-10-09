@@ -4,11 +4,21 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_civ_roster.cpp -o /tmp/test_civ_roster && /tmp/test_civ_roster
 
 #include "simulation/sim_types.h"
+#include "simulation/promotion_data.h"
 
 #include <cstdio>
 #include <cstring>
 
 using namespace rtso;
+
+// A row no structure trains (after the civ blocks) must be a unit 0 A.D. reaches only by promotion
+// (Promotion/Entity of another roster unit, e.g. rome/infantry_antesignanus).
+static bool is_promotion_target(const char *id)
+{
+	for (const PromotionStep &s : PROMOTION_STEPS)
+		if (s.target && std::strcmp(s.target, id) == 0) return true;
+	return false;
+}
 
 static int g_checks = 0;
 static int g_failed = 0;
@@ -31,7 +41,17 @@ int main()
 
 	// Rows are grouped by civ and the offsets cover the table exactly.
 	check(civ_roster_begin(CIV_ATHENIANS) == 0, "first civ starts at row 0");
-	check(civ_roster_end(CIV_COUNT - 1) == CIV_UNIT_TEMPLATE_COUNT, "last civ ends at table end");
+	check(civ_roster_end(CIV_COUNT - 1) == CIV_ROSTER_PROMOTION_ONLY_FIRST, "last civ ends where promotion-only rows start");
+	// After every civ's block: units no structure trains, each a promotion target.
+	bool tail_ok = CIV_ROSTER_PROMOTION_ONLY_FIRST < CIV_UNIT_TEMPLATE_COUNT;
+	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
+		const CivUnitTemplate &u = civ_unit_template(i);
+		if (u.trainers != 0 || !is_promotion_target(u.id) || u.civ >= CIV_COUNT || u.hp <= 0.0f) {
+			tail_ok = false;
+			std::printf("      bad promotion-only row %u %s\n", i, u.id);
+		}
+	}
+	check(tail_ok, "promotion-only rows (Antesignani, Olympic champion, ...) follow the civ blocks");
 	for (uint8_t c = 0; c < CIV_COUNT; ++c) {
 		uint16_t b = civ_roster_begin(c), e = civ_roster_end(c);
 		int heroes = 0;

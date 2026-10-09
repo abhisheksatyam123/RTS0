@@ -314,6 +314,11 @@ struct GameSetupParams {
 	uint8_t biome = 0;       // random-map biome: 0 = the map's own, else BIOME_* + 1
 	uint8_t diffs[8] = {3, 3, 3, 3, 3, 3, 3, 3}; // per-slot Petra difficulty 0..5
 	uint8_t behs[8] = {2, 2, 2, 2, 2, 2, 2, 2};  // per-slot Petra behaviour 0..3
+	uint8_t colors[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // per-slot PLAYER_COLORS index 0..23 (one base-36 digit)
+	uint8_t nomad = 0;             // 1 = Nomad start (random maps)
+	uint8_t regicide_garrison = 0; // 1 = the Regicide hero may garrison
+	uint8_t no_treasures = 0;      // 1 = 0 A.D. DisableTreasures
+	std::string names[8];          // per-slot player names (0 A.D. PlayerName), empty = "Player N"
 	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
 	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
@@ -325,6 +330,39 @@ struct GameSetupParams {
 	uint8_t teams[8] = {1, 2, 0, 0, 0, 0, 0, 0};
 	uint8_t slot_count = 2;
 };
+namespace detail {
+// Player names ride in the attribute string, so the separators are %-escaped; at most
+// MAX_NAME_BYTES bytes each, cut on a UTF-8 character boundary.
+constexpr size_t MAX_NAME_BYTES = 48;
+inline std::string escape_name(const std::string &n) {
+	std::string in = n.substr(0, MAX_NAME_BYTES);
+	if (n.size() > MAX_NAME_BYTES)
+		while (!in.empty() && ((unsigned char)n[in.size()] & 0xC0) == 0x80) in.pop_back();
+	std::string out;
+	for (char c : in) {
+		if (c == '%' || c == ';' || c == ',' || c == '=') {
+			static const char kHex[] = "0123456789ABCDEF";
+			out += '%'; out += kHex[(unsigned char)c >> 4]; out += kHex[(unsigned char)c & 15];
+		} else if ((unsigned char)c >= 0x20) {
+			out += c;
+		}
+	}
+	return out;
+}
+inline std::string unescape_name(const std::string &v) {
+	std::string out;
+	auto hex = [](char c) { return c >= '0' && c <= '9' ? c - '0' : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1; };
+	for (size_t i = 0; i < v.size(); ++i) {
+		if (v[i] == '%' && i + 2 < v.size() && hex(v[i + 1]) >= 0 && hex(v[i + 2]) >= 0) {
+			out += (char)(hex(v[i + 1]) * 16 + hex(v[i + 2]));
+			i += 2;
+		} else if ((unsigned char)v[i] >= 0x20) {
+			out += v[i];
+		}
+	}
+	return out.substr(0, MAX_NAME_BYTES);
+}
+} // namespace detail
 inline std::string format_game_start_full(const GameSetupParams &p) {
 	std::string s = "map=" + p.map_id + ";seed=" + std::to_string(p.seed);
 	s += ";victory=" + std::to_string((unsigned)p.victory);
@@ -346,6 +384,23 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 			b += (char)('0' + (p.behs[i] <= 3 ? p.behs[i] : 2));
 		}
 		s += ";diffs=" + d + ";behs=" + b;
+		std::string c;
+		for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
+			if (i) c += ',';
+			c += "0123456789abcdefghijklmn"[p.colors[i] < 24 ? p.colors[i] : 0];
+		}
+		s += ";colors=" + c;
+	}
+	s += ";nomad=" + std::to_string((unsigned)p.nomad);
+	s += ";rgarrison=" + std::to_string((unsigned)p.regicide_garrison);
+	s += ";notreasures=" + std::to_string((unsigned)p.no_treasures);
+	{
+		std::string n;
+		for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
+			if (i) n += ',';
+			n += detail::escape_name(p.names[i]);
+		}
+		s += ";names=" + n;
 	}
 	s += ";waterlevel=" + std::to_string((unsigned)p.water_level);
 	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
@@ -420,6 +475,25 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "relicdur") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.relic_min = x; }
 			else if (k == "relics") { uint8_t x; if (detail::parse_u8(v, 1, 16, x)) out.relics = x; }
 			else if (k == "biome") { uint8_t x; if (detail::parse_u8(v, 0, 9, x)) out.biome = x; }
+			else if (k == "nomad") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.nomad = x; }
+			else if (k == "names") {
+				size_t a = 0;
+				for (int slot = 0; slot < 8 && a <= v.size(); ++slot) {
+					size_t b = v.find(',', a);
+					if (b == std::string::npos) b = v.size();
+					out.names[slot] = detail::unescape_name(v.substr(a, b - a));
+					a = b + 1;
+				}
+			}
+			else if (k == "notreasures") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.no_treasures = x; }
+			else if (k == "rgarrison") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.regicide_garrison = x; }
+			else if (k == "colors") {
+				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
+					const char c = v[i];
+					if (c >= '0' && c <= '9') out.colors[slot] = (uint8_t)(c - '0');
+					else if (c >= 'a' && c <= 'n') out.colors[slot] = (uint8_t)(c - 'a' + 10);
+				}
+			}
 			else if (k == "diffs" || k == "behs") {
 				const bool diffs = k == "diffs";
 				for (size_t i = 0, slot = 0; i < v.size() && slot < 8; i += 2, ++slot) {
@@ -516,7 +590,8 @@ struct RejoinMsg {
 	uint8_t kind = REQUEST;
 	uint32_t turn = 0;
 	uint32_t total = 0;  // HEADER: saved-world size; CHUNK: offset of these bytes
-	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started
+	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started, 6 = no late observers;
+	                     // REQUEST: 1 = join as an observer (0 A.D. observer late join)
 	std::vector<uint8_t> bytes; // HEADER: the rest of the header; CHUNK: world bytes
 	static constexpr size_t CHUNK_BYTES = 1024;
 };
@@ -549,6 +624,23 @@ struct ClientPerformanceMsg {
 	};
 	std::vector<Entry> clients;
 };
+// NMT_PLAYER_ASSIGNMENT (0 A.D. CPlayerAssignmentMessage): the host's list of the
+// match's clients, sent whenever it changes: each client's id, name, the player
+// it plays (0xFF for an observer) and whether it plays, observes or has left.
+struct PlayerAssignmentMsg {
+	enum Status : uint8_t { PLAYING = 0, OBSERVER = 1, LEFT = 2 };
+	struct Entry {
+		uint32_t client = 0;
+		std::string name;
+		uint8_t player = 0xFF;
+		uint8_t status = PLAYING;
+		bool operator==(const Entry &o) const {
+			return client == o.client && name == o.name && player == o.player && status == o.status;
+		}
+	};
+	std::vector<Entry> clients;
+};
+
 // 0 A.D. session.js: a round trip above this reads as a bad connection, and a
 // client unheard for longer than this is "not responding".
 inline constexpr uint32_t NET_LAG_WARN_RTT_MS = 500;
@@ -1025,6 +1117,31 @@ public:
 		for (auto &e : msg.clients)
 			if (!NetSerde::read_u32(data, size, offset, e.client) || !NetSerde::read_u32(data, size, offset, e.rtt_ms) ||
 					!NetSerde::read_u32(data, size, offset, e.silent_ms)) return false;
+		return offset == size;
+	}
+
+	static std::vector<uint8_t> frame_player_assignment(const PlayerAssignmentMsg &msg) {
+		std::vector<uint8_t> buf;
+		const size_t n = std::min<size_t>(msg.clients.size(), 255);
+		NetSerde::write_u8(buf, (uint8_t)n);
+		for (size_t i = 0; i < n; ++i) {
+			NetSerde::write_u32(buf, msg.clients[i].client);
+			NetSerde::write_string(buf, msg.clients[i].name);
+			NetSerde::write_u8(buf, msg.clients[i].player);
+			NetSerde::write_u8(buf, msg.clients[i].status);
+		}
+		return buf;
+	}
+
+	static bool parse_player_assignment(const uint8_t *data, size_t size, PlayerAssignmentMsg &msg) {
+		size_t offset = 0;
+		uint8_t n = 0;
+		if (!NetSerde::read_u8(data, size, offset, n)) return false;
+		msg.clients.assign(n, {});
+		for (auto &e : msg.clients)
+			if (!NetSerde::read_u32(data, size, offset, e.client) || !NetSerde::read_string(data, size, offset, e.name) ||
+					!NetSerde::read_u8(data, size, offset, e.player) || !NetSerde::read_u8(data, size, offset, e.status) ||
+					e.status > PlayerAssignmentMsg::LEFT) return false;
 		return offset == size;
 	}
 

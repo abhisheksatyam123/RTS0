@@ -107,7 +107,10 @@ enum TechnologyId : uint8_t {
 	TECH_TYRTEAN_PAEANS = 98, // tyrtean_paeans
 	TECH_UNLOCK_NEODAMODES = 99, // unlock_neodamodes
 	TECH_HEALTH_REGEN_UNITS = 100, // health_regen_units
-	TECH_COUNT = 101
+	TECH_ART_OF_WAR = 101, // art_of_war
+	TECH_SILVERSHIELDS = 102, // silvershields
+	TECH_SUBTERRANEAN_AQUEDUCTS = 103, // subterranean_aqueducts
+	TECH_COUNT = 104
 };
 
 enum TechClass : uint64_t {
@@ -174,6 +177,7 @@ enum TechClass : uint64_t {
 	TC_MERCENARY = 1ull << 60,
 	TC_SIEGETOWER = 1ull << 61,
 	TC_MINISTER = 1ull << 62,
+	TC_ICEHOUSE = 1ull << 63,
 };
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
@@ -232,6 +236,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_CIVCENTRE, 0},
 		{TC_CIVIC, 0},
 		{TC_STRUCTURE, TC_WONDER},
+		{TC_ICEHOUSE, 0},
 	};
 	return kAffects;
 }
@@ -388,10 +393,11 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_BUILD_TIME, TOP_MUL, 41, 1, 0.8f}, // parade_of_daphne
 		{TSTAT_SPEED, TOP_MUL, 45, 1, 1.1f}, // tyrtean_paeans
 		{TSTAT_IDLE_REGEN, TOP_ADD, 46, 1, 0.5f}, // health_regen_units
+		{TSTAT_TRICKLE_FOOD, TOP_ADD, 51, 1, 1.0f}, // subterranean_aqueducts
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 149;
+constexpr int TECH_EFFECT_COUNT = 150;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -496,6 +502,9 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 147, 1, "tyrtean_paeans"},
 		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 148, 0, "unlock_neodamodes"},
 		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 148, 1, "health_regen_units"},
+		{"Sun Tzu's \"The Art of War\"", "All Citizen-Soldiers −20% required promotion experience.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 149, 0, "art_of_war"},
+		{"Silver Shields Regiment", "Upgrade Shield Bearer Champion Infantry to Silver Shields, with more health and attack damage.", 0, 0, 600, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0020, 149, 0, "silvershields"},
+		{"Subterranean Aqueducts", "Ice House +1 trickle food rate per second.", 0, 300, 0, 300, 40.0f, 3, BLD_ICE_HOUSE, TECH_NONE, 0x0004, 149, 1, "subterranean_aqueducts"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

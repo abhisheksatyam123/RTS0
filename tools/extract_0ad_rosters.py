@@ -187,6 +187,7 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
     ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
+    ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -287,9 +288,10 @@ def merge_into(base, elem):
                 elif tok not in old:
                     old.append(tok)
             node.text = " ".join(old)
-        elif op in ("add", "mul", "mul_round") and node.text not in (None, ""):
+        elif op in ("add", "mul", "mul_round"):
+            # CParamNode::ApplyLayer: a missing value counts as 0 (ToFixed of "").
             try:
-                a = float(node.text)
+                a = float(node.text) if node.text not in (None, "") else 0.0
                 b = float(text)
                 r = a + b if op == "add" else a * b
                 if op == "mul_round":
@@ -860,6 +862,27 @@ def collect(sim_root):
                 slot["buildings"].add(bld)
                 slot["kinds"].add(kind)
                 slot["phase"] = min(slot["phase"], sphase)
+        # Units no structure trains but a trained unit promotes into (0 A.D.
+        # Promotion/Entity to another unit: Marian Reforms' auxiliary cavalry and
+        # Antesignani, the Olympic champion, ...): rows with no trainer.
+        pending = sorted(trainers)
+        while pending:
+            src_name = origin = pending.pop()
+            node, seen = loader.load(src_name), set()
+            while node.value("Promotion/Entity") and src_name not in seen:
+                seen.add(src_name)
+                tgt = node.value("Promotion/Entity").replace("{civ}", node.value("Identity/Civ") or civ)
+                if not loader.exists(tgt):
+                    break
+                rank_base = lambda n: re.sub(r"_[abe](_dock)?$", "", n)  # noqa: E731
+                if rank_base(tgt) != rank_base(src_name) and rank_base(tgt) not in {rank_base(n) for n in trainers}:
+                    base = re.sub(r"_[ae]$", "_b", tgt)
+                    tgt = base if loader.exists(base) else tgt
+                    if tgt not in trainers:
+                        trainers[tgt] = {"buildings": set(), "kinds": set(), "phase": trainers[origin]["phase"]}
+                        pending.append(tgt)
+                    break
+                src_name, node = tgt, loader.load(tgt)
         for name in sorted(trainers):
             t = loader.load(name)
             cls = rts0_class(name, t, civ)
@@ -952,6 +975,9 @@ def collect(sim_root):
                 "classes": ["Citizen", "Human", "Organic", "Unit", "Worker"],
                 "auras": [], "stats": stats,
             })
+    # Units only reached by promotion (no trainer) go after every civ's block, so
+    # the template ids of trainable rows, which saves store, stay where they were.
+    rows = [r for r in rows if r["trainers"]] + [r for r in rows if not r["trainers"]]
     # Which roster units each aura affects (0 A.D. "affects" class lists).
     for a in auras:
         a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
@@ -1094,13 +1120,20 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("}")
     w("")
     # Per-civ ranges into the table (rows are grouped by civ).
-    w("// [first, last) rows of civ_unit_template_table() for each civ.")
+    # Rows no structure trains (units only reached by promotion) follow the last
+    # civ's block, from CIV_ROSTER_PROMOTION_ONLY_FIRST to the table end.
+    w("// [first, last) rows of civ_unit_template_table() for each civ. Rows from")
+    w("// CIV_ROSTER_PROMOTION_ONLY_FIRST on are units no structure trains, reached only by")
+    w("// promotion (0 A.D. Promotion/Entity), after every civ's block so that adding one")
+    w("// never moves a trainable row's template id.")
+    trainable = sum(1 for r in rows if r["trainers"])
+    w("inline constexpr uint16_t CIV_ROSTER_PROMOTION_ONLY_FIRST = %d;" % trainable)
     w("inline const uint16_t *civ_roster_offsets() {")
     offs = []
     for i, civ in enumerate(CIVS):
         first = next(j for j, r in enumerate(rows) if r["civ"] == civ)
         offs.append(first)
-    offs.append(len(rows))
+    offs.append(trainable)
     w("\tstatic const uint16_t kOffsets[CIV_COUNT + 1] = {%s};" % ", ".join(str(o) for o in offs))
     w("\treturn kOffsets;")
     w("}")

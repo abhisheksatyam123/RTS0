@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/option_button.hpp>
+#include <godot_cpp/classes/popup_menu.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
@@ -102,6 +103,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	LineEdit *lobby_password = nullptr; // 0 A.D. password-protected game (host sets, joiner gives)
 	size_t kicks_shown_ = 0;           // NetHost::kicks() already announced
 	Label *lobby_status = nullptr;
+	Button *lobby_observe = nullptr; // join a running match as an observer (0 A.D. observer late join)
+	Label *lobby_players = nullptr;  // in-game player list (0 A.D. NMT_PLAYER_ASSIGNMENT)
+	uint64_t players_shown_ = 0;     // the player list version lobby_players shows
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -254,6 +258,19 @@ public:
 	void _on_flare_requested(Vector2 world_pos);
 	void _on_idle_worker_clicked();
 	void _on_speed_button_pressed();
+	void _on_speed_selected(int id);
+	void set_game_speed(float speed);
+	float get_game_speed() const { return game_speed; }
+	void toggle_pause();
+	void quicksave();
+	void quickload();
+	void show_notice(const String &text);
+	uint64_t notice_until_ = 0; // ticks_msec when show_notice's banner hides
+	void _on_replay_speed_selected(int index);
+	static String speed_text(float speed);
+	static Array speed_choices(bool replay);
+	bool is_game_paused() const { return hotkey_paused_ || paused_via_menu; }
+	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
 	void _on_alert_pressed(int end);
@@ -297,6 +314,11 @@ public:
 	// Whose sight the world, minimap and fog show: the local player, or in a
 	// replay the perspective picked (a player, or rtso::OBSERVER_VIEW).
 	uint8_t view_player() const { return turn_mgr_.is_replaying() ? replay_view_ : local_player(); }
+	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
+	// (AI slots get one from their civ's AINames), else "Player N".
+	String player_display_name(uint8_t pid) const;
+	String player_names_[rtso::MAX_PLAYERS];
+	void apply_player_names(const Array &names);
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	                   float x = 0, float z = 0, uint32_t tid = 0, uint8_t param = 0);
 	// P4.1 host hooks for chat_window.h / diplomacy_dialog.h: thin inline
@@ -397,6 +419,8 @@ private:
 	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
 	void try_train_template(uint32_t building_id, uint16_t tmpl);
+	void try_breed(uint32_t building_id, uint8_t ftype);
+	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
@@ -430,6 +454,8 @@ private:
 	uint32_t replay_written_turn_ = 0;
 	Label *replay_label_ = nullptr;
 	OptionButton *replay_view_picker_ = nullptr;
+	OptionButton *replay_speed_picker_ = nullptr;
+	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
 	uint8_t replay_hud_player_ = 0;
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
@@ -446,6 +472,7 @@ private:
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
 	bool write_save_metadata(const String &path, const String &description) const;
+	void write_save_thumbnail(const String &path);
 };
 
 #endif

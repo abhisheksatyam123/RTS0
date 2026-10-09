@@ -33,7 +33,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract_0ad_rosters import (  # noqa: E402
-    TemplateLoader, SPEED_SCALE, MELEE_RANGE_SCALE, RANGED_RANGE_SCALE)
+    CIVS, CIV_ENUM, TemplateLoader, SPEED_SCALE, MELEE_RANGE_SCALE, RANGED_RANGE_SCALE)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_HEADER = os.path.join(REPO, "src", "simulation", "gaia_data.h")
@@ -131,6 +131,8 @@ def fauna_rows(loader):
             "crush_armor": t.num("Resistance/Entity/Damage/Crush"),
             "xp": t.num("Loot/xp"),
             "corral_food": corral_food(loader, t),
+            "cost": [int(t.num("Cost/Resources/" + r)) for r in ("food", "wood", "stone", "metal")],
+            "build_time": t.num("Cost/BuildTime"),
         })
     return rows
 
@@ -148,9 +150,18 @@ def corral_food(loader, t):
 
 
 def corral_rows(loader):
-    """The corral's own ResourceTrickle interval (seconds) and garrison size."""
+    """The corral's ResourceTrickle interval (seconds), garrison size, and each civ's Trainer list."""
     t = loader.load("template_structure_resource_corral")
-    return t.num("ResourceTrickle/Interval") / 1000.0, int(t.num("GarrisonHolder/Max"))
+    trains = []
+    for civ in CIVS:
+        name = f"structures/{civ}/corral"
+        c = loader.load(name if loader.exists(name) else "template_structure_resource_corral")
+        ents = [e.replace("{civ}", civ) for e in c.tokens("Trainer/Entities")]
+        for e in ents:
+            if not e.startswith("gaia/fauna_"):
+                raise SystemExit(f"{name}: corral trains {e}, not an animal")
+        trains.append([e[len("gaia/"):] for e in ents])
+    return t.num("ResourceTrickle/Interval") / 1000.0, int(t.num("GarrisonHolder/Max")), trains
 
 
 RES = {"food": "RES_FOOD", "wood": "RES_WOOD", "stone": "RES_STONE", "metal": "RES_GOLD"}
@@ -318,6 +329,38 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("// every interval (its structures/corral_garrison_{small,medium,large} aura, stackable).")
     w(f"inline constexpr float CORRAL_TRICKLE_INTERVAL = {f(corral[0])};")
     w(f"inline constexpr int CORRAL_GARRISON_MAX = {corral[1]};")
+    w("")
+    stems = [r["stem"] for r in fauna]
+    longest = max(len(x) for x in corral[2])
+    w("// The animals each civ's corral trains (structures/<civ>/corral.xml Trainer/Entities),")
+    w("// indexed by Civilization: " + ", ".join(CIV_ENUM) + ".")
+    w(f"inline constexpr int CORRAL_TRAINABLE_MAX = {longest};")
+    w("struct CorralTrainable {")
+    w("\tuint8_t count;")
+    w("\tuint8_t fauna[CORRAL_TRAINABLE_MAX];")
+    w("};")
+    w(f"inline constexpr CorralTrainable CORRAL_TRAINABLE[{len(CIVS)}] = {{")
+    for civ, ents in zip(CIVS, corral[2]):
+        w(f"\t{{{len(ents)}, {{{', '.join(e.upper() for e in ents)}}}}}, // {civ}")
+        for e in ents:
+            if e not in stems:
+                raise SystemExit(f"{civ} corral trains unknown {e}")
+    w("};")
+    w("")
+    w("// What training an animal costs (Cost/Resources: food, wood, stone, metal) and takes (Cost/BuildTime, s).")
+    w("struct FaunaTrainCost {")
+    w("\tint16_t res[4];")
+    w("\tfloat time;")
+    w("};")
+    w("")
+    w("inline const FaunaTrainCost &fauna_train_cost(uint8_t ftype) {")
+    w("\tstatic constexpr FaunaTrainCost kCost[FAUNA_COUNT] = {")
+    for r in fauna:
+        c = r["cost"]
+        w(f"\t\t{{{{{c[0]}, {c[1]}, {c[2]}, {c[3]}}}, {f(r['build_time'])}}}, // {r['stem']}")
+    w("\t};")
+    w("\treturn kCost[ftype < FAUNA_COUNT ? ftype : 0];")
+    w("}")
     w("")
     w("inline float fauna_corral_food(uint8_t ftype) {")
     w("\tstatic constexpr float kFood[FAUNA_COUNT] = {" + ", ".join(f(r["corral_food"]) for r in fauna) + "};")
