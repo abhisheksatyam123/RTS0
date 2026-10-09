@@ -125,6 +125,10 @@ RTS0_ONLY = ("UNIT_VILLAGER",)
 # 0 A.D. structure (file stem, without trailing _N upgrade suffix) to the RTS0
 # BuildingType that trains its units. Buildings RTS0 lacks fall back to the
 # closest one RTS0 has; the 0 A.D. name stays in the data for later remaps.
+# Gaia structures whose Trainer lists "units/{civ}/..." for their captor:
+# template stem -> structure kind (TRAINER_BUILDING key).
+GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp"}
+
 TRAINER_BUILDING = {
     "civil_centre": "BLD_TOWN_CENTER", "military_colony": "BLD_TOWN_CENTER",
     "civil_centre_court": "BLD_TOWN_CENTER", "palace": "BLD_TOWN_CENTER",
@@ -816,18 +820,19 @@ def collect(sim_root):
         native = civ
         sdir = os.path.join(loader.root, "structures", civ)
         trainers = {}  # unit template -> {buildings}, structure phase
-        for fn in sorted(os.listdir(sdir)):
-            if not fn.endswith(".xml"):
-                continue
-            stem = fn[:-4]
-            s = loader.load("structures/%s/%s" % (civ, stem))
+        # The civ's own structures, then Gaia ones that train "{civ}" units for
+        # whoever captures them (the mercenary camp).
+        structs = [("structures/%s/%s" % (civ, fn[:-4]), structure_kind(fn[:-4]))
+                   for fn in sorted(os.listdir(sdir)) if fn.endswith(".xml")]
+        structs += [("structures/" + stem, kind) for stem, kind in sorted(GAIA_TRAINERS.items())]
+        for path, kind in structs:
+            s = loader.load(path)
             ents = s.tokens("Trainer/Entities")
             if not ents:
                 continue
-            kind = structure_kind(stem)
             bld = TRAINER_BUILDING.get(kind)
             if bld is None:
-                skipped.append("%s structure %s (no RTS0 building)" % (civ, stem))
+                skipped.append("%s structure %s (no RTS0 building)" % (civ, path.rsplit("/", 1)[1]))
                 continue
             sphase = phase_of(s)
             for e in ents:
