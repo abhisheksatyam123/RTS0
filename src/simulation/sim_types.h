@@ -1048,7 +1048,8 @@ enum CivRosterFlag : uint8_t {
 	ROSTER_CITIZEN = 8,
 	ROSTER_MERCENARY = 16,
 	ROSTER_PACKABLE = 32, // 0 A.D. Pack component (10 s to pack or unpack)
-	ROSTER_SIEGE_TOWER = 64
+	ROSTER_SIEGE_TOWER = 64,
+	ROSTER_NO_GATHER = 128 // a Citizen whose template disables ResourceGatherer (mercenaries)
 };
 
 inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(1u << civ) : 0u; }
@@ -1228,7 +1229,8 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 	if (tmpl != CIV_UNIT_TEMPLATE_NONE) {
 		// Roster rows: only citizen soldiers (ROSTER_CITIZEN; three citizen champions inherit
 		// template_unit_infantry too) gather.
-		if (!(civ_unit_template(tmpl).flags & ROSTER_CITIZEN)) return GATHER_NONE;
+		const uint8_t flags = civ_unit_template(tmpl).flags;
+		if (!(flags & ROSTER_CITIZEN) || (flags & ROSTER_NO_GATHER)) return GATHER_NONE;
 		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 	}
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
@@ -1368,7 +1370,7 @@ inline const UnitTypeInfo &civ_template_unit_info(uint16_t tmpl, uint8_t type) {
 			u.attack_cooldown = t.attack_cooldown;
 			u.carry_capacity = t.carry_capacity;
 			// template_unit_cavalry ResourceGatherer: citizen cavalry carry 20 meat (Capacities/food).
-			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && u.carry_capacity == 0) u.carry_capacity = 20;
+			if (t.unit_type == UNIT_CAVALRY && (t.flags & ROSTER_CITIZEN) && !(t.flags & ROSTER_NO_GATHER) && u.carry_capacity == 0) u.carry_capacity = 20;
 			if (t.attack_range > u.aggro_range) u.aggro_range = t.attack_range;
 			u.hack_armor = t.hack_armor;
 			u.pierce_armor = t.pierce_armor;
