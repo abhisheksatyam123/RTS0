@@ -5208,7 +5208,6 @@ void Simulation::tick_combat(float dt) {
 		// 0 A.D. helpers/Attack.js GetAttackBonus: the attacker's template Bonuses
 		// (spearmen x3 against cavalry and the like).
 		uint8_t u_att = units_.unit_type[i];
-		uint8_t u_def = units_.unit_type[t];
 		const float bonus_mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
 		hack_dmg *= bonus_mul;
 		pierce_dmg *= bonus_mul;
@@ -5237,10 +5236,8 @@ void Simulation::tick_combat(float dt) {
 		bool maur_elephant_archer = (u_att == UNIT_ELEPHANT && is_ranged_attack);
 
 		if (is_ranged_attack) {
-			uint8_t effect = EFFECT_NONE;
-			if (u_att == UNIT_ARCHER_MAIDEN) {
-				effect |= EFFECT_POISON;
-			}
+			// Attack/Ranged/ApplyStatus (Mauryan maiden archers poison, Iberian champion cavalry burn).
+			const uint8_t effect = status_effect_bit(unit_combat_at(i).status);
 			// Warship LaunchPoint y=3; elephant archer LaunchPoint y=9 (scaled).
 			float arrow_sy = (u_att == UNIT_TRIREME) ? 3.0f : (u_att == UNIT_BOLT_SHOOTER ? 1.0f : (maur_elephant_archer ? 3.4f : 1.4f));
 			uint8_t proj_vis = (u_att == UNIT_CATAPULT) ? 2 : ((u_att == UNIT_TRIREME || u_att == UNIT_BOLT_SHOOTER) ? 1 : 0);
@@ -5299,25 +5296,8 @@ void Simulation::tick_combat(float dt) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
 			}
 
-			// Spearman Snare on Cavalry / Chariot / Camel
-			if (u_att == UNIT_SPEARMAN && (u_def == UNIT_CAVALRY || u_def == UNIT_CAMEL || u_def == UNIT_CHARIOT)) {
-				units_.status_effects[t] |= EFFECT_SNARE;
-				units_.snare_timer[t] = 3.0f;
-			}
-
-			// Trample Knockback from Heavy Chariots / War Elephants
-			if (u_att == UNIT_ELEPHANT || u_att == UNIT_WORKER_ELEPHANT || u_att == UNIT_SCYTHED_CHARIOT) {
-				float kdx = units_.pos_x[t] - units_.pos_x[i];
-				float kdz = units_.pos_z[t] - units_.pos_z[i];
-				float kd2 = kdx * kdx + kdz * kdz;
-				if (kd2 > 0.0001f) {
-					float kinv = 1.0f / sqrtf(kd2);
-					units_.status_effects[t] |= EFFECT_KNOCKBACK;
-					units_.knockback_timer[t] = 0.25f;
-					units_.knockback_dir_x[t] = kdx * kinv;
-					units_.knockback_dir_z[t] = kdz * kinv;
-				}
-			}
+			// Attack/Melee/ApplyStatus. 0 A.D. has no spear snare or trample knockback.
+			apply_status(t, unit_combat_at(i));
 
 			// 0 A.D. AttackHelper.CauseDamageOverArea (helpers/Attack.js:150-185):
 			// Catapult Siege Splash Damage: 4.5m blast radius, 60% splash damage with quadratic falloff (1 - d^2 / r^2)
@@ -5494,7 +5474,7 @@ void Simulation::tick_combat(float dt) {
 			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 			           b.x, land_y, b.z,
-			           bld_dmg, units_.team[i], b.id, EFFECT_BURNING, 2, true, vis, units_.id[i]);
+			           bld_dmg, units_.team[i], b.id, EFFECT_NONE, 2, true, vis, units_.id[i]);
 		} else {
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
@@ -5955,12 +5935,9 @@ void Simulation::tick_projectiles(float dt) {
 						raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[tidx], units_.pos_z[tidx], units_.id[tidx], units_.team[tidx]);
 					}
 					if (p.status_effect != 0) {
-						units_.status_effects[tidx] |= p.status_effect;
-						if (p.status_effect & EFFECT_POISON) units_.poison_timer[tidx] = 5.0f;
-						if (p.status_effect & EFFECT_SNARE) units_.snare_timer[tidx] = 3.0f;
-						if (p.status_effect & EFFECT_SLOW) units_.slow_timer[tidx] = 3.0f;
-						if (p.status_effect & EFFECT_BLEED) units_.bleed_timer[tidx] = 4.0f;
-						if (p.status_effect & EFFECT_BURNING) units_.burning_timer[tidx] = 4.0f;
+						// The shooter's ApplyStatus (its profile; nothing if it died in flight).
+						const int32_t src = lookup_unit(p.source_id);
+						if (src >= 0) apply_status((size_t)tidx, unit_combat_at((size_t)src));
 					}
 					if (units_.hp[tidx] <= 0) {
 						units_.alive[tidx] = 0;
@@ -6050,85 +6027,60 @@ void Simulation::tick_projectiles(float dt) {
 		[](const Projectile &p) { return !p.alive; }), projectiles_.end());
 }
 
+// 0 A.D. Attack/*/ApplyStatus on unit t from an attacker with profile `att`, unless t's
+// Resistance blocks it (ships, siege, structures block poison). Stackability "Extend"
+// (poison) adds the duration; "Stack" (burning) is kept as one timer that also adds
+// its duration, which deals the same total damage.
+void Simulation::apply_status(size_t t, const CombatProfile &att) {
+	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status)) return;
+	const uint8_t bit = status_effect_bit(att.status);
+	units_.status_effects[t] |= bit;
+	float &timer = att.status == 1 ? units_.poison_timer[t] : units_.burning_timer[t];
+	timer = std::max(timer, 0.0f) + att.status_time;
+}
+
+// Damage per second of status `kind` (1 Poisoned, 2 Burning): each comes from a
+// single 0 A.D. attack (maiden archers, Iberian champion cavalry).
+float Simulation::status_dps(uint8_t kind) {
+	static float dps[3] = {-1.0f, -1.0f, -1.0f};
+	if (kind > 2) return 0.0f;
+	if (dps[kind] < 0.0f) {
+		dps[kind] = 0.0f;
+		for (uint16_t r = 0; r < COMBAT_TEMPLATE_COUNT; ++r)
+			if (combat_template_table()[r].status == kind) { dps[kind] = combat_template_table()[r].status_dps; break; }
+	}
+	return dps[kind];
+}
+
 void Simulation::tick_status_effects(float dt) {
 	const size_t n = units_.count;
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i]) continue;
 
-		// 1. Poison effect (Kushite poison arrows / venom) dealing ticking damage
-		if (units_.status_effects[i] & EFFECT_POISON) {
-			units_.poison_timer[i] -= dt;
-			units_.hp[i] -= 4.0f * dt; // 4 HP / sec poison tick
-			if (units_.hp[i] <= 0.0f) {
-				units_.alive[i] = 0;
-				units_.action_state[i] = ACTION_DYING;
-				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
-				if (units_.team[i] == 0) record_.units_lost++;
-				else record_.enemies_killed++;
+		// 0 A.D. StatusEffectsReceiver: Poisoned and Burning deal their damage per second
+		// until their time runs out. RTS0 never applies snare, slow, bleed or knockback
+		// (0 A.D. has none); clear any an old save carries.
+		units_.status_effects[i] &= (uint8_t)(EFFECT_POISON | EFFECT_BURNING);
+		bool hurt = false;
+		auto tick_status = [&](uint8_t bit, float &timer, uint8_t kind) {
+			if (!(units_.status_effects[i] & bit)) return;
+			hurt = true;
+			const float step = std::min(dt, std::max(timer, 0.0f));
+			timer -= dt;
+			units_.hp[i] -= status_dps(kind) * step;
+			if (timer <= 0.0f) {
+				units_.status_effects[i] &= (uint8_t)~bit;
+				timer = 0.0f;
 			}
-			if (units_.poison_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_POISON;
-				units_.poison_timer[i] = 0.0f;
-			}
-		}
-
-		// 2. Slow & Snare effect (Spear brace / Cavalry snare / Slow)
-		if (units_.status_effects[i] & EFFECT_SNARE) {
-			units_.snare_timer[i] -= dt;
-			if (units_.snare_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_SNARE;
-				units_.snare_timer[i] = 0.0f;
-			}
-		}
-		if (units_.status_effects[i] & EFFECT_SLOW) {
-			units_.slow_timer[i] -= dt;
-			if (units_.slow_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_SLOW;
-				units_.slow_timer[i] = 0.0f;
-			}
-		}
-
-		// 3. Bleed effect (Physical bleed DoT)
-		if (units_.status_effects[i] & EFFECT_BLEED) {
-			units_.bleed_timer[i] -= dt;
-			units_.hp[i] -= 6.0f * dt; // 6 HP / sec bleed tick
-			if (units_.hp[i] <= 0.0f) {
-				units_.alive[i] = 0;
-				units_.action_state[i] = ACTION_DYING;
-				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
-				if (units_.team[i] == 0) record_.units_lost++;
-				else record_.enemies_killed++;
-			}
-			if (units_.bleed_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_BLEED;
-				units_.bleed_timer[i] = 0.0f;
-			}
-		}
-
-		// 4. Fire burning effect on units
-		if (units_.status_effects[i] & EFFECT_BURNING) {
-			units_.burning_timer[i] -= dt;
-			units_.hp[i] -= 8.0f * dt; // 8 HP / sec fire burning tick
-			if (units_.hp[i] <= 0.0f) {
-				units_.alive[i] = 0;
-				units_.action_state[i] = ACTION_DYING;
-				record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
-				if (units_.team[i] == 0) record_.units_lost++;
-				else record_.enemies_killed++;
-			}
-			if (units_.burning_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_BURNING;
-				units_.burning_timer[i] = 0.0f;
-			}
-		}
-
-		// 5. Knockback effect (Trample impulse)
-		if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
-			units_.knockback_timer[i] -= dt;
-			if (units_.knockback_timer[i] <= 0.0f) {
-				units_.status_effects[i] &= ~EFFECT_KNOCKBACK;
-				units_.knockback_timer[i] = 0.0f;
-			}
+		};
+		tick_status(EFFECT_POISON, units_.poison_timer[i], 1);
+		tick_status(EFFECT_BURNING, units_.burning_timer[i], 2);
+		if (hurt && units_.hp[i] <= 0.0f) {
+			units_.alive[i] = 0;
+			units_.action_state[i] = ACTION_DYING;
+			record_death(units_.pos_x[i], units_.pos_z[i], units_.team[i], (uint8_t)(1 - units_.team[i]), units_.unit_type[i], false);
+			if (units_.team[i] == 0) record_.units_lost++;
+			else record_.enemies_killed++;
 		}
 	}
 

@@ -97,10 +97,37 @@ UNIT_TYPES = ["UNIT_VILLAGER", "UNIT_SWORDSMAN", "UNIT_ARCHER", "UNIT_SPEARMAN",
               "UNIT_WORKER_ELEPHANT", "UNIT_ARCHER_MAIDEN", "UNIT_CAMEL", "UNIT_SCYTHED_CHARIOT"]
 
 
+# 0 A.D. status effects (data/status_effects): RTS0 models Poisoned and Burning.
+STATUS_KINDS = {"Poisoned": 1, "Burning": 2}
+
+
+def status_of(atk):
+    """Attack/*/ApplyStatus: (kind, damage per second, duration in s), or (0, 0, 0)."""
+    node = atk.get("ApplyStatus")
+    for name, st in sorted((node.children.items() if node else []), key=lambda kv: kv[0]):
+        kind = STATUS_KINDS.get(name)
+        if not kind:
+            continue
+        interval = st.num("Interval", 1000.0) / 1000.0
+        dmg = st.get("Damage")
+        per_tick = sum(float(c.text or 0) for c in (dmg.children.values() if dmg else []))
+        return (kind, per_tick / interval if interval > 0 else 0.0, st.num("Duration") / 1000.0)
+    return (0, 0.0, 0.0)
+
+
+def status_immunity(t):
+    """Bits of STATUS_KINDS a Resistance/Entity/ApplyStatus BlockChance of 1 blocks."""
+    bits = 0
+    for name, kind in STATUS_KINDS.items():
+        if t.num("Resistance/Entity/ApplyStatus/%s/BlockChance" % name) >= 1.0:
+            bits |= kind
+    return bits
+
+
 def attack_of(t):
     atk, _ranged = ex.primary_attack(t)
     if atk is None:
-        return {"restricted": [], "spread": 0.0, "bonuses": []}
+        return {"restricted": [], "spread": 0.0, "bonuses": [], "status": (0, 0.0, 0.0)}
     restricted = [c for c in atk.tokens("RestrictedClasses") if not c.startswith("!")]
     bonuses = []
     b = atk.get("Bonuses")
@@ -110,7 +137,8 @@ def attack_of(t):
         civ = node.value("Civ")
         if classes and abs(mult - 1.0) > 1e-9:
             bonuses.append((classes, mult, civ))
-    return {"restricted": restricted, "spread": atk.num("Projectile/Spread", 0.0), "bonuses": bonuses}
+    return {"restricted": restricted, "spread": atk.num("Projectile/Spread", 0.0), "bonuses": bonuses,
+            "status": status_of(atk)}
 
 
 def footprint_of(t):
@@ -125,7 +153,8 @@ def footprint_of(t):
 
 
 def row_of(t, structure=False):
-    r = {"classes": sorted(ex.classes_of(t)), "attack": attack_of(t), "footprint": footprint_of(t)}
+    r = {"classes": sorted(ex.classes_of(t)), "attack": attack_of(t), "footprint": footprint_of(t),
+         "immune": status_immunity(t)}
     if structure:
         r["armour"] = tuple(t.num("Resistance/Entity/Damage/" + k) for k in ("Hack", "Pierce", "Crush"))
     return r
@@ -223,6 +252,9 @@ def emit(units, generic, buildings, classes):
     w("\tCombatBonus bonus[%d];" % MAX_BONUSES)
     w("\tfloat hack_armor, pierce_armor, crush_armor; // structures only")
     w("\tfloat footprint; // Footprint radius in 0 A.D. metres (squares as the circle of equal area)")
+    w("\tuint8_t status; // ApplyStatus its attack applies: 0 none, 1 Poisoned, 2 Burning")
+    w("\tfloat status_dps, status_time; // that status's damage per second and duration (s)")
+    w("\tuint8_t status_immune; // statuses it blocks (bits 1 Poisoned, 2 Burning; BlockChance 1)")
     w("};")
     w("")
 
@@ -236,9 +268,11 @@ def emit(units, generic, buildings, classes):
         while len(bon) < MAX_BONUSES:
             bon.append("{{0, 0}, 1.0f, 255}")
         arm = row.get("armour", (0, 0, 0))
-        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s}, // %s" % (
+        st = a["status"]
+        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d}, // %s" % (
             mask(row["classes"], index), mask(a["restricted"], index), f(a["spread"]), len(a["bonuses"]),
-            ", ".join(bon), f(arm[0]), f(arm[1]), f(arm[2]), f(round(row["footprint"], 3)), comment)
+            ", ".join(bon), f(arm[0]), f(arm[1]), f(arm[2]), f(round(row["footprint"], 3)),
+            st[0], f(round(st[1], 4)), f(st[2]), row["immune"], comment)
 
     w("// 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).")
     w("inline constexpr float COMBAT_DISTANCE_SCALE = %s;" % f(ex.RANGED_RANGE_SCALE))

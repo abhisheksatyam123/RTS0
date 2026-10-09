@@ -17,6 +17,9 @@
 //  9. Health and vision auras: Ptolemy IV's pikemen get +40% max and current health
 //     while near him and lose it when they leave; Han Xin gives allied soldiers +25%
 //     vision everywhere.
+// 10. Status effects are 0 A.D.'s ApplyStatus: maiden archers poison for 0.5 hp/s over
+//     10 s (a second hit extends it), Iberian champion cavalry burn for 2 hp per 3 s
+//     over 9 s; rams are immune to poison; spearmen no longer snare.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -352,6 +355,42 @@ static void test_health_vision_auras() {
 	check(std::fabs(s.unit_vision_at(idx(s, foe)) - base) < 1e-3f, "Han Xin: enemy soldier unchanged");
 }
 
+static void test_status() {
+	std::printf("10. status effects\n");
+	Simulation s;
+	setup(s);
+	const uint16_t maiden = template_named("maur/champion_maiden_archer");
+	const uint16_t iber_cav = template_named("iber/champion_cavalry");
+	check(maiden != CIV_UNIT_TEMPLATE_NONE && iber_cav != CIV_UNIT_TEMPLATE_NONE, "roster has maiden archers and Iberian champion cavalry");
+	const CombatProfile &mp = unit_combat(maiden, UNIT_ARCHER_MAIDEN);
+	const CombatProfile &cp = unit_combat(iber_cav, UNIT_CAVALRY);
+	check(mp.status == 1 && std::fabs(mp.status_dps - 0.5f) < 1e-4f && mp.status_time == 10.0f, "maiden archer: Poisoned 1 per 2 s for 10 s");
+	check(cp.status == 2 && std::fabs(cp.status_dps - 2.0f / 3.0f) < 1e-3f && cp.status_time == 9.0f, "Iberian champion cavalry: Burning 2 per 3 s for 9 s");
+	uint32_t v = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_SWORDSMAN);
+	uint32_t ram = s.spawn_unit(-24.0f, 20.0f, 0, UNIT_SIEGE_RAM);
+	const float hv = s.units_.hp[idx(s, v)], hr = s.units_.hp[idx(s, ram)];
+	s.apply_status((size_t)idx(s, v), mp);
+	s.apply_status((size_t)idx(s, v), mp);
+	s.apply_status((size_t)idx(s, ram), mp);
+	for (int k = 0; k < 500; ++k) s.tick(DT);
+	check(std::fabs((hv - s.units_.hp[idx(s, v)]) - 10.0f) < 0.1f, "two poisoned hits: 0.5 hp/s for 20 s");
+	check(s.units_.hp[idx(s, ram)] == hr, "a ram is immune to poison");
+	check(s.units_.status_effects[idx(s, v)] == 0, "poison wears off");
+
+	Simulation m;
+	setup(m);
+	uint32_t sp = m.spawn_unit(0.0f, 0.0f, 1, UNIT_SPEARMAN);
+	uint32_t cav = m.spawn_unit(1.5f, 0.0f, 0, UNIT_CAVALRY, 1.0e6f);
+	m.order_set_stance(&cav, 1, STANCE_STAND_GROUND);
+	(void)sp;
+	bool snared = false;
+	for (int k = 0; k < 200; ++k) {
+		m.tick(DT);
+		if (m.units_.status_effects[idx(m, cav)] & (EFFECT_SNARE | EFFECT_KNOCKBACK | EFFECT_SLOW | EFFECT_BLEED)) snared = true;
+	}
+	check(!snared, "spearmen hitting cavalry apply no invented snare");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -362,6 +401,7 @@ int main() {
 	test_auras();
 	test_regen();
 	test_health_vision_auras();
+	test_status();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
