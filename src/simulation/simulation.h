@@ -160,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 48; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 49; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -406,7 +406,10 @@ public:
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
 	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0);
+	// flora: the FloraKind the supply shows (FLORA_DEFAULT: the biome's pick).
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
+			uint8_t flora = 0);
+	void set_resource_flora(uint32_t res_id, uint8_t flora);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);
@@ -426,6 +429,28 @@ public:
 	float water_height() const { return terrain_water_height_; }
 	const std::vector<float>& terrain_heights() const { return terrain_heights_; }
 	int terrain_res() const { return terrain_res_; }
+	// 0 A.D. per-tile terrain textures (CTerrain tiles, STileDesc tex1): the
+	// map's terrain names (0 A.D. ids, drawn from assets/textures/terrain/<name>.png)
+	// and one name index per tile, res x res tiles over the whole map, row-major
+	// from the -x/-z corner. res 0 = the map has none (the view paints by biome).
+	struct TerrainTiles {
+		int res = 0;
+		std::vector<std::string> names;
+		std::vector<uint8_t> tiles;
+		bool empty() const { return res <= 0 || names.empty(); }
+		uint8_t at(int tx, int tz) const { return tiles[(size_t)tz * (size_t)res + (size_t)tx]; }
+	};
+	static constexpr int MAX_TERRAIN_TILE_RES = 1024;
+	static constexpr size_t MAX_TERRAIN_NAMES = 255;
+	// Takes the tiles when they are consistent (res x res indices below the
+	// name count, res and names within the limits); otherwise clears them.
+	void set_terrain_tiles(TerrainTiles t);
+	const TerrainTiles &terrain_tiles() const { return terrain_tiles_; }
+	// Map JSON "terrain" (tools/port_0ad_maps.py extract_pmp_terrain): base64 of
+	// (run - 1, name index) byte pairs over the res x res tiles. Empty on bad data.
+	static TerrainTiles terrain_tiles_from_rle(int res, std::vector<std::string> names, const std::string &rle_base64);
+	// The terrain name index of the tile under (x, z), or -1 with no tiles.
+	int terrain_tile_at(float x, float z) const;
 	const std::string& current_map_id() const { return current_map_id_; }
 	const std::string& current_map_name() const { return current_map_name_; }
 	const std::string& current_map_biome() const { return current_map_biome_; }
@@ -999,6 +1024,7 @@ public:
 		const float *x, *z;
 		const int32_t *amount;
 		const uint8_t *type, *subtype, *alive;
+		const uint8_t *flora; // FloraKind
 		const uint32_t *id;
 		size_t count;
 	};
@@ -2341,6 +2367,7 @@ private:
 	float map_half_ = 64.0f;
 	int terrain_res_ = 64;
 	std::vector<float> terrain_heights_;
+	TerrainTiles terrain_tiles_; // saved v49, after the heightmap
 	float terrain_water_height_ = -1.0f;
 	std::string current_map_id_ = "default";
 	std::string current_map_name_ = "Standard Arena";
