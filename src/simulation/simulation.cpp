@@ -135,6 +135,8 @@ static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally res
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
 // Each fruit bush's ResourceSupply/Max, which it regrows towards.
 static constexpr uint32_t SAVE_VERSION_FRUIT_MAX = 39;
+// The per-tile terrain textures (after the heightmap) and each tree's and fruit bush's FloraKind.
+static constexpr uint32_t SAVE_VERSION_TERRAIN_FLORA = 49;
 // Petra's transport plans side by side, each with its owner.
 static constexpr uint32_t SAVE_VERSION_PETRA_TRANSPORTS = 40;
 // Heroes each player has trained (EntityLimits MatchLimit, tick_state_io section 9b) and
@@ -383,6 +385,59 @@ void Simulation::set_map_half(float h) {
 
 Simulation::~Simulation() = default;
 
+void Simulation::set_terrain_tiles(TerrainTiles t) {
+	bool ok = t.res > 0 && t.res <= MAX_TERRAIN_TILE_RES && !t.names.empty() && t.names.size() <= MAX_TERRAIN_NAMES &&
+	          t.tiles.size() == (size_t)t.res * (size_t)t.res;
+	for (size_t i = 0; ok && i < t.tiles.size(); ++i) ok = t.tiles[i] < t.names.size();
+	terrain_tiles_ = ok ? std::move(t) : TerrainTiles();
+}
+
+Simulation::TerrainTiles Simulation::terrain_tiles_from_rle(int res, std::vector<std::string> names, const std::string &rle_base64) {
+	TerrainTiles t;
+	if (res <= 0 || res > MAX_TERRAIN_TILE_RES || names.empty() || names.size() > MAX_TERRAIN_NAMES) return t;
+	auto sextet = [](char c) -> int {
+		if (c >= 'A' && c <= 'Z') return c - 'A';
+		if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+		if (c >= '0' && c <= '9') return c - '0' + 52;
+		if (c == '+') return 62;
+		if (c == '/') return 63;
+		return -1;
+	};
+	std::vector<uint8_t> rle;
+	rle.reserve(rle_base64.size() * 3 / 4);
+	uint32_t acc = 0;
+	int bits = 0;
+	for (const char c : rle_base64) {
+		const int v = sextet(c);
+		if (v < 0) continue; // padding, line breaks
+		acc = (acc << 6) | (uint32_t)v;
+		bits += 6;
+		if (bits >= 8) {
+			bits -= 8;
+			rle.push_back((uint8_t)(acc >> bits));
+		}
+	}
+	const size_t n = (size_t)res * (size_t)res;
+	t.tiles.reserve(n);
+	for (size_t i = 0; i + 1 < rle.size() && t.tiles.size() < n; i += 2)
+		t.tiles.insert(t.tiles.end(), std::min<size_t>((size_t)rle[i] + 1, n - t.tiles.size()), rle[i + 1]);
+	if (t.tiles.size() != n) return TerrainTiles();
+	t.res = res;
+	t.names = std::move(names);
+	for (const uint8_t v : t.tiles)
+		if (v >= t.names.size()) return TerrainTiles();
+	return t;
+}
+
+int Simulation::terrain_tile_at(float x, float z) const {
+	const TerrainTiles &t = terrain_tiles_;
+	if (t.empty()) return -1;
+	const float cell = 2.0f * map_half_ / (float)t.res;
+	const int tx = std::clamp((int)std::floor((x + map_half_) / cell), 0, t.res - 1);
+	const int tz = std::clamp((int)std::floor((z + map_half_) / cell), 0, t.res - 1);
+	return t.at(tx, tz);
+}
+
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
 	petra_decay_events_.clear();
@@ -392,6 +447,7 @@ void Simulation::reset() {
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
 	terrain_res_ = 64;
+	terrain_tiles_ = TerrainTiles();
 	terrain_water_height_ = -1.0f;
 	fow_cell_height_.clear();
 	fow_cell_hmax_.clear();
@@ -850,14 +906,21 @@ uint32_t Simulation::spawn_resource(int cell_x, int cell_y, uint8_t type, int32_
 	return spawn_resource_world(x, z, type, amount);
 }
 
-uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount, uint8_t subtype, uint8_t max_gatherers) {
+uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount, uint8_t subtype, uint8_t max_gatherers,
+		uint8_t flora) {
 	uint32_t rid = alloc_id();
 	if (max_gatherers == 0) max_gatherers = resource_default_max_gatherers(type, subtype, amount);
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
 	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
 	if (type == RES_FOOD && subtype == RES_SUB_NONE) resources_.max_amount[idx] = amount;
+	resources_.flora[idx] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 	res_id_to_idx_[rid] = idx;
 	return rid;
+}
+
+void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it != res_id_to_idx_.end()) resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 }
 
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress) {
@@ -991,6 +1054,9 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 				"steppe", "savanna", "polar", "india"};
 		current_map_biome_ = kBiomeNames[biome_override_];
 	}
+	// 0 A.D. per-tile terrain textures from the final biome.
+	RmsGenerator::paint_terrain(*this, seed);
+	RmsGenerator::plant_flora(*this, seed);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
 	rebuild_nav_grid();
@@ -9610,6 +9676,7 @@ Simulation::ResourceView Simulation::resources() const {
 		resources_.x, resources_.z,
 		resources_.amount,
 		resources_.type, resources_.subtype, resources_.alive,
+		resources_.flora,
 		resources_.id,
 		resources_.count
 	};
@@ -17887,7 +17954,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind
 
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
@@ -17902,6 +17969,22 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&res, sizeof(res));
 		out.write((const char *)&n, sizeof(n));
 		if (n) out.write((const char *)terrain_heights_.data(), (std::streamsize)(n * sizeof(float)));
+	}
+	// v49: the per-tile terrain textures, so a loaded map draws its own ground.
+	{
+		const TerrainTiles &t = terrain_tiles_;
+		const int32_t res = t.empty() ? 0 : t.res;
+		out.write((const char *)&res, sizeof(res));
+		if (res) {
+			const uint8_t names = (uint8_t)t.names.size();
+			out.write((const char *)&names, sizeof(names));
+			for (const std::string &nm : t.names) {
+				const uint8_t len = (uint8_t)std::min<size_t>(nm.size(), 255);
+				out.write((const char *)&len, sizeof(len));
+				out.write(nm.data(), len);
+			}
+			out.write((const char *)t.tiles.data(), (std::streamsize)t.tiles.size());
+		}
 	}
 
 	// 1. Sim scalars
@@ -18116,6 +18199,30 @@ bool Simulation::load_state(const char *filepath) {
 		if (!in.good()) return false;
 		set_terrain_data(heights, res, terrain_water_height_); // the water level comes with the tick state
 	}
+	terrain_tiles_ = TerrainTiles();
+	if (version >= SAVE_VERSION_TERRAIN_FLORA) {
+		int32_t res = 0;
+		in.read((char *)&res, sizeof(res));
+		if (!in.good() || res < 0 || res > MAX_TERRAIN_TILE_RES) return false;
+		if (res) {
+			TerrainTiles t;
+			t.res = res;
+			uint8_t names = 0;
+			in.read((char *)&names, sizeof(names));
+			for (uint8_t i = 0; in.good() && i < names; ++i) {
+				uint8_t len = 0;
+				in.read((char *)&len, sizeof(len));
+				std::string nm(len, '\0');
+				if (len) in.read(nm.data(), len);
+				t.names.push_back(std::move(nm));
+			}
+			t.tiles.resize((size_t)res * (size_t)res);
+			in.read((char *)t.tiles.data(), (std::streamsize)t.tiles.size());
+			if (!in.good()) return false;
+			set_terrain_tiles(std::move(t));
+			if (terrain_tiles_.empty()) return false;
+		}
+	}
 
 	// 1. Sim scalars
 	in.read((char *)&ticks_, sizeof(ticks_));
@@ -18221,6 +18328,7 @@ bool Simulation::load_state(const char *filepath) {
 		resources_.subtype[idx] = RES_SUB_NONE; // v17+: the tick state has it
 		resources_.max_gatherers[idx] = resource_default_max_gatherers(rtype, RES_SUB_NONE, ramount); // v29+: saved
 		resources_.max_amount[idx] = 0; // tick state: saved, or the fruit default
+		resources_.flora[idx] = FLORA_DEFAULT; // v49+: the tick state has it
 		resources_.alive[idx] = ralive;
 		resources_.count++;
 		res_id_to_idx_[rid] = idx;
@@ -18955,6 +19063,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (size_t r = 0; r < s.resources_.count; ++r)
 			s.resources_.max_amount[r] = (s.resources_.type[r] == RES_FOOD && s.resources_.subtype[r] == RES_SUB_NONE) ? s.resources_.amount[r] : 0;
 	}
+	// v49: each tree's and fruit bush's FloraKind (older saves: the biome's pick).
+	if (ar.version >= SAVE_VERSION_TERRAIN_FLORA)
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.flora[r]);
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
