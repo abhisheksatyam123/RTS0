@@ -7808,6 +7808,9 @@ void Simulation::petra_manage_workers(float dt) {
 	// petra_manage_garrisons lets them out once no enemy is near (garrisonManager.js).
 }
 
+// What Petra pays for its fortress (wood, gold, stone in ResourceType order).
+static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
+
 void Simulation::petra_manage_military_production(float dt) {
 	// Priority QueueManager: Priority 1 = Emergency Defense, Priority 3 = Military Strike Force
 	float max_threat = 0.0f;
@@ -8009,10 +8012,37 @@ void Simulation::petra_manage_military_production(float dt) {
 	// A siege tower we cannot pay for yet holds the siege slot: cheaper siege
 	// engines don't take it in the meantime (queueManager waits for its plan).
 	bool siege_waiting = false;
+	// config.js priorities: the city phase (majorTech, 700) and then the fortress
+	// (defenseBuilding, 70) outrank citizen soldiers (50) and attack plans' queues, so while
+	// one waits on resources soldiers only train from what its price leaves.
+	float reserve[RES_COUNT] = {};
+	if (phase == 2) {
+		const ResearchCheck rc = research_check(petra_pid_, TECH_PHASE_CITY);
+		if (rc == TECH_OK || rc == TECH_ERR_COST) {
+			const TechInfo &city = tech_info(TECH_PHASE_CITY);
+			reserve[RES_FOOD] = (float)city.food_cost; reserve[RES_WOOD] = (float)city.wood_cost;
+			reserve[RES_GOLD] = (float)city.gold_cost; reserve[RES_STONE] = (float)city.stone_cost;
+		}
+	} else if (phase >= 3) {
+		bool fortress = false;
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == BLD_FORTRESS) { fortress = true; break; }
+		if (!fortress) for (int r = 0; r < RES_COUNT; ++r) reserve[r] = PETRA_FORTRESS_COST[r];
+	}
+	const bool reserving = reserve[RES_FOOD] + reserve[RES_WOOD] + reserve[RES_GOLD] + reserve[RES_STONE] > 0.0f;
 	for (const auto &opt : options) {
 		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
 		const bool siege_opt = is_siege(civ_unit_template(opt.tmpl).unit_type);
 		if (siege_opt && siege_waiting) continue;
+		if (reserving && !(civ_unit_template(opt.tmpl).flags & ROSTER_HERO)) {
+			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, opt.tmpl, ui, cost);
+			bool leaves = true;
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (cost[r] > 0.0f && petra_ps().res[r] - cost[r] < reserve[r]) leaves = false;
+			if (!leaves) continue;
+		}
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
 		if (is_tower(opt.tmpl)) siege_waiting = true;
 	}
@@ -8259,6 +8289,13 @@ void Simulation::petra_manage_economy(float dt) {
 	// of up to 5 (trainMoreWorkers) waiting for food while workers are short.
 	if (ai_villagers < target_villagers)
 		demand_food += 50.0f * (float)std::min(5, target_villagers - ai_villagers);
+
+	// queueManager.js wantedGatherRates counts the queued plans: a phase or technology
+	// waiting on resources steers gatherers toward what it still lacks.
+	if (petra_queues_.want_age[PETRA_QUEUE_TECH] <= PetraQueueManager::WANT_TTL) {
+		const PetraQueueAccount &w = petra_queues_.wants[PETRA_QUEUE_TECH];
+		demand_food += w.food; demand_wood += w.wood; demand_gold += w.gold; demand_stone += w.stone;
+	}
 
 	// Housing and Building Needs:
 	if (pop_current(petra_pid_) >= pop_max(petra_pid_) - 4) {
@@ -9409,7 +9446,7 @@ void Simulation::petra_manage_buildings(float dt) {
 						int cx = start_cx + dx;
 						int cz = start_cz + dz;
 						if (petra_can_place(cx, cz, 2, BLD_FORTRESS)) {
-							if (!petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 300.0f, 200.0f, 300.0f)) break;
+							if (!petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, PETRA_FORTRESS_COST[RES_WOOD], PETRA_FORTRESS_COST[RES_GOLD], PETRA_FORTRESS_COST[RES_STONE])) break;
 							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, petra_pid_, 0.0f);
 							auto idle_workers = get_idle_workers(petra_pid_);
 							if (!idle_workers.empty()) {
@@ -9567,6 +9604,16 @@ void Simulation::petra_manage_research(float dt) {
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
 		if (gcls == GATHER_FISHING || ((gcls == GATHER_INFANTRY || gcls == GATHER_SUPPORT) && !in_plan.count(units_.id[i])))
 			++workers;
+	}
+
+	// headquarters.js buildMarket (Economy.popForMarket 50) and buildForge (Military.popForForge
+	// 65), scaled like popPhase2: the town phase raises them before the city phase needs them.
+	if (petra_ps().phase >= 2 && home) {
+		const float k = std::min(1.0f, petra_config_.pop_scaling);
+		if (pop >= (int)std::lround(50.0f * k) && !have_building(BLD_MARKET))
+			petra_place_building(BLD_MARKET, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
+		else if (pop >= (int)std::lround(65.0f * k) && !have_building(BLD_FORGE))
+			petra_place_building(BLD_FORGE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
 	}
 
 	if (petra_ps().phase == 1) {

@@ -88,7 +88,9 @@ static void test_phase_up() {
 	s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 	float town_at = -1.0f, city_at = -1.0f;
 	int peak_workers = 0, peak_fields = 0;
-	for (float t = 0.0f; t < 15.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
+	// 18 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) the city phase's
+	// 750 stone and 750 metal come in around minute 16, as for 0 A.D.'s Petra.
+	for (float t = 0.0f; t < 18.0f * 60.0f && !s->is_game_over(); t += Simulation::FIXED_STEP) {
 		s->tick(Simulation::FIXED_STEP);
 		if (town_at < 0.0f && s->petra_phase() >= 2) town_at = t;
 		if (city_at < 0.0f && s->petra_phase() >= 3) city_at = t;
@@ -104,7 +106,7 @@ static void test_phase_up() {
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
 	CHECK(town_at > 0.0f && town_at < 12.0f * 60.0f, "town phase within 12 minutes");
-	CHECK(city_at > 0.0f && city_at < 15.0f * 60.0f, "city phase within 15 minutes (Town structures built first)");
+	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
 }
