@@ -570,6 +570,70 @@ static void test_petra_overseas_base() {
 	CHECK(north_gathering_south == 0 && waded == 0);
 }
 
+// navalManager.js keeps a transportPlan per ship: an army sailing to attack does
+// not wait for the builders bound for a new base, each crossing on its own ship.
+static void test_petra_concurrent_transports() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_HOUSE, 0);
+	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
+	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
+	std::vector<uint32_t> army;
+	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	for (int k = 0; k < 10; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
+	// Wood on the south land only: Petra settles there.
+	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-36.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
+	const uint16_t south = s.petra_land_at(-30.0f, -40.0f);
+	auto plan_of = [&](uint8_t owner) -> const PetraTransportPlan * {
+		for (const auto &p : s.petra_transport_plans()) if (p.owner == owner) return &p;
+		return nullptr;
+	};
+	// The builders' crossing first; the attack sets out while it is under way.
+	for (int k = 0; k < 240 && !plan_of(PETRA_TRANSPORT_BUILDERS); ++k) run(s, 1.0f);
+	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
+	// One plan per owner: a second builders' crossing waits for the first.
+	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	s.petra_attack_mgr_.target_size = 6;
+	s.petra_attack_mgr_.min_size = 6;
+	s.petra_attack_mgr_.rushes_set = 1;
+	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
+	s.petra_attack_plan_.target_building_id = house;
+	s.petra_attack_plan_.state_timer = 0.0f;
+	bool both = false, shared = false;
+	std::vector<uint32_t> landed;
+	for (int k = 0; k < 120; ++k) {
+		run(s, 1.0f);
+		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
+		if (a && b) {
+			both = true;
+			shared |= a->ship_id == b->ship_id;
+			for (uint32_t uid : a->passenger_ids)
+				shared |= std::find(b->passenger_ids.begin(), b->passenger_ids.end(), uid) != b->passenger_ids.end();
+		}
+		for (uint32_t uid : army) {
+			const int32_t i = idx(s, uid);
+			if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south &&
+			    std::find(landed.begin(), landed.end(), uid) == landed.end()) landed.push_back(uid);
+		}
+	}
+	int villagers_south = 0;
+	for (size_t i = 0; i < s.units().count; ++i)
+		if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+		    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++villagers_south;
+	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, %d villagers on the south land\n",
+	            both ? "yes" : "no", landed.size(), villagers_south);
+	CHECK(both && !shared);
+	CHECK(landed.size() >= 4 && villagers_south >= 1);
+}
+
+
 // DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
 // deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
 // Other ships and structures deal nothing when they die.
@@ -623,6 +687,7 @@ int main() {
 	test_petra_navy();
 	test_petra_overseas_attack();
 	test_petra_overseas_base();
+	test_petra_concurrent_transports();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

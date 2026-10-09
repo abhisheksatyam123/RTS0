@@ -124,6 +124,8 @@ static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
 static constexpr uint32_t SAVE_VERSION_MAX_GATHERERS = 33;
 // Each structure's BuildingAI round, arrows left and timer state.
 static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 34;
+// Petra's transport plans side by side, each with its owner.
+static constexpr uint32_t SAVE_VERSION_PETRA_TRANSPORTS = 36;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
@@ -4374,8 +4376,10 @@ void Simulation::order_board_transport(const uint32_t *unit_ids, size_t count, u
 	// GarrisonHolder Pickup: an idle ship sails toward the units coming aboard,
 	// as close to them as the water allows.
 	// Petra's transport plan steers its own ship to the pickup point.
-	const bool petra_ship = petra_transport_.ship_id == transport_id && petra_transport_.state != PetraTransportPlan::IDLE &&
-			petra_transport_.state != PetraTransportPlan::FAILED;
+	bool petra_ship = false; // any AI's: the ship's team is the AI whose plan it is
+	for (const auto &tp : petra_transports_) petra_ship |= tp.ship_id == transport_id;
+	for (const auto &slot : petra_slots_)
+		for (const auto &tp : slot.petra_transports_) petra_ship |= tp.ship_id == transport_id;
 	if (walking && !petra_ship && unit_is_ship(units_.unit_type[tidx]) && !units_.has_order[tidx]) {
 		float wx = pick_x / (float)walking, wz = pick_z / (float)walking;
 		if (nearest_water_for_ship((size_t)tidx, wx, wz, wx, wz)) {
@@ -10149,7 +10153,7 @@ void Simulation::petra_staff_foundations() {
 			--budget;
 		}
 		// navalManager.requireTransport: nobody of ours on that land yet, so a ship
-		// takes builders from home (one transport plan at a time).
+		// takes builders from home (one builders' crossing at a time).
 		if (!naval_map || n.missing < wanted || budget <= 0 || !n.land || n.land == home_land) continue;
 		const uint16_t sea = topo.sea_between(home_land, n.land);
 		if (!sea || petra_transport_ships_on(sea) == 0) continue;
@@ -10161,7 +10165,7 @@ void Simulation::petra_staff_foundations() {
 		}
 		float hx = n.x, hz = n.z;
 		if (const PetraBase *pb = get_primary_petra_base()) { hx = pb->x; hz = pb->z; }
-		if (!crew.empty() && petra_start_transport(crew, hx, hz, n.x, n.z, sea)) budget -= (int)crew.size();
+		if (!crew.empty() && petra_start_transport(crew, hx, hz, n.x, n.z, sea, PETRA_TRANSPORT_BUILDERS)) budget -= (int)crew.size();
 	}
 }
 
@@ -11277,9 +11281,23 @@ uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t ta
 
 // A unit of ours aboard Petra's transport ship (alive again once it lands).
 bool Simulation::petra_aboard(uint32_t uid) const {
-	if (petra_transport_.state == PetraTransportPlan::IDLE || petra_transport_.state == PetraTransportPlan::FAILED) return false;
-	const auto *p = get_transport_passengers(petra_transport_.ship_id);
-	return p && std::find(p->begin(), p->end(), uid) != p->end();
+	for (const auto &tp : petra_transports_) {
+		const auto *p = get_transport_passengers(tp.ship_id);
+		if (p && std::find(p->begin(), p->end(), uid) != p->end()) return true;
+	}
+	return false;
+}
+
+const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
+	for (const auto &tp : petra_transports_)
+		if (tp.owner == owner) return &tp;
+	return nullptr;
+}
+
+bool Simulation::petra_ship_in_plan(uint32_t ship_id) const {
+	for (const auto &tp : petra_transports_)
+		if (tp.ship_id == ship_id) return true;
+	return false;
 }
 
 // navalManager.js transportShips: own ships that carry units (warships, which
@@ -11555,8 +11573,7 @@ void Simulation::petra_manage_naval(float dt) {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
 		if (units_.action_state[i] != ACTION_IDLE || units_.has_order[i]) continue;
-		if (units_.id[i] == petra_transport_.ship_id && petra_transport_.state != PetraTransportPlan::IDLE &&
-		    petra_transport_.state != PetraTransportPlan::FAILED) continue;
+		if (petra_ship_in_plan(units_.id[i])) continue;
 		const uint16_t sea = petra_ship_sea(i);
 		for (const Building &b : buildings_) {
 			if (b.type != BLD_DOCK || b.wrecked || b.hp <= 0.0f || !is_ally(petra_pid_, b.team)) continue;
@@ -12656,9 +12673,10 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 				if (overseas) {
 					// attackPlan.js "transporting": the army sails, and gathers where it lands.
-					if (!petra_start_transport(squad, base_x, base_z, tx, tz, overseas)) return; // the ship is busy
-					petra_attack_plan_.staging_x = petra_strike_force_.staging_x = petra_transport_.drop_x;
-					petra_attack_plan_.staging_z = petra_strike_force_.staging_z = petra_transport_.drop_z;
+					if (!petra_start_transport(squad, base_x, base_z, tx, tz, overseas, PETRA_TRANSPORT_ATTACK)) return; // no free ship
+					const PetraTransportPlan *tp = petra_transport_for(PETRA_TRANSPORT_ATTACK);
+					petra_attack_plan_.staging_x = petra_strike_force_.staging_x = tp->drop_x;
+					petra_attack_plan_.staging_z = petra_strike_force_.staging_z = tp->drop_z;
 				} else {
 					order_walk(squad.data(), squad.size(), sx, sz, false);
 				}
@@ -12674,15 +12692,10 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 
 		case AttackPlan::WALKING: {
 			petra_strike_force_.state = PetraStrikeForce::MARCH;
-			if (petra_transport_.state == PetraTransportPlan::BOARDING ||
-			    petra_transport_.state == PetraTransportPlan::SAILING ||
-			    petra_transport_.state == PetraTransportPlan::UNLOADING) {
-				return;
-			}
+			if (petra_transport_for(PETRA_TRANSPORT_ATTACK)) return; // still at sea
 			// navalManager.js requireTransport: the ship comes back for those still on
 			// our land (a failed transport leaves them, as a plan without ships does).
-			if (petra_transport_.state == PetraTransportPlan::IDLE &&
-			    petra_plan_overseas(base_x, base_z, petra_attack_plan_.target_building_id)) {
+			if (petra_plan_overseas(base_x, base_z, petra_attack_plan_.target_building_id)) {
 				const PetraNavalTopo &topo = petra_topo();
 				const uint32_t target_id = petra_attack_plan_.target_building_id;
 				const uint16_t overseas = petra_overseas(topo, base_x, base_z, target_id);
@@ -12696,7 +12709,7 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 							left.push_back(uid);
 					}
 					if (!left.empty() && petra_start_transport(left, base_x, base_z, petra_attack_plan_.target_x,
-					                                           petra_attack_plan_.target_z, overseas)) {
+					                                           petra_attack_plan_.target_z, overseas, PETRA_TRANSPORT_ATTACK)) {
 						petra_attack_plan_.state_timer = 0.0f;
 						return;
 					}
@@ -13092,10 +13105,9 @@ void Simulation::petra_manage_raid(float dt) {
 		const bool ready = plan.squad.size() >= 4 || (plan.squad.size() >= 3 && plan.state_timer >= 30.0f);
 		if (!ready) return;
 		const float tx = plan.target_x, tz = plan.target_z;
-		// A raid overseas waits for a transport ship there, and for it to be free.
+		// A raid overseas waits for a transport ship there, and for its last crossing to end.
 		const uint16_t overseas = petra_plan_overseas(base_x, base_z, plan.target_building_id);
-		if (overseas && (petra_transport_ships_on(overseas) == 0 ||
-		                 (petra_transport_.state != PetraTransportPlan::IDLE && petra_transport_.state != PetraTransportPlan::FAILED)))
+		if (overseas && (petra_transport_ships_on(overseas) == 0 || petra_transport_for(PETRA_TRANSPORT_RAID)))
 			return;
 		plan.initial_squad_size = plan.squad.size();
 		plan.state = AttackPlan::WALKING;
@@ -13105,7 +13117,7 @@ void Simulation::petra_manage_raid(float dt) {
 		// Mirror the assault plan's transportPlan.js branch: a raid that
 		// crosses water boards a transport instead of issuing a ground move.
 		if (overseas) {
-			if (!petra_start_transport(plan.squad, base_x, base_z, tx, tz, overseas))
+			if (!petra_start_transport(plan.squad, base_x, base_z, tx, tz, overseas, PETRA_TRANSPORT_RAID))
 				order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
 		} else {
 			order_attack_move(plan.squad.data(), plan.squad.size(), tx, tz, false, false, true);
@@ -13436,11 +13448,11 @@ bool Simulation::petra_find_beach(float land_x, float land_z, float toward_x, fl
 	return found;
 }
 
-bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z, uint16_t sea) {
-	// One plan at a time: a new one would strand the passengers of the one under way.
-	if (petra_transport_.state == PetraTransportPlan::BOARDING || petra_transport_.state == PetraTransportPlan::SAILING ||
-	    petra_transport_.state == PetraTransportPlan::UNLOADING)
-		return false;
+bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, float from_x, float from_z, float to_x, float to_z,
+                                       uint16_t sea, uint8_t owner) {
+	// navalManager.transportPlans: one plan per owner (attack, raid, builders);
+	// plans run side by side, each on its own ship.
+	if (petra_transport_for(owner)) return false;
 	float pickup_x = from_x, pickup_z = from_z;
 	float drop_x = to_x, drop_z = to_z;
 	petra_find_beach(from_x, from_z, to_x, to_z, pickup_x, pickup_z);
@@ -13454,6 +13466,7 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !petra_is_transport_ship(i)) continue;
 		if (sea && petra_ship_sea(i) != sea) continue;
+		if (petra_ship_in_plan(units_.id[i])) continue; // busy with another plan
 		const int cap = ship_garrison_capacity(i);
 		const int room = cap + (cap != 10 ? 50 : 0);
 		const float dx = units_.pos_x[i] - pickup_x, dz = units_.pos_z[i] - pickup_z;
@@ -13465,36 +13478,42 @@ bool Simulation::petra_start_transport(const std::vector<uint32_t> &unit_ids, fl
 	}
 	if (ship == 0) return false;
 
-	petra_transport_ = PetraTransportPlan();
-	petra_transport_.state = PetraTransportPlan::BOARDING;
-	petra_transport_.ship_id = ship;
-	petra_transport_.pickup_x = pickup_x;
-	petra_transport_.pickup_z = pickup_z;
-	petra_transport_.drop_x = drop_x;
-	petra_transport_.drop_z = drop_z;
-	petra_transport_.state_timer = 0.0f;
-	petra_transport_.passenger_ids.clear();
+	PetraTransportPlan tp;
+	tp.state = PetraTransportPlan::BOARDING;
+	tp.owner = owner;
+	tp.ship_id = ship;
+	tp.pickup_x = pickup_x;
+	tp.pickup_z = pickup_z;
+	tp.drop_x = drop_x;
+	tp.drop_z = drop_z;
 	for (uint32_t uid : unit_ids) {
-		if (petra_transport_.passenger_ids.size() >= (size_t)get_transport_capacity(ship)) break;
+		if (tp.passenger_ids.size() >= (size_t)get_transport_capacity(ship)) break;
 		int32_t idx = lookup_unit(uid);
 		if (idx < 0 || !units_.alive[idx] || is_transport(uid)) continue;
+		const bool booked = std::any_of(petra_transports_.begin(), petra_transports_.end(), [uid](const PetraTransportPlan &o) {
+			return std::find(o.passenger_ids.begin(), o.passenger_ids.end(), uid) != o.passenger_ids.end();
+		});
+		if (booked) continue; // a passenger of another plan
 		const int32_t sidx = lookup_unit(ship);
 		if (sidx < 0 || !can_board((size_t)sidx, (size_t)idx)) continue;
-		petra_transport_.passenger_ids.push_back(uid);
+		tp.passenger_ids.push_back(uid);
 	}
-	if (petra_transport_.passenger_ids.empty()) {
-		petra_transport_.state = PetraTransportPlan::FAILED;
-		petra_transport_.failed = true;
-		return false;
-	}
+	if (tp.passenger_ids.empty()) return false;
 	order_walk(&ship, 1, pickup_x, pickup_z, false);
-	order_walk(petra_transport_.passenger_ids.data(), petra_transport_.passenger_ids.size(), pickup_x, pickup_z, false);
+	order_walk(tp.passenger_ids.data(), tp.passenger_ids.size(), pickup_x, pickup_z, false);
+	petra_transports_.push_back(std::move(tp));
 	return true;
 }
 
 void Simulation::petra_manage_transport(float dt) {
-	auto &tp = petra_transport_;
-	if (tp.state == PetraTransportPlan::IDLE || tp.state == PetraTransportPlan::FAILED) return;
+	for (auto &tp : petra_transports_) petra_step_transport(tp, dt);
+	// A finished or failed plan frees its owner and ship.
+	petra_transports_.erase(std::remove_if(petra_transports_.begin(), petra_transports_.end(), [](const PetraTransportPlan &tp) {
+		return tp.state == PetraTransportPlan::IDLE || tp.state == PetraTransportPlan::FAILED;
+	}), petra_transports_.end());
+}
+
+void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 	tp.state_timer += dt;
 
 	int32_t sidx = lookup_unit(tp.ship_id);
@@ -14719,7 +14738,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_defense_army_ = PetraDefenseArmy();
 	petra_emergency_ = PetraEmergency();
 	petra_queues_.reset();
-	petra_transport_ = PetraTransportPlan();
+	petra_transports_.clear();
 	petra_defense_timer_ = 0.0f;
 	petra_victory_timer_ = 0.0f;
 	petra_diplo_timer_ = 0.0f;
@@ -14845,7 +14864,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 Petra's concurrent transport plans
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -15707,10 +15726,25 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			ar.pod(v.target_unit_id); ar.pod(v.state_timer);
 		} else if constexpr (std::is_same_v<T, PetraDefenseArmy>) {
 			ids(v.defender_ids); ids(v.foe_ids); ar.pod(v.cx); ar.pod(v.cz); ar.pod(v.active);
-		} else if constexpr (std::is_same_v<T, PetraTransportPlan>) {
-			ar.pod(v.state); ar.pod(v.ship_id); ids(v.passenger_ids);
-			ar.pod(v.pickup_x); ar.pod(v.pickup_z); ar.pod(v.drop_x); ar.pod(v.drop_z);
-			ar.pod(v.state_timer); ar.pod(v.failed);
+		} else if constexpr (std::is_same_v<T, std::vector<PetraTransportPlan>>) {
+			auto plan = [&](PetraTransportPlan &p) {
+				ar.pod(p.state); ar.pod(p.ship_id); ids(p.passenger_ids);
+				ar.pod(p.pickup_x); ar.pod(p.pickup_z); ar.pod(p.drop_x); ar.pod(p.drop_z);
+				ar.pod(p.state_timer); ar.pod(p.failed);
+			};
+			if (ar.version >= SAVE_VERSION_PETRA_TRANSPORTS) {
+				io_vec(ar, v, 64, [&](PetraTransportPlan &p) { ar.pod(p.owner); plan(p); });
+			} else if constexpr (Ar::loading) {
+				// Older saves hold one plan, always the attack's; an ended one is dropped.
+				PetraTransportPlan p;
+				plan(p);
+				v.clear();
+				if (p.state == PetraTransportPlan::BOARDING || p.state == PetraTransportPlan::SAILING ||
+				    p.state == PetraTransportPlan::UNLOADING) {
+					p.owner = PETRA_TRANSPORT_ATTACK;
+					v.push_back(std::move(p));
+				}
+			}
 		} else if constexpr (std::is_same_v<T, PetraEmergency>) {
 			static_assert(sizeof(PetraEmergency) == 16, "list the new PetraEmergency field below");
 			ar.padded(v, [](PetraEmergency &d, const PetraEmergency &x) {
