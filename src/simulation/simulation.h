@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 35; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 36; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -1328,6 +1328,8 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
+	void apply_status(size_t t, const CombatProfile &att); // Attack ApplyStatus (Poisoned, Burning)
+	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	// Foundation.js Commit: own and allied units standing on the foundation are told to
@@ -1407,6 +1409,8 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
