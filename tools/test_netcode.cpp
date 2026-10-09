@@ -655,11 +655,12 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     std::vector<uint32_t> host_squad;
     for (int i = 0; i < 4; ++i) host_squad.push_back(sim.spawn_unit(-36.0f + 2.0f * (float)i, 22.0f, 0, UNIT_SPEARMAN));
     // A villager carrying wood the host sends to drop it off (cmd 34, UnitAI ReturnResource).
+    // Half a load: a full one (ResourceGatherer Capacities wood 10) goes back by itself.
     const uint32_t host_carrier = sim.spawn_unit(-40.0f, 2.0f, 0, UNIT_VILLAGER, 100.0f);
     {
         const int32_t ci = sim.lookup_unit(host_carrier);
         sim.units_.res_type_carried[ci] = RES_WOOD;
-        sim.units_.carry[ci] = 10;
+        sim.units_.carry[ci] = 5;
     }
     // Two markets and a trader the host walks off, then sends on a Shift-queued
     // route between them (cmd 35, 0 A.D. setup-trade-route).

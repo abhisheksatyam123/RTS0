@@ -255,6 +255,7 @@ public:
 	void _on_speed_button_pressed();
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
+	void _on_alert_pressed(int end);
 	void _on_selection_group_clicked(int key);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -333,6 +334,8 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
+	void debug_gather_nearest();
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
