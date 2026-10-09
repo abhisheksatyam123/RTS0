@@ -37,6 +37,7 @@
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
 #include "simulation/simulation.h"
+#include "simulation/entity_limits_data.h"
 #undef private
 #include <algorithm>
 #include <cmath>
@@ -1008,6 +1009,36 @@ static void test_nomad_first_base() {
 	CHECK(buildings >= 3, "and builds on from it");
 }
 
+// EntityLimits (D's #159): a Mauryan Pillar only stands while Ashoka lives.
+// Petra asks before it searches for a spot, so it neither lays one out nor
+// scans the map for one every turn (it did ~200k refused cells a game).
+static void test_entity_limit_placement() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->players_[1].civ = CIV_MAURYANS;
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const int pillar_foot = building_type_info(BLD_PILLAR).footprint;
+	int free_cells = 0, pillar_ok = 0;
+	for (int dx = -8; dx <= 8; ++dx)
+		for (int dz = -8; dz <= 8; ++dz) {
+			const int cx = (int)(tx / Simulation::GRID) + dx, cz = (int)(tz / Simulation::GRID) + dz;
+			if (s->petra_can_place(cx, cz, pillar_foot, BLD_HOUSE)) ++free_cells;
+			if (s->petra_can_place(cx, cz, pillar_foot, BLD_PILLAR)) ++pillar_ok;
+		}
+	const size_t before = s->buildings().size();
+	const uint32_t placed = s->petra_place_building(BLD_PILLAR, tx, tz, 2, 16, Simulation::PETRA_QUEUE_MILITARY);
+	std::printf("  entity limits: Pillar limit %d without Ashoka, %d free cells, Pillar placeable on %d, placed %s\n",
+	            s->entity_limit(1, LIMIT_PILLAR), free_cells, pillar_ok, placed ? "yes" : "no");
+	CHECK(s->entity_limit(1, LIMIT_PILLAR) == 0, "no Pillar without Ashoka");
+	CHECK(free_cells > 0 && pillar_ok == 0, "Petra's placement refuses a limited structure everywhere");
+	CHECK(!placed && s->buildings().size() == before, "and lays none out");
+}
+
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
 // territory, not for one it has never seen.
 static void test_relic_capture() {
@@ -1089,6 +1120,7 @@ int main() {
 	test_regicide_hero();
 	test_regicide_hero_no_garrison();
 	test_nomad_first_base();
+	test_entity_limit_placement();
 	test_relic_capture();
 	test_retreat_walk_forced();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
