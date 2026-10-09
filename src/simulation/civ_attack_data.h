@@ -44,7 +44,7 @@ struct CombatProfile {
 // 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).
 inline constexpr float COMBAT_DISTANCE_SCALE = 0.28f;
 
-inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 376; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 377; // = CIV_UNIT_TEMPLATE_COUNT
 inline const CombatProfile *combat_template_table() {
 	static const CombatProfile kTable[COMBAT_TEMPLATE_COUNT] = {
 		{{0x0000000000000299ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0}, // athen/cavalry_javelineer_b
@@ -423,13 +423,14 @@ inline const CombatProfile *combat_template_table() {
 		{{0x0000000000000299ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0}, // rome/cavalry_auxiliary_b
 		{{0x0000000000000298ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // rome/infantry_antesignanus
 		{{0x0000000000000298ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 1, {{{0x0000000000000001ull, 0x0000000000000000ull}, 3.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // mace/champion_infantry_spearman_02
+		{{0x0000000000000218ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // han/support_minister
 	};
 	return kTable;
 }
 
 // Units without a roster template, by UnitType (extract_0ad_rosters.py GENERIC).
 inline const CombatProfile *combat_class_table() {
-	static const CombatProfile kTable[23] = {
+	static const CombatProfile kTable[24] = {
 		{{0x0000000000000218ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // UNIT_VILLAGER: template_unit_support_slave
 		{{0x0000000000000298ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // UNIT_SWORDSMAN: template_unit_infantry_melee_swordsman
 		{{0x0000000000000298ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // UNIT_ARCHER: template_unit_infantry_ranged_archer
@@ -453,10 +454,11 @@ inline const CombatProfile *combat_class_table() {
 		{{0x0000000000000298ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // UNIT_ARCHER_MAIDEN: template_unit_infantry_ranged_archer
 		{{0x0000000000000299ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0}, // UNIT_CAMEL: template_unit_cavalry_ranged_archer
 		{{0x0000000000000299ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
+		{{0x0000000000000218ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0}, // UNIT_MINISTER: units/han/support_minister
 	};
 	return kTable;
 }
-inline constexpr uint8_t COMBAT_CLASS_ROWS = 23; // = UNIT_TYPE_COUNT
+inline constexpr uint8_t COMBAT_CLASS_ROWS = 24; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
 inline constexpr uint8_t COMBAT_BUILDING_ROWS = 52;

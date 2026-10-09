@@ -690,7 +690,8 @@
     "han/support_female_citizen_house",
     "han/support_healer_b",
     "han/support_trader",
-    "han/rts0_villager"
+    "han/rts0_villager",
+    "han/support_minister"
    ],
    "auto_bonuses": [
     {
@@ -20028,6 +20029,57 @@
     "range": 2.4,
     "carry": 0
    }
+  },
+  {
+   "id": "han/support_minister",
+   "civ": "han",
+   "class": "UNIT_MINISTER",
+   "name": "Imperial Minister",
+   "specific_name": "Guānlì",
+   "phase": 2,
+   "trainers": [
+    "BLD_MINISTRY"
+   ],
+   "trained_at_0ad": [
+    "ministry"
+   ],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [
+    66,
+    67,
+    65,
+    68
+   ],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Human",
+    "Minister",
+    "Organic",
+    "Support",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 1.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 2.0,
+    "pierce_armor": 4.0,
+    "crush_armor": 6.0,
+    "food": 100,
+    "wood": 0,
+    "gold": 100,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "damage": 10.0,
+    "range": 1.7999999999999998,
+    "carry": 0
+   }
   }
  ],
  "auras": [
@@ -22234,6 +22286,115 @@
     0.9,
     8.4
    ]
+  },
+  {
+   "id": "han_minister_garrison",
+   "name": "Excellency of Works",
+   "description": "Decrease resource costs and research time of technologies in a building by 2% for each Minister garrisoned within.",
+   "type": "garrison",
+   "radius": 0.0,
+   "affects": [
+    "Structure",
+    "!ImperialMinistry"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Researcher/TechCostMultiplier/wood",
+     "multiply": 0.98
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/food",
+     "multiply": 0.98
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/metal",
+     "multiply": 0.98
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/stone",
+     "multiply": 0.98
+    },
+    {
+     "value": "Researcher/TechCostMultiplier/time",
+     "multiply": 0.98
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "han_minister_gathering",
+   "name": "Minister over the Masses",
+   "description": "Gatherers +2% gathering rate for every nearby Minister.",
+   "type": "range",
+   "radius": 40.0,
+   "affects": [
+    "Worker"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceGatherer/BaseSpeed",
+     "multiply": 1.02
+    }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.019607843137254943,
+    11.200000000000001
+   ]
+  },
+  {
+   "id": "han_minister_building",
+   "name": "Building Programs",
+   "description": "Builders construct buildings +2% faster for every nearby Minister.",
+   "type": "range",
+   "radius": 40.0,
+   "affects": [
+    "Worker"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Builder/Rate",
+     "multiply": 1.02
+    }
+   ],
+   "rts0": null
+  },
+  {
+   "id": "han_minister_garrison_ministry",
+   "name": "Nationalized Industries",
+   "description": "The Imperial Ministry gains a +0.1 wood, stone, metal trickle for each garrisoned minister.",
+   "type": "garrison",
+   "radius": 0.0,
+   "affects": [
+    "ImperialMinistry"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceTrickle/Rates/wood",
+     "add": 0.1
+    },
+    {
+     "value": "ResourceTrickle/Rates/stone",
+     "add": 0.1
+    },
+    {
+     "value": "ResourceTrickle/Rates/metal",
+     "add": 0.1
+    }
+   ],
+   "rts0": null
   }
  ]
 }

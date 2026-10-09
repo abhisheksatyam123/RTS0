@@ -5,8 +5,8 @@
 
 // Included from sim_types.h inside namespace rtso.
 
-inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = 376;
-inline constexpr uint16_t CIV_HERO_AURA_COUNT = 65;
+inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = 377;
+inline constexpr uint16_t CIV_HERO_AURA_COUNT = 69;
 inline constexpr uint16_t CIV_TEMPLATE_WORDS = 6; // uint64 words in a per-template bitset
 
 inline const CivHeroAura *civ_hero_aura_table() {
@@ -15,7 +15,7 @@ inline const CivHeroAura *civ_hero_aura_table() {
 		// RTS0 AuraManager effect: kind (AuraType, 255 = none modelled), value, range,
 		// affected players (AuraPlayers bits: 1 owner, 2 other allies, 4 enemies),
 		// bitset of civ_unit_template_table() rows the aura affects
-		{"athen_hero_hippocrates_1", "Father of Medicine", "Humans +0.5 health regeneration rate.", 35.0f, 1, 0.5f, 9.8f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x00ff807ffff007ffull}},
+		{"athen_hero_hippocrates_1", "Father of Medicine", "Humans +0.5 health regeneration rate.", 35.0f, 1, 0.5f, 9.8f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x01ff807ffff007ffull}},
 		{"athen_hero_hippocrates_2", "Hippocratic Oath", "Own and Allied Healers +1 healing effect.", 0.0f, 255, 0.0f, 0.0f, 3, {0x0000800002000040ull, 0x0000010000000200ull, 0x0040000200000040ull, 0x2001001000004000ull, 0x0100000006000000ull, 0x0002000000400000ull}},
 		{"athen_hero_iphicrates_1", "Formation Reforms", "Soldiers +2 crush, hack, pierce resistance.", 40.0f, 4, 2.0f, 11.2f, 1, {0xfffc003ff0007fbfull, 0x07fff8000ffff001ull, 0xfc003ff0003ffe00ull, 0x001eff800ffe003full, 0xf8000fffe001ffffull, 0x00f0007ffe0007ffull}},
 		{"athen_hero_iphicrates_2", "Peltast Reforms", "Infantry Javelineers +15% movement speed.", 0.0f, 3, 1.15f, 1000.0f, 1, {0x8000000800001080ull, 0x0040000000400000ull, 0x0000080000080000ull, 0x0000000001000008ull, 0x0000008000001000ull, 0x0040000000000080ull}},
@@ -32,7 +32,7 @@ inline const CivHeroAura *civ_hero_aura_table() {
 		{"pers_hero_xerxes_i", "Administrator", "Workers +15% build rate and gather speed.", 60.0f, 0, 0.1304f, 16.8f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull}},
 		{"rome_hero_marcellus_1", "Sword of Rome", "Cavalry +15% melee and ranged attack damage.", 60.0f, 2, 1.15f, 16.8f, 1, {0x19fc000030000003ull, 0x0014f80000387000ull, 0x1c00057000028e00ull, 0x00008380004e0002ull, 0xf8000021e000050full, 0x002000073e000018ull}},
 		{"rome_hero_marcellus_2", "Sword of Rome", "Enemy Infantry −10% melee and ranged attack damage.", 30.0f, 2, 0.9f, 8.4f, 4, {0xe400003fc0007fbcull, 0x07e200000fc78001ull, 0xe0003a80003d7000ull, 0x001c38000fb0003dull, 0x00000fcc0001f8e0ull, 0x00d00078c00007c6ull}},
-		{"rome_hero_maximus", "Shield of Rome", "Humans and Structures +1 crush, hack, pierce resistance.", 0.0f, 4, 1.0f, 1000.0f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x00ff807ffff007ffull}},
+		{"rome_hero_maximus", "Shield of Rome", "Humans and Structures +1 crush, hack, pierce resistance.", 0.0f, 4, 1.0f, 1000.0f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x01ff807ffff007ffull}},
 		{"rome_hero_scipio", "Triumph", "Soldiers and Siege Engines +2 capture attack strength, +20% melee and ranged attack damage.", 30.0f, 2, 1.2f, 8.4f, 1, {0xfffc183ff0707fbfull, 0x07fff83c0ffff041ull, 0xfc083ff0783ffe0eull, 0x021eff820ffe083full, 0xf83c0fffe061ffffull, 0x00f0707ffe0e07ffull}},
 		{"cart_hero_hamilcar_1", "Lightning General", "Soldiers and Siege Engines +15% movement speed.", 60.0f, 3, 1.15f, 16.8f, 1, {0xfffc183ff0707fbfull, 0x07fff83c0ffff041ull, 0xfc083ff0783ffe0eull, 0x021eff820ffe083full, 0xf83c0fffe061ffffull, 0x00f0707ffe0e07ffull}},
 		{"cart_hero_hamilcar_2", "Subduer of Mercenaries", "Enemy Mercenaries −20% melee and ranged attack damage.", 60.0f, 2, 0.8f, 16.8f, 4, {0x0000000000001c00ull, 0x06c0700000000000ull, 0x0000000000240200ull, 0x0000000000000000ull, 0x20000cc0c0003002ull, 0x0000000000000440ull}},
@@ -45,8 +45,8 @@ inline const CivHeroAura *civ_hero_aura_table() {
 		{"mace_hero_philip_ii", "Rise of Macedon", "Champions +2 capture attack strength, +20% melee and ranged attack damage.", 60.0f, 2, 1.2f, 16.8f, 1, {0x07c000004000003cull, 0x0003800000064000ull, 0xf00000c000007800ull, 0x00003e0000180000ull, 0xc0000007000000f8ull, 0x00900000f0000007ull}},
 		{"brit_hero_boudicca", "Champion Army", "Champions +2 capture attack strength, +20% melee and ranged attack damage, +10% movement speed.", 40.0f, 2, 1.2f, 11.2f, 1, {0x07c000004000003cull, 0x0003800000064000ull, 0xf00000c000007800ull, 0x00003e0000180000ull, 0xc0000007000000f8ull, 0x00900000f0000007ull}},
 		{"brit_hero_caratacos", "Guerrilla Chief", "Soldiers and Siege Engines +1 crush, hack, pierce resistance, +15% movement speed.", 0.0f, 4, 1.0f, 1000.0f, 1, {0xfffc183ff0707fbfull, 0x07fff83c0ffff041ull, 0xfc083ff0783ffe0eull, 0x021eff820ffe083full, 0xf83c0fffe061ffffull, 0x00f0707ffe0e07ffull}},
-		{"brit_hero_cunobelin", "Britannorum Rex", "Humans +0.8 health regeneration rate.", 30.0f, 1, 0.8f, 8.4f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x00ff807ffff007ffull}},
-		{"gaul_hero_brennus", "Sacker of Rome", "Humans, Siege Engines, and Ships gain +15 metal loot.", 60.0f, 255, 0.0f, 0.0f, 1, {0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0x00ffffffffffffffull}},
+		{"brit_hero_cunobelin", "Britannorum Rex", "Humans +0.8 health regeneration rate.", 30.0f, 1, 0.8f, 8.4f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x01ff807ffff007ffull}},
+		{"gaul_hero_brennus", "Sacker of Rome", "Humans, Siege Engines, and Ships gain +15 metal loot.", 60.0f, 255, 0.0f, 0.0f, 1, {0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0x01ffffffffffffffull}},
 		{"gaul_hero_vercingetorix", "Celtic Warlord", "Soldiers and Siege Engines +1 capture attack strength, +20% melee and ranged attack damage.", 60.0f, 2, 1.2f, 16.8f, 1, {0xfffc183ff0707fbfull, 0x07fff83c0ffff041ull, 0xfc083ff0783ffe0eull, 0x021eff820ffe083full, 0xf83c0fffe061ffffull, 0x00f0707ffe0e07ffull}},
 		{"gaul_hero_viridomarus", "Preparation for War", "Workers +15% gather speed.", 0.0f, 0, 0.1304f, 1000.0f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull}},
 		{"iber_hero_caros_1", "Valiant Defender", "When garrisoned, the Structure or Siege Tower has +75% arrow count.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000040000000ull, 0x0000000000000000ull, 0x0020000000400000ull, 0x0000400000080000ull}},
@@ -56,7 +56,7 @@ inline const CivHeroAura *civ_hero_aura_table() {
 		{"iber_hero_viriato_2", "Swag", "Soldiers and Siege Engines gain +100% resource loot.", 60.0f, 255, 0.0f, 0.0f, 1, {0xfffc183ff0707fbfull, 0x07fff83c0ffff041ull, 0xfc083ff0783ffe0eull, 0x021eff820ffe083full, 0xf83c0fffe061ffffull, 0x00f0707ffe0e07ffull}},
 		{"maur_hero_ashoka", "Buddhism", "Temples −50% resource costs and build time. Temple technologies −50% resource costs and research time.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
 		{"maur_hero_chanakya_1", "Teacher", "All technologies have −20% resource cost and −30% research time.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
-		{"maur_hero_chanakya_2", "Regeneration", "Humans +0.8 health regeneration rate.", 35.0f, 1, 0.8f, 9.8f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x00ff807ffff007ffull}},
+		{"maur_hero_chanakya_2", "Regeneration", "Humans +0.8 health regeneration rate.", 35.0f, 1, 0.8f, 9.8f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x01ff807ffff007ffull}},
 		{"maur_hero_chandragupta_1", "Empire Maker", "Soldiers +1 crush, hack, pierce resistance.", 60.0f, 4, 1.0f, 16.8f, 1, {0xfffc003ff0007fbfull, 0x07fff8000ffff001ull, 0xfc003ff0003ffe00ull, 0x001eff800ffe003full, 0xf8000fffe001ffffull, 0x00f0007ffe0007ffull}},
 		{"maur_hero_chandragupta_2", "Elephant Corps", "Elephants +15% attack rate, +10% movement speed.", 0.0f, 2, 1.176f, 1000.0f, 1, {0x0200000000000000ull, 0x0009000000000000ull, 0x0000000000000000ull, 0x0402440000000000ull, 0x0000001200000210ull, 0x0000000000000021ull}},
 		{"kush_hero_amanirenas", "Warrior Queen", "Champions +2 capture attack strength, +20% melee and ranged attack damage.", 60.0f, 2, 1.2f, 16.8f, 1, {0x07c000004000003cull, 0x0003800000064000ull, 0xf00000c000007800ull, 0x00003e0000180000ull, 0xc0000007000000f8ull, 0x00900000f0000007ull}},
@@ -80,6 +80,10 @@ inline const CivHeroAura *civ_hero_aura_table() {
 		{"han_hero_liu_bang_2", "Confucian Reforms", "Cavalry +20% attack damage.", 40.0f, 2, 1.2f, 11.2f, 1, {0x19fc000030000003ull, 0x0014f80000387000ull, 0x1c00057000028e00ull, 0x00008380004e0002ull, 0xf8000021e000050full, 0x002000073e000018ull}},
 		{"han_hero_wei_qing_1", "Mandate of Heaven", "Champions +2 capture attack strength, +20% melee and ranged attack damage.", 60.0f, 2, 1.2f, 16.8f, 1, {0x07c000004000003cull, 0x0003800000064000ull, 0xf00000c000007800ull, 0x00003e0000180000ull, 0xc0000007000000f8ull, 0x00900000f0000007ull}},
 		{"han_hero_wei_qing_2", "Mandate of Heaven", "Enemy Cavalry −10% melee and ranged attack damage.", 30.0f, 2, 0.9f, 8.4f, 4, {0x19fc000030000003ull, 0x0014f80000387000ull, 0x1c00057000028e00ull, 0x00008380004e0002ull, 0xf8000021e000050full, 0x002000073e000018ull}},
+		{"han_minister_garrison", "Excellency of Works", "Decrease resource costs and research time of technologies in a building by 2% for each Minister garrisoned within.", 0.0f, 255, 0.0f, 0.0f, 1, {0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0xffffffffffffffffull, 0x01ffffffffffffffull}},
+		{"han_minister_gathering", "Minister over the Masses", "Gatherers +2% gathering rate for every nearby Minister.", 40.0f, 0, 0.01961f, 11.2f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull}},
+		{"han_minister_building", "Building Programs", "Builders construct buildings +2% faster for every nearby Minister.", 40.0f, 255, 0.0f, 0.0f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull}},
+		{"han_minister_garrison_ministry", "Nationalized Industries", "The Imperial Ministry gains a +0.1 wood, stone, metal trickle for each garrisoned minister.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
 	};
 	return kAuras;
 }
@@ -842,6 +846,8 @@ inline const CivUnitTemplate *civ_unit_template_table() {
 		 50.0f, 4.058f, 8.4f, 16.0f, 1.25f, 0.0f, 16.0f, 0.0f, 1.0f, 1.0f, 10.0f, 50, 50, 15, 0, 1, 10.0f, 0, -1, -1, -1, TECH_ROMAN_REFORMS, 0x2000000000009cfull},
 		{"mace/champion_infantry_spearman_02", "Macedonian Shield Bearer", "Hypaspistḗs Argyraspídi", CIV_MACEDONIANS, UNIT_SPEARMAN, 3, ROSTER_CHAMPION, 0,
 		 220.0f, 3.204f, 2.4f, 12.1f, 0.9f, 6.6f, 5.5f, 0.0f, 8.0f, 8.0f, 20.0f, 80, 60, 80, 0, 1, 20.0f, 0, -1, -1, -1, TECH_UNLOCK_CHAMPION_INFANTRY, 0xa543ull},
+		{"han/support_minister", "Imperial Minister", "Guānlì", CIV_HAN, UNIT_MINISTER, 2, 0, bld_bit(BLD_MINISTRY),
+		 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 10.0f, 0.0f, 0.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 0, 66, 67, 65, TECH_NONE, 0x4000000000000013ull},
 	};
 	return kTable;
 }
@@ -972,7 +978,8 @@ inline const char *civ_bonus_text(uint8_t civ) {
 // [first, last) rows of civ_unit_template_table() for each civ. Rows from
 // CIV_ROSTER_PROMOTION_ONLY_FIRST on are units no structure trains, reached only by
 // promotion (0 A.D. Promotion/Entity), after every civ's block so that adding one
-// never moves a trainable row's template id.
+// never moves a trainable row's template id. Trainable rows added later follow them
+// (template ids never move); civ_roster_ids() gives a civ's block and its added rows.
 inline constexpr uint16_t CIV_ROSTER_PROMOTION_ONLY_FIRST = 372;
 inline const uint16_t *civ_roster_offsets() {
 	static const uint16_t kOffsets[CIV_COUNT + 1] = {0, 28, 50, 76, 107, 137, 164, 186, 209, 231, 256, 285, 315, 345, 372};

@@ -79,7 +79,7 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	}
 	d["team_bonuses"] = team;
 	Array heroes;
-	for (uint16_t t = rtso::civ_roster_begin((uint8_t)civ); t < rtso::civ_roster_end((uint8_t)civ); ++t) {
+	for (uint16_t t : rtso::civ_roster_ids((uint8_t)civ)) {
 		const auto &u = rtso::civ_unit_template(t);
 		if (!(u.flags & rtso::ROSTER_HERO)) continue;
 		Dictionary h;
@@ -109,7 +109,7 @@ Array RtsoReference::get_structure_tree(int civ) const {
 	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
 		const auto &bi = rtso::building_type_info(b);
 		Array units, techs;
-		for (uint16_t t = rtso::civ_roster_begin((uint8_t)civ); t < rtso::civ_roster_end((uint8_t)civ); ++t) {
+		for (uint16_t t : rtso::civ_roster_ids((uint8_t)civ)) {
 			const auto &u = rtso::civ_unit_template(t);
 			if (!(u.trainers & rtso::bld_bit(b))) continue;
 			Dictionary ud;

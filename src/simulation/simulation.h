@@ -148,7 +148,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 33; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 34; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -319,7 +319,13 @@ public:
 	// Resource cost of training template `tmpl` for `pid` after team bonuses, indexed by ResourceType.
 	void unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo &info, float out[RES_COUNT]) const;
 	uint32_t spawn_resource(int cell_x, int cell_y, uint8_t type, int32_t amount = 600);
-	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0);
+	// max_gatherers 0: the gaia template default (resource_default_max_gatherers).
+	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0);
+	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
+	int resource_max_gatherers(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
+	}
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
 	uint32_t spawn_relic(float x, float z, uint8_t res_type, int amount = 300);
@@ -1261,6 +1267,8 @@ private:
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	int corral_count(uint32_t corral_id) const;
+	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
+	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
@@ -1414,15 +1422,11 @@ private:
 	struct FieldGatherers { int total = 0; int slots_taken = 0; };
 	std::unordered_map<uint32_t, FieldGatherers> field_gatherers_; // per tick, keyed by grain resource id
 	std::unordered_map<uint32_t, FieldGatherers> fish_gatherers_; // per tick, keyed by fish resource id
-	std::unordered_map<uint32_t, FieldGatherers> ruins_gatherers_; // per tick, keyed by ruins resource id
-	// Each ruins resource's ResourceSupply MaxGatherers (gaia/ruins/*.xml); saved.
+	// Per tick, every other resource: units ordered to gather it (total) and the ones working it (slots_taken, up to MaxGatherers).
+	std::unordered_map<uint32_t, FieldGatherers> supply_gatherers_;
+	// v28 saves kept each ruin's MaxGatherers in a list; resources_.max_gatherers holds it since.
 	struct RuinsCap { uint32_t res_id; uint16_t max_gatherers; uint16_t pad; };
-	std::vector<RuinsCap> ruins_caps_;
 	std::vector<Scenery> scenery_; // saved
-	int ruins_cap(uint32_t res_id) const {
-		for (const RuinsCap &c : ruins_caps_) if (c.res_id == res_id) return c.max_gatherers;
-		return 1;
-	}
 	// Nearest fish on `sea` (ship region) within max_d of (x, z) with a free gatherer slot; 0 if none.
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
@@ -1593,6 +1597,7 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
+	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz);
 	bool petra_unit_reserved(uint32_t uid) const;
 
 	std::vector<PetraBase> petra_bases_;
@@ -1707,6 +1712,9 @@ private:
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_limit_allows_building(uint8_t btype) const;
+	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
+	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
@@ -1834,7 +1842,11 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
-	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
+	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
+	bool can_gather(size_t i, size_t r) const;
+	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
+	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
