@@ -394,6 +394,7 @@ void Simulation::reset() {
 	transport_passengers_.clear();
 	turret_height_.clear();
 	for (double &d : battle_damage_) d = 0.0;
+	attacked_events_.clear();
 	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
@@ -2680,14 +2681,15 @@ void Simulation::cmd_stop(const uint32_t *unit_ids, size_t count) {
 	}
 }
 
-void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint32_t resource_id, bool queued) {
+void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint32_t resource_id, bool queued, bool force) {
 	auto rit = res_id_to_idx_.find(resource_id);
 	if (rit == res_id_to_idx_.end()) return;
 	size_t ridx = rit->second;
 	float rx = resources_.x[ridx];
 	float rz = resources_.z[ridx];
 	const uint8_t sub_bits = (uint8_t)((resources_.subtype[ridx] << ORDER_FLAG_SUB_SHIFT) & ORDER_FLAG_SUB_MASK);
-	UnitOrder o; o.kind = ORDER_GATHER; o.flags = sub_bits; o.target = resource_id; o.x = rx; o.z = rz;
+	const uint8_t flags = sub_bits | (force ? ORDER_FLAG_FORCE : 0);
+	UnitOrder o; o.kind = ORDER_GATHER; o.flags = flags; o.target = resource_id; o.x = rx; o.z = rz;
 	o.res_type = (uint8_t)(resources_.type[ridx] + 1);
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	const uint32_t *unit_ids = now.data();
@@ -2710,7 +2712,7 @@ void Simulation::order_gather(const uint32_t *unit_ids_in, size_t count_in, uint
 		units_.res_type_carried[uidx] = resources_.type[ridx];
 		units_.target_unit_id[uidx] = 0;
 		units_.target_building_id[uidx] = 0;
-		set_order(uidx, ORDER_GATHER, sub_bits, resource_id, rx, rz);
+		set_order(uidx, ORDER_GATHER, flags, resource_id, rx, rz);
 	}
 }
 
@@ -2824,11 +2826,11 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 	}
 }
 
-void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued) {
+void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued, bool force) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	const Building &b = buildings_[bit->second];
-	UnitOrder o; o.kind = ORDER_BUILD; o.target = building_id; o.x = b.x; o.z = b.z;
+	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = building_id; o.x = b.x; o.z = b.z;
 	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
 	const uint32_t *unit_ids = now.data();
 	const size_t count = now.size();
@@ -2842,7 +2844,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 
 		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
 		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
-			order_gather(&unit_ids[i], 1, ensure_field_resource(b));
+			order_gather(&unit_ids[i], 1, ensure_field_resource(b), false, force);
 			continue;
 		}
 
@@ -2854,7 +2856,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 		units_.target_building_id[uidx] = building_id;
 		units_.target_unit_id[uidx] = 0;
 		units_.target_resource_id[uidx] = 0;
-		set_order(uidx, ORDER_BUILD, 0, building_id, b.x, b.z);
+		set_order(uidx, ORDER_BUILD, o.flags, building_id, b.x, b.z);
 	}
 }
 
@@ -4428,9 +4430,20 @@ void Simulation::gain_xp(size_t idx, float amount) {
 // battle music; it is presentation state, so it is neither saved nor hashed.
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 		bool target_is_building, float damage) {
-	(void)attacker_id, (void)target_id, (void)target_is_building; // for the session's AttackDetection events
+	if (!(damage > 0.0f)) return;
+	// The Attacked message for the session's AttackDetection (presentation only).
+	if (attacked_events_.size() < kMaxAttackedEvents) {
+		float x = 0.0f, z = 0.0f;
+		if (target_is_building) {
+			auto bit = building_id_to_idx_.find(target_id);
+			if (bit != building_id_to_idx_.end()) x = buildings_[bit->second].x, z = buildings_[bit->second].z;
+		} else if (int32_t u = lookup_unit(target_id); u >= 0) {
+			x = units_.pos_x[u], z = units_.pos_z[u];
+		}
+		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage});
+	}
 	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
-	if (damage > 0.0f) battle_damage_[attacker_owner] += damage;
+	battle_damage_[attacker_owner] += damage;
 }
 
 void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float damage) {
@@ -5679,7 +5692,7 @@ void Simulation::tick_gather(float dt) {
 				                                    units_.pos_x[i], units_.pos_z[i], 40.0f, units_.target_resource_id[i]);
 				if (alt) {
 					fish_gatherers_[alt].total++;
-					order_gather(&units_.id[i], 1, alt);
+					order_gather(&units_.id[i], 1, alt, false, false);
 				} else {
 					units_.target_resource_id[i] = 0;
 					units_.action_state[i] = ACTION_IDLE;
@@ -5731,7 +5744,7 @@ void Simulation::tick_gather(float dt) {
 					if (alt != 0) {
 						fg.total--;
 						field_gatherers_[alt].total++;
-						order_gather(&units_.id[i], 1, alt);
+						order_gather(&units_.id[i], 1, alt, false, false);
 					} else {
 						units_.target_resource_id[i] = 0;
 						units_.action_state[i] = ACTION_IDLE;
@@ -5784,6 +5797,8 @@ void Simulation::tick_gather(float dt) {
 				for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
 				if (field_efficiency > 0.0f) rate *= field_efficiency;
 				const float interval = 1.0f / rate;
+				// GATHERING enter: the player's order stops being forced once work starts.
+				units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
 				units_.attack_timer[i] += dt;
 				while (units_.attack_timer[i] >= interval) {
 					units_.attack_timer[i] -= interval;
@@ -5896,6 +5911,7 @@ void Simulation::tick_construction(float dt) {
 			// buildMultiplier HP, with buildMultiplier = n^0.7 / n for n builders at work
 			// (BuildTimeModifier 0.7). Progress is the best health fraction reached, so
 			// damage to a foundation has to be built back.
+			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // REPAIRING enter: no longer forced
 			const float hp_rate = b.max_hp / structure_build_time(b, units_.team[i]);
 			const float work = foundation_build_multiplier(builders_per_bld[b.id]) * builder_rate(i);
 			b.hp = std::min(b.max_hp, b.hp + work * hp_rate * dt);
@@ -6003,6 +6019,7 @@ void Simulation::tick_repair(float dt) {
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
 			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
+			units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE; // REPAIRING enter: no longer forced
 			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);
 			// Repairable sends ConstructionFinished too: the repairers move on to nearby work.
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
@@ -8238,10 +8255,10 @@ void Simulation::apply_order(uint32_t uid, const UnitOrder &o) {
 			if (gone && o.res_type != 0 && i >= 0)
 				r = find_nearby_resource(o.x, o.z, (uint8_t)(o.res_type - 1), units_.team[i],
 						(o.flags & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT);
-			order_gather(&uid, 1, r);
+			order_gather(&uid, 1, r, false, !gone && (o.flags & ORDER_FLAG_FORCE));
 			break;
 		}
-		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target); break;
+		case ORDER_BUILD: order_build_or_repair(&uid, 1, o.target, false, (o.flags & ORDER_FLAG_FORCE) != 0); break;
 		case ORDER_GARRISON: order_garrison(&uid, 1, o.target); break;
 		case ORDER_GUARD: order_guard(&uid, 1, o.target); break;
 		case ORDER_HEAL: order_heal(&uid, 1, o.target); break;
@@ -8536,7 +8553,7 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 		auto q = order_queues_.find(uid);
 		if (q != order_queues_.end() && !q->second.empty()) { finish_order((size_t)k); continue; }
 		if (b.type == BLD_FIELD) {
-			order_gather(&uid, 1, ensure_field_resource(b));
+			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			continue;
 		}
 		if (food || other || b.type == BLD_TOWN_CENTER) {
@@ -8549,10 +8566,10 @@ void Simulation::on_construction_finished(const Building &b, size_t builder) {
 				else for (uint8_t t : {(uint8_t)RES_WOOD, (uint8_t)RES_STONE, (uint8_t)RES_GOLD})
 					if (r == 0) r = find_nearby_resource(b.x, b.z, t, b.team);
 			}
-			if (r != 0) { order_gather(&uid, 1, r); continue; }
+			if (r != 0) { order_gather(&uid, 1, r, false, false); continue; }
 		}
 		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
-		if (f != 0) { order_build_or_repair(&uid, 1, f); continue; }
+		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); continue; }
 		set_order((size_t)k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
 	}
 }
@@ -16021,7 +16038,7 @@ void Simulation::tick_hunters() {
 			// A fight that broke off an order goes back to it (FINDINGNEWTARGET FinishOrder).
 			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
 					!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
-				order_gather(&units_.id[h], 1, rid);
+				order_gather(&units_.id[h], 1, rid, false, false);
 			} else {
 				units_.action_state[h] = ACTION_IDLE;
 				units_.has_order[h] = 0;
