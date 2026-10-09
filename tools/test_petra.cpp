@@ -1473,6 +1473,127 @@ static void test_idle_return() {
 	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
 }
 
+// worker.js startGathering skips a supply whose MaxGatherers are all taken (IsSupplyFull),
+// so Petra's workers spread over the trees and mines instead of crowding the nearest.
+static void test_gather_limits() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	// Leave one tree and one mine by the civic centre: nothing else to gather or hunt.
+	auto &r = s->resources_;
+	size_t tree = SIZE_MAX, mine = SIZE_MAX;
+	auto d2 = [&](size_t k) { return (r.x[k] - cc->x) * (r.x[k] - cc->x) + (r.z[k] - cc->z) * (r.z[k] - cc->z); };
+	for (size_t k = 0; k < r.count; ++k) {
+		if (!r.alive[k] || r.amount[k] <= 0) continue;
+		if (r.type[k] == RES_WOOD && (tree == SIZE_MAX || d2(k) < d2(tree))) tree = k;
+		if (r.type[k] == RES_GOLD && (mine == SIZE_MAX || d2(k) < d2(mine))) mine = k;
+	}
+	CHECK(tree != SIZE_MAX && mine != SIZE_MAX, "a tree and a mine on the map");
+	if (tree == SIZE_MAX || mine == SIZE_MAX) return;
+	for (size_t k = 0; k < r.count; ++k)
+		if (k != tree && k != mine) r.amount[k] = 0;
+	r.amount[tree] = r.amount[mine] = 5000;
+	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.food_amount[f] = 0;
+	const uint32_t tree_id = r.id[tree], mine_id = r.id[mine];
+	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	auto &u = s->units_;
+	std::vector<uint32_t> workers;
+	for (size_t i = 0; i < u.count; ++i)
+		if (u.alive[i] && u.team[i] == 1 && (u.unit_type[i] == UNIT_VILLAGER || u.unit_type[i] == UNIT_FEMALE_CITIZEN)) {
+			workers.push_back(u.id[i]);
+			u.carry[i] = 0;
+		}
+	s->cmd_stop(workers.data(), workers.size());
+	run_for(*s, 2.0f);
+	int on_tree = 0, on_mine = 0;
+	for (uint32_t id : workers) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		on_tree += u.target_resource_id[i] == tree_id;
+		on_mine += u.target_resource_id[i] == mine_id;
+	}
+	std::printf("  gather limits: %zu idle workers, %d sent to the tree (MaxGatherers %d), %d to the mine (%d)\n",
+	            workers.size(), on_tree, s->resource_max_gatherers(tree_id), on_mine, s->resource_max_gatherers(mine_id));
+	CHECK(on_tree <= s->resource_max_gatherers(tree_id) && on_mine <= s->resource_max_gatherers(mine_id),
+	      "Petra sends no more gatherers to a supply than its MaxGatherers (IsSupplyFull)");
+	CHECK(on_tree + on_mine > 8, "the rest go to another supply");
+}
+
+// garrisonManager.js addDecayingStructure: a defence tower of Petra's standing in enemy
+// territory decays, so Petra garrisons the soldiers that stop the decay and keeps them in.
+static void test_decay_garrison() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *foe_cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
+	CHECK(foe_cc != nullptr, "player 0 has a civic centre");
+	if (!foe_cc) return;
+	const float tx = foe_cc->x + 14.0f, tz = foe_cc->z;
+	const uint32_t tower = s->spawn_building_world(tx, tz, BLD_TOWER, 1);
+	for (int k = 0; k < 6; ++k) s->spawn_unit(tx + 4.0f + (float)k, tz + 4.0f, 1, UNIT_SPEARMAN);
+	int need = 0;
+	{
+		const int32_t ti = s->building_id_to_idx_.count(tower) ? (int32_t)s->building_id_to_idx_[tower] : -1;
+		CHECK(ti >= 0, "the tower stands");
+		if (ti < 0) return;
+		need = s->petra_decay_garrison_min(s->buildings_[ti]);
+	}
+	run_for(*s, 15.0f);
+	auto it = s->building_id_to_idx_.find(tower);
+	const size_t inside = it == s->building_id_to_idx_.end() ? 0 : s->buildings_[it->second].garrisoned_units.size();
+	const bool ours = it != s->building_id_to_idx_.end() && s->buildings_[it->second].team == 1;
+	const int cap = ours ? s->buildings_[it->second].garrison_cap : 0;
+	std::printf("  decaying tower in enemy land: needs %d, garrisoned %zu, still ours %s\n", need, inside, ours ? "yes" : "no");
+	CHECK(need > 0, "a tower in enemy territory decays");
+	CHECK(ours && (int)inside >= std::min(need, cap), "Petra garrisons a decaying tower (TYPE_DECAY)");
+}
+
+// headquarters.js checkEvents: a structure Petra just captured in enemy land, which no
+// garrison will hold, is destroyed while an enemy holds part of it and Petra keeps under
+// 70-80% of its capture points; with 95% it is kept.
+static void test_decay_destroy() {
+	for (int phase = 0; phase < 2; ++phase) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		const Simulation::Building *foe_cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
+		CHECK(foe_cc != nullptr, "player 0 has a civic centre");
+		if (!foe_cc) return;
+		const uint32_t id = s->spawn_building_world(foe_cc->x + 14.0f, foe_cc->z, BLD_STOREHOUSE, 1);
+		Simulation::Building &b = s->buildings_[s->building_id_to_idx_[id]];
+		const float own = phase == 0 ? 0.6f : 0.95f;
+		b.capture_points_by_team.fill(0.0f);
+		b.capture_points_by_team[1] = b.max_capture_points * own;
+		b.capture_points_by_team[0] = b.max_capture_points * (1.0f - own);
+		s->petra_decay_events_.push_back(id); // as if just captured
+		s->tick(Simulation::FIXED_STEP);
+		auto it = s->building_id_to_idx_.find(id);
+		const bool gone = it == s->building_id_to_idx_.end() || s->buildings_[it->second].wrecked ||
+			s->buildings_[it->second].hp <= 0.0f;
+		std::printf("  decaying storehouse with %.0f%% of its points: %s\n", own * 100.0f, gone ? "destroyed" : "kept");
+		if (phase == 0) CHECK(gone, "Petra destroys a decaying structure it is about to lose");
+		else CHECK(!gone, "Petra keeps a decaying structure it holds firmly");
+	}
+}
+
 // defenseManager.js isDangerous / defenseArmy.js needsDefenders: Support units in our
 // territory are no threat, and the defence is sized by strength (getMaxStrength), so
 // war elephants draw more defenders than the same number of spearmen would.
@@ -1506,6 +1627,37 @@ static void test_defense_by_strength() {
 	}
 }
 
+// baseManager.js assignToFoundations targetNB: a new civic centre takes up to 15
+// builders, a barracks 4, a house 3, with resources to spare (builderRatio 1).
+static void test_builders_per_foundation() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 8.0f + (float)(k % 6), cz + 8.0f + (float)(k / 6), 1, UNIT_FEMALE_CITIZEN);
+	const uint32_t barracks = s->spawn_building_world(cx + 12.0f, cz, BLD_BARRACKS, 1, 0.0f);
+	const uint32_t house = s->spawn_building_world(cx - 12.0f, cz, BLD_HOUSE, 1, 0.0f);
+	run_for(*s, 3.0f);
+	auto on = [&](uint32_t id) {
+		int n = 0;
+		for (size_t i = 0; i < s->units_.count; ++i)
+			if (s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_BUILD && s->units_.target_building_id[i] == id) ++n;
+		return n;
+	};
+	std::printf("  builders: barracks %d, house %d\n", on(barracks), on(house));
+	CHECK(on(barracks) == 4, "a barracks foundation takes 4 builders");
+	CHECK(on(house) == 3, "a house foundation takes 3 builders");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -1535,7 +1687,11 @@ int main() {
 	test_expansion_small_nodes();
 	test_repairs();
 	test_idle_return();
+	test_gather_limits();
+	test_decay_garrison();
+	test_decay_destroy();
 	test_defense_by_strength();
+	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);

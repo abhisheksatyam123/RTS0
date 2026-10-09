@@ -940,7 +940,9 @@ void RmsGenerator::synth_acropolis(HeightmapGrid &hm, RmsRng &rng, float &water_
 		float fz = -std::sin(angle);
 		float ramp_angle = std::atan2(fz, fx); // Ramp slopes down towards center
 
-		hm.raise_plateau(sx, sz, 14.0f, ramp_angle, 0.45f, 7.5f, 3.5f);
+		// 5.4 high: the plateau of the 0.35-a-metre height scale (7.5) at
+		// HEIGHT_PER_METRE, so its ramp stays under the land slope limit.
+		hm.raise_plateau(sx, sz, 14.0f, ramp_angle, 0.45f, 5.4f, 3.5f);
 		float bh = hm.sample_world(sx, sz);
 		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
 	}
@@ -2603,8 +2605,8 @@ float sample_image_bicubic(const std::vector<uint8_t> &img, int n, float u, floa
 	return cubic_weight(col[0], col[1], col[2], col[3], ty);
 }
 
-// 0 A.D. metres above the water line -> RTS0 height (x 0.35 above water_h).
-constexpr float kMetre = 0.35f;
+// 0 A.D. metres above the water line -> RTS0 height (grid_nav.h HEIGHT_PER_METRE above water_h).
+constexpr float kMetre = HEIGHT_PER_METRE;
 
 // HeightmapPainter.paint over the whole map from the square sub-image at
 // (x0, y0) of side `sub` pixels, with scaleHeight's normal range: the image's
