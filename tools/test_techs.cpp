@@ -222,6 +222,7 @@ int main() {
 			uint32_t healer = s.spawn_unit(22.0f, 0.0f, 0, UNIT_HEALER);
 			s.cmd_stop(&healer, 1);
 			s.cmd_stop(&sp, 1);
+			s.order_set_stance(&sp, 1, STANCE_STAND_GROUND); // stays put rather than charging the tower
 			run(s, 10.0f);
 			hp_left[with] = unit_hp(s, sp);
 		}

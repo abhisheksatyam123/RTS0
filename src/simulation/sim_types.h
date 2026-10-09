@@ -666,7 +666,7 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 }
 
 // 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
-// civilian ships are passive, so they flee when attacked.
+// civilian ships are passive, so they flee when attacked; stone and bolt throwers stand ground.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
 		case UNIT_FISHING_BOAT:
@@ -676,6 +676,9 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
 			return STANCE_PASSIVE;
+		case UNIT_CATAPULT: // template_unit_siege_stonethrower / _boltshooter
+		case UNIT_BOLT_SHOOTER:
+			return STANCE_STAND_GROUND;
 		default:
 			return STANCE_AGGRESSIVE;
 	}

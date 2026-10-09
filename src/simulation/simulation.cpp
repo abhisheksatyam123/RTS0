@@ -6153,6 +6153,32 @@ void Simulation::tick_combat(float dt) {
 
 	UnitGrid grid;
 	if (n && !grid.build(arena, n, units_.pos_x, units_.pos_z, units_.alive, map_half_)) return;
+	// Players' structures, for the target scan: UnitAI's attack query takes everything
+	// with Resistance (Gaia's structures have no UnitAI, so AttackEntitiesByPreference skips them).
+	const size_t nb = buildings_.size();
+	float *bld_x = nb ? arena.alloc_array<float>(nb) : nullptr;
+	float *bld_z = nb ? arena.alloc_array<float>(nb) : nullptr;
+	uint8_t *bld_live = nb ? arena.alloc_array<uint8_t>(nb) : nullptr;
+	float bld_half_max = 0.0f;
+	UnitGrid bgrid;
+	bool have_bgrid = false;
+	if (nb && bld_x && bld_z && bld_live) {
+		for (size_t bi = 0; bi < nb; ++bi) {
+			const Building &b = buildings_[bi];
+			bld_x[bi] = b.x;
+			bld_z[bi] = b.z;
+			bld_live[bi] = !b.wrecked && b.hp > 0.0f && b.team < MAX_PLAYERS;
+			if (bld_live[bi]) bld_half_max = std::max(bld_half_max, b.half_size);
+		}
+		have_bgrid = bgrid.build(arena, nb, bld_x, bld_z, bld_live, map_half_);
+	}
+	// Dangerous animals (UnitAI IsDangerousAnimal) are targets too; there are few.
+	std::vector<uint16_t> &wild = combat_wild_scratch_;
+	wild.clear();
+	for (size_t f = 0; f < fauna_.count; ++f)
+		if (fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED &&
+				fauna_type_info(fauna_.fauna_type[f]).is_dangerous())
+			wild.push_back((uint16_t)f);
 
 	// 1. Target Acquisition & Stance Evaluation (0 A.D. UnitAI.js)
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
@@ -6237,7 +6263,7 @@ void Simulation::tick_combat(float dt) {
 		const bool order_next = st == ACTION_ATTACK && !walk_and_fight &&
 				(((units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) && units_.order_kind[i] != ORDER_NONE) ||
 				 (explicit_target && order_queues_.count(units_.id[i])));
-		int32_t found_bld = -1;
+		int32_t found_bld = -1, found_wild = -1;
 		if (found < 0 && !order_next && units_.target_building_id[i] == 0 && stance != STANCE_PASSIVE &&
 				((i + ticks_) % 4 == 0 || st == ACTION_ATTACK || walk_and_fight)) {
 			const float scan_range = stance == STANCE_STAND_GROUND ? range
@@ -6266,31 +6292,79 @@ void Simulation::tick_combat(float dt) {
 				}
 			});
 
-			// Attack-move and patrol also take structures when no unit is about
-			// (UnitAI FindWalkAndFightTargets, targetClasses Unit + Structure).
-			if (found < 0 && walk_and_fight && !(units_.order_flags[i] & ORDER_FLAG_UNITS_ONLY)) {
-				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
+			// Structures too, ranked with the units by preference then distance
+			// (AttackEntitiesByPreference); attack-move and patrol skip them when
+			// "units only" (FindWalkAndFightTargets targetClasses), and only they capture.
+			if (have_bgrid && !(walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_UNITS_ONLY))) {
+				const bool capture = walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
 						unit_capture_strength(units_.unit_type[i]) > 0.0f;
-				float best_d2 = vision * vision;
-				for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+				bgrid.visit_radius(pxi, pzi, scan_range + bld_half_max, [&](int32_t bi) {
+					if (!bld_live[bi]) return;
 					const Building &b = buildings_[bi];
-					if (b.wrecked || b.hp <= 0.0f || b.team >= MAX_PLAYERS) continue;
-					if (!can_attack(my_team, b.team) && !(capture && can_capture_building(my_team, b))) continue;
-					if (!capture && !unit_can_target_building(i, b.type)) continue;
+					if (!can_attack(my_team, b.team) && !(capture && can_capture_building(my_team, b))) return;
+					if (!capture && !unit_can_target_building(i, b.type)) return;
 					const float ex = std::max(0.0f, std::fabs(b.x - pxi) - b.half_size);
 					const float ez = std::max(0.0f, std::fabs(b.z - pzi) - b.half_size);
 					const float d2 = ex * ex + ez * ez;
-					if (d2 < best_d2) { best_d2 = d2; found_bld = (int32_t)bi; }
+					if (d2 > scan_range * scan_range || d2 < minr * minr) return;
+					if (stance == STANCE_DEFENSIVE) {
+						const float hx = std::max(0.0f, std::fabs(b.x - anc_x) - b.half_size);
+						const float hz = std::max(0.0f, std::fabs(b.z - anc_z) - b.half_size);
+						if (hx * hx + hz * hz >= held_lim * held_lim) return;
+					}
+					const uint8_t pref = preference_of(my_prefs, building_pref_classes(b.type));
+					if (pref < best_pref || (pref == best_pref && d2 < best_unit_d2)) {
+						best_pref = pref;
+						best_unit_d2 = d2;
+						found = -1;
+						found_bld = bi;
+					}
+				});
+			}
+			// Dangerous animals, which match no PreferredClasses here (AttackEntitiesByPreference);
+			// rams and ships can't reach them (Attack RestrictedClasses, land animals).
+			const bool hunts = units_.unit_type[i] != UNIT_SIEGE_RAM && !unit_is_ship(units_.unit_type[i]);
+			for (uint16_t f : wild) {
+				if (!hunts) break;
+				const float dx = fauna_.pos_x[f] - pxi, dz = fauna_.pos_z[f] - pzi;
+				const float d2 = dx * dx + dz * dz;
+				if (d2 > scan_range * scan_range || d2 < minr * minr) continue;
+				if (stance == STANCE_DEFENSIVE) {
+					const float hx = fauna_.pos_x[f] - anc_x, hz = fauna_.pos_z[f] - anc_z;
+					if (hx * hx + hz * hz >= held_lim * held_lim) continue;
+				}
+				if (PREF_NONE < best_pref || (PREF_NONE == best_pref && d2 < best_unit_d2)) {
+					best_pref = PREF_NONE;
+					best_unit_d2 = d2;
+					found = -1;
+					found_bld = -1;
+					found_wild = f;
 				}
 			}
 		}
 
-		if (found >= 0) {
+		if (found_wild >= 0) {
+			// tick_hunters drives a fight with an animal.
+			units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
+			units_.target_unit_id[i] = fauna_.id[found_wild];
+			units_.target_building_id[i] = 0;
+			units_.has_order[i] = stance != STANCE_STAND_GROUND;
+			units_.target_x[i] = fauna_.pos_x[found_wild];
+			units_.target_z[i] = fauna_.pos_z[found_wild];
+			if (st == ACTION_CHEER) units_.attack_timer[i] = 0.0f;
+			if (st != ACTION_ATTACK) {
+				units_.waypoint_count[i] = 0;
+				if (on_the_move) { units_.anchor_x[i] = pxi; units_.anchor_z[i] = pzi; }
+			}
+			units_.action_state[i] = ACTION_ATTACK;
+		} else if (found >= 0) {
 			if (units_.target_unit_id[i] != units_.id[found] && !explicit_target)
 				units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED; // go back to the order afterwards
 			units_.target_unit_id[i] = units_.id[found];
-			units_.has_order[i] = stance != STANCE_STAND_GROUND;
-			if (stance != STANCE_STAND_GROUND) {
+			// Stand ground holds still, except for a player's attack (ShouldChaseTargetedEntity force).
+			const bool chase = stance != STANCE_STAND_GROUND || explicit_target;
+			units_.has_order[i] = chase;
+			if (chase) {
 				units_.target_x[i] = units_.pos_x[found];
 				units_.target_z[i] = units_.pos_z[found];
 			}
@@ -8305,6 +8379,12 @@ void Simulation::resume_order(size_t i) {
 void Simulation::respond_to_attack(size_t i) {
 	const int32_t a = lookup_unit(units_.attacked_by[i]);
 	if (a < 0 || !units_.alive[a] || !is_hostile(units_.team[i], units_.team[a])) return;
+	respond_to_attacker(i, units_.attacked_by[i], units_.pos_x[a], units_.pos_z[a],
+			!template_has_ranged_attack(units_.tmpl[a], units_.unit_type[a], civ_of(units_.team[a])));
+}
+
+// The response itself, to a unit or an animal (fauna_hit_unit) at (ax, az).
+void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee) {
 	const uint8_t st = units_.action_state[i];
 	// TRADE "Attacked": a trader keeps trading.
 	if (st == ACTION_TRADE) return;
@@ -8315,13 +8395,12 @@ void Simulation::respond_to_attack(size_t i) {
 	if (st == ACTION_ATTACK && (units_.target_unit_id[i] != 0 || units_.target_building_id[i] != 0)) {
 		// COMBAT "Attacked": a fighting unit ignores other attackers, except a melee one
 		// (it may block the way to the target).
-		if (units_.target_unit_id[i] == units_.attacked_by[i]) return;
-		if (template_has_ranged_attack(units_.tmpl[a], units_.unit_type[a], civ_of(units_.team[a]))) return;
+		if (units_.target_unit_id[i] == attacker_id || !melee) return;
 		if (forced && stance != STANCE_VIOLENT) return;
 	} else if (forced && stance != STANCE_VIOLENT && st != ACTION_IDLE && st != ACTION_FLEE) {
 		return;
 	}
-	const float dx = units_.pos_x[i] - units_.pos_x[a], dz = units_.pos_z[i] - units_.pos_z[a];
+	const float dx = units_.pos_x[i] - ax, dz = units_.pos_z[i] - az;
 	const float d2 = dx * dx + dz * dz;
 	const bool can_fight = units_.attack_damage[i] > 0.0f && stance != STANCE_PASSIVE;
 	if (!can_fight) {
@@ -8331,8 +8410,8 @@ void Simulation::respond_to_attack(size_t i) {
 		const float d = sqrtf(d2);
 		const float nx = d > 1e-3f ? dx / d : 1.0f, nz = d > 1e-3f ? dz / d : 0.0f;
 		const float goal = d + FLEE_DISTANCE;
-		units_.target_x[i] = std::clamp(units_.pos_x[a] + nx * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
-		units_.target_z[i] = std::clamp(units_.pos_z[a] + nz * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
+		units_.target_x[i] = std::clamp(ax + nx * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
+		units_.target_z[i] = std::clamp(az + nz * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
 		units_.has_order[i] = 1;
 		units_.action_state[i] = ACTION_FLEE;
 		units_.target_unit_id[i] = 0;
@@ -8347,16 +8426,16 @@ void Simulation::respond_to_attack(size_t i) {
 	const float vision = unit_vision_range(units_.unit_type[i]);
 	if (stance == STANCE_STAND_GROUND && d2 > range * range) return;
 	if (stance == STANCE_DEFENSIVE) {
-		const float hx = units_.pos_x[a] - units_.anchor_x[i], hz = units_.pos_z[a] - units_.anchor_z[i];
+		const float hx = ax - units_.anchor_x[i], hz = az - units_.anchor_z[i];
 		const float lim = vision * 0.5f + range;
 		if (hx * hx + hz * hz >= lim * lim) return;
 	}
-	units_.target_unit_id[i] = units_.attacked_by[i];
+	units_.target_unit_id[i] = attacker_id;
 	units_.target_building_id[i] = 0;
 	units_.action_state[i] = ACTION_ATTACK;
 	units_.has_order[i] = stance != STANCE_STAND_GROUND;
-	units_.target_x[i] = units_.pos_x[a];
-	units_.target_z[i] = units_.pos_z[a];
+	units_.target_x[i] = ax;
+	units_.target_z[i] = az;
 	units_.waypoint_count[i] = 0;
 	units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 }
@@ -8481,6 +8560,15 @@ void Simulation::tick_unit_ai(float dt) {
 		// Guard.js: guards answer whoever attacks the unit they guard (GuardedAttacked).
 		if (units_.order_kind[i] == ORDER_GUARD && units_.action_state[i] == ACTION_GUARD) {
 			const int32_t g = lookup_unit(units_.order_target[i]);
+			// GUARDING Timer / GuardedAttacked: a healer heals the unit it guards when it's
+			// hurt (PushOrderFront Heal), then guards again.
+			if (g >= 0 && units_.unit_type[i] == UNIT_HEALER && can_heal(i, g)) {
+				auto &q = order_queues_[units_.id[i]];
+				q.insert(q.begin(), current_order(i));
+				start_heal(i, units_.id[g], 0);
+				tick_heal(i);
+				continue;
+			}
 			if (g >= 0 && units_.alive[g] && units_.attacked_by[g] != 0 && units_.attack_damage[i] > 0.0f &&
 					units_.stance[i] != STANCE_PASSIVE) {
 				const int32_t a = lookup_unit(units_.attacked_by[g]);
@@ -15663,6 +15751,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
 	                  info.crush_damage * powf(0.9f, crush_a);
 	units_.hp[u] -= std::max(1.0f, dmg);
+	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, std::max(1.0f, dmg));
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
@@ -15671,15 +15760,9 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 		if (units_.team[u] == 0) record_.units_lost++;
 		return;
 	}
-	// The victim's UnitAI "Attacked": soldiers turn on the animal; women and other passive units keep going.
-	if (units_.attack_damage[u] > 0.0f && units_.stance[u] != STANCE_PASSIVE &&
-	    (units_.action_state[u] == ACTION_IDLE || (units_.action_state[u] == ACTION_ATTACK && units_.target_unit_id[u] == 0))) {
-		units_.action_state[u] = ACTION_ATTACK;
-		units_.has_order[u] = 1;
-		units_.target_unit_id[u] = fauna_.id[f];
-		units_.target_x[u] = fauna_.pos_x[f];
-		units_.target_z[u] = fauna_.pos_z[f];
-	}
+	// The victim's UnitAI "Attacked", as for any attacker: soldiers turn on the animal
+	// (tick_hunters fights it), women and other passive units flee.
+	respond_to_attacker(u, fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], true);
 }
 
 // Units whose attack target is an animal (order_hunt, or fighting back): chase it, strike it with
@@ -15698,7 +15781,7 @@ void Simulation::tick_hunters() {
 		if (st == ACTION_MOVE) continue; // herding: order_herd walks the herder over
 		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f) {
 			units_.target_unit_id[i] = 0;
-			units_.action_state[i] = ACTION_IDLE;
+			units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
 			units_.has_order[i] = 0;
 			continue;
 		}
@@ -15744,7 +15827,9 @@ void Simulation::tick_hunters() {
 		for (size_t h = 0; h < n; ++h) {
 			if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
 			units_.target_unit_id[h] = 0;
-			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h])) {
+			// A fight that broke off an order goes back to it (FINDINGNEWTARGET FinishOrder).
+			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
+					!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
 				order_gather(&units_.id[h], 1, rid);
 			} else {
 				units_.action_state[h] = ACTION_IDLE;

@@ -48,6 +48,11 @@
 // 31. Target choice follows the attacker's PreferredClasses (Attack.js GetPreference, UnitAI
 //     AttackEntitiesByPreference): an archer (Human) shoots a farther spearman before a nearer
 //     ram, the nearest of equals before a wounded one, and a ram if nothing else is there.
+// 32. UnitAI COMBAT: a fighting unit turns on a melee attacker, not a ranged one; after its
+//     target dies it takes its next order; violent units chase beyond vision.
+// 33. Idle soldiers attack enemy structures and dangerous animals in sight (after units they
+//     prefer); an animal bite is an attack like any other; a guarding healer heals; stone
+//     throwers stand ground by default.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1084,6 +1089,73 @@ static void test_unitai_combat() {
 	}
 }
 
+static void test_unitai_targets() {
+	std::printf("33. UnitAI targets: structures, dangerous animals, guarding healers, siege stance\n");
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t bar = s.spawn_building_world(6, 0, BLD_BARRACKS, 1, 1.0f);
+		s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		const float h0 = bld(s, bar)->hp;
+		run(s, 10.0f);
+		check(bld(s, bar)->hp < h0, "an idle soldier attacks an enemy structure in sight (AttackEntitiesByPreference)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		const uint32_t enemy = post(s, 3, 3, UNIT_SPEARMAN, 5000.0f);
+		s.spawn_building_world(-5, 0, BLD_BARRACKS, 1, 1.0f);
+		run(s, 3.0f);
+		check(target_of(s, a) == enemy, "but a soldier it prefers first");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t wolf = s.spawn_fauna(8, 0, FAUNA_WOLF);
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		const bool hunting = run_until(s, 4.0f, [&] { return target_of(s, a) == wolf; });
+		check(hunting, "an idle soldier attacks a wolf in sight (IsDangerousAnimal)");
+		Simulation t;
+		setup(t);
+		t.spawn_fauna(6, 0, FAUNA_DEER);
+		uint32_t b = t.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		run(t, 4.0f);
+		check(target_of(t, b) == 0, "not a deer");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t tree = s.spawn_resource_world(0, 0, RES_WOOD, 5000);
+		uint32_t w = s.spawn_unit(1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&w, 1, tree);
+		run(s, 2.0f);
+		s.spawn_fauna(3, 0, FAUNA_WOLF);
+		const bool fled = run_until(s, 10.0f, [&] { return act_of(s, w) == ACTION_FLEE; });
+		check(fled, "a woman bitten by a wolf flees (Attacked)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t sol = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+		uint32_t h = s.spawn_unit(1, 0, 0, UNIT_HEALER);
+		s.order_guard(&h, 1, sol);
+		run(s, 1.0f);
+		s.set_unit_hp(sol, 20.0f);
+		const bool healing = run_until(s, 3.0f, [&] { return act_of(s, h) == ACTION_HEAL; });
+		run(s, 6.0f);
+		check(healing && hp_of(s, sol) > 20.0f, "a guarding healer heals the unit it guards");
+		run(s, 120.0f);
+		check(s.unit_order(h).kind == ORDER_GUARD, "then guards it again");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t c = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+		check(s.units().stance[idx_of(s, c)] == STANCE_STAND_GROUND, "stone throwers stand ground by default");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1118,6 +1190,7 @@ int main(int argc, char **argv) {
 	test_next_treasure();
 	test_preferred_classes();
 	test_unitai_combat();
+	test_unitai_targets();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

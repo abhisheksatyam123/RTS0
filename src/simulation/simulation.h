@@ -1835,6 +1835,8 @@ private:
 	void finish_order(size_t i);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
+	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee);
+	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
