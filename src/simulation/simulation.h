@@ -265,6 +265,13 @@ public:
 			uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE);
 	// Stats of the unit at SoA index i (its civ roster template, else its class).
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
+	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
+	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
+	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
+	bool unit_can_target(size_t i, size_t j) const { return combat_can_target(unit_combat_at(i), unit_combat_at(j)); }
+	bool unit_can_target_building(size_t i, uint8_t building_type) const {
+		return combat_can_target(unit_combat_at(i), building_combat(building_type));
+	}
 	uint16_t unit_template(uint32_t unit_id) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
 	// from its own civ's bonus and its allies' (same team, still in the match).
@@ -1052,6 +1059,8 @@ private:
 		float heal_interval[UNIT_TYPE_COUNT]; // < 1 heals faster
 		float trade_gain[UNIT_TYPE_COUNT];
 		float pack_time[UNIT_TYPE_COUNT];   // siege pack/unpack time multiplier
+		float regen[UNIT_TYPE_COUNT];       // Health.js RegenRate, hp per second
+		float idle_regen[UNIT_TYPE_COUNT];  // Health.js IdleRegenRate, added while idle
 		float bld_health[BLD_TYPE_COUNT];
 		float bld_attack[BLD_TYPE_COUNT];
 		float bld_range[BLD_TYPE_COUNT];
@@ -1132,7 +1141,6 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	void tick_upkeep(float dt);
 	void tick_entity_limits(float dt);
 	void tick_death_damage(float dt);
 	void tick_gates(float dt);
@@ -1175,7 +1183,11 @@ private:
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
+	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0);
+	static float projectile_speed(uint8_t visual);
+	int32_t projectile_hit_unit(const Projectile &p) const;
+	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
@@ -1300,7 +1312,7 @@ private:
 	bool petra_foe(int t) const { return t >= 0 && t < MAX_PLAYERS && is_hostile(petra_pid_, (uint8_t)t); }
 	float rate_window_timer_ = 0.0f;
 	float barter_timer_ = 0.0f;
-	float upkeep_timer_ = 0.0f;
+	float upkeep_timer_ = 0.0f; // unused since soldier upkeep was removed (no 0 A.D. template has Upkeep); kept for the save layout
 	float entity_limits_timer_ = 0.0f;
 	float gate_timer_ = 0.0f;
 	static constexpr size_t MAX_RECENT_DEATHS = 64;
@@ -1496,6 +1508,9 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_resource_demand(float out[RES_COUNT]) const;
+	bool petra_perform_barter();      // tradeManager.js performBarter
+	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
 	int petra_villager_target() const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);

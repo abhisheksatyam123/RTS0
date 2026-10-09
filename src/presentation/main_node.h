@@ -322,6 +322,7 @@ public:
 
 	void toggle_diplomacy();
 	void toggle_objectives();
+	void _toggle_session_dialog(String name);
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 
