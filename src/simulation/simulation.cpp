@@ -343,6 +343,7 @@ Simulation::Simulation() {
 	}
 	apply_team_diplomacy(); // free-for-all: self ally, everyone else enemy
 	apply_petra_config();
+	rebuild_all_tech_mods(); // multipliers start at 1 even if reset() is never called
 }
 
 int Simulation::grid_res_for_map(float map_half) {
