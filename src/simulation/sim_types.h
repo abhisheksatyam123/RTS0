@@ -112,7 +112,13 @@ enum MapType : uint8_t {
 	MAP_ENGLISH_CHANNEL = 54,
 	MAP_DODECANESE = 55,
 	MAP_FORTRESS = 56,
-	MAP_TYPE_COUNT = 57
+	MAP_AMBUSH = 57,
+	MAP_ARCTIC_SUMMER = 58,
+	MAP_EMPIRE = 59,
+	MAP_SCHWARZWALD = 60,
+	MAP_RATUMACOS = 61,
+	MAP_OASIS_0AD = 62,
+	MAP_TYPE_COUNT = 63
 };
 
 struct MapTypeInfo {
@@ -182,7 +188,13 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_HELLAS, "hellas", "Hellas (RMS)", "mediterranean", true, "A random corner of Greece and the Aegean, painted from a real elevation map."},
 		{MAP_ENGLISH_CHANNEL, "english_channel", "English Channel (RMS)", "temperate", true, "Players start on both sides of the English Channel; crossing it takes ships."},
 		{MAP_DODECANESE, "dodecanese", "Dodecanese (RMS)", "mediterranean", true, "A group of islands in the Aegean, a few joined by bridges; the rest need ships."},
-		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."}
+		{MAP_FORTRESS, "fortress", "Fortress (RMS)", "temperate", true, "Players start inside walled fortresses with a market, barracks, stable and temple."},
+		{MAP_AMBUSH, "ambush", "Ambush (RMS)", "temperate", true, "High bluffs overlook the terrain below; rich resources await on the cliffs, but beware of an ambush."},
+		{MAP_ARCTIC_SUMMER, "arctic_summer", "Arctic Summer (RMS)", "polar", true, "Summer in the far north: wolves, deer, hares and muskox roam the plains between hills and lakes."},
+		{MAP_EMPIRE, "empire", "Empire (RMS)", "mediterranean", true, "A neighbouring province has pledged allegiance to you: every player starts with two civic centres."},
+		{MAP_SCHWARZWALD, "schwarzwald", "Schwarzwald (RMS)", "temperate", true, "A forest heavy map with a lake in the middle and plenty of resources."},
+		{MAP_RATUMACOS, "ratumacos", "Ratumacos (RMS)", "alpine", true, "Players start on the banks of the Sequana (Seine) in northern Gaul, near the settlement of Ratumacos."},
+		{MAP_OASIS_0AD, "oasis_0ad", "Oasis (0 A.D.) (RMS)", "oasis", true, "Players start around a small oasis in the centre of the map, which holds much of the wood."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];

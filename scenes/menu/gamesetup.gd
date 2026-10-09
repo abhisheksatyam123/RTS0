@@ -88,6 +88,12 @@ const RMS_MAPS := [
 	["random_english_channel", "English Channel (RMS)", "Random", 8, 128, "temperate", "Two coasts split by the Channel; ships needed to cross. Supports 2-8 players."],
 	["random_dodecanese", "Dodecanese (RMS)", "Random", 8, 128, "mediterranean", "Aegean islands, a few joined by bridges. Supports 2-8 players."],
 	["random_fortress", "Fortress (RMS)", "Random", 8, 128, "temperate", "Every player starts inside a walled fortress. Supports 2-8 players."],
+	["random_ambush", "Ambush (RMS)", "Random", 8, 128, "temperate", "High bluffs with rich resources overlook the plain. Supports 2-8 players."],
+	["random_arctic_summer", "Arctic Summer (RMS)", "Random", 8, 128, "polar", "Northern summer plains with hills, lakes and plenty of game. Supports 2-8 players."],
+	["random_empire", "Empire (RMS)", "Random", 8, 128, "mediterranean", "Every player starts with two civic centres. Supports 2-8 players."],
+	["random_schwarzwald", "Schwarzwald (RMS)", "Random", 8, 128, "temperate", "Heavy forest round a central lake. Supports 2-8 players."],
+	["random_ratumacos", "Ratumacos (RMS)", "Random", 8, 128, "alpine", "Both banks of the Seine near Ratumacos (Rouen). Supports 2-8 players."],
+	["random_oasis_0ad", "Oasis (0 A.D.) (RMS)", "Random", 8, 128, "oasis", "Desert round a central oasis that holds most of the wood. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
