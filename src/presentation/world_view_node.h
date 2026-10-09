@@ -21,8 +21,10 @@
 #include <godot_cpp/classes/particle_process_material.hpp>
 #include <godot_cpp/classes/quad_mesh.hpp>
 #include <godot_cpp/classes/environment.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../simulation/simulation.h"
@@ -56,6 +58,8 @@ class RtsoWorldView : public Node3D {
 		uint32_t vis_stamp = 0;
 		String model_id;
 		StringName clip;
+		Node3D *carry_prop = nullptr; // BoneAttachment3D holding the carried shuttle
+		uint8_t carry_clip = 0;       // ClipId the prop was attached for
 	};
 
 	struct BuildingVis {
@@ -77,6 +81,7 @@ class RtsoWorldView : public Node3D {
 		GPUParticles3D *fx_smoke = nullptr;
 		GPUParticles3D *fx_flame = nullptr;
 		uint8_t fx_level = 0;
+		MeshInstance3D *flag = nullptr; // 0 A.D. garrison flag, shown while garrisoned
 	};
 
 	std::vector<UnitVis> unit_pool;
@@ -99,6 +104,20 @@ class RtsoWorldView : public Node3D {
 	void pick_tree_kinds(const std::string &biome);
 	// Swaying copies of tree meshes (shaders/tree_wind.gdshader), by source mesh.
 	std::unordered_map<int64_t, Ref<Mesh>> wind_cache_;
+	// 0 A.D. carry shuttles (art/actors/props/units/shuttle_*.xml) and the
+	// animation libraries that already hold the clips added from .psa files.
+	Ref<PackedScene> carry_scenes_[7];
+	std::unordered_set<int64_t> clip_libs_done_;
+	// data/garrison_flags.json: the "garrisoned" prop point of each building
+	// model and the flag style its 0 A.D. actor props there.
+	struct FlagPoint { Vector3 pos; float scale = 1.0f; int style = 0; };
+	std::unordered_map<std::string, FlagPoint> flag_points_;
+	std::vector<Ref<ShaderMaterial>> flag_mats_;
+	Ref<Mesh> flag_mesh_;
+	bool flags_loaded_ = false;
+	void load_garrison_flags();
+	void update_garrison_flag(BuildingVis &v, const String &model_id, bool show, uint8_t owner,
+			float b_scale, float y_offset);
 	Ref<Shader> wind_shader_;
 	Ref<Mesh> wind_mesh(const Ref<Mesh> &src);
 	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
@@ -158,7 +177,7 @@ class RtsoWorldView : public Node3D {
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
-	static constexpr int CROWD_CLIP_COUNT = 16; // see kCrowdClips in world_view_node.cpp
+	static constexpr int CROWD_CLIP_COUNT = 22; // see kCrowdClips in world_view_node.cpp
 	static constexpr int FAUNA_CLIP_COUNT = 4;  // idle, move, attack, death
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
@@ -297,7 +316,12 @@ private:
 	MultiMesh *crowd_mm(CrowdBatch &b, int clip);
 	// Bakes the skinned poses of every clip in `want` (array of ClipId) that `done` lacks.
 	void bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-			const bool *needed, int count, int death_slot);
+			const bool *needed, int count, int death_slot, bool female = false);
+	// Adds the 0 A.D. clips the unit GLBs lack (per-resource carry, promotion)
+	// to a biped's animation library from assets/animations/*.psa.
+	void ensure_runtime_clips(AnimationPlayer *ap, bool female);
+	// Parents the carry shuttle for `clip` (a carry variant) to its 0 A.D. prop point.
+	Node3D *attach_carry_prop(Node *model, uint8_t clip, bool female);
 	void cycle_puppet_meshes(CrowdPuppet *row, Ref<MultiMesh> *meshes, const int *counts, int count, int death_slot);
 	void ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);

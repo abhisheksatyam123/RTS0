@@ -1,5 +1,6 @@
 #include "world_view_node.h"
 #include "territory_boundary.h"
+#include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/variant/basis.hpp>
@@ -7,6 +8,11 @@
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/classes/animation.hpp>
 #include <godot_cpp/classes/animation_mixer.hpp>
+#include <godot_cpp/classes/animation_library.hpp>
+#include <godot_cpp/classes/json.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/bone_attachment3d.hpp>
+#include <godot_cpp/classes/skeleton3d.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/classes/viewport.hpp>
@@ -566,6 +572,73 @@ static Color player_display_color(uint8_t pid) {
 	return Color(c[0] / 255.0f, c[1] / 255.0f, c[2] / 255.0f, 1.0f);
 }
 
+void RtsoWorldView::load_garrison_flags() {
+	flags_loaded_ = true;
+	Ref<FileAccess> f = FileAccess::open("res://data/garrison_flags.json", FileAccess::READ);
+	if (!f.is_valid()) return;
+	Dictionary root = JSON::parse_string(f->get_as_text());
+	Dictionary models = root.get("models", Dictionary());
+	Ref<Shader> shader = ResourceLoader::get_singleton()->load("res://shaders/garrison_flag.gdshader");
+	Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://assets/models/props/garrison_flag.glb");
+	if (!shader.is_valid() || !scene.is_valid()) return;
+	if (Node *inst = scene->instantiate()) {
+		TypedArray<Node> meshes = inst->find_children("*", "MeshInstance3D", true, false);
+		if (meshes.size() > 0) flag_mesh_ = Object::cast_to<MeshInstance3D>(meshes[0])->get_mesh();
+		memdelete(inst);
+	}
+	std::unordered_map<std::string, int> styles;
+	Array keys = models.keys();
+	for (int i = 0; i < keys.size(); ++i) {
+		Dictionary e = models[keys[i]];
+		Array pos = e.get("pos", Array());
+		String style = e.get("flag", "hele");
+		if (pos.size() != 3) continue;
+		auto it = styles.find(style.utf8().get_data());
+		if (it == styles.end()) {
+			Ref<Texture2D> tex = ResourceLoader::get_singleton()->load("res://assets/textures/garrison_flags/" + style + ".png");
+			Ref<ShaderMaterial> m;
+			m.instantiate();
+			m->set_shader(shader);
+			m->set_shader_parameter("albedo_tex", tex);
+			flag_mats_.push_back(m);
+			it = styles.emplace(style.utf8().get_data(), (int)flag_mats_.size() - 1).first;
+		}
+		FlagPoint fp;
+		fp.pos = Vector3((float)pos[0], (float)pos[1], (float)pos[2]);
+		fp.scale = (float)e.get("scale", 1.0);
+		fp.style = it->second;
+		flag_points_[String(keys[i]).utf8().get_data()] = fp;
+	}
+}
+
+// Structures prop their civ's flag on the "garrisoned" point while anyone is
+// inside (the actors' garrisoned variant, picked by GarrisonHolder.js).
+void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id, bool show, uint8_t owner,
+		float b_scale, float y_offset) {
+	if (!flags_loaded_ && show) load_garrison_flags();
+	const FlagPoint *fp = nullptr;
+	if (show && flag_mesh_.is_valid()) {
+		auto it = flag_points_.find(model_id.utf8().get_data());
+		if (it != flag_points_.end()) fp = &it->second;
+	}
+	if (!fp) {
+		if (v.flag) v.flag->set_visible(false);
+		return;
+	}
+	if (!v.flag) {
+		v.flag = memnew(MeshInstance3D);
+		v.flag->set_mesh(flag_mesh_);
+		v.flag->set_cast_shadows_setting(GeometryInstance3D::SHADOW_CASTING_SETTING_ON);
+		v.root->add_child(v.flag);
+	}
+	v.flag->set_material_override(flag_mats_[fp->style]);
+	v.flag->set_instance_shader_parameter("player_color", player_display_color(owner));
+	const float fs = b_scale * fp->scale;
+	v.flag->set_transform(Transform3D(Basis().scaled(Vector3(fs, fs, fs)),
+			Vector3(0, y_offset, 0) + fp->pos * b_scale));
+	v.flag->set_visible(true);
+}
+
 void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	const auto &grid = sim->territory_grid();
 	if (grid.w <= 0 || grid.h <= 0) return;
@@ -768,6 +841,11 @@ enum ClipId : uint8_t {
 	CLIP_HEAL,
 	CLIP_SLAUGHTER,
 	CLIP_PROMOTION,
+	CLIP_CARRY_FOOD,
+	CLIP_CARRY_MEAT,
+	CLIP_CARRY_WOOD,
+	CLIP_CARRY_STONE,
+	CLIP_CARRY_METAL,
 	CLIP_COUNT
 };
 
@@ -779,7 +857,9 @@ static const StringName &clip_name(ClipId id) {
 		StringName("GatherFruit"), StringName("GatherGrain"), StringName("GatherMeat"),
 		StringName("GatherFish"),
 		StringName("Build"), StringName("Carry"), StringName("Heal"),
-		StringName("Slaughter"), StringName("Promotion")
+		StringName("Slaughter"), StringName("Promotion"),
+		StringName("CarryFood"), StringName("CarryMeat"), StringName("CarryWood"),
+		StringName("CarryStone"), StringName("CarryMetal")
 	};
 	return names[id < CLIP_COUNT ? id : CLIP_NONE];
 }
@@ -801,6 +881,47 @@ static ClipId gather_clip_for(uint8_t utype, uint8_t res_type, uint8_t subtype) 
 	}
 }
 
+static Skeleton3D *find_skeleton3d(Node *n) {
+	if (!n) return nullptr;
+	if (Skeleton3D *sk = Object::cast_to<Skeleton3D>(n)) return sk;
+	for (int i = 0; i < n->get_child_count(); ++i) {
+		if (Skeleton3D *found = find_skeleton3d(n->get_child(i))) return found;
+	}
+	return nullptr;
+}
+
+static void detach_carry_props(Skeleton3D *sk) {
+	if (!sk) return;
+	for (int i = sk->get_child_count() - 1; i >= 0; --i) {
+		Node *c = sk->get_child(i);
+		if (String(c->get_name()).begins_with("rtso_carry")) {
+			sk->remove_child(c);
+			c->queue_free();
+		}
+	}
+}
+
+// The citizen women (and RTS0's villager, drawn as one) take the female_* variants.
+static bool unit_is_female(uint8_t utype) {
+	return utype == rtso::UNIT_FEMALE_CITIZEN || utype == rtso::UNIT_VILLAGER;
+}
+
+static bool is_carry_variant(ClipId c) {
+	return c >= CLIP_CARRY_FOOD && c <= CLIP_CARRY_METAL;
+}
+
+// UnitAI.SetDefaultAnimationVariant: "carry_" + generic type, with meat split
+// from grain and fruit (art/variants/biped/carry_*.xml).
+static ClipId carry_clip_for(uint8_t res_type, uint8_t subtype) {
+	switch (res_type) {
+		case rtso::RES_WOOD: return CLIP_CARRY_WOOD;
+		case rtso::RES_GOLD: return CLIP_CARRY_METAL;
+		case rtso::RES_STONE: return CLIP_CARRY_STONE;
+		case rtso::RES_FOOD: return subtype == rtso::RES_SUB_MEAT ? CLIP_CARRY_MEAT : CLIP_CARRY_FOOD;
+		default: return CLIP_CARRY;
+	}
+}
+
 // 0 A.D. action → clip (Attack.js, ResourceGatherer.js, CCmpVisualActor, UnitAI carry variant).
 struct WantAnim {
 	ClipId clip = CLIP_IDLE;
@@ -816,7 +937,8 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 	// ~4.24 m/s: infantry walk (~3.2) stays Walk; cavalry/camel/chariot pick Run.
 	const bool sprint = !laden_move && speed2 > 18.0f;
 	WantAnim w_move;
-	w_move.clip = laden_move ? CLIP_CARRY : (sprint ? CLIP_RUN : CLIP_WALK);
+	const ClipId carry_clip = carry_clip_for(res_type, res_sub);
+	w_move.clip = laden_move ? carry_clip : (sprint ? CLIP_RUN : CLIP_WALK);
 	w_move.state = laden_move ? rtso::AnimState::Carry
 			: (sprint ? rtso::AnimState::Run : rtso::AnimState::Walk);
 
@@ -859,7 +981,7 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 			return w_move;
 		// UnitAI.SetDefaultAnimationVariant → carry_food / carry_*; fishing hull uses rowing_move.
 		case rtso::ACTION_RETURN_DROPSITE:
-			w.clip = CLIP_CARRY;
+			w.clip = carry_clip;
 			w.state = rtso::AnimState::Carry;
 			return w;
 		case rtso::ACTION_MOVE:
@@ -884,6 +1006,14 @@ static ClipId resolve_clip_fallback(AnimationPlayer *anim, ClipId want) {
 		case CLIP_RUN:       alt = CLIP_WALK; break;
 		case CLIP_WALK:      alt = CLIP_RUN; break;
 		case CLIP_CARRY:     alt = CLIP_WALK; break;
+		case CLIP_CARRY_FOOD:
+		case CLIP_CARRY_MEAT:
+		case CLIP_CARRY_WOOD:
+		case CLIP_CARRY_STONE:
+		case CLIP_CARRY_METAL:
+			if (anim->has_animation(clip_name(CLIP_CARRY))) return CLIP_CARRY;
+			alt = CLIP_WALK;
+			break;
 		case CLIP_GATHER_TREE:
 		case CLIP_GATHER_ORE:
 		case CLIP_GATHER_ROCK:
@@ -1007,6 +1137,8 @@ void RtsoWorldView::attach_unit_model(UnitVis &v, const String &model_name) {
 	}
 	v.model_id = model_name;
 	v.clip = StringName();
+	v.carry_prop = nullptr; // freed with the old model
+	v.carry_clip = 0;
 	String cat_units = "units";
 	auto entry = rtso::ModelLibrary::get(cat_units, model_name);
 	if (entry.scene.is_valid()) {
@@ -1123,8 +1255,10 @@ static const uint8_t kCrowdClips[] = {
 	CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_RUN, CLIP_CARRY, CLIP_BUILD,
 	CLIP_GATHER_TREE, CLIP_GATHER_ORE, CLIP_GATHER_ROCK, CLIP_GATHER_FRUIT, CLIP_GATHER_GRAIN,
 	CLIP_GATHER_MEAT, CLIP_GATHER_FISH, CLIP_HEAL, CLIP_SLAUGHTER,
+	CLIP_CARRY_FOOD, CLIP_CARRY_MEAT, CLIP_CARRY_WOOD, CLIP_CARRY_STONE, CLIP_CARRY_METAL,
+	CLIP_PROMOTION,
 };
-static_assert(sizeof(kCrowdClips) == 16, "kCrowdClips must match CROWD_CLIP_COUNT");
+static_assert(sizeof(kCrowdClips) == 22, "kCrowdClips must match CROWD_CLIP_COUNT");
 static constexpr int CROWD_DEATH_SLOT = 3;
 
 static int crowd_slot_of(ClipId clip) {
@@ -1145,6 +1279,12 @@ static int crowd_slot_of(ClipId clip) {
 		case CLIP_GATHER_FISH: return 13;
 		case CLIP_HEAL: return 14;
 		case CLIP_SLAUGHTER: return 15;
+		case CLIP_CARRY_FOOD: return 16;
+		case CLIP_CARRY_MEAT: return 17;
+		case CLIP_CARRY_WOOD: return 18;
+		case CLIP_CARRY_STONE: return 19;
+		case CLIP_CARRY_METAL: return 20;
+		case CLIP_PROMOTION: return 21;
 		default: return 0;
 	}
 }
@@ -1176,7 +1316,7 @@ MultiMesh *RtsoWorldView::crowd_mm(CrowdBatch &b, int clip) {
 }
 
 void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, const uint8_t *want,
-		const bool *needed, int count, int death_slot) {
+		const bool *needed, int count, int death_slot, bool female) {
 	AnimationPlayer *ap = find_anim_player(inst);
 	if (ap) {
 		ap->set_active(true);
@@ -1192,8 +1332,12 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 			// Show the clip's tool (axe, pick, hammer...) before capturing, as
 			// capture skips hidden props.
 			apply_unit_tools(inst, name);
+			// The carry shuttle bakes into the clip's frames, riding its bone.
+			Node3D *prop = is_carry_variant(play) ? attach_carry_prop(inst, play, female) : nullptr;
 			rtso::ModelLibrary::CrowdSkin skin;
-			if (!rtso::ModelLibrary::capture_crowd_skin(inst, skin)) {
+			const bool captured = rtso::ModelLibrary::capture_crowd_skin(inst, skin);
+			if (!captured) {
+				if (prop) detach_carry_props(find_skeleton3d(inst));
 				row[c].baked_count = 0;
 				row[c].last_frame = -1;
 				continue;
@@ -1220,6 +1364,7 @@ void RtsoWorldView::bake_puppet_clips(Node *inst, CrowdPuppet *row, bool *done, 
 					valid++;
 				}
 			}
+			if (prop) detach_carry_props(find_skeleton3d(inst));
 		}
 		row[c].baked_count = valid;
 		row[c].last_frame = -1;
@@ -1279,7 +1424,9 @@ void RtsoWorldView::ensure_crowd_frames(uint8_t civ, uint8_t utype, const int *c
 	}
 	Node *inst = instantiate_for_bake(crowd_bake_root, entry.scene);
 	if (!inst) return;
-	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOT);
+	const bool female = unit_is_female(utype);
+	ensure_runtime_clips(find_anim_player(inst), female);
+	bake_puppet_clips(inst, b.puppet, b.clip_baked, kCrowdClips, needed, CROWD_CLIP_COUNT, CROWD_DEATH_SLOT, female);
 	for (int c = 0; c < CROWD_CLIP_COUNT; ++c) {
 		if (needed[c] && b.mm[c].is_valid() && b.puppet[c].posed_frames[0].is_valid())
 			b.mm[c]->set_mesh(b.puppet[c].posed_frames[0]);
@@ -1333,6 +1480,115 @@ void RtsoWorldView::play_unit_clip(UnitVis &v, const StringName &clip, bool loop
 	v.anim->play(clip);
 	v.anim->advance(0.0);
 	apply_unit_tools(v.model, clip);
+}
+
+// Biped skeletons (46 bones) share 0 A.D.'s gatherer and promotion clips;
+// art/variants/biped/{,female_}carry_*.xml and infantry promotion.
+void RtsoWorldView::ensure_runtime_clips(AnimationPlayer *ap, bool female) {
+	if (!ap) return;
+	Ref<AnimationLibrary> lib = ap->get_animation_library(StringName());
+	if (!lib.is_valid() || !clip_libs_done_.insert((int64_t)lib->get_instance_id()).second) return;
+	// The bone tracks of a shipped clip give the skeleton's path from the player's root.
+	String skel_path;
+	Ref<Animation> ref = lib->has_animation(clip_name(CLIP_IDLE)) ? lib->get_animation(clip_name(CLIP_IDLE)) : Ref<Animation>();
+	for (int t = 0; ref.is_valid() && t < ref->get_track_count(); ++t) {
+		NodePath tp = ref->track_get_path(t);
+		if (tp.get_subname_count() > 0) {
+			skel_path = tp.get_concatenated_names();
+			break;
+		}
+	}
+	Node *anim_root = ap->get_node_or_null(ap->get_root_node());
+	Skeleton3D *sk = (anim_root && !skel_path.is_empty())
+			? Object::cast_to<Skeleton3D>(anim_root->get_node_or_null(NodePath(skel_path))) : nullptr;
+	if (!sk) return;
+	struct Clip { ClipId id; const char *male; const char *female; };
+	static const Clip kClips[] = {
+		{ CLIP_CARRY_FOOD, "biped_gatherer_carry_grain_m", "biped_gatherer_carry_grain_f" },
+		{ CLIP_CARRY_MEAT, "biped_gatherer_carry_meat_m", "biped_gatherer_carry_meat_f" },
+		{ CLIP_CARRY_WOOD, "carry_wood", "biped_gatherer_carry_wood_f" },
+		{ CLIP_CARRY_STONE, "carry_ore", "biped_gatherer_carry_ore_f" },
+		{ CLIP_CARRY_METAL, "carry_ore", "biped_gatherer_carry_ore_f" },
+		{ CLIP_PROMOTION, "biped_infantry_promotion", "biped_infantry_promotion" },
+	};
+	const int bones = sk->get_bone_count();
+	for (const Clip &c : kClips) {
+		if (lib->has_animation(clip_name(c.id))) continue;
+		rtso::PsaAnim psa;
+		if (!psa.load_psa(female ? c.female : c.male) || !psa.is_valid() || (int)psa.numBones != bones) continue;
+		Ref<Animation> a;
+		a.instantiate();
+		const double dt = psa.frameTime / 1000.0;
+		a->set_length(dt * psa.numFrames);
+		// PSA keys are root-relative bone transforms, the same space as the
+		// extractor's flat bone nodes, so they are the bone poses as they stand.
+		for (int b = 0; b < bones; ++b) {
+			NodePath path(skel_path + ":" + sk->get_bone_name(b));
+			const int tp = a->add_track(Animation::TYPE_POSITION_3D);
+			a->track_set_path(tp, path);
+			const int tr = a->add_track(Animation::TYPE_ROTATION_3D);
+			a->track_set_path(tr, path);
+			for (uint32_t f = 0; f < psa.numFrames; ++f) {
+				const rtso::PsaKey &k = psa.keys[(size_t)f * psa.numBones + b];
+				a->position_track_insert_key(tp, dt * f, k.t);
+				a->rotation_track_insert_key(tr, dt * f, k.q);
+			}
+		}
+		lib->add_animation(clip_name(c.id), a);
+	}
+}
+
+Node3D *RtsoWorldView::attach_carry_prop(Node *model, uint8_t clip, bool female) {
+	Skeleton3D *sk = find_skeleton3d(model);
+	detach_carry_props(sk);
+	if (!sk || !is_carry_variant((ClipId)clip)) return nullptr;
+	// carry_food: shuttle_basket_back on "back", a prop point under chest
+	// (f_dress.dae prop-back, in the unit GLBs' axes); meat: one slab in each
+	// hand for men, one for women; wood, stone, metal: weapon_R.
+	struct Prop { int scene; const char *bone; bool back; };
+	Prop props[2] = { { -1, "weapon_R", false }, { -1, "weapon_L", false } };
+	switch ((ClipId)clip) {
+		case CLIP_CARRY_FOOD: props[0] = { 0, "chest", true }; break;
+		case CLIP_CARRY_MEAT:
+			props[0].scene = female ? 6 : 1;
+			if (!female) props[1].scene = 5;
+			break;
+		case CLIP_CARRY_WOOD: props[0].scene = 2; break;
+		case CLIP_CARRY_STONE: props[0].scene = 3; break;
+		case CLIP_CARRY_METAL: props[0].scene = 4; break;
+		default: return nullptr;
+	}
+	static const char *kFiles[7] = {
+		"carry_food", "carry_meat_r", "carry_wood", "carry_stone", "carry_metal", "carry_meat_l", "carry_meat_f",
+	};
+	Node3D *first = nullptr;
+	for (const Prop &p : props) {
+		if (p.scene < 0) continue;
+		const int bone = sk->find_bone(p.bone);
+		if (bone < 0) continue;
+		Ref<PackedScene> &scene = carry_scenes_[p.scene];
+		if (!scene.is_valid()) {
+			scene = ResourceLoader::get_singleton()->load(String("res://assets/models/props/") + kFiles[p.scene] + ".glb");
+			if (!scene.is_valid()) continue;
+		}
+		Node3D *prop = Object::cast_to<Node3D>(scene->instantiate());
+		if (!prop) continue;
+		rtso::ModelLibrary::apply_imported_material_fixups(prop);
+		enable_mesh_shadows(prop);
+		if (p.back) {
+			prop->set_transform(Transform3D(
+					Basis(Vector3(1, 0, 0), Vector3(0, 0.1222f, 0.9925f), Vector3(0, -0.9925f, 0.1222f)),
+					Vector3(0, -0.3333f, 0.3811f)));
+		}
+		BoneAttachment3D *att = memnew(BoneAttachment3D);
+		att->set_name(first ? "rtso_carry_l" : "rtso_carry");
+		sk->add_child(att);
+		att->set_bone_name(p.bone);
+		att->set_bone_idx(bone);
+		att->add_child(prop);
+		if (!first) first = att;
+	}
+	return first;
 }
 
 // Tree models per biome, from the 0 A.D. flora each biome's random maps
@@ -1864,6 +2120,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		v.vis_stamp = unit_vis_stamp;
 		v.yaw = yaw;
 		attach_unit_model(v, rtso::civ_unit_model(uciv, utype));
+		if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
+			ensure_runtime_clips(v.anim, unit_is_female(utype));
 
 		if (v.anim && UtilityFunctions::is_instance_valid(v.anim)) {
 			v.anim->set_active(true);
@@ -1881,6 +2139,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 				play_unit_clip(v, clip_name(play), loop_clip);
 				v.anim->advance((double)delta);
 				apply_unit_tools(v.model, clip_name(play));
+			}
+			const uint8_t prop_clip = is_carry_variant(play) ? (uint8_t)play : 0;
+			if (prop_clip != v.carry_clip) {
+				v.carry_prop = prop_clip ? attach_carry_prop(v.model, prop_clip, unit_is_female(utype))
+						: (detach_carry_props(find_skeleton3d(v.model)), nullptr);
+				v.carry_clip = prop_clip;
 			}
 		}
 
@@ -2097,6 +2361,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			}
 			update_damage_fx(v, lvl, b.half_size, entry.aabb.size.y * b_scale);
 		}
+		update_garrison_flag(v, visual_id, v.phase == 0 && !b.miraged && sim->get_garrison_count(b.id) > 0,
+				b.team, b_scale, entry.y_offset);
 
 		// Building Health & Construction Progress Bar
 		bool show_bhp = !destroyed && (show_all_status_bars_ || b_progress < 1.0f || b.hp < b.max_hp * 0.98f);
@@ -2173,6 +2439,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			building_pool[s].fx_smoke = nullptr;
 			building_pool[s].fx_flame = nullptr;
 			building_pool[s].fx_level = 0;
+			building_pool[s].flag = nullptr;
 			building_slot.erase(building_pool[s].sim_id);
 		}
 	}
