@@ -125,7 +125,7 @@ static void test_phase_up() {
 // Petra fields its civ's roster army: a hero, champions and siege engines once
 // it reaches the city phase (attackPlan.js unitStat Hero / Champ* / Siege).
 static void test_roster_army() {
-	bool any_unpacked_fired = false;
+	bool any_unpacked_fired = false, any_packed_moved = false;
 	for (uint8_t civ : { (uint8_t)CIV_ATHENIANS, (uint8_t)CIV_MACEDONIANS }) {
 		auto s = std::make_unique<Simulation>();
 		s->set_sim_seed(42);
@@ -133,11 +133,16 @@ static void test_roster_army() {
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 		s->players_[1].civ = (Civilization)civ;
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
-		// Fortresses outlast the infantry's first waves, so the siege (trained some ten minutes into
-		// the city phase at 0 A.D.'s gather rates) still has something to fire at.
-		s->spawn_building_world(42.0f, 42.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(26.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(50.0f, 26.0f, BLD_FORTRESS, 0, 1.0f);
+		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
+		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
+		// rates) still has something to fire at.
+		for (const float *at : {(const float[2]){42.0f, 42.0f}, (const float[2]){26.0f, 50.0f}, (const float[2]){50.0f, 26.0f}}) {
+			const uint32_t fort = s->spawn_building_world(at[0], at[1], BLD_FORTRESS, 0, 1.0f);
+			std::vector<uint32_t> men;
+			for (int k = 0; k < 10; ++k)
+				men.push_back(s->spawn_unit(at[0] - 6.0f + (float)(k % 5), at[1] - 6.0f - (float)(k / 5), 0, UNIT_SPEARMAN));
+			s->order_garrison(men.data(), men.size(), fort);
+		}
 		bool hero = false, champion = false, siege = false, tower = false, packed_moved = false, unpacked_fired = false;
 		bool advanced = false, arsenal = false;
 		// 45 minutes: at 0 A.D.'s gather rates (template_unit_*/ResourceGatherer) Petra reaches
@@ -179,9 +184,12 @@ static void test_roster_army() {
 		CHECK(champion, "trains roster champions in the city phase");
 		CHECK(siege, "trains siege engines");
 		if (civ == CIV_MACEDONIANS) CHECK(tower, "builds a siege tower where the civ has one");
-		CHECK(packed_moved, "siege packs to follow the army");
+		// Petra picks siege by siegeStrength (attackPlan.js unitStat Siege), so a civ whose rams
+		// outlast the fortresses may never field a catapult: packing is checked across both civs.
+		any_packed_moved |= packed_moved;
 		any_unpacked_fired |= unpacked_fired;
 	}
+	CHECK(any_packed_moved, "siege packs to follow the army");
 	CHECK(any_unpacked_fired, "siege unpacks to fire in range");
 }
 
@@ -475,6 +483,12 @@ static void test_attack_plans() {
 		// The kind of each plan as it starts mustering (whether a HugeAttack
 		// marches before the idle player runs out of buildings depends on timing).
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
+		// Fortresses on the far side keep the idle player standing after the Attacks raze its
+		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
+		// still a target to plan the HugeAttack against.
+		s->spawn_building_world(50.0f, 50.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(55.0f, 10.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(10.0f, 55.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
 		auto last = Simulation::AttackPlan::UNEXECUTED;
