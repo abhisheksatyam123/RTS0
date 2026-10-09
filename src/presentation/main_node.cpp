@@ -31,6 +31,14 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
 	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
+	ClassDB::bind_method(D_METHOD("_on_speed_selected", "id"), &RtsoMain::_on_speed_selected);
+	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
+	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
+	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
+	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
+	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
+	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
+	ClassDB::bind_method(D_METHOD("is_game_paused"), &RtsoMain::is_game_paused);
 	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
 	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
 	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
@@ -623,6 +631,11 @@ void RtsoMain::_ready() {
 	join_b->set_text("Join");
 	join_b->connect("pressed", Callable(this, "_on_lobby_join_pressed"));
 	lobby_actions->add_child(join_b);
+	lobby_observe = memnew(Button);
+	lobby_observe->set_text("Observe");
+	lobby_observe->set_toggle_mode(true);
+	lobby_observe->set_tooltip_text("Join a match in progress as an observer");
+	lobby_actions->add_child(lobby_observe);
 	Button *ref_b = memnew(Button);
 	ref_b->set_text("Refresh");
 	ref_b->connect("pressed", Callable(this, "_on_lobby_refresh_pressed"));
@@ -637,6 +650,9 @@ void RtsoMain::_ready() {
 	lobby_status = memnew(Label);
 	lobby_status->set_text("Lobby HTTP 127.0.0.1:8088 - run tools/lobby_server.py");
 	lobby_box->add_child(lobby_status);
+	lobby_players = memnew(Label);
+	lobby_players->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	lobby_box->add_child(lobby_players);
 
 	// =========================================================================
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
@@ -1607,12 +1623,92 @@ void RtsoMain::update_cursor() {
 	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
 }
 
-void RtsoMain::_on_speed_button_pressed() {
-	if (game_speed == 1.0f) game_speed = 1.5f;
-	else if (game_speed == 1.5f) game_speed = 2.0f;
-	else game_speed = 1.0f;
+// Game speeds offered in the session's speed menu (as 0 A.D.'s game-speed
+// dropdown); a replay also offers the fast speeds for skimming through it.
+static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
 
-	if (speed_btn) speed_btn->set_text(String::num(game_speed, 1) + "x");
+static const float kGameSpeeds[] = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
+static const float kReplaySpeeds[] = {3.0f, 5.0f, 10.0f, 20.0f};
+
+String RtsoMain::speed_text(float speed) { return String::num(speed, 2) + "x"; }
+
+Array RtsoMain::speed_choices(bool replay) {
+	Array out;
+	for (float sp : kGameSpeeds) out.push_back(sp);
+	if (replay)
+		for (float sp : kReplaySpeeds) out.push_back(sp);
+	return out;
+}
+
+void RtsoMain::_on_speed_button_pressed() {
+	if (!speed_btn) return;
+	if (!speed_menu_) {
+		speed_menu_ = memnew(PopupMenu);
+		speed_menu_->connect("id_pressed", Callable(this, "_on_speed_selected"));
+		speed_btn->add_child(speed_menu_);
+	}
+	speed_menu_->clear();
+	int id = 0;
+	for (float sp : kGameSpeeds) speed_menu_->add_radio_check_item(speed_text(sp), id++);
+	if (turn_mgr_.is_replaying())
+		for (float sp : kReplaySpeeds) speed_menu_->add_radio_check_item(speed_text(sp), id++);
+	for (int i = 0; i < speed_menu_->get_item_count(); ++i) {
+		const int k = speed_menu_->get_item_id(i);
+		const float sp = k < (int)std::size(kGameSpeeds) ? kGameSpeeds[k] : kReplaySpeeds[k - std::size(kGameSpeeds)];
+		speed_menu_->set_item_checked(i, sp == game_speed);
+	}
+	speed_menu_->set_position(Vector2i(speed_btn->get_screen_position() + Vector2(0, speed_btn->get_size().y)));
+	speed_menu_->popup();
+}
+
+void RtsoMain::_on_speed_selected(int id) {
+	const int n = (int)std::size(kGameSpeeds);
+	if (id >= 0 && id < n) set_game_speed(kGameSpeeds[id]);
+	else if (id >= n && id < n + (int)std::size(kReplaySpeeds)) set_game_speed(kReplaySpeeds[id - n]);
+}
+
+// Offline and in replays only: networked games run at the host's speed.
+void RtsoMain::set_game_speed(float speed) {
+	if (net_lockstep() || !(speed > 0.0f)) return;
+	const float most = turn_mgr_.is_replaying() ? kReplaySpeeds[std::size(kReplaySpeeds) - 1] : kGameSpeeds[std::size(kGameSpeeds) - 1];
+	game_speed = std::clamp(speed, kGameSpeeds[0], most);
+	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
+	if (replay_speed_picker_)
+		for (int i = 0; i < replay_speed_picker_->get_item_count(); ++i)
+			if ((float)replay_speed_picker_->get_item_metadata(i) == game_speed) replay_speed_picker_->select(i);
+}
+
+// The pause hotkey and the replay's Pause button. Networked, the pause holds
+// every peer's turns (0 A.D. NMT_CLIENT_PAUSED).
+// 0 A.D. session hotkeys quicksave/quickload: one quicksave slot, not offered
+// in networked games or while watching a replay; a short notice says what happened.
+void RtsoMain::show_notice(const String &text) {
+	if (!banner_label || !banner_panel || hotkey_paused_) return;
+	banner_label->set_text(text);
+	banner_panel->set_visible(true);
+	notice_until_ = Time::get_singleton()->get_ticks_msec() + 2000;
+}
+
+void RtsoMain::quicksave() {
+	if (net_lockstep() || turn_mgr_.is_replaying()) return;
+	show_notice(save_game(kQuicksavePath, "Quicksave") ? "Quicksaved game" : "Quicksave failed");
+}
+
+void RtsoMain::quickload() {
+	if (net_lockstep() || turn_mgr_.is_replaying()) return;
+	if (!FileAccess::file_exists(kQuicksavePath)) {
+		show_notice("No quicksave to load");
+		return;
+	}
+	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
+}
+
+void RtsoMain::toggle_pause() {
+	hotkey_paused_ = !hotkey_paused_;
+	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
+	if (banner_label) banner_label->set_text(hotkey_paused_ ? "Game paused" : "");
+	if (banner_panel) banner_panel->set_visible(hotkey_paused_);
+	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 }
 
 void RtsoMain::_on_menu_button_pressed() {
@@ -1676,7 +1772,23 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	if (!roster_list || index < 0 || index >= roster_list->get_item_count()) return;
 	roster_list->deselect_all();
 	if (mouse_button != MOUSE_BUTTON_LEFT || roster_list->is_item_disabled(index)) return;
-	try_train_template(selected_building_id, (uint16_t)(int)roster_list->get_item_metadata(index));
+	const int meta = (int)roster_list->get_item_metadata(index);
+	if (meta & ROSTER_ANIMAL) {
+		try_breed(selected_building_id, (uint8_t)(meta & 0xFF));
+		return;
+	}
+	try_train_template(selected_building_id, (uint16_t)meta);
+}
+
+// Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
+// type and the animal in target_x.
+void RtsoMain::try_breed(uint32_t building_id, uint8_t ftype) {
+	if (building_id == 0) return;
+	if (turn_cmds()) {
+		post_lockstep(6, nullptr, 0, (float)ftype, 0.0f, building_id, (uint8_t)rtso::UNIT_TYPE_NONE);
+		return;
+	}
+	sim->cmd_breed_livestock(local_player(), building_id, ftype);
 }
 
 void RtsoMain::_on_build_btn_pressed(int btype) {
@@ -1847,6 +1959,7 @@ bool RtsoMain::save_game(String path, String description) {
 	if (res) {
 		// The save and load dialogs list saves by this metadata (0 A.D. gui/savedgames).
 		write_save_metadata(path, description);
+		write_save_thumbnail(path);
 		print_line("[RTS0] Game saved successfully to " + path);
 	}
 	return res;
@@ -1959,6 +2072,10 @@ void RtsoMain::_process(double delta) {
 	// Networked: keep running TurnManager::tick, which holds turns for everyone
 	// while any client is paused, so this peer still sees remote pauses end.
 	music_.tick(delta);
+	if (notice_until_ && Time::get_singleton()->get_ticks_msec() >= notice_until_) {
+		notice_until_ = 0;
+		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
+	}
 	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
@@ -2005,8 +2122,10 @@ void RtsoMain::_process(double delta) {
 				// 0 A.D. session.js network warnings: who the turn waits on, who
 				// is not responding and whose connection is bad.
 				auto name = [&](uint32_t c) {
+					for (const auto &e : net_host_.playerAssignment())
+						if (e.client == c && !e.name.empty()) return String::utf8(e.name.c_str());
 					const uint8_t pl = turn_mgr_.player_for_client(c);
-					return pl < 8 ? "Player " + String::num_int64(pl + 1) : "an observer";
+					return pl < 8 ? "Player " + String::num_int64(pl + 1) : String("an observer");
 				};
 				String status;
 				if (turn_mgr_.waiting_ms() > rtso::NET_TIMEOUT_WARN_MS) {
@@ -2026,6 +2145,25 @@ void RtsoMain::_process(double delta) {
 				net_status_shown_ = !status.is_empty();
 			}
 		}
+		// 0 A.D. player list: who plays which player, who has left, who watches.
+		if (lobby_players && net_host_.playerAssignments() != players_shown_) {
+			players_shown_ = net_host_.playerAssignments();
+			String playing, watching;
+			for (const auto &e : net_host_.playerAssignment()) {
+				const String who = String::utf8(e.name.empty() ? rtso::peer_guid(e.client).c_str() : e.name.c_str());
+				if (e.status == rtso::PlayerAssignmentMsg::OBSERVER) {
+					watching += String(watching.is_empty() ? "" : ", ") + who;
+					continue;
+				}
+				String line = who + String(" (Player ") + String::num_int64(e.player + 1);
+				if (e.status == rtso::PlayerAssignmentMsg::LEFT) line += String(", left");
+				playing += String(playing.is_empty() ? "" : ", ") + line + String(")");
+			}
+			String text = playing.is_empty() ? String() : "Players: " + playing;
+			if (!watching.is_empty()) text += (text.is_empty() ? "" : ". ") + String("Observers: ") + watching;
+			if (turn_mgr_.is_observer()) text += (text.is_empty() ? "" : ". ") + String("You are observing.");
+			lobby_players->set_text(text);
+		}
 		// else pre-Start lobby phase: poll + GAME_START consume only (above) -
 		// no lockstep turns and no hash exchange across divergent boot worlds.
 	} else if (turn_cmds()) {
@@ -2034,7 +2172,8 @@ void RtsoMain::_process(double delta) {
 		// turns a frame; the timer keeps any remainder for the next frame.
 		if (!replay_finished_) {
 			float step = (float)scaled_delta;
-			for (int t = 0; t < 4 && turn_mgr_.tick(step, *sim); ++t) {
+			const int max_turns = std::max(4, (int)std::ceil(game_speed * 2.0f)); // fast replays
+			for (int t = 0; t < max_turns && turn_mgr_.tick(step, *sim); ++t) {
 				ticks += rtso::TurnManager::TICKS_PER_TURN;
 				step = 0.0f;
 			}
@@ -3052,6 +3191,25 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 	if (key == roster_list_key_) return;
 	roster_list_key_ = key;
 	roster_list->clear();
+	// A corral trains its civ's animals (structures/<civ>/corral.xml Trainer/Entities);
+	// metadata ROSTER_ANIMAL | FaunaType tells the click handler to breed one.
+	if (b->type == rtso::BLD_CORRAL) {
+		const rtso::CorralTrainable &ct = rtso::CORRAL_TRAINABLE[civ < rtso::CIV_COUNT ? civ : 0];
+		for (uint8_t k = 0; k < ct.count; ++k) {
+			const uint8_t f = ct.fauna[k];
+			const rtso::FaunaTrainCost &c = rtso::fauna_train_cost(f);
+			String label = String::utf8(rtso::fauna_type_info(f).name) + " (" + String::num_int64(c.res[0]) + "f)";
+			int idx = roster_list->add_item(label);
+			roster_list->set_item_metadata(idx, ROSTER_ANIMAL | (int)f);
+			roster_list->set_item_tooltip(idx, String::utf8(rtso::fauna_type_info(f).name) + "\nTrain " +
+					String::num(sim->livestock_train_time(pid, f), 0) + " s, " +
+					String::num_int64(rtso::fauna_type_info(f).food_amount) + " food when slaughtered, " +
+					String::num(rtso::fauna_corral_food(f), 0) + " food every " +
+					String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned");
+		}
+		roster_list->set_visible(roster_list->get_item_count() > 0);
+		return;
+	}
 	for (uint16_t i = rtso::civ_roster_begin(civ); i < rtso::civ_roster_end(civ); ++i) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
@@ -3243,20 +3401,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("pause")) {
-			// Networked, the pause holds every peer's turns (0 A.D. NMT_CLIENT_PAUSED).
-			hotkey_paused_ = !hotkey_paused_;
-			if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
-			if (banner_label) banner_label->set_text(hotkey_paused_ ? "Game paused" : "");
-			if (banner_panel) banner_panel->set_visible(hotkey_paused_);
+			toggle_pause();
 			return;
 		}
 		// 0 A.D. misc.xml: quicksave/quickload are disabled in networked games.
 		if (fired("quicksave")) {
-			if (!net_lockstep()) save_game("user://saves/quicksave.rts0sav");
+			quicksave();
 			return;
 		}
 		if (fired("quickload")) {
-			if (!net_lockstep()) load_game("user://saves/quicksave.rts0sav");
+			quickload();
 			return;
 		}
 
@@ -4823,7 +4977,8 @@ void RtsoMain::_on_lobby_join_pressed() {
 	// Once connected, ask to rejoin: a host still in its lobby declines and its
 	// NMT_GAME_START starts us as usual; a host mid-match sends its world.
 	net_host_.onPeerConnected([this](uint32_t) {
-		if (!net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin();
+		if (!net_host_.isHost() && !net_game_started_)
+			turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
 	});
 	if (lobby_status)
 		lobby_status->set_text("Connecting " + String(ip.c_str()) + ":" + String::num_int64(port));

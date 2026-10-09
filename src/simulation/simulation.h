@@ -174,6 +174,8 @@ public:
 		if (player == OBSERVER_VIEW) return revealed_fow_.data();
 		// A defeated player observes: the whole map is revealed (0 A.D. parity).
 		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
+		// So does a multiplayer observer, which has no player (0xFF).
+		if (player == 0xFF) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		if (player == PETRA_PLAYER && petra_runs_for(PETRA_PLAYER)) return petra_fow_.data();
@@ -249,8 +251,10 @@ public:
 		return building_blocks_movement(b.type) && (b.type != BLD_GATE || b.gate_locked);
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
+	// A foundation blocks nothing until it is committed (Foundation.js Commit).
 	static bool blocks_movement_now(const Building &b) {
-		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open);
+		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open) &&
+				(b.committed || b.build_progress >= 0.99f);
 	}
 
 	Simulation();
@@ -470,7 +474,9 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	bool cmd_breed_livestock(uint8_t player, uint32_t building_id);
+	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE);
+	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
+	float livestock_train_time(uint8_t player, uint8_t ftype) const;
 
 	// Naval Transport Logistics (GarrisonHolder.js / UnitAI.js)
 	static constexpr int TRANSPORT_CAPACITY = 30; // 0 A.D. template_unit_ship_warship_arrow GarrisonHolder Max
@@ -1193,6 +1199,11 @@ private:
 	void tick_status_effects(float dt);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
+	// Foundation.js Commit: own and allied units standing on the foundation are told to
+	// leave (UnitAI LeaveFoundation); enemies and Gaia keep it from starting. True once
+	// the site is clear and committed, after which the foundation blocks movement.
+	bool try_commit_foundation(Building &b);
+	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
 	static float foundation_build_multiplier(int builders);
@@ -1267,6 +1278,9 @@ private:
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
+	void record_unit_death(size_t i, uint8_t killer_team); // record_death for unit i, noting its DeathDamage
+	const DeathDamageInfo *unit_death_damage(size_t i) const;
+	float unit_template_regen(size_t i) const;
 	// StatisticsTracker hooks. `killer` is the player credited with the kill
 	// (out of range or the victim's own owner credits nobody).
 	void stat_unit_trained(size_t idx);

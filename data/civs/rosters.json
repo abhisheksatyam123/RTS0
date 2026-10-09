@@ -95,7 +95,8 @@
     "spart/support_female_citizen_house",
     "spart/support_healer_b",
     "spart/support_trader",
-    "spart/rts0_villager"
+    "spart/rts0_villager",
+    "spart/champion_infantry_spear_olympian"
    ],
    "auto_bonuses": [
     {
@@ -212,7 +213,9 @@
     "rome/support_female_citizen_house",
     "rome/support_healer_b",
     "rome/support_trader",
-    "rome/rts0_villager"
+    "rome/rts0_villager",
+    "rome/cavalry_auxiliary_b",
+    "rome/infantry_antesignanus"
    ],
    "auto_bonuses": [
     {
@@ -308,7 +311,8 @@
     "mace/support_female_citizen_house",
     "mace/support_healer_b",
     "mace/support_trader",
-    "mace/rts0_villager"
+    "mace/rts0_villager",
+    "mace/champion_infantry_spearman_02"
    ],
    "auto_bonuses": [
     {
@@ -19826,6 +19830,203 @@
     "hack_dmg": 5,
     "pierce_dmg": 0,
     "crush_dmg": 0
+   }
+  },
+  {
+   "id": "spart/champion_infantry_spear_olympian",
+   "civ": "spart",
+   "class": "UNIT_SPEARMAN",
+   "name": "Spartan Olympic Hoplite",
+   "specific_name": "Spartiátēs",
+   "phase": 1,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 240.0,
+    "cooldown": 0.9,
+    "hack_dmg": 7.199999999999999,
+    "pierce_dmg": 6.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 8.0,
+    "crush_armor": 20.0,
+    "food": 80,
+    "wood": 60,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "damage": 13.2,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/cavalry_auxiliary_b",
+   "civ": "rome",
+   "class": "UNIT_CAVALRY",
+   "name": "Auxiliary Cavalry",
+   "specific_name": "Eques Alaris",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_ROMAN_REFORMS",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Auxiliary",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.25,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 18.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 15.0,
+    "food": 100,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 5.7672,
+    "damage": 18.0,
+    "range": 8.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/infantry_antesignanus",
+   "civ": "rome",
+   "class": "UNIT_ARCHER",
+   "name": "Legionary Skirmisher",
+   "specific_name": "Antesignānus",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_ROMAN_REFORMS",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Javelineer",
+    "Legionary",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 50.0,
+    "cooldown": 1.25,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 16.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 10.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 15,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 4.0584,
+    "damage": 16.0,
+    "range": 8.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "mace/champion_infantry_spearman_02",
+   "civ": "mace",
+   "class": "UNIT_SPEARMAN",
+   "name": "Macedonian Shield Bearer",
+   "specific_name": "Hypaspistḗs Argyraspídi",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 220.0,
+    "cooldown": 0.9,
+    "hack_dmg": 6.6000000000000005,
+    "pierce_dmg": 5.5,
+    "crush_dmg": 0.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 8.0,
+    "crush_armor": 20.0,
+    "food": 80,
+    "wood": 60,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "damage": 12.100000000000001,
+    "range": 2.4,
+    "carry": 0
    }
   }
  ],
