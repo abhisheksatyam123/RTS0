@@ -5431,8 +5431,80 @@
 0.94
 ]
 },
+"units/athen_catafalque_tex0": {
+"mask": "res://assets/textures/player_masks/props/catafalque_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/athen_catafalque_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_trader_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/athen_catafalque_tex3": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_iron_03_256x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/athen_cavalry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/athen_cavalry_tex3": {
 "mask": "res://assets/textures/player_masks/skeletal/hele/tunic_02_03_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_champion_infantry_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/epilektos_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_champion_infantry_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_athen_alpha_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_champion_infantry_tex7": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_champion_infantry_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_champion_infantry_tex9": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -5471,6 +5543,54 @@
 0.82
 ]
 },
+"units/athen_hero_hippocrates_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/philosopher_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/athen_hero_iphicrates_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/linothorax_iphicrates_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/athen_hero_iphicrates_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/athen_hero_pericles_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/linothorax_lamellar_01_03_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/athen_hero_pericles_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/athen_hero_pericles_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_athen_19_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/athen_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/athen/cuirass_themistocles_01_256x256.png",
 "tint": [
@@ -5493,6 +5613,38 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/athen_infantry_archer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/hele/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_infantry_archer_b_tex4": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_infantry_javelineer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/thrac/tunic_basic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/athen_infantry_slinger_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/hele/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/athen_merchant_ship_tex1": {
@@ -5541,6 +5693,30 @@
 1.0,
 1.0,
 1.0
+]
+},
+"units/athen_ship_ram_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/athen_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/athen_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/hele_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/athen_siege_ram_tex1": {
@@ -5679,6 +5855,30 @@
 0.94
 ]
 },
+"units/brit_cavalry_javelineer_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_cavalry_javelineer_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_cavalry_javelineer_b_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/brit_cavalry_tex10": {
 "mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
 "tint": [
@@ -5783,12 +5983,140 @@
 0.82
 ]
 },
+"units/brit_hero_boudicca_tex0": {
+"mask": "res://assets/textures/player_masks/structural/celt_chariot_b_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/brit_hero_boudicca_tex12": {
+"mask": "res://assets/textures/player_masks/props/cape_celt_boudicca_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_hero_boudicca_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_celt_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_hero_boudicca_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/brit/padded_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_hero_boudicca_tex7": {
+"mask": "res://assets/textures/player_masks/skeletal/brit/dress_female_boudicca_02_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_hero_caratacos_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/brit/linothorax_caratacos_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/brit_hero_caratacos_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/brit_hero_caratacos_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/brit_hero_cunobelin_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_celt_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_hero_cunobelin_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/celt/druid_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_hero_cunobelin_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_hero_cunobelin_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/brit_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/brit/dress_female_boudicca_02_256x512.png",
 "tint": [
 0.92,
 0.32,
 0.28
+]
+},
+"units/brit_infantry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_infantry_javelineer_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_infantry_spearman_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_infantry_spearman_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/brit_merchant_ship_tex1": {
@@ -5839,6 +6167,22 @@
 0.28
 ]
 },
+"units/brit_ship_fire_tex0": {
+"mask": "res://assets/textures/player_masks/structural/iber_ship_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/brit_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/celt_sail_boar_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/brit_siege_ram_tex1": {
 "mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
 "tint": [
@@ -5873,6 +6217,14 @@
 },
 "units/brit_spearman_tex7": {
 "mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/brit_support_female_citizen_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/celt/dress_female_01_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -5921,6 +6273,14 @@
 },
 "units/brit_war_dog_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/brit/mastiff_a_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/brit_war_dog_war_dog_mastiff_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/brit/mastiff_b_01_256x256.png",
 "tint": [
 1.0,
 1.0,
@@ -5991,6 +6351,62 @@
 0.94
 ]
 },
+"units/cart_cavalry_javelineer_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_cavalry_spearman_ital_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_cavalry_spearman_ital_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/ital/tunic_pattern_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_cavalry_spearman_ital_b_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_cart_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_cavalry_swordsman_iber_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_cavalry_swordsman_iber_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/head/iber_isp_b_1_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_cavalry_swordsman_iber_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/iber_round_01_03_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/cart_cavalry_tex2": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_kart_512x512.png",
 "tint": [
@@ -6047,6 +6463,110 @@
 0.82
 ]
 },
+"units/cart_hero_hamilcar_tex10": {
+"mask": "res://assets/textures/player_masks/props/cape_kart_hannibal_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_hero_hamilcar_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/kart_armor_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_hero_hamilcar_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/cuirass_hero_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_hero_hamilcar_tex9": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_hero_hannibal_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/elephant_worker_512x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_hero_hannibal_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/cardiopylax_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_hero_hannibal_tex11": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/scale_servus_01_african_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_hero_hannibal_tex5": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_hero_hannibal_tex8": {
+"mask": "res://assets/textures/player_masks/props/ptol_howdah_b_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_hero_hannibal_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_hero_maharbal_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/kart_armor_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_hero_maharbal_tex11": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_hero_maharbal_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/compound_cardiopylax_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/cart_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/cart/cardiopylax_01_256x256.png",
 "tint": [
@@ -6057,6 +6577,62 @@
 },
 "units/cart_hero_tex3": {
 "mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_infantry_javelineer_iber_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_infantry_javelineer_iber_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/head/iber_isp_b_1_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_infantry_javelineer_iber_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/iber_round_01_03_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_infantry_spearman_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_cart_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_infantry_swordsman_gaul_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/gaul/tunic_sleeveless_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_infantry_swordsman_gaul_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/cart_infantry_swordsman_gaul_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
 "tint": [
 0.92,
 0.32,
@@ -6077,6 +6653,94 @@
 1.0,
 1.0,
 1.0
+]
+},
+"units/cart_ship_ram_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/cart_ship_ram_tex2": {
+"mask": "res://assets/textures/player_masks/props/kart_standard_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_ship_ram_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/kart_leather_a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/cart_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/kart_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_ship_scout_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/iber_round_c_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_ship_siege_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kart_quinquereme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/cart_ship_siege_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/cart_ship_siege_tex2": {
+"mask": "res://assets/textures/player_masks/props/kart_standard_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_ship_siege_tex3": {
+"mask": "res://assets/textures/player_masks/props/kart_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/cart_ship_siege_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_cart_07_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/cart_spearman_tex3": {
@@ -6295,6 +6959,30 @@
 0.94
 ]
 },
+"units/gaul_cavalry_javelineer_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_cavalry_javelineer_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_cavalry_javelineer_b_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/gaul_cavalry_tex10": {
 "mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
 "tint": [
@@ -6327,6 +7015,38 @@
 0.94
 ]
 },
+"units/gaul_champion_cavalry_tex11": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_champion_cavalry_tex3": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_celt_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_champion_cavalry_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/gaul/linothorax_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_champion_cavalry_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/gaul_fishing_boat_tex1": {
 "mask": "res://assets/textures/player_masks/props/celt_sail_boar_512x512.png",
 "tint": [
@@ -6351,6 +7071,30 @@
 0.82
 ]
 },
+"units/gaul_hero_brennus_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/gaul/linothorax_hero_brennus_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/gaul_hero_brennus_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/gaul_hero_brennus_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/gaul_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/celt/chainmail_03_01_256x256.png",
 "tint": [
@@ -6365,6 +7109,102 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/gaul_hero_vercingetorix_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_celt_02_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_hero_vercingetorix_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/celt/chainmail_03_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_hero_vercingetorix_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_hero_vercingetorix_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_hero_viridomarus_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/gaul/padded_hero_01_02_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/gaul_hero_viridomarus_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/gaul_hero_viridomarus_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/gaul_infantry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_infantry_javelineer_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_infantry_spearman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/gaul/tunic_01_05_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_infantry_spearman_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_infantry_spearman_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/gaul_merchant_ship_tex1": {
@@ -6511,6 +7351,22 @@
 0.94
 ]
 },
+"units/han_cavalry_spearman_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_cavalry_spearman_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/han/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/han_cavalry_spearman_tex1": {
 "mask": "res://assets/textures/player_masks/skeletal/han/uniform_e_01_256x256.png",
 "tint": [
@@ -6529,6 +7385,62 @@
 },
 "units/han_cavalry_swordsman_tex7": {
 "mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_champion_chariot_academy_tex0": {
+"mask": "res://assets/textures/player_masks/structural/chariot_01_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/han_champion_chariot_academy_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/han/scale_01_lacquered_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_champion_chariot_academy_tex11": {
+"mask": "res://assets/textures/player_masks/skeletal/han/lamellar_02_iron_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_champion_chariot_academy_tex12": {
+"mask": "res://assets/textures/player_masks/props/helmets/han_heavy_helmet_b_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_champion_chariot_academy_tex3": {
+"mask": "res://assets/textures/player_masks/props/head/han_cap_a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_champion_chariot_academy_tex8": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_champion_chariot_academy_tex9": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_cloth_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -6711,12 +7623,92 @@
 0.28
 ]
 },
+"units/han_hero_wei_qing_chariot_tex0": {
+"mask": "res://assets/textures/player_masks/structural/chariot_01_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/han_hero_wei_qing_chariot_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/han/scale_01_lacquered_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_hero_wei_qing_chariot_tex11": {
+"mask": "res://assets/textures/player_masks/skeletal/han/scale_hero_01_lacquered_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_hero_wei_qing_chariot_tex3": {
+"mask": "res://assets/textures/player_masks/props/head/han_cap_a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_hero_wei_qing_chariot_tex8": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_hero_wei_qing_chariot_tex9": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_cloth_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/han_hero_wei_qing_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/han/scale_hero_01_lacquered_01_256x256.png",
 "tint": [
 0.92,
 0.32,
 0.28
+]
+},
+"units/han_infantry_archer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/han/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_infantry_archer_b_tex6": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/han_infantry_crossbowman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/han/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_infantry_spearman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/han/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/han_merchant_ship_tex0": {
@@ -6797,6 +7789,30 @@
 0.36,
 0.62,
 0.94
+]
+},
+"units/han_siege_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_siege_tower_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/han_siege_tower_tex1": {
+"mask": "res://assets/textures/player_masks/structural/celt_siege_ram_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/han_siege_tower_tex2": {
+"mask": "res://assets/textures/player_masks/structural/han_struct_02_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
 ]
 },
 "units/han_spearman_tex0": {
@@ -6927,6 +7943,54 @@
 0.94
 ]
 },
+"units/iber_cavalry_javelineer_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_cavalry_javelineer_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/tunic_slinger_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_cavalry_javelineer_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/head/iber_isp_b_1_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_cavalry_spearman_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_cavalry_spearman_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_cavalry_spearman_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/head/iber_isp_b_1_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/iber_cavalry_tex10": {
 "mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
 "tint": [
@@ -6983,6 +8047,62 @@
 1.0
 ]
 },
+"units/iber_hero_caros_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/hero_caros_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/iber_hero_caros_tex3": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/iber_hero_caros_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/iber_hero_caros_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/iber_round_01_01_512x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/iber_hero_indibil_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_hero_indibil_tex11": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/iber_hero_indibil_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/hero_indibil_linothorax_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/iber_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/iber/hero_viriato_01_01_256x256.png",
 "tint": [
@@ -7001,6 +8121,30 @@
 },
 "units/iber_hero_tex5": {
 "mask": "res://assets/textures/player_masks/props/shield/iber_round_01_01_512x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/iber_infantry_swordsman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/tunic_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/iber_infantry_swordsman_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/head/iber_isp_b_1_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/iber_infantry_swordsman_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/iber_round_01_03_512x256.png",
 "tint": [
 0.92,
 0.32,
@@ -7311,6 +8455,22 @@
 0.94
 ]
 },
+"units/kush_cavalry_spearman_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/kush_cavalry_spearman_b_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/skirt_basic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/kush_cavalry_tex2": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
 "tint": [
@@ -7325,6 +8485,22 @@
 0.36,
 0.62,
 0.94
+]
+},
+"units/kush_champion_infantry_apedemak_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/scale_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/kush_champion_infantry_apedemak_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/kush_metal_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
 ]
 },
 "units/kush_elephant_tex0": {
@@ -7551,6 +8727,22 @@
 0.94
 ]
 },
+"units/kush_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/kush_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/kush_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/kush_bireme_sail_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/kush_spearman_a_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/kush/skirt_lion_01_256x256.png",
 "tint": [
@@ -7743,6 +8935,30 @@
 0.28
 ]
 },
+"units/mace_cavalry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/thrac/tunic_advanced_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_cavalry_javelineer_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/thra_thureos_elite_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_cavalry_spearman_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/tunic_boots_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/mace_cavalry_tex1": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_mace_512x512.png",
 "tint": [
@@ -7761,6 +8977,62 @@
 },
 "units/mace_cavalry_tex4": {
 "mask": "res://assets/textures/player_masks/skeletal/mace/scale_04_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_champion_infantry_crossbowman_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/athen/epilektos_04_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_champion_infantry_spearman_02_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/cuirass_01_05_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_champion_infantry_spearman_02_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_mace_01_silver_player_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_champion_infantry_spearman_02_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_champion_infantry_spearman_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/cuirass_01_04_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_champion_infantry_spearman_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_mace_01_bronze_player_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_champion_infantry_spearman_tex7": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
 "tint": [
 0.36,
 0.62,
@@ -7799,6 +9071,78 @@
 0.82
 ]
 },
+"units/mace_hero_alexander_iii_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/linothorax_alexander_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_hero_alexander_iii_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_alexander_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_hero_demetrius_i_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/cuirass_hero_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/mace_hero_demetrius_i_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/mace_hero_demetrius_i_tex5": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/mace_hero_demetrius_i_tex6": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/mace_hero_demetrius_i_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_mace_h_01_silver_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/mace_hero_philip_ii_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_mace_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_hero_philip_ii_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/cuirass_vergina_01_05_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/mace_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/mace/linothorax_alexander_01_256x256.png",
 "tint": [
@@ -7821,6 +9165,22 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/mace_infantry_javelineer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/tunic_boots_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_infantry_slinger_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/illy/tunic_basic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/mace_merchant_ship_tex1": {
@@ -7879,6 +9239,46 @@
 1.0
 ]
 },
+"units/mace_ship_ram_tex0": {
+"mask": "res://assets/textures/player_masks/structural/mace_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/mace_ship_ram_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/mace_ship_ram_tex2": {
+"mask": "res://assets/textures/player_masks/props/mace_prop_shields_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/mace_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/mace_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/hele_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/mace_siege_ram_tex1": {
 "mask": "res://assets/textures/player_masks/props/shield/aspis_mace_01_silver_player_256x256.png",
 "tint": [
@@ -7905,6 +9305,14 @@
 },
 "units/mace_siege_ram_tex6": {
 "mask": "res://assets/textures/player_masks/props/shield/aspis_mace_h_01_silver_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/mace_siege_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_siege_tower_512x512.png",
 "tint": [
 1.0,
 1.0,
@@ -8343,6 +9751,38 @@
 0.94
 ]
 },
+"units/maur_champion_elephant_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/elephant_siege_512x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/maur_champion_elephant_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/tunic_leather_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/maur_champion_elephant_tex2": {
+"mask": "res://assets/textures/player_masks/props/head/indian_face_b_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/maur_champion_elephant_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_b_256x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/maur_chariot_archer_c_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/maur/skirt_01_02_256x256.png",
 "tint": [
@@ -8653,6 +10093,62 @@
 0.92,
 0.9,
 0.82
+]
+},
+"units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex0": {
+"mask": "res://assets/textures/player_masks/structural/maur_hero_chariot_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex10": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex12": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/female_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex14": {
+"mask": "res://assets/textures/player_masks/props/helmet/maur_inf_turban_a_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/back_blanket_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/skirt_royal_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_hero_ashoka_hero_chariot_archer_ashoka_m_tex7": {
+"mask": "res://assets/textures/player_masks/props/helmet/maur_hero_turban_a_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/maur_hero_ashoka_tex0": {
@@ -9359,6 +10855,70 @@
 0.94
 ]
 },
+"units/pers_cavalry_archer_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_cavalry_archer_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/tunic_coat_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_cavalry_archer_b_tex6": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_cap_01_leather_beige_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/pers_cavalry_archer_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_cavalry_javelineer_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_cavalry_javelineer_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/tunic_basic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_cavalry_spearman_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_cavalry_spearman_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/padded_01_07_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/pers_cavalry_tex1": {
 "mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
 "tint": [
@@ -9377,6 +10937,134 @@
 },
 "units/pers_cavalry_tex8": {
 "mask": "res://assets/textures/player_masks/props/shield/pelta_c_wicker_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_cavalry_archer_tex10": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_cavalry_archer_tex13": {
+"mask": "res://assets/textures/player_masks/props/scales_arm_iron_64x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_cavalry_archer_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_sleeve_full_01_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_cavalry_archer_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_cavalry_tex12": {
+"mask": "res://assets/textures/player_masks/props/scales_arm_iron_64x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_cavalry_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_sleeve_full_01_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_cavalry_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_chariot_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_chariot_e_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/pers_champion_chariot_tex11": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/pers_champion_chariot_tex13": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/pers_champion_chariot_tex16": {
+"mask": "res://assets/textures/player_masks/props/shield/pers_pelta_b_128x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/pers_champion_chariot_tex3": {
+"mask": "res://assets/textures/player_masks/props/horse/back_blanket_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/pers_champion_chariot_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_02_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/pers_champion_chariot_tex9": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_armband_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/pers_champion_infantry_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_03_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_champion_infantry_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/pers_gerron_a_128x256.png",
 "tint": [
 0.36,
 0.62,
@@ -9487,6 +11175,86 @@
 0.82
 ]
 },
+"units/pers_hero_cyrus_ii_tex12": {
+"mask": "res://assets/textures/player_masks/props/scales_arm_bronze_64x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_cyrus_ii_tex3": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_pers_03_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_cyrus_ii_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_05_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_cyrus_ii_tex7": {
+"mask": "res://assets/textures/player_masks/props/helmet/pers_kidaris_hero_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_cyrus_ii_tex9": {
+"mask": "res://assets/textures/player_masks/props/shield/pers_pelta_f_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_darius_i_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_chariot_darius_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/pers_hero_darius_i_tex14": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_darius_i_tex3": {
+"mask": "res://assets/textures/player_masks/props/horse/back_blanket_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_darius_i_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_hero_darius_i_tex9": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/scale_kardakes_01_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/pers_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/pers/robes_royal_01_256x256.png",
 "tint": [
@@ -9501,6 +11269,54 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/pers_infantry_archer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/tunic_basic_01_07_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_infantry_archer_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_cap_01_leather_beige_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/pers_infantry_archer_b_tex4": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_infantry_javelineer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/tunic_basic_01_07_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_infantry_spearman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/pers/tunic_basic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/pers_infantry_spearman_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/shield/pers_rect_c_128x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/pers_merchant_ship_tex1": {
@@ -9557,6 +11373,38 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/pers_ship_ram_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/pers_ship_ram_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/pers_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/pers_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/pers_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/pers_trireme_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/pers_siege_ram_tex0": {
@@ -9727,6 +11575,62 @@
 0.28
 ]
 },
+"units/ptol_cavalry_archer_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/camel_blanket_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_cavalry_archer_b_tex9": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_cavalry_javelineer_merc_b_tex10": {
+"mask": "res://assets/textures/player_masks/skeletal/ital/tunic_pattern_01_sleeveless_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_cavalry_javelineer_merc_b_tex11": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_athen_05_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_cavalry_javelineer_merc_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/ital/tunic_pattern_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_cavalry_spearman_merc_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/tunic_hellenistic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_cavalry_spearman_merc_b_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/mace_round_j_bronze_player_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/ptol_cavalry_tex1": {
 "mask": "res://assets/textures/player_masks/props/helmet/sele_horse_crest_256x512.png",
 "tint": [
@@ -9847,12 +11751,156 @@
 0.82
 ]
 },
+"units/ptol_hero_ptolemy_i_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/elephant_worker_512x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex1": {
+"mask": "res://assets/textures/player_masks/props/ptol_howdah_a_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex13": {
+"mask": "res://assets/textures/player_masks/skeletal/sele/linothorax_01_03_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex15": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_03_player_color_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex16": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_mask_03_player_color_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/ptol_round_e_bronze_face_player_128x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex4": {
+"mask": "res://assets/textures/player_masks/props/chariot_horse_blanket_128x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/compound_linothorax_03_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_i_tex9": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/ptol_hero_ptolemy_iv_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_horse_crest_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_hero_ptolemy_iv_tex10": {
+"mask": "res://assets/textures/player_masks/props/shield/ptol_round_d_silver_player_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_hero_ptolemy_iv_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/ptol/cuirass_gold_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/ptol_hero_tex4": {
 "mask": "res://assets/textures/player_masks/props/spart_sail_a_512x512.png",
 "tint": [
 0.92,
 0.32,
 0.28
+]
+},
+"units/ptol_infantry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/ptol_thureos_galatian_a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_infantry_pikeman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/ptol/tunic_machimoi_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_infantry_pikeman_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/helmet/ptol_quilted_a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_infantry_pikeman_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_player_color_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_infantry_slinger_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/jude/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_infantry_spearman_merc_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/ptol_thureos_galatian_a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/ptol_merchant_ship_tex0": {
@@ -9869,6 +11917,70 @@
 0.36,
 0.62,
 0.94
+]
+},
+"units/ptol_ship_ram_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/ptol_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/ptol_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/ptol_sail_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_ship_scout_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/ptol_round_k_eagle2_bronze_player_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_ship_siege_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_quinquereme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/ptol_ship_siege_tex1": {
+"mask": "res://assets/textures/player_masks/props/ptol_sail_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_ship_siege_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/ptol_round_k_eagle2_bronze_player_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/ptol_siege_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_siege_tower_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
 ]
 },
 "units/ptol_spearman_tex0": {
@@ -9999,6 +12111,38 @@
 1.0
 ]
 },
+"units/rome_cavalry_auxiliary_b_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_cavalry_auxiliary_b_tex10": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_cavalry_auxiliary_b_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/clipeus_03_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_cavalry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/ital/tunic_pattern_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/rome_cavalry_tex1": {
 "mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
 "tint": [
@@ -10013,6 +12157,102 @@
 0.36,
 0.62,
 0.94
+]
+},
+"units/rome_champion_cavalry_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_champion_cavalry_tex13": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_champion_cavalry_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/cuirass_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_champion_cavalry_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/rome_round_l_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_champion_infantry_spear_gladiator_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/tunic_basic_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_champion_infantry_spear_gladiator_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/rome_round_l_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_champion_infantry_sword_gladiator_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/tunic_basic_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_sword_gladiator_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_ital_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_centurion_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/compound_cardiopylax_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_centurion_tex10": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_centurion_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_marian_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_champion_infantry_swordsman_centurion_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_back_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
 ]
 },
 "units/rome_female_citizen_tex0": {
@@ -10047,6 +12287,86 @@
 0.82
 ]
 },
+"units/rome_hero_marcellus_tex12": {
+"mask": "res://assets/textures/player_masks/props/shield/rome_parma_i_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_marcellus_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/sele/cuirass_06_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_marcellus_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_maximus_tex13": {
+"mask": "res://assets/textures/player_masks/props/shield/rome_parma_i_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_maximus_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/cuirass_hero_03_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_maximus_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_maximus_tex9": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_scipio_tex13": {
+"mask": "res://assets/textures/player_masks/props/shield/rome_parma_i_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_scipio_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/cuirass_hero_scipio_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_hero_scipio_tex9": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/rome_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/rome/cuirass_hero_scipio_256x256.png",
 "tint": [
@@ -10071,6 +12391,126 @@
 0.28
 ]
 },
+"units/rome_infantry_antesignanus_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/cardiopylax_padded_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_antesignanus_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/clipeus_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_antesignanus_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_props_01_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_antesignanus_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_legionary_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/chainmail_05_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_infantry_legionary_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_infantry_legionary_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_infantry_legionary_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_back_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_infantry_spearman_a_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/chainmail_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_spearman_a_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_15_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_spearman_a_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome-a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_infantry_swordsman_a_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/chainmail_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_infantry_swordsman_a_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_infantry_swordsman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/rome/cardiopylax_01_03_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/rome_infantry_swordsman_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/rome_merchant_ship_tex2": {
 "mask": "res://assets/textures/player_masks/props/sail_stripes_1_512x512.png",
 "tint": [
@@ -10085,6 +12525,94 @@
 1.0,
 1.0,
 1.0
+]
+},
+"units/rome_ship_ram_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/rome_ship_ram_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/rome_ship_ram_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_20_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_ship_ram_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_02_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/rome_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/rome_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_ship_siege_tex0": {
+"mask": "res://assets/textures/player_masks/structural/rome_quinquereme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/rome_ship_siege_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/rome_ship_siege_tex2": {
+"mask": "res://assets/textures/player_masks/props/rome_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_ship_siege_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_02_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/rome_ship_siege_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/scutum_rome_imp_back_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/rome_siege_ram_tex1": {
@@ -10319,6 +12847,14 @@
 0.28
 ]
 },
+"units/sele_cavalry_spearman_merc_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/tunic_hellenistic_e_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/sele_cavalry_tex1": {
 "mask": "res://assets/textures/player_masks/props/helmet/sele_horse_crest_256x512.png",
 "tint": [
@@ -10495,6 +13031,150 @@
 0.82
 ]
 },
+"units/sele_hero_antiochus_iii_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_horse_crest_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_hero_antiochus_iii_tex10": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_hero_antiochus_iii_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/sele/cuirass_hero_antiochus_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_hero_antiochus_iii_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_hero_antiochus_iv_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_horse_crest_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_hero_antiochus_iv_tex11": {
+"mask": "res://assets/textures/player_masks/props/shield/sele_cavalry_a_bronze_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_hero_antiochus_iv_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/sele/cataphract_splint_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_hero_seleucus_i_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/sele/champion_elephant_512x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/sele/cuirass_05_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex11": {
+"mask": "res://assets/textures/player_masks/props/ptol_howdah_c_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex12": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_mace_01_bronze_player_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex14": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/compound_linothorax_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex16": {
+"mask": "res://assets/textures/player_masks/props/shield/pelta_thra_face_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex17": {
+"mask": "res://assets/textures/player_masks/props/shield/pelta_a_wicker_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex18": {
+"mask": "res://assets/textures/player_masks/props/helmet/hero_helmet_seleucus_nikator_dif1_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/sele_hero_seleucus_i_tex7": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex8": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_thracian_romanized_02_bronze_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_hero_seleucus_i_tex9": {
+"mask": "res://assets/textures/player_masks/props/helmet/sele_hero_seleucus_nikator_diffuse_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/sele_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/sele/cuirass_05_256x256.png",
 "tint": [
@@ -10529,6 +13209,38 @@
 },
 "units/sele_hero_tex8": {
 "mask": "res://assets/textures/player_masks/props/shield/aspis_mace_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_infantry_pikeman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_infantry_spearman_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/sele_thyreos_a_128x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_infantry_swordsman_merc_b_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/thra_thureos_elite_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/sele_infantry_swordsman_merc_b_tex5": {
+"mask": "res://assets/textures/player_masks/props/cape_hd_thracian_128x256.png",
 "tint": [
 0.92,
 0.32,
@@ -10613,6 +13325,54 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/sele_ship_ram_tex0": {
+"mask": "res://assets/textures/player_masks/structural/mace_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/sele_ship_ram_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/sele_ship_ram_tex2": {
+"mask": "res://assets/textures/player_masks/props/mace_prop_shields_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_ship_siege_tex0": {
+"mask": "res://assets/textures/player_masks/structural/ptol_quinquereme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/sele_ship_siege_tex1": {
+"mask": "res://assets/textures/player_masks/props/sele_sail_02_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/sele_siege_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_siege_tower_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
 ]
 },
 "units/sele_spearman_tex0": {
@@ -10999,8 +13759,32 @@
 0.28
 ]
 },
+"units/spart_cavalry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/hele/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/spart_cavalry_tex3": {
 "mask": "res://assets/textures/player_masks/skeletal/hele/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/spart_champion_infantry_spear_olympian_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/hele/cuirass_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/spart_champion_infantry_spear_olympian_tex5": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_spart_dokana_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -11039,6 +13823,54 @@
 0.82
 ]
 },
+"units/spart_hero_agis_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/spart/cuirass_agis_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_agis_tex4": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/hele_a3_64x64.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_agis_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_spart_lambda_05_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_brasidas_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/spart/padded_brasidas_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_brasidas_tex1": {
+"mask": "res://assets/textures/player_masks/props/helmet/hele_pilos_02_bronze_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/spart_hero_brasidas_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_spart_lambda_06_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/spart_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/spart/cuirass_leonidas_01_256x256.png",
 "tint": [
@@ -11061,6 +13893,54 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/spart_infantry_javelineer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/hele/tunic_fur_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/spart_infantry_javelineer_b_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/pelta_c_wicker_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/spart_infantry_spearman_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/hele/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/spart_infantry_spearman_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_spart_lambda_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/spart_infantry_spearman_neodamodes_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/hele/tunic_fur_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/spart_infantry_spearman_neodamodes_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/aspis_spart_lambda_06_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/spart_merchant_ship_tex1": {
@@ -11117,6 +13997,46 @@
 1.0,
 1.0,
 1.0
+]
+},
+"units/spart_ship_ram_tex0": {
+"mask": "res://assets/textures/player_masks/structural/spart_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/spart_ship_ram_tex1": {
+"mask": "res://assets/textures/player_masks/structural/hele_trireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/spart_ship_ram_tex2": {
+"mask": "res://assets/textures/player_masks/structural/spart_trireme_blanket_512x64.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/spart_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/hele_bireme_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/spart_ship_scout_tex1": {
+"mask": "res://assets/textures/player_masks/props/spart_sail_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/spart_siege_ram_tex1": {
