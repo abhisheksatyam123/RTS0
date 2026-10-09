@@ -9,6 +9,7 @@
 #include "petra_ai.h"
 #include "sim_types.h"
 #include "triggers.h"
+#include "turret_data.h"
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -266,6 +267,18 @@ public:
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
 	// or -1 when the unit has no next rank.
 	float promotion_required_xp(size_t i) const;
+	// 0 A.D. TurretHolder / Turretable: ranged infantry stand on the turret points of
+	// walls, gates and outposts, visible and fighting from the structure's height.
+	bool unit_turretable(size_t i) const;
+	uint32_t turret_holder_of(uint32_t unit_id) const; // 0 when not on a turret
+	float unit_height_offset(size_t i) const { // above the terrain (a turret point's height)
+		if (turret_height_.empty()) return 0.0f;
+		auto it = turret_height_.find(units_.id[i]);
+		return it == turret_height_.end() ? 0.0f : it->second;
+	}
+	float unit_ground_y(size_t i) const {
+		return get_terrain_height(units_.pos_x[i], units_.pos_z[i]) + unit_height_offset(i);
+	}
 	// Training time multiplier of a template trained above Basic (Cost/BuildTime per rank).
 	static float promotion_train_time_mult(uint16_t tmpl);
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
@@ -1216,6 +1229,15 @@ private:
 	} fauna_;
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
+	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
+	// tick, and the stance each had before it went up (UnitAI previousStance).
+	std::unordered_map<uint32_t, float> turret_height_;
+	std::unordered_map<uint32_t, uint8_t> turret_prev_stance_;
+	const TurretPointSet *turret_points_of(const Building &b) const;
+	int structure_garrison_cap(const Building &b) const;
+	void occupy_turret(size_t i, Building &b);
+	void leave_turret(size_t i, const Building &b);
+	void tick_turrets();
 	std::vector<FormationController> formations_; // in creation order
 	uint32_t next_formation_id_ = 1;
 	// Controller id per unit index, 0 outside formations: members of one formation share an

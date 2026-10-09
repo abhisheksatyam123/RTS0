@@ -377,6 +377,8 @@ void Simulation::reset() {
 	fauna_.count = 0;
 	fauna_id_to_idx_.clear();
 	transport_passengers_.clear();
+	turret_height_.clear();
+	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
 	formation_group_.assign(UNIT_CAP, 0u);
@@ -789,6 +791,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.rally_target_res_id = 0;
 	b.rally_target_bld_id = 0;
 	b.garrison_cap = binfo.garrison_cap;
+	b.garrison_cap = structure_garrison_cap(b);
 	b.research_tech = TECH_NONE;
 	b.research_timer = 0.0f;
 	b.research_duration = 0.0f;
@@ -1759,7 +1762,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.capture_garrison_regen_rate = ninfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = ninfo.territory_decay_rate;
 	// TransferGarrisonedUnits: whoever doesn't fit in the new structure is unloaded.
-	b.garrison_cap = ninfo.garrison_cap;
+	b.garrison_cap = structure_garrison_cap(b);
 	while ((int)b.garrisoned_units.size() > b.garrison_cap)
 		order_ungarrison_single(b.id, b.garrisoned_units.back());
 	b.attack_timer = 0.0f;
@@ -3282,6 +3285,7 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != b.team) continue;
+		if (turret_points_of(b) && !unit_turretable((size_t)uidx)) continue; // TurretHolder.CanOccupy
 		if (garrison_in_range((size_t)uidx, b)) {
 			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
 			garrison_now((size_t)uidx, b);
@@ -3306,6 +3310,10 @@ bool Simulation::garrison_in_range(size_t i, const Building &b) const {
 }
 
 void Simulation::garrison_now(size_t i, Building &b) {
+	if (turret_points_of(b)) { // walls, gates and outposts hold turrets, not a garrison
+		if (unit_turretable(i)) occupy_turret(i, b);
+		return;
+	}
 	units_.action_state[i] = ACTION_GARRISONED;
 	units_.alive[i] = 0;
 	units_.has_order[i] = 0;
@@ -3314,6 +3322,137 @@ void Simulation::garrison_now(size_t i, Building &b) {
 	units_.waypoint_count[i] = 0;
 	set_order(i, ORDER_NONE, 0, 0, b.x, b.z); // inside: the order is done
 	b.garrisoned_units.push_back(units_.id[i]);
+}
+
+// ---------------------------------------------------------------------------
+// 0 A.D. TurretHolder.js / Turretable.js. A wall segment, gate or outpost holds its civ's
+// turret points (turret_data.h) instead of a garrison. Ranged infantry (Turretable on
+// template_unit_infantry_ranged and the ranged infantry champions and heroes) ordered to
+// garrison there stand on a free point: they stay alive and visible, shoot with their own
+// attack from the point's height, hold their ground (SetTurretStance), and step down beside
+// the structure when given any order other than an attack (UnitAI LeaveTurret). Turret
+// units are kept in Building::garrisoned_units, alive, so nothing new is saved.
+// ---------------------------------------------------------------------------
+
+bool Simulation::unit_turretable(size_t i) const {
+	const uint64_t c = unit_classes(units_.tmpl[i], units_.unit_type[i]);
+	return (c & TC_INFANTRY) && (c & TC_RANGED);
+}
+
+const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
+	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
+	if (kind < 0) return nullptr;
+	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
+	const TurretPointSet &set = TURRET_POINTS[civ < CIV_COUNT ? civ : 0][kind];
+	return set.count ? &set : nullptr;
+}
+
+int Simulation::structure_garrison_cap(const Building &b) const {
+	const TurretPointSet *pts = turret_points_of(b);
+	return pts ? pts->count : building_type_info(b.type).garrison_cap;
+}
+
+uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
+	if (!turret_height_.count(unit_id)) return 0;
+	for (const Building &b : buildings_)
+		if (turret_points_of(b) &&
+				std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), unit_id) != b.garrisoned_units.end())
+			return b.id;
+	return 0;
+}
+
+// The point a turret unit stands on: the free one nearest its position.
+static int nearest_turret_point(const TurretPointSet &pts, float bx, float bz, float x, float z,
+		const bool *taken = nullptr) {
+	int best = 0;
+	float best_d2 = 1e30f;
+	for (int k = 0; k < pts.count; ++k) {
+		if (taken && taken[k]) continue;
+		const float dx = bx + pts.pt[k].x - x, dz = bz + pts.pt[k].z - z;
+		if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = k; }
+	}
+	return best;
+}
+
+void Simulation::occupy_turret(size_t i, Building &b) {
+	const TurretPointSet *pts = turret_points_of(b);
+	if (!pts || (int)b.garrisoned_units.size() >= pts->count) return;
+	bool taken[TURRET_POINTS_MAX] = {};
+	for (uint32_t uid : b.garrisoned_units) {
+		const int32_t u = lookup_unit(uid);
+		if (u >= 0) taken[nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u])] = true;
+	}
+	int k = 0;
+	while (k < pts->count && taken[k]) ++k;
+	if (k == pts->count) return;
+	const float x = b.x + pts->pt[k].x, z = b.z + pts->pt[k].z;
+	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
+	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
+	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
+	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+	units_.has_order[i] = 0;
+	units_.waypoint_count[i] = 0;
+	units_.action_state[i] = ACTION_IDLE;
+	// SetTurretStance: a turret holds its ground, keeping the stance it had for later.
+	turret_prev_stance_[units_.id[i]] = units_.stance[i];
+	if (units_.stance[i] != STANCE_STAND_GROUND && units_.stance[i] != STANCE_PASSIVE)
+		units_.stance[i] = STANCE_STAND_GROUND;
+	b.garrisoned_units.push_back(units_.id[i]);
+	turret_height_[units_.id[i]] = pts->pt[k].y;
+}
+
+// Turretable.LeaveTurret: down beside the structure, on the side of the unit's point,
+// with its stance back (ResetTurretStance). Its new order, if any, stands.
+void Simulation::leave_turret(size_t i, const Building &b) {
+	float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+	const float len = std::sqrt(dx * dx + dz * dz);
+	if (len < 1e-3f) { dx = 0.0f; dz = 1.0f; } else { dx /= len; dz /= len; }
+	const float r = b.half_size + 1.2f;
+	units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
+	auto it = turret_prev_stance_.find(units_.id[i]);
+	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i]);
+	if (it != turret_prev_stance_.end()) turret_prev_stance_.erase(it);
+	turret_height_.erase(units_.id[i]);
+}
+
+void Simulation::tick_turrets() {
+	turret_height_.clear();
+	for (Building &b : buildings_) {
+		if (b.garrisoned_units.empty()) continue;
+		const TurretPointSet *pts = turret_points_of(b);
+		if (!pts) continue;
+		auto &list = b.garrisoned_units;
+		bool taken[TURRET_POINTS_MAX] = {};
+		for (size_t k = 0; k < list.size();) {
+			const int32_t u = lookup_unit(list[k]);
+			if (u < 0 || (!units_.alive[u] && units_.action_state[u] != ACTION_GARRISONED)) { // died up there
+				turret_prev_stance_.erase(list[k]);
+				list.erase(list.begin() + (std::ptrdiff_t)k);
+				continue;
+			}
+			if (!units_.alive[u]) { ++k; continue; } // garrisoned before turrets: left as it was
+			// Any order but an attack takes the unit down (UnitAI orders call LeaveTurret);
+			// so does an owner that is no longer a mutual ally, or a point that is gone.
+			const uint8_t ok = units_.order_kind[u];
+			const bool stays = (ok == ORDER_NONE || ok == ORDER_ATTACK || ok == ORDER_ATTACK_BUILDING) &&
+					(units_.team[u] == b.team || is_ally(units_.team[u], b.team)) && (int)k < pts->count;
+			if (!stays) {
+				leave_turret((size_t)u, b);
+				list.erase(list.begin() + (std::ptrdiff_t)k);
+				continue;
+			}
+			const int pi = nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u], taken);
+			taken[pi] = true;
+			const TurretPoint &p = pts->pt[pi];
+			units_.pos_x[u] = units_.target_x[u] = b.x + p.x;
+			units_.pos_z[u] = units_.target_z[u] = b.z + p.z;
+			units_.vel_x[u] = units_.vel_z[u] = 0.0f;
+			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
+			turret_height_[list[k]] = p.y;
+			++k;
+		}
+	}
 }
 
 bool Simulation::garrison_unit_now(uint32_t unit_id, uint32_t building_id) {
@@ -3806,6 +3945,7 @@ void Simulation::tick(float dt) {
 	move_units(dt, arena);
 	separation(dt, arena);
 	tick_formations(dt);     // 0 A.D. Formation.js: controllers walk, members follow their slots
+	tick_turrets();          // 0 A.D. TurretHolder.js / Turretable.js: units on walls and outposts
 
 	// 2. Economy & Gathering
 	tick_gather(dt);
@@ -5112,13 +5252,13 @@ void Simulation::tick_combat(float dt) {
 		const float minr = range * unit_min_range_ratio(units_.unit_type[i]);
 		const float vision = unit_vision_range(units_.unit_type[i]);
 		const float held_lim = vision * 0.5f + range; // CheckTargetDistanceFromHeldPosition
-		const float att_y = get_terrain_height(pxi, pzi);
+		const float att_y = unit_ground_y(i);
 		// Would the stance let this unit (keep) fight j? (GetQueryRange / ShouldAbandonChase)
 		auto within_stance = [&](int32_t j) {
 			const float dx = units_.pos_x[j] - pxi, dz = units_.pos_z[j] - pzi;
 			const float d2 = dx * dx + dz * dz;
 			if (stance == STANCE_STAND_GROUND)
-				return in_parabolic_range(d2, att_y, get_terrain_height(units_.pos_x[j], units_.pos_z[j]), range);
+				return in_parabolic_range(d2, att_y, unit_ground_y((size_t)j), range);
 			if (stance == STANCE_DEFENSIVE) {
 				const float hx = units_.pos_x[j] - anc_x, hz = units_.pos_z[j] - anc_z;
 				return hx * hx + hz * hz < held_lim * held_lim;
@@ -5242,8 +5382,8 @@ void Simulation::tick_combat(float dt) {
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
 
-		float att_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
-		float def_y = get_terrain_height(units_.pos_x[t], units_.pos_z[t]);
+		float att_y = unit_ground_y(i);
+		float def_y = unit_ground_y((size_t)t);
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		if (!in_parabolic_range(d2, att_y, def_y, units_.attack_range[i])) continue;
@@ -5342,8 +5482,8 @@ void Simulation::tick_combat(float dt) {
 			const float aim_x = units_.pos_x[t] + units_.vel_x[t] * flight;
 			const float aim_z = units_.pos_z[t] + units_.vel_z[t] * flight;
 			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * dist / 100.0f;
-			float launch_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]) + arrow_sy;
-			float land_y = get_terrain_height(aim_x, aim_z) + 0.8f;
+			float launch_y = unit_ground_y(i) + arrow_sy;
+			float land_y = get_terrain_height(aim_x, aim_z) + unit_height_offset((size_t)t) + 0.8f;
 			for (int v = 0; v < volley; ++v) {
 				float disp_x = 0.0f, disp_z = 0.0f;
 				random_normal_2d(disp_x, disp_z);
@@ -5520,7 +5660,7 @@ void Simulation::tick_combat(float dt) {
 		// so the attacker's own radius counts (melee units could not reach a wall otherwise).
 		float eff_d = std::max(0.0f, d - b.half_size - unit_collision_radius(units_.unit_type[i]));
 
-		float att_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]);
+		float att_y = unit_ground_y(i);
 		float bld_y = get_terrain_height(b.x, b.z);
 
 		const bool in_range = capture ? eff_d <= CAPTURE_RANGE
@@ -5578,7 +5718,7 @@ void Simulation::tick_combat(float dt) {
 			uint8_t ut = units_.unit_type[i];
 			float sy = (ut == UNIT_TRIREME) ? 3.0f : (ut == UNIT_CATAPULT ? 2.0f : 1.4f);
 			uint8_t vis = (ut == UNIT_CATAPULT) ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
-			float launch_y = get_terrain_height(units_.pos_x[i], units_.pos_z[i]) + sy;
+			float launch_y = unit_ground_y(i) + sy;
 			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
 			           b.x, land_y, b.z,
@@ -5631,7 +5771,7 @@ void Simulation::tick_combat(float dt) {
 	for (auto &b : buildings_) {
 		if (b.build_progress < 1.0f || b.hp <= 0.0f) continue;
 		const BuildingTypeInfo &binfo = building_type_info(b.type);
-		bool is_wall = (b.type == BLD_WALL_SEGMENT);
+		bool is_wall = (b.type == BLD_WALL_SEGMENT) && !turret_points_of(b); // turret walls: the units shoot
 
 		if (binfo.attack_damage > 0 || (is_wall && !b.garrisoned_units.empty())) {
 			b.attack_timer -= dt;
@@ -6076,7 +6216,8 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 	float regen = b.capture_regen_rate;
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t u = lookup_unit(uid);
-		if (u >= 0) regen += b.capture_garrison_regen_rate * unit_capture_attack_at((size_t)u);
+		if (u >= 0 && units_.action_state[u] == ACTION_GARRISONED)
+			regen += b.capture_garrison_regen_rate * unit_capture_attack_at((size_t)u);
 	}
 	if (regen > 0.0f && pts[owner] < b.max_capture_points) reduce(owner, regen * dt);
 	check_owner();
