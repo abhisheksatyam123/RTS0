@@ -133,7 +133,8 @@ const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium
 # Index == rtso::VictoryCondition id (sim_types.h).
 const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
 	"Conquest Units — kill every enemy unit", "Conquest Structures — raze every enemy structure", "Regicide — kill the enemy hero, keep yours"]
-const START_RES := ["Sparse (150/200/150/100)", "Normal (300/400/300/200)", "Generous (500/700/500/350)", "Abundant (900/1200/900/600)"]
+# 0 A.D. settings/starting_resources.json: the same amount of every resource.
+const START_RES := ["Very Low (100)", "Low (300)", "Medium (500)", "High (1000)", "Very High (3000)", "Deathmatch (50000)"]
 const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 # Options-page aibehavior values -> RTS0 PetraBehavior (petra_ai.h).
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
@@ -315,7 +316,7 @@ func _ensure_slot_rows(n: int) -> void:
 		_slot_rows.append({
 			"kind": 1 if i > 0 else 0,
 			"civ": i % CIVS.size(),
-			"team": i + 1,
+			"team": 0, # 0 A.D.: no team until you pick one
 			# 0 A.D. gui.gamesetup.aidifficulty / aibehavior from the options page.
 			"diff": clampi(int(UserSettings.cfg.get_number("gui.gamesetup.aidifficulty")), 0, 5),
 			"beh": AI_BEHAVIOR_IDS.get(UserSettings.cfg.get_value("gui.gamesetup.aibehavior"), 0),
@@ -386,9 +387,10 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	team_slot.custom_minimum_size = Vector2(64, 28)
 	grid.add_child(team_slot)
 	var team := _make_option(team_slot)
+	team.add_item("None")
 	for t in range(1, 5):
 		team.add_item("T%d" % t)
-	team.select(clampi(int(row["team"]) - 1, 0, 3))
+	team.select(clampi(int(row["team"]), 0, 4))
 	team.item_selected.connect(_on_slot_team.bind(i))
 	# AI difficulty (per-slot; slot 0 uses the global default row)
 	var diff_slot := Control.new()
@@ -435,7 +437,7 @@ func _on_slot_civ(idx: int, slot: int) -> void:
 func _on_slot_team(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
-	_slot_rows[slot]["team"] = idx + 1
+	_slot_rows[slot]["team"] = idx
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -581,7 +583,7 @@ func _restore_settings() -> void:
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
-	res.select(clampi(int(ms.get("start_res")), 0, 3))
+	res.select(clampi(int(ms.get("start_res")), 0, START_RES.size() - 1))
 	bio.select(clampi(int(ms.get("biome")), 0, BIOMES.size() - 1))
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
@@ -608,7 +610,7 @@ func _restore_settings() -> void:
 			if i < civs.size():
 				_slot_rows[i]["civ"] = clampi(int(civs[i]), 0, CIVS.size() - 1)
 			if i < teams.size():
-				_slot_rows[i]["team"] = clampi(int(teams[i]), 1, 4)
+				_slot_rows[i]["team"] = clampi(int(teams[i]), 0, 4)
 			if i < sdiffs.size():
 				_slot_rows[i]["diff"] = clampi(int(sdiffs[i]), 0, 5)
 			if i < sbehs.size():
