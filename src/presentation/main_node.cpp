@@ -1466,7 +1466,7 @@ void RtsoMain::_on_ungarrison_pressed() {
 		if (net_lockstep())
 			post_lockstep(13, nullptr, 0, 0, 0, selected_building_id, 0);
 		else
-			sim->order_ungarrison(selected_building_id);
+			sim->cmd_unload(local_player(), selected_building_id, nullptr, 0);
 	} else if (!selected_ids.is_empty()) {
 		for (int s = 0; s < selected_ids.size(); ++s) {
 			if (sim->is_transport((uint32_t)selected_ids[s])) {
@@ -2335,10 +2335,6 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 	if (!sim || selected_building_id == 0) return;
 	const auto *inside = sim->get_garrisoned_units(selected_building_id);
 	if (!inside || inside->empty()) return;
-	if (net_lockstep()) {
-		post_lockstep(13, nullptr, 0, 0, 0, selected_building_id, 0);
-		return;
-	}
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
 	std::vector<uint32_t> out;
@@ -2351,7 +2347,11 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 		}
 		if (!all && !out.empty()) break;
 	}
-	for (uint32_t gid : out) sim->order_ungarrison_single(selected_building_id, gid);
+	if (out.empty()) return;
+	if (net_lockstep())
+		post_lockstep(13, out.data(), out.size(), 0, 0, selected_building_id, 0);
+	else
+		sim->cmd_unload(local_player(), selected_building_id, out.data(), out.size());
 }
 
 void RtsoMain::update_command_panel() {

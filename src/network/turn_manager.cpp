@@ -1339,8 +1339,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all
 			if (c.param == 1) {
 				if (n) sim.order_disembark_all(ids[0]);
-			} else if (sim.owns_building(pl, c.target_id)) {
-				sim.order_ungarrison(c.target_id);
+			} else { // entity_ids: the garrisoned units to unload (UnloadTemplate); none: all
+				sim.cmd_unload(pl, c.target_id, c.entity_ids.data(), c.entity_ids.size());
 			}
 		} else if (c.cmd_type == 14) { // Rally (entity_ids carry target ids, not units)
 			uint32_t res = c.entity_ids.size() > 0 ? c.entity_ids[0] : 0;
