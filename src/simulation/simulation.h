@@ -1697,6 +1697,8 @@ private:
 		std::vector<uint32_t> links;                // land << 16 | sea, sorted (regionLinks)
 		bool naval_map = false;                     // headquarters.js navalMap
 		std::vector<bool> naval;                    // navalRegions, by sea id
+		std::vector<bool> land_ok;                  // landRegions, by land id (classify)
+		bool land_region(uint16_t l) const { return l < land_ok.size() && land_ok[l]; }
 		bool linked(uint16_t land, uint16_t sea) const {
 			return std::binary_search(links.begin(), links.end(), ((uint32_t)land << 16) | sea);
 		}
@@ -1709,6 +1711,15 @@ private:
 	mutable uint64_t petra_topo_cache_key_ = 0;
 	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
+	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
+	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
+	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
+	mutable uint16_t petra_class_home_ = 0;
+	mutable int petra_class_topo_pid_ = -1;
+	mutable uint64_t petra_class_key_ = 0; // petra_topo_cache_key_ it was classified from
+	mutable uint8_t petra_class_for_ = 0;
+	mutable bool petra_class_valid_ = false;
+	void petra_order_builders(const std::vector<uint32_t> &workers, size_t max, uint32_t bid);
 	uint16_t petra_building_land(const Building &b, const PetraNavalTopo *topo = nullptr, uint16_t prefer = 0) const;
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
