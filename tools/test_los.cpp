@@ -1,0 +1,142 @@
+// Per-player line of sight (los_grid.h, 0 A.D. CCmpRangeManager LOS): sources
+// light their own player's cells, allies share them, moves and deaths remove
+// exactly what they added, and a save brings the same grid back.
+#define private public
+#include "simulation/simulation.h"
+#undef private
+#include "simulation/rms_generator.h"
+#include <cstdio>
+#include <memory>
+
+using namespace rtso;
+
+static int failures = 0;
+#define CHECK(cond, what)                                              \
+	do {                                                               \
+		if (cond) std::printf("  [ok]   %s\n", what);                  \
+		else { std::printf("  [FAIL] %s: %s\n", what, #cond); ++failures; } \
+	} while (0)
+
+static std::unique_ptr<Simulation> make_sim(float half) {
+	auto s = std::make_unique<Simulation>();
+	s->set_map_half(half);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		s->players_[p].team = p;
+		s->players_[p].active = 1;
+	}
+	return s;
+}
+
+// The counts and bits every live source should give, built from scratch.
+static bool matches_fresh(const Simulation &s) {
+	LosGrid fresh;
+	fresh.init(s.grid_res_, s.map_half_);
+	for (const LosSource &src : s.los_unit_src_) { LosSource have; fresh.update(have, src); }
+	for (const LosSource &src : s.los_bld_src_) { LosSource have; fresh.update(have, src); }
+	for (int c = 0; c < (int)fresh.cells(); ++c) {
+		if (fresh.visible_bits(c) != s.los().visible_bits(c)) return false;
+		for (uint8_t p = 0; p < LosGrid::PLAYERS; ++p)
+			if (fresh.count(p, c) != s.los().count(p, c)) return false;
+	}
+	return true;
+}
+
+static void test_own_and_shared_vision() {
+	std::printf("own and shared vision\n");
+	auto s = make_sim(64.0f);
+	const uint32_t id = s->spawn_unit(0.0f, 0.0f, 0, UNIT_VILLAGER);
+	s->tick(0.25f); // one LOS update (4 Hz)
+	const float vr = unit_vision_range(UNIT_VILLAGER);
+	CHECK(s->los_visible(0, 0.0f, 0.0f), "player 0 sees its villager's cell");
+	CHECK(s->los_visible(0, vr - 2.0f, 0.0f), "and cells inside its vision range");
+	CHECK(!s->los_visible(0, vr + 3.0f, 0.0f), "but not past it");
+	CHECK(!s->los_visible(1, 0.0f, 0.0f), "player 1 does not see it");
+	s->set_mutual_ally(0, 1);
+	CHECK(s->los_visible(1, 0.0f, 0.0f), "an ally shares the vision (VisionSharing.js)");
+	CHECK(s->los_explored(1, 0.0f, 0.0f), "and what it explored");
+	CHECK(!s->los_visible(2, 0.0f, 0.0f), "a third player still does not");
+
+	const size_t u = s->unit_id_to_idx_.at(id);
+	s->units_.pos_x[u] = 40.0f;
+	s->tick(0.25f); // one LOS update (4 Hz)
+	CHECK(!s->los_visible(0, 0.0f, 0.0f), "the old spot goes dark once the villager walks away");
+	CHECK(s->los_explored(0, 0.0f, 0.0f), "but stays explored");
+	CHECK(s->los_visible(0, 40.0f, 0.0f), "the new spot is visible");
+	CHECK(matches_fresh(*s), "counts equal a fresh build after the move");
+
+	s->units_.alive[u] = 0;
+	s->tick(0.25f); // one LOS update (4 Hz)
+	bool none = true;
+	for (int c = 0; c < (int)s->los().cells(); ++c) none = none && s->los().count(0, c) == 0 && !(s->los().visible_bits(c) & 1);
+	CHECK(none, "a dead villager removes every count it added");
+}
+
+static void test_buildings_and_capture() {
+	std::printf("buildings\n");
+	auto s = make_sim(64.0f);
+	const uint32_t bid = s->spawn_building_world(-20.0f, -20.0f, BLD_HOUSE, 2, 1.0f);
+	const uint32_t fid = s->spawn_building_world(20.0f, 20.0f, BLD_HOUSE, 3, 0.2f);
+	(void)fid;
+	for (auto &b : s->buildings_) b.hp = b.max_hp = 500.0f; // no civ data loaded here
+	s->tick(0.25f); // one LOS update (4 Hz)
+	CHECK(s->los_visible(2, -20.0f, -20.0f), "a finished house gives its owner vision");
+	CHECK(!s->los_visible(3, 20.0f, 20.0f), "a foundation gives none");
+	for (auto &b : s->buildings_)
+		if (b.id == bid) { // captured: the new owner holds the capture points too
+			b.team = 4;
+			std::swap(b.capture_points_by_team[2], b.capture_points_by_team[4]);
+		}
+	s->tick(0.25f); // one LOS update (4 Hz)
+	CHECK(!s->los_visible(2, -20.0f, -20.0f) && s->los_visible(4, -20.0f, -20.0f), "a captured house's vision moves to its new owner");
+	CHECK(s->los_explored(2, -20.0f, -20.0f), "the old owner keeps it explored");
+	CHECK(matches_fresh(*s), "counts equal a fresh build after the capture");
+}
+
+static void test_many_moves_and_save() {
+	std::printf("many moves, removals and a save\n");
+	auto s = make_sim(128.0f);
+	RmsRng rng(7);
+	std::vector<uint32_t> ids;
+	for (int i = 0; i < 300; ++i)
+		ids.push_back(s->spawn_unit(rng.range_float(-120.0f, 120.0f), rng.range_float(-120.0f, 120.0f), (uint8_t)(i % 8),
+				(UnitType)(i % 3 == 0 ? UNIT_CAVALRY : UNIT_VILLAGER)));
+	for (int t = 0; t < 60; ++t) {
+		for (size_t u = 0; u < s->units_.count; ++u) {
+			s->units_.pos_x[u] = std::clamp(s->units_.pos_x[u] + rng.range_float(-3.0f, 3.0f), -126.0f, 126.0f);
+			s->units_.pos_z[u] = std::clamp(s->units_.pos_z[u] + rng.range_float(-3.0f, 3.0f), -126.0f, 126.0f);
+		}
+		if (t % 10 == 5) s->units_.remove_at((size_t)rng.range_int(0, (int)s->units_.count - 1));
+		s->tick_los();
+	}
+	CHECK(matches_fresh(*s), "300 wandering units, some removed: counts equal a fresh build");
+
+	const char *path = "/tmp/rts0_test_los.sav";
+	CHECK(s->save_state(path), "saves");
+	auto b = make_sim(64.0f);
+	CHECK(b->load_state(path), "loads into a sim of another size");
+	CHECK(b->los_hash() == s->los_hash(), "the loaded LOS hashes the same");
+	bool same = b->los().cells() == s->los().cells();
+	for (int c = 0; same && c < (int)s->los().cells(); ++c)
+		for (uint8_t p = 0; p < LosGrid::PLAYERS; ++p) same = same && b->los().count(p, c) == s->los().count(p, c);
+	CHECK(same, "and the same counts");
+	b->tick_los();
+	CHECK(b->los_hash() == s->los_hash(), "a tick after loading changes nothing");
+}
+
+static void test_revealed_and_explored_map() {
+	std::printf("game setup options\n");
+	auto s = make_sim(64.0f);
+	s->set_explore_map(true);
+	CHECK(s->los_explored(5, 30.0f, 30.0f) && !s->los_visible(5, 30.0f, 30.0f), "Explored map: explored, not visible");
+	s->set_reveal_map(true);
+	CHECK(s->los_visible(5, 30.0f, 30.0f), "Revealed map: everything visible");
+}
+
+int main() {
+	test_own_and_shared_vision();
+	test_buildings_and_capture();
+	test_many_moves_and_save();
+	test_revealed_and_explored_map();
+	std::printf("%s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
+	return failures ? 1 : 0;
+}

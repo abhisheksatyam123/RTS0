@@ -449,6 +449,7 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // ptol/catafalque
 		{0x00000u, 0x000u}, // sele/catafalque
 		{0x00000u, 0x000u}, // han/catafalque
+		{0x007cfu, 0x032u}, // pers/champion_infantry_archer_upgrade
 	};
 	return kRows;
 }

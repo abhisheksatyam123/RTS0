@@ -71,7 +71,9 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
+	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
+	ClassDB::bind_method(D_METHOD("_on_autoqueue_pressed", "on"), &RtsoMain::_on_autoqueue_pressed);
 	ClassDB::bind_method(D_METHOD("save_game", "path", "description"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
@@ -116,6 +118,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
+	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
@@ -1446,6 +1449,76 @@ void RtsoMain::_on_flare_requested(Vector2 world_pos) {
 	net_host_.sendChat(wire);
 }
 
+// 0 A.D. gui/session/Cheats.js executeCheat with the codes of simulation/data/cheats/*.json.
+// Player numbers typed after "wololo" and "exodia" are 0 A.D.'s (0 = Gaia, 1 = the first player).
+bool RtsoMain::chat_try_cheat(const String &text) {
+	using S = rtso::Simulation;
+	struct CheatCode { const char *name; uint8_t action; int resource; const char *def; bool numeric; };
+	static const CheatCode kCheats[] = {
+		{"i want pizza", S::CHEAT_ADD_RESOURCE, rtso::RES_FOOD, "1000", true},
+		{"bring me my axe", S::CHEAT_ADD_RESOURCE, rtso::RES_WOOD, "1000", true},
+		{"i see a mountain here", S::CHEAT_ADD_RESOURCE, rtso::RES_STONE, "1000", true},
+		{"your money or your life", S::CHEAT_ADD_RESOURCE, rtso::RES_GOLD, "1000", true},
+		{"jame jam", S::CHEAT_REVEAL_MAP, 0, "", false},
+		{"wololo", S::CHEAT_CONVERT_UNITS, 0, "-1", true},
+		{"black death", S::CHEAT_KILL_UNITS, 0, "", false},
+		{"exodia", S::CHEAT_DEFEAT_PLAYER, 0, "2", true},
+		{"salad bowl", S::CHEAT_CREATE_UNITS, 0, "13", true},
+		{"back to the future", S::CHEAT_CHANGE_PHASE, 0, "", false},
+		{"brainiac", S::CHEAT_RESEARCH, 0, "", false},
+		{"gift from the gods", S::CHEAT_META, 0, "100000", true},
+		{"the hive master", S::CHEAT_MAX_POPULATION, 0, "", false},
+		{"TARDIS", S::CHEAT_CHANGE_MAX_POPULATION, 0, "", false},
+		{"i am too busy", S::CHEAT_FAST_ACTIONS, 0, "", false},
+	};
+	const uint8_t me = local_player();
+	if (!sim || !sim->cheats_enabled() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return false;
+	const CheatCode *cheat = nullptr;
+	for (const CheatCode &c : kCheats)
+		if (text.begins_with(c.name)) { cheat = &c; break; }
+	if (!cheat) return false;
+	String parameter = text.substr(String(cheat->name).length() + 1).strip_edges();
+	if (parameter.is_empty()) parameter = cheat->def;
+	if (cheat->numeric && !parameter.is_empty() && !parameter.is_valid_int()) {
+		chat_window_.append_line("[color=#eebb22]This cheat requires a numeric parameter.[/color]\n");
+		return false;
+	}
+	int64_t number = cheat->numeric && !parameter.is_empty() ? parameter.to_int() : 0;
+	uint32_t extra = (uint32_t)std::max(cheat->resource, 0);
+	if (cheat->action == S::CHEAT_CONVERT_UNITS || cheat->action == S::CHEAT_DEFEAT_PLAYER)
+		number = number < 0 ? -1 : (number == 0 ? rtso::GAIA_PLAYER : number - 1);
+	// The selection, a selected structure first (createunits and brainiac read selected[0]).
+	std::vector<uint32_t> ids;
+	if (selected_building_id) ids.push_back(selected_building_id);
+	for (int i = 0; i < selected_ids.size(); ++i) ids.push_back((uint32_t)selected_ids[i]);
+	if (cheat->action == S::CHEAT_RESEARCH) {
+		// "brainiac N" researches the selected structure's Nth technology, else a tech by its 0 A.D. name.
+		extra = rtso::TECH_NONE;
+		int btype = -1; // the selected structure's type
+		for (const auto &bb : sim->buildings())
+			if (selected_building_id && bb.id == selected_building_id) btype = bb.type;
+		if (btype >= 0 && parameter.is_valid_int()) {
+			int nth = (int)parameter.to_int();
+			for (int t = 1; t < rtso::TECH_COUNT && nth > 0; ++t) {
+				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
+				if (ti.researcher != btype || !(ti.civ_mask & rtso::civ_bit(sim->player_civ(me)))) continue;
+				if (--nth == 0) extra = (uint32_t)t;
+			}
+		} else {
+			const std::string want = parameter.utf8().get_data();
+			for (int t = 1; t < rtso::TECH_COUNT; ++t)
+				if (want == rtso::tech_info((uint8_t)t).template_name) extra = (uint32_t)t;
+		}
+	}
+	if (cheat->action == S::CHEAT_CREATE_UNITS && !selected_building_id) {
+		chat_window_.append_line("[color=#eebb22]You need to select a building that trains units.[/color]\n");
+		return true;
+	}
+	if (turn_cmds()) post_lockstep(39, ids.data(), ids.size(), (float)extra, 0.0f, (uint32_t)(int32_t)number, cheat->action);
+	else sim->cmd_cheat(me, cheat->action, (int32_t)number, extra, ids.data(), ids.size());
+	return true;
+}
+
 void RtsoMain::chat_send_wire(const std::string &wire) {
 	// 0 A.D. gui/session/chat/ChatCommands.js: the host removes a player by name.
 	for (const char *cmd : {"/kick ", "/ban "}) {
@@ -1908,7 +1981,7 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 		try_breed(selected_building_id, (uint8_t)(meta & 0xFF));
 		return;
 	}
-	try_train_template(selected_building_id, (uint16_t)meta);
+	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
 }
 
 // Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
@@ -1955,6 +2028,15 @@ void RtsoMain::_on_gate_lock_pressed(int lock) {
 		sim->cmd_lock_gate(local_player(), selected_building_id, lock != 0);
 }
 
+// 0 A.D. ProductionQueue.js EnableAutoQueue / DisableAutoQueue through lockstep command 44.
+void RtsoMain::_on_autoqueue_pressed(int on) {
+	if (selected_building_id == 0) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_AUTOQUEUE, nullptr, 0, 0, 0, selected_building_id, on ? 1 : 0);
+	else
+		sim->cmd_set_autoqueue(local_player(), selected_building_id, on != 0);
+}
+
 // 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35.
 void RtsoMain::_on_alert_pressed(int end) {
 	if (selected_building_id == 0) return;
@@ -1964,6 +2046,20 @@ void RtsoMain::_on_alert_pressed(int end) {
 		sim->cmd_end_alert(local_player(), selected_building_id);
 	else
 		sim->cmd_raise_alert(local_player(), selected_building_id);
+}
+
+// 0 A.D. unit Upgrade on the selection through lockstep command 43 (`to` = roster
+// template, -1 = cancel and refund).
+void RtsoMain::_on_unit_upgrade_pressed(int to) {
+	if (selected_ids.is_empty()) return;
+	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const size_t n = selected_ids.size();
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_UNIT, ids, n, 0, 0, to < 0 ? 0 : (uint32_t)to, to < 0 ? 1 : 0);
+	else if (to < 0)
+		sim->cmd_cancel_unit_upgrades(local_player(), ids, n);
+	else
+		sim->cmd_upgrade_units(local_player(), ids, n, (uint16_t)to);
 }
 
 // 0 A.D. Pack / Unpack on the selected siege engines through lockstep command 29.
@@ -2450,15 +2546,17 @@ void RtsoMain::_process(double delta) {
 		Vector2 mouse_pos = get_viewport()->get_mouse_position();
 		if (wall_drag_mode) {
 			if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
-			bool end_snapped = false;
-			Vector3 drag_curr_pos = snap_wall_point(get_ground_click_pos(mouse_pos), end_snapped);
-			float dist = wall_drag_start_pos.distance_to(drag_curr_pos);
-			int seg_count = std::max(1, (int)(dist / 6.0f));
-			Vector3 step_vec = (drag_curr_pos - wall_drag_start_pos) / (float)seg_count;
-			float wall_rot_y = std::atan2(step_vec.x, step_vec.z);
-
-			size_t total_ghosts = (size_t)seg_count + 2;
-			while (wall_ghosts.size() < total_ghosts) {
+			// The pieces the sim will lay (helpers/Walls.js GetWallPlacement), each tinted by whether
+			// it can be placed where it stands.
+			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
+			std::vector<rtso::Simulation::WallPiece> pieces;
+			uint32_t start_tower = 0, end_tower = 0;
+			const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
+			if (sim)
+				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
+						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
+			while (wall_ghosts.size() < pieces.size()) {
 				MeshInstance3D *g = memnew(MeshInstance3D);
 				g->set_visible(false);
 				add_child(g);
@@ -2470,50 +2568,32 @@ void RtsoMain::_process(double delta) {
 			if (!tower_entry.valid) {
 				tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_TOWER)));
 			}
-			auto wall_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_foundation(rtso::BLD_WALL_SEGMENT)));
-			if (!wall_entry.valid) {
-				wall_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_WALL_SEGMENT)));
-			}
-
-			auto configure_ghost = [&](size_t idx, Vector3 pos, bool is_tower, float yaw) {
-				MeshInstance3D *g = wall_ghosts[idx];
-				auto &entry = is_tower ? tower_entry : wall_entry;
-				if (entry.valid) {
-					g->set_mesh(entry.mesh);
-					g->set_scale(Vector3(entry.scale, entry.scale, entry.scale));
+			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
+			const uint32_t snapped[2] = {start_tower, end_tower};
+			const float yaw = std::atan2(drag_curr_pos.x - wall_drag_start_pos.x, drag_curr_pos.z - wall_drag_start_pos.z);
+			for (size_t i = 0; i < pieces.size(); ++i) {
+				const auto &p = pieces[i];
+				const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
+				MeshInstance3D *g = wall_ghosts[i];
+				// Along the wall (the box's z): the segment's length; across it: its 0 A.D. depth.
+				if (is_tower && tower_entry.valid && wall_kind == rtso::WALLSET_STONE) {
+					g->set_mesh(tower_entry.mesh);
+					g->set_scale(Vector3(tower_entry.scale, tower_entry.scale, tower_entry.scale));
 				} else {
 					Ref<BoxMesh> box;
 					box.instantiate();
-					box->set_size(is_tower ? Vector3(2.2f, 4.5f, 2.2f) : Vector3(1.2f, 2.5f, 5.5f));
+					box->set_size(is_tower ? Vector3(2.2f * p.half_w, 4.5f, 2.2f * p.half_w)
+							: Vector3(2.0f * wall_set.half_depth, 2.5f, 2.0f * p.half_w));
 					g->set_mesh(box);
+					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
 				}
-				g->set_global_position(Vector3(pos.x, 0.05f, pos.z));
+				g->set_global_position(Vector3(p.x, 0.05f, p.z));
 				g->set_rotation(Vector3(0.0f, yaw, 0.0f));
-
-				int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
-				int cy = (int)std::floor(pos.z / rtso::Simulation::GRID);
-				const uint8_t btype = is_tower ? rtso::BLD_WALL_TOWER : rtso::BLD_WALL_SEGMENT;
-				bool can_place = sim ? sim->check_placement(local_player(), cx, cy, btype) == rtso::Simulation::PLACE_OK : true;
-				g->set_material_override(can_place ? ghost_mat_ok : ghost_mat_bad);
+				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
+				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
-			};
-
-			// Start node tower (none over a tower the wall snapped to)
-			configure_ghost(0, wall_drag_start_pos, true, wall_rot_y);
-			if (wall_start_snapped) wall_ghosts[0]->set_visible(false);
-
-			// Intermediate wall segments
-			for (int s = 0; s < seg_count; ++s) {
-				Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
-				configure_ghost(1 + s, mid_p, false, wall_rot_y);
 			}
-
-			// End node tower
-			Vector3 end_p = wall_drag_start_pos + step_vec * (float)seg_count;
-			configure_ghost(seg_count + 1, end_p, true, wall_rot_y);
-			if (end_snapped) wall_ghosts[seg_count + 1]->set_visible(false);
-
-			for (size_t i = total_ghosts; i < wall_ghosts.size(); ++i) {
+			for (size_t i = pieces.size(); i < wall_ghosts.size(); ++i) {
 				if (wall_ghosts[i] && wall_ghosts[i]->is_visible()) {
 					wall_ghosts[i]->set_visible(false);
 				}
@@ -2688,10 +2768,11 @@ void RtsoMain::update_inspector() {
 				set_bar(inspector_xp_bar, inspector_xp_label, found_b->upgrade_timer, found_b->upgrade_duration,
 						"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
 						String::num(found_b->upgrade_duration - found_b->upgrade_timer, 0) + " s left)");
-			} else if (found_b->research_tech != rtso::TECH_NONE && found_b->research_duration > 0.0f) {
-				set_bar(inspector_xp_bar, inspector_xp_label, found_b->research_timer, found_b->research_duration,
-						"Researching " + String(rtso::tech_info(found_b->research_tech).name) + " (" +
-						String::num(found_b->research_duration - found_b->research_timer, 0) + " s left)");
+			} else if (const uint8_t rt = rtso::Simulation::researching(*found_b); rt != rtso::TECH_NONE && found_b->queue.front().duration > 0.0f) {
+				const rtso::ProductionOrder &po = found_b->queue.front();
+				set_bar(inspector_xp_bar, inspector_xp_label, po.timer, po.duration,
+						"Researching " + String(rtso::tech_info(rt).name) + " (" +
+						String::num(po.duration - po.timer, 0) + " s left)");
 			} else {
 				show_bar(inspector_xp_bar, inspector_xp_label, false);
 			}
@@ -2701,7 +2782,8 @@ void RtsoMain::update_inspector() {
 			if (found_b->type == rtso::BLD_GATE)
 				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 			else if (!found_b->queue.empty())
-				status = "Training: " + String::num_int64(found_b->queue.size()) + " in queue (right-click a slot to cancel)";
+				status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
+						" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (right-click a slot to cancel)";
 			if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
 				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
 						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
@@ -3054,6 +3136,17 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 
+			// Autoqueue (0 A.D. ProductionQueue.js): each finished batch is queued again.
+			if (found_b->team == local_player() && found_b->build_progress >= 1.0f && roster_list &&
+					roster_list->get_item_count() > 0) {
+				Button *btn = memnew(Button);
+				btn->set_text(found_b->autoqueue ? "Autoqueue: on" : "Autoqueue: off");
+				btn->set_tooltip_text(found_b->autoqueue ? "Stop repeating the batches this structure trains"
+						: "Queue each batch again when it finishes, paying for it again");
+				btn->connect("pressed", Callable(this, "_on_autoqueue_pressed").bind(found_b->autoqueue ? 0 : 1));
+				production_bar->add_child(btn);
+			}
+
 			// Structure upgrade (0 A.D. Upgrade.js), or cancel one in progress.
 			if (found_b->team == local_player()) {
 				if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
@@ -3198,6 +3291,70 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 
+			// 0 A.D. unit upgrades (selection_panels.js "Upgrade"): one button per target the
+			// selected units can upgrade to, enabled while any of them can start it, and
+			// a cancel button while any of them is upgrading.
+			{
+				uint16_t targets[8];
+				int target_n = 0;
+				bool any_upgrading = false;
+				for (int i = 0; i < selected_ids.size(); ++i) {
+					const uint32_t id = (uint32_t)selected_ids[i];
+					if (sim->unit_upgrade_of(id)) any_upgrading = true;
+					for (size_t u = 0; u < uview.count; ++u) {
+						if (uview.id[u] != id || uview.team[u] != local_player()) continue;
+						for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF; ++up) {
+							if (up->from != uview.tmpl[u] || (up->from_rank && uview.rank[u] < up->from_rank)) continue;
+							bool seen = false;
+							for (int t = 0; t < target_n; ++t) seen = seen || targets[t] == up->to;
+							if (!seen && target_n < 8) targets[target_n++] = up->to;
+						}
+						break;
+					}
+				}
+				for (int t = 0; t < target_n; ++t) {
+					const uint16_t to = targets[t];
+					const rtso::CivUnitUpgrade *row = nullptr;
+					const char *why = "Already upgrading";
+					for (int i = 0; i < selected_ids.size(); ++i) {
+						const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), (uint32_t)selected_ids[i], to);
+						if (c == rtso::Simulation::UPGRADE_OK) { why = nullptr; break; }
+						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "Not enough resources";
+						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = "Requires City Phase";
+						else if (c == rtso::Simulation::UPGRADE_ERR_LIMIT) why = "Limit reached";
+					}
+					for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF && !row; ++up)
+						if (up->to == to) row = up;
+					String cost;
+					auto add_cost = [&](int v, const char *suffix) {
+						if (v <= 0) return;
+						if (!cost.is_empty()) cost += ",";
+						cost += String::num_int64(v) + suffix;
+					};
+					add_cost(row->food_cost, "f");
+					add_cost(row->wood_cost, "w");
+					add_cost(row->gold_cost, "g");
+					add_cost(row->stone_cost, "s");
+					Button *btn = memnew(Button);
+					btn->set_text(String("Upgrade to ") + rtso::civ_unit_template(to).name + (cost.is_empty() ? String() : " (" + cost + ")"));
+					String tip = String(rtso::civ_unit_template(to).specific_name) + "\n" + String::num((double)row->time, 0) + "s";
+					if (why) {
+						tip += String("\n") + why;
+						btn->set_disabled(true);
+					}
+					btn->set_tooltip_text(tip);
+					btn->connect("pressed", Callable(this, "_on_unit_upgrade_pressed").bind((int)to));
+					production_bar->add_child(btn);
+				}
+				if (any_upgrading) {
+					Button *btn = memnew(Button);
+					btn->set_text("Cancel upgrade");
+					btn->set_tooltip_text("Stop upgrading and get the resources back");
+					btn->connect("pressed", Callable(this, "_on_unit_upgrade_pressed").bind(-1));
+					production_bar->add_child(btn);
+				}
+			}
+
 			// g_EntityCommands "remove-guard" (shown while any selected unit guards) and
 			// "call-to-arms" (any unit with UnitAI), unit_actions.js.
 			bool any_guarding = false;
@@ -3309,24 +3466,6 @@ float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
 	return placement_angle;
 }
 
-Vector3 RtsoMain::snap_wall_point(const Vector3 &p, bool &snapped) const {
-	snapped = false;
-	if (!sim) return p;
-	const float radius = std::max(1.5f, rtso::building_type_info(rtso::BLD_WALL_TOWER).footprint * rtso::Simulation::GRID * 0.5f);
-	float best = radius * radius;
-	Vector3 out = p;
-	for (const auto &b : sim->buildings()) {
-		if (b.type != rtso::BLD_WALL_TOWER || b.team != local_player() || b.wrecked) continue;
-		const float d2 = (b.x - p.x) * (b.x - p.x) + (b.z - p.z) * (b.z - p.z);
-		if (d2 <= best) {
-			best = d2;
-			out = Vector3(b.x, p.y, b.z);
-			snapped = true;
-		}
-	}
-	return out;
-}
-
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
 	if (!sim || !rtso::civ_can_train(sim->player_civ(local_player()), (uint8_t)utype)) return;
 	// The selected structure if it trains the class, else the first finished one
@@ -3340,23 +3479,29 @@ void RtsoMain::try_train_unit(rtso::UnitType utype) {
 		if (bid == 0) bid = b.id;
 	}
 	if (bid == 0) return;
+	const int count = train_batch();
 	if (turn_cmds()) {
-		post_lockstep(6, nullptr, 0, 0, 0, bid, (uint8_t)utype);
+		post_lockstep(6, nullptr, 0, 0, (float)count, bid, (uint8_t)utype);
 		play_civ_voice("select");
 		return;
 	}
-	if (sim->cmd_train(local_player(), bid, utype))
+	if (sim->cmd_train(local_player(), bid, utype, count))
 		play_civ_voice("select");
 }
 
-void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl) {
+int RtsoMain::train_batch() const {
+	return rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
+}
+
+// One queue item of `count` units (0 A.D. batch training: one cost x count, one shorter timer).
+void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count) {
 	if (building_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
 	if (turn_cmds()) {
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, 0.0f, building_id, 0);
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_TEMPLATE, nullptr, 0, (float)tmpl, (float)count, building_id, 0);
 		play_civ_voice("select");
 		return;
 	}
-	if (sim->cmd_train_template(local_player(), building_id, tmpl))
+	if (sim->cmd_train_template(local_player(), building_id, tmpl, count))
 		play_civ_voice("select");
 }
 
@@ -3715,8 +3860,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				if (!fired(("session.queueunit." + std::to_string(q)).c_str())) continue;
 				if (q - 1 < roster_list->get_item_count() && !roster_list->is_item_disabled(q - 1)) {
 					const uint16_t tmpl = (uint16_t)(int)roster_list->get_item_metadata(q - 1);
-					const int batch = rtso::hotkeys::held("session.batchtrain") ? user_opts_.batch_size : 1;
-					for (int b = 0; b < batch; ++b) try_train_template(selected_building_id, tmpl);
+					try_train_template(selected_building_id, tmpl, train_batch());
 				}
 				return;
 			}
@@ -3791,9 +3935,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 
 				if (build_mode) {
-					if (current_build_type == rtso::BLD_WALL_SEGMENT) {
+					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE) {
 						wall_drag_mode = true;
-						wall_drag_start_pos = snap_wall_point(get_ground_click_pos(mouse_pos), wall_start_snapped);
+						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
 						return;
 					}
 					// The site is fixed at the press; the release places it (input.js INPUT_BUILDING_CLICK).
@@ -3849,47 +3993,27 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					for (auto *wg : wall_ghosts) {
 						if (wg) wg->set_visible(false);
 					}
-					bool end_snapped = false;
-					Vector3 drag_end_pos = snap_wall_point(get_ground_click_pos(mouse_pos), end_snapped);
-					float dist = wall_drag_start_pos.distance_to(drag_end_pos);
-					if (dist > 1.5f) {
-						int seg_count = std::max(1, (int)(dist / 6.0f));
-						Vector3 step_vec = (drag_end_pos - wall_drag_start_pos) / (float)seg_count;
-						// Every piece faces along the wall.
-						const float wall_angle = std::atan2(step_vec.x, step_vec.z) + rtso::Simulation::DEFAULT_BUILDING_ROT;
-
-						// Commit wall nodes through existing lockstep/build command paths
-						// (0 A.D. gui/session/building_placement.js:45-92 / placement.js)
-						// Alt hands the whole wall to one builder (popOneFromSelection).
-						const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
-						const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
-						const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
-						const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
-						auto place_wall_node = [&](const Vector3 &p, uint8_t btype) {
-							int cx = (int)std::floor(p.x / rtso::Simulation::GRID);
-							int cz = (int)std::floor(p.z / rtso::Simulation::GRID);
-							if (turn_cmds()) {
-								post_lockstep(5, builders, builder_n,
-								              (float)cx, (float)cz, rtso::Simulation::pack_angle(wall_angle), btype);
-							} else if (sim) {
-								uint32_t bid = sim->cmd_build(local_player(), cx, cz, btype, wall_angle);
-								if (bid && builder_n > 0) {
-									sim->order_build_or_repair(builders, builder_n, bid);
-								}
-							}
-						};
-
-						// Start node tower, unless the wall continues from an existing one
-						if (!wall_start_snapped) place_wall_node(wall_drag_start_pos, rtso::BLD_WALL_TOWER);
-
-						for (int s = 0; s < seg_count; ++s) {
-							Vector3 mid_p = wall_drag_start_pos + step_vec * ((float)s + 0.5f);
-							place_wall_node(mid_p, rtso::BLD_WALL_SEGMENT);
-
-							if (s == seg_count - 1 && !end_snapped) {
-								Vector3 end_p = wall_drag_start_pos + step_vec * ((float)s + 1.0f);
-								place_wall_node(end_p, rtso::BLD_WALL_TOWER);
-							}
+					const Vector3 drag_end_pos = get_ground_click_pos(mouse_pos);
+					// Commands.js "construct-wall": the sim lays the pieces (helpers/Walls.js) and
+					// snaps the ends onto the player's wall towers, the same on every peer.
+					// Alt hands the whole wall to one builder (popOneFromSelection).
+					const bool order_one = rtso::hotkeys::held("session.orderone") && !selected_ids.is_empty();
+					const uint32_t one_builder = order_one ? (uint32_t)selected_ids[0] : 0;
+					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
+					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
+					const bool queued = rtso::hotkeys::held("session.queue");
+					const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
+							drag_end_pos.x, drag_end_pos.z, nullptr, nullptr, wall_kind).empty();
+					if (any) {
+						if (turn_cmds()) {
+							post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_BUILD_WALL, builders, builder_n,
+									drag_end_pos.x, drag_end_pos.z,
+									rtso::Simulation::pack_wall_point(wall_drag_start_pos.x, wall_drag_start_pos.z),
+									(uint8_t)(wall_kind | (queued ? rtso::NET_PARAM_QUEUED : 0)));
+						} else {
+							sim->cmd_build_wall(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
+									drag_end_pos.x, drag_end_pos.z, builders, builder_n, queued, wall_kind);
 						}
 						play_civ_voice("build");
 						if (order_one) pop_from_selection(selected_ids, one_builder);
@@ -4071,11 +4195,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					float dz = b.z - click_pos.z;
 					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
 				}
+				// session.queue (Shift) adds a position after the ones set (RallyPoint.AddPosition).
+				const bool rally_queued = rtso::hotkeys::held("session.queue");
 				if (turn_cmds()) {
 					uint32_t extra[2] = {target_res, target_bld};
-					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id);
+					post_lockstep(14, extra, 2, click_pos.x, click_pos.z, selected_building_id,
+							rally_queued ? rtso::NET_PARAM_QUEUED : 0);
 				} else {
-					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld);
+					sim->cmd_set_rally_point(local_player(), selected_building_id, click_pos.x, click_pos.z, target_res, target_bld,
+							rally_queued);
 				}
 				play_civ_voice("select");
 				return;
@@ -4492,6 +4620,7 @@ void RtsoMain::apply_match_settings() {
 		}
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
+	sim->set_team_placement((int)ms->get("team_placement"));
 	// Civs before the map: spawn_unit gives each starting unit its owner's
 	// roster template (Simulation::reset keeps civs), as 0 A.D. spawns
 	// StartEntities from the player's own civ.
@@ -4525,6 +4654,8 @@ void RtsoMain::apply_match_settings() {
 	sim->set_relic_count((int)ms->get("relic_count"));
 	sim->set_regicide_garrison((bool)ms->get("regicide_garrison"));
 	sim->set_lock_teams((bool)ms->get("lock_teams"));
+	sim->set_cheats_enabled((bool)ms->get("cheats"));
+	sim->set_disable_spies((bool)ms->get("disable_spies"));
 	sim->set_disable_treasures((bool)ms->get("disable_treasures"));
 	{
 		Array scolors = ms->get("slot_colors");
@@ -5095,10 +5226,13 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;
+		setup.cheats = (bool)ms->get("cheats") ? 1 : 0;
+		setup.no_spies = (bool)ms->get("disable_spies") ? 1 : 0;
 		setup.no_treasures = (bool)ms->get("disable_treasures") ? 1 : 0;
 		Array snames = ms->get("slot_names");
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
+		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
@@ -5182,6 +5316,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t i = 0; i < rtso::MAX_PLAYERS; ++i)
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
+	sim->set_team_placement(setup.team_placement);
 	// Civs before the map, so starting units take their owner's roster templates.
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
@@ -5204,6 +5339,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_relic_count(setup.relics);
 	sim->set_regicide_garrison(setup.regicide_garrison != 0);
 	sim->set_lock_teams(setup.lock_teams != 0);
+	sim->set_cheats_enabled(setup.cheats != 0);
+	sim->set_disable_spies(setup.no_spies != 0);
 	sim->set_disable_treasures(setup.no_treasures != 0);
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) sim->set_player_color(p, setup.colors[p]);
 	sim->set_water_level_mode(setup.water_level);
@@ -5264,12 +5401,15 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("nomad", setup.nomad != 0);
 		ms->set("regicide_garrison", setup.regicide_garrison != 0);
 		ms->set("lock_teams", setup.lock_teams != 0);
+		ms->set("cheats", setup.cheats != 0);
+		ms->set("disable_spies", setup.no_spies != 0);
 		ms->set("disable_treasures", setup.no_treasures != 0);
 		Array snames;
 		for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) snames.push_back(String::utf8(setup.names[i].c_str()));
 		ms->set("slot_names", snames);
 		apply_player_names(snames);
 		ms->set("water_level", sim->water_level_mode());
+		ms->set("team_placement", (int)setup.team_placement);
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
@@ -5459,4 +5599,8 @@ void RtsoMain::_on_diplo_stance_changed(int stance, int player_idx) {
 
 void RtsoMain::_on_diplo_tribute_pressed(int player_idx, int res_type) {
 	diplo_dialog_.tribute_pressed(player_idx, res_type);
+}
+
+void RtsoMain::_on_diplo_spy_pressed(int player_idx) {
+	diplo_dialog_.spy_pressed(player_idx);
 }

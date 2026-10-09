@@ -1,0 +1,226 @@
+// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js TryConstructWall): a wall
+// is laid as towers joined by long, medium and short segments that reach into the towers within
+// the overlap limits; segments take their length's share of wall_long's cost and health, block
+// the cells under their turned footprint, keep them through save/load, and only a long one
+// upgrades to a gate. A wall snaps onto the player's towers and stops at the first piece it can't
+// pay for. Palisades are a WallSet of their own (wallset_palisade).
+//   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
+//       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+//       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
+#include "simulation/simulation.h"
+#include <cmath>
+#include <cstdio>
+
+using namespace rtso;
+
+static int failures = 0;
+#define CHECK(cond) do { if (!(cond)) { std::printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #cond); ++failures; } } while (0)
+
+static const Simulation::Building *find_bld(const Simulation &s, uint32_t id) {
+	for (const auto &b : s.buildings()) if (b.id == id) return &b;
+	return nullptr;
+}
+
+static int count_type(const Simulation &s, uint8_t type) {
+	int n = 0;
+	for (const auto &b : s.buildings()) n += b.type == type;
+	return n;
+}
+
+// Player 0 in the town phase with a Civic Centre at the origin.
+static void setup(Simulation &s, float stone) {
+	s.set_sim_seed(3);
+	s.reset();
+	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.player(0).phase = 2;
+	s.player(0).res[RES_STONE] = stone;
+}
+
+int main() {
+	static Simulation s;
+	setup(s, 0.0f);
+	const float t = WALL_TOWER_LENGTH;
+
+	// 1. Every length from two towers apart up gets a placement: towers at both ends and between
+	// the segments, each segment reaching into its towers within Min/MaxTowerOverlap.
+	{
+		bool all_ok = true;
+		for (float d = t + 0.1f; d < 60.0f; d += 0.37f) {
+			const auto p = s.wall_placement(0, -d * 0.5f, 10.0f, d * 0.5f, 10.0f);
+			bool ok = p.size() >= 3 && p.size() % 2 == 1 && p.front().type == BLD_WALL_TOWER && p.back().type == BLD_WALL_TOWER &&
+					std::fabs(p.front().x + d * 0.5f) < 1e-3f && std::fabs(p.back().x - d * 0.5f) < 1e-3f;
+			for (size_t i = 1; ok && i + 1 < p.size(); i += 2) {
+				const auto &seg = p[i];
+				ok = seg.type == BLD_WALL_SEGMENT && p[i + 1].type == BLD_WALL_TOWER;
+				const float reach_l = (seg.half_w - (seg.x - p[i - 1].x) + 0.5f * t) / t;
+				const float reach_r = (seg.half_w - (p[i + 1].x - seg.x) + 0.5f * t) / t;
+				for (float r : {reach_l, reach_r})
+					ok = ok && r >= WALL_MIN_TOWER_OVERLAP - 1e-3f && r <= WALL_MAX_TOWER_OVERLAP + 1e-3f;
+			}
+			if (!ok) {
+				std::printf("  no valid placement over %.2f\n", d);
+				all_ok = false;
+			}
+		}
+		CHECK(all_ok);
+		CHECK(s.wall_placement(0, 0.0f, 10.0f, t * 0.9f, 10.0f).empty()); // no room for two towers
+		// 20 units: two long segments; 12: a long and a short one, the long one first.
+		const auto a = s.wall_placement(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		CHECK(a.size() == 5 && a[1].half_w == 4.5f && a[3].half_w == 4.5f);
+		const auto b = s.wall_placement(0, -6.0f, 10.0f, 6.0f, 10.0f);
+		CHECK(b.size() == 5 && b[1].half_w == 4.5f && b[3].half_w == 1.5f);
+		std::printf("  placement: 20 units -> %zu pieces, 12 units -> long + short\n", a.size());
+	}
+
+	// 2. Laying it: foundations in order, segments by length (cost, health, footprint), the
+	// cells under a segment blocked for other buildings.
+	setup(s, 1000.0f);
+	{
+		const uint32_t worker = s.spawn_unit(0.0f, 6.0f, 0, UNIT_FEMALE_CITIZEN);
+		const size_t laid = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f, &worker, 1);
+		const float paid = 1000.0f - s.player(0).res[RES_STONE];
+		std::printf("  a 20-unit wall: %zu pieces laid, %.0f stone\n", laid, paid);
+		CHECK(laid == 5);
+		CHECK(paid == 2.0f * WALL_LONG_STONE + 3.0f * building_type_info(BLD_WALL_TOWER).stone_cost);
+		CHECK(count_type(s, BLD_WALL_TOWER) == 3 && count_type(s, BLD_WALL_SEGMENT) == 2);
+		for (const auto &bld : s.buildings()) {
+			if (bld.type != BLD_WALL_SEGMENT) continue;
+			CHECK(bld.half_size == 4.5f && bld.half_d == WALL_HALF_DEPTH);
+			// wall_long's Health after the civ's bonus (Hellenic Architecture for Athens).
+			const float hp = WALL_LONG_HEALTH * s.structure_max_hp(BLD_WALL_SEGMENT, 0) / building_type_info(BLD_WALL_SEGMENT).max_hp;
+			CHECK(std::fabs(bld.max_hp - hp) < 0.5f && bld.build_progress == 0.0f);
+			CHECK(std::fabs(bld.ux) == 1.0f || std::fabs(bld.uz) == 1.0f); // along x
+		}
+		// A segment's middle (x = -5.5 +- 1) lies under no tower: a house can't stand there.
+		CHECK(s.check_placement(0, -3, 5, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+		CHECK(s.check_placement(0, -3, 7, BLD_HOUSE) == Simulation::PLACE_OK);
+		// Save/load keeps the segments' extents and the cells they block.
+		const char *path = "/tmp/rtso_test_walls.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		int segs = 0;
+		for (const auto &bld : l.buildings())
+			if (bld.type == BLD_WALL_SEGMENT) segs += bld.half_size == 4.5f && bld.half_d == WALL_HALF_DEPTH;
+		CHECK(segs == 2);
+		CHECK(l.check_placement(0, -3, 5, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+		std::remove(path);
+
+		// 3. A wall from that wall's end tower snaps onto it: no second tower there.
+		const size_t more = s.cmd_build_wall(0, 10.3f, 10.2f, 10.0f, 22.0f);
+		std::printf("  continuing from its end tower: %zu pieces, towers %d\n", more, count_type(s, BLD_WALL_TOWER));
+		int at_joint = 0;
+		for (const auto &bld : s.buildings())
+			at_joint += bld.type == BLD_WALL_TOWER && std::fabs(bld.x - 10.0f) < 0.5f && std::fabs(bld.z - 10.0f) < 0.5f;
+		CHECK(more == 4 && count_type(s, BLD_WALL_TOWER) == 5 && at_joint == 1); // long, tower, short, tower
+	}
+
+	// 4. TryConstructWall stops at the first piece the player can't pay for.
+	setup(s, 100.0f);
+	{
+		const size_t laid = s.cmd_build_wall(0, -10.0f, 10.0f, 10.0f, 10.0f);
+		std::printf("  100 stone: %zu pieces laid\n", laid);
+		CHECK(laid == 2 && s.player(0).res[RES_STONE] == 100.0f - 48.0f - 36.0f);
+	}
+
+	// 5. Only a long segment upgrades to a gate (0 A.D. Upgrade is on wall_long alone).
+	setup(s, 2000.0f);
+	{
+		s.player(0).phase = 3;
+		s.player(0).res[RES_WOOD] = 2000.0f;
+		CHECK(s.cmd_build_wall(0, -6.0f, 10.0f, 6.0f, 10.0f) == 5);
+		uint32_t long_id = 0, short_id = 0;
+		for (const auto &bld : s.buildings()) {
+			if (bld.type != BLD_WALL_SEGMENT) continue;
+			auto &m = const_cast<Simulation::Building &>(bld);
+			m.build_progress = 1.0f;
+			m.hp = m.max_hp;
+			(bld.half_size == 4.5f ? long_id : short_id) = bld.id;
+		}
+		CHECK(long_id && short_id);
+		CHECK(s.upgrade_check(0, long_id) == Simulation::UPGRADE_OK);
+		CHECK(s.upgrade_check(0, short_id) != Simulation::UPGRADE_OK);
+		CHECK(s.cmd_upgrade_building(0, long_id));
+	}
+
+	// 6. Built, a short segment blocks the ground between its towers.
+	setup(s, 1000.0f);
+	{
+		const uint32_t worker = s.spawn_unit(0.0f, 7.0f, 0, UNIT_FEMALE_CITIZEN);
+		CHECK(s.cmd_build_wall(0, -1.75f, 10.0f, 1.75f, 10.0f, &worker, 1) == 3);
+		for (int k = 0; k < (int)(90.0f / Simulation::FIXED_STEP); ++k) s.tick(Simulation::FIXED_STEP);
+		int done = 0;
+		for (const auto &bld : s.buildings()) done += (bld.type == BLD_WALL_SEGMENT || bld.type == BLD_WALL_TOWER) && bld.build_progress >= 1.0f;
+		auto [cx, cy] = s.nav_grid().world_to_cell(0.0f, 10.0f);
+		const bool blocked = s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED;
+		std::printf("  short wall built by one woman in 90 s: %d of 3 pieces, ground between the towers %s\n", done,
+				blocked ? "blocked" : "open");
+		CHECK(done == 3 && blocked);
+	}
+
+	// 7. Palisades (wallset_palisade): 14/9/4 m pieces between 3 m palisade towers, paid in wood
+	// by length, in the village phase; a palisade wall snaps onto palisade towers only.
+	setup(s, 0.0f);
+	s.player(0).phase = 1;
+	s.player(0).res[RES_WOOD] = 1000.0f;
+	{
+		const WallSetInfo &ws = wallset_info(WALLSET_PALISADE);
+		bool all_ok = true;
+		for (float d = ws.tower_length + 0.1f; d < 30.0f; d += 0.13f) {
+			const auto p = s.wall_placement(0, -d * 0.5f, 10.0f, d * 0.5f, 10.0f, nullptr, nullptr, WALLSET_PALISADE);
+			bool ok = p.size() >= 3 && p.size() % 2 == 1;
+			for (size_t i = 0; ok && i < p.size(); ++i)
+				ok = p[i].type == BLD_PALISADE && (i % 2 == 0) == is_palisade_tower(p[i].type, p[i].half_w);
+			for (size_t i = 1; ok && i + 1 < p.size(); i += 2) {
+				const float reach_l = (p[i].half_w - (p[i].x - p[i - 1].x) + 0.5f * ws.tower_length) / ws.tower_length;
+				const float reach_r = (p[i].half_w - (p[i + 1].x - p[i].x) + 0.5f * ws.tower_length) / ws.tower_length;
+				for (float r : {reach_l, reach_r}) ok = ok && r >= ws.min_overlap - 1e-3f && r <= ws.max_overlap + 1e-3f;
+			}
+			if (!ok) {
+				std::printf("  no valid palisade placement over %.2f\n", d);
+				all_ok = false;
+			}
+		}
+		CHECK(all_ok);
+		// 7 units: two long palisades (3.5 each) reaching into three towers.
+		const auto a = s.wall_placement(0, -3.5f, 10.0f, 3.5f, 10.0f, nullptr, nullptr, WALLSET_PALISADE);
+		CHECK(a.size() == 5 && a[1].half_w == 1.75f && a[3].half_w == 1.75f);
+
+		const float wood0 = s.player(0).res[RES_WOOD];
+		const size_t laid = s.cmd_build_wall(0, -3.5f, 10.0f, 3.5f, 10.0f, nullptr, 0, false, WALLSET_PALISADE);
+		const float paid = wood0 - s.player(0).res[RES_WOOD];
+		std::printf("  a 7-unit palisade: %zu pieces, %.0f wood\n", laid, paid);
+		CHECK(laid == 5 && paid == 2.0f * 12.0f + 3.0f * 14.0f);
+		int towers = 0, longs = 0;
+		for (const auto &bld : s.buildings()) {
+			if (bld.type != BLD_PALISADE) continue;
+			const float scale = s.structure_max_hp(BLD_PALISADE, 0) / building_type_info(BLD_PALISADE).max_hp;
+			if (is_palisade_tower(bld.type, bld.half_size)) {
+				++towers;
+				CHECK(bld.half_d == PALISADE_TOWER_HALF && std::fabs(bld.max_hp - 700.0f * scale) < 0.5f);
+			} else {
+				longs += bld.half_size == 1.75f;
+				CHECK(bld.half_d == PALISADE_HALF_DEPTH && std::fabs(bld.max_hp - 600.0f * scale) < 0.5f);
+			}
+		}
+		CHECK(towers == 3 && longs == 2);
+		// A stone wall doesn't snap onto a palisade tower; a palisade does.
+		CHECK(s.wall_snap_tower(0, 3.5f, 10.0f, WALLSET_STONE) == 0);
+		CHECK(s.wall_snap_tower(0, 3.5f, 10.0f, WALLSET_PALISADE) != 0);
+		const size_t more = s.cmd_build_wall(0, 3.6f, 10.1f, 3.5f, 14.0f, nullptr, 0, false, WALLSET_PALISADE);
+		std::printf("  continuing the palisade from its end tower: %zu pieces\n", more);
+		CHECK(more == 2); // a long palisade and the end tower
+		// Stone walls still need the town phase.
+		CHECK(s.cmd_build_wall(0, -3.0f, 20.0f, 3.0f, 20.0f) == 0);
+	}
+
+	// 8. Lockstep carries the start point in 1/32 units.
+	{
+		float x, z;
+		Simulation::unpack_wall_point(Simulation::pack_wall_point(-37.25f, 101.5f), x, z);
+		CHECK(x == -37.25f && z == 101.5f);
+	}
+
+	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
+	return failures ? 1 : 0;
+}

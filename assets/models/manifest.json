@@ -35771,6 +35771,23 @@
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
+  "palisade": {
+   "file": "models/buildings/palisade.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.0,
+    1.806,
+    0.588
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_long.xml",
+    "mesh:props/palisade_rocks_long.dae",
+    "skin:props/palisade_main.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "palm": {
    "file": "models/vegetation/palm.glb",
    "origin": "ground-center",
@@ -42965,6 +42982,3653 @@
     "skin:structural/parth_pediment.png"
    ],
    "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_athenians_wall_gate_door": {
+   "file": "models/buildings/s_athenians_wall_gate_door.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.071,
+    6.463,
+    1.81
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_gate_door.xml",
+    "actor:art/actors/structures/athenians/wall_gate_struct.xml",
+    "mesh:structural/athen_wall_gate_struct.dae",
+    "mesh:structural/hele_wall_gate.dae",
+    "skin:props/hele_gate.png",
+    "skin:structural/ao/hele_wall_gate.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_athenians_wall_long": {
+   "file": "models/buildings/s_athenians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.071,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_long.xml",
+    "mesh:structural/athen_wall_long.dae",
+    "skin:structural/ao/hele_wall_long.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_athenians_wall_medium": {
+   "file": "models/buildings/s_athenians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.059,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_medium.xml",
+    "mesh:structural/athen_wall_medium.dae",
+    "skin:structural/ao/hele_wall_medium.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_athenians_wall_short": {
+   "file": "models/buildings/s_athenians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.104,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/athenians/wall_short.xml",
+    "mesh:structural/athen_wall_short.dae",
+    "skin:structural/ao/hele_wall_short.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_blacksmith": {
+   "file": "models/buildings/s_britons_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 26,
+   "size_meters": [
+    3.937,
+    3.964,
+    4.2
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/anvil.xml",
+    "actor:art/actors/props/special/eyecandy/barrel_a.xml",
+    "actor:art/actors/props/special/eyecandy/barrel_a_celt_sword_heap.xml",
+    "actor:art/actors/props/special/eyecandy/crate_a.xml",
+    "actor:art/actors/props/special/eyecandy/crate_pile.xml",
+    "actor:art/actors/props/structures/britons/workshop_anvil.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_armor.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_wood.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_barrels.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_bucket.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_bucket_water.xml",
+    "actor:art/actors/props/structures/decals/dirt_5x5.xml",
+    "actor:art/actors/props/units/helmets/celt_helmet_alesia_03.xml",
+    "actor:art/actors/props/units/helmets/celt_helmet_mihovo.xml",
+    "actor:art/actors/props/units/helmets/celt_helmet_waterloo.xml",
+    "actor:art/actors/props/units/shields/brit_shield_jav_sq_b_01.xml",
+    "actor:art/actors/props/units/shields/brit_shield_jav_sq_b_02.xml",
+    "actor:art/actors/props/units/shields/brit_shield_jav_sq_b_03.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_hex_b_02.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_hex_b_03.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_oval_e_01.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_oval_f_01.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_oval_g_01.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_oval_h_01.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_sq_c_02.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_sq_c_03.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_sq_d_02.xml",
+    "actor:art/actors/props/units/shields/brit_shield_spear_sq_d_03.xml",
+    "actor:art/actors/props/units/shields/props/brit_shield_boss_01.xml",
+    "actor:art/actors/props/units/shields/props/brit_shield_boss_03.xml",
+    "actor:art/actors/props/units/shields/props/brit_shield_boss_03_b.xml",
+    "actor:art/actors/props/units/shields/props/brit_shield_boss_04.xml",
+    "actor:art/actors/props/units/shields/props/celt_manipula.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_b_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_hex_b_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_e_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_f_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_g_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_h_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_d_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_e_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_e_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_sq_b_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_sq_c_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_sq_d_b.xml",
+    "actor:art/actors/props/units/tools/hammer.xml",
+    "actor:art/actors/props/units/tools/tongs_01.xml",
+    "actor:art/actors/props/units/tools/tongs_02.xml",
+    "actor:art/actors/props/units/weapons/csword.xml",
+    "actor:art/actors/structures/britons/blacksmith.xml",
+    "mesh:props/box_pile_01.dae",
+    "mesh:props/brit_workshop_anvil.dae",
+    "mesh:props/celt_blacksmith_armorstand_rome_csp_a.dae",
+    "mesh:props/celt_blacksmith_armorstand_struct.dae",
+    "mesh:props/celt_blacksmith_barrels.dae",
+    "mesh:props/celt_blacksmith_bucket.dae",
+    "mesh:props/celt_blacksmith_bucket_water.dae",
+    "mesh:props/helmet/celt_alesia_03.dae",
+    "mesh:props/helmet/celt_mihovo.dae",
+    "mesh:props/helmet/celt_waterloo.dae",
+    "mesh:props/shield/hex_02.dae",
+    "mesh:props/shield/hex_02_b.dae",
+    "mesh:props/shield/oval_05.dae",
+    "mesh:props/shield/oval_05_b.dae",
+    "mesh:props/shield/oval_06.dae",
+    "mesh:props/shield/oval_06_b.dae",
+    "mesh:props/shield/oval_07.dae",
+    "mesh:props/shield/oval_07_b.dae",
+    "mesh:props/shield/oval_08.dae",
+    "mesh:props/shield/oval_08_b.dae",
+    "mesh:props/shield/props/boss_b_1.dae",
+    "mesh:props/shield/props/celt_boss_01.dae",
+    "mesh:props/shield/props/celt_boss_03.dae",
+    "mesh:props/shield/props/celt_boss_03_b.dae",
+    "mesh:props/shield/props/celt_boss_04.dae",
+    "mesh:props/shield/props/celt_manipula_a.dae",
+    "mesh:props/shield/props/spina_d.dae",
+    "mesh:props/shield/props/spina_e.dae",
+    "mesh:props/shield/sq_02.dae",
+    "mesh:props/shield/sq_02_b.dae",
+    "mesh:props/shield/sq_03.dae",
+    "mesh:props/shield/sq_03_b.dae",
+    "mesh:props/shield/sq_04.dae",
+    "mesh:props/shield/sq_04_b.dae",
+    "mesh:props/tool_hammer.dae",
+    "mesh:props/tool_tongs_01.dae",
+    "mesh:props/tool_tongs_02.dae",
+    "mesh:props/weap_csword_a.dae",
+    "mesh:props/wrld_anvil.dae",
+    "mesh:props/wrld_crate_a.dae",
+    "mesh:structural/brit_blacksmith.dae",
+    "skin:null_white.dds",
+    "skin:props/celt_prop_1.png",
+    "skin:props/helmet/celt_alesia_02_iron.png",
+    "skin:props/helmet/celt_mihovo_iron.png",
+    "skin:props/helmet/celt_waterloo_iron.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/celt_shield_01.png",
+    "skin:props/shield/celt_shield_boss_01.png",
+    "skin:props/shield/celt_shield_boss_03.png",
+    "skin:props/shield/celt_shield_boss_04.png",
+    "skin:props/shield/hex_02_border.png",
+    "skin:props/shield/oval_05_border.png",
+    "skin:props/shield/oval_06_border.png",
+    "skin:props/shield/oval_07_border.png",
+    "skin:props/shield/oval_08_border.png",
+    "skin:props/shield/shield_props_01.png",
+    "skin:props/shield/sq_02_border.png",
+    "skin:props/shield/sq_03_border.png",
+    "skin:props/shield/sq_04_border.png",
+    "skin:props/wrld_anvil.dds",
+    "skin:skeletal/celt/chainmail_02_01.png",
+    "skin:structural/ao/brit_blacksmith.png",
+    "skin:structural/brit_struct.png",
+    "skin:structural/celt_struct_1.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_range": {
+   "file": "models/buildings/s_britons_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    3.8,
+    3.027,
+    3.305
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/britons/range_nature.xml",
+    "actor:art/actors/props/structures/britons/range_shields.xml",
+    "actor:art/actors/props/structures/decals/dirt_7x7.xml",
+    "actor:art/actors/structures/britons/range.xml",
+    "mesh:props/brit_range_nature.dae",
+    "mesh:props/brit_range_shields.dae",
+    "mesh:structural/brit_range.dae",
+    "skin:props/celt_props_new.dds",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/brit_range.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_stable": {
+   "file": "models/buildings/s_britons_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    4.2,
+    3.734,
+    3.8
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/structures/britons/stable_nature.xml",
+    "actor:art/actors/props/structures/britons/stable_shields.xml",
+    "actor:art/actors/props/structures/britons/stable_water.xml",
+    "actor:art/actors/props/structures/celts/stable_horse_a.xml",
+    "actor:art/actors/props/structures/celts/stable_horse_b.xml",
+    "actor:art/actors/props/structures/celts/stable_horse_c.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/structures/britons/stable.xml",
+    "mesh:props/brit_stable_nature.dae",
+    "mesh:props/brit_stable_shields.dae",
+    "mesh:props/brit_stable_water.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_celtic.dae",
+    "mesh:structural/brit_stable.dae",
+    "skin:props/celt_props_new.dds",
+    "skin:props/gardens_turf.png",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/structs_nature.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/brit_stable.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wall_gate": {
+   "file": "models/buildings/s_britons_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.317,
+    6.881,
+    2.379
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_gate.xml",
+    "actor:art/actors/structures/britons/wall_gate.xml",
+    "mesh:props/palisade_rocks_gate.dae",
+    "mesh:structural/brit_wall_gate.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/brit_wall_gate_AO.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wall_long": {
+   "file": "models/buildings/s_britons_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.393,
+    4.867,
+    2.387
+   ],
+   "sources": [
+    "actor:art/actors/structures/britons/wall_long.xml",
+    "mesh:structural/brit_wall_long.dae",
+    "skin:structural/ao/brit_wall_long_AO.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wall_medium": {
+   "file": "models/buildings/s_britons_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.324,
+    4.905,
+    2.37
+   ],
+   "sources": [
+    "actor:art/actors/structures/britons/wall_medium.xml",
+    "mesh:structural/brit_wall_medium.dae",
+    "skin:structural/ao/brit_wall_medium.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wall_short": {
+   "file": "models/buildings/s_britons_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.391,
+    4.905,
+    2.37
+   ],
+   "sources": [
+    "actor:art/actors/structures/britons/wall_short.xml",
+    "mesh:structural/brit_wall_short.dae",
+    "skin:structural/ao/brit_wall_short_AO.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_wooden_tower": {
+   "file": "models/buildings/s_britons_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    2.0,
+    5.077,
+    1.871
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/celts/kennel_mud.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/britons/wooden_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/brit_wooden_tower.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/brit_wooden_tower_AO.png",
+    "skin:structural/brit_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_britons_workshop": {
+   "file": "models/buildings/s_britons_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 9,
+   "size_meters": [
+    4.569,
+    3.724,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/anvil.xml",
+    "actor:art/actors/props/special/eyecandy/barrel_a.xml",
+    "actor:art/actors/props/structures/britons/workshop_anvil.xml",
+    "actor:art/actors/props/structures/britons/workshop_barrels_01.xml",
+    "actor:art/actors/props/structures/britons/workshop_barrels_02.xml",
+    "actor:art/actors/props/structures/britons/workshop_box_pile_01.xml",
+    "actor:art/actors/props/structures/britons/workshop_box_pile_02.xml",
+    "actor:art/actors/props/structures/britons/workshop_boxes.xml",
+    "actor:art/actors/props/structures/britons/workshop_chariot_01.xml",
+    "actor:art/actors/props/structures/britons/workshop_chariot_02.xml",
+    "actor:art/actors/props/structures/britons/workshop_chariot_prop_wheel.xml",
+    "actor:art/actors/props/structures/britons/workshop_chariot_props_01.xml",
+    "actor:art/actors/props/structures/britons/workshop_chariot_props_02.xml",
+    "actor:art/actors/props/structures/britons/workshop_empty_barrel.xml",
+    "actor:art/actors/props/structures/britons/workshop_nature.xml",
+    "actor:art/actors/props/structures/britons/workshop_pelts.xml",
+    "actor:art/actors/props/structures/britons/workshop_planks.xml",
+    "actor:art/actors/props/structures/britons/workshop_ram.xml",
+    "actor:art/actors/props/structures/britons/workshop_ram_trunks.xml",
+    "actor:art/actors/props/structures/britons/workshop_ram_wheels.xml",
+    "actor:art/actors/props/structures/britons/workshop_shields.xml",
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/britons/workshop.xml",
+    "mesh:props/brit_workshop_anvil.dae",
+    "mesh:props/brit_workshop_barrels_01.dae",
+    "mesh:props/brit_workshop_barrels_02.dae",
+    "mesh:props/brit_workshop_box_pile_01.dae",
+    "mesh:props/brit_workshop_box_pile_02.dae",
+    "mesh:props/brit_workshop_boxes.dae",
+    "mesh:props/brit_workshop_chariot_01.dae",
+    "mesh:props/brit_workshop_chariot_02.dae",
+    "mesh:props/brit_workshop_chariot_prop_wheel.dae",
+    "mesh:props/brit_workshop_chariot_props_01.dae",
+    "mesh:props/brit_workshop_chariot_props_02.dae",
+    "mesh:props/brit_workshop_nature.dae",
+    "mesh:props/brit_workshop_pelts.dae",
+    "mesh:props/brit_workshop_planks.dae",
+    "mesh:props/brit_workshop_ram.dae",
+    "mesh:props/brit_workshop_ram_wheels.dae",
+    "mesh:props/brit_workshop_shields.dae",
+    "mesh:props/brit_workshop_trunks.dae",
+    "mesh:props/wrld_anvil.dae",
+    "mesh:structural/brit_workshop.dae",
+    "skin:null_white.dds",
+    "skin:props/celt_prop_1.png",
+    "skin:props/celt_props_new.dds",
+    "skin:props/structs_nature.png",
+    "skin:props/wrld_anvil.dds",
+    "skin:structural/ao/brit_workshop.png",
+    "skin:structural/brit_struct.png",
+    "skin:structural/celt_chariot_a.dds",
+    "skin:structural/celt_chariot_b.dds",
+    "skin:structural/celt_siege_ram.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_blacksmith": {
+   "file": "models/buildings/s_carthaginians_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    4.2,
+    3.152,
+    4.119
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/carthaginians/blacksmith.xml",
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/structures/carthaginians/blacksmith.xml",
+    "mesh:structural/kart_blacksmith.dae",
+    "mesh:structural/kart_blacksmith_props.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/kart_blacksmith.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_outpost": {
+   "file": "models/buildings/s_carthaginians_outpost.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.999,
+    6.242,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_outpost_banners.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/carthaginians/outpost.xml",
+    "mesh:props/palisade_rocks_outpost.dae",
+    "mesh:props/palisade_rocks_outpost_banners.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_carthaginians_range": {
+   "file": "models/buildings/s_carthaginians_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.8,
+    2.715,
+    3.672
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x8.xml",
+    "actor:art/actors/structures/carthaginians/range.xml",
+    "mesh:structural/kart_range.dae",
+    "skin:structural/ao/kart_range_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_stable": {
+   "file": "models/buildings/s_carthaginians_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.2,
+    3.939,
+    4.081
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_a.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_b.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_c.xml",
+    "actor:art/actors/structures/carthaginians/stable.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "mesh:structural/kart_stable.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/kart_stable_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wall_gate": {
+   "file": "models/buildings/s_carthaginians_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.248,
+    7.236,
+    3.464
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/gate.xml",
+    "actor:art/actors/structures/carthaginians/wall_gate.xml",
+    "mesh:structural/kart_gate_b.dae",
+    "mesh:structural/kart_wall_gate_b.dae",
+    "skin:structural/ao/kart_wall_gate_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wall_long": {
+   "file": "models/buildings/s_carthaginians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.309,
+    6.244,
+    3.017
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/wall_long.xml",
+    "mesh:structural/kart_wall_long_b.dae",
+    "skin:structural/ao/kart_wall_long_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wall_medium": {
+   "file": "models/buildings/s_carthaginians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.2,
+    6.233,
+    3.017
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/wall_medium.xml",
+    "mesh:structural/kart_wall_medium_b.dae",
+    "skin:structural/ao/kart_wall_medium_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wall_short": {
+   "file": "models/buildings/s_carthaginians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.15,
+    5.884,
+    3.017
+   ],
+   "sources": [
+    "actor:art/actors/structures/carthaginians/wall_short.xml",
+    "mesh:structural/kart_wall_short_b.dae",
+    "skin:structural/ao/kart_wall_short_b_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_wooden_tower": {
+   "file": "models/buildings/s_carthaginians_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.998,
+    6.015,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_1x1.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/carthaginians/wooden_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/kart_wooden_tower.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/cart_wooden_tower_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_carthaginians_workshop": {
+   "file": "models/buildings/s_carthaginians_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.853,
+    3.668,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/carthaginians/workshop.xml",
+    "mesh:structural/kart_workshop.dae",
+    "skin:structural/ao/kart_workshop_AO.png",
+    "skin:structural/kart_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_celts_outpost": {
+   "file": "models/buildings/s_celts_outpost.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.999,
+    6.242,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_outpost_banners.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/celts/outpost.xml",
+    "mesh:props/palisade_rocks_outpost.dae",
+    "mesh:props/palisade_rocks_outpost_banners.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_celts_wall_gate": {
+   "file": "models/buildings/s_celts_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.738,
+    7.306,
+    2.539
+   ],
+   "sources": [
+    "actor:art/actors/structures/celts/wall_gate.xml",
+    "mesh:structural/celt_wall_gate.dae",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_gauls_blacksmith": {
+   "file": "models/buildings/s_gauls_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 21,
+   "size_meters": [
+    4.2,
+    3.758,
+    4.151
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/anvil.xml",
+    "actor:art/actors/props/special/eyecandy/barrel_a.xml",
+    "actor:art/actors/props/special/eyecandy/barrel_a_celt_sword_heap.xml",
+    "actor:art/actors/props/special/eyecandy/crate_a.xml",
+    "actor:art/actors/props/special/eyecandy/crate_pile.xml",
+    "actor:art/actors/props/structures/britons/workshop_anvil.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_armor.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_armorstand_wood.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_barrels.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_bucket.xml",
+    "actor:art/actors/props/structures/celts/blacksmith_bucket_water.xml",
+    "actor:art/actors/props/structures/decals/dirt_5x5.xml",
+    "actor:art/actors/props/units/helmets/celt_helmet_alesia_03.xml",
+    "actor:art/actors/props/units/helmets/celt_helmet_mihovo.xml",
+    "actor:art/actors/props/units/helmets/celt_helmet_waterloo.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_cav_sw_hex_a_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_jav_oval_d_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_jav_oval_h_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_jav_oval_h_02.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_jav_oval_h_03.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_jav_sq_b_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_jav_sq_b_02.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_jav_sq_b_03.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_oval_b_03.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_hex_a_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_hex_a_02.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_hex_a_03.xml",
+    "actor:art/actors/props/units/shields/props/celt_manipula.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_a_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_b_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_b_02.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_b_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_e_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_e_02.xml",
+    "actor:art/actors/props/units/shields/props/shield_hex_a_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_b_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_d_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_h_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_a_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_d_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_d_02.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_e_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_e_02.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_e_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_c_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_d_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_e_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_sq_b_b.xml",
+    "actor:art/actors/props/units/tools/hammer.xml",
+    "actor:art/actors/props/units/tools/tongs_01.xml",
+    "actor:art/actors/props/units/tools/tongs_02.xml",
+    "actor:art/actors/props/units/weapons/csword.xml",
+    "actor:art/actors/structures/gauls/blacksmith.xml",
+    "mesh:props/box_pile_01.dae",
+    "mesh:props/brit_workshop_anvil.dae",
+    "mesh:props/celt_blacksmith_armorstand_rome_csp_a.dae",
+    "mesh:props/celt_blacksmith_armorstand_struct.dae",
+    "mesh:props/celt_blacksmith_barrels.dae",
+    "mesh:props/celt_blacksmith_bucket.dae",
+    "mesh:props/celt_blacksmith_bucket_water.dae",
+    "mesh:props/helmet/celt_alesia_03.dae",
+    "mesh:props/helmet/celt_mihovo.dae",
+    "mesh:props/helmet/celt_waterloo.dae",
+    "mesh:props/shield/hex_01.dae",
+    "mesh:props/shield/hex_01_b.dae",
+    "mesh:props/shield/oval_02.dae",
+    "mesh:props/shield/oval_02_b.dae",
+    "mesh:props/shield/oval_04.dae",
+    "mesh:props/shield/oval_04_b.dae",
+    "mesh:props/shield/oval_08.dae",
+    "mesh:props/shield/oval_08_b.dae",
+    "mesh:props/shield/props/boss_a_1.dae",
+    "mesh:props/shield/props/boss_b_1.dae",
+    "mesh:props/shield/props/boss_b_2.dae",
+    "mesh:props/shield/props/boss_b_3.dae",
+    "mesh:props/shield/props/boss_e.dae",
+    "mesh:props/shield/props/celt_manipula_a.dae",
+    "mesh:props/shield/props/spina_a.dae",
+    "mesh:props/shield/props/spina_c.dae",
+    "mesh:props/shield/props/spina_d.dae",
+    "mesh:props/shield/props/spina_e.dae",
+    "mesh:props/shield/sq_02.dae",
+    "mesh:props/shield/sq_02_b.dae",
+    "mesh:props/tool_hammer.dae",
+    "mesh:props/tool_tongs_01.dae",
+    "mesh:props/tool_tongs_02.dae",
+    "mesh:props/weap_csword_a.dae",
+    "mesh:props/wrld_anvil.dae",
+    "mesh:props/wrld_crate_a.dae",
+    "mesh:structural/gaul_blacksmith.dae",
+    "skin:null_white.dds",
+    "skin:props/celt_prop_1.png",
+    "skin:props/helmet/celt_alesia_02_iron.png",
+    "skin:props/helmet/celt_mihovo_iron.png",
+    "skin:props/helmet/celt_waterloo_iron.png",
+    "skin:props/prop_weap.dds",
+    "skin:props/shield/celt_shield_01.png",
+    "skin:props/shield/celt_shield_02.png",
+    "skin:props/shield/hex_01_border.png",
+    "skin:props/shield/oval_02_border.png",
+    "skin:props/shield/oval_04_border.png",
+    "skin:props/shield/oval_08_border.png",
+    "skin:props/shield/shield_props_01.png",
+    "skin:props/shield/sq_02_border.png",
+    "skin:props/wrld_anvil.dds",
+    "skin:skeletal/celt/chainmail_02_01.png",
+    "skin:structural/ao/gaul_blacksmith.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/celt_struct_1.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_range": {
+   "file": "models/buildings/s_gauls_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.8,
+    2.961,
+    3.754
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x7.xml",
+    "actor:art/actors/structures/gauls/range.xml",
+    "mesh:structural/gaul_range.dae",
+    "skin:structural/ao/gaul_range.png",
+    "skin:structural/celt_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_stable": {
+   "file": "models/buildings/s_gauls_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    4.2,
+    2.66,
+    3.534
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/special/eyecandy/barrel_a.xml",
+    "actor:art/actors/props/structures/celts/stable_horse_a.xml",
+    "actor:art/actors/props/structures/celts/stable_horse_b.xml",
+    "actor:art/actors/props/structures/celts/stable_horse_c.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/gauls/stable_barrel_01.xml",
+    "actor:art/actors/props/structures/gauls/stable_barrel_02.xml",
+    "actor:art/actors/props/structures/gauls/stable_barrel_03.xml",
+    "actor:art/actors/props/structures/gauls/stable_hay_stack.xml",
+    "actor:art/actors/props/structures/gauls/stable_ladder.xml",
+    "actor:art/actors/props/structures/gauls/stable_nature.xml",
+    "actor:art/actors/props/structures/gauls/stable_shields.xml",
+    "actor:art/actors/props/structures/gauls/stable_water.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/gauls/stable.xml",
+    "mesh:props/celt_blacksmith_barrels.dae",
+    "mesh:props/gaul_stable_hay_stack.dae",
+    "mesh:props/gaul_stable_ladder.dae",
+    "mesh:props/gaul_stable_nature.dae",
+    "mesh:props/gaul_stable_shields.dae",
+    "mesh:props/gaul_stable_water.dae",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:skeletal/horse_celtic.dae",
+    "mesh:structural/gaul_stable.dae",
+    "skin:null_white.dds",
+    "skin:props/celt_props_new.dds",
+    "skin:props/gardens_turf.png",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:props/structs_nature.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/gaul_stable.png",
+    "skin:structural/celt_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_theater": {
+   "file": "models/buildings/s_gauls_theater.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 15,
+   "size_meters": [
+    5.0,
+    2.651,
+    4.373
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/barrel_a.xml",
+    "actor:art/actors/props/special/eyecandy/crate_a.xml",
+    "actor:art/actors/props/special/eyecandy/dead_bull_head.xml",
+    "actor:art/actors/props/special/eyecandy/food_sack.xml",
+    "actor:art/actors/props/structures/decals/dirt_6x6_gaul_theater.xml",
+    "actor:art/actors/props/structures/gauls/theater_nature.xml",
+    "actor:art/actors/props/structures/gauls/theater_roof.xml",
+    "actor:art/actors/props/structures/gauls/theater_standard_boar.xml",
+    "actor:art/actors/props/structures/gauls/theater_standard_post.xml",
+    "actor:art/actors/props/structures/gauls/theater_standard_raven.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_cav_sw_hex_a_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_hex_a_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_hex_a_02.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_hex_a_03.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_oval_b_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_oval_b_02.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_oval_b_03.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_oval_c_01.xml",
+    "actor:art/actors/props/units/shields/gaul_shield_spear_oval_c_02.xml",
+    "actor:art/actors/props/units/shields/props/celt_manipula.xml",
+    "actor:art/actors/props/units/shields/props/celt_orle_oval_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_a_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_boss_b_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_hex_a_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_b_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_oval_c_b.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_a_01.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_a_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_boss_e_03.xml",
+    "actor:art/actors/props/units/shields/props/shield_spina_e_01.xml",
+    "actor:art/actors/structures/gauls/theater.xml",
+    "mesh:props/gaul_standard_boar.dae",
+    "mesh:props/gaul_standard_post.dae",
+    "mesh:props/gaul_standard_raven.dae",
+    "mesh:props/gaul_theater_nature.dae",
+    "mesh:props/gaul_theater_roof.dae",
+    "mesh:props/shield/hex_01.dae",
+    "mesh:props/shield/hex_01_b.dae",
+    "mesh:props/shield/oval_02.dae",
+    "mesh:props/shield/oval_02_b.dae",
+    "mesh:props/shield/oval_03.dae",
+    "mesh:props/shield/oval_03_b.dae",
+    "mesh:props/shield/props/boss_a_1.dae",
+    "mesh:props/shield/props/boss_b_1.dae",
+    "mesh:props/shield/props/celt_manipula_a.dae",
+    "mesh:props/shield/props/orle_oval_02.dae",
+    "mesh:props/shield/props/spina_a.dae",
+    "mesh:props/shield/props/spina_e.dae",
+    "mesh:props/wrld_crate_a.dae",
+    "mesh:props/wrld_dead_bull_head.dae",
+    "mesh:props/wrld_food_sack_01.dae",
+    "mesh:structural/gaul_theater.dae",
+    "skin:props/celt_prop_1.png",
+    "skin:props/celt_props_new.dds",
+    "skin:props/helmet/celt_boar_bronze.png",
+    "skin:props/helmet/celt_raven_bronze.png",
+    "skin:props/shield/celt_shield_01.png",
+    "skin:props/shield/hex_01_border.png",
+    "skin:props/shield/orle_iron.png",
+    "skin:props/shield/oval_02_border.png",
+    "skin:props/shield/oval_03_border.png",
+    "skin:props/shield/shield_props_01.png",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/gaul_theater.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/gaul_tile_mossy.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_wall_long": {
+   "file": "models/buildings/s_gauls_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.457,
+    5.078,
+    2.289
+   ],
+   "sources": [
+    "actor:art/actors/structures/gauls/wall_long.xml",
+    "mesh:structural/gaul_wall_long.dae",
+    "skin:structural/ao/gaul_wall_long.png",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_wall_medium": {
+   "file": "models/buildings/s_gauls_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.476,
+    5.078,
+    2.326
+   ],
+   "sources": [
+    "actor:art/actors/structures/gauls/wall_medium.xml",
+    "mesh:structural/gaul_wall_medium.dae",
+    "skin:structural/ao/gaul_wall_medium.png",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_wall_short": {
+   "file": "models/buildings/s_gauls_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.482,
+    5.078,
+    2.289
+   ],
+   "sources": [
+    "actor:art/actors/structures/gauls/wall_short.xml",
+    "mesh:structural/gaul_wall_short.dae",
+    "skin:structural/ao/gaul_wall_short.png",
+    "skin:structural/celt_murus.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_wooden_tower": {
+   "file": "models/buildings/s_gauls_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    2.0,
+    6.509,
+    1.75
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_underbrush.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/gauls/wooden_tower.xml",
+    "mesh:gaia/underbrush_01.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/gaul_wooden_tower.dae",
+    "skin:gaia/tree_euro_beech_a.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/gaul_wooden_tower_AO.png",
+    "skin:structural/celt_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_gauls_workshop": {
+   "file": "models/buildings/s_gauls_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.0,
+    3.039,
+    4.585
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/gauls/workshop.xml",
+    "mesh:structural/gaul_workshop.dae",
+    "skin:structural/ao/gaul_workshop.png",
+    "skin:structural/celt_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_forge": {
+   "file": "models/buildings/s_han_forge.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    4.009,
+    5.248,
+    4.2
+   ],
+   "sources": [
+    "actor:art/actors/props/geology/geo_waterfall_single_water.xml",
+    "actor:art/actors/props/structures/decals/dirt_6x6.xml",
+    "actor:art/actors/props/structures/han/forge_water.xml",
+    "actor:art/actors/props/structures/han/forge_wheel.xml",
+    "actor:art/actors/structures/han/forge.xml",
+    "mesh:gaia/geo_waterfall_single_water.dae",
+    "mesh:props/han_forge_water.dae",
+    "mesh:props/han_forge_wheel.dae",
+    "mesh:structural/han_forge.dae",
+    "skin:props/gardens_turf.png",
+    "skin:structural/ao/han_forge.png",
+    "skin:structural/han_struct_02.png",
+    "skin:temp/waterfall.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_tower_small": {
+   "file": "models/buildings/s_han_tower_small.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.864,
+    5.102,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_underbrush.xml",
+    "actor:art/actors/props/structures/decals/dirt_1x1.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/han/tower_small.xml",
+    "mesh:gaia/underbrush_01.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/han_outpost.dae",
+    "skin:gaia/tree_euro_beech_a.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/han_outpost.png",
+    "skin:structural/han_struct_02.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_wall_gate": {
+   "file": "models/buildings/s_han_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    3.8,
+    3.085,
+    1.24
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gate_gutters.xml",
+    "actor:art/actors/props/structures/han/wall_gate_struct.xml",
+    "actor:art/actors/structures/han/wall_gate.xml",
+    "mesh:structural/han_wall_gate.dae",
+    "mesh:structural/han_wall_gate_gutters.dae",
+    "mesh:structural/han_wall_gate_struct.dae",
+    "skin:structural/ao/han_wall_gate.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_han_wall_gate_wall_gate": {
+   "file": "models/buildings/s_han_wall_gate_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    9.176,
+    7.449,
+    2.995
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gate_gutters.xml",
+    "actor:art/actors/props/structures/han/wall_gate_struct.xml",
+    "actor:art/actors/structures/han/wall_gate.xml",
+    "mesh:structural/han_wall_gate.dae",
+    "mesh:structural/han_wall_gate_gutters.dae",
+    "mesh:structural/han_wall_gate_struct.dae",
+    "skin:structural/ao/han_wall_gate.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_han_wall_long": {
+   "file": "models/buildings/s_han_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    2.0,
+    0.854,
+    0.528
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gutter.xml",
+    "actor:art/actors/structures/han/wall_long.xml",
+    "mesh:structural/han_wall_gutter.dae",
+    "mesh:structural/han_wall_long.dae",
+    "skin:structural/ao/han_wall_gutter.png",
+    "skin:structural/ao/han_wall_long.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_wall_long_wall_long": {
+   "file": "models/buildings/s_han_wall_long_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.196,
+    3.925,
+    2.426
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gutter.xml",
+    "actor:art/actors/structures/han/wall_long.xml",
+    "mesh:structural/han_wall_gutter.dae",
+    "mesh:structural/han_wall_long.dae",
+    "skin:structural/ao/han_wall_gutter.png",
+    "skin:structural/ao/han_wall_long.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_wall_medium": {
+   "file": "models/buildings/s_han_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    6.13,
+    3.925,
+    2.426
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gutter.xml",
+    "actor:art/actors/structures/han/wall_medium.xml",
+    "mesh:structural/han_wall_gutter.dae",
+    "mesh:structural/han_wall_medium.dae",
+    "skin:structural/ao/han_wall_gutter.png",
+    "skin:structural/ao/han_wall_medium.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_han_wall_short": {
+   "file": "models/buildings/s_han_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.077,
+    3.925,
+    2.426
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/han/wall_gutter.xml",
+    "actor:art/actors/structures/han/wall_short.xml",
+    "mesh:structural/han_wall_gutter.dae",
+    "mesh:structural/han_wall_short.dae",
+    "skin:structural/ao/han_wall_gutter.png",
+    "skin:structural/ao/han_wall_short.png",
+    "skin:structural/han_struct_02.png",
+    "skin:structural/han_wall_gutter.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_wall_gate": {
+   "file": "models/buildings/s_hellenes_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.071,
+    6.463,
+    1.81
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/hellenes/gate_door.xml",
+    "actor:art/actors/structures/hellenes/wall_gate.xml",
+    "mesh:structural/hele_gate_door.dae",
+    "mesh:structural/hele_wall_gate.dae",
+    "skin:props/hele_gate.png",
+    "skin:structural/ao/hele_wall_gate.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_hellenes_wall_long": {
+   "file": "models/buildings/s_hellenes_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.071,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/hellenes/wall_long.xml",
+    "mesh:structural/hele_wall_long.dae",
+    "skin:structural/ao/hele_wall_long.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_wall_medium": {
+   "file": "models/buildings/s_hellenes_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.059,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/hellenes/wall_medium.xml",
+    "mesh:structural/hele_wall_medium.dae",
+    "skin:structural/ao/hele_wall_medium.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_wall_short": {
+   "file": "models/buildings/s_hellenes_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.104,
+    5.77,
+    1.403
+   ],
+   "sources": [
+    "actor:art/actors/structures/hellenes/wall_short.xml",
+    "mesh:structural/hele_wall_short.dae",
+    "skin:structural/ao/hele_wall_short.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_wooden_tower": {
+   "file": "models/buildings/s_hellenes_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    2.0,
+    6.352,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_1x1.xml",
+    "actor:art/actors/props/structures/hellenes/wooden_tower_2.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/hellenes/wooden_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/hele_wooden_tower.dae",
+    "mesh:structural/hele_wooden_tower_2.dae",
+    "skin:props/hele_props_a.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/generic_wooden_tower.png",
+    "skin:structural/ao/hele_wooden_tower_AO.png",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_hellenes_workshop": {
+   "file": "models/buildings/s_hellenes_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    5.0,
+    3.506,
+    4.849
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/props/structures/hellenes/workshop_2.xml",
+    "actor:art/actors/props/structures/hellenes/workshop_struct.xml",
+    "actor:art/actors/structures/hellenes/workshop.xml",
+    "mesh:props/hele_workshop_2.dae",
+    "mesh:props/hele_workshop_struct.dae",
+    "mesh:structural/hele_workshop.dae",
+    "skin:structural/ao/hele_workshop.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/hele_struct_2.dds",
+    "skin:structural/hele_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_iberians_blacksmith": {
+   "file": "models/buildings/s_iberians_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.2,
+    2.547,
+    3.93
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_barrel.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_barrels.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_bucket.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_props.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_shields1.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_shields2.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_spear.xml",
+    "actor:art/actors/props/structures/iberians/blacksmith_wheel.xml",
+    "actor:art/actors/structures/iberians/blacksmith.xml",
+    "mesh:props/iber_blacksmith_barrel_prop.dae",
+    "mesh:props/iber_blacksmith_barrels_prop.dae",
+    "mesh:props/iber_blacksmith_bucket_prop.dae",
+    "mesh:props/iber_blacksmith_shields1_prop.dae",
+    "mesh:props/iber_blacksmith_shields2_prop.dae",
+    "mesh:props/iber_blacksmith_spear_prop.dae",
+    "mesh:props/iber_blacksmith_wheel_prop.dae",
+    "mesh:structural/iber_blacksmith_props.dae",
+    "mesh:structural/iber_blacksmith_struct.dae",
+    "skin:props/iber_prop_shields.dds",
+    "skin:structural/ao/iber_blacksmith.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_iberians_outpost": {
+   "file": "models/buildings/s_iberians_outpost.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.999,
+    6.242,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_outpost_banners.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/iberians/outpost.xml",
+    "mesh:props/palisade_rocks_outpost.dae",
+    "mesh:props/palisade_rocks_outpost_banners.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_iberians_range": {
+   "file": "models/buildings/s_iberians_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.8,
+    3.118,
+    3.161
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_7x6.xml",
+    "actor:art/actors/props/structures/iberians/range_nature.xml",
+    "actor:art/actors/structures/iberians/range.xml",
+    "mesh:structural/iber_range3.dae",
+    "mesh:structural/iber_range3_nature.dae",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/iber_range3_ao.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_iberians_sb_1": {
+   "file": "models/buildings/s_iberians_sb_1.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 5,
+   "size_meters": [
+    1.188,
+    2.457,
+    1.6
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_2x2.xml",
+    "actor:art/actors/props/structures/iberians/iber_bull_statue.xml",
+    "actor:art/actors/props/structures/iberians/iber_lion_statue_small.xml",
+    "actor:art/actors/props/structures/iberians/sb_1_a.xml",
+    "actor:art/actors/props/structures/iberians/sb_1_b.xml",
+    "actor:art/actors/structures/iberians/sb_1.xml",
+    "mesh:props/iber_bull_statue.dae",
+    "mesh:props/iber_lion_statue_small.dae",
+    "mesh:props/iber_sb_props_a.dae",
+    "mesh:props/iber_sb_props_b.dae",
+    "mesh:structural/iber_sb_mon_1.dae",
+    "skin:props/iber_prop_shields.dds",
+    "skin:structural/ao/iber_sb_mon_1.png",
+    "skin:structural/iber_bull_statue.png",
+    "skin:structural/iber_lion_statue_small.png",
+    "skin:structural/iber_sb1.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_norm_spec.xml"
+  },
+  "s_iberians_stable": {
+   "file": "models/buildings/s_iberians_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    4.2,
+    3.384,
+    3.529
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_gray_black.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_gray_black.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/decals/iber_corral_mud.xml",
+    "actor:art/actors/props/structures/iberians/stable_horse_a.xml",
+    "actor:art/actors/props/structures/iberians/stable_horse_b.xml",
+    "actor:art/actors/props/structures/iberians/stable_horse_c.xml",
+    "actor:art/actors/props/structures/iberians/stable_nature.xml",
+    "actor:art/actors/structures/iberians/stable.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_lusitano.dae",
+    "mesh:structural/iber_stable.dae",
+    "mesh:structural/iber_stable_nature.dae",
+    "skin:props/horse/hair_black.png",
+    "skin:props/structs_nature.png",
+    "skin:skeletal/horse_black.png",
+    "skin:structural/ao/iber_stable.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_iberians_wall_gate": {
+   "file": "models/buildings/s_iberians_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.078,
+    5.924,
+    2.35
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/iberians/wall_gate_shields.xml",
+    "actor:art/actors/structures/iberians/wall_gate.xml",
+    "mesh:props/iber_wall_gate_shields_a.dae",
+    "mesh:structural/iber_wall_gate.dae",
+    "skin:props/iber_prop_shields.dds",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_iberians_wall_long": {
+   "file": "models/buildings/s_iberians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.065,
+    6.183,
+    2.115
+   ],
+   "sources": [
+    "actor:art/actors/structures/iberians/wall_long.xml",
+    "mesh:structural/iber_wall_long.dae",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_iberians_wall_medium": {
+   "file": "models/buildings/s_iberians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.036,
+    6.183,
+    2.115
+   ],
+   "sources": [
+    "actor:art/actors/structures/iberians/wall_medium.xml",
+    "mesh:structural/iber_wall_medium.dae",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_iberians_wall_short": {
+   "file": "models/buildings/s_iberians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.013,
+    6.183,
+    2.115
+   ],
+   "sources": [
+    "actor:art/actors/structures/iberians/wall_short.xml",
+    "mesh:structural/iber_wall_short.dae",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_iberians_wooden_tower": {
+   "file": "models/buildings/s_iberians_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 5,
+   "size_meters": [
+    2.0,
+    3.899,
+    1.978
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_desert_a.xml",
+    "actor:art/actors/props/flora/bush_desert_dry_a.xml",
+    "actor:art/actors/props/flora/bush_medit_me_dry.xml",
+    "actor:art/actors/props/structures/decals/dirt_1x1.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/iberians/wooden_tower.xml",
+    "mesh:gaia/bush_dese_a_1.dae",
+    "mesh:gaia/bush_me_1.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/iber_wooden_tower.dae",
+    "skin:gaia/bush_dese_a.dds",
+    "skin:gaia/bush_dese_dry_c.dds",
+    "skin:gaia/bush_medit_c.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/iber_wooden_tower_AO.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_iberians_workshop": {
+   "file": "models/buildings/s_iberians_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.295,
+    2.957,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/props/structures/iberians/workshop_nature.xml",
+    "actor:art/actors/props/structures/iberians/workshop_shields.xml",
+    "actor:art/actors/structures/iberians/workshop.xml",
+    "mesh:structural/iber_siege_workshop_nature.dae",
+    "mesh:structural/iber_siege_workshop_shields1.dae",
+    "mesh:structural/iber_siege_workshop_struct1.dae",
+    "skin:props/iber_prop_shields.dds",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/iber_workshop_ao1.png",
+    "skin:structural/iber_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_outpost": {
+   "file": "models/buildings/s_kushites_outpost.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.999,
+    6.242,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_outpost_banners.xml",
+    "actor:art/actors/structures/kushites/outpost.xml",
+    "mesh:props/palisade_rocks_outpost.dae",
+    "mesh:props/palisade_rocks_outpost_banners.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_kushites_outpost_stone": {
+   "file": "models/buildings/s_kushites_outpost_stone.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.743,
+    6.722,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_2x2.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/kushites/outpost_stone.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/kush_sentry_tower.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/kush_sentry_tower.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_pyramid_small": {
+   "file": "models/buildings/s_kushites_pyramid_small.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.561,
+    8.701,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_2x2.xml",
+    "actor:art/actors/structures/kushites/pyramid_small.xml",
+    "mesh:structural/kush_pyramid_small_1.dae",
+    "skin:structural/ao/kush_pyramid_small_1.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_temple_amun": {
+   "file": "models/buildings/s_kushites_temple_amun.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    4.123,
+    3.519,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/kushites/statue_lion.xml",
+    "actor:art/actors/props/structures/kushites/statue_pedestal_rectangular_lion.xml",
+    "actor:art/actors/props/structures/kushites/temple_amun_paintings.xml",
+    "actor:art/actors/structures/kushites/temple_amun.xml",
+    "mesh:props/kush_lion_statue.dae",
+    "mesh:props/pedestal_rectangular.dae",
+    "mesh:structural/kush_temple_amun.dae",
+    "mesh:structural/kush_temple_amun_paintings.dae",
+    "skin:props/ao/lion_statue_ao.png",
+    "skin:props/ao/statue_pedestal_ao.png",
+    "skin:props/lion_statue.png",
+    "skin:structural/ao/kush_temple_amun.png",
+    "skin:structural/kush_struct_02.png",
+    "skin:structural/kush_victory_paintings.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_wall_gate": {
+   "file": "models/buildings/s_kushites_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.277,
+    6.204,
+    2.809
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/kushites/wall_gate_door.xml",
+    "actor:art/actors/structures/kushites/wall_gate.xml",
+    "mesh:structural/hele_wall_gate.dae",
+    "mesh:structural/kush_wall_gate.dae",
+    "skin:props/hele_gate.png",
+    "skin:structural/ao/kush_wall_gate.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_wall_long": {
+   "file": "models/buildings/s_kushites_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.216,
+    6.2,
+    1.408
+   ],
+   "sources": [
+    "actor:art/actors/structures/kushites/wall_long.xml",
+    "mesh:structural/kush_wall_long.dae",
+    "skin:structural/ao/kush_wall_long.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_wall_medium": {
+   "file": "models/buildings/s_kushites_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.228,
+    6.2,
+    1.408
+   ],
+   "sources": [
+    "actor:art/actors/structures/kushites/wall_medium.xml",
+    "mesh:structural/kush_wall_medium.dae",
+    "skin:structural/ao/kush_wall_long.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_wall_short": {
+   "file": "models/buildings/s_kushites_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.221,
+    6.2,
+    1.408
+   ],
+   "sources": [
+    "actor:art/actors/structures/kushites/wall_short.xml",
+    "mesh:structural/kush_wall_short.dae",
+    "skin:structural/ao/kush_wall_short.png",
+    "skin:structural/kush_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_kushites_workshop": {
+   "file": "models/buildings/s_kushites_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.49,
+    3.366,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/kushites/workshop.xml",
+    "mesh:structural/ptol_workshop.dae",
+    "skin:structural/ao/ptol_workshop_AO.png",
+    "skin:structural/kush_struct_02.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_macedonians_theater": {
+   "file": "models/buildings/s_macedonians_theater.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    5.031,
+    3.707,
+    6.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_6x6.xml",
+    "actor:art/actors/props/structures/macedonians/theater_decor.xml",
+    "actor:art/actors/props/structures/macedonians/theater_marble.xml",
+    "actor:art/actors/props/structures/macedonians/theater_nature.xml",
+    "actor:art/actors/props/structures/macedonians/theater_props.xml",
+    "actor:art/actors/props/structures/macedonians/theater_tile.xml",
+    "actor:art/actors/structures/macedonians/theater.xml",
+    "mesh:props/mace_theater_decor.dae",
+    "mesh:props/mace_theater_marble.dae",
+    "mesh:props/mace_theater_nature.dae",
+    "mesh:props/mace_theater_props_a.dae",
+    "mesh:props/mace_theater_tile_c.dae",
+    "mesh:structural/mace_theater_struct.dae",
+    "skin:props/hele_decor.png",
+    "skin:props/hele_props_a.dds",
+    "skin:props/hele_tile_c.dds",
+    "skin:props/marble.png",
+    "skin:props/structs_nature.png",
+    "skin:structural/ao/mace_theater.png",
+    "skin:structural/hele_struct.dds"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_wall_gate": {
+   "file": "models/buildings/s_mauryas_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    9.089,
+    9.502,
+    2.337
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_gate_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_gate_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_gate.xml",
+    "mesh:structural/maur_wall_gate_palisade.dae",
+    "mesh:structural/maur_wall_gate_struct.dae",
+    "mesh:structural/maur_wall_gate_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_gate_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_mauryas_wall_long": {
+   "file": "models/buildings/s_mauryas_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    9.049,
+    8.107,
+    1.474
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_long_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_long_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_long.xml",
+    "mesh:structural/maur_wall_long_palisade.dae",
+    "mesh:structural/maur_wall_long_struct.dae",
+    "mesh:structural/maur_wall_long_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_long_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_wall_medium": {
+   "file": "models/buildings/s_mauryas_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    6.024,
+    8.107,
+    1.474
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_medium_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_medium_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_medium.xml",
+    "mesh:structural/maur_wall_medium_palisade.dae",
+    "mesh:structural/maur_wall_medium_struct.dae",
+    "mesh:structural/maur_wall_medium_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_medium_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_wall_short": {
+   "file": "models/buildings/s_mauryas_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    3.012,
+    8.107,
+    1.474
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wall_short_palisade.xml",
+    "actor:art/actors/props/structures/mauryas/wall_short_struct_b.xml",
+    "actor:art/actors/structures/mauryas/wall_short.xml",
+    "mesh:structural/maur_wall_short_palisade.dae",
+    "mesh:structural/maur_wall_short_struct.dae",
+    "mesh:structural/maur_wall_short_struct_b.dae",
+    "skin:props/palisade_main.png",
+    "skin:structural/ao/maur_wall_short_ao.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_wooden_tower": {
+   "file": "models/buildings/s_mauryas_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    1.751,
+    4.942,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/wooden_tower_2.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/mauryas/wooden_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/maur_wooden_tower.dae",
+    "mesh:structural/maur_wooden_tower_2.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/maur_wooden_tower_AO.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mauryas_workshop": {
+   "file": "models/buildings/s_mauryas_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    4.86,
+    4.617,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/props/structures/mauryas/workshop_roof.xml",
+    "actor:art/actors/props/units/shields/maur_straight_a.xml",
+    "actor:art/actors/props/units/shields/maur_straight_b.xml",
+    "actor:art/actors/structures/mauryas/workshop.xml",
+    "mesh:props/maur_shield_straight.dae",
+    "mesh:props/maur_workshop_roof.dae",
+    "mesh:structural/maur_workshop_struct.dae",
+    "skin:props/shield/maur_shield_straight_a.png",
+    "skin:props/shield/maur_shield_straight_b.png",
+    "skin:structural/ao/maur_workshop.png",
+    "skin:structural/maur_struct.png",
+    "skin:structural/maur_struct_b.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_mercenaries_camp_blemmye": {
+   "file": "models/buildings/s_mercenaries_camp_blemmye.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 10,
+   "size_meters": [
+    4.0,
+    1.434,
+    3.698
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/shrub_tropic_palm.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_decal.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_prop.xml",
+    "actor:art/actors/props/structures/decals/dirt_2x2.xml",
+    "actor:art/actors/props/structures/decals/dirt_5x5.xml",
+    "actor:art/actors/props/structures/kushites/tent_props.xml",
+    "actor:art/actors/props/units/shields/kush_nubian_hex_back_e.xml",
+    "actor:art/actors/props/units/shields/kush_nubian_hex_e.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/mercenaries/camp_blemmye.xml",
+    "actor:art/actors/structures/tent_arab.xml",
+    "actor:art/actors/structures/tent_big.xml",
+    "actor:art/actors/structures/tent_kush.xml",
+    "mesh:gaia/shrub_palm.dae",
+    "mesh:props/shield/kush_nubian_hex_back.dae",
+    "mesh:props/shield/kush_nubian_hex_front.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:props/special/campfire.dae",
+    "mesh:structural/kush_mercenary_camp_01.dae",
+    "mesh:structural/tent_arab.dae",
+    "mesh:structural/tent_big.dae",
+    "mesh:structural/tent_greek.dae",
+    "mesh:structural/tent_kush_props.dae",
+    "skin:gaia/shrub_tropic_palm.png",
+    "skin:null_white.dds",
+    "skin:props/shield/kush_hex_wicker_back_e_01.png",
+    "skin:props/shield/kush_hex_wicker_e_01.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/tent_arab.png",
+    "skin:structural/ao/tent_big.png",
+    "skin:structural/ao/tent_greek.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/ptol_struct.png",
+    "skin:structural/tent_arab.png",
+    "skin:structural/tent_big.png",
+    "skin:structural/tent_greek.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_mercenaries_camp_nuba": {
+   "file": "models/buildings/s_mercenaries_camp_nuba.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    3.919,
+    1.767,
+    4.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/campfire_decal.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_prop.xml",
+    "actor:art/actors/props/structures/decals/dirt_6x6.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_bench.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_drum_big_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_drum_medium_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_drum_medium_02.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_drum_small_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_drum_small_02.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_drum_sticks_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_hay_stack_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_hay_stack_02.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_hay_stack_03.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_big_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_big_02.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_medium_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_medium_02.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_small_01.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_small_02.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_small_03.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_small_04.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_pottery_small_05.xml",
+    "actor:art/actors/props/structures/mercenaries/kush_nuba_camp_roofs_walls.xml",
+    "actor:art/actors/props/units/shields/kush_nubian_hex_back_e.xml",
+    "actor:art/actors/props/units/shields/kush_nubian_hex_e.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/mercenaries/camp_nuba.xml",
+    "mesh:props/kush_nuba_camp_bench.dae",
+    "mesh:props/kush_nuba_camp_drum_big_01.dae",
+    "mesh:props/kush_nuba_camp_drum_medium_01.dae",
+    "mesh:props/kush_nuba_camp_drum_medium_02.dae",
+    "mesh:props/kush_nuba_camp_drum_small_01.dae",
+    "mesh:props/kush_nuba_camp_drum_small_02.dae",
+    "mesh:props/kush_nuba_camp_drum_sticks_01.dae",
+    "mesh:props/kush_nuba_camp_hay_stack_01.dae",
+    "mesh:props/kush_nuba_camp_hay_stack_02.dae",
+    "mesh:props/kush_nuba_camp_hay_stack_03.dae",
+    "mesh:props/kush_nuba_camp_pottery_big_01.dae",
+    "mesh:props/kush_nuba_camp_pottery_big_02.dae",
+    "mesh:props/kush_nuba_camp_pottery_medium_01.dae",
+    "mesh:props/kush_nuba_camp_pottery_medium_02.dae",
+    "mesh:props/kush_nuba_camp_pottery_small_01.dae",
+    "mesh:props/kush_nuba_camp_pottery_small_02.dae",
+    "mesh:props/kush_nuba_camp_pottery_small_03.dae",
+    "mesh:props/kush_nuba_camp_pottery_small_04.dae",
+    "mesh:props/kush_nuba_camp_pottery_small_05.dae",
+    "mesh:props/kush_nuba_camp_roofs_walls_01.dae",
+    "mesh:props/shield/kush_nubian_hex_back.dae",
+    "mesh:props/shield/kush_nubian_hex_front.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:props/special/campfire.dae",
+    "mesh:structural/kush_nuba_camp_struct.dae",
+    "skin:props/shield/kush_hex_wicker_back_e_01.png",
+    "skin:props/shield/kush_hex_wicker_e_01.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/kush_nuba_camp.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/kush_nuba_camp.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_blacksmith": {
+   "file": "models/buildings/s_persians_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    4.044,
+    3.532,
+    4.2
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/props/structures/persians/blacksmith.xml",
+    "actor:art/actors/props/units/helmets/pers_conical_a1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_boeotian_hair.xml",
+    "actor:art/actors/props/units/shields/hele_round_back.xml",
+    "actor:art/actors/props/units/shields/pers_round_kardakes.xml",
+    "actor:art/actors/props/units/shields/pers_taka_a.xml",
+    "actor:art/actors/props/units/shields/taka_a_back.xml",
+    "actor:art/actors/structures/persians/blacksmith.xml",
+    "mesh:props/helmet/pers_conical_a.dae",
+    "mesh:props/helmet/props/hele_boeotian_hair.dae",
+    "mesh:props/shield/aspis_sm_b.dae",
+    "mesh:props/shield/aspis_sm_f.dae",
+    "mesh:props/shield/taka_back.dae",
+    "mesh:props/shield/taka_front.dae",
+    "mesh:structural/pers_blacksmith.dae",
+    "mesh:structural/pers_blacksmith_props.dae",
+    "skin:props/helmet/pers_conical_01_bronze.png",
+    "skin:props/helmet/sele_hero_seleucus_nikator_diffuse.png",
+    "skin:props/palisade_main.png",
+    "skin:props/shield/hele_pelta_i.dds",
+    "skin:props/shield/hele_round_back.dds",
+    "skin:props/shield/pers_aspis_1.png",
+    "skin:props/shield/pers_pelta_h.png",
+    "skin:structural/ao/pers_blacksmith.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_hall": {
+   "file": "models/buildings/s_persians_hall.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.185,
+    4.52,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/hall.xml",
+    "mesh:structural/pers_sb2.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_hall_palace": {
+   "file": "models/buildings/s_persians_hall_palace.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.022,
+    5.424,
+    6.0
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/hall.xml",
+    "mesh:structural/pers_sb2.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_ice_house": {
+   "file": "models/buildings/s_persians_ice_house.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.2,
+    3.97,
+    3.175
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/structures/persians/ice_house.xml",
+    "mesh:structural/pers_ice_house_01.dae",
+    "skin:structural/ao/pers_ice_house_01.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_outpost": {
+   "file": "models/buildings/s_persians_outpost.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.999,
+    6.242,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_outpost_banners.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/persians/outpost.xml",
+    "mesh:props/palisade_rocks_outpost.dae",
+    "mesh:props/palisade_rocks_outpost_banners.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_persians_range": {
+   "file": "models/buildings/s_persians_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.8,
+    3.592,
+    3.495
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x7.xml",
+    "actor:art/actors/structures/persians/range.xml",
+    "mesh:structural/pers_range.dae",
+    "skin:structural/ao/pers_range_AO.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_stable": {
+   "file": "models/buildings/s_persians_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.2,
+    4.351,
+    3.554
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_a.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_b.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_c.xml",
+    "actor:art/actors/structures/persians/stable.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "mesh:structural/pers_stable.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/pers_stable.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_stable_elephant": {
+   "file": "models/buildings/s_persians_stable_elephant.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.0,
+    4.893,
+    4.443
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x8.xml",
+    "actor:art/actors/props/structures/decals/iber_corral_mud.xml",
+    "actor:art/actors/structures/persians/stable_elephant.xml",
+    "mesh:structural/pers_stable_elephant.dae",
+    "skin:structural/ao/pers_stable_elephant.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_tachara": {
+   "file": "models/buildings/s_persians_tachara.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 9,
+   "size_meters": [
+    6.0,
+    4.701,
+    5.718
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/persians/tachara_a.xml",
+    "actor:art/actors/props/structures/persians/tachara_b.xml",
+    "actor:art/actors/props/structures/persians/tachara_shrubs_a.xml",
+    "actor:art/actors/props/structures/persians/tachara_shrubs_b.xml",
+    "actor:art/actors/props/structures/persians/tachara_shrubs_c.xml",
+    "actor:art/actors/props/structures/persians/tachara_shrubs_d.xml",
+    "actor:art/actors/props/units/shields/hele_round_back.xml",
+    "actor:art/actors/props/units/shields/pers_round_kardakes.xml",
+    "actor:art/actors/props/units/shields/pers_tower.xml",
+    "actor:art/actors/props/units/shields/pers_tower_back.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/persians/tachara.xml",
+    "mesh:props/pers_civic_props_a.dae",
+    "mesh:props/pers_civic_props_b.dae",
+    "mesh:props/pers_civic_shrub_a.dae",
+    "mesh:props/pers_civic_shrub_b.dae",
+    "mesh:props/pers_civic_shrub_c.dae",
+    "mesh:props/pers_civic_shrub_d.dae",
+    "mesh:props/shield/aspis_sm_b.dae",
+    "mesh:props/shield/aspis_sm_f.dae",
+    "mesh:props/shield/spara_a_b.dae",
+    "mesh:props/shield/spara_a_f.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/pers_civic.dae",
+    "skin:gaia/shrub_spikes.png",
+    "skin:gaia/shrub_tropic_a.png",
+    "skin:gaia/shrub_tropic_b.png",
+    "skin:gaia/shrub_tropic_palm.png",
+    "skin:props/shield/hele_round_back.dds",
+    "skin:props/shield/pers_aspis_1.png",
+    "skin:props/shield/pers_rect_c.dds",
+    "skin:props/shield/pers_rect_f.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/pers_civic_b.png",
+    "skin:structural/pers_cc_staircase.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_wall_gate": {
+   "file": "models/buildings/s_persians_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.1,
+    7.496,
+    1.668
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_gate.xml",
+    "mesh:structural/pers_wall_gate.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_wall_long": {
+   "file": "models/buildings/s_persians_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.133,
+    7.688,
+    1.593
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_long.xml",
+    "mesh:structural/pers_wall_long.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_wall_medium": {
+   "file": "models/buildings/s_persians_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.065,
+    7.688,
+    1.593
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_medium.xml",
+    "mesh:structural/pers_wall_medium.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_wall_short": {
+   "file": "models/buildings/s_persians_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.083,
+    7.688,
+    1.593
+   ],
+   "sources": [
+    "actor:art/actors/structures/persians/wall_short.xml",
+    "mesh:structural/pers_wall_short.dae",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_persians_wooden_tower": {
+   "file": "models/buildings/s_persians_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    2.0,
+    9.243,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/persians/wooden_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/pers_wooden_tower.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/pers_wooden_tower_AO.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_persians_workshop": {
+   "file": "models/buildings/s_persians_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.916,
+    3.932,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/persians/workshop.xml",
+    "mesh:structural/pers_workshop.dae",
+    "skin:structural/ao/pers_workshop_AO.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_props_mauryas_ashoka_pillar": {
+   "file": "models/buildings/s_props_mauryas_ashoka_pillar.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    1.4,
+    4.591,
+    1.4
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/mauryas/ashoka_pillar.xml",
+    "actor:art/actors/props/structures/mauryas/ashoka_pillar_big_base_flowers.xml",
+    "actor:art/actors/props/structures/mauryas/ashoka_pillar_big_base_struct.xml",
+    "mesh:props/ashoka_pillar.dae",
+    "mesh:props/ashoka_pillar_big_base_flowers.dae",
+    "mesh:props/ashoka_pillar_big_base_struct.dae",
+    "skin:props/structs_nature.png",
+    "skin:structural/ashoka_pillar.png",
+    "skin:structural/maur_struct.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_ptolemies_blacksmith": {
+   "file": "models/buildings/s_ptolemies_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.2,
+    4.211,
+    3.879
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/structures/ptolemies/blacksmith.xml",
+    "mesh:structural/ptol_blacksmith.dae",
+    "skin:structural/ao/ptol_blacksmith.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_library": {
+   "file": "models/buildings/s_ptolemies_library.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    3.523,
+    4.512,
+    4.5
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_5x5.xml",
+    "actor:art/actors/props/structures/ptolemies/library_pediment.xml",
+    "actor:art/actors/props/structures/ptolemies/library_roof.xml",
+    "actor:art/actors/props/structures/ptolemies/library_sphynx.xml",
+    "actor:art/actors/structures/ptolemies/library.xml",
+    "mesh:structural/ptol_library.dae",
+    "mesh:structural/ptol_library_pediment.dae",
+    "mesh:structural/ptol_library_roof.dae",
+    "mesh:structural/ptol_library_sphynx.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/ptol_library_AO.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/ptol_statues_sphynx.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_military_colony": {
+   "file": "models/buildings/s_ptolemies_military_colony.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    6.2,
+    3.932,
+    6.115
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/paving_tile_sahara_7x7_round.xml",
+    "actor:art/actors/props/structures/ptolemies/ptol_military_settlement_door.xml",
+    "actor:art/actors/props/structures/ptolemies/ptol_military_settlement_flowers.xml",
+    "actor:art/actors/props/structures/ptolemies/ptol_military_settlement_leaves.xml",
+    "actor:art/actors/props/structures/ptolemies/ptol_military_settlement_struct_helenistic.xml",
+    "actor:art/actors/props/structures/ptolemies/ptol_military_settlement_struct_seleucid.xml",
+    "actor:art/actors/props/structures/ptolemies/ptol_military_settlement_trunks.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/ptolemies/military_colony.xml",
+    "mesh:props/ptol_military_settlement_door.dae",
+    "mesh:props/ptol_military_settlement_flowers.dae",
+    "mesh:props/ptol_military_settlement_leaves.dae",
+    "mesh:props/ptol_military_settlement_trunks.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/ptol_military_settlement_struct_helenistic.dae",
+    "mesh:structural/ptol_military_settlement_struct_ptolemaic.dae",
+    "mesh:structural/ptol_military_settlement_struct_seleucid.dae",
+    "skin:gaia/tree_baobab_a.dds",
+    "skin:gaia/trunk_deciduous_b.dds",
+    "skin:props/hele_props_a.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:props/structs_nature.png",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/ptol_military_colony_ao.png",
+    "skin:structural/hele_struct.dds",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_range": {
+   "file": "models/buildings/s_ptolemies_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.8,
+    4.25,
+    3.471
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x8.xml",
+    "actor:art/actors/structures/ptolemies/range.xml",
+    "mesh:structural/ptol_range.dae",
+    "skin:structural/ao/ptol_range_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_settlement": {
+   "file": "models/buildings/s_ptolemies_settlement.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 10,
+   "size_meters": [
+    4.0,
+    3.363,
+    3.918
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_decal.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_prop.xml",
+    "actor:art/actors/props/structures/decals/dirt_5x5.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_a.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_arabtent.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_arabtent_props.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_bigtent.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_bigtent_props.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_campfire.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_entrance.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_greektent.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_greektent_props.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_outpost.xml",
+    "actor:art/actors/props/structures/ptolemies/settlement_outpost_props.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/ptolemies/settlement.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:props/ptol_settlement_arabtent.dae",
+    "mesh:props/ptol_settlement_arabtent_props.dae",
+    "mesh:props/ptol_settlement_bigtent.dae",
+    "mesh:props/ptol_settlement_bigtent_props.dae",
+    "mesh:props/ptol_settlement_campfire.dae",
+    "mesh:props/ptol_settlement_entrance.dae",
+    "mesh:props/ptol_settlement_greektent.dae",
+    "mesh:props/ptol_settlement_greektent_props.dae",
+    "mesh:props/ptol_settlement_outpost.dae",
+    "mesh:props/ptol_settlement_outpost_props.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:props/special/campfire.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "mesh:structural/ptol_settlement_palisade.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/palisade_main.png",
+    "skin:props/scaffold.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/ptol_settlement.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/ptol_struct.png",
+    "skin:structural/tent_arab.png",
+    "skin:structural/tent_big.png",
+    "skin:structural/tent_greek.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_stable": {
+   "file": "models/buildings/s_ptolemies_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.2,
+    3.798,
+    4.005
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_a.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_b.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_c.xml",
+    "actor:art/actors/structures/ptolemies/stable.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "mesh:structural/ptol_stable.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/ptol_stable_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_stable_elephant": {
+   "file": "models/buildings/s_ptolemies_stable_elephant.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.0,
+    3.729,
+    4.537
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x8.xml",
+    "actor:art/actors/structures/ptolemies/stable_elephant.xml",
+    "mesh:structural/ptol_stable_elephant.dae",
+    "skin:structural/ao/ptol_elephant_stable.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_wall_gate": {
+   "file": "models/buildings/s_ptolemies_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    9.816,
+    7.136,
+    3.051
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/ptolemies/gate_door.xml",
+    "actor:art/actors/structures/ptolemies/wall_gate.xml",
+    "mesh:structural/ptol_wall_gate.dae",
+    "mesh:structural/ptol_wall_gate_door.dae",
+    "skin:props/ptol_gate.png",
+    "skin:structural/ao/ptol_wall_gate_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "s_ptolemies_wall_long": {
+   "file": "models/buildings/s_ptolemies_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.592,
+    5.299,
+    1.461
+   ],
+   "sources": [
+    "actor:art/actors/structures/ptolemies/wall_long.xml",
+    "mesh:structural/ptol_wall_long_2.dae",
+    "skin:structural/ao/ptol_wall_long_2_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_wall_medium": {
+   "file": "models/buildings/s_ptolemies_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.433,
+    5.299,
+    1.461
+   ],
+   "sources": [
+    "actor:art/actors/structures/ptolemies/wall_medium.xml",
+    "mesh:structural/ptol_wall_medium_2.dae",
+    "skin:structural/ao/ptol_wall_medium_2_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_wall_short": {
+   "file": "models/buildings/s_ptolemies_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.901,
+    5.299,
+    1.461
+   ],
+   "sources": [
+    "actor:art/actors/structures/ptolemies/wall_short.xml",
+    "mesh:structural/ptol_wall_short_2.dae",
+    "skin:structural/ao/ptol_wall_short_2_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_wooden_tower": {
+   "file": "models/buildings/s_ptolemies_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.833,
+    5.652,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_1x1.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/ptolemies/wooden_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/ptol_wooden_tower_2.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/ptol_wooden_tower_2_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_ptolemies_workshop": {
+   "file": "models/buildings/s_ptolemies_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.49,
+    3.366,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/ptolemies/workshop.xml",
+    "mesh:structural/ptol_workshop.dae",
+    "skin:structural/ao/ptol_workshop_AO.png",
+    "skin:structural/ptol_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_amphitheater_pompeii": {
+   "file": "models/buildings/s_romans_amphitheater_pompeii.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.594,
+    1.658,
+    6.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_theater.xml",
+    "actor:art/actors/structures/romans/amphitheater_pompeii.xml",
+    "mesh:structural/rome_amphitheater_pompeii.dae",
+    "skin:structural/ao/rome_amphitheater_pompeii_AO.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_blacksmith": {
+   "file": "models/buildings/s_romans_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 13,
+   "size_meters": [
+    3.67,
+    4.538,
+    4.2
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_armorlegion.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_armorstand_armor.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_armorstand_wood.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_barrel.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_barrels.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_bucket.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_bucket_water.xml",
+    "actor:art/actors/props/structures/romans/blacksmith_shields.xml",
+    "actor:art/actors/props/units/helmets/hele_attic_r1.xml",
+    "actor:art/actors/props/units/helmets/hele_attic_r2.xml",
+    "actor:art/actors/props/units/helmets/props/hele_attic_mask_b1.xml",
+    "actor:art/actors/props/units/helmets/props/hele_crest_hair_03.xml",
+    "actor:art/actors/props/units/helmets/props/helmet_feather_a.xml",
+    "actor:art/actors/props/units/helmets/props/rome_crest_bronze_01.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_corinthian_b2.xml",
+    "actor:art/actors/props/units/helmets/rome_apulo_itallic_e1.xml",
+    "actor:art/actors/props/units/helmets/rome_gallic_type_h_cent.xml",
+    "actor:art/actors/props/units/helmets/rome_helmet_montefortino.xml",
+    "actor:art/actors/props/units/helmets/rome_helmet_montefortino_c.xml",
+    "actor:art/actors/structures/romans/blacksmith.xml",
+    "mesh:props/helmet/hele_attic_a.dae",
+    "mesh:props/helmet/hele_attic_b.dae",
+    "mesh:props/helmet/props/hele_attic_mask_a1.dae",
+    "mesh:props/helmet/props/hele_crest_d.dae",
+    "mesh:props/helmet/props/hele_crest_hair_g.dae",
+    "mesh:props/helmet/props/helmet_feather_a.dae",
+    "mesh:props/helmet/rome_apulo_a.dae",
+    "mesh:props/helmet/rome_apulo_b.dae",
+    "mesh:props/helmet/rome_gallic_type_h_01.dae",
+    "mesh:props/helmet/rome_montefortino_a.dae",
+    "mesh:props/helmet/rome_montefortino_b_2.dae",
+    "mesh:props/rome_blacksmith_armorstand_rome_csp_a.dae",
+    "mesh:props/rome_blacksmith_armorstand_struct_b.dae",
+    "mesh:props/rome_blacksmith_barrel.dae",
+    "mesh:props/rome_blacksmith_barrels.dae",
+    "mesh:props/rome_blacksmith_bucket.dae",
+    "mesh:props/rome_blacksmith_bucket_water.dae",
+    "mesh:props/rome_blacksmith_rome_su4_imperial_legion.dae",
+    "mesh:props/rome_blacksmith_shields.dae",
+    "mesh:structural/rome_blacksmith_struct_b.dae",
+    "skin:props/helmet/crest_05_bronze.png",
+    "skin:props/helmet/hele_attic_01_bronze.png",
+    "skin:props/helmet/hele_attic_02_bronze.png",
+    "skin:props/helmet/old/hele_a3.dds",
+    "skin:props/helmet/old/rome-a.dds",
+    "skin:props/helmet/rome_apulo_corinthian_02_bronze.png",
+    "skin:props/helmet/rome_apulo_itallic_01_bronze.png",
+    "skin:props/helmet/rome_gallic_type_h_01.png",
+    "skin:props/helmet/rome_montefortino_bronze.png",
+    "skin:skeletal/imp/lorica_segmentata_01_01.png",
+    "skin:skeletal/rome/chainmail_02_03.png",
+    "skin:structural/ao/rome_blacksmith.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_camp": {
+   "file": "models/buildings/s_romans_camp.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 8,
+   "size_meters": [
+    3.413,
+    2.272,
+    4.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/eyecandy/campfire_decal.xml",
+    "actor:art/actors/props/special/eyecandy/campfire_prop.xml",
+    "actor:art/actors/props/structures/decals/dirt_9x9.xml",
+    "actor:art/actors/props/structures/romans/camp_struct2.xml",
+    "actor:art/actors/props/structures/romans/camp_struct2_trans.xml",
+    "actor:art/actors/props/structures/romans/camp_tentflaps.xml",
+    "actor:art/actors/props/structures/romans/camp_tents.xml",
+    "actor:art/actors/props/structures/romans/camp_turf.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/romans/camp.xml",
+    "mesh:props/rome_camp_struct2.dae",
+    "mesh:props/rome_camp_struct2_trans.dae",
+    "mesh:props/rome_camp_tentflaps.dae",
+    "mesh:props/rome_camp_tents.dae",
+    "mesh:props/rome_camp_turf.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:props/special/campfire.dae",
+    "mesh:structural/rome_camp_palisade.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/rome_sb_tent.png",
+    "skin:props/rome_sb_turf.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/rome_camp_ao.png",
+    "skin:structural/celt_struct.dds",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_outpost": {
+   "file": "models/buildings/s_romans_outpost.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.999,
+    6.242,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_outpost_banners.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/romans/outpost.xml",
+    "mesh:props/palisade_rocks_outpost.dae",
+    "mesh:props/palisade_rocks_outpost_banners.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_romans_range": {
+   "file": "models/buildings/s_romans_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.8,
+    2.84,
+    3.491
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x8.xml",
+    "actor:art/actors/structures/romans/range.xml",
+    "mesh:structural/rome_range.dae",
+    "skin:structural/ao/rome_range.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_stable": {
+   "file": "models/buildings/s_romans_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.2,
+    3.306,
+    3.961
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_gray_black.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_gray_black.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/iberians/stable_horse_a.xml",
+    "actor:art/actors/props/structures/iberians/stable_horse_b.xml",
+    "actor:art/actors/props/structures/iberians/stable_horse_c.xml",
+    "actor:art/actors/structures/romans/stable.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_lusitano.dae",
+    "mesh:structural/rome_stable.dae",
+    "skin:props/horse/hair_black.png",
+    "skin:skeletal/horse_black.png",
+    "skin:structural/ao/rome_stable.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_temple_mars": {
+   "file": "models/buildings/s_romans_temple_mars.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    2.448,
+    4.999,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/romans/rome_temple_big_statues.xml",
+    "actor:art/actors/structures/romans/temple_mars.xml",
+    "mesh:props/rome_temple_big_statues.dae",
+    "mesh:structural/rome_temple_big.dae",
+    "skin:props/ao/rome_temple_mars_statues.png",
+    "skin:props/rome_cc_statues.png",
+    "skin:structural/ao/rome_temple_mars.png",
+    "skin:structural/rome_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_temple_vesta": {
+   "file": "models/buildings/s_romans_temple_vesta.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.709,
+    5.029,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/temple_vesta.xml",
+    "mesh:structural/rome_vesta.dae",
+    "skin:structural/ao/rome_vesta.png",
+    "skin:structural/rome_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_wall_gate": {
+   "file": "models/buildings/s_romans_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.309,
+    5.641,
+    2.378
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_gate.xml",
+    "mesh:structural/rome_wall_gate.dae",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_parallax_spec.xml"
+  },
+  "s_romans_wall_long": {
+   "file": "models/buildings/s_romans_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    9.328,
+    5.229,
+    2.182
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_long.xml",
+    "mesh:structural/rome_wall_long.dae",
+    "skin:structural/ao/rome_wall_long.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_wall_medium": {
+   "file": "models/buildings/s_romans_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    6.315,
+    5.229,
+    2.182
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_medium.xml",
+    "mesh:structural/rome_wall_medium.dae",
+    "skin:structural/ao/rome_wall_medium.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_wall_short": {
+   "file": "models/buildings/s_romans_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.34,
+    5.229,
+    2.182
+   ],
+   "sources": [
+    "actor:art/actors/structures/romans/wall_short.xml",
+    "mesh:structural/rome_wall_short.dae",
+    "skin:structural/ao/rome_wall_short.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_wooden_tower": {
+   "file": "models/buildings/s_romans_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.894,
+    5.217,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush_tempe_underbrush.xml",
+    "actor:art/actors/props/structures/decals/dirt_1x1.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/romans/wooden_tower.xml",
+    "mesh:gaia/underbrush_01.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/rome_wooden_tower.dae",
+    "skin:gaia/tree_euro_beech_a.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/rome_wooden_tower_AO.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_romans_workshop": {
+   "file": "models/buildings/s_romans_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.88,
+    4.137,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/romans/workshop.xml",
+    "mesh:structural/rome_workshop.dae",
+    "skin:structural/ao/rome_workshop.png",
+    "skin:structural/rome_struct_2.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_blacksmith": {
+   "file": "models/buildings/s_seleucids_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    3.842,
+    4.123,
+    4.2
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush.xml",
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/props/structures/seleucids/blacksmith_shields.xml",
+    "actor:art/actors/structures/seleucids/blacksmith.xml",
+    "mesh:gaia/wrld_fol_bush_generic_1.dae",
+    "mesh:structural/sele_blacksmith.dae",
+    "mesh:structural/sele_blacksmith_shields.dae",
+    "skin:gaia/wrld_bush_a_1.dds",
+    "skin:props/shield/sele_round_a_bronze_player.png",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_blacksmith_AO.png",
+    "skin:structural/ao/sele_blacksmith_shields_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_library": {
+   "file": "models/buildings/s_seleucids_library.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.65,
+    5.253,
+    4.5
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_5x5.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/seleucids/library.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/sele_library.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_library_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_military_colony": {
+   "file": "models/buildings/s_seleucids_military_colony.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    6.022,
+    4.616,
+    6.2
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/paving_tile_sahara_7x7_round.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/seleucids/military_colony.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/sele_colony.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_colony_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_outpost": {
+   "file": "models/buildings/s_seleucids_outpost.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.999,
+    6.242,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_outpost_banners.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/seleucids/outpost.xml",
+    "mesh:props/palisade_rocks_outpost.dae",
+    "mesh:props/palisade_rocks_outpost_banners.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "skin:props/palisade_main.png",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/pers_struct.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "s_seleucids_range": {
+   "file": "models/buildings/s_seleucids_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.8,
+    2.956,
+    3.628
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x8.xml",
+    "actor:art/actors/structures/seleucids/range.xml",
+    "mesh:structural/sele_range.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_range_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_stable": {
+   "file": "models/buildings/s_seleucids_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    4.2,
+    4.349,
+    3.974
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_a.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_b.xml",
+    "actor:art/actors/props/structures/persians/stable_horse_c.xml",
+    "actor:art/actors/structures/seleucids/stable.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_persian.dae",
+    "mesh:structural/sele_stable.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_stable_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_stable_elephant": {
+   "file": "models/buildings/s_seleucids_stable_elephant.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.0,
+    4.031,
+    4.429
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x8.xml",
+    "actor:art/actors/structures/seleucids/stable_elephant.xml",
+    "mesh:structural/sele_stable_elephant.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_stable_elephant_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_gate": {
+   "file": "models/buildings/s_seleucids_wall_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    8.91,
+    8.117,
+    2.292
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/seleucids/gate.xml",
+    "actor:art/actors/structures/seleucids/wall_gate.xml",
+    "mesh:structural/sele_gate.dae",
+    "mesh:structural/sele_wall_gate.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_gate.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_long": {
+   "file": "models/buildings/s_seleucids_wall_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    8.998,
+    6.566,
+    1.615
+   ],
+   "sources": [
+    "actor:art/actors/structures/seleucids/wall_long.xml",
+    "mesh:structural/sele_wall_long.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_long.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_medium": {
+   "file": "models/buildings/s_seleucids_wall_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.944,
+    6.566,
+    1.615
+   ],
+   "sources": [
+    "actor:art/actors/structures/seleucids/wall_medium.xml",
+    "mesh:structural/sele_wall_medium.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_medium.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wall_short": {
+   "file": "models/buildings/s_seleucids_wall_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.4,
+    6.566,
+    1.615
+   ],
+   "sources": [
+    "actor:art/actors/structures/seleucids/wall_short.xml",
+    "mesh:structural/sele_wall_short.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wall_short.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_wooden_tower": {
+   "file": "models/buildings/s_seleucids_wooden_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 3,
+   "size_meters": [
+    1.912,
+    26.364,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/bush.xml",
+    "actor:art/actors/props/structures/decals/dirt_2x2.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/seleucids/wooden_tower.xml",
+    "mesh:gaia/wrld_fol_bush_generic_1.dae",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/sele_wooden_tower.dae",
+    "skin:gaia/wrld_bush_a_1.dds",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_wooden_tower_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_seleucids_workshop": {
+   "file": "models/buildings/s_seleucids_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.707,
+    5.178,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/seleucids/workshop.xml",
+    "mesh:structural/sele_workshop.dae",
+    "skin:structural/Sele_struct_2.png",
+    "skin:structural/ao/sele_workshop_AO.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_blacksmith": {
+   "file": "models/buildings/s_spartans_blacksmith.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.2,
+    4.318,
+    3.901
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_forge.xml",
+    "actor:art/actors/structures/spartans/blacksmith.xml",
+    "mesh:structural/spart_blacksmith.dae",
+    "skin:structural/ao/spart_blacksmith_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_gerousia": {
+   "file": "models/buildings/s_spartans_gerousia.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.129,
+    5.359,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/decals_flowers_daisies.xml",
+    "actor:art/actors/props/structures/decals/dirt_4x4.xml",
+    "actor:art/actors/structures/spartans/gerousia.xml",
+    "mesh:structural/spart_gerousia.dae",
+    "skin:structural/ao/spart_gerousia_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_range": {
+   "file": "models/buildings/s_spartans_range.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.8,
+    1.575,
+    2.816
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_8x7.xml",
+    "actor:art/actors/structures/spartans/range.xml",
+    "mesh:structural/spart_range.dae",
+    "skin:structural/ao/spart_range_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_sentry_tower": {
+   "file": "models/buildings/s_spartans_sentry_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    1.991,
+    4.279,
+    2.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_1x1.xml",
+    "actor:art/actors/props/units/siege_artillery/bolt_projectile_med.xml",
+    "actor:art/actors/structures/spartans/sentry_tower.xml",
+    "mesh:props/siege_artillery/projectile_bolt_med.dae",
+    "mesh:structural/spart_sentry_tower.dae",
+    "skin:props/siege_artillery_01.png",
+    "skin:structural/ao/spart_sentry_tower_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_stable": {
+   "file": "models/buildings/s_spartans_stable.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 4,
+   "size_meters": [
+    4.2,
+    3.039,
+    3.688
+   ],
+   "sources": [
+    "actor:art/actors/props/horse/stable/horse_hair_mane_black_brown.xml",
+    "actor:art/actors/props/horse/stable/horse_hair_tail_black_brown.xml",
+    "actor:art/actors/props/structures/decals/hele_corral_mud.xml",
+    "actor:art/actors/props/structures/hellenes/stable_horse_a.xml",
+    "actor:art/actors/props/structures/hellenes/stable_horse_b.xml",
+    "actor:art/actors/props/structures/hellenes/stable_horse_c.xml",
+    "actor:art/actors/props/structures/spartans/stable_nature.xml",
+    "actor:art/actors/structures/spartans/stable.xml",
+    "mesh:props/horse/hair_mane_01.dae",
+    "mesh:props/horse/hair_tail_01.dae",
+    "mesh:skeletal/horse_tessalian.dae",
+    "mesh:structural/spart_stable.dae",
+    "mesh:structural/spart_stable_nature.dae",
+    "skin:props/horse/hair_brown.png",
+    "skin:props/structs_nature.png",
+    "skin:skeletal/horse_brown.png",
+    "skin:structural/ao/spart_stable_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_syssiton": {
+   "file": "models/buildings/s_spartans_syssiton.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 6,
+   "size_meters": [
+    2.992,
+    5.101,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/dirt_5x8.xml",
+    "actor:art/actors/props/units/shields/aspis_lambda_01.xml",
+    "actor:art/actors/props/units/shields/aspis_lambda_02.xml",
+    "actor:art/actors/props/units/shields/aspis_spart_d.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_bronze_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_back_bronze_black_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
+    "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_02.xml",
+    "actor:art/actors/structures/spartans/syssiton.xml",
+    "mesh:props/shield/aspis_01_back.dae",
+    "mesh:props/shield/aspis_01_front.dae",
+    "mesh:structural/spart_syssiton_2.dae",
+    "skin:props/shield/aspis_back_bronze.png",
+    "skin:props/shield/aspis_bronze_back_black.png",
+    "skin:props/shield/aspis_spart_dokana_01.png",
+    "skin:props/shield/aspis_spart_lambda_01.png",
+    "skin:props/shield/aspis_spart_lambda_03.png",
+    "skin:structural/ao/spart_syssiton_2_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_theater": {
+   "file": "models/buildings/s_spartans_theater.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    5.265,
+    2.891,
+    6.0
+   ],
+   "sources": [
+    "actor:art/actors/props/flora/decals_flowers_daisies.xml",
+    "actor:art/actors/props/structures/decals/dirt_9x9_round.xml",
+    "actor:art/actors/structures/spartans/theater.xml",
+    "mesh:structural/spart_theater.dae",
+    "skin:structural/ao/spart_theater_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_spartans_workshop": {
+   "file": "models/buildings/s_spartans_workshop.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.325,
+    2.496,
+    5.0
+   ],
+   "sources": [
+    "actor:art/actors/props/structures/decals/spart_5x5.xml",
+    "actor:art/actors/structures/spartans/workshop.xml",
+    "mesh:structural/spart_workshop.dae",
+    "skin:structural/ao/spart_workshop_AO.png",
+    "skin:structural/sparta_struct.png"
+   ],
+   "upstream_material": "player_trans_ao_parallax_spec.xml"
+  },
+  "s_special_palisade_bamboo_long_palisade": {
+   "file": "models/buildings/s_special_palisade_bamboo_long_palisade.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 2,
+   "size_meters": [
+    3.0,
+    3.045,
+    1.114
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_bamboo_long_nature.xml",
+    "actor:art/actors/structures/special/palisade_bamboo_long.xml",
+    "mesh:structural/palisade_bamboo_long.dae",
+    "mesh:structural/palisade_bamboo_long_nature.dae",
+    "skin:gaia/bamboo.png",
+    "skin:props/dockprops.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
   },
   "scaffold_large": {
    "file": "models/buildings/scaffold_large.glb",

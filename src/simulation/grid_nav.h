@@ -75,11 +75,16 @@ enum NavCell : uint8_t {
     NAV_SHALLOW    = 3
 };
 
+// RTS0 height units per 0 A.D. metre. An RTS0 unit is a 4 m tile, so a quarter unit per metre
+// keeps 0 A.D.'s proportions; ported maps (tools/port_0ad_maps.py) and random maps
+// (rms_generator.cpp kMetre) both use it.
+static constexpr float HEIGHT_PER_METRE = 0.25f;
+
 // 0 A.D. mods/mod/simulation/data/pathfinder.xml: land classes (default, large) have
 // MaxWaterDepth 2 m. Depth is measured from the nav water line (water_h + 0.3, where cells
-// turn to water); RTS0 heights are 0 A.D. metres x 0.2 (tools/port_0ad_maps.py), so 2 m is 0.4.
+// turn to water).
 static constexpr float NAV_WATER_MARGIN = 0.3f;
-static constexpr float LAND_MAX_WATER_DEPTH = 0.4f;
+static constexpr float LAND_MAX_WATER_DEPTH = 2.0f * HEIGHT_PER_METRE;
 
 // ---------------------------------------------------------------------------
 // Passability classes, after 0 A.D.'s pathfinder.xml PassabilityClasses.
@@ -101,11 +106,10 @@ static constexpr uint8_t PASS_INFANTRY = 1;
 static constexpr uint8_t PASS_CAVALRY  = 2;
 static constexpr uint8_t PASS_SHIP     = 4;
 
-// 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and random maps raise
-// 0 A.D. metres x 0.35, so a hill there is 1.4 times as steep in RTS0 units. Ported maps raise
-// them x 0.2 (there these limits are 0 A.D.'s x 1.75), but their heightmaps hold one sample per
-// 4 tiles, which already flattens cliffs.
-static constexpr float SLOPE_0AD_TO_RTS0 = 0.35f * 4.0f;
+// 0 A.D. slopes are metres of rise per metre. An RTS0 unit is a 4 m tile and heights are
+// HEIGHT_PER_METRE units a metre, so a slope in RTS0 units is 0 A.D.'s x 4 x HEIGHT_PER_METRE
+// (1: the same). Ported maps hold one height sample per 4 tiles, which flattens their cliffs a little.
+static constexpr float SLOPE_0AD_TO_RTS0 = HEIGHT_PER_METRE * 4.0f;
 static constexpr float LAND_MAX_TERRAIN_SLOPE = 1.0f * SLOPE_0AD_TO_RTS0;   // default, large, building-land
 static constexpr float SHORE_MAX_TERRAIN_SLOPE = 1.25f * SLOPE_0AD_TO_RTS0; // building-shore (docks)
 
@@ -871,13 +875,23 @@ inline bool NavGrid::find_path(float sx, float sz, float tx, float tz, WaypointP
             int best_d = 1 << 30;
             int bx = tcx, by = tcy;
             bool found = false;
+            // The nearest navcell of the start's region, ties going to the lowest row, then the
+            // lowest column. Rings of growing Chebyshev radius r round the goal hold only cells at
+            // least r away, so the search stops once r * r passes the best distance: a target
+            // across a channel costs a few rings, not the whole grid.
             if (want != 0) {
-                for (int y = 0; y < res; ++y) {
-                    for (int x = 0; x < res; ++x) {
-                        if (global_region_at(x, y, rpass) != want) continue;
-                        int dx = x - tcx, dy = y - tcy;
-                        int d = dx * dx + dy * dy;
-                        if (d < best_d) {
+                const int max_r = std::max(std::max(tcx, res - 1 - tcx), std::max(tcy, res - 1 - tcy));
+                for (int r = 1; r <= max_r && (!found || r * r <= best_d); ++r) {
+                    for (int y = std::max(0, tcy - r); y <= std::min(res - 1, tcy + r); ++y) {
+                        const int dy = y - tcy;
+                        const bool edge_row = dy == -r || dy == r;
+                        for (int x = std::max(0, tcx - r); x <= std::min(res - 1, tcx + r);
+                                x += (edge_row || x == tcx + r) ? 1 : std::max(1, tcx + r - x)) {
+                            const int dx = x - tcx;
+                            if (!edge_row && dx != -r && dx != r) continue;
+                            const int d = dx * dx + dy * dy;
+                            if (d > best_d || (d == best_d && (y > by || (y == by && x > bx)))) continue;
+                            if (global_region_at(x, y, rpass) != want) continue;
                             best_d = d;
                             bx = x;
                             by = y;

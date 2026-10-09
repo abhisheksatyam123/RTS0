@@ -561,6 +561,100 @@ int main() {
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.lock_teams == 1);
 	}
 
+	// 23. Cheats (0 A.D. Cheat.js): nothing works until Game Setup enables them.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 9, 2, 64.0f);
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, false);
+		const int food = sim.food(0);
+		CHECK(!sim.cmd_cheat(0, Simulation::CHEAT_ADD_RESOURCE, 1000, RES_FOOD, nullptr, 0) && sim.food(0) == food);
+		sim.set_cheats_enabled(true);
+		CHECK(sim.cheats_enabled() && !sim.teams_locked());
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_ADD_RESOURCE, 1000, RES_FOOD, nullptr, 0) && sim.food(0) == food + 1000);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_CHANGE_PHASE, 0, 0, nullptr, 0) && sim.player_phase(0) == 2);
+		// wololo: an enemy unit becomes ours; black death kills it; exodia defeats player 2.
+		uint32_t enemy = 0, tc = 0;
+		for (size_t i = 0; i < sim.units_.count && !enemy; ++i)
+			if (sim.units_.alive[i] && sim.units_.team[i] == 1) enemy = sim.units_.id[i];
+		for (const auto &b : sim.buildings())
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER) tc = b.id;
+		CHECK(enemy && sim.cmd_cheat(0, Simulation::CHEAT_CONVERT_UNITS, -1, 0, &enemy, 1));
+		CHECK(sim.units_.team[sim.lookup_unit(enemy)] == 0);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_KILL_UNITS, 0, 0, &enemy, 1) && !sim.units_.alive[sim.lookup_unit(enemy)]);
+		const int pop = sim.pop_current(0);
+		CHECK(tc && sim.cmd_cheat(0, Simulation::CHEAT_CREATE_UNITS, 3, 0, &tc, 1) && sim.pop_current(0) == pop + 3);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_DEFEAT_PLAYER, 1, 0, nullptr, 0) && sim.is_defeated(1));
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_REVEAL_MAP, 0, 0, nullptr, 0) && sim.reveal_map());
+		// the hive master: house bonuses jump to the population limit + 500; TARDIS: limit + 500.
+		sim.set_pop_cap(300);
+		CHECK(sim.pop_max(0) < 300);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_MAX_POPULATION, 0, 0, nullptr, 0) && sim.pop_max(0) == 300);
+		CHECK(sim.pop_max_uncapped(0) == 800);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_CHANGE_MAX_POPULATION, 0, 0, nullptr, 0) && sim.pop_max(0) == 800);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_CHANGE_MAX_POPULATION, 0, 0, nullptr, 0) && sim.pop_max(0) == 800);
+		CHECK(sim.pop_max(1) < 300);
+		// i am too busy toggles x0.01 build, train, research and pack times and x1000 gather rates.
+		const float build = sim.tech_mods(0).bld_build_time[BLD_HOUSE];
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_FAST_ACTIONS, 0, 0, nullptr, 0));
+		CHECK(std::fabs(sim.tech_mods(0).bld_build_time[BLD_HOUSE] - build * 0.01f) < 1e-6f);
+		CHECK(sim.tech_mods(0).gather[UNIT_VILLAGER][Simulation::GK_WOOD] >= 999.0f && sim.tech_mods(1).gather[UNIT_VILLAGER][Simulation::GK_WOOD] < 10.0f);
+		const char *cpath = "test_victory_cheats.sav";
+		CHECK(sim.save_state(cpath));
+		{
+			Simulation loaded;
+			CHECK(loaded.load_state(cpath) && loaded.pop_max(0) == 800 && loaded.cheat_mods(0).fast_actions == 1);
+			CHECK(std::fabs(loaded.tech_mods(0).bld_build_time[BLD_HOUSE] - build * 0.01f) < 1e-6f);
+		}
+		std::remove(cpath);
+		CHECK(sim.cmd_cheat(0, Simulation::CHEAT_FAST_ACTIONS, 0, 0, nullptr, 0) && sim.tech_mods(0).bld_build_time[BLD_HOUSE] == build);
+		GameSetupParams gp, back;
+		gp.cheats = 1;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.cheats == 1);
+	}
+
+	// 24. Spies (0 A.D. VisionSharing.AddSpy, unlock_spies, spy_counter) and DisableSpies.
+	{
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 9, 2, 64.0f);
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, false);
+		float ex = 0, ez = 0;
+		for (const auto &b : sim.buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+		sim.players_[0].res[RES_GOLD] = 1000.0f;
+		CHECK(!sim.can_bribe(0, 1) && sim.cmd_bribe(0, 1) == Simulation::BRIBE_NOT_ALLOWED);
+		sim.complete_research(0, TECH_UNLOCK_SPIES);
+		CHECK(sim.can_bribe(0, 1) && sim.bribe_cost(0, 1) == 500);
+		// Player 2 has no trader yet: a failed bribe costs a quarter.
+		CHECK(sim.cmd_bribe(0, 1) == Simulation::BRIBE_NO_UNITS && sim.player_resource(0, RES_GOLD) == 875);
+		const uint32_t trader = sim.spawn_unit(ex + 6.0f, ez + 6.0f, 1, UNIT_TRADER);
+		sim.tick_fow();
+		CHECK(sim.fow_state_at(ex + 6.0f, ez + 6.0f, 0) != Simulation::FOW_VISIBLE);
+		CHECK(sim.cmd_bribe(0, 1) == Simulation::BRIBE_OK && sim.player_resource(0, RES_GOLD) == 375);
+		CHECK(sim.spies().size() == 1 && sim.spies()[0].unit_id == trader && std::fabs(sim.spies()[0].remaining - 15.0f) < 1e-4f);
+		sim.tick_fow();
+		CHECK(sim.fow_state_at(ex + 6.0f, ez + 6.0f, 0) == Simulation::FOW_VISIBLE);
+		// The only trader is already spied, and 375 metal can't pay for another.
+		CHECK(sim.cmd_bribe(0, 1) == Simulation::BRIBE_NO_UNITS);
+		const char *path = "test_victory_spies.sav";
+		CHECK(sim.save_state(path));
+		Simulation back_sim;
+		CHECK(back_sim.load_state(path) && back_sim.spies().size() == 1 && back_sim.spies()[0].unit_id == trader);
+		std::remove(path);
+		sim.tick_spies(15.0f);
+		CHECK(sim.spies().empty());
+		// Counterintelligence: x1.5 against the bribed player.
+		sim.complete_research(1, TECH_SPY_COUNTER);
+		CHECK(sim.bribe_cost(0, 1) == 750 && sim.bribe_cost(0, 1, true) == 187);
+		sim.set_disable_spies(true);
+		CHECK(sim.spies_disabled() && !sim.can_bribe(0, 1));
+		CHECK(sim.research_check(1, TECH_UNLOCK_SPIES) == Simulation::TECH_ERR_DISABLED);
+		GameSetupParams gp, back;
+		gp.no_spies = 1;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.no_spies == 1);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

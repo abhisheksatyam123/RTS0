@@ -753,12 +753,12 @@ float RtsoWorldView::turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id
 			if (b.id == holder) { hb = &b; break; }
 	if (!hb) return sim->get_terrain_height(x, z) + offset;
 	if (!flags_loaded_) load_garrison_flags();
-	const String mid = rtso::civ_building_model(sim->team_civ(hb->team), hb->type);
+	const String mid = building_visual_id(sim->team_civ(hb->team), hb->type, hb->half_size);
 	auto entry = rtso::ModelLibrary::get("buildings", mid);
 	const float b_scale = entry.scale > 0.05f ? entry.scale : 1.0f;
 	const float base = sim->get_terrain_height(hb->x, hb->z) + entry.y_offset;
 	// ModelLibrary falls back to the civ-less model ("athen_outpost" -> "outpost").
-	auto it = model_ground_.find(mid.utf8().get_data());
+	auto it = model_ground_.find(rtso::ModelLibrary::building_glb_id(mid).utf8().get_data());
 	if (it == model_ground_.end()) {
 		const int us = mid.find("_");
 		if (us > 0) it = model_ground_.find(mid.substr(us + 1).utf8().get_data());
@@ -777,7 +777,7 @@ void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id,
 	if (!flags_loaded_ && show) load_garrison_flags();
 	const FlagPoint *fp = nullptr;
 	if (show && flag_mesh_.is_valid()) {
-		auto it = flag_points_.find(model_id.utf8().get_data());
+		auto it = flag_points_.find(rtso::ModelLibrary::building_glb_id(model_id).utf8().get_data());
 		if (it != flag_points_.end()) fp = &it->second;
 	}
 	if (!fp) {
@@ -905,7 +905,8 @@ void RtsoWorldView::update_fog(const rtso::Simulation *sim, float delta) {
 	mirages_.update(*sim, local_player_);
 	const int res = sim->fow_res();
 	const bool new_map = res != los_.res() || los_half_ != sim->map_half();
-	los_.set_target(sim->fow_grid(local_player_), res);
+	// The sim's per-player LOS (Simulation::los), as FogMirages built it this frame.
+	los_.set_target(mirages_.view().size() == (size_t)res * (size_t)res ? mirages_.view().data() : nullptr, res);
 	if (new_map) {
 		los_.snap();
 		los_half_ = sim->map_half();
@@ -1400,6 +1401,20 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 	}
 	place(v.foundation, rtso::civ_building_foundation(btype), foundation_on);
 	place(v.scaffold, rtso::civ_building_scaffold(btype), scaffold_on);
+}
+
+// 0 A.D. WallSet segments (Simulation::cmd_build_wall) are 12, 24 or 36 m long and
+// draw the civ's wall_short, wall_medium or wall_long actor (a gate made from a long
+// one its wall_gate); one-cell pieces from maps and older saves keep their model.
+String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_size) {
+	if (type == rtso::BLD_WALL_SEGMENT && half_size >= 1.25f) {
+		const char *len = half_size >= 3.75f ? "wall_long" : half_size >= 2.25f ? "wall_medium" : "wall_short";
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_" + len;
+	}
+	// Only a long segment becomes a gate; it keeps the segment's length.
+	if (type == rtso::BLD_GATE && half_size >= 3.75f)
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
+	return String(rtso::civ_building_model(civ, type));
 }
 
 void RtsoWorldView::attach_building_model(BuildingVis &v, const String &model_name) {
@@ -2153,7 +2168,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	auto uview = sim->units();
 	auto rview_g = sim->resources();
 	auto entity_visible = [sim, this](float x, float z, uint8_t team) {
-		return sim->is_entity_visible_to_viewer(x, z, team, local_player_);
+		return rtso::los_sees_unit(*sim, local_player_, x, z, team);
 	};
 	std::unordered_map<uint32_t, uint8_t> res_sub;
 	res_sub.reserve(rview_g.count);
@@ -2501,7 +2516,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (v.root) v.root->set_visible(true);
 
 		uint8_t bciv = b.civ;
-		const char *mid = rtso::civ_building_model(bciv, b.type);
+		const String mid = building_visual_id(bciv, b.type, b.half_size);
 		const char *rubble_id = rtso::civ_building_rubble(bciv, b.type);
 		float b_progress = b.build_progress;
 		bool destroyed = (b.hp <= 0.0f || b.wrecked);

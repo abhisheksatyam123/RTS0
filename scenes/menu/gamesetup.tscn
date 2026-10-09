@@ -154,6 +154,16 @@ layout_mode = 2
 tooltip_text = "The terrain is known from the start; enemy units stay hidden outside your vision."
 text = "Explored map"
 
+[node name="Cheats" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+layout_mode = 2
+tooltip_text = "Toggle the usability of cheats (chat codes)."
+text = "Cheats"
+
+[node name="DisableSpies" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+layout_mode = 2
+tooltip_text = "Disable spies during the game."
+text = "Disable Spies"
+
 [node name="VictoryTimesRow" type="HBoxContainer" parent="VBox/HBox/Left"]
 layout_mode = 2
 
@@ -206,6 +216,17 @@ mouse_filter = 1
 text = "Sea level rise"
 
 [node name="SeaRiseSlot" type="Control" parent="VBox/HBox/Left/MapOptionsRow"]
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TeamPlacementLabel" type="Label" parent="VBox/HBox/Left/MapOptionsRow"]
+layout_mode = 2
+tooltip_text = "Select one of the starting position patterns of this map."
+mouse_filter = 1
+text = "Team placement"
+
+[node name="TeamPlacementSlot" type="Control" parent="VBox/HBox/Left/MapOptionsRow"]
 custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
 size_flags_horizontal = 3

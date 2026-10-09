@@ -184,7 +184,6 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool build_mode = false;
 	bool wall_drag_mode = false;
 	Vector3 wall_drag_start_pos;
-	bool wall_start_snapped = false; // the wall starts at an existing wall tower
 	// 0 A.D. placementSupport.angle: [ and ] turn the preview by pi/12, and a click
 	// held and dragged turns it toward the cursor (input.js INPUT_BUILDING_DRAG).
 	float placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
@@ -289,6 +288,7 @@ public:
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
 	void _on_alert_pressed(int end);
+	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -298,6 +298,7 @@ public:
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
 	void _on_upgrade_pressed(int cancel);
+	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
 	void _on_pack_pressed(int pack);
 	void _on_map_selected(int index);
@@ -342,6 +343,7 @@ public:
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
 	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
 	void chat_send_wire(const std::string &wire);
+	bool chat_try_cheat(const String &text);
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
@@ -395,6 +397,7 @@ public:
 	std::vector<uint32_t> trade_origin_traders_;
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
+	void _on_diplo_spy_pressed(int player_idx);
 
 	bool load_map(String map_id);
 	bool load_map_seeded(String map_id, uint32_t seed);
@@ -435,9 +438,10 @@ private:
 	float placement_angle_at(uint8_t btype, float x, float z) const;
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
-	Vector3 snap_wall_point(const Vector3 &p, bool &snapped) const;
 	void try_train_unit(rtso::UnitType utype);
-	void try_train_template(uint32_t building_id, uint16_t tmpl);
+	void try_train_template(uint32_t building_id, uint16_t tmpl, int count = 1);
+	// The batch the next train click queues: gui.session.batchtrainingsize while Shift is held.
+	int train_batch() const;
 	void try_breed(uint32_t building_id, uint8_t ftype);
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);

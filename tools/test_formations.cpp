@@ -21,6 +21,10 @@
 // 11. Patrol: walk-and-fight to the point, wait 2 s, walk back.
 // 12. Guard: the members guard and the formation disbands.
 // 13. Save/load mid-approach keeps the attack order.
+// 14. Gather, repair, garrison and heal: the formation walks up in formation, then the
+//     members do the work (UnitAI FORMATIONCONTROLLER Order.Gather/Repair/Heal, GARRISON).
+// 15. Shift-queued orders wait in the controller's queue and run in formation, one after
+//     another; a new order clears the queue; the queue survives save/load.
 //  Exit: 0 = PASS, 1 = FAIL.
 #define private public
 #include "simulation/simulation.h"
@@ -515,6 +519,152 @@ static void test_save_attack(const char *path) {
 	check(same, "both runs fight the same afterwards");
 }
 
+static void test_tasks() {
+	std::printf("14. formation gather, repair, garrison and heal\n");
+	{ // Gather: approach as a block, then every member gathers the tree; MEMBER waits on them.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SPEARMAN);
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		run(s, 3.0f);
+		const uint32_t tree = s.spawn_resource_world(10.0f, 0.0f, RES_WOOD, 5000);
+		const float wood0 = s.player(0).res[RES_WOOD];
+		s.order_gather(inf.data(), inf.size(), tree);
+		const uint32_t fid = s.formations()[0].id;
+		check(ctrl(s, fid)->order == Simulation::FORDER_APPROACH &&
+				Simulation::formation_task(*ctrl(s, fid)) == Simulation::FTASK_GATHER,
+				"gather: out of range, the formation walks up to the tree");
+		run(s, 2.0f);
+		check(ctrl(s, fid)->order == Simulation::FORDER_APPROACH && max_slot_error(s, *ctrl(s, fid)) < 2.5f,
+				"in formation");
+		run(s, 14.0f);
+		int gathering = 0;
+		for (uint32_t id : inf) {
+			const int i = idx_of(s, id);
+			gathering += s.units_.order_kind[i] == ORDER_GATHER || s.units_.order_kind[i] == ORDER_RETURN_RESOURCE;
+		}
+		check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_MEMBER && gathering == 8,
+				"in range, every member gathers and the formation waits (MEMBER)");
+		run(s, 30.0f);
+		int carrying = 0;
+		for (uint32_t id : inf) carrying += s.units_.carry[idx_of(s, id)] > 0 || s.units_.order_kind[idx_of(s, id)] == ORDER_RETURN_RESOURCE;
+		check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_MEMBER &&
+				(carrying > 0 || s.player(0).res[RES_WOOD] > wood0), "they keep gathering while in the formation");
+	}
+	{ // Repair: a damaged house.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 8, -30, 10, 0, UNIT_SPEARMAN);
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		run(s, 3.0f);
+		const uint32_t house = s.spawn_building_world(12.0f, 10.0f, BLD_HOUSE, 0, 1.0f);
+		Simulation::Building *hb = nullptr;
+		for (auto &b : s.buildings_) if (b.id == house) hb = &b;
+		hb->hp = hb->max_hp * 0.4f;
+		const float hp0 = hb->hp;
+		s.order_build_or_repair(inf.data(), inf.size(), house);
+		const uint32_t fid = s.formations()[0].id;
+		check(ctrl(s, fid)->order == Simulation::FORDER_APPROACH && ctrl(s, fid)->target_building == house,
+				"repair: the formation walks up to the structure");
+		run(s, 20.0f);
+		for (auto &b : s.buildings_) if (b.id == house) hb = &b;
+		check(hb->hp > hp0, "then the members repair it");
+	}
+	{ // Garrison: everyone gets in and the formation is gone.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 8, -20, 20, 0, UNIT_SPEARMAN);
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		run(s, 3.0f);
+		uint32_t tc = 0;
+		for (const auto &b : s.buildings()) if (b.team == 0 && b.type == BLD_TOWN_CENTER) tc = b.id;
+		s.order_garrison(inf.data(), inf.size(), tc);
+		check(s.formations().size() == 1 && s.formations()[0].order == Simulation::FORDER_APPROACH,
+				"garrison: the formation walks to the structure (GARRISON.APPROACHING)");
+		run(s, 30.0f);
+		int in = 0;
+		for (uint32_t id : inf) in += s.units_.action_state[idx_of(s, id)] == ACTION_GARRISONED;
+		check(in == 8 && s.formations().empty(), "every member garrisons and the formation disbands");
+	}
+	{ // Heal: healers walk up in formation, then heal the injured ally.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto hl = spawn_block(s, 6, -30, -10, 0, UNIT_HEALER);
+		s.order_set_formation(hl.data(), hl.size(), FORMATION_BOX);
+		run(s, 3.0f);
+		const uint32_t hurt = s.spawn_unit(10.0f, -10.0f, 0, UNIT_SPEARMAN, 0.0f);
+		s.order_set_stance(&hurt, 1, STANCE_PASSIVE);
+		const int hi = idx_of(s, hurt);
+		s.units_.hp[hi] = s.units_.max_hp[hi] * 0.3f;
+		const float hp0 = s.units_.hp[hi];
+		if (!s.formations().empty()) {
+			s.order_heal(hl.data(), hl.size(), hurt);
+			check(s.formations()[0].order == Simulation::FORDER_APPROACH, "heal: the healers walk up in formation");
+			run(s, 20.0f);
+			check(s.units_.hp[idx_of(s, hurt)] > hp0, "then they heal the ally");
+		} else {
+			check(true, "heal: healers take no formation here");
+		}
+	}
+	{ // A member ordered on its own keeps its formation's other members where they are.
+		Simulation s;
+		setup(s, CIV_ATHENIANS);
+		auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SPEARMAN);
+		s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+		run(s, 3.0f);
+		const uint32_t tree = s.spawn_resource_world(-20.0f, 6.0f, RES_WOOD, 5000);
+		s.order_gather(&inf[0], 1, tree);
+		check(s.formations()[0].order != Simulation::FORDER_APPROACH && s.units_.order_kind[idx_of(s, inf[0])] == ORDER_GATHER,
+				"one member ordered alone gathers by itself");
+	}
+}
+
+static void test_queue(const char *path) {
+	std::printf("15. Shift-queued formation orders\n");
+	Simulation s;
+	setup(s, CIV_ATHENIANS);
+	auto inf = spawn_block(s, 8, -30, 0, 0, UNIT_SWORDSMAN);
+	s.order_set_formation(inf.data(), inf.size(), FORMATION_BOX);
+	run(s, 3.0f);
+	const uint32_t fid = s.formations()[0].id;
+	s.order_walk(inf.data(), inf.size(), -10.0f, 0.0f);
+	s.order_walk(inf.data(), inf.size(), -10.0f, 20.0f, true);
+	s.order_walk(inf.data(), inf.size(), 10.0f, 20.0f, true);
+	check(ctrl(s, fid) && ctrl(s, fid)->queue.size() == 2 && (s.order_queues_.count(inf[0]) == 0 || s.order_queues_.at(inf[0]).empty()),
+			"the queued walks wait in the controller's queue, not the members'");
+	Simulation b;
+	check(s.save_state(path) && b.load_state(path) && b.formations().size() == 1 &&
+			b.formations()[0].queue.size() == 2, "the queue comes back after save/load");
+	bool reached_a = false, reached_b = false;
+	float cx, cz;
+	for (int k = 0; k < 600 && !(reached_b && ctrl(s, fid)->order == Simulation::FORDER_IDLE && ctrl(s, fid)->queue.empty()); ++k) {
+		run(s, 0.1f);
+		centroid(s, inf, cx, cz);
+		reached_a = reached_a || (std::hypot(cx + 10.0f, cz) < 3.0f);
+		reached_b = reached_b || (reached_a && std::hypot(cx + 10.0f, cz - 20.0f) < 3.0f);
+	}
+	centroid(s, inf, cx, cz);
+	check(reached_a && reached_b && std::hypot(cx - 10.0f, cz - 20.0f) < 3.0f && ctrl(s, fid) &&
+			ctrl(s, fid)->members.size() == 8, "the formation walks to each point in turn, still in formation");
+	s.order_walk(inf.data(), inf.size(), 0.0f, 0.0f);
+	s.order_walk(inf.data(), inf.size(), 0.0f, 10.0f, true);
+	s.order_walk(inf.data(), inf.size(), -20.0f, -20.0f);
+	check(ctrl(s, fid) && ctrl(s, fid)->queue.empty(), "a new order clears the queue");
+	// A queued attack after a walk: walk first, then approach the foe as a formation.
+	uint32_t foe = s.spawn_unit(20.0f, -20.0f, 1, UNIT_SPEARMAN, 1.0e6f);
+	s.order_set_stance(&foe, 1, STANCE_PASSIVE);
+	s.order_attack(inf.data(), inf.size(), foe, true);
+	check(ctrl(s, fid) && ctrl(s, fid)->order == Simulation::FORDER_WALK && ctrl(s, fid)->queue.size() == 1,
+			"a queued attack waits for the walk");
+	bool approached = false;
+	for (int k = 0; k < 600 && !approached; ++k) {
+		run(s, 0.1f);
+		approached = ctrl(s, fid) && ctrl(s, fid)->target_unit == foe &&
+				(ctrl(s, fid)->order == Simulation::FORDER_APPROACH || ctrl(s, fid)->order == Simulation::FORDER_MEMBER);
+	}
+	check(approached, "then the formation goes for the foe");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_formations.sav";
 	test_templates();
@@ -530,6 +680,8 @@ int main(int argc, char **argv) {
 	test_patrol();
 	test_guard();
 	test_save_attack(save.c_str());
+	test_tasks();
+	test_queue(save.c_str());
 	if (g_failures) {
 		std::printf("test_formations: FAIL (%d)\n", g_failures);
 		return 1;

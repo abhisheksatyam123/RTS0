@@ -115,7 +115,7 @@ struct TriggerPoint {
 	float x = 0.0f;
 	float z = 0.0f;
 	uint8_t ref = 0;
-	uint8_t owner = 0xFE;   // the point entity's owner: a player id, or 0xFE (GAIA_PLAYER); saves before v39 load 0
+	uint8_t owner = 0xFE;   // the point entity's owner: a player id, or 0xFE (GAIA_PLAYER); saves before v49 load 0
 	uint8_t reserved[2] = {};
 };
 static_assert(sizeof(TriggerPoint) == 12, "TriggerPoint is saved raw: keep it free of padding");

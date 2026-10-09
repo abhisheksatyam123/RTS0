@@ -167,31 +167,31 @@ TRAINER_BUILDING = {
 UNIQUE_BUILDINGS = [
     ("BLD_GYMNASIUM", ["gymnasium"], "gymnasium", "gymnasium"),
     ("BLD_PRYTANEION", ["prytaneion"], "prytaneion", "prytaneion"),
-    ("BLD_GEROUSIA", ["gerousia"], "great_hall", "gerousia"),
-    ("BLD_SYSSITON", ["syssiton"], "great_hall", "syssiton"),
-    ("BLD_TACHARA", ["tachara"], "palace", "tachara"),
-    ("BLD_ARMY_CAMP", ["army_camp"], "barracks", "army_camp"),
+    ("BLD_GEROUSIA", ["gerousia"], "gerousia", "gerousia"),
+    ("BLD_SYSSITON", ["syssiton"], "syssiton", "syssiton"),
+    ("BLD_TACHARA", ["tachara"], "tachara", "tachara"),
+    ("BLD_ARMY_CAMP", ["army_camp"], "army_camp", "army_camp"),
     ("BLD_AMPHITHEATER", ["amphitheater_pompeii"], "amphitheater", "amphitheater"),
     ("BLD_LIBRARY", ["library"], "library", "library"),
     ("BLD_KENNEL", ["kennel"], "kennel", "kennel"),
-    ("BLD_ASSEMBLY", ["assembly"], "great_hall", "assembly"),
-    ("BLD_MONUMENT", ["monument"], "pyramid_minor", "monument"),
+    ("BLD_ASSEMBLY", ["assembly"], "assembly", "assembly"),
+    ("BLD_MONUMENT", ["monument"], "monument", "monument"),
     ("BLD_PALACE", ["palace"], "palace", "palace"),
-    ("BLD_PILLAR", ["pillar_ashoka"], "pyramid_minor", "pillar"),
+    ("BLD_PILLAR", ["pillar_ashoka"], "pillar", "pillar"),
     ("BLD_PYRAMID_LARGE", ["pyramid_large"], "pyramid_large", "pyramid_large"),
     ("BLD_PYRAMID_SMALL", ["pyramid_small"], "pyramid_small", "pyramid_small"),
-    ("BLD_MERCENARY_CAMP", ["mercenary_camp"], "barracks", "mercenary_camp"),
+    ("BLD_MERCENARY_CAMP", ["mercenary_camp"], "mercenary_camp", "mercenary_camp"),
     ("BLD_LIGHTHOUSE", ["lighthouse"], "lighthouse", "lighthouse"),
-    ("BLD_MILITARY_COLONY", ["military_colony"], "town_center", "military_colony"),
+    ("BLD_MILITARY_COLONY", ["military_colony"], "military_colony", "military_colony"),
     ("BLD_ACADEMY", ["academy"], "academy", "academy"),
     ("BLD_MINISTRY", ["ministry"], "imperial_ministry", "ministry"),
-    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "barracks", "camp_blemmye"),
-    ("BLD_CAMP_NOBA", ["camp_noba"], "barracks", "camp_noba"),
-    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple", "temple_amun"),
-    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple", "temple_vesta"),
-    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple", "temple_mars"),
-    ("BLD_ICE_HOUSE", ["ice_house"], "farmstead", "ice_house"),
-    ("BLD_SUPER_DOCK", ["super_dock"], "dock", "super_dock"),
+    ("BLD_CAMP_BLEMMYE", ["camp_blemmye"], "camp_blemmye", "camp_blemmye"),
+    ("BLD_CAMP_NOBA", ["camp_noba"], "camp_noba", "camp_noba"),
+    ("BLD_TEMPLE_AMUN", ["temple_amun"], "temple_amun", "temple_amun"),
+    ("BLD_TEMPLE_VESTA", ["temple_vesta"], "temple_vesta", "temple_vesta"),
+    ("BLD_TEMPLE_MARS", ["temple_mars"], "temple_mars", "temple_mars"),
+    ("BLD_ICE_HOUSE", ["ice_house"], "ice_house", "ice_house"),
+    ("BLD_SUPER_DOCK", ["super_dock"], "super_dock", "super_dock"),
 ]
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
@@ -597,6 +597,37 @@ def phase_of(t):
         phase = max(phase, PHASE_OF_TECH.get(tech, 1))
     return phase
 
+
+RANK_SUFFIX = (("_b", 1), ("_a", 2), ("_e", 3))
+
+
+def unit_upgrades(loader, name, civ):
+    """0 A.D. Upgrade choices of a unit row and of its rank templates (the Roman
+    Centurion upgrade sits on infantry_*_e): [(entity, from rank or 0 for any,
+    {resource: cost}, time, phase)]. Upgrade.js DetermineUpgrades drops missing entities."""
+    out = []
+    base = re.sub(r"_[bae]$", "", name)
+    variants = [(base + suf, rank) for suf, rank in RANK_SUFFIX] if base != name else [(name, 0)]
+    for tname, rank in variants:
+        if not loader.exists(tname):
+            continue
+        up = loader.load(tname).get("Upgrade")
+        if up is None:
+            continue
+        for choice in sorted(up.children):
+            c = up.children[choice]
+            ent = (c.value("Entity") or "").replace("{civ}", civ).replace("{native}", civ)
+            if not loader.exists(ent):
+                continue
+            if "Ignited" in loader.load(ent).tokens("Identity/VisibleClasses"):
+                continue  # fire-ship ignition: fire damage, burning and DeathDamage aren't modelled yet
+            cost = {r: int(c.num("Cost/" + r)) for r in ("food", "wood", "stone", "metal") if c.num("Cost/" + r)}
+            phase = 1
+            for tech in c.tokens("Requirements/Techs"):
+                phase = max(phase, PHASE_OF_TECH.get(tech, 1))
+            out.append((ent, rank, cost, c.num("Time"), phase))
+    return out
+
 # ---------------------------------------------------------------------------
 # Roster walk
 # ---------------------------------------------------------------------------
@@ -814,7 +845,7 @@ def load_team_bonuses(sim_root, rows):
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
 AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
-             "AURA_HEALTH": 5, "AURA_VISION": 6}
+             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
@@ -836,8 +867,37 @@ def rts0_aura_effect(a):
     """Strongest effect of a 0 A.D. aura that RTS0's AuraManager can model:
     (kind, value, range) or None. Auras on enemies keep their strongest
     penalty (an attack or speed multiplier below 1, negative armour)."""
-    enemy = aura_players_mask(a) == 4
     best = None
+    for kind, value, gain in aura_modifications(a):
+        if gain <= 0:
+            continue
+        if best is None or gain > best[3]:
+            best = (kind, value, None, gain)
+    if best is None:
+        return None
+    return best[0], best[1], aura_range(a)
+
+
+def aura_range(a):
+    return a["radius"] * RANGED_RANGE_SCALE if a["type"] == "range" and a["radius"] > 0 else GLOBAL_AURA_RANGE
+
+
+def rts0_aura_effects(a):
+    """Every kind of effect of a 0 A.D. aura that RTS0's AuraManager can model,
+    the strongest of each, penalties included: [(kind, value, range)]. A
+    structure's aura row per kind (the Kushite large pyramid's attack and armour)."""
+    best = {}
+    for kind, value, gain in aura_modifications(a):
+        if gain != 0 and (kind not in best or abs(gain) > abs(best[kind][1])):
+            best[kind] = (value, gain)
+    return [(k, best[k][0], aura_range(a)) for k in AURA_KIND if k in best]
+
+
+def aura_modifications(a):
+    """(kind, value, gain) for each modification RTS0 models; gain > 0 helps
+    the affected units (an aura on enemies helps its owner by hurting them)."""
+    enemy = aura_players_mask(a) == 4
+    out = []
     for m in a.get("modifications", []):
         v = m.get("value", "")
         kind = value = None
@@ -855,21 +915,17 @@ def rts0_aura_effect(a):
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
             kind, value = "AURA_HEAL", m["add"]
-        elif v.startswith("ResourceGatherer/") and "multiply" in m and m["multiply"] > 1:
+        elif v == "Heal/Health" and "add" in m:
+            kind, value = "AURA_HEAL_AMOUNT", m["add"]
+        elif v == "ResourceGatherer/BaseSpeed" and "multiply" in m and m["multiply"] > 1:
             kind, value = "AURA_GATHER", 1.0 - 1.0 / m["multiply"]
         if kind is None:
             continue
         gain = value - 1.0 if kind in MULTIPLY_AURAS else value
         if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR",):
             gain = -gain
-        if gain <= 0:
-            continue
-        if best is None or gain > best[3]:
-            best = (kind, value, None, gain)
-    if best is None:
-        return None
-    rng = a["radius"] * RANGED_RANGE_SCALE if a["type"] == "range" and a["radius"] > 0 else GLOBAL_AURA_RANGE
-    return best[0], best[1], rng
+        out.append((kind, value, gain))
+    return out
 
 
 RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
@@ -941,6 +997,11 @@ def collect(sim_root):
         pending = sorted(trainers)
         while pending:
             src_name = origin = pending.pop()
+            # Upgrade/*/Entity targets (the Immortals' bow) are rows with no trainer too.
+            for ent, _rank, _cost, _time, _phase in unit_upgrades(loader, origin, civ):
+                if ent not in trainers:
+                    trainers[ent] = {"buildings": set(), "kinds": set(), "phase": trainers[origin]["phase"]}
+                    pending.append(ent)
             node, seen = loader.load(src_name), set()
             while node.value("Promotion/Entity") and src_name not in seen:
                 seen.add(src_name)
@@ -1037,6 +1098,7 @@ def collect(sim_root):
                 "civ_bonuses": civ_bonus_ids,
                 "classes": sorted(c),
                 "stats": stats,
+                "upgrades": unit_upgrades(loader, name, civ),
             })
         # RTS0-only classes every civ (or a named civ) keeps.
         for cls in RTS0_ONLY:
@@ -1063,6 +1125,37 @@ def collect(sim_root):
     # the template ids of trainable rows, which saves store, stay where they were.
     rows = [r for r in rows if r["trainers"]] + [r for r in rows if not r["trainers"]]
     rows = keep_previous_ids(rows)
+    # Civ structures' range and global auras on units (Auras.js), after the unit
+    # auras: one row per effect kind, listed per BuildingType (civ_building_auras).
+    for enum, stems, _model, _portrait in UNIQUE_BUILDINGS:
+        for civ in CIVS:
+            for st in stems:
+                path = "structures/%s/%s" % (civ, st)
+                if not loader.exists(path):
+                    continue
+                for aname in loader.load(path).tokens("Auras"):
+                    apath = os.path.join(sim_root, "data", "auras", aname + ".json")
+                    if not os.path.isfile(apath):
+                        continue
+                    with open(apath, encoding="utf-8") as fh:
+                        a = json.load(fh)
+                    affects = a.get("affects", [])
+                    if a.get("type") not in ("range", "global") or "Structure" in affects or "Player" in affects:
+                        continue  # garrison/turret auras and those on structures are code (simulation.cpp)
+                    aid = aname.rsplit("/", 1)[-1]
+                    for kind, value, rng in rts0_aura_effects(a):
+                        known = next((x for x in auras if x["id"] == aid and x["rts0"][0] == kind), None)
+                        if known is not None:
+                            if enum not in known["buildings"]:
+                                known["buildings"].append(enum)
+                            continue
+                        auras.append({
+                            "id": aid, "name": a.get("auraName", aname), "description": a.get("auraDescription", ""),
+                            "type": a["type"], "radius": float(a.get("radius", 0)), "affects": affects,
+                            "players": a.get("affectedPlayers", ["Player"]),
+                            "modifications": a.get("modifications", []),
+                            "rts0": (kind, value, rng), "buildings": [enum],
+                        })
     # Which roster units each aura affects (0 A.D. "affects" class lists).
     for a in auras:
         a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
@@ -1104,7 +1197,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\t\t// id, name, description, radius (0 A.D. metres; 0 = global),")
     w("\t\t// RTS0 AuraManager effect: kind (AuraType, 255 = none modelled), value, range,")
     w("\t\t// affected players (AuraPlayers bits: 1 owner, 2 other allies, 4 enemies),")
-    w("\t\t// bitset of civ_unit_template_table() rows the aura affects")
+    w("\t\t// bitset of civ_unit_template_table() rows the aura affects, whether it affects structures")
     for a in auras:
         bits = [0] * words
         for i in a["affects_rows"]:
@@ -1113,10 +1206,48 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         radius = a["radius"] if a["type"] == "range" else 0.0
         eff = a.get("rts0")
         kind, value, rng = (AURA_KIND[eff[0]], eff[1], eff[2]) if eff else (255, 0.0, 0.0)
-        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
-                                                     f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset))
+        structures = "true" if "Structure" in a["affects"] else "false"
+        w("\t\t{%s, %s, %s, %s, %d, %s, %s, %d, %s, %s}," % (cstr(a["id"]), cstr(a["name"]), cstr(a["description"]),
+                                                         f(radius), kind, f(value), f(rng), aura_players_mask(a), bitset,
+                                                         structures))
     w("\t};")
     w("\treturn kAuras;")
+    w("}")
+    w("")
+    w("// civ_hero_aura_table() rows a finished structure of this BuildingType projects")
+    w("// (0 A.D. structures/<civ>/*.xml Auras), ending in -1.")
+    w("inline const int16_t *civ_building_auras(uint8_t type) {")
+    w("\tstatic const int16_t kNone[1] = {-1};")
+    by_bld = {}
+    for i, a in enumerate(auras):
+        for bld in a.get("buildings", []):
+            by_bld.setdefault(bld, []).append(i)
+    w("\tswitch (type) {")
+    for bld in sorted(by_bld, key=lambda b: [u[0] for u in UNIQUE_BUILDINGS].index(b)):
+        ids = by_bld[bld] + [-1]
+        w("\t\tcase %s: { static const int16_t k[%d] = {%s}; return k; }" % (bld, len(ids), ", ".join(map(str, ids))))
+    w("\t\tdefault: return kNone;")
+    w("\t}")
+    w("}")
+    w("")
+    w("// 0 A.D. Upgrade on units (Upgrade.js): from row, rank the from unit needs (0 = any),")
+    w("// to row, food/wood/gold(metal)/stone cost, time in seconds, phase the choice requires.")
+    index = {"units/" + r["id"]: i for i, r in enumerate(rows)}
+    ups = []
+    for i, r in enumerate(rows):
+        for ent, rank, cost, secs, phase in r.get("upgrades", []):
+            if ent in index:
+                ups.append((i, rank, index[ent], cost, secs, phase))
+    w("inline constexpr uint16_t CIV_UNIT_UPGRADE_COUNT = %d;" % len(ups))
+    w("inline const CivUnitUpgrade *civ_unit_upgrade_table() {")
+    w("\tstatic const CivUnitUpgrade kUpgrades[CIV_UNIT_UPGRADE_COUNT + 1] = {")
+    for i, rank, to, cost, secs, phase in ups:
+        w("\t\t{%d, %d, %d, %d, %d, %d, %d, %s, %d}, // %s -> %s" % (
+            i, rank, to, cost.get("food", 0), cost.get("wood", 0), cost.get("metal", 0), cost.get("stone", 0),
+            f(secs), phase, rows[i]["id"], rows[to]["id"]))
+    w("\t\t{0xFFFF, 0, 0xFFFF, 0, 0, 0, 0, 0.0f, 0},")
+    w("\t};")
+    w("\treturn kUpgrades;")
     w("}")
     w("")
     w("inline const CivUnitTemplate *civ_unit_template_table() {")
@@ -1251,7 +1382,7 @@ def emit_json(rows, auras, civ_json, bonuses):
         "generator": "tools/extract_0ad_rosters.py",
         "license": "0 A.D. data, CC BY-SA 3.0, Wildfire Games",
         "civs": civs,
-        "units": rows,
+        "units": [{k: v for k, v in r.items() if k != "upgrades"} for r in rows],
         "auras": [{k: v for k, v in a.items() if k != "affects_rows"} for a in auras],
     }
     return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"

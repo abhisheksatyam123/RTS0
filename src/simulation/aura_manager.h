@@ -18,7 +18,9 @@ enum AuraType : uint8_t {
     AURA_ARMOR  = 4,
     AURA_HEALTH = 5, // Health/Max multiplier
     AURA_VISION = 6, // Vision/Range multiplier
-    AURA_COUNT  = 7
+    AURA_HEAL_AMOUNT = 7, // Heal/Health added to what a healer restores per heal
+    AURA_REQUIRED_XP = 8, // Promotion/RequiredXp multiplier
+    AURA_COUNT  = 9
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -87,23 +89,32 @@ public:
     // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
     // qclasses its 0 A.D. classes.
     //   AURA_HEAL: sum of hp/s. AURA_GATHER: strongest bonus.
-    //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION: strongest bonus times strongest penalty
+    //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP: strongest bonus times
+    //     strongest penalty
     //     (0 when none reaches the unit).
-    //   AURA_ARMOR: strongest bonus plus strongest penalty.
+    //   AURA_ARMOR / AURA_HEAL_AMOUNT: strongest bonus plus strongest penalty.
+    // structure: the query is for a structure, which only auras naming the Structure
+    // class reach (CivHeroAura::structures).
     float query_modifier(float qx, float qz, uint8_t qowner, AuraType type,
-            uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE, const CombatClasses *qclasses = nullptr) const {
+            uint16_t qtmpl = CIV_UNIT_TEMPLATE_NONE, const CombatClasses *qclasses = nullptr,
+            bool structure = false) const {
         if (type >= AURA_COUNT || of_type_[type].empty()) return 0.0f;
         const uint16_t qbit = aura_player_bit(qowner);
         bool any = false;
         float sum = 0.0f, up = 0.0f, down = 0.0f;
-        const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION;
+        const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION
+            || type == AURA_REQUIRED_XP;
         if (mul) up = down = 1.0f;
         // Only this type's sources, in the order they were registered.
         for (uint32_t k : of_type_[type]) {
             const AuraSource &s = sources[k];
             if (!s.alive || !(s.affected & qbit)) continue;
-            if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
-            if (s.need_class != 0xFF && !(qclasses && qclasses->has(s.need_class))) continue;
+            if (structure) {
+                if (s.aura < 0 || !civ_hero_aura(s.aura).structures) continue;
+            } else {
+                if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
+                if (s.need_class != 0xFF && !(qclasses && qclasses->has(s.need_class))) continue;
+            }
             float dx = qx - s.x;
             float dz = qz - s.z;
             if (dx * dx + dz * dz > s.range * s.range) continue;

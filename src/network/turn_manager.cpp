@@ -67,6 +67,11 @@ static uint64_t rejoin_now_ms();
 static constexpr uint8_t CMD_PEER_JOINED = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_JOINED);
 static constexpr uint8_t CMD_PEER_LEFT = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_LEFT);
 
+// A train command's batch size (target_z): a whole number 1..200, else one unit.
+static int batch_count(float z) {
+	return (z >= 1.0f && z <= 200.0f && z == (float)(int)z) ? (int)z : 1;
+}
+
 void TurnManager::ensure_lockstep_peers() {
 	if (!lockstep_peers_set_) {
 		lockstep_peers_.clear();
@@ -890,6 +895,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 	mix_u8(sim.is_game_over() ? 1 : 0);
 	// Map triggers (Trigger.js timers) and the water level the rising-water maps move.
 	mix_u32(sim.trigger_hash());
+	mix_u32(sim.los_hash()); // per-player LOS (visible and explored bits)
 	mix_float(sim.water_height());
 
 	// 6. Active Projectiles & Relics
@@ -1258,7 +1264,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			if (c.param == UNIT_TYPE_NONE && c.target_x > 0.0f)
 				sim.cmd_breed_livestock(pl, c.target_id, (uint8_t)c.target_x);
 			else
-				sim.cmd_train(pl, c.target_id, (UnitType)c.param);
+				sim.cmd_train(pl, c.target_id, (UnitType)c.param, batch_count(c.target_z));
 		} else if (c.cmd_type == 7) { // Stance
 			sim.order_set_stance(ids, n, c.param);
 		} else if (c.cmd_type == 8) { // Formation
@@ -1280,7 +1286,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 14) { // Rally (entity_ids carry target ids, not units)
 			uint32_t res = c.entity_ids.size() > 0 ? c.entity_ids[0] : 0;
 			uint32_t bld = c.entity_ids.size() > 1 ? c.entity_ids[1] : 0;
-			sim.cmd_set_rally_point(pl, c.target_id, c.target_x, c.target_z, res, bld);
+			if ((c.param & ~NET_PARAM_QUEUED) == 1) sim.cmd_unset_rally_point(pl, c.target_id);
+			else sim.cmd_set_rally_point(pl, c.target_id, c.target_x, c.target_z, res, bld, queued);
 		} else if (c.cmd_type == 15) { // Attack building
 			sim.order_attack_building(ids, n, c.target_id, queued, capture); // right-click captures, Ctrl attacks
 		} else if (c.cmd_type == 16) { // Build / repair
@@ -1317,6 +1324,13 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_remove_guard(ids, n);
 		} else if (c.cmd_type == 38) { // Call to arms — attack-walk to (target_x, target_z).
 			sim.order_call_to_arms(ids, n, c.target_x, c.target_z, queued);
+		} else if (c.cmd_type == 41) { // WallSet wall — from the point in target_id to (target_x, target_z);
+			float sx, sz;                 // param's low bits name the WallSetKind (1 palisade).
+			Simulation::unpack_wall_point(c.target_id, sx, sz);
+			sim.cmd_build_wall(pl, sx, sz, c.target_x, c.target_z, ids, n, queued, (uint8_t)(c.param & 0x7F));
+		} else if (c.cmd_type == 43) { // Unit upgrade — target_id = roster template, param 1 cancel.
+			if (c.param == 1) sim.cmd_cancel_unit_upgrades(pl, ids, n);
+			else if (c.target_id < CIV_UNIT_TEMPLATE_COUNT) sim.cmd_upgrade_units(pl, ids, n, (uint16_t)c.target_id);
 		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
 			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
 			else sim.cmd_raise_alert(pl, c.target_id);
@@ -1329,7 +1343,9 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_pack(ids, n, c.param == 1);
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
-				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x);
+				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
+		} else if (c.cmd_type == 44) { // Autoqueue — target_id=building, param 1 on / 0 off.
+			sim.cmd_set_autoqueue(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 33) { // Trading goods — target_id = one percent byte per ResourceType.
 			uint8_t pct[RES_COUNT];
 			for (int r = 0; r < RES_COUNT; ++r) pct[r] = (uint8_t)(c.target_id >> (8 * r));
@@ -1342,6 +1358,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.
 			sim.cmd_barter(pl, (rtso::ResourceType)(int)c.target_x,
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
+		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
+			// target_x=resource or tech; acts on the raw selection, whoever owns it.
+			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());
+		} else if (c.cmd_type == 42) { // Bribe (0 A.D. "spy-request") — target_id=player.
+			if (c.target_id < MAX_PLAYERS) sim.cmd_bribe(pl, (uint8_t)c.target_id);
 		} else if (c.cmd_type == 22) { // Diplomacy stance — target_id=player, param=stance.
 			// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity. Applied at the turn
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into

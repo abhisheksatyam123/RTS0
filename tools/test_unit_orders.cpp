@@ -57,6 +57,21 @@
 //     way are ignored, attacks at work are answered.
 // 35. A load of another type is dropped when gathering starts; builders take their load to
 //     the dropsite they finished; guards stop guarding a unit that changed owner.
+// 38. UnitAI audit batch: a queued order after a gather goes first (with a drop-off ahead
+//     of it); arrows from a structure are attacks; a capturing unit answers a ranged attacker;
+//     garrisoning at a dropsite drops the load; the killer of a wolf cheers; CanGuard; guards
+//     repair the structure they guard; idle healers in a formation heal; a siege engine
+//     (un)packing ignores attacks; an idle full worker stays put.
+// 39. A queued attack on a unit hidden in the fog is skipped (Order.Attack -> APPROACHING,
+//     CheckTargetVisible); one on a unit in sight goes ahead.
+// 40. UnitAI Run: a fleeing unit runs (RunMultiplier 1.67, cavalry 1.4, siege 1) and so does one
+//     chasing a fleeing target; a plain walk doesn't.
+// 41. A hunter whose carcass is eaten goes for the next animal nearby (GATHER FINDINGNEWTARGET
+//     takes live animals), not a dangerous one.
+// 42. Rally points: Shift adds positions, unset-rallypoint (cmd 14 param 1), gather near a
+//     gone target, and a save round trip.
+// 43. UnitAI FLEEING: the flight re-aims from where the attacker is now, ignores attackers
+//     farther than the one fled from, and the source survives a save.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -242,10 +257,11 @@ static void test_guard() {
 	run(s, 10.0f);
 	check(dist(s, g, x_of(s, vip), z_of(s, vip)) < 5.0f, "guard follows the guarded unit");
 	check(s.unit_order(g).kind == ORDER_GUARD, "and keeps its guard order");
-	// An archer out of the guard's sight shoots the guarded unit.
+	// An archer out of the guard's sight shoots the guarded unit. It flees and the archer runs
+	// after her (FLEEING re-aims from him), so the walking guard catches him once it stops.
 	uint32_t e = s.spawn_unit(x_of(s, vip) + 14.0f, z_of(s, vip), 1, UNIT_ARCHER);
 	s.order_attack(&e, 1, vip);
-	const bool answered = run_until(s, 20.0f, [&] { return !alive(s, e); });
+	const bool answered = run_until(s, 40.0f, [&] { return !alive(s, e); });
 	check(answered, "guard kills whoever attacks the guarded unit");
 	run(s, 6.0f);
 	check(s.unit_order(g).kind == ORDER_GUARD && act_of(s, g) == ACTION_GUARD &&
@@ -1361,6 +1377,313 @@ static void test_guard_structure() {
 	}
 }
 
+static void test_unitai_audit() {
+	std::printf("38. UnitAI audit batch\n");
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t small = s.spawn_resource_world(0, 0, RES_WOOD, 4);
+		s.spawn_resource_world(5, 0, RES_WOOD, 500);
+		uint32_t w = s.spawn_unit(-1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_gather(&w, 1, small);
+		s.order_walk(&w, 1, 0.0f, 20.0f, true);
+		const float wood0 = s.player(0).res[RES_WOOD];
+		const bool walked = run_until(s, 60.0f, [&] { return dist(s, w, 0.0f, 20.0f) < 2.0f; });
+		check(walked && s.player(0).res[RES_WOOD] >= wood0 + 4.0f,
+				"a queued walk after a gather goes before the next tree, after a drop-off (FINDINGNEWTARGET)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t tower = s.spawn_building_world(30, 0, BLD_TOWER, 1, 1.0f);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_set_stance(&w, 1, STANCE_PASSIVE);
+		uint32_t sol = s.spawn_unit(0, 6, 0, UNIT_SPEARMAN);
+		s.units_.attacked_by[idx_of(s, w)] = tower;
+		s.units_.attacked_by[idx_of(s, sol)] = tower;
+		s.tick(DT);
+		check(act_of(s, w) == ACTION_FLEE, "a woman shot by a tower flees from it");
+		check(s.units_.target_building_id[idx_of(s, sol)] == tower, "an idle soldier shot by a tower goes for it");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t house = s.spawn_building_world(10, 0, BLD_HOUSE, 1, 1.0f);
+		uint32_t c = s.spawn_unit(5, 0, 0, UNIT_SPEARMAN);
+		s.order_attack_building(&c, 1, house, false, true);
+		const bool capturing = run_until(s, 10.0f, [&] { return s.unit_capturing(idx_of(s, c)); });
+		uint32_t archer = post(s, 5, 12, UNIT_ARCHER);
+		s.units_.attacked_by[idx_of(s, c)] = archer;
+		s.tick(DT);
+		check(capturing && target_of(s, c) == 0, "a player's capture order ignores a ranged attacker (order.data.force)");
+		s.order_set_stance(&c, 1, STANCE_VIOLENT);
+		s.units_.attacked_by[idx_of(s, c)] = archer;
+		s.tick(DT);
+		check(target_of(s, c) == archer, "a violent capturer turns on it (ATTACKING Attacked, targetAttackersAlways)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t cc = 0;
+		for (const auto &b : s.buildings()) if (b.type == BLD_TOWN_CENTER && b.team == 0) cc = b.id;
+		uint32_t w = s.spawn_unit(-46, -46, 0, UNIT_FEMALE_CITIZEN);
+		s.units_.carry[idx_of(s, w)] = 8;
+		s.units_.res_type_carried[idx_of(s, w)] = RES_STONE;
+		const float stone0 = s.player(0).res[RES_STONE];
+		s.order_garrison(&w, 1, cc);
+		const bool in = run_until(s, 20.0f, [&] { return act_of(s, w) == ACTION_GARRISONED; });
+		check(in && s.player(0).res[RES_STONE] >= stone0 + 8.0f && s.units_.carry[idx_of(s, w)] == 0,
+				"garrisoning at a dropsite drops the load first");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t wolf = s.spawn_fauna(3, 0, FAUNA_WOLF);
+		s.fauna_.hp[s.fauna_id_to_idx_.at(wolf)] = 1.0f;
+		uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		s.order_attack(&a, 1, wolf);
+		const bool cheered = run_until(s, 10.0f, [&] { return act_of(s, a) == ACTION_CHEER; });
+		check(cheered, "the unit that kills a wolf cheers (shouldCheer)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t store = s.spawn_building_world(0, 0, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t ram = s.spawn_unit(10, 0, 0, UNIT_SIEGE_RAM);
+		uint32_t trader = s.spawn_unit(10, 4, 0, UNIT_TRADER);
+		s.order_guard(&ram, 1, store);
+		s.order_guard(&trader, 1, store);
+		check(s.unit_order(ram).kind != ORDER_GUARD && s.unit_order(trader).kind != ORDER_GUARD,
+				"siege engines and traders don't guard (CanGuard)");
+		uint32_t enemy = s.spawn_unit(10, 8, 1, UNIT_SPEARMAN);
+		uint32_t g = s.spawn_unit(12, 8, 0, UNIT_SPEARMAN);
+		s.order_guard(&g, 1, enemy);
+		check(s.unit_order(g).kind != ORDER_GUARD, "nor guard an enemy unit");
+		uint32_t w = s.spawn_unit(-8, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.order_guard(&w, 1, store);
+		run(s, 2.0f);
+		for (auto &b : s.buildings_) if (b.id == store) b.hp = b.max_hp * 0.5f;
+		const bool repairing = run_until(s, 4.0f, [&] { return act_of(s, w) == ACTION_BUILD; });
+		const bool fixed = run_until(s, 120.0f, [&] { return bld(s, store)->hp >= bld(s, store)->max_hp; });
+		run(s, 1.0f);
+		check(repairing && fixed, "a woman guarding a damaged storehouse repairs it (GUARDING Timer)");
+		check(s.unit_order(w).kind == ORDER_GUARD && s.unit_order(w).target == store, "then guards it again");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t ids[5];
+		for (int k = 0; k < 4; ++k) ids[k] = s.spawn_unit(-2.0f + 1.5f * k, 0, 0, UNIT_SPEARMAN);
+		ids[4] = s.spawn_unit(0, -2, 0, UNIT_HEALER);
+		s.order_set_formation(ids, 5, FORMATION_BOX);
+		run(s, 3.0f);
+		check(s.formation_group_[idx_of(s, ids[4])] != 0, "a healer in a box formation");
+		s.set_unit_hp(ids[0], 20.0f);
+		const bool heals = run_until(s, 6.0f, [&] { return act_of(s, ids[4]) == ACTION_HEAL; });
+		check(heals, "an idle healer in a formation heals a hurt member (FORMATIONMEMBER.IDLE)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+		s.units_.res_type_carried[idx_of(s, w)] = RES_WOOD;
+		s.units_.carry[idx_of(s, w)] = s.carry_cap(idx_of(s, w), RES_WOOD);
+		run(s, 5.0f);
+		check(act_of(s, w) == ACTION_IDLE && dist(s, w, 0, 0) < 1.0f && s.units_.carry[idx_of(s, w)] > 0,
+				"an idle worker with a full load stays put (UnitAI IDLE; Petra sends its own ReturnResource)");
+	}
+	{
+		Simulation s;
+		setup(s);
+		uint32_t cat = s.spawn_unit(0, 0, 0, UNIT_CATAPULT);
+		s.order_pack(&cat, 1, false);
+		s.tick(DT);
+		const uint8_t ps = s.units_.pack_state[idx_of(s, cat)];
+		uint32_t e = post(s, 0, 8, UNIT_SWORDSMAN);
+		s.units_.attacked_by[idx_of(s, cat)] = e;
+		s.tick(DT);
+		check(ps == PACK_UNPACKING && s.units_.pack_state[idx_of(s, cat)] == PACK_UNPACKING && target_of(s, cat) == 0,
+				"a catapult unpacking ignores an attack");
+	}
+}
+
+static void test_fog_queued_attack() {
+	std::printf("39. queued attacks on units hidden in the fog\n");
+	Simulation s;
+	setup(s);
+	uint32_t a = s.spawn_unit(0, 0, 0, UNIT_SPEARMAN);
+	uint32_t seen = post(s, 6, 0, UNIT_SPEARMAN, 5000.0f);
+	uint32_t hidden = post(s, 40, -30, UNIT_SPEARMAN);
+	run(s, 1.0f);
+	check(s.los_visible(0, 6, 0) && !s.los_visible(0, 40, -30), "one enemy in sight, one in the fog");
+	s.order_walk(&a, 1, 0.0f, 2.0f);
+	s.order_attack(&a, 1, hidden, true);
+	s.order_walk(&a, 1, -6.0f, 2.0f, true);
+	const bool walked = run_until(s, 20.0f, [&] { return dist(s, a, -6.0f, 2.0f) < 1.5f; });
+	check(walked && target_of(s, a) == 0 && dist(s, a, 40.0f, -30.0f) > 30.0f,
+			"the attack on the hidden one is skipped and the next walk goes ahead");
+	s.order_walk(&a, 1, 0.0f, 2.0f);
+	s.order_attack(&a, 1, seen, true);
+	const bool attacks = run_until(s, 20.0f, [&] { return target_of(s, a) == seen; });
+	check(attacks, "a queued attack on one in sight goes ahead");
+}
+
+static void test_run_speed() {
+	std::printf("40. running while fleeing and chasing a fleeing target\n");
+	Simulation s;
+	setup(s);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t cav = s.spawn_unit(0, 10, 0, UNIT_CAVALRY);
+	uint32_t ram = s.spawn_unit(0, -10, 0, UNIT_SIEGE_RAM);
+	const int wi = idx_of(s, w), ci = idx_of(s, cav), ri = idx_of(s, ram);
+	check(std::fabs(s.unit_walk_speed(wi) - s.units_.speed[wi]) < 1e-4f, "a woman standing still walks at her walk speed");
+	s.units_.action_state[wi] = ACTION_FLEE;
+	s.units_.action_state[ci] = ACTION_FLEE;
+	s.units_.action_state[ri] = ACTION_FLEE;
+	check(std::fabs(s.unit_walk_speed(wi) - 1.67f * s.units_.speed[wi]) < 1e-3f, "she runs at 1.67x while fleeing");
+	check(std::fabs(s.unit_walk_speed(ci) - 1.4f * s.units_.speed[ci]) < 1e-3f, "cavalry run at 1.4x");
+	check(std::fabs(s.unit_walk_speed(ri) - s.units_.speed[ri]) < 1e-3f, "a ram doesn't run");
+
+	Simulation t;
+	setup(t);
+	uint32_t woman = t.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	t.order_set_stance(&woman, 1, STANCE_PASSIVE);
+	uint32_t sp = t.spawn_unit(4, 0, 1, UNIT_SPEARMAN);
+	t.order_attack(&sp, 1, woman);
+	const bool fled = run_until(t, 10.0f, [&] { return act_of(t, woman) == ACTION_FLEE; });
+	const int si = idx_of(t, sp);
+	check(fled && t.unit_running((size_t)si) && t.unit_running((size_t)idx_of(t, woman)),
+			"the woman flees from the spearman and both run");
+	const float x0 = x_of(t, woman), z0 = z_of(t, woman);
+	t.tick(DT);
+	const float moved = std::hypot(x_of(t, woman) - x0, z_of(t, woman) - z0);
+	check(moved > t.units_.speed[idx_of(t, woman)] * DT * 1.2f, "she covers more ground per turn than walking");
+}
+
+static void test_next_prey() {
+	std::printf("41. hunters move on to the next animal\n");
+	Simulation s;
+	setup(s);
+	s.spawn_building_world(-20, 0, BLD_STOREHOUSE, 0, 1.0f);
+	s.spawn_building_world(-20, 8, BLD_FARMSTEAD, 0, 1.0f);
+	const uint32_t d1 = s.spawn_fauna(4, 0, FAUNA_DEER);
+	const uint32_t d2 = s.spawn_fauna(10, 6, FAUNA_DEER);
+	s.spawn_fauna(6, -4, FAUNA_WOLF);
+	const size_t f1 = s.fauna_id_to_idx_.at(d1);
+	s.fauna_.hp[f1] = 1.0f;
+	s.fauna_.food_amount[f1] = 5;
+	uint32_t c = s.spawn_unit(0, 0, 0, UNIT_CAVALRY);
+	s.order_set_stance(&c, 1, STANCE_PASSIVE); // leave the wolf alone
+	s.order_hunt(&c, 1, d1);
+	const bool next = run_until(s, 60.0f, [&] { return target_of(s, c) == d2; });
+	check(next, "a horseman who has eaten up his deer goes for the next deer, not the wolf");
+}
+
+static void test_rally_positions() {
+	std::printf("42. Shift rally positions, unset-rallypoint, gather near a gone target\n");
+	Simulation s;
+	setup(s);
+	const uint32_t brk = s.spawn_building_world(-20, -20, BLD_BARRACKS, 0, 1.0f);
+	const uint32_t tree = s.spawn_resource_world(10, -10, RES_WOOD, 500);
+	const uint32_t tree2 = s.spawn_resource_world(12, -12, RES_WOOD, 500);
+	auto bref = [&]() -> const Simulation::Building & { return *bld(s, brk); };
+	s.cmd_set_rally_point(0, brk, 0, -20);
+	s.cmd_set_rally_point(0, brk, 10, -10, tree, 0, true);
+	s.cmd_set_rally_point(0, brk, 20, 0, 0, 0, true);
+	check(bref().rally_more.size() == 2 && bref().rally_more[0].res_type == RES_WOOD, "Shift adds positions after the first");
+	uint32_t sp = s.spawn_unit(-15, -20, 0, UNIT_SPEARMAN);
+	s.apply_rally_point(sp, bref());
+	const auto *q = s.unit_order_queue(sp);
+	check(s.unit_order(sp).kind == ORDER_WALK && q && q->size() == 2 && (*q)[0].kind == ORDER_GATHER &&
+			(*q)[0].target == tree && (*q)[1].kind == ORDER_WALK, "a trained unit walks, then gathers, then walks on");
+
+	// gather-near-position: the rally tree is gone.
+	s.cmd_set_rally_point(0, brk, 10, -10, tree, 0);
+	check(bref().rally_more.empty(), "a click without Shift starts over");
+	const int32_t ti = s.res_id_to_idx_.count(tree) ? (int32_t)s.res_id_to_idx_[tree] : -1;
+	s.resources_.amount[ti] = 0;
+	s.resources_.alive[ti] = 0;
+	uint32_t w = s.spawn_unit(-15, -20, 0, UNIT_FEMALE_CITIZEN);
+	s.apply_rally_point(w, bref());
+	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree2, "she gathers the next tree of that kind there");
+
+	// Save round trip.
+	s.cmd_set_rally_point(0, brk, 5, 5, 0, 0, true);
+	const char *path = "/tmp/rts0_test_rally_positions.sav";
+	check(s.save_state(path), "saved");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	const Simulation::Building *tb = bld(t, brk);
+	check(tb && tb->rally_res_type == RES_WOOD && tb->rally_more.size() == 1 && tb->rally_more[0].x == 5.0f,
+			"the resource kind and the extra position survive a save");
+
+	s.cmd_unset_rally_point(0, brk);
+	check(!bref().has_rally_point && bref().rally_more.empty(), "unset-rallypoint forgets them");
+
+	// Lockstep cmd 14: Shift adds (NET_PARAM_QUEUED), param 1 unsets.
+	TurnManager tm;
+	NetCommand a;
+	a.client_id = 0;
+	a.cmd_type = (uint8_t)NetCommandType::NET_CMD_RALLY;
+	a.target_id = brk;
+	a.target_x = 1;
+	a.target_z = -20;
+	tm.post_local_command(a);
+	NetCommand b2 = a;
+	b2.target_x = 2;
+	b2.param = NET_PARAM_QUEUED;
+	tm.post_local_command(b2);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+	check(bref().has_rally_point && bref().rally_x == 1.0f && bref().rally_more.size() == 1, "lockstep Shift rally");
+	NetCommand u = a;
+	u.param = 1;
+	tm.post_local_command(u);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+	check(!bref().has_rally_point, "lockstep unset-rallypoint");
+}
+
+
+static void test_flee_source() {
+	std::printf("43. a flight re-aims from a chasing attacker and ignores farther ones (UnitAI FLEEING)\n");
+	Simulation s;
+	setup(s);
+	uint32_t w = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	s.order_set_stance(&w, 1, STANCE_PASSIVE);
+	uint32_t sp = s.spawn_unit(-2, 0, 1, UNIT_SPEARMAN);
+	uint32_t far = s.spawn_unit(15, 0, 1, UNIT_ARCHER);
+	const int wi = idx_of(s, w), si = idx_of(s, sp);
+	s.units_.attacked_by[wi] = sp;
+	s.respond_to_attack((size_t)wi);
+	check(act_of(s, w) == ACTION_FLEE && s.units_.flee_from[wi] == sp && s.units_.target_x[wi] > 0.0f,
+			"she flees east, away from the spearman");
+	// The spearman comes round to her east side: she now runs west.
+	s.units_.pos_x[si] = 2.0f;
+	s.units_.pos_z[si] = 0.0f;
+	check(!s.flee_done((size_t)wi) && s.units_.target_x[wi] < 0.0f, "the flight turns away from where he is now");
+	// A farther attacker is ignored; a nearer one takes over.
+	s.units_.attacked_by[wi] = far;
+	s.respond_to_attack((size_t)wi);
+	check(s.units_.flee_from[wi] == sp, "an archer farther off than the spearman is ignored");
+	uint32_t near = s.spawn_unit(0, 1, 1, UNIT_SPEARMAN);
+	s.units_.attacked_by[idx_of(s, w)] = near;
+	s.respond_to_attack((size_t)idx_of(s, w));
+	check(s.units_.flee_from[idx_of(s, w)] == near, "a nearer attacker is fled from instead");
+	// Far enough away: the flight ends.
+	const int wj = idx_of(s, w);
+	s.units_.pos_z[wj] = 30.0f;
+	check(s.flee_done((size_t)wj), "the flight ends once FleeDistance further off");
+	s.units_.pos_z[wj] = 0.0f;
+	const char *path = "/tmp/rts0_test_flee_source.sav";
+	check(s.save_state(path), "saved");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	const int ti = idx_of(t, w);
+	check(ti >= 0 && t.units_.flee_from[ti] == near && t.units_.flee_dist[ti] == s.units_.flee_dist[wj],
+			"the one fled from survives a save");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1401,6 +1724,12 @@ int main(int argc, char **argv) {
 	test_loads_and_guards();
 	test_remove_guard_call_to_arms();
 	test_guard_structure();
+	test_unitai_audit();
+	test_fog_queued_attack();
+	test_run_speed();
+	test_next_prey();
+	test_rally_positions();
+	test_flee_source();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

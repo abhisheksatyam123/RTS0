@@ -2005,6 +2005,1002 @@
    ],
    "flag": "hele"
   },
+  "s_athenians_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_athenians_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_athenians_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_blacksmith": {
+   "scale": 0.20453,
+   "ground": 1.4118,
+   "pos": [
+    1.0779,
+    3.4313,
+    0.9388
+   ],
+   "flag": "celt"
+  },
+  "s_britons_range": {
+   "scale": 0.17336,
+   "ground": 1.0528,
+   "pos": [
+    -1.1284,
+    2.3793,
+    -0.9251
+   ],
+   "flag": "celt"
+  },
+  "s_britons_stable": {
+   "scale": 0.19856,
+   "ground": 1.4118,
+   "pos": [
+    0.0114,
+    3.4448,
+    0.9425
+   ],
+   "flag": "celt"
+  },
+  "s_britons_wall_gate": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_britons_wooden_tower": {
+   "scale": 0.22235,
+   "ground": 1.6005,
+   "pos": [
+    -0.004,
+    4.9305,
+    0.024
+   ],
+   "flag": "celt"
+  },
+  "s_britons_workshop": {
+   "scale": 0.15514,
+   "ground": 1.2907,
+   "pos": [
+    -0.5631,
+    3.386,
+    0.7488
+   ],
+   "flag": "celt"
+  },
+  "s_carthaginians_blacksmith": {
+   "scale": 0.20389,
+   "ground": 0.9468,
+   "pos": [
+    0.1028,
+    3.0297,
+    0.1052
+   ],
+   "flag": "kart"
+  },
+  "s_carthaginians_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
+   "pos": [
+    -0.5095,
+    5.9528,
+    -0.0432
+   ],
+   "flag": "kart"
+  },
+  "s_carthaginians_range": {
+   "scale": 0.14681,
+   "ground": 0.9947,
+   "pos": [
+    -0.5795,
+    2.6326,
+    0.4537
+   ],
+   "flag": "kart"
+  },
+  "s_carthaginians_stable": {
+   "scale": 0.18989,
+   "ground": 1.8199,
+   "pos": [
+    1.9226,
+    3.9263,
+    0.2936
+   ],
+   "flag": "kart"
+  },
+  "s_carthaginians_wall_long": {
+   "scale": 0.21415,
+   "ground": 0.0
+  },
+  "s_carthaginians_wall_medium": {
+   "scale": 0.21233,
+   "ground": 0.0
+  },
+  "s_carthaginians_wall_short": {
+   "scale": 0.2149,
+   "ground": 0.0
+  },
+  "s_carthaginians_wooden_tower": {
+   "scale": 0.24331,
+   "ground": 2.748,
+   "pos": [
+    0.5589,
+    5.657,
+    -0.5546
+   ],
+   "flag": "kart"
+  },
+  "s_carthaginians_workshop": {
+   "scale": 0.17214,
+   "ground": 1.8903,
+   "pos": [
+    -0.4529,
+    3.5067,
+    0.9923
+   ],
+   "flag": "kart"
+  },
+  "s_celts_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
+   "pos": [
+    -0.5095,
+    5.9528,
+    -0.0432
+   ],
+   "flag": "celt"
+  },
+  "s_gauls_blacksmith": {
+   "scale": 0.22102,
+   "ground": 1.5257,
+   "pos": [
+    1.1916,
+    3.5212,
+    -1.3688
+   ],
+   "flag": "celt"
+  },
+  "s_gauls_range": {
+   "scale": 0.13631,
+   "ground": 0.9014,
+   "pos": [
+    -0.4688,
+    2.8759,
+    0.7966
+   ],
+   "flag": "celt"
+  },
+  "s_gauls_stable": {
+   "scale": 0.19524,
+   "ground": 0.975,
+   "pos": [
+    -0.9699,
+    2.6453,
+    1.0094
+   ],
+   "flag": "celt"
+  },
+  "s_gauls_theater": {
+   "scale": 0.18363,
+   "ground": 1.0384,
+   "pos": [
+    0.9767,
+    1.168,
+    -1.1269
+   ],
+   "flag": "celt"
+  },
+  "s_gauls_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_gauls_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_gauls_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_gauls_wooden_tower": {
+   "scale": 0.25018,
+   "ground": 2.5449,
+   "pos": [
+    0.024,
+    6.3412,
+    -0.6048
+   ],
+   "flag": "celt"
+  },
+  "s_gauls_workshop": {
+   "scale": 0.16631,
+   "ground": 0.8432,
+   "pos": [
+    0.1061,
+    2.9575,
+    0.3348
+   ],
+   "flag": "celt"
+  },
+  "s_han_forge": {
+   "scale": 0.18298,
+   "ground": 2.1555,
+   "pos": [
+    1.1014,
+    5.2603,
+    -0.2118
+   ],
+   "flag": "han"
+  },
+  "s_han_tower_small": {
+   "scale": 0.30645,
+   "ground": 0.6165,
+   "pos": [
+    0.0033,
+    4.2569,
+    0.0708
+   ],
+   "flag": "han"
+  },
+  "s_han_wall_long": {
+   "scale": 0.05437,
+   "ground": 0.2074
+  },
+  "s_han_wall_long_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_han_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_han_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_hellenes_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_hellenes_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_hellenes_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_hellenes_wooden_tower": {
+   "scale": 0.28057,
+   "ground": 2.4506,
+   "pos": [
+    0.7638,
+    5.7449,
+    0.7479
+   ],
+   "flag": "hele"
+  },
+  "s_hellenes_workshop": {
+   "scale": 0.17867,
+   "ground": 1.7492,
+   "pos": [
+    1.1074,
+    3.563,
+    1.2497
+   ],
+   "flag": "hele"
+  },
+  "s_iberians_blacksmith": {
+   "scale": 0.24777,
+   "ground": 1.1078,
+   "pos": [
+    1.1842,
+    3.2094,
+    -0.5913
+   ],
+   "flag": "iber"
+  },
+  "s_iberians_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
+   "pos": [
+    -0.5095,
+    5.9528,
+    -0.0432
+   ],
+   "flag": "iber"
+  },
+  "s_iberians_range": {
+   "scale": 0.15209,
+   "ground": 1.2848,
+   "pos": [
+    -0.8098,
+    2.9204,
+    0.4543
+   ],
+   "flag": "iber"
+  },
+  "s_iberians_sb_1": {
+   "scale": 0.22857,
+   "ground": 0.0
+  },
+  "s_iberians_stable": {
+   "scale": 0.17444,
+   "ground": 1.4917,
+   "pos": [
+    -1.2064,
+    3.164,
+    0.6687
+   ],
+   "flag": "iber"
+  },
+  "s_iberians_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_iberians_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_iberians_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_iberians_wooden_tower": {
+   "scale": 0.23075,
+   "ground": 2.7583,
+   "pos": [
+    -0.0107,
+    5.7337,
+    0.0249
+   ],
+   "flag": "iber"
+  },
+  "s_iberians_workshop": {
+   "scale": 0.15297,
+   "ground": 1.3081,
+   "pos": [
+    0.0147,
+    2.8369,
+    0.5397
+   ],
+   "flag": "iber"
+  },
+  "s_kushites_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
+   "pos": [
+    -0.5095,
+    5.9528,
+    -0.0432
+   ],
+   "flag": "kush"
+  },
+  "s_kushites_outpost_stone": {
+   "scale": 0.28988,
+   "ground": 2.4151,
+   "pos": [
+    -0.5557,
+    6.7217,
+    -0.491
+   ],
+   "flag": "kush"
+  },
+  "s_kushites_pyramid_small": {
+   "scale": 0.28624,
+   "ground": 3.4348,
+   "pos": [
+    0.0043,
+    8.6885,
+    0.7205
+   ],
+   "flag": "kush"
+  },
+  "s_kushites_temple_amun": {
+   "scale": 0.08575,
+   "ground": 1.5454,
+   "pos": [
+    0.5238,
+    3.525,
+    -2.2479
+   ],
+   "flag": "kush"
+  },
+  "s_kushites_wall_gate": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_kushites_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_kushites_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_kushites_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_kushites_workshop": {
+   "scale": 0.16655,
+   "ground": 1.147,
+   "pos": [
+    -1.3566,
+    2.9005,
+    -0.0352
+   ],
+   "flag": "kush"
+  },
+  "s_macedonians_theater": {
+   "scale": 0.12901,
+   "ground": 1.4184
+  },
+  "s_mauryas_wall_long": {
+   "scale": 0.25037,
+   "ground": 0.0
+  },
+  "s_mauryas_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_mauryas_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_mauryas_wooden_tower": {
+   "scale": 0.24319,
+   "ground": 1.3814,
+   "pos": [
+    0.0194,
+    4.8905,
+    0.0756
+   ],
+   "flag": "maur"
+  },
+  "s_mauryas_workshop": {
+   "scale": 0.20617,
+   "ground": 1.3432,
+   "pos": [
+    -0.5819,
+    4.9121,
+    -0.654
+   ],
+   "flag": "maur"
+  },
+  "s_mercenaries_camp_nuba": {
+   "scale": 0.13173,
+   "ground": 0.686,
+   "pos": [
+    1.3585,
+    1.4775,
+    -1.3783
+   ],
+   "flag": "kush"
+  },
+  "s_persians_blacksmith": {
+   "scale": 0.21634,
+   "ground": 0.9497,
+   "pos": [
+    0.2212,
+    3.2548,
+    0.2428
+   ],
+   "flag": "persians"
+  },
+  "s_persians_hall": {
+   "scale": 0.18,
+   "ground": 2.2786
+  },
+  "s_persians_hall_palace": {
+   "scale": 0.216,
+   "ground": 2.7343
+  },
+  "s_persians_ice_house": {
+   "scale": 0.20946,
+   "ground": 0.2325,
+   "pos": [
+    0.0,
+    3.846,
+    -0.0126
+   ],
+   "flag": "persians"
+  },
+  "s_persians_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
+   "pos": [
+    -0.5095,
+    5.9528,
+    -0.0432
+   ],
+   "flag": "persians"
+  },
+  "s_persians_range": {
+   "scale": 0.14855,
+   "ground": 1.7566,
+   "pos": [
+    -0.6216,
+    3.4754,
+    0.3497
+   ],
+   "flag": "persians"
+  },
+  "s_persians_stable": {
+   "scale": 0.21253,
+   "ground": 1.6016,
+   "pos": [
+    0.0922,
+    4.0852,
+    1.3773
+   ],
+   "flag": "persians"
+  },
+  "s_persians_stable_elephant": {
+   "scale": 0.1668,
+   "ground": 2.5484,
+   "pos": [
+    -0.0002,
+    4.7225,
+    0.0962
+   ],
+   "flag": "persians"
+  },
+  "s_persians_tachara": {
+   "scale": 0.20568,
+   "ground": 2.337,
+   "pos": [
+    -2.8767,
+    4.6083,
+    -0.9295
+   ],
+   "flag": "persians"
+  },
+  "s_persians_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_persians_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_persians_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_persians_wooden_tower": {
+   "scale": 0.35235,
+   "ground": 4.1314,
+   "pos": [
+    -0.7232,
+    8.9695,
+    0.7257
+   ],
+   "flag": "persians"
+  },
+  "s_persians_workshop": {
+   "scale": 0.17906,
+   "ground": 1.4577,
+   "pos": [
+    1.1372,
+    3.9298,
+    1.4199
+   ],
+   "flag": "persians"
+  },
+  "s_ptolemies_blacksmith": {
+   "scale": 0.19798,
+   "ground": 1.7676,
+   "pos": [
+    0.5654,
+    3.986,
+    -0.1945
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_library": {
+   "scale": 0.14997,
+   "ground": 1.8634,
+   "pos": [
+    0.0112,
+    4.3162,
+    -1.3907
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_military_colony": {
+   "scale": 0.18131,
+   "ground": 1.5385,
+   "pos": [
+    2.357,
+    3.4708,
+    -2.3708
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_range": {
+   "scale": 0.14583,
+   "ground": 2.4127,
+   "pos": [
+    -0.6266,
+    4.0194,
+    0.4652
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_settlement": {
+   "scale": 0.14613,
+   "ground": 0.5474,
+   "pos": [
+    -1.3824,
+    2.2644,
+    1.4871
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_stable": {
+   "scale": 0.18056,
+   "ground": 1.6407,
+   "pos": [
+    1.9086,
+    3.6527,
+    -0.0405
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_stable_elephant": {
+   "scale": 0.16399,
+   "ground": 1.4516,
+   "pos": [
+    0.0,
+    3.4944,
+    0.0967
+   ],
+   "flag": "ptol"
+  },
+  "s_ptolemies_wall_long": {
+   "scale": 0.24745,
+   "ground": 0.0
+  },
+  "s_ptolemies_wall_medium": {
+   "scale": 0.2504,
+   "ground": 0.0
+  },
+  "s_ptolemies_wall_short": {
+   "scale": 0.25105,
+   "ground": 0.0
+  },
+  "s_ptolemies_wooden_tower": {
+   "scale": 0.2419,
+   "ground": 1.869,
+   "pos": [
+    0.0076,
+    4.955,
+    0.6472
+   ],
+   "flag": "hele"
+  },
+  "s_ptolemies_workshop": {
+   "scale": 0.16655,
+   "ground": 1.147,
+   "pos": [
+    -1.3566,
+    2.9005,
+    -0.0352
+   ],
+   "flag": "ptol"
+  },
+  "s_romans_amphitheater_pompeii": {
+   "scale": 0.07251,
+   "ground": 0.5341
+  },
+  "s_romans_blacksmith": {
+   "scale": 0.2307,
+   "ground": 1.4576,
+   "pos": [
+    1.234,
+    3.8919,
+    0.3671
+   ],
+   "flag": "rome"
+  },
+  "s_romans_camp": {
+   "scale": 0.1027,
+   "ground": 0.8652,
+   "pos": [
+    -1.3396,
+    1.4122,
+    1.341
+   ],
+   "flag": "rome"
+  },
+  "s_romans_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
+   "pos": [
+    -0.5095,
+    5.9528,
+    -0.0432
+   ],
+   "flag": "rome"
+  },
+  "s_romans_range": {
+   "scale": 0.1426,
+   "ground": 0.8547,
+   "pos": [
+    -1.1909,
+    2.8428,
+    0.9754
+   ],
+   "flag": "rome"
+  },
+  "s_romans_stable": {
+   "scale": 0.18475,
+   "ground": 1.1133,
+   "pos": [
+    1.1103,
+    3.2995,
+    0.9491
+   ],
+   "flag": "rome"
+  },
+  "s_romans_temple_mars": {
+   "scale": 0.12583,
+   "ground": 1.3189,
+   "pos": [
+    0.0011,
+    4.2995,
+    2.3491
+   ],
+   "flag": "rome"
+  },
+  "s_romans_temple_vesta": {
+   "scale": 0.27533,
+   "ground": 0.5518,
+   "pos": [
+    -1.1898,
+    4.572,
+    -0.1397
+   ],
+   "flag": "rome"
+  },
+  "s_romans_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_romans_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_romans_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_romans_wooden_tower": {
+   "scale": 0.24245,
+   "ground": 1.7978,
+   "pos": [
+    0.0121,
+    5.1986,
+    0.0068
+   ],
+   "flag": "rome"
+  },
+  "s_romans_workshop": {
+   "scale": 0.17338,
+   "ground": 2.1905,
+   "pos": [
+    0.9661,
+    4.0182,
+    0.1559
+   ],
+   "flag": "rome"
+  },
+  "s_seleucids_blacksmith": {
+   "scale": 0.20237,
+   "ground": 2.2364,
+   "pos": [
+    -0.0175,
+    4.1374,
+    1.0251
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_library": {
+   "scale": 0.19248,
+   "ground": 2.1271,
+   "pos": [
+    -0.0014,
+    5.0949,
+    0.324
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_military_colony": {
+   "scale": 0.19688,
+   "ground": 2.4799,
+   "pos": [
+    0.0143,
+    4.5969,
+    -0.492
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_outpost": {
+   "scale": 0.29458,
+   "ground": 2.2973,
+   "pos": [
+    -0.5095,
+    5.9528,
+    -0.0432
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_range": {
+   "scale": 0.14579,
+   "ground": 1.4526,
+   "pos": [
+    -0.5808,
+    2.8293,
+    0.585
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_stable": {
+   "scale": 0.1742,
+   "ground": 2.4183,
+   "pos": [
+    0.8693,
+    4.34,
+    0.9165
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_stable_elephant": {
+   "scale": 0.17094,
+   "ground": 1.3217,
+   "pos": [
+    0.0382,
+    3.8522,
+    1.1578
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_wall_gate": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_seleucids_wall_long": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_seleucids_wall_medium": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_seleucids_wall_short": {
+   "scale": 0.25,
+   "ground": 0.0
+  },
+  "s_seleucids_wooden_tower": {
+   "scale": 0.23901,
+   "ground": 1.3219,
+   "pos": [
+    0.0181,
+    4.7746,
+    -0.0409
+   ],
+   "flag": "seleucids"
+  },
+  "s_seleucids_workshop": {
+   "scale": 0.16109,
+   "ground": 2.2198,
+   "pos": [
+    1.0114,
+    4.9717,
+    1.2161
+   ],
+   "flag": "seleucids"
+  },
+  "s_spartans_blacksmith": {
+   "scale": 0.19966,
+   "ground": 1.7169,
+   "pos": [
+    1.2211,
+    3.8632,
+    -0.2517
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_gerousia": {
+   "scale": 0.18841,
+   "ground": 1.7435,
+   "pos": [
+    0.0,
+    5.1714,
+    0.4357
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_range": {
+   "scale": 0.12541,
+   "ground": 0.7486,
+   "pos": [
+    -0.9036,
+    1.57,
+    1.2119
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_sentry_tower": {
+   "scale": 0.23186,
+   "ground": 1.0185,
+   "pos": [
+    0.0037,
+    4.0186,
+    0.0065
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_stable": {
+   "scale": 0.18117,
+   "ground": 1.3569,
+   "pos": [
+    0.0,
+    3.2118,
+    0.9528
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_syssiton": {
+   "scale": 0.20466,
+   "ground": 1.8116,
+   "pos": [
+    0.0,
+    4.9708,
+    -1.3706
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_theater": {
+   "scale": 0.13161,
+   "ground": 1.3505,
+   "pos": [
+    -0.0013,
+    2.7752,
+    -1.778
+   ],
+   "flag": "hele"
+  },
+  "s_spartans_workshop": {
+   "scale": 0.14676,
+   "ground": 0.8157,
+   "pos": [
+    -0.0006,
+    2.4915,
+    -0.2383
+   ],
+   "flag": "hele"
+  },
+  "s_special_palisade_bamboo_long_palisade": {
+   "scale": 0.2089,
+   "ground": 1.7187
+  },
   "scout_tower": {
    "scale": 0.21029,
    "ground": 1.4112,
