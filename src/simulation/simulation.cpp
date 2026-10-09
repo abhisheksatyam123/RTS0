@@ -15524,15 +15524,10 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 			auto mounted = [](uint8_t t) {
 				return t == UNIT_CAVALRY || t == UNIT_CAMEL || t == UNIT_CHARIOT || t == UNIT_SCYTHED_CHARIOT || t == UNIT_ELEPHANT;
 			};
-			// assignUnits: worker soldiers past the first `keep` join a rush, or another attack
-			// only while idle.
-			bool seated = false;
-			for (const PlayerState &ps : players_) seated |= ps.active != 0;
-			int enemies = 0; // gameState.getNumPlayerEnemies: live foes (players 0 and 1 when none is seated)
-			for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-				enemies += p != petra_pid_ && (seated ? players_[p].active != 0 : p < 2) && petra_foe(p) && !is_defeated(p);
-			const float keep_raw = mgr.kind == PETRA_ATTACK_RUSH ? 8.0f : 6.0f + 4.0f * (float)enemies + 8.0f * petra_config_.defensive;
-			const int keep_workers = (int)std::lround(petra_config_.pop_scaling * keep_raw);
+			// assignUnits: worker soldiers past the first 8 (popScaling) join a rush. Other attacks
+			// take them only when idle in 0 A.D.; here a new worker stands idle until the economy
+			// gives it work, so they take none.
+			const int keep_workers = (int)std::lround(petra_config_.pop_scaling * 8.0f);
 			int seen_workers = 0;
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (squad.size() >= (size_t)std::max(1, mgr.target_size)) break;
