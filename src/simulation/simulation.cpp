@@ -11990,6 +11990,27 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 
 // attackPlan.js update: a unit capturing a structure it can't take switches to
 // damaging it (ent.attack(target, false)), then carries on to the attack target.
+// attackPlan.js update, once the army has arrived: it answers Attacked events at
+// once (a soldier hit by a unit while it hacks at a structure turns on that
+// unit; siege keeps shelling), and a soldier left idle goes on to the target,
+// rather than waiting for the plan's next retarget.
+void Simulation::petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz) {
+	std::vector<uint32_t> idle;
+	for (uint32_t uid : squad) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) continue;
+		if (unit_is_siege_engine(units_.unit_type[i]) || petra_is_support_unit(units_.unit_type[i])) continue;
+		const int32_t a = units_.attacked_by[i] ? lookup_unit(units_.attacked_by[i]) : -1;
+		if (a >= 0 && units_.alive[a] && is_hostile(petra_pid_, units_.team[a]) && units_.target_unit_id[i] == 0) {
+			order_attack(&uid, 1, units_.id[a]);
+			continue;
+		}
+		const float dx = units_.pos_x[i] - tx, dz = units_.pos_z[i] - tz;
+		if (units_.action_state[i] == ACTION_IDLE && dx * dx + dz * dz > 100.0f) idle.push_back(uid); // not there yet
+	}
+	if (!idle.empty()) order_attack_move(idle.data(), idle.size(), tx, tz, false, false, true);
+}
+
 void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz) {
 	for (uint32_t uid : squad) {
 		const int32_t idx = lookup_unit(uid);
@@ -12344,6 +12365,8 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 				return;
 			}
 
+			petra_answer_attackers(squad, petra_attack_plan_.target_x, petra_attack_plan_.target_z);
+
 			bool target_alive = false;
 			for (const auto &b : buildings_) {
 				if (b.id == petra_attack_plan_.target_building_id && petra_foe(b.team) && b.hp > 0) {
@@ -12669,6 +12692,7 @@ void Simulation::petra_manage_raid(float dt) {
 				order_walk(plan.squad.data(), plan.squad.size(), base_x, base_z, false);
 		} else {
 			plan.state = AttackPlan::ATTACKED;
+			petra_answer_attackers(plan.squad, plan.target_x, plan.target_z);
 			petra_check_captures(plan.squad, plan.target_x, plan.target_z);
 		}
 		return;
