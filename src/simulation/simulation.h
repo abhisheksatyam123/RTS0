@@ -2128,6 +2128,7 @@ private:
 	bool order_still_valid(size_t i, const UnitOrder &o) const;
 	int32_t structure_attacker(uint32_t building_id, uint8_t team) const;
 	uint32_t nearest_dropsite(size_t i) const;
+	bool attack_target_hidden(size_t i, size_t t) const;
 	void deposit_carry(size_t i);
 	void finish_order(size_t i);
 	void resume_order(size_t i);
