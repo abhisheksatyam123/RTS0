@@ -129,6 +129,7 @@ static constexpr uint32_t SAVE_VERSION_BUILDING_AI = 34;
 static constexpr uint32_t SAVE_VERSION_FORMATION_ORDERS = 37;
 // First save version with each formation controller's queued orders.
 static constexpr uint32_t SAVE_VERSION_FORMATION_QUEUE = 43;
+static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally resource kind and Shift-added positions, each fleeing unit's flee source
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
@@ -139,8 +140,11 @@ static constexpr uint32_t SAVE_VERSION_PETRA_TRANSPORTS = 40;
 // Heroes each player has trained (EntityLimits MatchLimit, tick_state_io section 9b) and
 // each structure's Health/Max aura multiplier.
 static constexpr uint32_t SAVE_VERSION_MATCH_LIMIT = 42;
+// VisionSharing spies (bribed units and their timers) and the population and fast-actions cheats.
+static constexpr uint32_t SAVE_VERSION_SPIES = 44;
+static constexpr uint32_t SAVE_VERSION_UNIT_UPGRADES = 45;
 // ProductionQueue.js: batches, technologies and paid costs in each queue item, plus autoqueue.
-static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 44;
+static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 48;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -350,6 +354,7 @@ Simulation::Simulation() {
 	}
 	apply_team_diplomacy(); // free-for-all: self ally, everyone else enemy
 	apply_petra_config();
+	rebuild_all_tech_mods(); // multipliers start at 1 even if reset() is never called
 }
 
 int Simulation::grid_res_for_map(float map_half) {
@@ -365,7 +370,6 @@ void Simulation::set_map_half(float h) {
 	const size_t cells = (size_t)grid_res_ * (size_t)grid_res_;
 	fow_grid_.assign(cells, FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
-	petra_fow_.assign(cells, FOW_UNEXPLORED);
 	reset_los();
 	fow_cell_height_.clear();
 	fow_cell_hmax_.clear();
@@ -382,6 +386,8 @@ Simulation::~Simulation() = default;
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
 	petra_decay_events_.clear();
+	spies_.clear();
+	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
 	// A new game brings its own terrain (set_terrain_data or load_state); the
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
@@ -404,6 +410,7 @@ void Simulation::reset() {
 	occupied_cells_.clear();
 	std::fill(std::begin(regicide_hero_), std::end(regicide_hero_), 0u);
 	for (auto &v : match_trained_) v.clear();
+	unit_upgrades_.clear();
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
@@ -502,14 +509,28 @@ int Simulation::pop_current(uint8_t player) const {
 	return count;
 }
 
-int Simulation::pop_max(uint8_t player) const {
+int Simulation::pop_max_uncapped(uint8_t player) const {
 	int cap = 10;
 	for (const auto &b : buildings_) {
 		if (b.team == player && b.build_progress >= 1.0f) {
 			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
 		}
 	}
+	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus;
+	return cap;
+}
+
+int Simulation::pop_limit(uint8_t player) const {
 	const int limit = pop_cap();
+	if (limit <= 0 || player >= MAX_PLAYERS) return limit;
+	// Player/MaxPopulation modifiers, multiplied then added as ApplyValueModifications does:
+	// the Seleucid relic's Immigration and the TARDIS cheat.
+	return std::max(1, (int)std::lround(limit * tech_mods(player).max_pop) + cheat_mods_[player].max_pop_add);
+}
+
+int Simulation::pop_max(uint8_t player) const {
+	const int cap = pop_max_uncapped(player);
+	const int limit = pop_limit(player);
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
@@ -674,7 +695,6 @@ void Simulation::spawn_war(int total_units) {
 	scenery_.clear();
 	std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_UNEXPLORED);
 	for (auto &g : player_fow_) g.clear();
-	std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_UNEXPLORED);
 	reset_los();
 
 	total_units = std::clamp(total_units, 4, (int)UNIT_CAP - 64);
@@ -959,6 +979,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else if (std::strcmp(minfo.biome, "volcanic") == 0) cfg.biome = BIOME_STEPPE;
 	else cfg.biome = BIOME_AEGEAN;
 	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
+	cfg.team_placement = team_placement_;
 
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
@@ -1163,7 +1184,7 @@ void Simulation::rebuild_territory_grids() {
 		else if (b.type == BLD_TOWER) radius = 18.0f;
 		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
-		roots.push_back({b.x, b.z, radius * theater[b.team], b.team});
+		roots.push_back({b.x, b.z, radius * theater[b.team] * tech_mods(b.team).bld_territory[b.type], b.team});
 	}
 	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
 	if (roots == territory_roots_ && territory_roots_res_ == R && territory_roots_half_ == map_half_ &&
@@ -1696,13 +1717,15 @@ std::vector<std::pair<int, int>> Simulation::building_cells(const Building &b) c
 	return cells;
 }
 
-uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z) const {
+uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z, uint8_t kind) const {
 	// gui/session/input.js snaps a wall's end onto a tower within the tower's own size.
-	const float radius = std::max(1.5f, building_type_info(BLD_WALL_TOWER).footprint * GRID * 0.5f);
+	const WallSetInfo &ws = wallset_info(kind);
+	const float radius = std::max(1.5f, ws.tower_half);
 	float best = radius * radius;
 	uint32_t id = 0;
 	for (const Building &b : buildings_) {
-		if (b.type != BLD_WALL_TOWER || b.team != player || b.wrecked || b.hp <= 0.0f) continue;
+		if (b.type != ws.tower || b.team != player || b.wrecked || b.hp <= 0.0f) continue;
+		if (ws.tower == ws.segment && !is_palisade_tower(b.type, b.half_size)) continue;
 		const float d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
 		if (d2 <= best) {
 			best = d2;
@@ -1716,18 +1739,19 @@ namespace {
 // helpers/Walls.js GetWallSegmentsRec: segments (longest first, as long ones can turn into gates)
 // whose lengths add up to within the towers' slack of d: with N segments the rest r = d - sum
 // must satisfy (1 - 2 maxOverlap) N t <= r <= (1 - 2 minOverlap) N t.
-bool wall_segments_rec(float d, float t, float dist_so_far, std::vector<int> &segments, float &r_out) {
+bool wall_segments_rec(const WallSetInfo &ws, float d, float dist_so_far, std::vector<int> &segments, float &r_out) {
+	const float t = ws.tower_length;
 	for (int k = 0; k < 3; ++k) {
 		segments.push_back(k);
-		const float so_far = dist_so_far + WALL_SEGMENT_LENGTHS[k];
+		const float so_far = dist_so_far + ws.lengths[k];
 		const float r = d - so_far;
 		const float n = (float)segments.size();
-		if (r < (1.0f - 2.0f * WALL_MAX_TOWER_OVERLAP) * n * t) {
+		if (r < (1.0f - 2.0f * ws.max_overlap) * n * t) {
 			segments.pop_back();
 			continue;
 		}
-		if (r > (1.0f - 2.0f * WALL_MIN_TOWER_OVERLAP) * n * t) {
-			if (wall_segments_rec(d, t, so_far, segments, r_out)) return true;
+		if (r > (1.0f - 2.0f * ws.min_overlap) * n * t) {
+			if (wall_segments_rec(ws, d, so_far, segments, r_out)) return true;
 			segments.pop_back();
 			continue;
 		}
@@ -1739,9 +1763,10 @@ bool wall_segments_rec(float d, float t, float dist_so_far, std::vector<int> &se
 } // namespace
 
 std::vector<Simulation::WallPiece> Simulation::wall_placement(uint8_t player, float sx, float sz, float ex, float ez,
-		uint32_t *start_tower, uint32_t *end_tower) const {
+		uint32_t *start_tower, uint32_t *end_tower, uint8_t kind) const {
 	std::vector<WallPiece> out;
-	const uint32_t st = wall_snap_tower(player, sx, sz), et = wall_snap_tower(player, ex, ez);
+	const WallSetInfo &ws = wallset_info(kind);
+	const uint32_t st = wall_snap_tower(player, sx, sz, kind), et = wall_snap_tower(player, ex, ez, kind);
 	if (start_tower) *start_tower = st;
 	if (end_tower) *end_tower = et;
 	if (st) {
@@ -1757,27 +1782,27 @@ std::vector<Simulation::WallPiece> Simulation::wall_placement(uint8_t player, fl
 	const float dx = ex - sx, dz = ez - sz;
 	const float len = std::sqrt(dx * dx + dz * dz);
 	// Room for the two end towers side by side at least; a wall over half the map is a misclick.
-	if (!(len > WALL_TOWER_LENGTH) || len > map_half_) return out;
+	if (!(len > ws.tower_length) || len > map_half_) return out;
 	std::vector<int> segments;
 	float r = 0.0f;
-	if (!wall_segments_rec(len, WALL_TOWER_LENGTH, 0.0f, segments, r)) return out;
+	if (!wall_segments_rec(ws, len, 0.0f, segments, r)) return out;
 	const float spacing = r / (2.0f * (float)segments.size());
 	const float nx = dx / len, nz = dz / len;
 	const float angle = -std::atan2(dz, dx); // Walls.js: the wall runs along u
-	const float tower_half = building_type_info(BLD_WALL_TOWER).footprint * GRID * 0.5f;
-	if (!st) out.push_back({BLD_WALL_TOWER, sx, sz, angle, tower_half});
+	const float tower_half = ws.tower_half;
+	if (!st) out.push_back({ws.tower, sx, sz, angle, tower_half});
 	float progress = 0.0f;
 	for (size_t i = 0; i < segments.size(); ++i) {
-		const float l = WALL_SEGMENT_LENGTHS[segments[i]];
+		const float l = ws.lengths[segments[i]];
 		const float c = progress + spacing + 0.5f * l;
-		out.push_back({BLD_WALL_SEGMENT, sx + c * nx, sz + c * nz, angle, 0.5f * l});
+		out.push_back({ws.segment, sx + c * nx, sz + c * nz, angle, 0.5f * l});
 		if (i + 1 < segments.size()) {
 			const float tc = progress + l + 2.0f * spacing;
-			out.push_back({BLD_WALL_TOWER, sx + tc * nx, sz + tc * nz, angle, tower_half});
+			out.push_back({ws.tower, sx + tc * nx, sz + tc * nz, angle, tower_half});
 		}
 		progress += l + 2.0f * spacing;
 	}
-	if (!et) out.push_back({BLD_WALL_TOWER, ex, ez, angle, tower_half});
+	if (!et) out.push_back({ws.tower, ex, ez, angle, tower_half});
 	return out;
 }
 
@@ -1792,7 +1817,7 @@ Simulation::Building wall_piece_footprint(const Simulation::WallPiece &p) {
 	const float half = b.footprint * Simulation::GRID * 0.5f;
 	b.cell_x = (int)std::floor((p.x - half) / Simulation::GRID);
 	b.cell_y = (int)std::floor((p.z - half) / Simulation::GRID);
-	const float half_w = p.type == BLD_WALL_SEGMENT ? p.half_w : half;
+	const float half_w = is_wallset_piece(p.type, p.half_w) ? p.half_w : half;
 	b.rot = p.rot;
 	b.set_extents(half_w, building_half_depth(p.type, half_w));
 	return b;
@@ -1810,12 +1835,14 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 		const Building &g = buildings_[it->second];
 		const std::vector<std::pair<int, int>> c = building_cells(g);
 		ignored.insert(ignored.end(), c.begin(), c.end());
-		if (g.type != BLD_WALL_TOWER) continue;
+		if (g.type != BLD_WALL_TOWER && !is_palisade_tower(g.type, g.half_size)) continue;
 		// The segments joined to a tower share its group too (SetControlGroup2), where they reach
 		// into it: their cells around the tower.
 		const float near = g.half_size + GRID;
 		for (const Building &o : buildings_) {
-			if (o.id == g.id || o.team != g.team || !is_wallset_piece(o.type, o.half_size)) continue;
+			if (o.id == g.id || o.team != g.team || !is_wallset_piece(o.type, o.half_size) ||
+					is_palisade_tower(o.type, o.half_size))
+				continue;
 			const nav::Vec2 gap = nav::footprint_gap(o, g.x, g.z);
 			if (gap.x > g.half_size || gap.y > g.half_size) continue;
 			for (const auto &cell : building_cells(o)) {
@@ -1835,9 +1862,9 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	const Building fp = wall_piece_footprint(p);
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, fp.half_d);
-	if (is_wallset_piece(b.type, b.half_size)) {
-		// wall_long/medium/short Health by length, after the same civ and technology bonuses.
-		b.max_hp *= WALL_LONG_HEALTH * wallset_share(b.half_size) / building_type_info(BLD_WALL_SEGMENT).max_hp;
+	if (const float health = wallset_piece_value(b.type, b.half_size, 0); health > 0.0f) {
+		// wall_long/medium/short (palisades_*) Health by length, after the same civ and technology bonuses.
+		b.max_hp *= health / building_type_info(b.type).max_hp;
 		b.hp = progress <= 0.0f ? 1.0f : b.max_hp * progress;
 	}
 	for (const auto &[cx, cy] : building_cells(b)) occupied_cells_.insert(cx, cy);
@@ -1845,7 +1872,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	return bid;
 }
 
-bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float stone_override) {
+bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float cost_override) {
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
@@ -1857,8 +1884,11 @@ bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float stone_o
 		return civ_team_bonus_mult(civ, allies, TEAM_BONUS_BUILDING_COST, (int8_t)r, CIV_UNIT_TEMPLATE_NONE, b_type) *
 		       tech_cost[r];
 	};
-	const float base_stone = stone_override >= 0.0f ? stone_override : (float)binfo.stone_cost;
-	const float wood = binfo.wood_cost * civ_bonus_mult(civ, CIV_BONUS_BUILDING_WOOD_COST, b_type) * team(RES_WOOD);
+	// A WallSet piece's own cost replaces its row's stone (walls) or wood (palisades).
+	const bool by_wood = binfo.wood_cost > 0 && binfo.stone_cost == 0;
+	const float base_stone = cost_override >= 0.0f && !by_wood ? cost_override : (float)binfo.stone_cost;
+	const float base_wood = cost_override >= 0.0f && by_wood ? cost_override : (float)binfo.wood_cost;
+	const float wood = base_wood * civ_bonus_mult(civ, CIV_BONUS_BUILDING_WOOD_COST, b_type) * team(RES_WOOD);
 	const float stone = base_stone * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type) * team(RES_STONE);
 	const float food = binfo.food_cost * team(RES_FOOD);
 	const float gold = binfo.gold_cost * team(RES_GOLD);
@@ -1866,14 +1896,15 @@ bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float stone_o
 }
 
 size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders,
-		size_t builder_n, bool queued) {
-	if (player >= MAX_PLAYERS) return 0;
+		size_t builder_n, bool queued, uint8_t kind) {
+	if (player >= MAX_PLAYERS || kind >= WALLSET_COUNT) return 0;
+	const WallSetInfo &ws = wallset_info(kind);
 	const Civilization civ = civ_of(player);
-	for (uint8_t t : {(uint8_t)BLD_WALL_SEGMENT, (uint8_t)BLD_WALL_TOWER})
+	for (uint8_t t : {ws.segment, ws.tower})
 		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase) return 0;
 	rebuild_territory();
 	uint32_t start_tower = 0, end_tower = 0;
-	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower);
+	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower, kind);
 	// Each piece may overlap the last tower laid (or the one the wall starts from) and the pieces
 	// since it, and the last piece the tower the wall ends on: their obstruction control group.
 	std::vector<uint32_t> group;
@@ -1885,8 +1916,8 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 		if (i + 1 == pieces.size() && end_tower) ignore.push_back(end_tower);
 		if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
 		if (!entity_limit_allows_building(player, p.type)) break;
-		const bool segment = p.type == BLD_WALL_SEGMENT;
-		if (!pay_for_structure(player, p.type, segment ? WALL_LONG_STONE * wallset_share(p.half_w) : -1.0f)) break;
+		const bool segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
+		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1))) break;
 		const uint32_t bid = spawn_wall_piece(p, player, 0.0f);
 		if (segment) {
 			group.push_back(bid);
@@ -2025,6 +2056,14 @@ int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
 		if (b.type < BLD_TYPE_COUNT && BUILDING_LIMIT_CATEGORY[b.type] == category) ++n;
 		for (const auto &o : b.queue)
 			if (!o.is_tech() && unit_limit_category(o.unit_type, o.tmpl) == category) n += o.count;
+	}
+	// Upgrade.js ChangeUpgradedEntityCount: a unit upgrading into the category counts now.
+	for (const UnitUpgrade &u : unit_upgrades_) {
+		if (u.player != player_id) continue;
+		const int32_t i = lookup_unit(u.unit_id);
+		if (i >= 0 && unit_limit_category(civ_unit_template(u.to).unit_type, u.to) == category &&
+		    unit_limit_category(units_.unit_type[i], units_.tmpl[i]) != category)
+			++n;
 	}
 	if (category == LIMIT_ANIMAL) // livestock penned in the player's corrals
 		for (size_t f = 0; f < fauna_.count; ++f) {
@@ -2335,16 +2374,41 @@ bool Simulation::ai_send_tribute(uint8_t res_type, int amount) {
 	return cmd_tribute(petra_pid_, 0, res_type, amount);
 }
 
-void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id) {
+void Simulation::cmd_set_rally_point(uint8_t player_id, uint32_t building_id, float rx, float rz, uint32_t res_id, uint32_t bld_id,
+		bool queued) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id) return;
+	uint8_t rt = 0xFF, sub = 0xFF;
+	if (auto r = res_id_to_idx_.find(res_id); res_id != 0 && r != res_id_to_idx_.end()) {
+		rt = resources_.type[r->second];
+		sub = resources_.subtype[r->second];
+	}
+	if (queued && b.has_rally_point) {
+		b.rally_more.push_back({rx, rz, res_id, bld_id, rt, sub});
+		return;
+	}
 	b.has_rally_point = true;
 	b.rally_x = rx;
 	b.rally_z = rz;
 	b.rally_target_res_id = res_id;
 	b.rally_target_bld_id = bld_id;
+	b.rally_res_type = rt;
+	b.rally_res_sub = sub;
+	b.rally_more.clear();
+}
+
+void Simulation::cmd_unset_rally_point(uint8_t player_id, uint32_t building_id) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return;
+	Building &b = buildings_[bit->second];
+	if (b.team != player_id) return;
+	b.has_rally_point = false;
+	b.rally_target_res_id = 0;
+	b.rally_target_bld_id = 0;
+	b.rally_res_type = b.rally_res_sub = 0xFF;
+	b.rally_more.clear();
 }
 
 int Simulation::phase_structures(uint8_t player_id, uint8_t phase) const {
@@ -2363,6 +2427,8 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	if (ps.has_tech(tech_id)) return TECH_ERR_RESEARCHED;
 	// Researcher.js GetTechnologiesList leaves out the player's disabled technologies.
 	if (triggers_.tech_disabled(player_id, tech_id)) return TECH_ERR_DISABLED;
+	// Game Setup DisableSpies: AddDisabledTechnology("unlock_spies").
+	if (spies_disabled() && (tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER)) return TECH_ERR_DISABLED;
 	if (tech_queued(player_id, tech_id)) return TECH_ERR_IN_PROGRESS; // TechnologyManager.IsInProgress
 	// 0 A.D. pair_*.json (Researcher.js, TechnologyManager.js): the player picks one of the
 	// two; once either is researched or started, the other is gone.
@@ -2384,7 +2450,9 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 			return TECH_ERR_BUILDING;
 		if (b.type != tinfo.researcher) return TECH_ERR_BUILDING;
 	}
-	if (!ps.can_afford((float)tinfo.food_cost, (float)tinfo.wood_cost, (float)tinfo.gold_cost, (float)tinfo.stone_cost))
+	const float *tc = tech_mods(player_id).bld_tech_cost[tinfo.researcher]; // Researcher/TechCostMultiplier
+	if (!ps.can_afford(tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD], tinfo.gold_cost * tc[RES_GOLD],
+			tinfo.stone_cost * tc[RES_STONE]))
 		return TECH_ERR_COST;
 	return TECH_OK;
 }
@@ -2409,8 +2477,10 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 			ministers *= 0.85f;
 			break;
 		}
+	const float *tc = tech_mods(player_id).bld_tech_cost[b.type]; // Researcher/TechCostMultiplier
 	auto team = [&](uint8_t stat, int8_t r) {
-		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers;
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers
+			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
 	};
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
 	ProductionOrder order;
@@ -2470,7 +2540,7 @@ bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id) {
 	b.upgrade_paid[RES_STONE] = (float)up.stone_cost;
 	b.upgrade_to = up.to;
 	b.upgrade_timer = 0.0f;
-	b.upgrade_duration = up.time;
+	b.upgrade_duration = up.time * (cheat_mods(b.team).fast_actions ? 0.01f : 1.0f); // cheat/fastactions Upgrade/Time
 	if (up.time <= 0.0f) finish_upgrade(b);
 	return true;
 }
@@ -2547,6 +2617,104 @@ void Simulation::tick_upgrades(float dt) {
 	}
 }
 
+const CivUnitUpgrade *Simulation::unit_upgrade_choice(size_t i, uint16_t to) const {
+	const uint16_t from = units_.tmpl[i];
+	if (from >= CIV_UNIT_TEMPLATE_COUNT) return nullptr;
+	const CivUnitUpgrade *u = civ_unit_upgrade_table();
+	for (; u->from != 0xFFFF; ++u)
+		if (u->from == from && u->to == to && (u->from_rank == 0 || units_.rank[i] >= u->from_rank)) return u;
+	return nullptr;
+}
+
+const Simulation::UnitUpgrade *Simulation::unit_upgrade_of(uint32_t unit_id) const {
+	for (const UnitUpgrade &u : unit_upgrades_)
+		if (u.unit_id == unit_id) return &u;
+	return nullptr;
+}
+
+Simulation::UpgradeCheck Simulation::unit_upgrade_check(uint8_t player_id, uint32_t unit_id, uint16_t to) const {
+	const int32_t i = lookup_unit(unit_id);
+	if (i < 0 || player_id >= MAX_PLAYERS || !(units_.hp[i] > 0.0f)) return UPGRADE_ERR_NONE;
+	if (!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) return UPGRADE_ERR_NONE;
+	if (units_.team[i] != player_id) return UPGRADE_ERR_OWNER;
+	const CivUnitUpgrade *u = unit_upgrade_choice((size_t)i, to);
+	if (!u) return UPGRADE_ERR_NONE;
+	if (unit_upgrade_of(unit_id)) return UPGRADE_ERR_BUSY; // Upgrade.js Upgrade(): one at a time
+	const PlayerState &ps = players_[player_id];
+	if (ps.phase < u->phase) return UPGRADE_ERR_PHASE;
+	// ChangeUpgradedEntityCount: the target's category counts the unit from the start.
+	const CivUnitTemplate &t = civ_unit_template(to);
+	const uint8_t cat = unit_limit_category(t.unit_type, to);
+	if (cat != unit_limit_category(units_.unit_type[i], units_.tmpl[i]) && !entity_limit_allows_unit(player_id, t.unit_type, to))
+		return UPGRADE_ERR_LIMIT;
+	if (!ps.can_afford((float)u->food_cost, (float)u->wood_cost, (float)u->gold_cost, (float)u->stone_cost))
+		return UPGRADE_ERR_COST;
+	return UPGRADE_OK;
+}
+
+bool Simulation::cmd_upgrade_units(uint8_t player_id, const uint32_t *unit_ids, size_t n, uint16_t to) {
+	bool any = false;
+	for (size_t k = 0; k < n; ++k) {
+		if (unit_upgrade_check(player_id, unit_ids[k], to) != UPGRADE_OK) continue;
+		const size_t i = (size_t)lookup_unit(unit_ids[k]);
+		const CivUnitUpgrade *u = unit_upgrade_choice(i, to);
+		players_[player_id].pay((float)u->food_cost, (float)u->wood_cost, (float)u->gold_cost, (float)u->stone_cost);
+		UnitUpgrade up{};
+		up.unit_id = unit_ids[k];
+		up.to = to;
+		up.player = player_id;
+		up.time = u->time;
+		up.paid[RES_FOOD] = (float)u->food_cost;
+		up.paid[RES_WOOD] = (float)u->wood_cost;
+		up.paid[RES_GOLD] = (float)u->gold_cost;
+		up.paid[RES_STONE] = (float)u->stone_cost;
+		any = true;
+		if (u->time <= 0.0f) {
+			promote_unit(i, to, promotion_start_rank(to));
+			continue;
+		}
+		unit_upgrades_.push_back(up);
+	}
+	return any;
+}
+
+bool Simulation::cmd_cancel_unit_upgrades(uint8_t player_id, const uint32_t *unit_ids, size_t n) {
+	bool any = false;
+	for (size_t k = 0; k < n; ++k)
+		for (size_t j = 0; j < unit_upgrades_.size(); ++j) {
+			UnitUpgrade &u = unit_upgrades_[j];
+			if (u.unit_id != unit_ids[k] || u.player != player_id) continue;
+			players_[player_id].refund(u.paid[RES_FOOD], u.paid[RES_WOOD], u.paid[RES_GOLD], u.paid[RES_STONE]);
+			unit_upgrades_.erase(unit_upgrades_.begin() + (std::ptrdiff_t)j);
+			any = true;
+			break;
+		}
+	return any;
+}
+
+// Upgrade.js UpgradeProgress on units; OnOwnershipChanged (death included) refunds the payer.
+void Simulation::tick_unit_upgrades(float dt) {
+	size_t w = 0;
+	for (size_t r = 0; r < unit_upgrades_.size(); ++r) {
+		UnitUpgrade u = unit_upgrades_[r];
+		const int32_t i = lookup_unit(u.unit_id);
+		const bool there = i >= 0 && units_.hp[i] > 0.0f && units_.team[i] == u.player &&
+		                   (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED);
+		if (!there) {
+			if (u.player < MAX_PLAYERS)
+				players_[u.player].refund(u.paid[RES_FOOD], u.paid[RES_WOOD], u.paid[RES_GOLD], u.paid[RES_STONE]);
+			continue;
+		}
+		u.elapsed += dt;
+		if (u.elapsed >= u.time) {
+			promote_unit((size_t)i, u.to, promotion_start_rank(u.to));
+			continue;
+		}
+		unit_upgrades_[w++] = u;
+	}
+	unit_upgrades_.resize(w);
+}
+
 void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	for (int t = 0; t < UNIT_TYPE_COUNT; ++t) {
 		for (float &g : m.gather[t]) g = 1.0f;
@@ -2554,6 +2722,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.attack[t] = m.health[t] = m.speed[t] = 1.0f;
 		m.train_time[t] = m.heal_interval[t] = m.trade_gain[t] = m.pack_time[t] = 1.0f;
 		m.range[t] = m.heal_range[t] = m.regen[t] = m.idle_regen[t] = 0.0f;
+		m.range_mul[t] = m.vision[t] = m.capture[t] = m.required_xp[t] = 1.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
 	}
 	for (auto &tm : m.tmpl) {
@@ -2561,6 +2730,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &c : tm.cost) c = 1.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
+		tm.range_mul = tm.vision = tm.capture = tm.required_xp = 1.0f;
 	}
 
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
@@ -2572,16 +2742,18 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &c : m.bld_cost[b]) c = 1.0f;
 		m.bld_international_mul[b] = 1.0f;
 		m.bld_international_add[b] = 0.0f;
+		m.bld_territory[b] = 1.0f;
+		for (float &c : m.bld_tech_cost[b]) c = 1.0f;
 	}
+	for (int r = 0; r < RES_COUNT; ++r) m.loot_add[r] = m.trickle_add[r] = 0.0f;
+	m.max_pop = 1.0f;
 	if (player_id >= MAX_PLAYERS) return;
 	const PlayerState &ps = players_[player_id];
 	Civilization civ = ps.civ;
-	for (uint8_t id = 1; id < TECH_COUNT; ++id) {
-		if (!ps.has_tech(id)) continue;
-		const TechInfo &ti = tech_info(id);
-		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
-		for (uint16_t k = 0; k < ti.effect_count; ++k) {
-			const TechEffect &e = fx[k];
+	// One modification (a technology's effect row or a relic aura's) on every unit type,
+	// roster template and building type it applies to.
+	auto apply_mod = [&](const TechEffect &e, auto &&applies) {
+		{
 			auto apply = [&](float &v) {
 				v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 			};
@@ -2589,7 +2761,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			const int cost_res = e.stat == TSTAT_COST_FOOD ? RES_FOOD : e.stat == TSTAT_COST_WOOD ? RES_WOOD
 				: e.stat == TSTAT_COST_STONE ? RES_STONE : e.stat == TSTAT_COST_METAL ? RES_GOLD : -1;
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
-				if (!tech_effect_applies(e, unit_tech_classes(t))) continue;
+				if (!applies(unit_tech_classes(t))) continue;
 				const UnitTypeInfo &ui = unit_type_info(t);
 				bool ranged = unit_has_ranged_attack(t, civ);
 				// The damage type a unit mostly deals decides which Attack/*/Damage/* row scales it.
@@ -2599,6 +2771,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
 						apply(m.gather[t][e.stat - TSTAT_GATHER_GRAIN]); break;
+					case TSTAT_GATHER_ALL: for (float &g : m.gather[t]) apply(g); break;
+					case TSTAT_VISION: apply(m.vision[t]); break;
+					case TSTAT_CAPTURE_ATTACK: apply(m.capture[t]); break;
+					case TSTAT_REQUIRED_XP: apply(m.required_xp[t]); break;
 					case TSTAT_CARRY_FOOD: m.carry[t][RES_FOOD] += (int16_t)e.value; break;
 					case TSTAT_CARRY_WOOD: m.carry[t][RES_WOOD] += (int16_t)e.value; break;
 					case TSTAT_CARRY_STONE: m.carry[t][RES_STONE] += (int16_t)e.value; break;
@@ -2613,7 +2789,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						apply(m.armor[t][e.stat - TSTAT_ARMOR_HACK]); break;
 					case TSTAT_HEALTH: apply(m.health[t]); break;
 					case TSTAT_SPEED: apply(m.speed[t]); break;
-					case TSTAT_RANGE: if (ranged) apply(m.range[t]); break;
+					case TSTAT_RANGE: if (ranged) apply(e.op == TOP_MUL ? m.range_mul[t] : m.range[t]); break;
 					// Cost/BuildTime is a unit's training time and a structure's build time.
 					case TSTAT_BUILD_TIME: apply(m.train_time[t]); break;
 					case TSTAT_HEAL_RANGE: apply(m.heal_range[t]); break;
@@ -2627,7 +2803,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			}
 			for (uint16_t ti = 0; ti < CIV_UNIT_TEMPLATE_COUNT; ++ti) {
 				const CivUnitTemplate &ct = civ_unit_template(ti);
-				if (!tech_effect_applies(e, ct.tech_classes)) continue;
+				if (!applies(ct.tech_classes)) continue;
 				TechMods::Template &tm = m.tmpl[ti];
 				bool ranged = template_has_ranged_attack(ti, ct.unit_type, ct.civ);
 				uint8_t main_dmg = (ct.crush_damage > ct.hack_damage && ct.crush_damage > ct.pierce_damage) ? 2
@@ -2636,6 +2812,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
 						apply(tm.gather[e.stat - TSTAT_GATHER_GRAIN]); break;
+					case TSTAT_GATHER_ALL: for (float &g : tm.gather) apply(g); break;
+					case TSTAT_VISION: apply(tm.vision); break;
+					case TSTAT_CAPTURE_ATTACK: apply(tm.capture); break;
+					case TSTAT_REQUIRED_XP: apply(tm.required_xp); break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
 						if (!ranged && e.stat - TSTAT_MELEE_HACK == main_dmg) apply(tm.attack);
 						break;
@@ -2646,7 +2826,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						apply(tm.armor[e.stat - TSTAT_ARMOR_HACK]); break;
 					case TSTAT_HEALTH: apply(tm.health); break;
 					case TSTAT_SPEED: apply(tm.speed); break;
-					case TSTAT_RANGE: if (ranged) apply(tm.range); break;
+					case TSTAT_RANGE: if (ranged) apply(e.op == TOP_MUL ? tm.range_mul : tm.range); break;
 					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
 						apply(tm.cost[cost_res]); break;
@@ -2654,7 +2834,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 				}
 			}
 			for (uint8_t b = 0; b < BLD_TYPE_COUNT; ++b) {
-				if (!tech_effect_applies(e, building_tech_classes(b))) continue;
+				if (!applies(building_tech_classes(b))) continue;
 				switch (e.stat) {
 					case TSTAT_HEALTH: apply(m.bld_health[b]); break;
 					case TSTAT_RANGED_PIERCE: apply(m.bld_attack[b]); break;
@@ -2678,24 +2858,103 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						break;
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
 						apply(m.bld_cost[b][cost_res]); break;
+					case TSTAT_TERRITORY_RADIUS: apply(m.bld_territory[b]); break;
+					case TSTAT_TECH_COST_FOOD: apply(m.bld_tech_cost[b][RES_FOOD]); break;
+					case TSTAT_TECH_COST_WOOD: apply(m.bld_tech_cost[b][RES_WOOD]); break;
+					case TSTAT_TECH_COST_STONE: apply(m.bld_tech_cost[b][RES_STONE]); break;
+					case TSTAT_TECH_COST_METAL: apply(m.bld_tech_cost[b][RES_GOLD]); break;
 					default: break;
 				}
 			}
 		}
+	};
+	for (uint8_t id = 1; id < TECH_COUNT; ++id) {
+		if (!ps.has_tech(id)) continue;
+		const TechInfo &ti = tech_info(id);
+		const TechEffect *fx = tech_effects_table() + ti.effect_begin;
+		for (uint16_t k = 0; k < ti.effect_count; ++k) {
+			const TechEffect &e = fx[k];
+			apply_mod(e, [&](uint64_t cls) { return tech_effect_applies(e, cls); });
+		}
+	}
+	// Global relic auras (Capture the Relic) reaching this player. Same-named auras
+	// don't stack (ModifiersManager keys them by name), so each applies once.
+	const uint32_t mask = relic_aura_mask(player_id);
+	for (uint16_t g = 0; g < RELIC_GLOBAL_AURA_COUNT; ++g) {
+		if (!((mask >> g) & 1u)) continue;
+		const RelicGlobalAura &ga = relic_global_auras()[g];
+		for (uint16_t k = 0; k < ga.mod_count; ++k) {
+			const RelicAuraModifier &rm = relic_aura_modifiers()[ga.mod_begin + k];
+			auto player_wide = [&](float &v) { v = rm.op == TOP_MUL ? v * rm.value : v + rm.value; };
+			switch (rm.stat) {
+				// The player's own trickle (template_player.xml ResourceTrickle, Interval 1000).
+				case TSTAT_TRICKLE_FOOD: player_wide(m.trickle_add[RES_FOOD]); continue;
+				case TSTAT_TRICKLE_WOOD: player_wide(m.trickle_add[RES_WOOD]); continue;
+				case TSTAT_TRICKLE_STONE: player_wide(m.trickle_add[RES_STONE]); continue;
+				case TSTAT_TRICKLE_METAL: player_wide(m.trickle_add[RES_GOLD]); continue;
+				case TSTAT_MAX_POP: player_wide(m.max_pop); continue;
+				// Every looter class (Human, Siege, Ship, Structure) gains it on each kill.
+				case TSTAT_LOOT_FOOD: player_wide(m.loot_add[RES_FOOD]); continue;
+				case TSTAT_LOOT_WOOD: player_wide(m.loot_add[RES_WOOD]); continue;
+				case TSTAT_LOOT_STONE: player_wide(m.loot_add[RES_STONE]); continue;
+				case TSTAT_LOOT_METAL: player_wide(m.loot_add[RES_GOLD]); continue;
+				default: break;
+			}
+			const TechEffect e{rm.stat, rm.op, 0, 0, rm.value};
+			apply_mod(e, [&](uint64_t cls) { return relic_modifier_applies(rm, cls); });
+		}
+	}
+	// Cheat.js "fastactions" (cheat/fastactions on every Structure and Unit): Cost/BuildTime,
+	// Pack/Time and Researcher/TechCostMultiplier/time x0.01, ResourceGatherer/BaseSpeed x1000.
+	if (cheat_mods_[player_id].fast_actions) {
+		for (int t = 0; t < UNIT_TYPE_COUNT; ++t) {
+			for (float &g : m.gather[t]) g *= 1000.0f;
+			m.train_time[t] *= 0.01f;
+			m.pack_time[t] *= 0.01f;
+		}
+		for (auto &tm : m.tmpl) {
+			for (float &g : tm.gather) g *= 1000.0f;
+			tm.train_time *= 0.01f;
+		}
+		for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
+			m.bld_build_time[b] *= 0.01f;
+			m.bld_research_time[b] *= 0.01f;
+		}
 	}
 }
 
+uint32_t Simulation::relic_aura_mask(uint8_t player) const {
+	uint32_t mask = 0;
+	if (player >= MAX_PLAYERS) return 0;
+	for (const Relic &rel : relics_) {
+		const int32_t u = lookup_unit(rel.id);
+		if (!is_relic_unit(u) || units_.team[u] >= MAX_PLAYERS || units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		for (int16_t a : civ_unit_template(units_.tmpl[u]).auras) {
+			const int g = relic_global_aura_index(a);
+			if (g < 0) continue;
+			if (aura_affected_players(units_.team[u], relic_global_auras()[g].players) & aura_player_bit(player))
+				mask |= 1u << g;
+		}
+	}
+	return mask;
+}
+
 void Simulation::rebuild_all_tech_mods() {
-	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) compute_tech_mods(p, tech_mods_[p]);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		compute_tech_mods(p, tech_mods_[p]);
+		relic_aura_masks_[p] = relic_aura_mask(p);
+	}
 }
 
 Simulation::UnitTechMods Simulation::unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const TechMods::Template &tm = m.tmpl[tmpl];
-		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.armor, tm.gather};
+		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.range_mul, tm.vision, tm.capture,
+			tm.required_xp, tm.armor, tm.gather};
 	}
 	const uint8_t t = unit_type < UNIT_TYPE_COUNT ? unit_type : 0;
-	return {m.attack[t], m.health[t], m.speed[t], m.range[t], m.train_time[t], m.armor[t], m.gather[t]};
+	return {m.attack[t], m.health[t], m.speed[t], m.range[t], m.train_time[t], m.range_mul[t], m.vision[t],
+		m.capture[t], m.required_xp[t], m.armor[t], m.gather[t]};
 }
 
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
@@ -2707,7 +2966,7 @@ void Simulation::apply_tech_mods_to_unit(size_t idx) {
 	units_.max_hp[idx] *= m.health;
 	units_.hp[idx] = units_.max_hp[idx];
 	units_.speed[idx] *= m.speed;
-	units_.attack_range[idx] += m.range;
+	units_.attack_range[idx] = units_.attack_range[idx] * m.range_mul + m.range;
 }
 
 // 0 A.D. ModificationsManager: a finished technology changes every existing
@@ -2718,6 +2977,11 @@ void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 	ps.techs.set(tech_id);
 	if (tech_id == TECH_PHASE_TOWN) ps.phase = std::max<uint8_t>(ps.phase, 2);
 	else if (tech_id == TECH_PHASE_CITY) ps.phase = 3;
+	refresh_tech_mods(player_id);
+}
+
+void Simulation::refresh_tech_mods(uint8_t player_id) {
+	if (player_id >= MAX_PLAYERS) return;
 	auto old_ptr = std::make_unique<TechMods>(tech_mods_[player_id]); // tens of KB, keep it off the stack
 	const TechMods &old = *old_ptr;
 	compute_tech_mods(player_id, tech_mods_[player_id]);
@@ -2735,7 +2999,8 @@ void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 			units_.hp[i] *= r;
 		}
 		if (now.speed != was.speed) units_.speed[i] *= now.speed / was.speed;
-		units_.attack_range[i] += now.range - was.range;
+		if (now.range_mul != was.range_mul || now.range != was.range)
+			units_.attack_range[i] = (units_.attack_range[i] - was.range) / was.range_mul * now.range_mul + now.range;
 	}
 	for (auto &b : buildings_) {
 		if (b.team != player_id || b.type >= BLD_TYPE_COUNT) continue;
@@ -4970,7 +5235,25 @@ bool Simulation::structure_has_enough_health(const Building &b) const {
 }
 
 float Simulation::structure_garrison_heal(const Building &b) const {
-	const float add = b.team < MAX_PLAYERS ? tech_mods_[b.team].bld_garrison_heal[b.type] : 0.0f;
+	float add = b.team < MAX_PLAYERS ? tech_mods_[b.team].bld_garrison_heal[b.type] : 0.0f;
+	// kush_catafalque_2 (Temple at Naqa), a range aura: the owner's Temples within 80 m of
+	// the relic heal their garrison 1 hp/s more (GarrisonHolder/BuffHeal +1).
+	if (!relics_.empty() && b.team < MAX_PLAYERS && (building_tech_classes(b.type) & TC_TEMPLE)) {
+		static const int16_t kNaqa = [] {
+			for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a)
+				if (std::strcmp(civ_hero_aura_table()[a].id, "kush_catafalque_2") == 0) return (int16_t)a;
+			return (int16_t)-1;
+		}();
+		for (const Relic &rel : relics_) {
+			const int32_t u = lookup_unit(rel.id);
+			if (kNaqa < 0 || !is_relic_unit(u) || units_.team[u] != b.team || units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+			const auto &auras = civ_unit_template(units_.tmpl[u]).auras;
+			if (std::find(std::begin(auras), std::end(auras), kNaqa) == std::end(auras)) continue;
+			const float r = civ_hero_aura(kNaqa).radius * COMBAT_DISTANCE_SCALE;
+			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
+			if (dx * dx + dz * dz <= r * r) { add += 1.0f; break; }
+		}
+	}
 	return building_garrison_heal(b.type) + add;
 }
 
@@ -5547,6 +5830,7 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 	res[RES_GOLD] = loot.metal * mult;
 	if (infantry && civ_of(looter_player) == CIV_BRITONS)
 		for (float &r : res) r += 1.0f;
+	for (int r = 0; r < RES_COUNT; ++r) res[r] += tech_mods(looter_player).loot_add[r]; // Looter/Resource modifiers
 	if (carried > 0 && carried_type < RES_COUNT) res[carried_type] += (float)carried;
 	players_[looter_player].add(res[RES_FOOD], res[RES_WOOD], res[RES_GOLD], res[RES_STONE]);
 	stats_[looter_player].loot_collected += (uint32_t)std::lround(res[RES_FOOD] + res[RES_WOOD] + res[RES_GOLD] + res[RES_STONE]);
@@ -5903,6 +6187,7 @@ void Simulation::tick(float dt) {
 	tick_repair(dt);         // 0 A.D. Repairable.js / Builder.js: repairing damaged completed buildings
 	tick_production(dt);     // 0 A.D. ProductionQueue.js: training batches and technologies
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
+	if (!unit_upgrades_.empty()) tick_unit_upgrades(dt); // and unit ones (Centurion, Immortal bow)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
 	tick_garrison_holders(); // 0 A.D. GarrisonHolder BuffHeal / EjectHealth for structures
 	tick_gates(dt);          // 0 A.D. Gate.js:145-180: auto open / close when allied units in pass range
@@ -5928,6 +6213,8 @@ void Simulation::tick(float dt) {
 		for (auto &ps : players_)
 			for (float &w : ps.gathered_window) w *= 0.5f;
 	}
+
+	tick_spies(dt);
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
 	fow_timer_ += dt;
@@ -6193,6 +6480,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				task_path = true;
 			}
 		}
+		// UnitAI COMBAT.APPROACHING / CHASING: an attacker's path above is its chase path. The unit
+		// stops for its target along it, and stands at its end when it can't reach the target.
+		bool chase_path = false;
+		float chase_x = 0.0f, chase_z = 0.0f;
+		if (closing_in && task_path) {
+			float key_x, key_z;
+			chase_path = chase_goal(i, key_x, key_z, chase_x, chase_z);
+		}
 
 		// G1: follow waypoint path if available (mirrors CCmpUnitMotion path following)
 		float aim_x;
@@ -6264,6 +6559,21 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				}
 			}
 		}
+		// The end of a chase path that can't reach the target (UnitMotion's short-path hack when the
+		// long path falls short): the unit stays there, obstructed, and motion_feedback gives the
+		// chase up. Walking on would take it into the water or up the cliff.
+		if (chase_path && !using_path && chase_falls_short(i)) {
+			const float sdx = aim_x - px[i], sdz = aim_z - pz[i];
+			const float sl = std::sqrt(sdx * sdx + sdz * sdz);
+			if (sl > 1e-6f) {
+				const float step = unit_walk_speed(i) * dt / sl;
+				want_x[i] = sdx * step;
+				want_z[i] = sdz * step;
+				blocked[i] = 1;
+			}
+			vx[i] = vz[i] = 0;
+			return;
+		}
 
 		// UnitMotion and MakeGoalReachable: a point closer to a building than the unit's clearance
 		// can't be reached, so a walk there (and its last waypoint, the same point) ends as close as
@@ -6330,7 +6640,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			}
 		}
 
-		if (!backing_off && d2 <= stop_dist * stop_dist) {
+		// Along a chase path the unit stops for its target, not at a waypoint.
+		float stop_d2 = d2;
+		if (chase_path && using_path && units_.target_building_id[i] == 0) {
+			const float cdx = chase_x - px[i], cdz = chase_z - pz[i];
+			stop_d2 = cdx * cdx + cdz * cdz;
+		}
+		if (!backing_off && stop_d2 <= stop_dist * stop_dist) {
 			vx[i] = 0;
 			vz[i] = 0;
 			if (units_.action_state[i] == ACTION_MOVE || units_.action_state[i] == ACTION_ATTACK_MOVE) {
@@ -6711,6 +7027,19 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		}
 		// MoveObstructed / MoveFailed reach UnitAI. Members of a formation follow its controller.
 		if (!formations_.empty() && formation_group_[i] != 0) continue;
+		// A chase gives up on MoveFailed (UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with
+		// likelyFailure). UnitMotion fails it within two turns once its long path can't reach the
+		// target (the short-path hack sets m_FailedMovements to MAX_FAILED_MOVEMENTS - 2).
+		{
+			float kx, kz, gx, gz;
+			if (chase_goal(i, kx, kz, gx, gz)) {
+				if (move_failed || chase_falls_short(i)) {
+					m.failed = 0;
+					give_up_attack(i);
+				}
+				continue;
+			}
+		}
 		const uint8_t kind = units_.order_kind[i], st = units_.action_state[i];
 		const bool walking = (kind == ORDER_WALK && st == ACTION_MOVE) ||
 				(kind == ORDER_WALK_AND_FIGHT && st == ACTION_ATTACK_MOVE) ||
@@ -6731,6 +7060,91 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		units_.waypoint_count[i] = 0;
 		if (i < unit_paths_.size()) unit_paths_[i].clear();
 	}
+}
+
+bool Simulation::chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const {
+	if (units_.action_state[i] != ACTION_ATTACK || units_.order_kind[i] == ORDER_CAPTURE_RELIC) return false;
+	if (units_.target_unit_id[i] != 0) {
+		const int32_t t = lookup_unit(units_.target_unit_id[i]); // tick_hunters chases animals
+		if (t < 0 || !units_.alive[t]) return false;
+		key_x = to_x = units_.pos_x[t];
+		key_z = to_z = units_.pos_z[t];
+		return true;
+	}
+	if (units_.target_building_id[i] == 0) return false;
+	const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
+	if (bit == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[bit->second];
+	key_x = b.x;
+	key_z = b.z;
+	to_x = units_.target_x[i];
+	to_z = units_.target_z[i];
+	return true;
+}
+
+// The unit follows the path move_units made for this chase: one to the point it walks to.
+bool Simulation::chase_path_kept(size_t i) const {
+	if (i >= unit_paths_.size()) return false;
+	const WaypointPath &wp = unit_paths_[i];
+	const float dx = wp.goal_x - units_.target_x[i], dz = wp.goal_z - units_.target_z[i];
+	return wp.has_goal && dx * dx + dz * dz <= 4.0f && units_.waypoint_count[i] == wp.count;
+}
+
+// The unit has walked all of its chase path, and the path ends out of reach of the target:
+// find_path stopped it at the nearest point the unit can get to (MakeGoalReachable).
+bool Simulation::chase_falls_short(size_t i) const {
+	float kx, kz, gx, gz;
+	if (unit_is_ship(units_.unit_type[i]) || !chase_goal(i, kx, kz, gx, gz) || !chase_path_kept(i)) return false;
+	const WaypointPath &wp = unit_paths_[i];
+	if (wp.cur < wp.count) return false;
+	const float ex = wp.count > 0 ? wp.xs[wp.count - 1] : units_.pos_x[i];
+	const float ez = wp.count > 0 ? wp.zs[wp.count - 1] : units_.pos_z[i];
+	// A navcell's width of slack: a path to a point the unit can reach ends on that point.
+	const float reach = std::max(units_.attack_range[i], CAPTURE_RANGE) + 2.0f;
+	if (units_.target_unit_id[i] != 0) {
+		const float dx = ex - kx, dz = ez - kz;
+		return dx * dx + dz * dz > reach * reach;
+	}
+	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
+	return structure_gap(b, ex, ez, unit_collision_radius(units_.unit_type[i])) > reach;
+}
+
+// UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with likelyFailure: with orders queued after it
+// the attack ends (FinishOrder); a target the unit picked itself, or an unforced attack, goes to
+// FINDINGNEWTARGET, which drops it; a player's attack becomes an unforced attack-walk to where the
+// target was (lastPos), which UnitMotion ends as close as the unit can get (MakeGoalReachable).
+void Simulation::give_up_attack(size_t i) {
+	const uint32_t uid = units_.id[i];
+	float last_x = units_.pos_x[i], last_z = units_.pos_z[i], to_x, to_z;
+	const bool short_path = chase_falls_short(i);
+	if (chase_goal(i, last_x, last_z, to_x, to_z) && short_path && unit_paths_[i].count > 0) {
+		const WaypointPath &wp = unit_paths_[i];
+		last_x = wp.xs[wp.count - 1]; // as close as the unit can get
+		last_z = wp.zs[wp.count - 1];
+	} else if (short_path) {
+		last_x = units_.pos_x[i];
+		last_z = units_.pos_z[i];
+	}
+	const uint8_t kind = units_.order_kind[i];
+	const bool own = (kind == ORDER_ATTACK && units_.target_unit_id[i] != 0 &&
+			units_.target_unit_id[i] == units_.order_target[i]) ||
+			(kind == ORDER_ATTACK_BUILDING && units_.target_building_id[i] != 0 &&
+			units_.target_building_id[i] == units_.order_target[i]);
+	if (i < unit_paths_.size()) unit_paths_[i].clear();
+	units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+	if (!own) {
+		// A fight the unit started itself: tick_combat looks for another target, and tick_unit_ai
+		// takes the unit back to the order the fight interrupted.
+		units_.target_unit_id[i] = 0;
+		units_.target_building_id[i] = 0;
+		return;
+	}
+	if (order_queues_.count(uid) || !(units_.order_flags[i] & ORDER_FLAG_FORCE)) {
+		finish_order(i);
+		return;
+	}
+	order_attack_move(&uid, 1, last_x, last_z, false, false, (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) != 0);
+	units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
 }
 
 uint32_t Simulation::ensure_field_resource(const Building &b) {
@@ -7131,9 +7545,9 @@ float Simulation::builder_rate(size_t unit_idx) const {
 // AI difficulty multiplier.
 float Simulation::structure_build_time(const Building &b, uint8_t builder_team) const {
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
-	// A WallSet segment takes its length's share of wall_long's BuildTime.
-	const float base = type == BLD_WALL_SEGMENT && is_wallset_piece(type, b.half_size)
-			? WALL_LONG_BUILD_TIME * wallset_share(b.half_size) : building_type_info(type).build_time;
+	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
+	const float piece = wallset_piece_value(type, b.half_size, 2);
+	const float base = piece > 0.0f ? piece : building_type_info(type).build_time;
 	float t = base * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
 	t *= civ_bonus_mult(civ_of(builder_team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
 	t *= team_bonus_mult(builder_team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
@@ -8214,6 +8628,10 @@ float Simulation::promotion_required_xp(size_t i) const {
 		for (const PromotionXpTech &t : PROMOTION_XP_TECHS)
 			if (players_[team].has_tech(t.tech) && (cls & t.need) == t.need && !(cls & t.forbid))
 				xp = t.replace_zero ? 0.0f : xp * t.multiply;
+		xp *= unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).required_xp; // global RequiredXp auras
+		const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
+			units_.tmpl[i], &unit_combat_at(i).classes); // range ones
+		if (near > 0.0f) xp *= near;
 	}
 	return xp;
 }
@@ -8229,6 +8647,8 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 	float c = unit_capture_attack(units_.tmpl[i], units_.unit_type[i]);
 	if (c > 0.0f)
 		for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) c += rank_bonus(r).capture_add;
+	if (c > 0.0f && units_.team[i] < MAX_PLAYERS)
+		c *= unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).capture;
 	return c;
 }
 
@@ -8465,6 +8885,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		for (int t = 1; t <= GAIA; ++t) if (pts[t] > pts[best]) best = t;
 		if (best == owner) return false;
 		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
+		b.rally_more.clear();
 		order_ungarrison(b.id);
 		cancel_upgrade(b, b.team);
 		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
@@ -8874,6 +9295,7 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.queue.clear();
 		b.autoqueue = false;
 		b.has_rally_point = false;
+		b.rally_more.clear();
 		b.team = GAIA_PLAYER;
 		b.capture_points_by_team.fill(0.0f); // every point is Gaia's
 		b.capture_points = 0.0f;
@@ -9057,6 +9479,8 @@ void Simulation::tick_trickle(float dt) {
 					if (is_player_trickle(fx[k]) && fx[k].op == TOP_ADD)
 						ps.res[kTrickleRes[fx[k].stat - TSTAT_TRICKLE_FOOD]] += fx[k].value;
 			}
+			// Global relic auras on the player's own trickle (Macedonian Financial Reorganization).
+			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += tech_mods_[p].trickle_add[r];
 		}
 		uint16_t civs_present = 0;
 		for (const auto &b : buildings_)
@@ -9814,11 +10238,67 @@ void Simulation::respond_to_attack(size_t i) {
 			!template_has_ranged_attack(units_.tmpl[a], units_.unit_type[a], civ_of(units_.team[a])));
 }
 
+// Where a unit, structure or animal stands; false once it is gone.
+bool Simulation::entity_xz(uint32_t id, float &x, float &z) const {
+	const int32_t u = lookup_unit(id);
+	if (u >= 0) {
+		if (!units_.alive[u]) return false;
+		x = units_.pos_x[u];
+		z = units_.pos_z[u];
+		return true;
+	}
+	auto bit = building_id_to_idx_.find(id);
+	if (bit != building_id_to_idx_.end()) {
+		const Building &b = buildings_[bit->second];
+		if (b.wrecked) return false;
+		x = b.x;
+		z = b.z;
+		return true;
+	}
+	auto fit = fauna_id_to_idx_.find(id);
+	if (fit != fauna_id_to_idx_.end() && fauna_.alive[fit->second]) {
+		x = fauna_.pos_x[fit->second];
+		z = fauna_.pos_z[fit->second];
+		return true;
+	}
+	return false;
+}
+
+// UnitAI FLEEING: MoveToTargetRange(target, distanceToFlee, -1) keeps running from where the
+// one fled from is now; done once that far from it, when the run ends short (likelyFailure),
+// or when the flight is stuck. Re-aims target_x/z while it goes on.
+bool Simulation::flee_done(size_t i) {
+	if (units_.attack_timer[i] <= 0.0f) return true;
+	const float px = units_.pos_x[i], pz = units_.pos_z[i];
+	const float tx = units_.target_x[i] - px, tz = units_.target_z[i] - pz;
+	if (tx * tx + tz * tz <= 1.0f) return true;
+	float sx, sz;
+	if (units_.flee_from[i] == 0 || !entity_xz(units_.flee_from[i], sx, sz)) return false;
+	const float dx = px - sx, dz = pz - sz, d2 = dx * dx + dz * dz;
+	const float want = units_.flee_dist[i];
+	if (d2 >= want * want) return true;
+	const float d = sqrtf(d2);
+	const float nx = d > 1e-3f ? dx / d : 1.0f, nz = d > 1e-3f ? dz / d : 0.0f;
+	units_.target_x[i] = std::clamp(sx + nx * want, -map_half_ + 1.0f, map_half_ - 1.0f);
+	units_.target_z[i] = std::clamp(sz + nz * want, -map_half_ + 1.0f, map_half_ - 1.0f);
+	return false;
+}
+
 // The response itself, to a unit or an animal (fauna_hit_unit) at (ax, az).
 void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure) {
 	const uint8_t st = units_.action_state[i];
 	// TRADE "Attacked": a trader keeps trading.
 	if (st == ACTION_TRADE) return;
+	// FLEEING "Attacked": ignore the one fled from and anyone farther away; a nearer attacker
+	// is answered (a fresh flight from it, or a fight).
+	if (st == ACTION_FLEE && units_.flee_from[i] != 0) {
+		if (attacker_id == units_.flee_from[i]) return;
+		float sx, sz;
+		if (entity_xz(units_.flee_from[i], sx, sz)) {
+			const float px = units_.pos_x[i], pz = units_.pos_z[i];
+			if ((px - ax) * (px - ax) + (pz - az) * (pz - az) > (px - sx) * (px - sx) + (pz - sz) * (pz - sz)) return;
+		}
+	}
 	const uint8_t stance = units_.stance[i];
 	// Forced orders ignore attackers, unless the stance is violent (targetAttackersAlways);
 	// an automatic fight (ORDER_FLAG_INTERRUPTED) is not forced.
@@ -9846,6 +10326,8 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		units_.target_z[i] = std::clamp(az + nz * goal, -map_half_ + 1.0f, map_half_ - 1.0f);
 		units_.has_order[i] = 1;
 		units_.action_state[i] = ACTION_FLEE;
+		units_.flee_from[i] = attacker_id;
+		units_.flee_dist[i] = goal;
 		units_.target_unit_id[i] = 0;
 		units_.target_building_id[i] = 0;
 		units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
@@ -9927,37 +10409,56 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 
 // 0 A.D. RallyPoint + Commands.js: a trained unit does what the rally target asks
 // for, if it can (gather, build, garrison, attack), and walks there otherwise.
+// Every position is an order; the ones Shift added queue behind the first
+// (RallyPoint.OrderToRallyPoint, queued for i > 0).
 void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
+	const Building::RallyStep first{b.rally_x, b.rally_z, b.rally_target_res_id, b.rally_target_bld_id, b.rally_res_type, b.rally_res_sub};
+	apply_rally_step(uid, b, first, false, ignore_self_garrison);
+	for (const Building::RallyStep &st : b.rally_more) apply_rally_step(uid, b, st, true, false);
+}
+
+void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued,
+		bool ignore_self_garrison) {
 	const int32_t i = lookup_unit(uid);
 	if (i < 0) return;
 	const uint8_t ut = units_.unit_type[i];
 	const bool builder = unit_can_build(ut, units_.tmpl[i]);
-	auto rit = res_id_to_idx_.find(b.rally_target_res_id);
-	if (b.rally_target_res_id != 0 && rit != res_id_to_idx_.end() && can_gather((size_t)i, rit->second)) {
-		order_gather(&uid, 1, b.rally_target_res_id);
-		return;
+	auto rit = res_id_to_idx_.find(st.res_id);
+	if (st.res_id != 0 && rit != res_id_to_idx_.end() && resources_.alive[rit->second] && resources_.amount[rit->second] > 0) {
+		if (can_gather((size_t)i, rit->second)) {
+			order_gather(&uid, 1, st.res_id, queued);
+			return;
+		}
+	} else if (st.res_type != 0xFF) {
+		// gather-near-position: the target is gone, so gather the same kind near the spot.
+		const uint32_t r = find_nearby_resource(st.x, st.z, st.res_type, b.team, st.res_sub);
+		auto nit = res_id_to_idx_.find(r);
+		if (r != 0 && nit != res_id_to_idx_.end() && can_gather((size_t)i, nit->second)) {
+			order_gather(&uid, 1, r, queued);
+			return;
+		}
 	}
-	if (b.rally_target_bld_id != 0) {
-		auto it = building_id_to_idx_.find(b.rally_target_bld_id);
+	if (st.bld_id != 0) {
+		auto it = building_id_to_idx_.find(st.bld_id);
 		if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) {
 			const Building &t = buildings_[it->second];
 			if (t.team == b.team) {
 				if (builder && (t.build_progress < 1.0f || t.hp < t.max_hp || t.type == BLD_FIELD)) {
-					order_build_or_repair(&uid, 1, t.id);
+					order_build_or_repair(&uid, 1, t.id, queued);
 					return;
 				}
 				if (ignore_self_garrison && t.id == b.id) return;
 				if ((int)t.garrisoned_units.size() < t.garrison_cap) {
-					order_garrison(&uid, 1, t.id);
+					order_garrison(&uid, 1, t.id, queued);
 					return;
 				}
 			} else if (can_attack(b.team, t.team)) {
-				order_attack_building(&uid, 1, t.id, false, true);
+				order_attack_building(&uid, 1, t.id, queued, true);
 				return;
 			}
 		}
 	}
-	order_walk(&uid, 1, b.rally_x, b.rally_z);
+	order_walk(&uid, 1, st.x, st.z, queued);
 }
 
 // UnitAI ConstructionFinished for the builders of `b`: farm a field, gather the
@@ -10116,8 +10617,7 @@ void Simulation::tick_unit_ai(float dt) {
 		// tick_formations brings them back after a fight or a flight, so they don't resume their own.
 		if (!formations_.empty() && formation_group_[i] != 0 && !member_working(i)) {
 			if (now == ACTION_FLEE) {
-				const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
-				if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
+				if (flee_done(i)) {
 					units_.attack_timer[i] = 0.0f;
 					units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_INTERRUPTED;
 					units_.action_state[i] = ACTION_IDLE;
@@ -10168,8 +10668,7 @@ void Simulation::tick_unit_ai(float dt) {
 			continue;
 		}
 		if (now == ACTION_FLEE) {
-			const float dx = units_.target_x[i] - units_.pos_x[i], dz = units_.target_z[i] - units_.pos_z[i];
-			if (dx * dx + dz * dz <= 1.0f || units_.attack_timer[i] <= 0.0f) {
+			if (flee_done(i)) {
 				units_.attack_timer[i] = 0.0f;
 				resume_order(i);
 			}
@@ -10347,13 +10846,82 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		if (extra == TECH_NONE || extra >= TECH_COUNT) return false;
 		complete_research(player, (uint8_t)extra);
 		return true;
-	case CHEAT_META: // "gift from the gods": every resource and both phases (RTS0 has no pop or speed cheats yet)
+	case CHEAT_META: // "gift from the gods": every resource, both population cheats, fast actions, both phases
 		for (uint8_t r = 0; r < RES_COUNT; ++r) ps.res[r] = std::max(0.0f, ps.res[r] + (float)parameter);
+		cmd_cheat(player, CHEAT_MAX_POPULATION, 0, 0, nullptr, 0);
+		cmd_cheat(player, CHEAT_CHANGE_MAX_POPULATION, 0, 0, nullptr, 0);
+		cmd_cheat(player, CHEAT_FAST_ACTIONS, 0, 0, nullptr, 0);
 		change_phase();
 		change_phase();
 		return true;
+	case CHEAT_MAX_POPULATION: { // "the hive master": SetPopulationBonuses((world max || MaxPopulation) + 500)
+		CheatMods &cm = cheat_mods_[player];
+		const int houses = pop_max_uncapped(player) - cm.pop_bonus;
+		const int limit = pop_cap_ < 0 ? world_pop_cap() : pop_cap() > 0 ? pop_limit(player) : houses;
+		cm.pop_bonus = std::clamp(limit + 500 - houses, -1000000, 1000000);
+		return true;
+	}
+	case CHEAT_CHANGE_MAX_POPULATION: // "TARDIS": the cheat/maxpopulation modifier, Player/MaxPopulation +500
+		cheat_mods_[player].max_pop_add = 500;
+		return true;
+	case CHEAT_FAST_ACTIONS: // "i am too busy": toggles cheat/fastactions
+		cheat_mods_[player].fast_actions ^= 1;
+		compute_tech_mods(player, tech_mods_[player]);
+		return true;
 	}
 	return false;
+}
+
+bool Simulation::can_bribe(uint8_t player, uint8_t target) const {
+	return player < MAX_PLAYERS && target < MAX_PLAYERS && player != target && !spies_disabled() &&
+		!is_defeated(player) && !is_defeated(target) && players_[target].active &&
+		players_[player].has_tech(TECH_UNLOCK_SPIES);
+}
+
+int Simulation::bribe_cost(uint8_t player, uint8_t target, bool failed) const {
+	(void)player; // special/spy.xml Cost has no player modifiers in RTS0
+	// IncurBribeCost: the spy's 500 metal x the bribed player's SpyCostMultiplier
+	// (spy_counter: x1.5), x FailureCostRatio 0.25 for a failed bribe; floored.
+	double m = (target < MAX_PLAYERS && players_[target].has_tech(TECH_SPY_COUNTER)) ? 1.5 : 1.0;
+	if (failed) m *= 0.25;
+	return (int)std::floor(m * 500.0);
+}
+
+Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
+	if (!can_bribe(player, target)) return BRIBE_NOT_ALLOWED;
+	// template_unit_support_trader / template_unit_ship_merchant: VisionSharing/Bribable.
+	std::vector<uint32_t> candidates;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != target) continue;
+		if (units_.unit_type[i] != UNIT_TRADER && units_.unit_type[i] != UNIT_MERCHANT_SHIP) continue;
+		bool spied = false;
+		for (const Spy &s : spies_) spied |= s.unit_id == units_.id[i] && s.player == player;
+		if (!spied) candidates.push_back(units_.id[i]);
+	}
+	PlayerState &ps = players_[player];
+	auto pay = [&](int metal) {
+		if (ps.res[RES_GOLD] < (float)metal) return false;
+		ps.res[RES_GOLD] -= (float)metal;
+		return true;
+	};
+	if (candidates.empty()) {
+		pay(bribe_cost(player, target, true)); // TrySubtractResources: nothing if it can't pay
+		return BRIBE_NO_UNITS;
+	}
+	const uint32_t id = candidates[(size_t)sim_rng_.range_int(0, (int)candidates.size() - 1)];
+	if (!pay(bribe_cost(player, target))) return BRIBE_TOO_EXPENSIVE;
+	// AddSpy: Duration 15 s x 60 / max(30, the unit's 0 A.D. Vision/Range): traders 60, merchant ships 50.
+	const int32_t u = lookup_unit(id);
+	const float range = units_.unit_type[u] == UNIT_MERCHANT_SHIP ? 50.0f : 60.0f;
+	spies_.push_back({id, player, {0, 0, 0}, 15.0f * 60.0f / std::max(30.0f, range)});
+	return BRIBE_OK;
+}
+
+void Simulation::tick_spies(float dt) {
+	// VisionSharing.RemoveSpy on each spy's timer.
+	if (spies_.empty()) return;
+	for (Spy &s : spies_) s.remaining -= dt;
+	spies_.erase(std::remove_if(spies_.begin(), spies_.end(), [](const Spy &s) { return s.remaining <= 0.0f; }), spies_.end());
 }
 
 void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
@@ -10979,42 +11547,9 @@ void Simulation::update_petra_bases(float dt) {
 }
 
 void Simulation::petra_manage_scouting(float dt) {
-	// 1. Update Petra Fog of War from Team 1 vision. A revealed map shows Petra
-	// everything too; an explored one starts it with the terrain known.
-	const bool revealed = reveal_map_;
-	if (revealed) {
-		if (!petra_fow_.empty() && petra_fow_[0] != FOW_VISIBLE) std::fill(petra_fow_.begin(), petra_fow_.end(), (uint8_t)FOW_VISIBLE);
-	} else {
-		const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
-		for (auto &c : petra_fow_) c = c == FOW_VISIBLE ? (uint8_t)FOW_EXPLORED : std::max(c, floor);
-	}
-
-	const float half = map_half_;
-	const int G = grid_res_;
-	const float cell = (half * 2.0f) / (float)G;
-
-	auto vision_radius = [](uint8_t utype) -> float {
-		switch (utype) {
-			case UNIT_ARCHER:   return 22.0f;
-			case UNIT_CAVALRY:  return 24.0f;
-			case UNIT_CATAPULT: return 24.0f;
-			case UNIT_TRIREME:  return 28.0f;
-			case UNIT_ELEPHANT: return 20.0f;
-			case UNIT_HERO:     return 20.0f;
-			default:            return 16.0f;
-		}
-	};
-
-	if (!revealed) {
-		ensure_fow_cell_heights();
-		reveal_viewers(petra_fow_, petra_fow_views_,
-				[&](size_t u) { return units_.alive[u] && units_.team[u] == petra_pid_ ? vision_radius(units_.unit_type[u]) : 0.0f; },
-				[&](const Building &b) {
-					if (b.team != petra_pid_ || b.build_progress < 0.5f) return 0.0f;
-					if (const float cv = civ_building_vision(b.type); cv > 0.0f) return cv; // e.g. the Ptolemaic Lighthouse
-					return (b.type == BLD_TOWER || b.type == BLD_FORTRESS) ? 24.0f : ((b.type == BLD_DOCK) ? 28.0f : 18.0f);
-				});
-	}
+	// Petra sees what its player sees: the simulation's line of sight (los_visible /
+	// los_explored, 0 A.D. CCmpRangeManager), shared with allies and revealed or explored
+	// maps alike.
 
 	// 2. Validate current scout unit or recruit candidate
 	bool scout_valid = false;
@@ -11110,11 +11645,8 @@ void Simulation::petra_manage_scouting(float dt) {
 			candidate_x = std::clamp(candidate_x, -map_half_ + 4.0f, map_half_ - 4.0f);
 			candidate_z = std::clamp(candidate_z, -map_half_ + 4.0f, map_half_ - 4.0f);
 
-			int cell_x = std::clamp((int)((candidate_x + map_half_) / cell), 0, G - 1);
-			int cell_z = std::clamp((int)((candidate_z + map_half_) / cell), 0, G - 1);
-
 			// Stay out of enemy territory until we can fight (town phase).
-			if (petra_fow_[cell_z * G + cell_x] == FOW_UNEXPLORED &&
+			if (!los_explored(petra_pid_, candidate_x, candidate_z) &&
 			    !(village && enemy_land_at(candidate_x, candidate_z)) &&
 			    get_terrain_height(candidate_x, candidate_z) > terrain_water_height_ + 0.3f &&
 			    is_position_safe(candidate_x, candidate_z, 5.0f)) {
@@ -11128,9 +11660,7 @@ void Simulation::petra_manage_scouting(float dt) {
 		if (!target_found) {
 			for (const auto &relic : relics_) {
 				if (!relic.claimed) {
-					int rcx = std::clamp((int)((relic.x + map_half_) / cell), 0, G - 1);
-					int rcz = std::clamp((int)((relic.z + map_half_) / cell), 0, G - 1);
-					if (petra_fow_[rcz * G + rcx] != FOW_VISIBLE && is_position_safe(relic.x, relic.z, 5.0f) &&
+					if (!los_visible(petra_pid_, relic.x, relic.z) && is_position_safe(relic.x, relic.z, 5.0f) &&
 					    !(village && enemy_land_at(relic.x, relic.z))) {
 						target_wx = relic.x;
 						target_wz = relic.z;
@@ -13499,12 +14029,9 @@ void Simulation::petra_manage_buildings(float dt) {
 				if (resources_.subtype[r] == RES_SUB_FISH) continue; // the dock serves fish
 				float rx = resources_.x[r];
 				float rz = resources_.z[r];
+				// No line-of-sight test: Petra's resource maps (baseManager.js / headquarters.js
+				// dropsite placement) cover every resource on the map.
 
-				// Check if explored in Petra FoW
-				const float fow_cell = (map_half_ * 2.0f) / (float)grid_res_;
-				int rcx = std::clamp((int)((rx + map_half_) / fow_cell), 0, grid_res_ - 1);
-				int rcz = std::clamp((int)((rz + map_half_) / fow_cell), 0, grid_res_ - 1);
-				if (petra_fow_[rcz * grid_res_ + rcx] == FOW_UNEXPLORED) continue;
 				// Storehouses and farmsteads need our own territory (0 A.D. BuildRestrictions).
 				if (territory_owner_at(rx, rz) != petra_pid_) continue;
 				if (!is_position_safe(rx, rz, 5.0f)) continue;
@@ -13831,8 +14358,9 @@ void Simulation::petra_manage_research(float dt) {
 				petra_place_building(tinfo.researcher, home->x, home->z, 4, 14, PETRA_QUEUE_TECH);
 			return false;
 		}
-		if (!petra_try_pay(PETRA_QUEUE_TECH, (float)tinfo.food_cost, (float)tinfo.wood_cost,
-		                   (float)tinfo.gold_cost, (float)tinfo.stone_cost)) {
+		const float *tc = tech_mods(petra_pid_).bld_tech_cost[at->type];
+		if (!petra_try_pay(PETRA_QUEUE_TECH, tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD],
+		                   tinfo.gold_cost * tc[RES_GOLD], tinfo.stone_cost * tc[RES_STONE])) {
 			return false;
 		}
 		ProductionOrder order;
@@ -16857,7 +17385,6 @@ void Simulation::petra_reset_ai_state() {
 	petra_bases_.clear();
 	petra_fnd_watch_.clear();
 	petra_bases_.push_back({1, 0, 48.0f, 48.0f, true, 0, 32.0f, 0.0f, false});
-	petra_fow_.assign((size_t)grid_res_ * (size_t)grid_res_, (uint8_t)FOW_UNEXPLORED);
 	memset(petra_threat_map_.danger, 0, sizeof(petra_threat_map_.danger));
 	memset(petra_threat_map_.enemy_threat, 0, sizeof(petra_threat_map_.enemy_threat));
 	memset(petra_threat_map_.friendly_defense, 0, sizeof(petra_threat_map_.friendly_defense));
@@ -17003,7 +17530,8 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue
+
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -17054,7 +17582,6 @@ bool Simulation::save_state(const char *filepath) const {
 	// v4 FoW: retain explored terrain and current visibility across saves.
 	// Sized by the current map's grid; load expects the same map to be loaded.
 	out.write((const char *)fow_grid_.data(), (std::streamsize)fow_grid_.size());
-	out.write((const char *)petra_fow_.data(), (std::streamsize)petra_fow_.size());
 
 	// 2. Resources
 	uint32_t num_res = (uint32_t)resources_.count;
@@ -17143,6 +17670,20 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.arrow_timer_on, sizeof(b.arrow_timer_on));
 		out.write((const char *)&b.rot, sizeof(b.rot));
 		out.write((const char *)&b.aura_hp_mult, sizeof(b.aura_hp_mult));
+		out.write((const char *)&b.rally_res_type, sizeof(b.rally_res_type));
+		out.write((const char *)&b.rally_res_sub, sizeof(b.rally_res_sub));
+		{
+			const uint32_t nr = (uint32_t)b.rally_more.size();
+			out.write((const char *)&nr, sizeof(nr));
+			for (const auto &st : b.rally_more) {
+				out.write((const char *)&st.x, sizeof(st.x));
+				out.write((const char *)&st.z, sizeof(st.z));
+				out.write((const char *)&st.res_id, sizeof(st.res_id));
+				out.write((const char *)&st.bld_id, sizeof(st.bld_id));
+				out.write((const char *)&st.res_type, sizeof(st.res_type));
+				out.write((const char *)&st.res_sub, sizeof(st.res_sub));
+			}
+		}
 		out.write((const char *)&b.autoqueue, sizeof(b.autoqueue));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
@@ -17292,7 +17833,7 @@ bool Simulation::load_state(const char *filepath) {
 	}
 	if (version >= 4) {
 		in.read((char *)fow_grid_.data(), (std::streamsize)fow_grid_.size());
-		in.read((char *)petra_fow_.data(), (std::streamsize)petra_fow_.size());
+		if (version < 46) in.ignore((std::streamsize)fow_grid_.size()); // v4-v45: Petra's own fog grid
 		if (!in.good()) return false;
 	}
 
@@ -17490,6 +18031,25 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_MATCH_LIMIT) in.read((char *)&bld.aura_hp_mult, sizeof(bld.aura_hp_mult));
 		bld.half_d = building_half_depth(bld.type, bld.half_size);
 		bld.set_rot(bld.rot);
+		bld.rally_more.clear();
+		if (version >= SAVE_VERSION_RALLY) { // the rally target's resource kind and the Shift-added rally positions
+			in.read((char *)&bld.rally_res_type, sizeof(bld.rally_res_type));
+			in.read((char *)&bld.rally_res_sub, sizeof(bld.rally_res_sub));
+			uint32_t nr = 0;
+			in.read((char *)&nr, sizeof(nr));
+			if (nr > 4096) return false;
+			bld.rally_more.resize(nr);
+			for (auto &st : bld.rally_more) {
+				in.read((char *)&st.x, sizeof(st.x));
+				in.read((char *)&st.z, sizeof(st.z));
+				in.read((char *)&st.res_id, sizeof(st.res_id));
+				in.read((char *)&st.bld_id, sizeof(st.bld_id));
+				in.read((char *)&st.res_type, sizeof(st.res_type));
+				in.read((char *)&st.res_sub, sizeof(st.res_sub));
+			}
+		} else {
+			bld.rally_res_type = bld.rally_res_sub = 0xFF;
+		}
 		const bool pq = version >= SAVE_VERSION_PRODUCTION_QUEUE;
 		if (pq) in.read((char *)&bld.autoqueue, sizeof(bld.autoqueue));
 		const auto &bi = building_type_info(bld.type);
@@ -17748,6 +18308,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		else U.xp_partial[i] = 0.0f;
 		if (ar.version >= SAVE_VERSION_HEALTH_AURAS) ar.pod(U.aura_hp_mult[i]);
 		else U.aura_hp_mult[i] = 1.0f;
+		if (ar.version >= SAVE_VERSION_RALLY) {
+			ar.pod(U.flee_from[i]);
+			ar.pod(U.flee_dist[i]);
+		} else {
+			U.flee_from[i] = 0;
+			U.flee_dist[i] = 0.0f;
+		}
 		if (ar.version >= SAVE_VERSION_MOTION) {
 			ar.pod(U.short_path[i]);
 			ar.pod(U.motion[i]);
@@ -17896,6 +18463,12 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	};
 	auto field = [&](auto &v) {
 		using T = std::decay_t<decltype(v)>;
+		if constexpr (std::is_same_v<T, Petra>) {
+			if (ar.version < 46) { // v4-v45 kept each AI's own fog grid just before its fleets
+				std::vector<uint8_t> fow;
+				io_vec_pod(ar, fow, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES);
+			}
+		}
 		if constexpr (std::is_same_v<T, S::AttackPlan>) {
 			ar.pod(v.type); ar.pod(v.state); ar.pod(v.target_building_id);
 			ar.pod(v.staging_x); ar.pod(v.staging_z); ar.pod(v.target_x); ar.pod(v.target_z);
@@ -17956,8 +18529,6 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, PetraSentDiplomacy>) {
 			if (ar.version >= 27) ar.pod(v);
 			else v = PetraSentDiplomacy{};
-		} else if constexpr (std::is_same_v<T, std::vector<uint8_t>>) {
-			io_vec_pod(ar, v, (uint32_t)S::MAX_GRID_RES * S::MAX_GRID_RES);
 		} else {
 			// Raw: only plain values and structs without padding (check with -Wpadded).
 			static_assert(std::is_trivially_copyable_v<T>, "give this Petra field its own case in tick_state_io");
@@ -18137,6 +18708,37 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if constexpr (Ar::loading)
 			for (uint16_t t : v)
 				if (t >= CIV_UNIT_TEMPLATE_COUNT) ar.ok = false;
+	}
+
+	// 9c. VisionSharing spies (v44). Older saves had none.
+	if (ar.version >= SAVE_VERSION_SPIES) {
+		static_assert(sizeof(S::Spy) == 12, "Spy is saved raw");
+		io_vec_pod(ar, s.spies_, S::UNIT_CAP * MAX_PLAYERS);
+		if constexpr (Ar::loading)
+			for (const S::Spy &sp : s.spies_)
+				if (sp.player >= MAX_PLAYERS || !(sp.remaining > 0.0f)) ar.ok = false;
+	} else if constexpr (Ar::loading) {
+		s.spies_.clear();
+	}
+	// ... and the population and fast-actions cheats (v44).
+	if (ar.version >= SAVE_VERSION_SPIES) {
+		static_assert(sizeof(S::CheatMods) == 12, "CheatMods is saved raw");
+		ar.pod(s.cheat_mods_);
+		if constexpr (Ar::loading)
+			for (const S::CheatMods &cm : s.cheat_mods_)
+				if (cm.fast_actions > 1 || std::abs(cm.pop_bonus) > 1000000 || std::abs(cm.max_pop_add) > 1000000) ar.ok = false;
+	} else if constexpr (Ar::loading) {
+		for (S::CheatMods &cm : s.cheat_mods_) cm = S::CheatMods{};
+	}
+
+	// 9d. Unit upgrades in progress (v45): raw UnitUpgrade rows.
+	if (ar.version >= SAVE_VERSION_UNIT_UPGRADES) {
+		io_vec_pod(ar, s.unit_upgrades_, (uint32_t)S::UNIT_CAP);
+		if constexpr (Ar::loading)
+			for (const S::UnitUpgrade &u : s.unit_upgrades_)
+				if (u.to >= CIV_UNIT_TEMPLATE_COUNT || u.player >= MAX_PLAYERS || !(u.time > 0.0f)) ar.ok = false;
+	} else if constexpr (Ar::loading) {
+		s.unit_upgrades_.clear();
 	}
 
 	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.
@@ -18449,6 +19051,14 @@ void Simulation::tick_fow() {
 	}
 	ensure_fow_cell_heights();
 
+	// VisionSharing spies: a bribed unit also lights the map for the briber (and its allies).
+	spy_mask_.clear();
+	if (!spies_.empty()) {
+		spy_mask_.assign(units_.count, 0);
+		for (const Spy &s : spies_)
+			if (const int32_t u = lookup_unit(s.unit_id); u >= 0 && s.player < MAX_PLAYERS) spy_mask_[u] |= (uint8_t)(1u << s.player);
+	}
+
 	// VisionSharing.js: allied players share the visibility generated by
 	// their units/buildings -- teammates, or a mutual alliance both sides chose.
 	// fow_grid_ is player 0's view and the one hashed for lockstep.
@@ -18476,7 +19086,14 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 	// tiles within its vision radius (unit_vision_range, 0 A.D. Vision/Range).
 
 	reveal_viewers(grid, views,
-			[&](size_t u) { return units_.alive[u] && shares_vision(units_.team[u]) ? unit_vision_at(u) : 0.0f; },
+			[&](size_t u) {
+				if (!units_.alive[u]) return 0.0f;
+				bool sees = shares_vision(units_.team[u]);
+				if (!sees && u < spy_mask_.size() && spy_mask_[u])
+					for (uint8_t p = 0; p < MAX_PLAYERS && !sees; ++p)
+						sees = ((spy_mask_[u] >> p) & 1) && shares_vision(p);
+				return sees ? unit_vision_at(u) : 0.0f;
+			},
 			[&](const Building &b) { return shares_vision(b.team) ? building_vision_range(b) : 0.0f; });
 }
 
@@ -19391,6 +20008,16 @@ void Simulation::tick_relics() {
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}
+	// Global relic auras follow ownership and diplomacy: a player gaining or losing one
+	// has every entity it affects rescaled, as for a technology.
+	if (pulse) {
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			const uint32_t mask = relic_aura_mask(p);
+			if (mask == relic_aura_masks_[p]) continue;
+			relic_aura_masks_[p] = mask;
+			refresh_tech_mods(p);
+		}
+	}
 	// Captors whose relic is now theirs or an ally's stop and take their next order.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.order_kind[i] != ORDER_CAPTURE_RELIC) continue;
@@ -19465,7 +20092,8 @@ float Simulation::unit_base_vision(size_t i) const {
 }
 
 float Simulation::unit_vision_at(size_t i) const {
-	const float v = unit_base_vision(i);
+	float v = unit_base_vision(i);
+	if (units_.team[i] < MAX_PLAYERS) v *= unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).vision;
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
 	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
@@ -19511,7 +20139,13 @@ void Simulation::rebuild_auras() {
 			for (int16_t a : civ_unit_template(tmpl).auras) {
 				if (a < 0) continue;
 				const CivHeroAura &aura = civ_hero_aura(a);
+				// Range auras on Promotion/RequiredXp (Han Xin's Northern Army).
+				for (uint16_t k = 0; k < REQUIRED_XP_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, required_xp_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_REQUIRED_XP, aura.radius * COMBAT_DISTANCE_SCALE,
+							required_xp_range_auras()[k].multiply, aura_affected_players(team, aura.players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
+				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
 					aura_affected_players(team, aura.players), x, z, a);
 			}

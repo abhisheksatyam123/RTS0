@@ -122,9 +122,11 @@ enum TechnologyId : uint8_t {
 	TECH_TRADE_COMMERCIAL_TREATY = 113, // trade_commercial_treaty
 	TECH_WARSHIP_RAMMING_SPEED = 114, // warship_ramming_speed
 	TECH_ARSENAL_PHILON = 115, // arsenal_philon
-	TECH_BARRACKS_BATCH_TRAINING = 116, // barracks_batch_training
-	TECH_STABLE_BATCH_TRAINING = 117, // stable_batch_training
-	TECH_COUNT = 118
+	TECH_UNLOCK_SPIES = 116, // unlock_spies
+	TECH_SPY_COUNTER = 117, // spy_counter
+	TECH_BARRACKS_BATCH_TRAINING = 118, // barracks_batch_training
+	TECH_STABLE_BATCH_TRAINING = 119, // stable_batch_training
+	TECH_COUNT = 120
 };
 
 enum TechClass : uint64_t {
@@ -564,6 +566,8 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Commercial Treaty", "Traders +10% trade profit between allies.", 0, 0, 100, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0x3fff, 167, 1, "trade_commercial_treaty"},
 		{"Flanking Maneuvers", "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”", 300, 0, 200, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x183f, 168, 1, "warship_ramming_speed"},
 		{"Arsenal of Philon", "Warships +1 health/second self-repair rate.", 0, 300, 0, 300, 40.0f, 3, BLD_DOCK, TECH_DOCK_EFFICIENCY, 0x0001, 169, 1, "arsenal_philon"},
+		{"Espionage", "Allows bribing the units of other players in order to share their vision.", 500, 0, 500, 0, 60.0f, 3, BLD_MARKET, TECH_NONE, 0x3fff, 170, 0, "unlock_spies"},
+		{"Counterintelligence", "Make your units 50% more expensive to bribe.", 400, 0, 400, 0, 60.0f, 3, BLD_MARKET, TECH_UNLOCK_SPIES, 0x3fff, 170, 0, "spy_counter"},
 		{"Conscription", "Decreases batch training time of units trained in Barracks.", 500, 0, 0, 0, 40.0f, 3, BLD_BARRACKS, TECH_NONE, 0x3ffb, 170, 1, "barracks_batch_training"},
 		{"Conscription", "Decrease batch training time of units trained in Stables.", 500, 0, 0, 0, 40.0f, 3, BLD_STABLE, TECH_NONE, 0x3ffb, 171, 1, "stable_batch_training"},
 	};
