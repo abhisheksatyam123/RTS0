@@ -12818,6 +12818,49 @@ uint16_t Simulation::petra_plan_overseas(float base_x, float base_z, uint32_t ta
 	return petra_overseas(topo, base_x, base_z, target_id);
 }
 
+// The land regions just outside a structure's footprint (RTS0's regions, unlike 0 A.D.'s
+// accessibility map, are cut by structures, so it can touch several), or for a unit
+// (half 0) the land it stands on. Unused slots are 0.
+void Simulation::petra_lands_around(float x, float z, float half, uint16_t out[8]) const {
+	std::fill(out, out + 8, (uint16_t)0);
+	if (half <= 0.0f) { out[0] = petra_land_at(x, z); return; }
+	const float r = half + GRID;
+	const float off[8][2] = {{r, 0.0f}, {-r, 0.0f}, {0.0f, r}, {0.0f, -r}, {r, r}, {-r, r}, {r, -r}, {-r, -r}};
+	for (int k = 0; k < 8; ++k) {
+		auto [cx, cz] = nav_grid_.world_to_cell(x + off[k][0], z + off[k][1]);
+		out[k] = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+	}
+	if (std::all_of(out, out + 8, [](uint16_t l) { return l == 0; })) out[0] = petra_land_at(x, z);
+}
+
+// Where an attack starts from: the army's land when it is given, else our first base's.
+void Simulation::petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const {
+	if (same_land) { std::fill(out, out + 8, (uint16_t)0); out[0] = same_land; return; }
+	const PetraBase *pb = get_primary_petra_base();
+	auto it = pb ? building_id_to_idx_.find(pb->anchor_building_id) : building_id_to_idx_.end();
+	if (it != building_id_to_idx_.end()) {
+		const Building &b = buildings_[it->second];
+		petra_lands_around(b.x, b.z, b.half_size, out);
+	} else {
+		petra_lands_around(pb ? pb->x : 36.0f, pb ? pb->z : 36.0f, 0.0f, out);
+	}
+}
+
+// attackPlan.js isValidTarget (sameLand) and chooseTarget's overseas check: an army on
+// any `from` land reaches a target on any `to` land by walking, or with by_sea across
+// a sea joining the two. The topology is fetched only when no land is shared.
+bool Simulation::petra_lands_reach(const uint16_t from[8], const uint16_t to[8], bool by_sea, const PetraNavalTopo *&topo) const {
+	for (int a = 0; a < 8; ++a)
+		for (int b = 0; b < 8; ++b)
+			if (from[a] && from[a] == to[b]) return true;
+	if (!by_sea) return false;
+	if (!topo) topo = &petra_topo();
+	for (int a = 0; a < 8; ++a)
+		for (int b = 0; b < 8; ++b)
+			if (from[a] && to[b] && topo->sea_between(from[a], to[b])) return true;
+	return false;
+}
+
 // A unit of ours aboard Petra's transport ship (alive again once it lands).
 bool Simulation::petra_aboard(uint32_t uid) const {
 	for (const auto &tp : petra_transports_) {
@@ -13848,7 +13891,17 @@ bool Simulation::pick_petra_safe_staging(float base_x, float base_z, float targe
 	return (best_danger < petra_attack_plan_.abort_threat);
 }
 
-uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz) const {
+// A target the army can't reach is skipped (attackPlan.js isValidTarget): with same_land
+// it must stand on the army's land, else on our base's land or across a sea from it.
+uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land) const {
+	uint16_t from[8];
+	petra_attack_from_lands(same_land, from);
+	const PetraNavalTopo *topo = nullptr;
+	auto reachable = [&](float x, float z, float half) {
+		uint16_t to[8];
+		petra_lands_around(x, z, half, to);
+		return petra_lands_reach(from, to, same_land == 0, topo);
+	};
 	// 0 A.D. navalManager.js:46-48, :58, :546 / attackPlan.js:826-831, :930, :1100
 	// When Petra has warships available (own warship count > 0), inspect enemy structures
 	// for docks (BLD_DOCK) or coastal barracks reachable by sea. Prefer targets in the
@@ -13917,6 +13970,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz) cons
 		for (const auto &b : buildings_) {
 			if (!petra_foe(b.team) || b.hp <= 0) continue;
 			if (b.type != BLD_DOCK && b.type != BLD_BARRACKS) continue;
+			if (!reachable(b.x, b.z, b.half_size)) continue;
 
 			int sea_id = get_bld_sea_region(b.x, b.z);
 			if (b.type == BLD_DOCK && sea_id < 0) sea_id = 0; // BLD_DOCK always has sea access
@@ -13956,7 +14010,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz) cons
 	bool has_fortified = false;
 
 	for (const auto &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0) continue;
+		if (!petra_foe(b.team) || b.hp <= 0 || !reachable(b.x, b.z, b.half_size)) continue;
 		int priority = 0;
 		if (b.type == BLD_WONDER) { priority = 7; has_fortified = true; }
 		else if (b.type == BLD_FORTRESS) { priority = 6; has_fortified = true; }
@@ -13989,7 +14043,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz) cons
 	}
 
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
+		if (!units_.alive[i] || !petra_foe(units_.team[i]) || !reachable(units_.pos_x[i], units_.pos_z[i], 0.0f)) continue;
 		out_tx = units_.pos_x[i];
 		out_tz = units_.pos_z[i];
 		const_cast<Simulation*>(this)->petra_attack_plan_.type = AttackPlan::PLAN_RAID;
@@ -14058,10 +14112,14 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 }
 
 // attackPlan.js rushTargetFinder: the nearest enemy structure that does not
-// shoot and stands more than 80 m (20 world units of 4 m) from every structure that does.
+// shoot and stands more than 80 m (20 world units of 4 m) from every structure that does,
+// on our base's land (a rush takes no ship).
 uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
+	uint16_t home[8];
+	petra_attack_from_lands(0, home);
+	const PetraNavalTopo *topo = nullptr;
 	auto shoots = [](uint8_t t) {
 		return t == BLD_TOWN_CENTER || t == BLD_TOWER || t == BLD_SENTRY_TOWER || t == BLD_WALL_TOWER || t == BLD_FORTRESS;
 	};
@@ -14079,7 +14137,10 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const 
 		if (defended) continue;
 		const float dx = b.x - bx, dz = b.z - bz;
 		const float dsq = dx * dx + dz * dz;
-		if (dsq < best_d) {
+		if (dsq >= best_d) continue;
+		uint16_t lands[8];
+		petra_lands_around(b.x, b.z, b.half_size, lands);
+		if (petra_lands_reach(home, lands, false, topo)) {
 			best_d = dsq;
 			best = b.id;
 			out_tx = b.x;
@@ -14405,12 +14466,12 @@ void Simulation::petra_manage_tactical_attacks(float dt) {
 // A rush keeps to undefended structures (attackPlan.js rushTargetFinder). The attack
 // target finder also picks the plan's type, which it writes on the plan in preparation;
 // a started plan takes that type and the plan in preparation keeps its own.
-uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &tz) {
+uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land) {
 	if (plan.kind == PETRA_ATTACK_RUSH) return find_petra_rush_target(tx, tz);
-	if (&plan == &petra_attack_plan_) return find_petra_attack_target(tx, tz);
+	if (&plan == &petra_attack_plan_) return find_petra_attack_target(tx, tz, same_land);
 	const auto keep_type = petra_attack_plan_.type;
 	const uint32_t keep_target = petra_attack_plan_.target_building_id;
-	const uint32_t id = find_petra_attack_target(tx, tz);
+	const uint32_t id = find_petra_attack_target(tx, tz, same_land);
 	plan.type = petra_attack_plan_.type;
 	petra_attack_plan_.type = keep_type;
 	petra_attack_plan_.target_building_id = keep_target;
@@ -14761,8 +14822,14 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 			petra_check_captures(squad, plan.target_x, plan.target_z);
 			if (!target_alive || plan.state_timer >= 25.0f) {
+				// attackPlan.js update: the next target is on the army's own land.
+				uint16_t army_land = 0;
+				for (uint32_t uid : squad) {
+					const int32_t k = lookup_unit(uid);
+					if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { army_land = petra_land_at(units_.pos_x[k], units_.pos_z[k]); break; }
+				}
 				float tx = 0.0f, tz = 0.0f;
-				uint32_t next_id = petra_plan_next_target(plan, tx, tz);
+				uint32_t next_id = petra_plan_next_target(plan, tx, tz, army_land);
 				if (next_id != 0) {
 					plan.target_building_id = next_id;
 					plan.target_x = tx;

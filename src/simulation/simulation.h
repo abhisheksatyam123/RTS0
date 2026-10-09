@@ -1866,7 +1866,7 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
 	void petra_set_rushes();
@@ -1940,6 +1940,9 @@ private:
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
 	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
+	void petra_lands_around(float x, float z, float half, uint16_t out[8]) const; // a structure's lands, or a unit's
+	void petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const; // same_land, or the home base's lands
+	bool petra_lands_reach(const uint16_t from[8], const uint16_t to[8], bool by_sea, const PetraNavalTopo *&topo) const;
 	bool petra_aboard(uint32_t uid) const;
 	bool petra_is_transport_ship(size_t unit_idx) const;
 	uint16_t petra_ship_sea(size_t unit_idx) const;
@@ -1953,7 +1956,7 @@ private:
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
 	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
 	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
-	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz);
+	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0);
 	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
 	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
