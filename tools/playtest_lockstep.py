@@ -253,7 +253,9 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
         rows = [(t, tuple(int(x) for x in e[t]["stone"].split(","))) for t in sorted(e) if "stone" in e[t]]
         return [(t, (b[0] - a[0], b[1] - a[1])) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     tributes = [stone_changes(e) for e in extras]
-    tribute_ok = tributes[0] == tributes[1] and [d for _, d in tributes[0] if d[1]] == [(77, -77)]
+    # A tribute moves stone from one player to the other on one turn; the joiner's own
+    # stone also rises once it captures the team-2 wonder (ResourceTrickle, +1 every 2 s).
+    tribute_ok = tributes[0] == tributes[1] and [d for _, d in tributes[0] if d[0] and d[1]] == [(77, -77)]
     # Upgrade: the host's wall (12) becomes a gate (8) on the same turn on both peers.
     gate_turn = [next((t for t in sorted(e) if e[t].get("wall") == "8"), None) for e in extras]
     upgrade_ok = gate_turn[0] is not None and gate_turn[0] == gate_turn[1]

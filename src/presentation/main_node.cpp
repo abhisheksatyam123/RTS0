@@ -52,6 +52,10 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
+	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
+	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
+	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_save_version"), &RtsoMain::get_save_version);
+	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_replay_format"), &RtsoMain::get_replay_format);
 	ClassDB::bind_method(D_METHOD("is_replay_playback"), &RtsoMain::is_replay_playback);
 	ClassDB::bind_method(D_METHOD("load_game", "path"), &RtsoMain::load_game, DEFVAL("user://saves/quicksave.rts0sav"));
 	ClassDB::bind_method(D_METHOD("get_fow_grid"), &RtsoMain::get_fow_grid);
@@ -1739,13 +1743,15 @@ bool RtsoMain::load_game(String path) {
 		selected_ids.clear();
 		selected_building_id = 0;
 		print_line("[RTS0] Game loaded successfully from " + path);
+		// The game goes on from the save as a new replay that starts from it.
+		if (!loading_replay_start_ && !net_lockstep()) begin_recording_from_save(path);
 	}
 	return success;
 }
 
 PackedByteArray RtsoMain::get_fow_grid() const {
 	if (!sim) return PackedByteArray();
-	const uint8_t* grid = sim->fow_grid(local_player());
+	const uint8_t* grid = sim->fow_grid(view_player());
 	int sz = sim->fow_res() * sim->fow_res();
 	PackedByteArray arr;
 	arr.resize(sz);
@@ -1930,11 +1936,12 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::record_tick((after_sim_us - start_us) / 1000);
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
-	view->set_local_player(local_player());
-	sim->set_fow_viewer(local_player());
+	const uint8_t viewer = view_player();
+	view->set_local_player(viewer);
+	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
 	view->sync(sim, (float)delta, selected_ids);
 	if (cam_rig) {
-		minimap_view->set_local_player(local_player());
+		minimap_view->set_local_player(viewer);
 		minimap_view->sync(sim, cam_rig->get_target_pos());
 	}
 	uint64_t after_sync_us = Time::get_singleton()->get_ticks_usec();
