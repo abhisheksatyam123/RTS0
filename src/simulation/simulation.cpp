@@ -45,8 +45,9 @@ constexpr float kBuildReach = 2.20f;
 
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
-// The save version that added the aura sources in force (tick_state_io section 7).
-static constexpr uint32_t SAVE_VERSION_AURAS = 30;
+// The save version that added each unit's kept short path (tick_state_io section 1) and the aura
+// sources in force (section 9).
+static constexpr uint32_t SAVE_VERSION_MOTION = 30;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint.
 static void stand_outside_rect(float bx, float bz, float half, uint32_t uid,
@@ -3881,6 +3882,18 @@ void Simulation::move_units(float dt, Arena &arena) {
 			if (b.type == BLD_GATE && b.build_progress >= 1.0f)
 				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.half_size, b.type, false});
 		}
+	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
+	// is only reused among the same buildings and water level.
+	{
+		uint32_t key = 2166136261u;
+		auto mix = [&key](uint32_t w) { key = (key ^ w) * 16777619u; };
+		auto mixf = [&mix](float f) { uint32_t w; std::memcpy(&w, &f, sizeof(w)); mix(w); };
+		for (const SteerObstacle &o : steer_obstacles_) {
+			mix(o.id); mixf(o.x); mixf(o.z); mixf(o.half_size); mix(o.type);
+		}
+		mixf(terrain_water_height_);
+		short_path_key_ = key ? key : 1u;
+	}
 
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
@@ -4076,17 +4089,21 @@ void Simulation::move_units(float dt, Arena &arena) {
 
 		// 0 A.D. UnitMotion short path: head for the first waypoint around a blocking building
 		// (nav/building_steering.h). The arrival check above still uses the real aim point.
+		bool steered = false;
 		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
 			rtso::nav::Vec2 steer;
 			if (rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
 					unit_collision_radius(units_.unit_type[i]), steer_obstacles_, units_.target_building_id[i],
-					nav_grid_, steer)) {
+					nav_grid_, short_path_key_, units_.short_path[i], steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
 					dx = sdx;
 					dz = sdz;
 					d2 = sdx * sdx + sdz * sdz;
+					steered = true;
+				} else {
+					units_.short_path[i].key = 0; // standing on the waypoint
 				}
 			}
 		}
@@ -4101,6 +4118,8 @@ void Simulation::move_units(float dt, Arena &arena) {
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * spd * dt;
 		float move_dz = uz * spd * dt;
+		// A short-path waypoint reached this tick is done: next tick searches from the corner.
+		if (steered && d2 <= (spd * dt) * (spd * dt)) units_.short_path[i].key = 0;
 		if (units_.status_effects[i] & EFFECT_KNOCKBACK) {
 			move_dx += units_.knockback_dir_x[i] * 14.0f * dt;
 			move_dz += units_.knockback_dir_z[i] * 14.0f * dt;
@@ -12231,7 +12250,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 the aura sources in force (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 the aura sources in force and each unit's kept short path (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -12905,6 +12924,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(U.slow_timer[i]); ar.pod(U.bleed_timer[i]); ar.pod(U.burning_timer[i]);
 		if (ar.version >= SAVE_VERSION_LOOT) ar.pod(U.xp_partial[i]);
 		else U.xp_partial[i] = 0.0f;
+		if (ar.version >= SAVE_VERSION_MOTION) ar.pod(U.short_path[i]);
+		else U.short_path[i] = ShortPathMemo{};
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
 		if (!ar.ok) return;
@@ -13193,7 +13214,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 
 	// 9. Aura sources (v30): rebuilt every 0.4 s, and move_units() reads speed auras
 	// before the next rebuild, so a loaded game needs the ones in force.
-	if (ar.version >= SAVE_VERSION_AURAS) {
+	if (ar.version >= SAVE_VERSION_MOTION) {
 		std::vector<AuraSource> src = s.aura_mgr_.sources;
 		io_vec(ar, src, 1u << 16, [&](AuraSource &a) {
 			ar.pod(a.source_id); ar.pod(a.type); ar.pod(a.range); ar.pod(a.value);

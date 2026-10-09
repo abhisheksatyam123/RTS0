@@ -1559,6 +1559,7 @@ private:
 		bool wrecked;
 	};
 	std::vector<SteerObstacle> steer_obstacles_;
+	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of

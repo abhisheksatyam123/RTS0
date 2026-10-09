@@ -4,11 +4,12 @@
 // Short-range steering of land units around buildings, using the VertexPathfinder port.
 //
 // Mirrors how 0 A.D. CCmpUnitMotion falls back to a short path (VertexPathfinder::ComputeShortPath)
-// when the straight line to its next long-path waypoint is obstructed. RTS0 keeps no short-path
-// state per unit: move_units calls this every tick, and a short path is only searched while the
-// straight line is actually blocked, so results depend only on the current positions (safe for
-// lockstep, save/load and rejoin). Units are not passed as obstructions; separation() still keeps
-// units apart.
+// when the straight line to its next long-path waypoint is obstructed. move_units calls this every
+// tick, and a short path is only searched while the straight line is actually blocked. Like
+// CCmpUnitMotion's m_ShortPath, a unit keeps heading for its short path's first waypoint
+// (ShortPathMemo, saved with the unit) until it reaches it, the way there is blocked, the aim moves
+// or the buildings change, instead of searching every tick. Units are not passed as obstructions;
+// separation() still keeps units apart.
 //
 // Buildings are axis-aligned squares (Building::x/z/half_size). A building whose clearance-expanded
 // square contains the aim point is the unit's destination (dropsite, construction site, attack
@@ -31,6 +32,8 @@ namespace nav {
 // shifts up to 3/5 of this towards a far aim point, which BUILDING_STEER_CULL accounts for.
 inline constexpr float BUILDING_STEER_RANGE = 12.0f;
 inline constexpr float BUILDING_STEER_CULL = BUILDING_STEER_RANGE * 1.6f;
+// How far the aim may move (a chased unit, a nudged waypoint) before a kept short path is searched again.
+inline constexpr float SHORT_PATH_AIM_SLACK = 1.0f;
 
 namespace detail {
 
@@ -82,18 +85,35 @@ bool line_blocked_by_buildings(Vec2 pos, Vec2 aim, float max_len, float radius,
 	return blocked;
 }
 
-// If the line from `pos` towards `aim` is blocked within BUILDING_STEER_RANGE, searches a short path
-// around the nearby buildings and returns its first waypoint in `out`. Returns false when the line is
-// clear, the unit is inside a building or no path was found; the caller then moves straight at `aim`.
-// Searches reuse per-thread storage, so this is safe to call from parallel jobs.
+// True when the segment from `pos` to `end` crosses a building expanded by `radius`. As in
+// line_blocked_by_buildings, buildings whose expanded square contains `aim` (the destination) and
+// `ignore_building_id` don't count, and standing inside one is not blocked.
 template <class Buildings>
-bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
+bool segment_blocked_by_buildings(Vec2 pos, Vec2 end, Vec2 aim, float radius,
+		const Buildings& buildings, uint32_t ignore_building_id)
+{
+	const float reach = (end - pos).length();
+	const Vec2 u(1.0f, 0.0f), v(0.0f, 1.0f);
+	bool blocked = false;
+	for (const auto& b : buildings) {
+		if (!detail::within_reach(b, pos, radius, reach) ||
+		    !detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, reach)) continue;
+		const Vec2 c(b.x, b.z);
+		const Vec2 half(b.half_size + radius, b.half_size + radius);
+		if (PointIsInSquare(pos - c, u, v, half)) return false;
+		if (TestRaySquare(pos - c, end - c, u, v, half)) blocked = true;
+	}
+	return blocked;
+}
+
+// Searches a short path from `pos` towards `aim` around the nearby buildings and returns its first
+// waypoint in `out`. False when no path was found. Searches reuse per-thread storage, so this is safe
+// to call from parallel jobs.
+template <class Buildings>
+bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
 		const NavGrid& nav, Vec2& out)
 {
-	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id))
-		return false;
-
 	thread_local std::vector<ShortPathSquare> statics;
 	thread_local std::vector<Vec2> path;
 	thread_local ShortPathScratch scratch;
@@ -131,6 +151,49 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 			Vec2(-nav.map_half, -nav.map_half), nav.res, nav.res, scratch, path);
 	if (path.empty()) return false;
 	out = path.front();
+	return true;
+}
+
+// If the line from `pos` towards `aim` is blocked within BUILDING_STEER_RANGE, searches a short path
+// around the nearby buildings and returns its first waypoint in `out`. Returns false when the line is
+// clear, the unit is inside a building or no path was found; the caller then moves straight at `aim`.
+template <class Buildings>
+bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
+		const Buildings& buildings, uint32_t ignore_building_id,
+		const NavGrid& nav, Vec2& out)
+{
+	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id))
+		return false;
+	return search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out);
+}
+
+// The same, for a unit that keeps its short path in `memo` between ticks. `key` names the obstacles
+// (buildings and water) this tick; it must not be 0. While the line to `aim` is blocked, the memo's
+// waypoint is reused if it was found among the same obstacles, for an aim within
+// SHORT_PATH_AIM_SLACK, and the way to it is clear; otherwise a new short path is searched and kept.
+// The caller clears the memo (key = 0) once the unit reaches the waypoint.
+template <class Buildings>
+bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
+		const Buildings& buildings, uint32_t ignore_building_id,
+		const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
+{
+	if (!line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id)) {
+		memo.key = 0;
+		return false;
+	}
+	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
+	if (memo.key == key && aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK) {
+		const Vec2 w(memo.x, memo.z);
+		if (!segment_blocked_by_buildings(pos, w, aim, radius, buildings, ignore_building_id)) {
+			out = w;
+			return true;
+		}
+	}
+	if (!search_short_path(pos, aim, radius, buildings, ignore_building_id, nav, out)) {
+		memo.key = 0;
+		return false;
+	}
+	memo = ShortPathMemo{out.x, out.y, aim.x, aim.y, key};
 	return true;
 }
 

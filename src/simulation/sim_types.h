@@ -1006,6 +1006,16 @@ inline constexpr uint16_t civ_bit(uint8_t civ) { return (civ < 16) ? (uint16_t)(
 // Roster tables hold at most 64 * CIV_TEMPLATE_WORDS_MAX unit templates.
 inline constexpr uint16_t CIV_TEMPLATE_WORDS_MAX = 8;
 
+// A unit's short path around buildings (nav/building_steering.h), kept between ticks as 0 A.D.'s
+// CCmpUnitMotion keeps m_ShortPath: the first waypoint (x, z), the aim it leads towards, and the
+// obstacle key it was searched among. key 0 = no short path. Saved raw (no padding).
+struct ShortPathMemo {
+	float x = 0.0f, z = 0.0f;
+	float aim_x = 0.0f, aim_z = 0.0f;
+	uint32_t key = 0;
+};
+static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
+
 struct CivHeroAura {
 	const char *id;
 	const char *name;
