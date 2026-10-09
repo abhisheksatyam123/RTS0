@@ -13792,7 +13792,19 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 			sail(); // with whoever made it aboard
 			return;
 		}
-		order_board_transport(tp.passenger_ids.data(), tp.passenger_ids.size(), tp.ship_id);
+		// A passenger already heading for the ship keeps its order until it is within
+		// loading reach: a fresh order every turn re-paths it from its own navcell,
+		// which can hold it in place beside a building.
+		std::vector<uint32_t> board;
+		for (uint32_t uid : tp.passenger_ids) {
+			const int32_t u = lookup_unit(uid);
+			if (u < 0 || !units_.alive[u]) continue;
+			const bool heading = units_.action_state[u] == ACTION_MOVE && units_.target_unit_id[u] == tp.ship_id;
+			const float ux = units_.pos_x[u] - units_.pos_x[sidx], uz = units_.pos_z[u] - units_.pos_z[sidx];
+			const float reach = ship_loading_reach((size_t)sidx, (size_t)u);
+			if (!heading || ux * ux + uz * uz <= reach * reach) board.push_back(uid);
+		}
+		if (!board.empty()) order_board_transport(board.data(), board.size(), tp.ship_id);
 		aboard = get_transport_passenger_count(tp.ship_id);
 		float dx = units_.pos_x[sidx] - tp.pickup_x;
 		float dz = units_.pos_z[sidx] - tp.pickup_z;

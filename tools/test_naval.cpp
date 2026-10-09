@@ -527,9 +527,12 @@ static void test_petra_overseas_attack() {
 			if (i >= 0 && s.units().alive[i] && std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
 		}
 	}
+	// Home is the north land, beach included. Two spearmen that captured the house
+	// share a navcell and block each other on its centre until #103's path start fix.
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f);
 	for (uint32_t uid : army) {
 		const int32_t i = idx(s, uid);
-		if (i >= 0 && s.units().alive[i] && s.units().pos_z[i] > 16.0f) ++home;
+		if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == north) ++home;
 	}
 	std::printf("Petra overseas attack: house %s, %d spearmen back home, %d wading\n",
 	            bld(s, house) && bld(s, house)->team == 1 ? "captured" : "standing", home, waded);
