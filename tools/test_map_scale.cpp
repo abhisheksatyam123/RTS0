@@ -133,9 +133,10 @@ int main() {
 					sim.nav_grid().find_path(sx, sz, tx, tz, wp, PASS_INFANTRY);
 					const bool reached = can_reach(sim.nav_grid(), sx, sz, tx, tz, PASS_INFANTRY);
 					++paths;
-					// The 0 A.D.-modelled land maps must connect every base on
-					// foot; on naval maps the bases share a sea instead.
-					if (mt >= MAP_MAINLAND && !map_is_naval(mt))
+					// Every land map must connect every base on foot (Continental
+					// once split into one island per player); on naval maps the
+					// bases share a sea instead.
+					if (!map_is_naval(mt))
 						CHECK(reached, "%s %d: no land path from base %zu to base %zu", map_type_info(mt).id, size, i, j);
 					if (map_is_naval(mt) && !reached) {
 						const auto ra = shore_ship_regions(sim.nav_grid(), sx, sz), rb = shore_ship_regions(sim.nav_grid(), tx, tz);

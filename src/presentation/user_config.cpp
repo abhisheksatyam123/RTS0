@@ -58,6 +58,7 @@ const Default kDefaults[] = {
 	{"gui.session.aurasrange", "true"},
 	{"gui.session.healrange", "true"},
 	{"gui.session.notifications.attack", "true"},
+	{"gui.loadingscreen.progressdescription", "false"},
 };
 constexpr int kDefaultCount = (int)(sizeof(kDefaults) / sizeof(kDefaults[0]));
 
