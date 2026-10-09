@@ -6310,7 +6310,7 @@ void Simulation::tick_gather(float dt) {
 				}
 				// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
 				// pyramid, catafalques, Han ministers): the strongest one in reach.
-				if (const float g = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
+				if (const float g = aura_mgr_.type_count[AURA_GATHER] == 0 ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
 						units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
 					rate /= 1.0f - g;
 				// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
@@ -8453,7 +8453,7 @@ void Simulation::unit_resistance(size_t i, float out[3]) const {
 	for (int k = 0; k < 3; ++k) out[k] += aura;
 	// 0 A.D. structures/wall_garrisoned: Soldiers turreted on a wall, gate or outpost
 	// +3 hack, pierce and crush resistance.
-	if (turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER))
+	if (!turret_height_.empty() && turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER))
 		for (int k = 0; k < 3; ++k) out[k] += WALL_TURRET_ARMOR;
 }
 
@@ -17510,6 +17510,7 @@ void Simulation::apply_health_auras() {
 
 float Simulation::unit_walk_speed(size_t i) const {
 	// Speed auras (heroes, the Mauryan pillar's traders) while the unit is in reach.
+	if (aura_mgr_.type_count[AURA_SPEED] == 0) return units_.speed[i];
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
 		units_.tmpl[i], &unit_combat_at(i).classes);
 	return m > 0.0f ? units_.speed[i] * m : units_.speed[i];
@@ -17520,7 +17521,7 @@ float Simulation::unit_vision_at(size_t i) const {
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
 	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
-	const float turret = turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER)
+	const float turret = !turret_height_.empty() && turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER)
 		? WALL_TURRET_VISION : 0.0f;
 	return (m > 0.0f ? v * m : v) + turret;
 }
