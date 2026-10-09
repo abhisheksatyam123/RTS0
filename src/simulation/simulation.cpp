@@ -5023,10 +5023,13 @@ void Simulation::move_units(float dt, Arena &arena) {
 		}
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
 		npz[i] = std::clamp(pz[i] + move_dz, -map_half_, map_half_);
-		// Deep water is impassable for land units (template_unit.xml passability classes):
-		// slide along the shore, never step off it. One already in deep water (swimming
-		// ashore from a sunk ship) may still move.
-		if (!unit_is_ship(units_.unit_type[i]) && !nav_grid_.cells.blank()) {
+		// Deep water is impassable for land units (template_unit.xml passability classes).
+		// Walks get a goal on the beach from find_path; a land unit following a ship
+		// (boarding it, or chasing it) has no path, so it stops at the shore and slides
+		// along it instead of stepping off. One already in deep water may still move.
+		const int32_t followed = units_.target_unit_id[i] != 0 ? lookup_unit(units_.target_unit_id[i]) : -1;
+		if (followed >= 0 && !unit_is_ship(units_.unit_type[i]) && unit_is_ship(units_.unit_type[followed]) &&
+				!nav_grid_.cells.blank()) {
 			auto deep = [&](float x, float z) {
 				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
 				return nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_WATER;
