@@ -148,7 +148,7 @@ static constexpr uint32_t SAVE_VERSION_UNIT_UPGRADES = 45;
 // ProductionQueue.js: batches, technologies and paid costs in each queue item, plus autoqueue.
 static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 48;
 // Petra's army soldiers apart from its worker soldiers (tick_state_io section 9e).
-static constexpr uint32_t SAVE_VERSION_PETRA_ROLES = 50;
+static constexpr uint32_t SAVE_VERSION_PETRA_ROLES = 52;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -2016,6 +2016,7 @@ void Simulation::unpack_wall_point(uint32_t packed, float &x, float &z) {
 uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle) {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return 0;
 	if (!civ_can_build(players_[player].civ, b_type)) return 0; // civ-specific structures
+	if (triggers_.building_disabled(player, b_type)) return 0;   // the map script's SetDisabledTemplates
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
 	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
@@ -2290,6 +2291,7 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	if (b.queue.size() >= PRODUCTION_QUEUE_MAX || b.upgrade_to != BLD_TYPE_COUNT) return false;
 	if (count < 1 || count > 200) return false;
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	if (triggers_.template_disabled(tmpl)) return false; // the map script's SetDisabledTemplates
 
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
@@ -2512,6 +2514,13 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	// 0 A.D. phase_town_generic / phase_city_generic "entity" requirements.
 	if (tech_id == TECH_PHASE_TOWN && phase_structures(player_id, 1) < 5) return TECH_ERR_STRUCTURES;
 	if (tech_id == TECH_PHASE_CITY && phase_structures(player_id, 2) < 3) return TECH_ERR_STRUCTURES;
+	// unlock_shared_dropsites.json: {"entity": {"class": "Trader", "number": 3}}.
+	if (tech_id == TECH_UNLOCK_SHARED_DROPSITES) {
+		int traders = 0;
+		for (size_t u = 0; u < units_.count; ++u)
+			traders += units_.alive[u] && units_.team[u] == player_id && (unit_tech_classes(units_.unit_type[u]) & TC_TRADER);
+		if (traders < 3) return TECH_ERR_STRUCTURES;
+	}
 	if (building_id != 0) {
 		auto bit = building_id_to_idx_.find(building_id);
 		if (bit == building_id_to_idx_.end()) return TECH_ERR_BUILDING;
@@ -7472,7 +7481,7 @@ void Simulation::tick_gather(float dt) {
 			bool found_dropsite = false;
 
 			for (const auto &b : buildings_) {
-				if (b.team != uteam || b.build_progress < 1.0f) continue;
+				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) continue;
 				bool valid_drop = false;
 				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = b.type == BLD_DOCK; // boats can only reach docks
 				else if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) valid_drop = true;
@@ -8427,7 +8436,7 @@ void Simulation::tick_combat(float dt) {
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
 			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg);
-			units_.hp[t] -= final_dmg;
+			if (!invulnerable(units_.id[t])) units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
 			}
@@ -9171,7 +9180,7 @@ void Simulation::tick_projectiles(float dt) {
 				if (tidx >= 0 && units_.alive[tidx]) {
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, p.damage);
-					units_.hp[tidx] -= p.damage;
+					if (!invulnerable(units_.id[tidx])) units_.hp[tidx] -= p.damage;
 					// UnitAI "Attacked": a structure's arrow, or a stray one hitting someone else.
 					if (units_.attacked_by[tidx] == 0 && p.source_id != 0) units_.attacked_by[tidx] = p.source_id;
 					if (units_.team[tidx] == 0) {
@@ -9282,8 +9291,10 @@ void Simulation::tick_status_effects(float dt) {
 			const float step = std::min(dt, std::max(timer, 0.0f));
 			timer -= dt;
 			const float dmg = status_dps(kind) * step;
-			units_.hp[i] -= dmg;
-			note_attacked(0, 0xFF, units_.id[i], units_.team[i], false, dmg); // the status's source is not kept
+			if (!invulnerable(units_.id[i])) {
+				units_.hp[i] -= dmg;
+				note_attacked(0, 0xFF, units_.id[i], units_.team[i], false, dmg); // the status's source is not kept
+			}
 			if (timer <= 0.0f) {
 				units_.status_effects[i] &= (uint8_t)~bit;
 				timer = 0.0f;
@@ -9867,7 +9878,7 @@ void Simulation::tick_death_damage(float dt) {
 			const float d = std::max(0.0f, std::sqrt(dx * dx + dz * dz) - unit_collision_radius(units_.unit_type[i]));
 			if (d >= r) continue;
 			note_attacked(0, owner, units_.id[i], units_.team[i], false, dd.damage * (1.0f - d * d / r2));
-			units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
+			if (!invulnerable(units_.id[i])) units_.hp[i] -= dd.damage * (1.0f - d * d / r2);
 			if (units_.hp[i] > 0.0f) continue;
 			units_.hp[i] = 0.0f;
 			units_.alive[i] = 0;
@@ -9954,7 +9965,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (dmg <= 0.0f) continue;
 		award_damage_xp(attacker_id, u, dmg);
 		note_attacked(attacker_id, attacker_team, units_.id[u], units_.team[u], false, dmg);
-		units_.hp[u] -= dmg;
+		if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
 		if (units_.attacked_by[u] == 0 && attacker_id != 0) units_.attacked_by[u] = attacker_id;
 		if (units_.team[u] == 0)
 			raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[u], units_.pos_z[u], units_.id[u], units_.team[u]);
@@ -10422,6 +10433,17 @@ void Simulation::finish_order(size_t i) {
 			set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
 			units_.target_resource_id[i] = 0;
 			units_.action_state[i] = ACTION_RETURN_DROPSITE;
+			return;
+		}
+		// Empty-handed: head to the dropsite anyway, "a nice enough place to congregate and idle".
+		if (const uint32_t d = nearest_dropsite(i); d != 0) {
+			const Building &b = buildings_[building_id_to_idx_.at(d)];
+			float tx, tz;
+			stand_outside(b, uid, units_.pos_x[i], units_.pos_z[i], &tx, &tz);
+			uint32_t id = uid;
+			cmd_move(&id, 1, tx, tz);
+			set_order(i, ORDER_WALK, 0, 0, tx, tz); // an unforced walk: it answers attacks on the way
+			units_.target_resource_id[i] = 0;
 			return;
 		}
 	}
@@ -11350,12 +11372,34 @@ void Simulation::set_unit_hp(uint32_t unit_id, float hp) {
 // Centre, dock or civ dropsite takes everything, a storehouse wood/stone/metal, a farmstead
 // food; boats only at docks.
 bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
-	if (b.wrecked || b.hp <= 0.0f || b.team != units_.team[i] || b.build_progress < 1.0f) return false;
+	if (b.wrecked || b.hp <= 0.0f || !dropsite_usable_by(units_.team[i], b) || b.build_progress < 1.0f) return false;
 	const uint8_t rt = units_.res_type_carried[i];
 	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return b.type == BLD_DOCK;
 	if (b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
 	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
 	return b.type == BLD_FARMSTEAD && rt == RES_FOOD;
+}
+
+// ResourceDropsite.js IsShared + Player sharedDropsites (Diaspora): a player drops at an
+// ally's dropsite only when it has researched Diaspora, the owner shares it (the default),
+// and the two are mutual allies.
+bool Simulation::dropsite_usable_by(uint8_t player, const Building &b) const {
+	if (b.team == player) return true;
+	return player < MAX_PLAYERS && b.team < MAX_PLAYERS && b.dropsite_shared &&
+		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, b.team);
+}
+
+// set-dropsite-sharing (Commands.js): the owner of a dropsite turns sharing on or off; the
+// toggle exists once the owner has shared dropsites.
+bool Simulation::cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared) {
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end() || player >= MAX_PLAYERS) return false;
+	Building &b = buildings_[bit->second];
+	if (b.team != player || b.wrecked || !players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES)) return false;
+	if (!is_dropsite_type(b.type)) return false;
+	if (b.dropsite_shared == shared) return false;
+	b.dropsite_shared = shared;
+	return true;
 }
 
 bool Simulation::can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const {
@@ -11481,7 +11525,8 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
 	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
-	return btype >= BLD_TYPE_COUNT || (check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
+	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
+	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
 }
 
@@ -18137,8 +18182,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 Petra's army soldiers (worker roles)
-
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's army soldiers (worker roles)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -18308,6 +18352,7 @@ bool Simulation::save_state(const char *filepath) const {
 			}
 		}
 		out.write((const char *)&b.autoqueue, sizeof(b.autoqueue));
+		out.write((const char *)&b.dropsite_shared, sizeof(b.dropsite_shared));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -18700,6 +18745,7 @@ bool Simulation::load_state(const char *filepath) {
 		}
 		const bool pq = version >= SAVE_VERSION_PRODUCTION_QUEUE;
 		if (pq) in.read((char *)&bld.autoqueue, sizeof(bld.autoqueue));
+		if (version >= SAVE_VERSION_DROPSITE_SHARING) in.read((char *)&bld.dropsite_shared, sizeof(bld.dropsite_shared));
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
@@ -19330,6 +19376,14 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(t.disabled_techs);
 		io_vec_pod(ar, t.attack_orders, 1u << 16);
 	}
+	// v50: SetDisabledTemplates, invulnerable units and the entities OnOwnershipChanged follows.
+	if (ar.version >= 50) {
+		TriggerState &t = s.triggers_;
+		ar.pod(t.disabled_buildings);
+		io_vec_pod(ar, t.disabled_templates, 1u << 12);
+		io_vec_pod(ar, t.invulnerable, 1u << 12);
+		io_vec_pod(ar, t.watched, 1u << 12);
+	}
 
 	// 9. Aura sources (v38): rebuilt every 0.4 s, and move_units() reads speed auras
 	// before the next rebuild, so a loaded game needs the ones in force.
@@ -19361,14 +19415,6 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (t >= CIV_UNIT_TEMPLATE_COUNT) ar.ok = false;
 	}
 
-	// 9e. Petra's army soldiers (v50). Older saves: every citizen soldier works.
-	for (auto &v : s.petra_army_ids_) {
-		if (ar.version >= SAVE_VERSION_PETRA_ROLES) io_vec_pod(ar, v, (uint32_t)S::UNIT_CAP);
-		else if constexpr (Ar::loading) v.clear();
-		if constexpr (Ar::loading)
-			if (!std::is_sorted(v.begin(), v.end())) ar.ok = false;
-	}
-
 	// 9c. VisionSharing spies (v44). Older saves had none.
 	if (ar.version >= SAVE_VERSION_SPIES) {
 		static_assert(sizeof(S::Spy) == 12, "Spy is saved raw");
@@ -19398,6 +19444,14 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (u.to >= CIV_UNIT_TEMPLATE_COUNT || u.player >= MAX_PLAYERS || !(u.time > 0.0f)) ar.ok = false;
 	} else if constexpr (Ar::loading) {
 		s.unit_upgrades_.clear();
+	}
+
+	// 9e. Petra's army soldiers (v52). Older saves: every citizen soldier works.
+	for (auto &v : s.petra_army_ids_) {
+		if (ar.version >= SAVE_VERSION_PETRA_ROLES) io_vec_pod(ar, v, (uint32_t)S::UNIT_CAP);
+		else if constexpr (Ar::loading) v.clear();
+		if constexpr (Ar::loading)
+			if (!std::is_sorted(v.begin(), v.end())) ar.ok = false;
 	}
 
 	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.
@@ -20004,7 +20058,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	}
 	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
 	                  info.crush_damage * powf(0.9f, crush_a);
-	units_.hp[u] -= std::max(1.0f, dmg);
+	if (!invulnerable(units_.id[u])) units_.hp[u] -= std::max(1.0f, dmg);
 	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, std::max(1.0f, dmg));
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
@@ -20862,7 +20916,7 @@ std::vector<const TimeNotification *> Simulation::time_notifications_for(uint8_t
 }
 
 void Simulation::tick_triggers(float dt) {
-	if (!triggers_.active() && triggers_.notifications.empty() && triggers_.attack_orders.empty()) return;
+	if (!triggers_.active() && triggers_.notifications.empty() && triggers_.attack_orders.empty() && triggers_.watched.empty()) return;
 	// Trigger.js OnGlobalInitGame runs once Game Setup is applied, before the first turn.
 	if (!triggers_.init_game_done) {
 		triggers_.init_game_done = 1;
@@ -20889,6 +20943,7 @@ void Simulation::tick_triggers(float dt) {
 		if (triggers_.timers[(size_t)idx].time_ms <= triggers_.time_ms) run.push_back(t.id);
 	}
 	tick_trigger_attack_orders();
+	tick_trigger_watches();
 	triggers_.expire_notifications();
 }
 
@@ -20898,6 +20953,7 @@ void Simulation::register_map_triggers(MapType type) {
 		case MAP_FLOOD: register_trigger_script("flood_triggers"); break;
 		case MAP_EXTINCT_VOLCANO: register_trigger_script("extinct_volcano_triggers"); break;
 		case MAP_POLAR_SEA: register_trigger_script("polar_sea_triggers"); break;
+		case MAP_SURVIVAL_OF_THE_FITTEST: register_trigger_script("survivalofthefittest_triggers"); break;
 		default: break;
 	}
 }
@@ -20909,6 +20965,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"extinct_volcano_triggers", TRIGGER_ACTION_VOLCANO_INIT},
 		{"polar_sea_triggers", TRIGGER_ACTION_POLAR_SEA_INIT},
 		{"treasure_islands", TRIGGER_ACTION_TREASURE_ISLANDS_INIT},
+		{"survivalofthefittest_triggers", TRIGGER_ACTION_SURVIVAL_INIT},
 	};
 	for (const auto &k : kScripts)
 		if (name == k.name) {
@@ -20961,6 +21018,28 @@ constexpr int32_t kTreasureIslandsMaximum = 36; // treasureCount.maximum
 constexpr uint8_t kTreasureIslandsPlayers = 0x03; // "players": [1, 2]
 // GuiInterface.PushNotification text messages: shown like a time notification of the default length.
 constexpr uint32_t kPushNotificationMs = 10000;
+
+// maps/random/survivalofthefittest_triggers.js
+constexpr float kSurvivalTreasureMin = 3.0f, kSurvivalTreasureMax = 5.0f;   // treasureTime
+constexpr float kSurvivalFirstWaveMin = 4.0f, kSurvivalFirstWaveMax = 6.0f; // firstWaveTime
+constexpr float kSurvivalMaxWaveTime = 4.0f;                                // maxWaveTime
+constexpr float kSurvivalInitialAttackers = 5.0f;                           // initialAttackers
+constexpr float kSurvivalPercentPerMinute = 1.05f;                          // percentPerMinute
+constexpr float kSurvivalAttackerLimit = 200.0f;                            // totalAttackerLimit
+constexpr float kSurvivalSiegeMin = 0.2f, kSurvivalSiegeMax = 0.5f;         // siegeFraction
+constexpr float kSurvivalHeroMin = 20.0f, kSurvivalHeroMax = 60.0f;         // heroTime
+// The script's TriggerWatch roles: playerCivicCenter and treasureFemale.
+constexpr uint8_t kSurvivalCivicCentre = 1, kSurvivalTreasureFemale = 2;
+// treasures: what PlaceTreasures drops on every point of one of the sets B, C and D.
+constexpr uint8_t kSurvivalTreasures[] = {TREASURE_FOOD_BARREL, TREASURE_FOOD_BIN, TREASURE_FOOD_CRATE,
+	TREASURE_FOOD_JARS, TREASURE_METAL, TREASURE_STONE, TREASURE_WOOD, TREASURE_WOOD, TREASURE_WOOD};
+// disabledTemplates: economic structures, expansions, walls and shoreline (RTS0 has no
+// rotary mill, Roman siege walls, crannog or super dock; a stone wallset is its segments,
+// towers and gates).
+constexpr uint8_t kSurvivalDisabledBuildings[] = {BLD_CORRAL, BLD_FARMSTEAD, BLD_FIELD, BLD_STOREHOUSE,
+	BLD_TOWN_CENTER, BLD_MILITARY_COLONY, BLD_WALL_SEGMENT, BLD_WALL_TOWER, BLD_GATE, BLD_PALISADE,
+	BLD_DOCK, BLD_LIGHTHOUSE};
+const char *const kSurvivalDisabledUnits[] = {"maur/support_elephant"};
 
 uint16_t roster_template_named(const char *id) {
 	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
@@ -21040,6 +21119,18 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 		case TRIGGER_ACTION_TREASURE_ISLANDS_VICTORY:
 			// TriggerHelper.SetPlayerWon(playerID).
 			set_player_won((uint8_t)arg);
+			break;
+		case TRIGGER_ACTION_SURVIVAL_INIT:
+			trigger_survival_init();
+			break;
+		case TRIGGER_ACTION_SURVIVAL_WAVE:
+			trigger_survival_wave();
+			break;
+		case TRIGGER_ACTION_SURVIVAL_TREASURES:
+			trigger_survival_treasures();
+			break;
+		case TRIGGER_ACTION_SURVIVAL_OWNERSHIP:
+			trigger_survival_ownership(data);
 			break;
 		default:
 			break;
@@ -21192,6 +21283,199 @@ void Simulation::trigger_treasure_islands_collected(const TriggerEventData &data
 			triggers_.add_notification(text, kPushNotificationMs, me_mask);
 		} else {
 			triggers_.add_notification("You have collected a treasure!", kPushNotificationMs, me_mask);
+		}
+	}
+}
+
+void Simulation::defeat_player(uint8_t pid) {
+	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return;
+	// Player.js SetState("defeated"): everything it owns goes to Gaia.
+	convert_to_gaia((uint8_t)(1u << pid));
+	defeated_mask_ |= (uint8_t)(1u << pid);
+}
+
+void Simulation::tick_trigger_watches() {
+	// OnOwnershipChanged for the entities the scripts follow (see TriggerWatch).
+	if (triggers_.watched.empty()) return;
+	std::vector<TriggerEventData> changed;
+	for (TriggerWatch &w : triggers_.watched) {
+		uint8_t now = 0xFF;
+		if (w.building) {
+			auto it = building_id_to_idx_.find(w.id);
+			if (it != building_id_to_idx_.end()) {
+				const Building &b = buildings_[it->second];
+				if (b.hp > 0.0f && !b.wrecked) now = b.team;
+			}
+		} else {
+			const int32_t u = lookup_unit(w.id);
+			if (u >= 0 && (units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) now = units_.team[u];
+		}
+		if (now == w.owner) continue;
+		TriggerEventData ev;
+		ev.entity = w.id;
+		ev.from = w.owner;
+		ev.to = now;
+		ev.player = w.player;
+		ev.value = w.role;
+		changed.push_back(ev);
+		w.owner = now;
+	}
+	triggers_.watched.erase(std::remove_if(triggers_.watched.begin(), triggers_.watched.end(),
+			[](const TriggerWatch &w) { return w.owner == 0xFF; }), triggers_.watched.end());
+	for (const TriggerEventData &ev : changed) trigger_event(TRIGGER_ON_OWNERSHIP_CHANGED, ev);
+}
+
+void Simulation::trigger_survival_init() {
+	// survivalofthefittest_triggers.js InitSurvival.
+	// InitStartingUnits: remember each civic centre and make the treasure seeker invulnerable.
+	// The map's players: every player id the map gave a base.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		bool present = false;
+		for (const Building &b : buildings_) present |= b.team == p;
+		if (!present) continue;
+		for (const Building &b : buildings_)
+			if (b.team == p && b.type == BLD_TOWN_CENTER && b.hp > 0.0f) {
+				triggers_.watched.push_back({b.id, p, 1, kSurvivalCivicCentre, p});
+				break;
+			}
+		for (size_t u = 0; u < units_.count; ++u)
+			if (units_.alive[u] && units_.team[u] == p && units_.unit_type[u] == UNIT_FEMALE_CITIZEN) {
+				triggers_.watched.push_back({units_.id[u], p, 0, kSurvivalTreasureFemale, p});
+				triggers_.invulnerable.push_back(units_.id[u]);
+				break;
+			}
+		// SetDisableTemplates.
+		for (uint8_t t : kSurvivalDisabledBuildings) triggers_.disabled_buildings[p] |= 1ull << t;
+	}
+	for (const char *name : kSurvivalDisabledUnits)
+		if (const uint16_t t = roster_template_named(name); t != CIV_UNIT_TEMPLATE_NONE) triggers_.disabled_templates.push_back(t);
+	triggers_.register_trigger(TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ACTION_SURVIVAL_OWNERSHIP, true);
+	trigger_survival_treasures();
+	// InitializeEnemyWaves.
+	const uint32_t first_ms = (uint32_t)std::lround(sim_rng_.range_float(kSurvivalFirstWaveMin, kSurvivalFirstWaveMax) * 60000.0f);
+	triggers_.add_notification("The first wave will start in %(time)s!", first_ms);
+	triggers_.set_timeout(first_ms, TRIGGER_ACTION_SURVIVAL_WAVE);
+}
+
+void Simulation::trigger_survival_treasures() {
+	// PlaceTreasures: one treasure on every point of a random set (B, C or D), every 3 to 5 minutes.
+	const uint8_t ref = (uint8_t)('B' + sim_rng_.range_int(0, 2));
+	for (const TriggerPoint &p : triggers_.points)
+		if (p.ref == ref)
+			spawn_treasure(p.x, p.z, kSurvivalTreasures[sim_rng_.range_int(0, (int)std::size(kSurvivalTreasures) - 1)]);
+	const float minutes = sim_rng_.range_float(kSurvivalTreasureMin, kSurvivalTreasureMax);
+	triggers_.set_timeout((uint32_t)std::lround(minutes * 60000.0f), TRIGGER_ACTION_SURVIVAL_TREASURES);
+}
+
+void Simulation::trigger_survival_wave() {
+	// StartAnEnemyWave: champions, siege and now and then a hero of one random civ
+	// (LoadAttackerTemplates), more every minute, spawned as Gaia at each living player's
+	// attacker point and sent to attack-walk to its civic centre. RTS0's roster has no
+	// Gaia civ, so the wave is always one of the 14 civs.
+	const float minutes = (float)triggers_.time_ms / 60000.0f;
+	const float next_wave = sim_rng_.range_float(0.5f, 1.0f) * kSurvivalMaxWaveTime;
+	const uint8_t civ = (uint8_t)sim_rng_.range_int(0, CIV_COUNT - 1);
+	const int total = (int)std::ceil(std::min(kSurvivalAttackerLimit,
+			kSurvivalInitialAttackers * std::pow(kSurvivalPercentPerMinute, minutes) * next_wave / kSurvivalMaxWaveTime));
+	const float siege_ratio = sim_rng_.range_float(kSurvivalSiegeMin, kSurvivalSiegeMax);
+	// GetTemplateNamesByClasses: "Hero", "Champion+!Elephant", "Siege Champion+Elephant".
+	std::vector<uint16_t> heroes, champions, siege;
+	for (uint16_t t : civ_roster_ids(civ)) {
+		const uint64_t c = civ_unit_template(t).tech_classes;
+		if (c & TC_HERO) heroes.push_back(t);
+		else if ((c & TC_SIEGE) || ((c & TC_CHAMPION) && (c & TC_ELEPHANT))) siege.push_back(t);
+		else if (c & TC_CHAMPION) champions.push_back(t);
+	}
+	const bool want_hero = minutes > sim_rng_.range_float(kSurvivalHeroMin, kSurvivalHeroMax) && !heroes.empty();
+	// TriggerHelper.BalancedTemplateComposition: fixed counts first, then the groups by
+	// frequency; RandomTemplateComposition splits each group's share at random.
+	struct Group { const std::vector<uint16_t> *templates; int count; float frequency; };
+	std::vector<Group> groups;
+	for (const Group &g : {Group{&heroes, want_hero ? 1 : 0, 0.0f}, Group{&siege, 0, siege_ratio}, Group{&champions, 0, 1.0f - siege_ratio}})
+		if (!g.templates->empty()) groups.push_back(g);
+	int remainder = total;
+	std::vector<std::pair<uint16_t, int>> counts;
+	auto add_templates = [&](const std::vector<uint16_t> &names, int count) {
+		std::vector<float> f(names.size());
+		float sum = 0.0f;
+		for (float &v : f) sum += (v = sim_rng_.range_float(0.0f, 1.0f));
+		int left = count;
+		for (size_t i = 0; i < names.size(); ++i) {
+			const int n = i + 1 == names.size() ? left : std::min(left, (int)std::lround(f[i] / sum * (float)count));
+			if (!n) continue;
+			auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
+			if (it == counts.end()) counts.push_back({names[i], n});
+			else it->second += n;
+			left -= n;
+			remainder -= n;
+		}
+	};
+	for (const Group &g : groups)
+		if (g.count) add_templates(*g.templates, std::min(remainder, g.count));
+	float freq_sum = 0.0f;
+	std::vector<const Group *> by_freq;
+	for (const Group &g : groups)
+		if (g.frequency != 0.0f) { by_freq.push_back(&g); freq_sum += g.frequency; }
+	for (size_t i = 0; i < by_freq.size(); ++i)
+		add_templates(*by_freq[i]->templates, i + 1 == by_freq.size() ? remainder
+				: std::min(remainder, (int)std::lround(by_freq[i]->frequency / freq_sum * (float)total)));
+
+	bool spawned = false;
+	for (const TriggerPoint &p : triggers_.points) {
+		if (p.ref != 'A' || p.owner >= MAX_PLAYERS || is_defeated(p.owner)) continue;
+		// The player's civic centre, while it still holds it.
+		int32_t cc = -1;
+		for (const TriggerWatch &w : triggers_.watched)
+			if (w.role == kSurvivalCivicCentre && w.player == p.owner && w.owner == p.owner) {
+				auto it = building_id_to_idx_.find(w.id);
+				if (it != building_id_to_idx_.end()) cc = (int32_t)it->second;
+			}
+		if (cc < 0) continue;
+		const float tx = buildings_[(size_t)cc].x, tz = buildings_[(size_t)cc].z;
+		for (const auto &[tmpl, n] : counts) {
+			const bool hero = std::find(heroes.begin(), heroes.end(), tmpl) != heroes.end();
+			if (hero) {
+				// Not while the previous Gaia hero sent at this player lives.
+				const int32_t h = lookup_unit((uint32_t)triggers_.vars[p.owner]);
+				if (triggers_.vars[p.owner] && h >= 0 && units_.alive[h]) continue;
+			}
+			std::vector<uint32_t> ids;
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			for (int k = 0; k < n; ++k) {
+				// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
+				const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
+				if (const uint32_t id = spawn_unit(p.x + std::cos(a) * r, p.z + std::sin(a) * r, GAIA_PLAYER, (UnitType)t.unit_type, 0.0f, tmpl))
+					ids.push_back(id);
+			}
+			if (ids.empty()) continue;
+			// ProcessCommand(0, {"type": "attack-walk", "allowCapture": false, "queued": true}).
+			order_attack_move(ids.data(), ids.size(), tx, tz, true, false, false);
+			if (hero) triggers_.vars[p.owner] = (int32_t)ids[0];
+		}
+		spawned = true;
+	}
+	if (!spawned) return;
+	triggers_.add_notification("An enemy wave is attacking!", kPushNotificationMs);
+	triggers_.set_timeout((uint32_t)std::lround(next_wave * 60000.0f), TRIGGER_ACTION_SURVIVAL_WAVE);
+}
+
+void Simulation::trigger_survival_ownership(const TriggerEventData &data) {
+	// OnOwnershipChanged: losing the civic centre defeats its player; the treasure seeker
+	// leaving its owner (her player's defeat turns her Gaia) is removed. Only the first
+	// change counts (the script forgets the entity then).
+	if (data.from != data.player) return;
+	if (data.value == kSurvivalCivicCentre) {
+		defeat_player(data.from);
+	} else if (data.value == kSurvivalTreasureFemale) {
+		auto &inv = triggers_.invulnerable;
+		inv.erase(std::remove(inv.begin(), inv.end(), data.entity), inv.end());
+		const int32_t u = lookup_unit(data.entity);
+		if (u >= 0 && units_.alive[u]) {
+			// Engine.DestroyEntity: gone, not killed.
+			units_.hp[u] = 0.0f;
+			units_.alive[u] = 0;
+			units_.action_state[u] = ACTION_DYING;
+			units_.has_order[u] = 0;
 		}
 	}
 }

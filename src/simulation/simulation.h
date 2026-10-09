@@ -160,7 +160,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 50; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 52; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -300,6 +301,9 @@ public:
 		// closed and blocks both.
 		bool gate_open = false;
 		bool gate_locked = false;
+		// 0 A.D. ResourceDropsite IsShared: allies with Diaspora may drop resources here. Sharable
+		// dropsites (Civic Centres, storehouses, farmsteads, docks) start shared.
+		bool dropsite_shared = true;
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {
@@ -666,7 +670,17 @@ public:
 	// dropsite, drop it, then take the next queued order or idle.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
 	bool dropsite_accepts(size_t unit_idx, const Building &b) const; // carried type, owner, finished
-	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const; // carries a load b accepts
+	bool can_return_resource(uint32_t unit_id, uint32_t dropsite_id) const;
+	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
+	// mutual ally once `player` has researched Diaspora (Player/sharedDropsites).
+	bool dropsite_usable_by(uint8_t player, const Building &b) const;
+	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
+	// only an owner with Diaspora sees the toggle. False if nothing changed.
+	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
+	static bool is_dropsite_type(uint8_t type) {
+		return type == BLD_TOWN_CENTER || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+			civ_building_is_dropsite(type);
+	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
 
 	// Livestock & Corrals (Corral.js)
@@ -804,9 +818,15 @@ public:
 	// JSON maps list theirs under "trigger_scripts". Returns false for an unported script.
 	bool register_trigger_script(const std::string &name);
 	// TriggerPoint.js: a trigger point the map places (trigger/trigger_point_<ref>).
-	void add_trigger_point(uint8_t ref, float x, float z) { triggers_.add_point(ref, x, z); }
+	void add_trigger_point(uint8_t ref, float x, float z, uint8_t owner = GAIA_PLAYER) { triggers_.add_point(ref, x, z, owner); }
 	// TriggerHelper.SetPlayerWon: pid and its allies win, everyone else is defeated.
 	void set_player_won(uint8_t pid);
+	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
+	// structures turn Gaia and it watches the rest of the match.
+	void defeat_player(uint8_t pid);
+	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
+	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
+	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
 	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
 	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
 	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
@@ -1154,7 +1174,7 @@ public:
 	static constexpr int HERO_MATCH_LIMIT = 1;
 	std::array<std::vector<uint16_t>, MAX_PLAYERS> match_trained_; // hero templates each player trained (saved v42)
 	// Petra's army soldiers (0 A.D. units trained without metadata role "worker"): the citizen
-	// infantry an AI player trained outside its civic centres, sorted ids (saved v50). Every
+	// infantry an AI player trained outside its civic centres, sorted ids (saved v52). Every
 	// other citizen soldier of an AI is a worker (trainMoreWorkers, the starting units).
 	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_army_ids_;
 	bool petra_is_worker(size_t i) const;
@@ -1948,6 +1968,11 @@ private:
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
+	void tick_trigger_watches();
+	void trigger_survival_init();
+	void trigger_survival_wave();
+	void trigger_survival_treasures();
+	void trigger_survival_ownership(const TriggerEventData &data);
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
