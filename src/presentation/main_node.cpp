@@ -3078,7 +3078,7 @@ void RtsoMain::update_command_panel() {
 				for (size_t u = 0; u < uview.count; ++u) {
 					if (uview.id[u] == (uint32_t)selected_ids[i]) {
 						uint8_t ut = uview.unit_type[u];
-						if (ut == rtso::UNIT_VILLAGER || ut == rtso::UNIT_FEMALE_CITIZEN || ut == rtso::UNIT_WORKER_ELEPHANT) {
+						if (rtso::unit_can_build(ut, uview.tmpl[u])) {
 							has_worker = true;
 							break;
 						}
