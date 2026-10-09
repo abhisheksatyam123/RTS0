@@ -195,6 +195,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool attack_move_mode = false;
 	bool patrol_mode = false;
 	bool guard_mode = false;
+	bool call_to_arms_mode = false; // the Call to arms button: the next right-click picks the spot
 	uint8_t current_build_type = rtso::BLD_HOUSE;
 	uint32_t selected_building_id = 0;
 	// Width in world units (= 0 A.D. tiles) of generated random maps: 128 Tiny
@@ -283,6 +284,8 @@ public:
 	PopupMenu *speed_menu_ = nullptr;
 	void _on_menu_button_pressed();
 	void _on_ungarrison_pressed();
+	void _on_remove_guard_pressed();
+	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
 	void _on_alert_pressed(int end);
 	void _on_selection_group_clicked(int key);
@@ -384,6 +387,7 @@ public:
 	// Returns false when no selected trader trades at b; *tooltip gets the cursor text.
 	bool trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip);
 	Dictionary debug_trade_route_clicks();
+	Dictionary debug_guard_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	std::vector<uint32_t> trade_origin_traders_;
