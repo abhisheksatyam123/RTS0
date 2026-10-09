@@ -973,6 +973,9 @@ def collect(sim_root):
                 "classes": ["Citizen", "Human", "Organic", "Unit", "Worker"],
                 "auras": [], "stats": stats,
             })
+    # Units only reached by promotion (no trainer) go after every civ's block, so
+    # the template ids of trainable rows, which saves store, stay where they were.
+    rows = [r for r in rows if r["trainers"]] + [r for r in rows if not r["trainers"]]
     # Which roster units each aura affects (0 A.D. "affects" class lists).
     for a in auras:
         a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
@@ -1115,13 +1118,20 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("}")
     w("")
     # Per-civ ranges into the table (rows are grouped by civ).
-    w("// [first, last) rows of civ_unit_template_table() for each civ.")
+    # Rows no structure trains (units only reached by promotion) follow the last
+    # civ's block, from CIV_ROSTER_PROMOTION_ONLY_FIRST to the table end.
+    w("// [first, last) rows of civ_unit_template_table() for each civ. Rows from")
+    w("// CIV_ROSTER_PROMOTION_ONLY_FIRST on are units no structure trains, reached only by")
+    w("// promotion (0 A.D. Promotion/Entity), after every civ's block so that adding one")
+    w("// never moves a trainable row's template id.")
+    trainable = sum(1 for r in rows if r["trainers"])
+    w("inline constexpr uint16_t CIV_ROSTER_PROMOTION_ONLY_FIRST = %d;" % trainable)
     w("inline const uint16_t *civ_roster_offsets() {")
     offs = []
     for i, civ in enumerate(CIVS):
         first = next(j for j, r in enumerate(rows) if r["civ"] == civ)
         offs.append(first)
-    offs.append(len(rows))
+    offs.append(trainable)
     w("\tstatic const uint16_t kOffsets[CIV_COUNT + 1] = {%s};" % ", ".join(str(o) for o in offs))
     w("\treturn kOffsets;")
     w("}")

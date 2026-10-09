@@ -68,8 +68,6 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"pers/infantry_spearman_b", 2, 100, nullptr, 3},
 	{"pers/support_healer_b", 1, 150, nullptr, 2},
 	{"pers/support_healer_b", 2, 150, nullptr, 3},
-	{"rome/cavalry_auxiliary_b", 1, 150, nullptr, 2},
-	{"rome/cavalry_auxiliary_b", 2, 150, nullptr, 3},
 	{"rome/cavalry_javelineer_b", 1, 150, nullptr, 2},
 	{"rome/cavalry_javelineer_b", 2, 150, nullptr, 3},
 	{"rome/cavalry_javelineer_b", 3, 2000, "rome/cavalry_auxiliary_b", 1},
@@ -255,6 +253,8 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"han/infantry_spearman_b", 2, 100, nullptr, 3},
 	{"han/support_healer_b", 1, 150, nullptr, 2},
 	{"han/support_healer_b", 2, 150, nullptr, 3},
+	{"rome/cavalry_auxiliary_b", 1, 150, nullptr, 2},
+	{"rome/cavalry_auxiliary_b", 2, 150, nullptr, 3},
 };
 
 // Roster units whose 0 A.D. template starts above Basic (Identity/Rank).
@@ -267,11 +267,11 @@ inline constexpr PromotionStart PROMOTION_STARTS[] = {
 	{"spart/champion_infantry_swordsman", 3},
 	{"rome/champion_infantry_spear_gladiator", 3},
 	{"rome/champion_infantry_sword_gladiator", 3},
-	{"rome/infantry_antesignanus", 3},
 	{"rome/infantry_legionary", 3},
 	{"rome/infantry_spearman_a", 2},
 	{"rome/infantry_swordsman_a", 2},
 	{"kush/support_healer_e", 3},
+	{"rome/infantry_antesignanus", 3},
 };
 
 // What one rank adds: unit_advanced.json (Advanced and Elite units) and unit_elite.json
