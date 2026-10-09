@@ -591,6 +591,7 @@ struct PeerOpts {
     uint32_t force_oos = 0;     // the joiner corrupts its world after this turn
     uint32_t quit_turn = 0;     // the joiner leaves the match after this turn
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
+    bool observe = false;       // this joiner watches a running match without a seat
     std::string name = "peer";  // the name this peer authenticates with
     std::string password;       // host: required from joiners; client: what it sends
     uint32_t kick_turn = 0;     // host: kicks the client named kick_name after this turn
@@ -723,7 +724,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     // Rejoin (0 A.D. join-syncing): this process takes over the seat of a
     // joiner that left; the world and pending batches come from the host.
     if (opt.rejoin) {
-        tm.request_rejoin();
+        tm.request_rejoin(opt.observe);
         t_start = now_us();
         while (!tm.apply_pending_rejoin(sim)) {
             net.poll(arena);
@@ -945,6 +946,13 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
             if (host && st == 140) net.sendChat("hi all");
             for (const auto &c : batch)
                 if (c.client_id == script_id) tm.post_local_command(c);
+            // An observer's orders go nowhere (it has no seat and sends no batches).
+            if (opt.observe && st % 50 == 0) {
+                NetCommand o;
+                o.cmd_type = 2;
+                o.entity_ids = host_squad;
+                tm.post_local_command(o);
+            }
         }
 
         uint64_t now = now_us();
@@ -1093,6 +1101,15 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                     (unsigned long long)net.clientPerformanceReports(), rtt.empty() ? "-" : rtt.c_str(),
                     waited.empty() ? "-" : waited.c_str());
     }
+    {
+        // NMT_PLAYER_ASSIGNMENT: the host's client list, client:name:player:status.
+        std::string list;
+        for (const auto &e : net.playerAssignment())
+            list += (list.empty() ? "" : ",") + std::to_string(e.client) + ":" + e.name + ":" +
+                    std::to_string((unsigned)e.player) + ":" + std::to_string((unsigned)e.status);
+        std::printf("[net-peer] %s: roster observer=%d list=%s\n", host ? "host" : "join", tm.is_observer() ? 1 : 0,
+                    list.empty() ? "-" : list.c_str());
+    }
     if (opt.pause_turn)
         std::printf("[net-peer] %s: pause seen=%d by=%u at_turn=%u held_ms=%u\n", host ? "host" : "join",
                     pause_seen ? 1 : 0, paused_by, paused_at_turn, (unsigned)(held_us / 1000));
@@ -1166,6 +1183,7 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--oos-dir") == 0) opt.oos_dir = v;
             else if (std::strcmp(k, "--quit-turn") == 0) opt.quit_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--observe") == 0) opt.observe = opt.rejoin = std::atoi(v) != 0;
             else if (std::strcmp(k, "--name") == 0) opt.name = v;
             else if (std::strcmp(k, "--password") == 0) opt.password = v;
             else if (std::strcmp(k, "--kick-turn") == 0) opt.kick_turn = (uint32_t)std::atoi(v);
