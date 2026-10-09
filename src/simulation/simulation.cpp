@@ -3767,7 +3767,7 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 		for (size_t h = 0; h < buildings_.size(); ++h) {
 			const Building &b = buildings_[h];
 			if (b.team != player || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
-					!structure_has_enough_health(b))
+					turret_points_of(b) || !structure_has_enough_health(b)) // turrets aren't a GarrisonHolder
 				continue;
 			const float d = edge_distance(b, ux, uz);
 			if (d > best_d || (d == best_d && best >= 0)) continue;
