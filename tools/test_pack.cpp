@@ -118,8 +118,13 @@ static void test_attack_in_range() {
 	check(hp_of(s, tgt) == hp0 && s.projectiles().empty(), "holds fire while unpacking");
 	run(s, 1.4f);
 	check(pack_of(s, cat) == PACK_UNPACKED, "unpacked after 10 s");
-	run(s, 8.0f);
-	check(hp_of(s, tgt) < hp0, "fires once unpacked");
+	// PrepareTime (3 s) after unpacking it shoots; a stone can land wide (Spread).
+	bool fired = false;
+	for (int i = 0; i < 40; ++i) {
+		s.tick(DT);
+		fired |= !s.projectiles().empty();
+	}
+	check(fired || hp_of(s, tgt) < hp0, "fires once unpacked");
 	check(std::fabs(x_of(s, cat)) < 0.3f, "stays put while firing");
 }
 
