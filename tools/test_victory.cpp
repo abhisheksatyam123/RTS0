@@ -497,6 +497,31 @@ int main() {
 		CHECK(sim.player_color_index(0) == 23 && sim.player_color(0) == 0x505050 && sim.player_color_index(1) == 1);
 	}
 
+	// 19. Starting resources: 0 A.D.'s presets give every resource the same amount, sent as res=0..5.
+	{
+		Simulation sim;
+		sim.set_starting_resources_preset(5);
+		CHECK(sim.food(0) == 50000 && sim.wood(3) == 50000 && sim.gold(7) == 50000 && sim.stone(1) == 50000);
+		sim.set_starting_resources_preset(9); // out of range: 0 A.D.'s default, Low
+		CHECK(sim.food(0) == 300 && sim.stone(0) == 300);
+		GameSetupParams gp, back;
+		gp.start_res = 5;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.start_res == 5);
+	}
+
+	// 20. Team "None": a teamless player is never allied, even when its id equals a team's.
+	{
+		Simulation sim;
+		const uint8_t teams[MAX_PLAYERS] = {3, 3, 0, 1, 0, 1, 0, 0};
+		sim.set_setup_teams(teams);
+		sim.apply_team_diplomacy();
+		CHECK(sim.player_team(0) == sim.player_team(1) && sim.player_team(3) == sim.player_team(5));
+		for (uint8_t p : {2, 4, 6, 7})
+			for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+				if (q != p) CHECK(sim.player_team(p) != sim.player_team(q));
+		CHECK(sim.player_team(0) != sim.player_team(3));
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;
