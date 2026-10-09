@@ -748,21 +748,36 @@ static void test_tribute_request_paid_later() {
 	run_for(*s, 20.0f);
 	s->petra_send_diplomacy_request();
 	if (!s->petra_sent_diplo_.sent_type[3]) { CHECK(false, "AI 1 asks AI 3"); return; }
+	// AI 3 accepts a pact outright 80% of the time (handleDiplomacyRequest), so
+	// give it the other answer here, as petra_handle_diplomacy_request would:
+	// a neutrality pact for 1000 food, asked of AI 1.
+	s->petra_diplo_request_inbox_[3][1] = 0;
+	{
+		PetraReceivedRequest &req = s->petra_slots_[3].petra_diplo_.received[1];
+		req = PetraReceivedRequest{};
+		req.status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		req.type = 1;
+		req.resource = RES_FOOD;
+		req.wanted = 1000;
+		req.warn_time = s->petra_slots_[3].petra_diplo_.elapsed + 60.0f;
+		s->petra_tribute_request_wanted_[1][3] = req.wanted;
+		s->petra_tribute_request_res_[1][3] = req.resource;
+	}
 	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f; // broke when AI 3 answers
-	bool asked = false;
+	bool asked = true;
 	for (float t = 0.0f; t < 30.0f; t += Simulation::FIXED_STEP) {
 		s->players_[1].res[RES_GOLD] = s->players_[1].res[RES_FOOD] = s->players_[1].res[RES_WOOD] = s->players_[1].res[RES_STONE] = 0.0f;
 		s->tick(Simulation::FIXED_STEP);
-		asked |= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		asked &= s->petra_slots_[3].petra_diplo_.received[1].status == PetraReceivedRequest::WAITING_FOR_TRIBUTE;
 	}
 	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] += 2000.0f;
 	float t = 0.0f;
 	for (; t < 60.0f && !(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL);
 	     t += Simulation::FIXED_STEP)
 		s->tick(Simulation::FIXED_STEP);
-	std::printf("  tribute asked of a broke AI: asked %s, paid and neutral %s after %.0fs more\n",
+	std::printf("  tribute asked of a broke AI: request stood %s, paid and neutral %s after %.0fs more\n",
 	            asked ? "yes" : "no", s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL ? "yes" : "no", t);
-	CHECK(asked, "AI 3 asks AI 1 for a tribute");
+	CHECK(asked, "AI 3's tribute request stands while AI 1 is broke");
 	CHECK(s->get_diplomacy(3, 1) == Simulation::DIPLO_NEUTRAL && s->get_diplomacy(1, 3) == Simulation::DIPLO_NEUTRAL,
 	      "AI 1 pays once it can, and the pact is sealed");
 }
@@ -1136,7 +1151,8 @@ static void test_army_answers_attackers() {
 	CHECK(half > 0.0f, "an enemy house to attack");
 	if (half <= 0.0f) return;
 	std::vector<uint32_t> squad;
-	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN));
+	// Sturdy enough that player 0's own units nearby can't break up the squad first.
+	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN, 1.0e4f));
 	s->order_attack_building(squad.data(), squad.size(), house);
 	auto &plan = s->petra_attack_plan_;
 	plan.squad = squad;
@@ -1183,6 +1199,88 @@ static void test_relic_capture() {
 // attackPlan.js moves armies with forced walks: a retreating army ignores what it
 // sees on the way. An unforced walk let an unpacked catapult beside an enemy
 // unpack to fire, then pack for the walk, for ever.
+// A placement search that found no spot is remembered until something it read
+// changes (petra_placement_signature), so it is not repeated every AI turn. The
+// memory must never change a decision: a lost tower or a felled tree that opens
+// a spot is seen at once.
+static void test_placement_miss_memory_exact() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	run_for(*s, 1.0f);
+	float hx = 0.0f, hz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
+	s->players_[1].add(5000.0f, 5000.0f, 5000.0f, 5000.0f);
+	auto fund = [&] {
+		auto &acc = s->petra_queues_.accounts[Simulation::PETRA_QUEUE_TECH];
+		acc.food = acc.wood = acc.gold = acc.stone = 5000.0f;
+	};
+	const float G = Simulation::GRID;
+	const int hcx = (int)(hx / G), hcz = (int)(hz / G);
+	auto ring_spot = [&](int cx, int cz, int min_r, int max_r, uint8_t btype) {
+		for (int r = min_r; r <= max_r; ++r)
+			for (int dx = -r; dx <= r; ++dx)
+				for (int dz = -r; dz <= r; ++dz)
+					if ((std::abs(dx) == r || std::abs(dz) == r) && s->petra_can_place(cx + dx, cz + dz, building_type_info(btype).footprint, btype))
+						return true;
+		return false;
+	};
+
+	// Towers keep 60 m (15 units) apart: a tower stops one in rings 3-4 around it until it falls.
+	int px = 0, pz = 0;
+	bool have_p = false;
+	for (int r = 13; r <= 16 && !have_p; ++r)
+		for (int dx = -r; dx <= r && !have_p; ++dx)
+			for (int dz = -r; dz <= r && !have_p; ++dz)
+				if ((std::abs(dx) == r || std::abs(dz) == r) && s->petra_can_place(hcx + dx, hcz + dz, 1, BLD_TOWER) &&
+				    ring_spot(hcx + dx, hcz + dz, 3, 4, BLD_TOWER)) {
+					px = hcx + dx; pz = hcz + dz; have_p = true;
+				}
+	fund();
+	const uint32_t old_tower = s->spawn_building(px, pz, BLD_TOWER, 1, 1.0f);
+	const float tx = (px + 0.5f) * G, tz = (pz + 0.5f) * G;
+	const bool tower_fails = !s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, Simulation::PETRA_QUEUE_TECH);
+	const bool tower_remembered = s->petra_place_misses_.size() == 1;
+	s->destroy_building(s->buildings_[s->building_id_to_idx_.at(old_tower)]);
+	const uint32_t tower = s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, Simulation::PETRA_QUEUE_TECH);
+
+	// Trees on every cell a temple could take in rings 5-6 around the Civic Centre.
+	const int foot = building_type_info(BLD_TEMPLE).footprint;
+	for (int dx = -6; dx <= 6 + foot; ++dx)
+		for (int dz = -6; dz <= 6 + foot; ++dz)
+			if (std::max(std::abs(dx), std::abs(dz)) >= 5 || dx > 4 || dz > 4)
+				s->spawn_resource_world((hcx + dx + 0.5f) * G, (hcz + dz + 0.5f) * G, RES_WOOD, 200);
+	s->resource_block_tick_ = UINT64_MAX; // the obstruction cache is per tick; this is the same tick
+	fund();
+	const bool temple_fails = !s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, Simulation::PETRA_QUEUE_TECH);
+	const bool still_fails = !s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, Simulation::PETRA_QUEUE_TECH);
+	// Fell the trees under candidate spots until one is free.
+	bool freed = false;
+	for (int r = 5; r <= 6 && !freed; ++r)
+		for (int dx = -r; dx <= r && !freed; ++dx)
+			for (int dz = -r; dz <= r && !freed; ++dz) {
+				if (std::abs(dx) != r && std::abs(dz) != r) continue;
+				const int cx = hcx + dx, cz = hcz + dz;
+				for (size_t i = 0; i < s->resources_.count; ++i) {
+					const int rx = (int)std::floor(s->resources_.x[i] / G), rz = (int)std::floor(s->resources_.z[i] / G);
+					if (rx >= cx && rx < cx + foot && rz >= cz && rz < cz + foot) s->resources_.amount[i] = 0;
+				}
+				s->resource_block_tick_ = UINT64_MAX;
+				freed = s->petra_can_place(cx, cz, foot, BLD_TEMPLE);
+			}
+	const uint32_t temple = s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, Simulation::PETRA_QUEUE_TECH);
+	std::printf("  placement miss memory: tower %s, %s after its neighbour fell; temple %s, %s after felling\n",
+	            tower_fails ? "blocked" : "not blocked", tower ? "placed" : "not placed",
+	            temple_fails && still_fails ? "blocked" : "not blocked", temple ? "placed" : "not placed");
+	CHECK(have_p, "found a tower spot to test with");
+	CHECK(tower_fails && tower_remembered, "a search with no spot fails and is remembered");
+	CHECK(tower != 0, "losing the tower that blocked a spot lets the next search use it");
+	CHECK(temple_fails && still_fails && freed, "trees block every temple spot until felled");
+	CHECK(temple != 0, "felling the trees on a spot lets the next search use it");
+}
+
 static void test_retreat_walk_forced() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1242,6 +1340,7 @@ int main() {
 	test_army_answers_attackers();
 	test_relic_capture();
 	test_retreat_walk_forced();
+	test_placement_miss_memory_exact();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
