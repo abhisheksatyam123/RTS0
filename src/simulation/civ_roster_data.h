@@ -6,7 +6,7 @@
 // Included from sim_types.h inside namespace rtso.
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_COUNT = 391;
-inline constexpr uint16_t CIV_HERO_AURA_COUNT = 96;
+inline constexpr uint16_t CIV_HERO_AURA_COUNT = 103;
 inline constexpr uint16_t CIV_TEMPLATE_WORDS = 7; // uint64 words in a per-template bitset
 
 inline const CivHeroAura *civ_hero_aura_table() {
@@ -27,7 +27,7 @@ inline const CivHeroAura *civ_hero_aura_table() {
 		{"athen_hero_themistocles_2", "Themistoclean Walls", "Walls and Palisades −50% resource costs and −20% construction time.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
 		{"spart_catafalque_1", "Lycurgan Military Reforms", "Lycurgus instituted several military reforms, thus the complete and undivided allegiance to Sparta from its citizens was implemented under his form of government.\nCitizen Infantry Spearmen −10% resource costs.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000003000004000ull, 0x0100000003008001ull, 0x0000200000000000ull, 0x0008000004000020ull, 0x0000040000008000ull, 0x0000004000000200ull, 0x0000000000000000ull}},
 		{"spart_catafalque_2", "Lycurgan Military Reforms", "Champion Infantry Spearmen −5% resource costs.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0400000040000004ull, 0x0002000000000000ull, 0x2000000000002000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0090000080000000ull, 0x0000000000000000ull}},
-		{"spart_catafalque_3", "Iron Pelanors", "To further support equality, Lycurgus forbade the use of gold and silver, introducing a new iron currency called pelanors.\nWorkers +15% metal gather rate.", 80.0f, 0, 0.1304f, 22.4f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull, 0x0000000000000000ull}},
+		{"spart_catafalque_3", "Iron Pelanors", "To further support equality, Lycurgus forbade the use of gold and silver, introducing a new iron currency called pelanors.\nWorkers +15% metal gather rate.", 80.0f, 255, 0.0f, 0.0f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull, 0x0000000000000000ull}},
 		{"spart_hero_agis_1", "Great Revolt", "Soldiers −25% metal cost, and training time.", 0.0f, 255, 0.0f, 0.0f, 1, {0xfffc003ff0007fbfull, 0x07fff8000ffff001ull, 0xfc003ff0003ffe00ull, 0x001eff800ffe003full, 0xf8000fffe001ffffull, 0x00f0007ffe0007ffull, 0x0000000000000000ull}},
 		{"spart_hero_agis_2", "Last Stand", "Agis +50% health.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
 		{"spart_hero_brasidas", "Helot Reforms", "Citizen Infantry Javelineers +1 crush, hack, pierce resistance, +25% ranged attack pierce damage.", 60.0f, 4, 1.0f, 16.8f, 1, {0x8000000800001000ull, 0x0040000000400000ull, 0x0000080000080000ull, 0x0000000001000008ull, 0x0000008000001000ull, 0x0040000000000080ull, 0x0000000000000000ull}},
@@ -111,8 +111,31 @@ inline const CivHeroAura *civ_hero_aura_table() {
 		{"han_minister_gathering", "Minister over the Masses", "Gatherers +2% gathering rate for every nearby Minister.", 40.0f, 0, 0.01961f, 11.2f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull, 0x0000000000000000ull}},
 		{"han_minister_building", "Building Programs", "Builders construct buildings +2% faster for every nearby Minister.", 40.0f, 255, 0.0f, 0.0f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull, 0x0000000000000000ull}},
 		{"han_minister_garrison_ministry", "Nationalized Industries", "The Imperial Ministry gains a +0.1 wood, stone, metal trickle for each garrisoned minister.", 0.0f, 255, 0.0f, 0.0f, 1, {0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull, 0x0000000000000000ull}},
+		{"iber_monument", "Religious Fervor", "Soldiers +20% melee and ranged attack damage.", 50.0f, 2, 1.2f, 14.0f, 1, {0xfffc003ff0007fbfull, 0x07fff8000ffff001ull, 0xfc003ff0003ffe00ull, 0x001eff800ffe003full, 0xf8000fffe001ffffull, 0x00f0007ffe0007ffull, 0x0000000000000000ull}},
+		{"maur_pillar", "Edict of Ashoka", "Traders +20% movement speed.", 75.0f, 3, 1.2f, 21.0f, 1, {0x0001010004020000ull, 0x2000020040000408ull, 0x0082000401000080ull, 0x4080002080008200ull, 0x0200400008080000ull, 0x0004020000802000ull, 0x0000000000000000ull}},
+		{"kush_pyramids_military", "Exhortative Presence", "Soldiers +1 crush, hack, pierce resistance and +10% melee and ranged attack damage.", 70.0f, 2, 1.1f, 19.6f, 1, {0xfffc003ff0007fbfull, 0x07fff8000ffff001ull, 0xfc003ff0003ffe00ull, 0x001eff800ffe003full, 0xf8000fffe001ffffull, 0x00f0007ffe0007ffull, 0x0000000000000000ull}},
+		{"kush_pyramids_military", "Exhortative Presence", "Soldiers +1 crush, hack, pierce resistance and +10% melee and ranged attack damage.", 70.0f, 4, 1.0f, 19.6f, 1, {0xfffc003ff0007fbfull, 0x07fff8000ffff001ull, 0xfc003ff0003ffe00ull, 0x001eff800ffe003full, 0xf8000fffe001ffffull, 0x00f0007ffe0007ffull, 0x0000000000000000ull}},
+		{"kush_pyramids_economic", "Patriotism", "Workers +15% gather speed.", 50.0f, 0, 0.1304f, 14.0f, 1, {0xc002601889807c00ull, 0x07e004c00fc18981ull, 0x02303809803c0130ull, 0x981c004c0f013038ull, 0x04c00fc01181f800ull, 0x00498078013007c0ull, 0x0000000000000000ull}},
+		{"temple_heal", "Medical Treatment", "Humans +1 health regeneration rate.", 40.0f, 1, 1.0f, 11.2f, 1, {0xffffe03fff807fffull, 0x07ffffc00fffff81ull, 0xfff03fff803ffff0ull, 0xfc1ffffc0ffff03full, 0xffc00fffff81ffffull, 0x01ff807ffff007ffull, 0x0000000000000000ull}},
+		{"kush_temple_amun", "Powerful Priesthood", "Heroes −5% health.", 0.0f, 5, 0.95f, 1000.0f, 1, {0x38000007000003c0ull, 0x001c000000380000ull, 0x0000070000038000ull, 0x0003800000e00007ull, 0x0000003800000700ull, 0x0000000700000038ull, 0x0000000000000000ull}},
 	};
 	return kAuras;
+}
+
+// civ_hero_aura_table() rows a finished structure of this BuildingType projects
+// (0 A.D. structures/<civ>/*.xml Auras), ending in -1.
+inline const int16_t *civ_building_auras(uint8_t type) {
+	static const int16_t kNone[1] = {-1};
+	switch (type) {
+		case BLD_MONUMENT: { static const int16_t k[2] = {96, -1}; return k; }
+		case BLD_PILLAR: { static const int16_t k[2] = {97, -1}; return k; }
+		case BLD_PYRAMID_LARGE: { static const int16_t k[3] = {98, 99, -1}; return k; }
+		case BLD_PYRAMID_SMALL: { static const int16_t k[2] = {100, -1}; return k; }
+		case BLD_TEMPLE_AMUN: { static const int16_t k[3] = {101, 102, -1}; return k; }
+		case BLD_TEMPLE_VESTA: { static const int16_t k[2] = {101, -1}; return k; }
+		case BLD_TEMPLE_MARS: { static const int16_t k[2] = {101, -1}; return k; }
+		default: return kNone;
+	}
 }
 
 inline const CivUnitTemplate *civ_unit_template_table() {

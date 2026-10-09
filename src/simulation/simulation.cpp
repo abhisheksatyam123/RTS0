@@ -1091,6 +1091,13 @@ void Simulation::rebuild_territory() {
 	const int R = grid_res_;
 	auto &roots = territory_roots_scratch_;
 	roots.clear();
+	// structures/theater.json (stackable): each finished theater widens its owner's
+	// territory roots by 20%.
+	float theater[MAX_PLAYERS];
+	std::fill(theater, theater + MAX_PLAYERS, 1.0f);
+	for (const auto &b : buildings_)
+		if (b.type == BLD_THEATER && b.build_progress >= 0.99f && b.team < MAX_PLAYERS && !b.wrecked)
+			theater[b.team] *= 1.2f;
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f) continue;
 		float radius = 0.0f;
@@ -1099,7 +1106,7 @@ void Simulation::rebuild_territory() {
 		else if (b.type == BLD_TOWER) radius = 18.0f;
 		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
-		roots.push_back({b.x, b.z, radius, b.team});
+		roots.push_back({b.x, b.z, radius * theater[b.team], b.team});
 	}
 	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
 	if (roots == territory_roots_ && territory_roots_res_ == R && territory_roots_half_ == map_half_ &&
@@ -2021,7 +2028,14 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	const uint16_t allies = ally_civ_mask(player_id);
 	// han_minister_garrison.json (Excellency of Works): each minister garrisoned in a
 	// structure other than the Imperial Ministry cuts its technologies' cost and time by 2%.
-	const float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
+	float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
+	// structures/library.json (Library of Alexandria): while the player has a finished
+	// library, its technologies cost 15% less and take 15% less time (not stackable).
+	for (const Building &o : buildings_)
+		if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
+			ministers *= 0.85f;
+			break;
+		}
 	auto team = [&](uint8_t stat, int8_t r) {
 		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers;
 	};
@@ -4397,6 +4411,18 @@ float Simulation::structure_garrison_heal(const Building &b) const {
 	return building_garrison_heal(b.type) + add;
 }
 
+// 0 A.D. garrisonedUnits auras adding Health/RegenRate to what a structure holds:
+// athen_prytaneion_hero_heal (Heroes +6), arsenal_repair (Siege +3),
+// cart_super_dock_repair (Ships +10). need_class is a CombatClass.
+struct GarrisonRegenAura { float rate; uint8_t need_class; };
+static GarrisonRegenAura structure_garrison_regen(uint8_t type) {
+	switch (type) {
+		case BLD_PRYTANEION: return {6.0f, CC_HERO};
+		case BLD_ARSENAL: return {3.0f, CC_SIEGE};
+		case BLD_SUPER_DOCK: return {10.0f, CC_SHIP};
+		default: return {0.0f, 0};
+	}
+}
 void Simulation::tick_garrison_holders() {
 	// HealTimeout runs every HEAL_TIMEOUT = 1000 ms while something is garrisoned.
 	const bool heal_now = ticks_ % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0;
@@ -4409,11 +4435,14 @@ void Simulation::tick_garrison_holders() {
 		}
 		if (!heal_now) continue;
 		const float rate = structure_garrison_heal(b);
-		if (rate <= 0.0f) continue;
+		const GarrisonRegenAura regen = structure_garrison_regen(b.type);
+		if (rate <= 0.0f && regen.rate <= 0.0f) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t i = lookup_unit(uid);
-			if (i < 0 || !(unit_tech_classes(units_.unit_type[i]) & TC_ORGANIC)) continue; // Health.IsUnhealable
-			units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + rate);
+			if (i < 0) continue;
+			float add = (unit_tech_classes(units_.unit_type[i]) & TC_ORGANIC) ? rate : 0.0f; // Health.IsUnhealable
+			if (regen.rate > 0.0f && unit_combat_at(i).classes.has(regen.need_class)) add += regen.rate;
+			if (add > 0.0f) units_.hp[i] = std::min(units_.max_hp[i], units_.hp[i] + add);
 		}
 	}
 }
@@ -5690,6 +5719,10 @@ void Simulation::move_units(float dt, Arena &arena) {
 		float ux = dx * inv;
 		float uz = dz * inv;
 		float spd = units_.speed[i];
+		// UnitMotion/WalkSpeed auras (heroes, the Mauryan pillar's traders) while in reach.
+		if (const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
+				units_.tmpl[i], &unit_combat_at(i).classes); m > 0.0f)
+			spd *= m;
 		if (units_.status_effects[i] & (EFFECT_SNARE | EFFECT_SLOW)) {
 			spd *= 0.55f; // Slow/Snare speed penalty (0 A.D. status effect)
 		}
@@ -6279,6 +6312,11 @@ void Simulation::tick_gather(float dt) {
 					if ((rt == RES_GOLD || rt == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f)
 						rate *= civ_info(civ).metal_gather_mult;
 				}
+				// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
+				// pyramid, catafalques, Han ministers): the strongest one in reach.
+				if (const float g = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
+						units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
+					rate /= 1.0f - g;
 				// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
 				for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
 				if (field_efficiency > 0.0f) rate *= field_efficiency;
@@ -7344,14 +7382,7 @@ void Simulation::tick_combat(float dt) {
 
 	// 5. Capture the Relic relics are captured, not claimed by walking over (tick_relics).
 
-	// 6. Hero Unit Inspiration Auras via AuraManager (Auras.js / Heroes) - 16m heal 2.0 (Spartan) / speed 1.20 (Athenian)
-	for (size_t u = 0; u < n; ++u) {
-		if (!units_.alive[u]) continue;
-		float speedMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_SPEED, units_.tmpl[u]);
-		if (speedMod > 1.001f) {
-			units_.speed[u] = unit_info_at(u).speed * speedMod;
-		}
-	}
+	// 6. Speed auras (heroes, the Mauryan pillar) apply as units move (tick_movement).
 
 	// Multi-Team Structure Capture Mechanics extracted to tick_capture() (0 A.D. Capturable.js)
 
@@ -8423,8 +8454,11 @@ void Simulation::unit_resistance(size_t i, float out[3]) const {
 		for (int k = 0; k < 3; ++k) out[k] += ra;
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ARMOR,
 			units_.tmpl[i], &unit_combat_at(i).classes);
-	out[0] += aura;
-	out[1] += aura;
+	for (int k = 0; k < 3; ++k) out[k] += aura;
+	// 0 A.D. structures/wall_garrisoned: Soldiers turreted on a wall, gate or outpost
+	// +3 hack, pierce and crush resistance.
+	if (turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER))
+		for (int k = 0; k < 3; ++k) out[k] += WALL_TURRET_ARMOR;
 }
 
 // 0 A.D. helpers/Attack.js CauseDamageOverArea: every entity of a player the
@@ -17482,17 +17516,28 @@ float Simulation::unit_vision_at(size_t i) const {
 	const float v = unit_vision_range(units_.unit_type[i]);
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	return m > 0.0f ? v * m : v;
+	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
+	const float turret = turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER)
+		? WALL_TURRET_VISION : 0.0f;
+	return (m > 0.0f ? v * m : v) + turret;
 }
 
 void Simulation::rebuild_auras() {
 	aura_mgr_.clear();
-	// Buildings: 0 A.D. structures/temple_heal (own Humans +1 hp/s within 40 m)
+	// Buildings: 0 A.D. structures/temple_heal (own Humans +1 hp/s within 40 m), and the
+	// civ structures' own range and global auras (civ_building_auras: the Iberian monument,
+	// Kushite pyramids and Temple of Amun, the Mauryan pillar, the civ temples' healing).
 	for (const auto &b : buildings_) {
-		if (b.build_progress < 1.0f) continue;
+		if (b.build_progress < 1.0f || b.team >= MAX_PLAYERS) continue;
 		if (b.type == BLD_TEMPLE) {
 			aura_mgr_.register_source(b.id, AURA_HEAL, 40.f * COMBAT_DISTANCE_SCALE, 1.0f, aura_player_bit(b.team),
 				b.x, b.z, -1, CC_HUMAN);
+		}
+		for (const int16_t *a = civ_building_auras(b.type); *a >= 0; ++a) {
+			const CivHeroAura &aura = civ_hero_aura(*a);
+			if (aura.kind >= AURA_COUNT) continue;
+			aura_mgr_.register_source(b.id, (AuraType)aura.kind, aura.range, aura.value,
+				aura_affected_players(b.team, aura.players), b.x, b.z, *a);
 		}
 	}
 	// Units: carnyx attack, hero auras from the civ roster

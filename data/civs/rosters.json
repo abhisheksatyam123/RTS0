@@ -21130,11 +21130,7 @@
      "multiply": 1.15
     }
    ],
-   "rts0": [
-    "AURA_GATHER",
-    0.13043478260869557,
-    22.400000000000002
-   ]
+   "rts0": null
   },
   {
    "id": "spart_hero_agis_1",
@@ -23818,6 +23814,281 @@
     }
    ],
    "rts0": null
+  },
+  {
+   "id": "iber_monument",
+   "name": "Religious Fervor",
+   "description": "Soldiers +20% melee and ranged attack damage.",
+   "type": "range",
+   "radius": 50.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 1.2
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 1.2
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.2,
+    14.000000000000002
+   ],
+   "buildings": [
+    "BLD_MONUMENT"
+   ]
+  },
+  {
+   "id": "maur_pillar",
+   "name": "Edict of Ashoka",
+   "description": "Traders +20% movement speed.",
+   "type": "range",
+   "radius": 75.0,
+   "affects": [
+    "Trader"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "UnitMotion/WalkSpeed",
+     "multiply": 1.2
+    }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.2,
+    21.000000000000004
+   ],
+   "buildings": [
+    "BLD_PILLAR"
+   ]
+  },
+  {
+   "id": "kush_pyramids_military",
+   "name": "Exhortative Presence",
+   "description": "Soldiers +1 crush, hack, pierce resistance and +10% melee and ranged attack damage.",
+   "type": "range",
+   "radius": 70.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 1.1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Hack",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Pierce",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Crush",
+     "add": 1
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.1,
+    19.6
+   ],
+   "buildings": [
+    "BLD_PYRAMID_LARGE"
+   ]
+  },
+  {
+   "id": "kush_pyramids_military",
+   "name": "Exhortative Presence",
+   "description": "Soldiers +1 crush, hack, pierce resistance and +10% melee and ranged attack damage.",
+   "type": "range",
+   "radius": 70.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 1.1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Hack",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Pierce",
+     "add": 1
+    },
+    {
+     "value": "Resistance/Entity/Damage/Crush",
+     "add": 1
+    }
+   ],
+   "rts0": [
+    "AURA_ARMOR",
+    1,
+    19.6
+   ],
+   "buildings": [
+    "BLD_PYRAMID_LARGE"
+   ]
+  },
+  {
+   "id": "kush_pyramids_economic",
+   "name": "Patriotism",
+   "description": "Workers +15% gather speed.",
+   "type": "range",
+   "radius": 50.0,
+   "affects": [
+    "Worker"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "ResourceGatherer/BaseSpeed",
+     "multiply": 1.15
+    }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.13043478260869557,
+    14.000000000000002
+   ],
+   "buildings": [
+    "BLD_PYRAMID_SMALL"
+   ]
+  },
+  {
+   "id": "temple_heal",
+   "name": "Medical Treatment",
+   "description": "Humans +1 health regeneration rate.",
+   "type": "range",
+   "radius": 40.0,
+   "affects": [
+    "Human"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Health/RegenRate",
+     "add": 1
+    }
+   ],
+   "rts0": [
+    "AURA_HEAL",
+    1,
+    11.200000000000001
+   ],
+   "buildings": [
+    "BLD_TEMPLE_AMUN",
+    "BLD_TEMPLE_VESTA",
+    "BLD_TEMPLE_MARS"
+   ]
+  },
+  {
+   "id": "kush_temple_amun",
+   "name": "Powerful Priesthood",
+   "description": "Heroes −5% health.",
+   "type": "global",
+   "radius": 0.0,
+   "affects": [
+    "Hero"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Health/Max",
+     "multiply": 0.95
+    }
+   ],
+   "rts0": [
+    "AURA_HEALTH",
+    0.95,
+    1000.0
+   ],
+   "buildings": [
+    "BLD_TEMPLE_AMUN"
+   ]
   }
  ]
 }
