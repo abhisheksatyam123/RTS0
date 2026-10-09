@@ -702,6 +702,13 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			client_perf_ = std::move(m.clients);
 			++client_perf_reports_;
 		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_PLAYER_ASSIGNMENT)) {
+		PlayerAssignmentMsg m;
+		if (isClient() && author == 0 &&
+				NetPacketSerializer::parse_player_assignment(msg.payload.data(), msg.payload.size(), m)) {
+			player_assignment_ = std::move(m.clients);
+			++player_assignments_;
+		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY)) {
 		// Retired: a stance is lockstep cmd 22 now (see net_types.h). Dropped
 		// here and never relayed, so an old or hostile peer cannot change
@@ -948,6 +955,19 @@ uint32_t NetHost::peerByName(const std::string &name) const {
 	for (const auto &p : peers_)
 		if (p.id != 0 && admitted(p) && p.player_name == name) return p.id;
 	return 0;
+}
+
+void NetHost::sendPlayerAssignment(const PlayerAssignmentMsg &m) {
+	if (!isHost()) return;
+	player_assignment_ = m.clients;
+	++player_assignments_;
+	std::vector<uint8_t> payload = NetPacketSerializer::frame_player_assignment(m);
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_PLAYER_ASSIGNMENT, 0, payload);
+	broadcastCommand(msg);
+}
+
+void NetHost::setPeerObserver(uint32_t peer_id, bool observer) {
+	if (NetPeer *p = getPeer(peer_id)) p->is_observer = observer;
 }
 
 void NetHost::send_client_performance(uint64_t now_ms) {
