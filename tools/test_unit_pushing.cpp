@@ -12,6 +12,8 @@
 //  4. Two groups walking through each other both arrive.
 //  5. The heavier unit pushes harder: a ram and a spearman standing on each other part mostly by
 //     the spearman moving (UnitMotion Weight 50 against 10).
+//  6. A walker that runs into a pocket of idle spearmen open towards it gets out and round them:
+//     from each corner of its short path it searches on instead of heading back into the pocket.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -161,6 +163,32 @@ int main() {
 		std::printf("  ram and spearman on one spot: ram moved %.2f, spearman %.2f, %.2f apart\n", ram_moved, man_moved, dist(*s, r, m));
 		CHECK(man_moved > 3.0f * ram_moved, "the heavier unit pushes harder");
 		CHECK(dist(*s, r, m) >= unit_collision_radius(UNIT_SIEGE_RAM) + unit_collision_radius(UNIT_SPEARMAN), "and they part");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		std::vector<uint32_t> pocket; // a wall at x = 2 and two arms reaching west from its ends
+		for (int k = -2; k <= 2; ++k) pocket.push_back(s->spawn_unit(2.0f, 1.5f * k, 0, UNIT_SPEARMAN, 150.0f));
+		for (int k = 1; k <= 3; ++k) {
+			pocket.push_back(s->spawn_unit(2.0f - 1.5f * k, 3.0f, 0, UNIT_SPEARMAN, 150.0f));
+			pocket.push_back(s->spawn_unit(2.0f - 1.5f * k, -3.0f, 0, UNIT_SPEARMAN, 150.0f));
+		}
+		for (int t = 0; t < 100; ++t) s->tick(DT);
+		const uint32_t w = s->spawn_unit(-12.0f, 0.0f, 0, UNIT_SWORDSMAN, 150.0f);
+		s->order_walk(&w, 1, 12.0f, 0.0f);
+		int arrived = -1;
+		float closest = 1e9f;
+		for (int t = 1; t <= 800 && arrived < 0; ++t) {
+			s->tick(DT);
+			const int wi = idx(*s, w);
+			for (uint32_t id : pocket) closest = std::min(closest, dist(*s, wi, idx(*s, id)));
+			if (!s->units_.has_order[wi]) arrived = t;
+		}
+		const int wi = idx(*s, w);
+		std::printf("  walker into a pocket: done after %d ticks at (%.2f, %.2f), closest %.2f\n",
+		            arrived, s->units_.pos_x[wi], s->units_.pos_z[wi], closest);
+		CHECK(arrived > 0 && std::hypot(s->units_.pos_x[wi] - 12.0f, s->units_.pos_z[wi]) < 1.0f, "a walker gets out of a pocket of idle units to its point");
+		CHECK(closest >= 2.0f * unit_collision_radius(UNIT_SPEARMAN), "and never walks through one");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

@@ -1516,6 +1516,12 @@ private:
 	// The key of a short path kept round idle units (ShortPathMemo): a short path among this tick's
 	// buildings (short_path_key_) that also went round units.
 	uint32_t idle_path_key() const { const uint32_t k = short_path_key_ ^ 0x5BD1E995u; return k ? k : 1u; }
+	// The key of a short path round idle units whose waypoint the unit reached last tick: it searches
+	// on from that corner, as 0 A.D. follows the whole short path.
+	uint32_t idle_corner_key() const { const uint32_t k = short_path_key_ ^ 0x2F6B3A51u; return k ? k : 2u; }
+	// The key of a search round idle units that found no way from where the unit stands (the memo
+	// holds that spot): it searches again there only every fourth turn.
+	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void patrol_next_leg(size_t i);

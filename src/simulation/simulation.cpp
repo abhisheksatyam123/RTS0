@@ -6898,13 +6898,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// 0 A.D. UnitMotion short path: head for the first waypoint around a blocking building
 		// (nav/building_steering.h), or round idle units (avoid_idle_units), until the unit reaches
 		// it. The arrival check above still uses the real aim point.
-		bool steered = false;
+		bool steered = false, round_units = false;
 		if (!unit_is_ship(units_.unit_type[i]) && !backing_off) {
 			walk[i] |= WALK_STEER;
 			rtso::nav::Vec2 steer;
 			ShortPathMemo &memo = units_.short_path[i];
 			const float mdx = aim_x - memo.aim_x, mdz = aim_z - memo.aim_z;
-			const bool round_units = memo.key == idle_path_key() &&
+			round_units = memo.key == idle_path_key() &&
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 			if (round_units) steer = rtso::nav::Vec2(memo.x, memo.z);
 			if (round_units || rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
@@ -6918,7 +6918,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					d2 = sdx * sdx + sdz * sdz;
 					steered = true;
 				} else {
-					units_.short_path[i].key = 0; // standing on the waypoint
+					units_.short_path[i].key = round_units ? idle_corner_key() : 0; // standing on the waypoint
 				}
 			}
 		}
@@ -6931,7 +6931,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float move_dx = ux * spd * dt;
 		float move_dz = uz * spd * dt;
 		// A short-path waypoint reached this tick is done: next tick searches from the corner.
-		if (steered && d2 <= (spd * dt) * (spd * dt)) units_.short_path[i].key = 0;
+		if (steered && d2 <= (spd * dt) * (spd * dt)) units_.short_path[i].key = round_units ? idle_corner_key() : 0;
 		want_x[i] = move_dx;
 		want_z[i] = move_dz;
 		npx[i] = std::clamp(px[i] + move_dx, -map_half_, map_half_);
@@ -7056,7 +7056,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 
 	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
-	const uint32_t key = idle_path_key();
+	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key();
 	const nav::Vec2 U(1.0f, 0.0f), V(0.0f, 1.0f); // unit obstructions are axis-aligned squares
 	// The range unit i's task is done in, as CCmpUnitMotion::ComputeGoal shapes a move to a target's
 	// range: a circle round a unit or resource, a square round a structure (the corners within reach
@@ -7135,24 +7135,46 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			});
 			return hit;
 		};
-		if (!step_blocked(npx[i], npz[i])) return;
-
-		// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
-		// move to the target's range would have ended: it works from there without a short path.
+		// A unit that reached a waypoint of its short path last tick searches on from there, as 0 A.D.
+		// follows the whole path: heading straight for its aim could take it back to where it was
+		// stuck, such as a dead end between idle units.
 		ShortPathMemo &memo = units_.short_path[i];
-		if (memo.key == key) memo.key = 0; // the way to its waypoint is blocked now
-		npx[i] = x0;
-		npz[i] = z0;
-		units_.vel_x[i] = units_.vel_z[i] = 0.0f;
-		if (walk_in_reach(i, x0, z0)) return;
-		blocked[i] = 1;
-		// A short path on the unit's own tick of each turn; one stuck for more than four turns
-		// searches every fourth turn, which keeps a crowd's cost down while it waits.
+		const float mdx = aim_x[i] - memo.aim_x, mdz = aim_z[i] - memo.aim_z;
+		const bool from_corner = memo.key == corner_key &&
+				mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+		if (memo.key == corner_key) memo.key = 0;
 		const uint8_t failed = units_.motion[i].failed;
-		const uint64_t turn_ticks = failed > 4 ? per_turn * 4 : per_turn;
-		if ((ticks_ + units_.id[i]) % turn_ticks != 0) return;
+		const bool obstructed = step_blocked(npx[i], npz[i]);
+		if (obstructed) {
+			// Obstructed: the unit stays put this tick. One within reach of its task is where 0 A.D.'s
+			// move to the target's range would have ended: it works from there without a short path.
+			if (memo.key == key) memo.key = 0; // the way to its waypoint is blocked now
+			npx[i] = x0;
+			npz[i] = z0;
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			if (walk_in_reach(i, x0, z0)) return;
+			blocked[i] = 1;
+			// A short path on the unit's own tick of each turn. One stuck for more than four turns, or
+			// whose last search found no way from where it still stands, searches every fourth turn:
+			// that keeps a crowd's cost down while it waits for the units in its way to leave.
+			const float sx = x0 - memo.x, sz = z0 - memo.z;
+			const bool no_way = memo.key == stuck_key && sx * sx + sz * sz < 0.25f &&
+					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
+			const uint64_t turn_ticks = failed > 4 || no_way ? per_turn * 4 : per_turn;
+			if (!from_corner && (ticks_ + units_.id[i]) % turn_ticks != 0) return;
+		} else if (!from_corner) {
+			return;
+		} else {
+			// A corner whose way on towards the aim is clear of idle units needs no search.
+			const float tx = aim_x[i] - x0, tz = aim_z[i] - z0, tl = std::sqrt(tx * tx + tz * tz);
+			const float t = tl > RANGE_MAX ? RANGE_MAX / tl : 1.0f;
+			if (!step_blocked(x0 + tx * t, z0 + tz * t)) return;
+		}
 
-		const float range = std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
+		// From a corner it looks as far as it may: the unit no longer remembers the range that found
+		// the way to it, and a shorter one could lead back to where it was stuck.
+		const float range = from_corner ? RANGE_MAX
+				: std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
 		thread_local std::vector<nav::ShortPathSquare> squares;
 		squares.clear();
 		const float cull = range * 1.6f + c_max;
@@ -7173,8 +7195,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		}
 		nav::Vec2 w, next;
 		if (!nav::search_short_path_with_units(pos, aim, goal, unit_building_clearance(units_.unit_type[i]), ci, range,
-				steer_obstacles_, building, squares, nav_grid_, w, next))
+				steer_obstacles_, building, squares, nav_grid_, w, next)) {
+			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
 			return;
+		}
+		if (!obstructed && w.x == next.x && w.y == next.y) return; // the way on from the corner is clear
 		const float reach = unit_walk_speed(i) * dt;
 		// A first waypoint within this tick's step is reached now and the unit keeps the second, as
 		// 0 A.D. follows the whole short path: heading straight for the aim from that corner would
@@ -7289,67 +7314,90 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
 	sep_grid_.build(sep_obstacles_, map_half_);
 
-	// The widest clearance this tick: no pair pushes beyond its clearances times Radius plus the
-	// moving extension.
-	float c_max = 0.0f;
-	for (size_t i = 0; i < n; ++i)
-		if (units_.alive[i]) c_max = std::max(c_max, unit_push_clearance(units_.unit_type[i]));
-	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
-	// A formation's members that stand or walk in their slots, not off on a task of their own.
-	auto in_slot = [this](size_t k) {
-		const uint8_t st = units_.action_state[k];
-		return st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK_MOVE;
+	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
+	// after move_units (the pushes compare that), and its pushing data. The widest clearance this
+	// tick bounds every pair's reach: none pushes beyond its clearances times Radius plus the moving
+	// extension.
+	struct PushUnit {
+		float sx, sz;
+		float c, w, r; // unit_push_clearance, unit_push_weight, unit_collision_radius
+		uint32_t id, group; // group: its formation, 0 for none
+		uint8_t moving, slot; // WALK_MOVING; a formation member that stands or walks in its slot, not off on a task of its own
 	};
+	PushUnit *pu = arena.alloc_array<PushUnit>(n);
+	if (!pu) return;
+	float c_max = 0.0f;
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i]) continue;
+		const uint8_t type = units_.unit_type[i];
+		const uint8_t st = units_.action_state[i];
+		PushUnit &u = pu[i];
+		u.sx = px[i] + (have_steps ? steps.from_x[i] : px[i]);
+		u.sz = pz[i] + (have_steps ? steps.from_z[i] : pz[i]);
+		u.c = unit_push_clearance(type);
+		u.w = unit_push_weight(type);
+		u.r = unit_collision_radius(type);
+		u.id = units_.id[i];
+		u.group = i < formation_group_.size() ? formation_group_[i] : 0u;
+		u.moving = have_steps && (steps.moving[i] & WALK_MOVING);
+		u.slot = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK_MOVE;
+		c_max = std::max(c_max, u.c);
+	}
+	const float min_push = PUSH_MIN_FORCE * dt / PUSH_TURN;
 
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!units_.alive[i]) return;
+		const PushUnit &a = pu[i];
 		const float pxi = px[i];
 		const float pzi = pz[i];
 		const float ix = have_steps ? steps.from_x[i] : pxi;
 		const float iz = have_steps ? steps.from_z[i] : pzi;
-		const bool mi = have_steps && (steps.moving[i] & WALK_MOVING);
-		const float ci = unit_push_clearance(units_.unit_type[i]);
-		const float wi = unit_push_weight(units_.unit_type[i]);
-		const uint32_t idi = units_.id[i];
-		const uint32_t my_group = (size_t)i < formation_group_.size() ? formation_group_[i] : 0u;
+		const bool mi = a.moving;
+		const float ci = a.c, wi = a.w, ri = a.r;
+		const uint32_t idi = a.id;
+		const uint32_t my_group = a.group;
 		const float reach = (ci + c_max) * PUSH_CORRECTION * PUSH_RADIUS + (mi ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
+		const float reach2 = reach * reach;
 		const float tf = dt / PUSH_REDUCTION, max_k = tf * PUSH_MAX_MULTIPLIER;
 
 		// 1. Units push each other (0 A.D. CCmpUnitMotionManager::Push, for the pair (i, j) taken
 		// in the order a, b of their ids).
 		float ax = 0.0f;
 		float az = 0.0f;
-		const float ri = unit_collision_radius(units_.unit_type[i]);
 		bool body_overlap = false; // an idle unit whose body overlaps another idle unit's
 		grid.visit_radius_within(pxi, pzi, reach + 0.5f, reach + 0.5f, [&](int32_t j) {
-			if ((size_t)j == i || !units_.alive[j]) return;
-			const bool mj = have_steps && (steps.moving[j] & WALK_MOVING);
+			if ((size_t)j == i) return;
+			const PushUnit &b = pu[j];
+			const bool mj = b.moving;
 			// Members of one formation (0 A.D.'s control group) push each other only where their
 			// clearances overlap, whether they move or not. Two that stand or walk in their slots
 			// don't push at all: RTS0 lays slots out by body width, closer than clearances, where
 			// 0 A.D.'s footprints keep them wider.
-			const bool same_group = my_group && (size_t)j < formation_group_.size() && formation_group_[j] == my_group;
-			if (same_group && in_slot(i) && in_slot((size_t)j)) return;
-			const int moving_push = same_group ? 0 : (int)mi + (int)mj;
-			if (moving_push == 1) return;
+			const bool same_group = my_group && b.group == my_group;
+			if (same_group && a.slot && b.slot) return;
 			if (!mi && !mj) {
-				const float rr = ri + unit_collision_radius(units_.unit_type[j]);
+				const float rr = ri + b.r;
 				const float bdx = pxi - px[j], bdz = pzi - pz[j];
 				if (bdx * bdx + bdz * bdz < rr * rr) body_overlap = true;
 			}
-			const float cj = unit_push_clearance(units_.unit_type[j]);
-			float combined = (ci + cj) * PUSH_CORRECTION;
+			// Half the offset of the averages; no pair pushes beyond `reach`.
+			const float hx = (a.sx - b.sx) * 0.5f, hz = (a.sz - b.sz) * 0.5f;
+			const float h2 = hx * hx + hz * hz;
+			if (h2 > reach2) return;
+			const int moving_push = same_group ? 0 : (int)mi + (int)mj;
+			if (moving_push == 1) return;
+			float combined = (ci + b.c) * PUSH_CORRECTION;
 			const float max_dist = same_group ? combined
 					: combined * PUSH_RADIUS + (moving_push ? PUSH_MOVING_EXT : PUSH_STATIC_EXT);
+			if (h2 > max_dist * max_dist) return;
 			combined = max_dist * (moving_push ? PUSH_MOVING_SPREAD : PUSH_STATIC_SPREAD);
 			const float jx = have_steps ? steps.from_x[j] : px[j];
 			const float jz = have_steps ? steps.from_z[j] : pz[j];
 			// a is the unit with the lower id; sign turns i's view into a's.
-			const bool i_is_a = idi < units_.id[j];
+			const bool i_is_a = idi < b.id;
 			const float sign = i_is_a ? 1.0f : -1.0f;
-			float ox = sign * ((pxi + ix) - (px[j] + jx)) * 0.5f;
-			float oz = sign * ((pzi + iz) - (pz[j] + jz)) * 0.5f;
-			if (ox * ox + oz * oz > max_dist * max_dist) return;
+			float ox = sign * hx;
+			float oz = sign * hz;
 			const float pos_x = sign * (pxi - px[j]), pos_z = sign * (pzi - pz[j]);
 			const float init_x = sign * (ix - jx), init_z = sign * (iz - jz);
 			float olen;
@@ -7364,10 +7412,10 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 				oz = qz;
 				olen = 0.0f;
 			} else {
-				olen = std::sqrt(ox * ox + oz * oz);
+				olen = std::sqrt(h2);
 				if (olen <= PUSH_EPSILON) {
 					// On top of each other: an arbitrary direction, by a's id.
-					const bool dir = (i_is_a ? idi : units_.id[j]) % 2;
+					const bool dir = (i_is_a ? idi : b.id) % 2;
 					ox = dir ? 1.0f : 0.0f;
 					oz = dir ? 0.0f : 1.0f;
 					olen = PUSH_EPSILON;
@@ -7379,8 +7427,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			float factor = max_dist - combined;
 			if (factor <= 0.0f || olen < combined * 0.5f) factor = PUSH_MAX_DISTANCE_FACTOR;
 			else factor = std::clamp((max_dist - olen) / factor, 0.0f, PUSH_MAX_DISTANCE_FACTOR);
-			const float wj = unit_push_weight(units_.unit_type[j]);
-			const float k = std::min(wj / wi * tf, max_k) * factor * sign;
+			const float k = std::min(b.w / wi * tf, max_k) * factor * sign;
 			ax += ox * k;
 			az += oz * k;
 		});
@@ -7471,7 +7518,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// Apply the pushes, clamped to the map.
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!units_.alive[i]) return;
-		float ri = unit_collision_radius(units_.unit_type[i]);
+		const float ri = pu[i].r;
 		float max_push = 3.5f;
 		float push_x = std::clamp(fx[i] + bfx[i] * dt * 10.0f, -max_push, max_push);
 		float push_z = std::clamp(fz[i] + bfz[i] * dt * 10.0f, -max_push, max_push);
