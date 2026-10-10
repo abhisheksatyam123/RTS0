@@ -22,6 +22,7 @@ struct Default {
 	const char *value;
 };
 const Default kDefaults[] = {
+	{"locale", ""}, // L10n.cpp: empty follows the system language
 	{"pauseonfocusloss", "true"},
 	{"overlay.fps", "false"},
 	{"overlay.realtime", "false"},

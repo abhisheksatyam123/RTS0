@@ -17,12 +17,27 @@ const BUSES := {
 }
 const SHADOW_ATLAS := [1024, 2048, 4096, 8192] # shadowquality -1 Low .. 2 Very High
 
+## 0 A.D.'s translations, one merged .po per language (tools/fetch_0ad_l10n.py).
+const L10N_DIR := "res://assets/l10n"
+## Each language under its own name, as 0 A.D.'s locale page lists them.
+const LANGUAGE_NAMES := {
+	"en": "English", "bg": "Български", "ca": "Català", "cs": "Čeština",
+	"de": "Deutsch", "el": "Ελληνικά", "es": "Español", "fi": "Suomi",
+	"fr": "Français", "gl": "Galego", "hu": "Magyar", "id": "Bahasa Indonesia",
+	"it": "Italiano", "ja": "日本語", "ko": "한국어", "nl": "Nederlands",
+	"pl": "Polski", "pt_BR": "Português (Brasil)", "pt_PT": "Português (Portugal)",
+	"ru": "Русский", "sk": "Slovenčina", "sv": "Svenska", "tr": "Türkçe",
+	"uk": "Українська", "zh": "中文 (简体)", "zh_TW": "中文 (繁體)",
+}
+
 var cfg := RtsoUserConfig.new()
 var _gen := -1
 var _in_session := false
 var _overlay: CanvasLayer
 var _overlay_label: Label
 var _overlay_timer := 0.0
+var _locale := ""
+var _translation: Translation
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -50,6 +65,7 @@ func is_headless() -> bool:
 func apply_all() -> void:
 	_gen = cfg.get_generation()
 	preload("res://scenes/reference/reference_common.gd").name_mode = int(cfg.get_number("gui.session.howtoshownames"))
+	_apply_locale()
 	_apply_sound()
 	_apply_fps()
 	_apply_viewport()
@@ -57,6 +73,58 @@ func apply_all() -> void:
 	_apply_shadow_server()
 	for n in get_tree().root.find_children("*", "", true, false):
 		_apply_node(n)
+
+## The languages with a translation, English first.
+static func available_locales() -> PackedStringArray:
+	var out := PackedStringArray(["en"])
+	var files := DirAccess.get_files_at(L10N_DIR)
+	files.sort()
+	for f in files:
+		# Exported builds list "fr.po.remap" style names too; take the language.
+		if f.get_extension() == "po":
+			out.append(f.get_basename())
+	return out
+
+## locale "" is 0 A.D.'s "use the system language": the system locale if
+## there is a translation for it, else its language, else English.
+static func resolve_locale(want: String) -> String:
+	var have := available_locales()
+	if want == "":
+		want = OS.get_locale()
+	if want in have:
+		return want
+	var lang := want.get_slice("_", 0)
+	if lang in have:
+		return lang
+	for l in have:
+		if l.get_slice("_", 0) == lang:
+			return l
+	return "en"
+
+func current_locale() -> String:
+	return _locale
+
+## locale: load that language's 0 A.D. strings into the TranslationServer.
+## Every Control auto-translates its text, so labels, buttons and tooltips
+## that carry 0 A.D.'s English strings switch language at once.
+func _apply_locale() -> void:
+	var loc := resolve_locale(cfg.get_value("locale"))
+	if loc == _locale:
+		return
+	if _translation:
+		TranslationServer.remove_translation(_translation)
+		_translation = null
+	if loc != "en":
+		var t = load(L10N_DIR + "/" + loc + ".po")
+		if t is Translation:
+			t.locale = loc
+			_translation = t
+			TranslationServer.add_translation(t)
+		else:
+			push_warning("No translation for %s" % loc)
+			loc = "en"
+	TranslationServer.set_locale(loc)
+	_locale = loc
 
 func _make_buses() -> void:
 	for bus in BUSES:
