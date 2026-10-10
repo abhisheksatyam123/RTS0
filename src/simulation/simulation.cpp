@@ -17353,6 +17353,13 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 
 	if (tp.state == PetraTransportPlan::BOARDING) {
 		size_t aboard = get_transport_passenger_count(tp.ship_id);
+		// transportPlan.js: the passengers wait at the beach and board once the ship lies off
+		// it; walking straight at a ship still out at sea would take them into the water. The
+		// boarding clock starts once the ship is there (or has stopped short of it).
+		float dx = units_.pos_x[sidx] - tp.pickup_x;
+		float dz = units_.pos_z[sidx] - tp.pickup_z;
+		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
+		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) tp.state_timer = 0.0f;
 		if (tp.state_timer > 28.0f) {
 			if (aboard == 0) {
 				tp.state = PetraTransportPlan::FAILED;
@@ -17365,20 +17372,25 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		// A passenger already heading for the ship keeps its order until it is within
 		// loading reach: a fresh order every turn re-paths it from its own navcell,
 		// which can hold it in place beside a building.
-		std::vector<uint32_t> board;
+		std::vector<uint32_t> board, to_beach;
 		for (uint32_t uid : tp.passenger_ids) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0 || !units_.alive[u]) continue;
 			const bool heading = units_.action_state[u] == ACTION_MOVE && units_.target_unit_id[u] == tp.ship_id;
 			const float ux = units_.pos_x[u] - units_.pos_x[sidx], uz = units_.pos_z[u] - units_.pos_z[sidx];
 			const float reach = ship_loading_reach((size_t)sidx, (size_t)u);
-			if (!heading || ux * ux + uz * uz <= reach * reach) board.push_back(uid);
+			const bool in_reach = ux * ux + uz * uz <= reach * reach;
+			if (!ship_ready && !in_reach) {
+				const float bx = units_.target_x[u] - tp.pickup_x, bz = units_.target_z[u] - tp.pickup_z;
+				const bool to_pickup = units_.action_state[u] == ACTION_MOVE && bx * bx + bz * bz <= 36.0f;
+				if (heading || !to_pickup) to_beach.push_back(uid);
+			} else if (!heading || in_reach) {
+				board.push_back(uid);
+			}
 		}
+		if (!to_beach.empty()) order_walk(to_beach.data(), to_beach.size(), tp.pickup_x, tp.pickup_z, false);
 		if (!board.empty()) order_board_transport(board.data(), board.size(), tp.ship_id);
 		aboard = get_transport_passenger_count(tp.ship_id);
-		float dx = units_.pos_x[sidx] - tp.pickup_x;
-		float dz = units_.pos_z[sidx] - tp.pickup_z;
-		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
 		if ((aboard >= 1 && aboard >= tp.passenger_ids.size()) ||
 		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f))
 			sail();
