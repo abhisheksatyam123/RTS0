@@ -41,6 +41,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_stone */ \
 		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_metal */ \
 		{"Apartment Building", "house", "house", 1800.0f, 1, 0, 175, 0, 50, 20, 12, 22.5f, 1000.0f, 0.5f, 1.0f, 40.0f}, /* structures/cart/apartment */ \
+		{"Imperial Court", "imperial_court", "imperial_court", 4500.0f, 2, 0, 300, 250, 300, 30, 30, 125.0f, 3750.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/civil_centre_court */ \
+		{"Great Tower", "tower_great", "tower_great", 2000.0f, 1, 0, 100, 0, 100, 0, 10, 37.5f, 1000.0f, 0.5f, 1.0f, 20.0f}, /* structures/han/defense_tower_great */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -77,6 +79,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 40, 40}, /* structures/pers/tachara_stone */ \
 		{0, 0, 0, 40, 40}, /* structures/pers/tachara_metal */ \
 		{0, 0, 35, 10, 0}, /* structures/cart/apartment */ \
+		{0, 0, 60, 60, 50}, /* structures/han/civil_centre_court */ \
+		{0, 0, 20, 20, 0}, /* structures/han/defense_tower_great */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -122,6 +126,8 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_TACHARA_STONE: return 0x0004; // pers
 		case BLD_TACHARA_METAL: return 0x0004; // pers
 		case BLD_APARTMENT: return 0x0010; // cart
+		case BLD_IMPERIAL_COURT: return 0x2000; // han
+		case BLD_TOWER_GREAT: return 0x2000; // han
 		default: return 0xFFFF;
 	}
 }
@@ -161,6 +167,8 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_TACHARA_STONE: return 3;
 		case BLD_TACHARA_METAL: return 3;
 		case BLD_APARTMENT: return 1;
+		case BLD_IMPERIAL_COURT: return 3;
+		case BLD_TOWER_GREAT: return 2;
 		default: return 0;
 	}
 }
@@ -177,6 +185,7 @@ inline float civ_building_territory_radius(uint8_t type) {
 		case BLD_TACHARA_WOOD: return 11.0f;
 		case BLD_TACHARA_STONE: return 11.0f;
 		case BLD_TACHARA_METAL: return 11.0f;
+		case BLD_IMPERIAL_COURT: return 32.0f;
 		default: return 0.0f;
 	}
 }
@@ -189,6 +198,8 @@ inline float civ_building_vision(uint8_t type) {
 		case BLD_MILITARY_COLONY: return 27.0f;
 		case BLD_MINISTRY: return 24.0f;
 		case BLD_SUPER_DOCK: return 30.0f;
+		case BLD_IMPERIAL_COURT: return 27.0f;
+		case BLD_TOWER_GREAT: return 27.0f;
 		default: return 0.0f;
 	}
 }
@@ -196,7 +207,7 @@ inline float civ_building_vision(uint8_t type) {
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {
-	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT;
+	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT;
 }
 
 // 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):
@@ -211,10 +222,12 @@ struct CivBuildingUpgrade {
 	uint8_t phase;
 	const char *tooltip;
 };
-inline constexpr int CIV_BUILDING_UPGRADE_COUNT = 17;
+inline constexpr int CIV_BUILDING_UPGRADE_COUNT = 19;
 inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 	static const CivBuildingUpgrade kUpgrades[CIV_BUILDING_UPGRADE_COUNT + 1] = {
+		{BLD_TOWN_CENTER, 0x2000, BLD_IMPERIAL_COURT, 0, 300, 0, 300, 40.0f, 3, "Enable training of heroes, reduce the batch training times and greatly increase the health, capture resistance and garrison capacity of this specific Civic Center."},
 		{BLD_HOUSE, 0x0010, BLD_APARTMENT, 0, 50, 0, 50, 55.0f, 1, "Add a second story to make an Apartment with a greater population bonus."},
+		{BLD_TOWER, 0x2000, BLD_TOWER_GREAT, 0, 0, 0, 200, 40.0f, 3, "This tower has greater range, greater attack, greater health, and is twice as difficult to capture."},
 		{BLD_TACHARA, 0x0004, BLD_TACHARA_FOOD, 0, 0, 0, 0, 10.0f, 1, "Receive free Food tribute to your treasury from your subject peoples."},
 		{BLD_TACHARA, 0x0004, BLD_TACHARA_WOOD, 0, 0, 0, 0, 10.0f, 1, "Receive free Wood tribute to your treasury from your subject peoples."},
 		{BLD_TACHARA, 0x0004, BLD_TACHARA_STONE, 0, 0, 0, 0, 10.0f, 1, "Receive free Stone tribute to your treasury from your subject peoples."},
@@ -238,7 +251,7 @@ inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 
 // True for a civ-specific structure that takes every resource (ResourceDropsite).
 inline bool civ_building_is_dropsite(uint8_t type) {
-	return type == BLD_MILITARY_COLONY;
+	return type == BLD_MILITARY_COLONY || type == BLD_IMPERIAL_COURT;
 }
 
 #endif // RTSO_CIV_BUILDING_DATA_H
