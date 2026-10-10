@@ -8,8 +8,9 @@
 // tick, and a short path is only searched while the straight line is actually blocked. Like
 // CCmpUnitMotion's m_ShortPath, a unit keeps heading for its short path's first waypoint
 // (ShortPathMemo, saved with the unit) until it reaches it, the way there is blocked, the aim moves
-// or the buildings change, instead of searching every tick. Units are not passed as obstructions;
-// separation() still keeps units apart.
+// or the buildings change, instead of searching every tick. Units are obstructions only to
+// search_short_path_with_units, which Simulation::avoid_idle_units calls when a step runs into a
+// unit standing still; separation() pushes units apart (CCmpUnitMotionManager).
 //
 // Buildings are rectangles turned by their footprint axes (nav/footprint.h). A building whose
 // clearance-expanded footprint contains the aim point is the unit's destination (dropsite, construction site, attack
@@ -150,6 +151,55 @@ bool search_short_path(Vec2 pos, Vec2 aim, float radius,
 			Vec2(-nav.map_half, -nav.map_half), nav.res, nav.res, scratch, path);
 	if (path.empty()) return false;
 	out = path.front();
+	return true;
+}
+
+// search_short_path among the nearby buildings and the unit squares in `units` (axis-aligned, half
+// size each unit's own clearance), within `range` of `pos`, to `goal` (a point, or a task's range
+// round its target). `aim` picks the buildings that don't count, as above. A unit square is
+// expanded by `unit_radius` where a building is expanded by `radius` (0 A.D. gives every unit
+// obstruction the moving unit's pathfinding clearance; RTS0 keeps units further from units than
+// from buildings). `out` is the first waypoint and `next` the second (the first again on a
+// one-waypoint path).
+template <class Buildings>
+bool search_short_path_with_units(Vec2 pos, Vec2 aim, const ShortPathGoal& goal, float radius, float unit_radius,
+		float range, const Buildings& buildings, uint32_t ignore_building_id,
+		const std::vector<ShortPathSquare>& units, const NavGrid& nav, Vec2& out, Vec2& next)
+{
+	thread_local std::vector<ShortPathSquare> statics;
+	thread_local std::vector<Vec2> path;
+	thread_local ShortPathScratch scratch;
+	statics.clear();
+	const float cull = range * 1.6f;
+	for (const auto& b : buildings)
+		if (detail::within_reach(b, pos, radius, cull) &&
+		    detail::is_steering_obstacle(b, pos, aim, radius, ignore_building_id, cull))
+			statics.push_back(ShortPathSquare{Vec2(b.x, b.z), footprint_u(b), footprint_v(b),
+					Vec2(b.hu, b.hv)});
+
+	ShortPathRequest req;
+	req.start = pos;
+	req.clearance = radius;
+	req.range = range;
+	req.unit_clearance_bias = radius - unit_radius; // unit squares grow by unit_radius
+	req.goal = goal;
+	auto land_rows = [&nav](int i, int j, int n, uint8_t* out) {
+		const Grid<uint8_t>& cells = nav.cells;
+		if (j >= 0 && j < cells.h && i >= 0 && i + n <= cells.w) {
+			const uint8_t* c = &cells.at(i, j);
+			for (int k = 0; k < n; ++k)
+				out[k] = c[k] != NAV_WATER;
+		} else {
+			for (int k = 0; k < n; ++k)
+				out[k] = cells.inside(i + k, j) && cells.at(i + k, j) != NAV_WATER;
+		}
+	};
+	const float cell = 2.0f * nav.map_half / static_cast<float>(nav.res);
+	compute_short_path(req, statics, units, land_rows, cell,
+			Vec2(-nav.map_half, -nav.map_half), nav.res, nav.res, scratch, path);
+	if (path.empty()) return false;
+	out = path.front();
+	next = path.size() > 1 ? path[1] : path[0];
 	return true;
 }
 
