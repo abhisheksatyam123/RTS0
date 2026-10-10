@@ -297,7 +297,7 @@ public:
 		float upgrade_duration = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
 
-		// 0 A.D. Gate.js (BLD_GATE only). An unlocked gate never blocks long-range
+		// 0 A.D. Gate.js (gates: is_gate_type). An unlocked gate never blocks long-range
 		// pathfinding and blocks movement only while closed; a locked gate stays
 		// closed and blocks both.
 		bool gate_open = false;
@@ -308,12 +308,12 @@ public:
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {
-		return building_blocks_movement(b.type) && (b.type != BLD_GATE || b.gate_locked);
+		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || b.gate_locked);
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
 	// A foundation blocks nothing until it is committed (Foundation.js Commit).
 	static bool blocks_movement_now(const Building &b) {
-		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open) &&
+		return building_blocks_movement(b.type) && !(is_gate_type(b.type) && b.gate_open) &&
 				(b.committed || b.build_progress >= 0.99f);
 	}
 
@@ -672,6 +672,8 @@ public:
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
 	// The garrisoned units `player` may unload from `building_id` under those rules.
 	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
+	// Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
+	int corral_count(uint32_t corral_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
@@ -1138,6 +1140,8 @@ public:
 	float gold_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_GOLD] * 6.0f; }
 	float stone_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_STONE] * 6.0f; }
 
+	int order_pop(const ProductionOrder &o, uint8_t player) const;
+	int structure_pop_bonus(uint8_t type, uint8_t player) const;
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
@@ -1741,7 +1745,7 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	int corral_count(uint32_t corral_id) const;
+	void eject_corral_animals(const Building &b);
 	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
 	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
