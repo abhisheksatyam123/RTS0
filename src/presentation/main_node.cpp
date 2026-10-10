@@ -1752,6 +1752,7 @@ void RtsoMain::update_cursor() {
 					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
 				}
 			}
+			if (!*want && scenery_at(at.x, at.z) != 0) want = "action-attack";
 			if (!*want) {
 				auto rv = sim->resources();
 				for (size_t r = 0; r < rv.count && !*want; ++r) {
@@ -2046,6 +2047,18 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 		return;
 	}
 	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
+}
+
+// The Gaia scenery whose rotated rectangle (with a little slack) holds (x, z), 0 if none.
+uint32_t RtsoMain::scenery_at(float x, float z) const {
+	if (!sim) return 0;
+	for (const auto &sc : sim->scenery()) {
+		const float c = std::cos(sc.angle), s = std::sin(sc.angle);
+		const float rx = x - sc.x, rz = z - sc.z;
+		const float lu = rx * c - rz * s, lv = rx * s + rz * c;
+		if (std::fabs(lu) <= sc.half_w + 0.5f && std::fabs(lv) <= sc.half_d + 0.5f) return sc.id;
+	}
+	return 0;
 }
 
 // Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
@@ -4594,6 +4607,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				else
 					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id);
 				play_civ_voice(herd ? "gather" : "attack");
+				return;
+			}
+
+			// Right click on Gaia scenery (a fence, column, obelisk): attack it (template_structure
+			// Health; capturing scenery is not modelled).
+			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
+				if (turn_cmds())
+					post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, 0);
+				else
+					sim->order_attack_scenery(sel_ptr, sel_n, sid);
+				play_civ_voice("attack");
 				return;
 			}
 

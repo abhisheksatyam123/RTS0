@@ -6638,6 +6638,7 @@ void Simulation::tick(float dt) {
 	tick_petra_ai(dt);
 	cc_captures_.clear();
 	tick_fauna(dt);
+	tick_scenery_attackers();
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	tick_relics();           // Capture the Relic catafalques (Capturable.js)
 	check_victory_conditions(dt);
@@ -8885,7 +8886,9 @@ void Simulation::tick_combat(float dt) {
 		if (!guarding && units_.target_unit_id[i] != 0) {
 			int32_t tidx = lookup_unit(units_.target_unit_id[i]);
 			// Hunting (tick_hunters) or collecting a treasure (tick_treasures) drives it.
-			if (tidx < 0 && (is_fauna_id(units_.target_unit_id[i]) || is_treasure_id(units_.target_unit_id[i]))) return;
+			if (tidx < 0 && (is_fauna_id(units_.target_unit_id[i]) || is_treasure_id(units_.target_unit_id[i]) ||
+					is_scenery_id(units_.target_unit_id[i])))
+				return; // ... and attacking scenery (tick_scenery_attackers)
 			// Capturing a relic (tick_relics drives it).
 			if (is_relic_unit(tidx) && units_.order_kind[i] == ORDER_CAPTURE_RELIC) return;
 			if (tidx >= 0 && units_.alive[tidx] && can_attack(units_.team[i], units_.team[tidx]) &&
@@ -21430,7 +21433,10 @@ bool Simulation::slaughters_target(size_t i) const {
 
 void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
-	if (it == fauna_id_to_idx_.end()) return;
+	if (it == fauna_id_to_idx_.end()) {
+		order_attack_scenery(unit_ids, count, fauna_id); // the lockstep hunt command names scenery too
+		return;
+	}
 	size_t fidx = it->second;
 	// A corralled animal is garrisoned (GarrisonHolder): nobody can target it until it is ejected.
 	if (!fauna_.alive[fidx] || fauna_.behavior[fidx] == FAUNA_CORRALLED) return;
@@ -21988,6 +21994,89 @@ uint32_t Simulation::spawn_scenery(float x, float z, uint8_t scenery_type, float
 	scenery_.push_back(sc);
 	if (!bulk_spawn_) rebuild_nav_grid();
 	return sc.id;
+}
+
+void Simulation::order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id) {
+	const int32_t k = scenery_index(scenery_id);
+	if (k < 0) return;
+	for (size_t n = 0; n < count; ++n) {
+		const int32_t u = lookup_unit(unit_ids[n]);
+		if (u < 0 || !units_.alive[u] || units_.attack_damage[u] <= 0.0f) continue;
+		if (units_.action_state[u] == ACTION_GARRISONED || units_.team[u] >= MAX_PLAYERS) continue;
+		if (unit_combat_at(u).restricted.any_of(building_combat(BLD_TYPE_COUNT).classes)) continue; // RestrictedClasses
+		units_.action_state[u] = ACTION_ATTACK;
+		units_.has_order[u] = 1;
+		drop_orders(u);
+		units_.target_unit_id[u] = scenery_id;
+		units_.target_building_id[u] = 0;
+		units_.target_resource_id[u] = 0;
+		units_.target_x[u] = scenery_[k].x;
+		units_.target_z[u] = scenery_[k].z;
+	}
+}
+
+// Unit i's attack against scenery (template_structure: Resistance 1 hack, 10 pierce, 1 crush;
+// the default structure row of the combat table), with its Bonuses against Structure.
+float Simulation::unit_damage_to_scenery(size_t i) const {
+	float d[3];
+	unit_attack_effects(i, d);
+	const CombatProfile &sc = building_combat(BLD_TYPE_COUNT);
+	const float bonus = combat_bonus(unit_combat_at(i), sc, CIV_COUNT);
+	return bonus * (d[0] * powf(0.9f, sc.hack_armor) + d[1] * powf(0.9f, sc.pierce_armor) + d[2] * powf(0.9f, sc.crush_armor));
+}
+
+// Units attacking scenery: walk to its nearest edge, strike it at weapon reach on their
+// attack timer (ranged attacks land at once: scenery never moves) until its Health is gone.
+void Simulation::tick_scenery_attackers() {
+	if (scenery_.empty()) return;
+	for (size_t i = 0; i < units_.count; ++i) {
+		const uint32_t tid = units_.target_unit_id[i];
+		if (tid == 0 || !units_.alive[i] || units_.action_state[i] != ACTION_ATTACK || lookup_unit(tid) >= 0 ||
+				is_fauna_id(tid))
+			continue;
+		const int32_t k = scenery_index(tid);
+		if (k < 0) continue;
+		const Scenery &sc = scenery_[k];
+		// The nearest point of its rotated rectangle (u = (cos a, -sin a), v = (sin a, cos a)).
+		const float c = std::cos(sc.angle), s = std::sin(sc.angle);
+		const float rx = units_.pos_x[i] - sc.x, rz = units_.pos_z[i] - sc.z;
+		const float lu = std::clamp(rx * c - rz * s, -sc.half_w, sc.half_w);
+		const float lv = std::clamp(rx * s + rz * c, -sc.half_d, sc.half_d);
+		const float ex = sc.x + lu * c + lv * s, ez = sc.z - lu * s + lv * c;
+		units_.target_x[i] = ex;
+		units_.target_z[i] = ez;
+		units_.has_order[i] = 1;
+		if (!pack_state_can_attack(units_.pack_state[i])) continue;
+		const float reach = units_.attack_range[i] + 1.0f;
+		const float dx = units_.pos_x[i] - ex, dz = units_.pos_z[i] - ez;
+		const bool in_reach = dx * dx + dz * dz <= reach * reach;
+		if (!attack_ready(i, in_reach, unit_combat_at(i).prepare)) continue;
+		attack_done(i, in_reach, units_.attack_cooldown[i]);
+		scenery_[k].hp -= unit_damage_to_scenery(i);
+		if (scenery_[k].hp <= 0.0f) destroy_scenery((size_t)k, (int32_t)i);
+	}
+}
+
+// Scenery k falls: Loot.js gives its loot to the killer's owner, the obstruction goes and
+// every unit attacking it stops.
+void Simulation::destroy_scenery(size_t k, int32_t killer) {
+	const uint32_t id = scenery_[k].id;
+	const SceneryTypeInfo &info = scenery_type_info(scenery_[k].type);
+	if (killer >= 0 && units_.team[killer] < MAX_PLAYERS) {
+		PlayerState &ps = players_[units_.team[killer]];
+		ps.res[RES_FOOD] += (float)info.loot[0];
+		ps.res[RES_WOOD] += (float)info.loot[1];
+		ps.res[RES_STONE] += (float)info.loot[2];
+		ps.res[RES_GOLD] += (float)info.loot[3];
+	}
+	scenery_.erase(scenery_.begin() + (ptrdiff_t)k);
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.target_unit_id[i] != id) continue;
+		units_.target_unit_id[i] = 0;
+		units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
+		units_.has_order[i] = 0;
+	}
+	rebuild_nav_grid();
 }
 
 uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
