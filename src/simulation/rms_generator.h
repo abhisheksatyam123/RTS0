@@ -139,12 +139,14 @@ public:
 	// under the trees, road round each civic centre, dirt under the mines and
 	// 0 A.D.'s tier patches over the main terrain. Uses its own hash of seed, so
 	// no other placement changes.
-	static void paint_terrain(Simulation &sim, uint32_t seed);
+	// type: the map type, whose 0 A.D. script's own terrains (script_terrains.h) replace the
+	// biome's unless the game setup overrides the biome.
+	static void paint_terrain(Simulation &sim, uint32_t seed, uint8_t type);
 	// Gives each tree and fruit bush of a generated map its biome's 0 A.D. plant
 	// (terrain_biomes.h biome_flora): trees in a forest share tree1/tree2 or
 	// tree4/tree5, lone trees take tree1, tree2, tree4 or tree3, bushes the
 	// fruitBush. Only the drawing reads it; hashed from seed like paint_terrain.
-	static void plant_flora(Simulation &sim, uint32_t seed);
+	static void plant_flora(Simulation &sim, uint32_t seed, uint8_t type);
 
 private:
 	// Map-specific terrain synthesizers

@@ -140,6 +140,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		float flare_time = 6.0f;
 		float drag_delta = 4.0f;
 		bool attack_notice = true;
+		bool tribute_notice = true;
+		bool barter_notice = true;
+		uint8_t phase_notice = 1; // gui.session.notifications.phase: 0 none, 1 completed, 2 all
 	} user_opts_;
 	void refresh_user_options();
 	RtsoSelectionGrid selection_grid_;
@@ -455,6 +458,10 @@ private:
 	void find_idle_unit(IdleKind kind);
 	bool over_own_rally_structure(const Vector3 &at) const;
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
+	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
+	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
+	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
+	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);

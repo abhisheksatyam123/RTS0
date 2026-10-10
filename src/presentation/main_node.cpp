@@ -9,6 +9,7 @@
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include "user_config.h"
+#include "display_colors.h"
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -109,6 +110,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
+	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
@@ -1678,6 +1680,81 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 			(key.is_empty() ? String() : " [color=#aaaaaa](" + key + " to view)[/color]") + "\n");
 }
 
+// colorizePlayernameByID: the name in the player's displayed colour.
+String RtsoMain::colored_player_name(uint8_t pid) const {
+	const uint32_t rgb = sim ? rtso::display_colors::rgb(*sim, pid) : 0xFFFFFFu;
+	return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + player_display_name(pid) + "[/color]";
+}
+
+// DiplomacyColors.toggle (session.diplomacycolors, the dialog and minimap buttons).
+void RtsoMain::toggle_diplomacy_colors() {
+	rtso::display_colors::toggle();
+	if (minimap_view) minimap_view->queue_redraw();
+	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
+}
+
+// 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
+// diplomacy line. Observers (and defeated players) see more, as g_IsObserver does.
+void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
+	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
+	using N = rtso::Simulation::SessionNotice;
+	const uint8_t me = local_player();
+	const bool observer = me >= rtso::MAX_PLAYERS || sim->is_defeated(me);
+	auto mutual_ally = [&](uint8_t a, uint8_t b) {
+		return a < rtso::MAX_PLAYERS && b < rtso::MAX_PLAYERS && sim->get_diplomacy(a, b) == rtso::Simulation::DIPLO_ALLY &&
+				sim->get_diplomacy(b, a) == rtso::Simulation::DIPLO_ALLY;
+	};
+	// getLocalizedResourceAmounts: "100 food, 50 wood and 200 metal".
+	auto amounts_text = [](const int32_t *amounts, const uint8_t *types, int n) {
+		static const char *kNames[rtso::RES_COUNT] = {"wood", "metal", "stone", "food"}; // RES_* order
+		String parts[rtso::RES_COUNT];
+		int count = 0;
+		for (int i = 0; i < n; ++i)
+			if (amounts[i] > 0 && types[i] < rtso::RES_COUNT)
+				parts[count++] = String::num_int64(amounts[i]) + " " + kNames[types[i]];
+		String out;
+		for (int i = 0; i < count; ++i)
+			out += (i == 0 ? "" : i == count - 1 ? " and " : ", ") + parts[i];
+		return out;
+	};
+	for (const N &n : notices) {
+		String line;
+		if (n.kind == N::TRIBUTE) {
+			// GetTributableCodes order: food, wood, stone, metal.
+			static const uint8_t kOrder[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+			int32_t a[4];
+			for (int i = 0; i < 4; ++i) a[i] = n.amounts[kOrder[i]];
+			const String what = amounts_text(a, kOrder, 4);
+			if (n.other == me) line = colored_player_name(n.player) + " has sent you " + what + ".";
+			else if (n.player == me) line = "You have sent " + colored_player_name(n.other) + " " + what + ".";
+			else if (user_opts_.tribute_notice &&
+					(observer || (sim->teams_locked() && mutual_ally(n.player, me) && mutual_ally(n.other, me))))
+				line = colored_player_name(n.player) + " has sent " + colored_player_name(n.other) + " " + what + ".";
+		} else if (n.kind == N::BARTER) {
+			if (observer && user_opts_.barter_notice) {
+				const String given = amounts_text(&n.amounts[0], &n.other, 1);
+				const String gained = amounts_text(&n.amounts[1], &n.tech, 1);
+				line = colored_player_name(n.player) + " bartered " + given + " for " + gained + ".";
+			}
+		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
+			if (user_opts_.phase_notice == 0 || (n.player != me && !observer && !mutual_ally(n.player, me))) continue;
+			const String phase = String(rtso::tech_info(n.tech).name);
+			if (n.kind == N::PHASE_COMPLETED) line = colored_player_name(n.player) + " has reached the " + phase + ".";
+			else if (user_opts_.phase_notice == 2 && n.kind == N::PHASE_STARTED)
+				line = colored_player_name(n.player) + " is advancing to the " + phase + ".";
+			else if (user_opts_.phase_notice == 2)
+				line = "The " + phase + " of " + colored_player_name(n.player) + " has been aborted.";
+		} else if (n.kind == N::DIPLOMACY) {
+			static const char *kWord[3] = {"allied with", "neutral with", "at war with"};
+			const char *word = kWord[n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2];
+			if (observer) line = colored_player_name(n.player) + " is now " + word + " " + colored_player_name(n.other) + ".";
+			else if (n.player == me) line = "You are now " + String(word) + " " + colored_player_name(n.other) + ".";
+			else if (n.other == me) line = colored_player_name(n.player) + " is now " + word + " you.";
+		}
+		if (!line.is_empty()) chat_window_.append_line(line + "\n");
+	}
+}
+
 // Context cursors (0 A.D. gui/session/unit_actions.js "cursor" of each action
 // and input.js updateCursorAndTooltip, art/textures/cursors/action-*.png): the
 // cursor shows what a right-click would do with the current selection.
@@ -2348,6 +2425,13 @@ void RtsoMain::refresh_user_options() {
 	user_opts_.flare_time = (float)std::clamp(uc::get_number("gui.session.flarelifetime"), 0.0, 60.0);
 	user_opts_.drag_delta = (float)std::clamp(uc::get_number("gui.session.dragdelta"), 1.0, 200.0);
 	user_opts_.attack_notice = uc::get_bool("gui.session.notifications.attack");
+	user_opts_.tribute_notice = uc::get_bool("gui.session.notifications.tribute");
+	user_opts_.barter_notice = uc::get_bool("gui.session.notifications.barter");
+	{
+		const std::string phase = uc::get("gui.session.notifications.phase");
+		user_opts_.phase_notice = phase == "none" ? 0 : phase == "all" ? 2 : 1;
+	}
+	chat_window_.set_timestamps(uc::get_bool("chat.timestamp"));
 	range_overlays_.show_attack = uc::get_bool("gui.session.attackrange");
 	range_overlays_.show_auras = uc::get_bool("gui.session.aurasrange");
 	range_overlays_.show_heal = uc::get_bool("gui.session.healrange");
@@ -2516,6 +2600,8 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
 	const uint8_t viewer = view_player();
+	rtso::display_colors::refresh_config();
+	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
 	view->sync(sim, (float)delta, selected_ids);
@@ -2571,6 +2657,7 @@ void RtsoMain::_process(double delta) {
 	update_command_panel();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
+	show_session_notices(sim->take_session_notices());
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
@@ -3833,6 +3920,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("selection.idlebuilder")) { find_idle_unit(IDLE_BUILDER); return; }
 
 		if (fired("session.gui.diplomacy.toggle")) { toggle_diplomacy(); return; }
+		if (fired("session.diplomacycolors")) { toggle_diplomacy_colors(); return; }
 		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
 		if (fired("session.gui.barter.toggle")) {
 			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
