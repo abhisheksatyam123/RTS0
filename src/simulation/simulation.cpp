@@ -8149,7 +8149,7 @@ uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d,
 		if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
 		if (resources_.id[r] == skip) continue;
 		auto git = fish_gatherers_.find(resources_.id[r]);
-		if (git != fish_gatherers_.end() && git->second.total >= FISH_MAX_GATHERERS) continue;
+		if (git != fish_gatherers_.end() && git->second.total >= resources_.max_gatherers[r]) continue;
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 >= best_d2) continue;
@@ -8377,7 +8377,7 @@ void Simulation::tick_gather(float dt) {
 			}
 			if (fish) {
 				FieldGatherers &fg = fish_gatherers_[units_.target_resource_id[i]];
-				if (fg.slots_taken >= FISH_MAX_GATHERERS) {
+				if (fg.slots_taken >= resources_.max_gatherers[ridx]) { // ResourceSupply/MaxGatherers
 					fg.total--;
 					next_fish();
 					continue;
@@ -8506,7 +8506,8 @@ void Simulation::tick_gather(float dt) {
 		const float interval = regrow_interval(resources_.type[r], resources_.subtype[r]);
 		if (interval <= 0.0f || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
 		const bool fish = resources_.subtype[r] == RES_SUB_FISH;
-		const int32_t max = fish ? FISH_FOOD_SUPPLY : resources_.max_amount[r];
+		// A shoal regrows to FISH_FOOD_SUPPLY; a whale carcass (max_amount -1) does not.
+		const int32_t max = fish ? (resources_.max_amount[r] < 0 ? 0 : FISH_FOOD_SUPPLY) : resources_.max_amount[r];
 		float &left = resources_.regrow_left[r];
 		if (fish && std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) { left = -1.0f; continue; }
 		if (left < 0.0f) {
@@ -10063,7 +10064,7 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 		}
 	}
 	fauna_.hp[f] -= dmg;
-	fauna_attacked(f, src >= 0 ? p.source_id : 0);
+	fauna_attacked(f, p.source_id); // a unit, or the structure that shot
 	if (fauna_.hp[f] <= 0.0f && src >= 0) fauna_killed(f, (size_t)src);
 }
 
@@ -21639,11 +21640,10 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z) const {
 	return best;
 }
 
-// Attack.js GetBestAttackAgainst: a Domestic animal gets Slaughter from infantry, cavalry and
-// women (not ships or siege), whatever their other attacks.
+// Attack.js GetBestAttackAgainst: a Domestic animal gets Slaughter from those that have it
+// (unit_has_slaughter), whatever their other attacks.
 bool Simulation::slaughters_target(size_t i) const {
-	const uint8_t ut = units_.unit_type[i];
-	if (unit_is_ship(ut) || unit_is_siege_engine(ut)) return false;
+	if (!unit_has_slaughter(units_.unit_type[i], units_.tmpl[i])) return false;
 	auto it = fauna_id_to_idx_.find(units_.target_unit_id[i]);
 	if (it == fauna_id_to_idx_.end() || !fauna_.alive[it->second]) return false;
 	return fauna_type_info(fauna_.fauna_type[it->second]).is_domestic();
@@ -21683,9 +21683,26 @@ bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 	return nav_grid_.is_passable_for(cx, cy, naval ? PASS_SHIP : PASS_INFANTRY);
 }
 
-// UnitAI "Attacked" for an animal: passive and skittish animals flee (respondFlee),
-// the rest fight back (respondHoldGround / respondChase).
-void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
+bool Simulation::fauna_threat_pos(uint32_t id, float &x, float &z) const {
+	const int32_t u = lookup_unit(id);
+	if (u >= 0) {
+		if (!units_.alive[u]) return false;
+		x = units_.pos_x[u];
+		z = units_.pos_z[u];
+		return true;
+	}
+	const auto bit = building_id_to_idx_.find(id);
+	if (id == 0 || bit == building_id_to_idx_.end() || buildings_[bit->second].wrecked) return false;
+	x = buildings_[bit->second].x;
+	z = buildings_[bit->second].z;
+	return true;
+}
+
+// UnitAI "Attacked" for an animal: passive and skittish animals flee (respondFlee), from a
+// tower's arrows too; the rest fight back (respondHoldGround / respondChase) at a unit they
+// can bite (a structure is a RestrictedClass, so they ignore its arrows). In COMBAT a melee
+// attacker takes over the fight (it may be blocking the way to the target).
+void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 	if (!fauna_.alive[f]) return;
 	const uint8_t b = fauna_.behavior[f];
 	// Penned livestock is garrisoned in its corral (GarrisonHolder), so it stays put; herded
@@ -21693,25 +21710,31 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	if (b == FAUNA_CORRALLED) return;
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
+		const int32_t a = lookup_unit(attacker_id);
+		const bool biteable = a >= 0 && units_.alive[a] && units_.team[a] < MAX_PLAYERS &&
+		                      !unit_is_ship(units_.unit_type[a]) && !unit_is_siege_engine(units_.unit_type[a]);
+		if (!biteable) return;
 		if (b != FAUNA_ATTACK) {
 			fauna_start_attack(f, attacker_id);
+		} else if (melee && fauna_.target_unit_id[f] != attacker_id) {
+			fauna_.target_unit_id[f] = attacker_id;
 		}
 		return;
 	}
 	// INDIVIDUAL.FLEEING: run until FleeDistance further away than the attacker was, so a
 	// ranged hunter is fled from too. A new attacker takes over only if it is nearer.
-	const int32_t a = lookup_unit(attacker_id);
-	auto dist_to = [&](int32_t u) {
-		return u < 0 ? 1e9f : std::hypot(units_.pos_x[u] - fauna_.pos_x[f], units_.pos_z[u] - fauna_.pos_z[f]);
+	auto dist_to = [&](uint32_t id) {
+		float x, z;
+		return fauna_threat_pos(id, x, z) ? std::hypot(x - fauna_.pos_x[f], z - fauna_.pos_z[f]) : 1e9f;
 	};
 	if (b == FAUNA_FLEE) {
 		if (attacker_id == fauna_.target_unit_id[f]) return;
-		const int32_t cur = lookup_unit(fauna_.target_unit_id[f]);
-		if (cur >= 0 && units_.alive[cur] && dist_to(a) > dist_to(cur)) return;
+		if (dist_to(attacker_id) > dist_to(fauna_.target_unit_id[f])) return;
 	}
+	const float d = dist_to(attacker_id);
 	fauna_.behavior[f] = FAUNA_FLEE;
 	fauna_.target_unit_id[f] = attacker_id;
-	fauna_.flee_distance[f] = (a >= 0 ? dist_to(a) : 0.0f) + info.flee_distance;
+	fauna_.flee_distance[f] = (d < 1e9f ? d : 0.0f) + info.flee_distance;
 }
 
 // UnitAI COMBAT for an animal: it goes for `target` from where it stands, and its first bite
@@ -21774,13 +21797,14 @@ void Simulation::tick_hunters() {
 		if (!pack_state_can_attack(units_.pack_state[i])) continue;
 		const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
 		const uint8_t ut = units_.unit_type[i];
-		// Attack/Slaughter (infantry, cavalry, women): 1000 hack at 2 m, every second, Domestic animals only.
-		const bool slaughter = finfo.is_domestic() && !unit_is_ship(ut) && !unit_is_siege_engine(ut);
+		// Attack/Slaughter (citizen infantry and cavalry, women): 1000 hack at 2 m, PrepareTime 0.9 s,
+		// RepeatTime 1 s, Domestic animals only.
+		const bool slaughter = finfo.is_domestic() && unit_has_slaughter(ut, units_.tmpl[i]);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
 		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
-		if (!attack_ready(i, in_reach, slaughter ? 0.0f : unit_combat_at(i).prepare)) continue;
+		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
 
 		float dmg;
 		if (slaughter) {
@@ -21798,7 +21822,7 @@ void Simulation::tick_hunters() {
 			dmg = unit_damage_to_fauna(i, f);
 		}
 		fauna_.hp[f] -= dmg;
-		fauna_attacked(f, units_.id[i]);
+		fauna_attacked(f, units_.id[i], slaughter || units_.attack_range[i] <= 3.0f);
 		if (fauna_.hp[f] > 0.0f) continue;
 		fauna_killed(f, i);
 	}
@@ -21825,6 +21849,16 @@ void Simulation::fire_at_fauna(size_t i, size_t f) {
 // Animal f killed by unit i: Looter.js grants the animal's Loot xp, the carcass becomes a
 // meat supply, and everyone hunting it goes on: gatherers to the carcass, the killer of a
 // dangerous animal to a cheer.
+uint32_t Simulation::spawn_carcass(size_t f) {
+	if (fauna_.food_amount[f] <= 0) return 0;
+	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
+	const bool fish = (finfo.flags & FAUNA_F_FISH) != 0;
+	const uint32_t rid = spawn_resource_world(fauna_.pos_x[f], fauna_.pos_z[f], RES_FOOD, fauna_.food_amount[f],
+			fish ? RES_SUB_FISH : RES_SUB_MEAT, finfo.max_gatherers);
+	if (fish) resources_.max_amount[res_id_to_idx_[rid]] = -1; // no ResourceSupply/Change: it never regrows
+	return rid;
+}
+
 void Simulation::fauna_killed(size_t f, size_t i) {
 	const size_t n = units_.count;
 	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
@@ -21833,9 +21867,7 @@ void Simulation::fauna_killed(size_t f, size_t i) {
 	units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
 	fauna_.alive[f] = 0;
 	fauna_.behavior[f] = FAUNA_CARCASS;
-	uint32_t rid = 0;
-	if (fauna_.food_amount[f] > 0)
-		rid = spawn_resource_world(fx, fz, RES_FOOD, fauna_.food_amount[f], RES_SUB_MEAT, finfo.max_gatherers);
+	const uint32_t rid = spawn_carcass(f);
 	for (size_t h = 0; h < n; ++h) {
 		if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
 		units_.target_unit_id[h] = 0;
@@ -21900,6 +21932,21 @@ void Simulation::tick_fauna(float dt) {
 		return lo + (float)sim_rng_.range_int(0, (int)std::max(0.0f, hi - lo));
 	};
 
+	// UnitAI MoveRandomly: animals roam in polygons that approximate circles, to keep from
+	// drifting across the map. Each side turns 1/4 to 3/4 of roamAngle twice (+-30 degrees, its
+	// sign fixed per animal here) and is 0.5-1.5 x RoamDistance long; the leg left is kept in
+	// flee_distance while roaming.
+	auto roam_leg = [&](size_t i) {
+		const auto &ri = fauna_type_info(fauna_.fauna_type[i]);
+		const float roam_angle = (fauna_.id[i] & 1u) ? 0.5235988f : -0.5235988f;
+		const float half = roam_angle * (0.25f + 0.5f * (float)sim_rng_.range_int(0, 1000) / 1000.0f);
+		const float ang = fauna_.rot_y[i] + 2.0f * half;
+		fauna_.rot_y[i] = ang;
+		fauna_.vel_x[i] = std::sin(ang) * ri.speed;
+		fauna_.vel_z[i] = std::cos(ang) * ri.speed;
+		fauna_.flee_distance[i] = ri.roam_distance * (0.5f + (float)sim_rng_.range_int(0, 1000) / 1000.0f);
+	};
+
 	bool any_dead = false;
 	for (size_t i = 0; i < fauna_.count; ++i) {
 		if (!fauna_.alive[i]) { any_dead = true; continue; }
@@ -21907,8 +21954,7 @@ void Simulation::tick_fauna(float dt) {
 
 		// Killed by something other than a hunter (splash, a status effect): leave the carcass.
 		if (fauna_.hp[i] <= 0.0f) {
-			if (fauna_.food_amount[i] > 0)
-				spawn_resource_world(fauna_.pos_x[i], fauna_.pos_z[i], RES_FOOD, fauna_.food_amount[i], RES_SUB_MEAT, info.max_gatherers);
+			spawn_carcass(i);
 			fauna_.behavior[i] = FAUNA_CARCASS;
 			fauna_.alive[i] = 0;
 			any_dead = true;
@@ -22087,11 +22133,10 @@ void Simulation::tick_fauna(float dt) {
 
 		// 4. Fleeing (INDIVIDUAL.FLEEING): run from the attacker until distanceToFlee away.
 		if (fauna_.behavior[i] == FAUNA_FLEE) {
-			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
-			float away_x = 0.0f, away_z = 0.0f, dist = 1e9f;
-			if (t >= 0 && units_.alive[t]) {
-				away_x = fx - units_.pos_x[t];
-				away_z = fz - units_.pos_z[t];
+			float away_x = 0.0f, away_z = 0.0f, dist = 1e9f, tx, tz;
+			if (fauna_threat_pos(fauna_.target_unit_id[i], tx, tz)) {
+				away_x = fx - tx;
+				away_z = fz - tz;
 				dist = std::sqrt(away_x * away_x + away_z * away_z);
 			}
 			if (dist >= fauna_.flee_distance[i]) {
@@ -22149,18 +22194,19 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
 			} else {
-				// LINGERING Timer -> ROAMING: MoveRandomly(RoamDistance) for RoamTime.
+				// LINGERING Timer -> ROAMING: MoveRandomly(RoamDistance) legs for RoamTime.
 				fauna_.behavior[i] = FAUNA_ROAMING;
-				const float angle = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
-				const float roam_t = timer(info.roam_time_min, info.roam_time_max);
-				const float sp = info.speed;
-				fauna_.vel_x[i] = std::sin(angle) * sp;
-				fauna_.vel_z[i] = std::cos(angle) * sp;
-				fauna_.rot_y[i] = angle;
-				fauna_.state_timer[i] = sp > 0.0f ? std::min(roam_t, info.roam_distance / sp) : roam_t;
+				fauna_.state_timer[i] = timer(info.roam_time_min, info.roam_time_max);
+				roam_leg(i);
 			}
 		}
-		if (fauna_.behavior[i] == FAUNA_ROAMING) step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+		if (fauna_.behavior[i] == FAUNA_ROAMING && info.speed > 0.0f) {
+			// MovementUpdate (the leg is walked, or blocked): MoveRandomly again.
+			const float before_x = fauna_.pos_x[i], before_z = fauna_.pos_z[i];
+			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			fauna_.flee_distance[i] -= info.speed * dt;
+			if (fauna_.flee_distance[i] <= 0.0f || (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z)) roam_leg(i);
+		}
 	}
 
 	// Compact dead animals out (their carcasses live on as resources); keeps spawn order.

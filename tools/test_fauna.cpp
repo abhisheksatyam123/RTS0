@@ -427,6 +427,81 @@ int main() {
 		CHECK(amount(s, bush) == -1);
 	}
 
+	// 12. Fauna audit fixes.
+	{
+		// A whale's carcass is food.fish (template_unit_fauna_hunt_whale: Max 2000, MaxGatherers 5)
+		// that fishing ships gather, and it does not regrow like a shoal.
+		fresh(s);
+		uint32_t whale = s.spawn_fauna(30.0f, 0.0f, FAUNA_WHALE_FIN);
+		s.fauna_.hp[fidx(s, whale)] = 0.0f;
+		run(s, 0.1f);
+		int32_t carcass = -1;
+		for (size_t r = 0; r < s.resources_.count; ++r)
+			if (std::fabs(s.resources_.x[r] - 30.0f) < 0.5f && std::fabs(s.resources_.z[r]) < 0.5f) carcass = (int32_t)r;
+		CHECK(carcass >= 0);
+		if (carcass >= 0) {
+			CHECK(s.resources_.subtype[carcass] == RES_SUB_FISH && s.resources_.amount[carcass] == 2000);
+			CHECK(s.resources_.max_gatherers[carcass] == 5);
+			s.resources_.amount[carcass] = 500;
+			run(s, 20.0f);
+			CHECK(s.resources_.amount[carcass] == 500);
+		}
+
+		// Attack/Slaughter is a citizen's and a woman's (PrepareTime 0.9 s); a hero uses his own attack.
+		fresh(s);
+		uint32_t sheep = s.spawn_fauna(0.0f, 0.0f, FAUNA_SHEEP);
+		uint32_t hero = s.spawn_unit(1.0f, 0.0f, 0, UNIT_HERO);
+		uint32_t woman = s.spawn_unit(-1.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_hunt(&hero, 1, sheep);
+		s.order_hunt(&woman, 1, sheep);
+		CHECK(!s.slaughters_target((size_t)uidx(s, hero)) && s.slaughters_target((size_t)uidx(s, woman)));
+		s.cmd_stop(&hero, 1); // the woman alone, for the timing
+		run(s, 0.5f);
+		CHECK(f_alive(s, sheep)); // the first strike waits PrepareTime
+		run(s, 1.0f);
+		CHECK(!f_alive(s, sheep));
+
+		// Passive and skittish animals flee a tower's arrows (the structure is the attacker); a
+		// boar ignores them, as a structure is a RestrictedClass of its bite.
+		fresh(s);
+		uint32_t tower = s.spawn_building_world(20.0f, 0.0f, BLD_TOWER, 1, 1.0f);
+		uint32_t deer = s.spawn_fauna(10.0f, 0.0f, FAUNA_DEER);
+		uint32_t boar = s.spawn_fauna(10.0f, 10.0f, FAUNA_BOAR);
+		s.fauna_attacked((size_t)fidx(s, deer), tower);
+		s.fauna_attacked((size_t)fidx(s, boar), tower);
+		CHECK(s.fauna_.behavior[fidx(s, deer)] == FAUNA_FLEE);
+		CHECK(s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK && s.fauna_.behavior[fidx(s, boar)] != FAUNA_FLEE);
+		run(s, 1.0f);
+		CHECK(s.fauna_.pos_x[fidx(s, deer)] < 9.0f); // running away from the tower
+
+		// COMBAT "Attacked": a melee attacker takes over the fight; a ranged one does not.
+		fresh(s);
+		boar = s.spawn_fauna(0.0f, 0.0f, FAUNA_BOAR);
+		uint32_t a = s.spawn_unit(1.5f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
+		uint32_t b = s.spawn_unit(-1.5f, 0.0f, 0, UNIT_SWORDSMAN, 1.0e6f);
+		uint32_t c = s.spawn_unit(0.0f, 8.0f, 0, UNIT_ARCHER, 1.0e6f);
+		const int32_t bf = fidx(s, boar);
+		s.fauna_attacked((size_t)bf, a);
+		CHECK(s.fauna_.target_unit_id[bf] == a);
+		s.fauna_attacked((size_t)bf, c, false);
+		CHECK(s.fauna_.target_unit_id[bf] == a);
+		s.fauna_attacked((size_t)bf, b, true);
+		CHECK(s.fauna_.target_unit_id[bf] == b);
+
+		// MoveRandomly: roaming describes circles, so an undisturbed deer stays near home.
+		fresh(s);
+		deer = s.spawn_fauna(0.0f, 0.0f, FAUNA_DEER);
+		const float rd = fauna_type_info(FAUNA_DEER).roam_distance;
+		float far = 0.0f;
+		for (int k = 0; k < 60; ++k) {
+			run(s, 5.0f);
+			const int32_t f = fidx(s, deer);
+			far = std::max(far, std::hypot(s.fauna_.pos_x[f], s.fauna_.pos_z[f]));
+		}
+		std::printf("roam: deer strayed at most %.1f (RoamDistance %.1f)\n", far, rd);
+		CHECK(far > 0.5f * rd && far < 6.0f * rd);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;
