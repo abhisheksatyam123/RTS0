@@ -380,6 +380,14 @@ class TemplateLoader:
         self.cache[name] = node
         return node
 
+    def own_tokens(self, name, path):
+        """Tokens a template file lists itself under path, not its parents' (empty for mixins)."""
+        f = os.path.join(self.root, name + ".xml")
+        if "|" in name or not os.path.isfile(f):
+            return []
+        e = ET.parse(f).getroot().find(path)
+        return e.text.split() if e is not None and e.text else []
+
     def apply_mixin(self, node, mixin):
         """Overlay mixins/<mixin>.xml, after its own parent mixins (e.g. merc_inf -> mercenary)."""
         elem = ET.parse(os.path.join(self.root, "mixins", mixin + ".xml")).getroot()
@@ -1065,6 +1073,7 @@ def collect(sim_root):
             if "Relic" in c:
                 flags.append("ROSTER_RELIC")
             hero_auras = []
+            own_auras = loader.own_tokens(name, "Auras")
             for aname in t.tokens("Auras"):
                 apath = os.path.join(sim_root, "data", "auras", aname + ".json")
                 if not os.path.isfile(apath):
@@ -1072,8 +1081,9 @@ def collect(sim_root):
                 with open(apath, encoding="utf-8") as f:
                     a = json.load(f)
                 aid = aname.rsplit("/", 1)[-1]
-                if not aid.startswith(civ + "_"):
-                    continue  # generic auras (garrison, formation) apply to every unit of a kind
+                if not aid.startswith(civ + "_") and not (aname.startswith("units/") and aname in own_auras):
+                    continue  # generic auras (garrison, formation) apply to every unit of a kind; a
+                    # unit's own (the centurion's Combat Leadership, a Celtic healer's) are its
                 known = next((i for i, x in enumerate(auras) if x["id"] == aid), None)
                 if known is not None:
                     hero_auras.append(known)
