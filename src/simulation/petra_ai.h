@@ -76,7 +76,7 @@ struct PetraConfig {
 
 	// queueManager.js Config.priorities
 	int prio_emergency = 1000;
-	int prio_villager  = 300;
+	int prio_villager  = 600;
 	int prio_military  = 600;
 	int prio_tech      = 700;
 	int prio_trade     = 1;
@@ -129,7 +129,7 @@ struct PetraConfig {
 		if (difficulty == PETRA_SANDBOX)
 			work_phase3 = 999; // config.js:322 sandbox never cities
 		prio_emergency = 1000;
-		prio_villager  = 300;
+		prio_villager  = 600;
 		prio_military  = (aggressive > 0.70f) ? 720 : 600;
 		prio_tech      = 700;
 		prio_trade     = 1;
