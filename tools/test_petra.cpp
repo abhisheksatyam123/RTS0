@@ -158,7 +158,15 @@ static void test_roster_army() {
 			bool idle_alive = false;
 			for (const auto &b : s->buildings())
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
-			if (!idle_alive) s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
+			// Garrisoned like the first ones, so Petra shells it rather than capturing a string of
+			// fortresses that each keep 20 of its soldiers inside against decay (TYPE_DECAY).
+			if (!idle_alive) {
+				const uint32_t fort = s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
+				for (int k = 0; k < 10; ++k) {
+					const uint32_t man = s->spawn_unit(18.0f + (float)(k % 5), 31.0f - (float)(k / 5), 0, UNIT_SPEARMAN);
+					s->order_garrison(&man, 1, fort);
+				}
+			}
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
