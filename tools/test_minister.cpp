@@ -112,17 +112,24 @@ int main() {
 	}
 
 	// 4. Ministers garrisoned in another structure: its technologies cost 2% less and take
-	//    2% less time per minister; the ministry's own technologies don't change.
+	//    2% less time per minister; the ministry's own technologies don't change. A Han
+	//    farmstead seats one (structures/han/farmstead.xml GarrisonHolder Max 1, List Minister),
+	//    a Han barracks ten (List Infantry Minister).
 	{
 		fresh(s);
-		const uint32_t farm = s.spawn_building_world(-30.0f, -20.0f, BLD_FARMSTEAD, 0, 1.0f);
-		uint32_t two[2] = {spawn_minister(s, -30.0f, -15.0f), spawn_minister(s, -29.0f, -15.0f)};
+		const uint32_t farmstead = s.spawn_building_world(-30.0f, 0.0f, BLD_FARMSTEAD, 0, 1.0f);
+		uint32_t pair[2] = {spawn_minister(s, -30.0f, 5.0f), spawn_minister(s, -29.0f, 5.0f)};
+		s.order_garrison(pair, 2, farmstead);
+		run(s, 6.0f);
+		CHECK(s.garrisoned_ministers(s.buildings_[s.building_id_to_idx_.at(farmstead)]) == 1);
+		const uint32_t farm = s.spawn_building_world(-30.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		uint32_t two[2] = {spawn_minister(s, -30.0f, -13.0f), spawn_minister(s, -29.0f, -13.0f)};
 		s.order_garrison(two, 2, farm);
 		run(s, 6.0f);
 		CHECK(s.garrisoned_ministers(s.buildings_[s.building_id_to_idx_.at(farm)]) == 2);
-		uint8_t tech = TECH_NONE; // a Han farmstead technology
+		uint8_t tech = TECH_NONE; // a Han barracks technology
 		for (uint8_t t = 1; t < TECH_COUNT && tech == TECH_NONE; ++t)
-			if (tech_info(t).researcher == BLD_FARMSTEAD && s.research_check(0, t, farm) == Simulation::TECH_OK) tech = t;
+			if (tech_info(t).researcher == BLD_BARRACKS && s.research_check(0, t, farm) == Simulation::TECH_OK) tech = t;
 		CHECK(tech != TECH_NONE);
 		const TechInfo &ti = tech_info(tech);
 		const float before[RES_COUNT] = {s.players_[0].res[0], s.players_[0].res[1], s.players_[0].res[2], s.players_[0].res[3]};
@@ -131,8 +138,8 @@ int main() {
 		CHECK(near(before[RES_FOOD] - s.players_[0].res[RES_FOOD], std::round(ti.food_cost * k)));
 		CHECK(near(before[RES_WOOD] - s.players_[0].res[RES_WOOD], std::round(ti.wood_cost * k)));
 		const auto &fb = s.buildings_[s.building_id_to_idx_.at(farm)];
-		CHECK(!fb.queue.empty() && std::fabs(fb.queue.front().duration - ti.research_time * k * s.tech_mods(0).bld_research_time[BLD_FARMSTEAD]) < 1e-2f);
-		std::printf("farmstead with 2 ministers: research x%.4f\n", k);
+		CHECK(!fb.queue.empty() && std::fabs(fb.queue.front().duration - ti.research_time * k * s.tech_mods(0).bld_research_time[BLD_BARRACKS]) < 1e-2f);
+		std::printf("barracks with 2 ministers: research x%.4f\n", k);
 	}
 
 	// 5. The Civil Service pair: Efficient Bureaucracy halves the minister's training time,

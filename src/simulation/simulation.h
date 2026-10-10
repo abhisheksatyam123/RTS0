@@ -651,7 +651,15 @@ public:
 	uint32_t formation_of_unit(uint32_t unit_id) const;
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
 	void order_ungarrison(uint32_t building_id);
-	void eject_or_kill(Building &b);
+	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
+	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
+	void eject_or_kill(Building &b, uint8_t keep_allies_of = 0xFF);
+	// GarrisonHolder.IsAllowedToBeGarrisoned: the unit's owner owns `b` or is its mutual ally
+	// (IsOwnedByMutualAllyOfEntity) and the unit matches the holder's List (a TurretHolder:
+	// Turretable). Room is not checked.
+	bool structure_accepts_garrison(const Building &b, size_t unit_idx) const;
+	bool structure_accepts_classes(const Building &b, uint64_t classes) const;
+	bool can_garrison_in(uint32_t unit_id, uint32_t building_id) const;
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
@@ -660,6 +668,8 @@ public:
 	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
 	// ally only its own units. count 0 unloads every unit `player` may unload.
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
+	// The garrisoned units `player` may unload from `building_id` under those rules.
+	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
@@ -681,7 +691,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return type == BLD_TOWN_CENTER || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
@@ -873,7 +883,7 @@ public:
 	// target in place, keeping its health fraction, capture share and garrison.
 	enum UpgradeCheck : uint8_t {
 		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST,
-		UPGRADE_ERR_LIMIT // units: the target's EntityLimits category is full
+		UPGRADE_ERR_LIMIT // the target's EntityLimits category is full
 	};
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
@@ -2228,7 +2238,7 @@ private:
 	// it, so never saved.
 	std::vector<uint32_t> petra_decay_events_, petra_decay_scratch_;
 	void rebuild_territory_grids();
-	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
+	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with

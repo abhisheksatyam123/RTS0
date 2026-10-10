@@ -317,6 +317,7 @@ public:
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
 	void _on_lobby_refresh_pressed();
+	void _on_lobby_observe_toggled(bool on);
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
@@ -431,6 +432,7 @@ private:
 	Vector3 get_ground_click_pos(Vector2 mouse_pos) const;
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
+	bool selection_can_garrison(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();

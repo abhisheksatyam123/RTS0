@@ -95,6 +95,12 @@ uint64_t unit_classes(uint16_t tmpl, uint8_t type) {
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 }
 
+// Classes a GarrisonHolder List sees: RTS0's villager plays 0 A.D.'s support civilian
+// (template_unit_support_slave: Support), which its roster row doesn't list.
+uint64_t garrison_classes(uint16_t tmpl, uint8_t type) {
+	return unit_classes(tmpl, type) | (type == UNIT_VILLAGER ? (uint64_t)TC_CIVILIAN : 0);
+}
+
 } // namespace
 
 // 0 A.D. BuildingAI.js roundCount: firing rounds per Attack/Ranged/RepeatTime.
@@ -1014,7 +1020,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	}
 	if (progress >= 0.99f && !bulk_spawn_) {
 		rebuild_nav_grid();
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
+		if (is_territory_root(b.type)) {
 			rebuild_territory();
 		}
 	}
@@ -1262,9 +1268,9 @@ void Simulation::rebuild_territory_grids() {
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f) continue;
 		float radius = 0.0f;
-		if (b.type == BLD_TOWN_CENTER) radius = 32.0f;
+		if (is_civic_centre(b.type)) radius = 32.0f;
 		else if (b.type == BLD_FORTRESS) radius = 28.0f;
-		else if (b.type == BLD_TOWER) radius = 18.0f;
+		else if (is_defense_tower(b.type)) radius = 18.0f;
 		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
 		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
 		roots.push_back({b.x, b.z, radius * theater[b.team] * tech_mods(b.team).bld_territory[b.type], b.team});
@@ -1369,7 +1375,7 @@ void Simulation::ensure_territory_regions() {
 	// TerritoryInfluence/Root.
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f || b.team >= MAX_PLAYERS || b.wrecked) continue;
-		if (b.type != BLD_TOWN_CENTER && b.type != BLD_WONDER) continue;
+		if (!is_civic_centre(b.type) && b.type != BLD_WONDER) continue;
 		const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
 		const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
 		const uint16_t id = territory_region_.at(tx, tz);
@@ -1503,7 +1509,7 @@ struct BuildRestriction {
 	float min_distance; // world units (one tile, 4 m)
 };
 BuildRestriction build_restriction(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 	case BLD_TOWN_CENTER: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
@@ -1520,7 +1526,7 @@ BuildRestriction build_restriction(uint8_t type) {
 	}
 }
 uint8_t distance_class_of(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 	case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: return DIST_CIVIL_CENTRE; // a colony is a CivilCentre
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return DIST_TOWER; // both carry the Tower class
 	case BLD_FORTRESS: return DIST_FORTRESS;
@@ -2160,6 +2166,9 @@ int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
 	for (const auto &b : buildings_) {
 		if (b.team != player_id || b.hp <= 0.0f || b.wrecked) continue;
 		if (b.type < BLD_TYPE_COUNT && BUILDING_LIMIT_CATEGORY[b.type] == category) ++n;
+		// Upgrade.js ChangeUpgradedEntityCount: a structure upgrading into the category
+		// (a Civic Center becoming the Imperial Court) counts from the start.
+		else if (b.upgrade_to < BLD_TYPE_COUNT && BUILDING_LIMIT_CATEGORY[b.upgrade_to] == category) ++n;
 		for (const auto &o : b.queue)
 			if (!o.is_tech() && unit_limit_category(o.unit_type, o.tmpl) == category) n += o.count;
 	}
@@ -2637,6 +2646,9 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (b.upgrade_to != BLD_TYPE_COUNT || !b.queue.empty()) return UPGRADE_ERR_BUSY;
 	const PlayerState &ps = players_[player_id];
 	if (ps.phase < up.required_phase) return UPGRADE_ERR_PHASE;
+	// EntityLimits.AllowedToReplace: one Imperial Court, one Great Archery Tower.
+	if (BUILDING_LIMIT_CATEGORY[up.to] != BUILDING_LIMIT_CATEGORY[b.type] && !entity_limit_allows_building(player_id, up.to))
+		return UPGRADE_ERR_LIMIT;
 	if (!ps.can_afford((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost))
 		return UPGRADE_ERR_COST;
 	return UPGRADE_OK;
@@ -2701,10 +2713,14 @@ void Simulation::finish_upgrade(Building &b) {
 	b.capture_regen_rate = ninfo.capture_regen_rate;
 	b.capture_garrison_regen_rate = ninfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = ninfo.territory_decay_rate;
-	// TransferGarrisonedUnits: whoever doesn't fit in the new structure is unloaded.
+	// TransferGarrisonedUnits: whoever the new structure doesn't take, or doesn't fit, is unloaded.
 	b.garrison_cap = structure_garrison_cap(b);
-	while ((int)b.garrisoned_units.size() > b.garrison_cap)
-		order_ungarrison_single(b.id, b.garrisoned_units.back());
+	for (const uint32_t uid : std::vector<uint32_t>(b.garrisoned_units))
+		if (const int32_t g = lookup_unit(uid); g >= 0 && !turret_points_of(b) &&
+				!structure_accepts_classes(b, garrison_classes(units_.tmpl[g], units_.unit_type[g])))
+			order_ungarrison_single(b.id, uid);
+	for (size_t n = b.garrisoned_units.size(); n-- > 0 && (int)b.garrisoned_units.size() > b.garrison_cap;)
+		order_ungarrison_single(b.id, b.garrisoned_units[n]); // one with no spot outside stays
 	b.attack_timer = 0.0f; // the new entity's BuildingAI starts fresh
 	b.arrow_round = 0;
 	b.arrows_left = 0;
@@ -2713,7 +2729,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
 	b.upgrade_duration = 0.0f;
-	if (to == BLD_TOWN_CENTER || to == BLD_FORTRESS || to == BLD_TOWER || civ_building_territory_radius(to) > 0.0f ||
+	if (is_territory_root(to) || civ_building_territory_radius(to) > 0.0f ||
 	    civ_building_territory_radius(from) > 0.0f)
 		rebuild_territory();
 	if (to == BLD_GATE) {
@@ -5244,9 +5260,8 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	// the way are ignored) and get in once within its LoadingRange (tick_unit_ai).
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != b.team) continue;
-		if (!unit_garrisonable((size_t)uidx)) continue;
-		if (turret_points_of(b) && !unit_turretable((size_t)uidx)) continue; // TurretHolder.CanOccupy
+		if (uidx < 0 || !units_.alive[uidx]) continue;
+		if (!structure_accepts_garrison(b, (size_t)uidx)) continue; // own or allied, on the List
 		if (garrison_in_range((size_t)uidx, b)) {
 			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
 			garrison_now((size_t)uidx, b);
@@ -5362,9 +5377,31 @@ static void turret_point_world(const Simulation::Building &b, const TurretPoint 
 	z = b.z - p.x * s + p.z * c;
 }
 
+// GarrisonHolder/Max of the template the builder's civ placed (set once when the structure is
+// placed or upgraded, and kept through captures as the entity's template is).
 int Simulation::structure_garrison_cap(const Building &b) const {
 	const TurretPointSet *pts = turret_points_of(b);
-	return pts ? pts->count : building_type_info(b.type).garrison_cap;
+	if (pts) return pts->count;
+	return structure_garrison_max(b.type, b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_COUNT);
+}
+
+bool Simulation::structure_accepts_classes(const Building &b, uint64_t classes) const {
+	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_COUNT;
+	return garrison_list_matches(structure_garrison_list(b.type, civ), classes);
+}
+
+bool Simulation::structure_accepts_garrison(const Building &b, size_t i) const {
+	if (!is_ally(units_.team[i], b.team) || !unit_garrisonable(i)) return false;
+	if (turret_points_of(b)) return unit_turretable(i); // TurretHolder.CanOccupy (mutual ally too)
+	return structure_accepts_classes(b, garrison_classes(units_.tmpl[i], units_.unit_type[i]));
+}
+
+bool Simulation::can_garrison_in(uint32_t unit_id, uint32_t building_id) const {
+	const int32_t i = lookup_unit(unit_id);
+	auto it = building_id_to_idx_.find(building_id);
+	if (i < 0 || !units_.alive[i] || it == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[it->second];
+	return !b.wrecked && b.build_progress >= 1.0f && b.garrison_cap > 0 && structure_accepts_garrison(b, (size_t)i);
 }
 
 uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
@@ -5480,7 +5517,7 @@ bool Simulation::garrison_unit_now(uint32_t unit_id, uint32_t building_id) {
 	auto it = building_id_to_idx_.find(building_id);
 	if (i < 0 || !units_.alive[i] || it == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[it->second];
-	if (b.team != units_.team[i] || (int)b.garrisoned_units.size() >= b.garrison_cap) return false;
+	if (!structure_accepts_garrison(b, (size_t)i) || (int)b.garrisoned_units.size() >= b.garrison_cap) return false;
 	garrison_now((size_t)i, b);
 	return true;
 }
@@ -5556,6 +5593,13 @@ void Simulation::tick_garrison_holders() {
 			eject_or_kill(b);
 			continue;
 		}
+		// OnDiplomacyChanged / OnGlobalOwnershipChanged: a unit whose owner is no longer the
+		// holder's owner or its mutual ally leaves (turrets step down in tick_turrets).
+		if (!turret_points_of(b))
+			for (uint32_t uid : b.garrisoned_units) {
+				const int32_t i = lookup_unit(uid);
+				if (i >= 0 && !is_ally(units_.team[i], b.team)) { eject_or_kill(b, b.team); break; }
+			}
 		if (!heal_now) continue;
 		const float rate = structure_garrison_heal(b);
 		const GarrisonRegenAura regen = structure_garrison_regen(b.type);
@@ -5605,8 +5649,20 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 
 // GarrisonHolder.EjectOrKill (the structure too damaged to hold them, destroyed or
 // changing hands): the garrison is unloaded, and whoever finds no room outside dies inside.
-void Simulation::eject_or_kill(Building &b) {
+// OnGlobalOwnershipChanged / OnDiplomacyChanged pass the (new) owner: units of that player
+// and its mutual allies stay in.
+void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 	if (b.garrisoned_units.empty()) return;
+	std::vector<uint32_t> kept;
+	if (keep_allies_of != 0xFF) {
+		std::vector<uint32_t> leave;
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t i = lookup_unit(uid);
+			(i >= 0 && is_ally(units_.team[i], keep_allies_of) ? kept : leave).push_back(uid);
+		}
+		if (leave.empty()) return;
+		b.garrisoned_units = std::move(leave);
+	}
 	order_ungarrison(b.id);
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t i = lookup_unit(uid);
@@ -5618,7 +5674,7 @@ void Simulation::eject_or_kill(Building &b) {
 		stat_unit_lost((size_t)i, 0xFF);
 		if (units_.team[i] == 0) record_.units_lost++;
 	}
-	b.garrisoned_units.clear();
+	b.garrisoned_units = std::move(kept);
 }
 
 // Garrisonable.UnGarrison: UnitAI.Ungarrison replaces whatever was queued behind the
@@ -5686,6 +5742,18 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	}
 }
 
+std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t building_id) const {
+	std::vector<uint32_t> out;
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return out;
+	const Building &b = buildings_[bit->second];
+	if (b.team == player) return b.garrisoned_units;
+	if (!is_ally(player, b.team)) return out;
+	for (uint32_t uid : b.garrisoned_units)
+		if (const int32_t i = lookup_unit(uid); i >= 0 && units_.team[i] == player) out.push_back(uid);
+	return out;
+}
+
 static bool alert_filter(uint8_t unit_type, bool traders) {
 	const uint64_t c = unit_tech_classes(unit_type);
 	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
@@ -5711,7 +5779,8 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 		for (size_t h = 0; h < buildings_.size(); ++h) {
 			const Building &b = buildings_[h];
 			if (b.team != player || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
-					turret_points_of(b) || !structure_has_enough_health(b)) // turrets aren't a GarrisonHolder
+					turret_points_of(b) || !structure_has_enough_health(b) || // turrets aren't a GarrisonHolder
+					!structure_accepts_garrison(b, i))
 				continue;
 			const float d = edge_distance(b, ux, uz);
 			if (d > best_d || (d == best_d && best >= 0)) continue;
@@ -7648,7 +7717,7 @@ void Simulation::tick_gather(float dt) {
 				if (b.build_progress < 1.0f || !dropsite_usable_by(uteam, b)) continue;
 				bool valid_drop = false;
 				if (units_.unit_type[i] == UNIT_FISHING_BOAT) valid_drop = b.type == BLD_DOCK; // boats can only reach docks
-				else if (b.type == BLD_TOWN_CENTER || civ_building_is_dropsite(b.type)) valid_drop = true;
+				else if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) valid_drop = true;
 				else if (b.type == BLD_STOREHOUSE && (units_.res_type_carried[i] != RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_FARMSTEAD && (units_.res_type_carried[i] == RES_FOOD)) valid_drop = true;
 				else if (b.type == BLD_DOCK) valid_drop = true; // template_structure_military_dock: every resource
@@ -7999,7 +8068,7 @@ void Simulation::tick_construction(float dt) {
 				b.hp = std::max(b.hp, b.max_hp);
 				on_construction_finished(b, i); // 0 A.D. UnitAI ConstructionFinished
 				rebuild_nav_grid();
-				if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
+				if (is_territory_root(b.type)) {
 					rebuild_territory();
 				}
 			}
@@ -8163,7 +8232,9 @@ void Simulation::tick_production(float dt) {
 			}
 			// Trainer.js Spawn: a rally point that garrisons in the trainer itself puts each
 			// unit straight inside while there is room (autoGarrison), with no spot outside needed.
-			if (self_garrison_rally(b, done.unit_type, done.tmpl) && (int)b.garrisoned_units.size() < b.garrison_cap) {
+			// GarrisonHolder.IsAllowedToGarrison: only a unit on the trainer's List goes in.
+			if (self_garrison_rally(b, done.unit_type, done.tmpl) && (int)b.garrisoned_units.size() < b.garrison_cap &&
+					structure_accepts_classes(b, garrison_classes(done.tmpl, done.unit_type))) {
 				const uint32_t uid = spawn_unit(b.x, b.z, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
 				if (const int32_t ti = lookup_unit(uid); ti >= 0) {
 					stat_unit_trained((size_t)ti);
@@ -8193,7 +8264,7 @@ void Simulation::tick_production(float dt) {
 				match_trained_[bteam].push_back(done.tmpl);
 			// attackPlan.js trainMoreUnits: Petra's soldiers trained away from its civic centres
 			// are its army; trainMoreWorkers' (civic centre) ones are workers.
-			if (bteam < MAX_PLAYERS && b.type != BLD_TOWN_CENTER && petra_runs_for(bteam) &&
+			if (bteam < MAX_PLAYERS && !is_civic_centre(b.type) && petra_runs_for(bteam) &&
 			    unit_gather_class(done.unit_type, done.tmpl) == GATHER_INFANTRY) {
 				auto &army = petra_army_ids_[bteam];
 				army.insert(std::upper_bound(army.begin(), army.end(), uid), uid);
@@ -8758,7 +8829,7 @@ void Simulation::tick_combat(float dt) {
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
 				rebuild_nav_grid();
-				if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) {
+				if (is_territory_root(b.type)) {
 					rebuild_territory();
 				}
 			}
@@ -9311,7 +9382,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		if (best == owner) return false;
 		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
 		b.rally_more.clear();
-		eject_or_kill(b); // GarrisonHolder.OnOwnershipChanged
+		eject_or_kill(b, best == GAIA ? GAIA_PLAYER : (uint8_t)best); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
 		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
 		if (b.team < MAX_PLAYERS)
@@ -9323,8 +9394,8 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		stat_building_captured(b, from);
 		owner = best;
 		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY) cc_captures_.push_back({b.id, from, b.team});
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
+		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) cc_captures_.push_back({b.id, from, b.team});
+		if (is_territory_root(b.type)) rebuild_territory();
 		return true;
 	};
 	check_owner(); // territory decay (tick_capture) may have emptied the owner
@@ -9469,7 +9540,7 @@ void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
 	collect_building_loot(p.source_id, p.team, b);
 	mark_building_wreck(b, p.team);
 	rebuild_nav_grid();
-	if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER)
+	if (is_territory_root(b.type))
 		rebuild_territory();
 }
 
@@ -9818,7 +9889,7 @@ void Simulation::check_victory_conditions(float dt) {
 		// queue them).
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
 		structure_count[b.team]++;
-		if (b.type == BLD_TOWN_CENTER) tc_count[b.team]++;
+		if (is_civic_centre(b.type)) tc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
 	}
 	for (size_t u = 0; u < units_.count; ++u) {
@@ -9953,7 +10024,7 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.team = GAIA_PLAYER;
 		b.capture_points_by_team.fill(0.0f); // every point is Gaia's
 		b.capture_points = 0.0f;
-		roots |= b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER;
+		roots |= is_territory_root(b.type);
 	}
 	if (roots) rebuild_territory();
 }
@@ -10038,7 +10109,7 @@ void Simulation::spawn_regicide_heroes() {
 	bool done[8] = {};
 	std::vector<std::pair<uint8_t, std::pair<float, float>>> spots;
 	for (const auto &b : buildings_) {
-		if (b.type != BLD_TOWN_CENTER || b.team >= 8 || done[b.team]) continue;
+		if (!is_civic_centre(b.type) || b.team >= 8 || done[b.team]) continue;
 		done[b.team] = true;
 		spots.push_back({b.team, {b.x, b.z}});
 	}
@@ -10454,7 +10525,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		collect_building_loot(attacker_id, attacker_team, b);
 		mark_building_wreck(b, attacker_team);
 		nav_changed = true;
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) territory_changed = true;
+		if (is_territory_root(b.type)) territory_changed = true;
 	}
 	if (nav_changed) rebuild_nav_grid();
 	if (territory_changed) rebuild_territory();
@@ -10797,7 +10868,8 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_GARRISON: {
 			const Building *b = building(o.target);
-			return b && b->team == team && b->build_progress >= 1.0f && (int)b->garrisoned_units.size() < b->garrison_cap;
+			return b && b->build_progress >= 1.0f && (int)b->garrisoned_units.size() < b->garrison_cap &&
+					structure_accepts_garrison(*b, i);
 		}
 		case ORDER_GUARD: {
 			const int32_t t = lookup_unit(o.target);
@@ -11191,7 +11263,7 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 					return;
 				}
 				if (ignore_self_garrison && t.id == b.id) return;
-				if ((int)t.garrisoned_units.size() < t.garrison_cap) {
+				if ((int)t.garrisoned_units.size() < t.garrison_cap && structure_accepts_garrison(t, (size_t)i)) {
 					order_garrison(&uid, 1, t.id, queued);
 					return;
 				}
@@ -11260,7 +11332,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 			order_gather(&uid, 1, ensure_field_resource(b), false, false);
 			return;
 		}
-		const bool takes_all = b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK; // food wood stone metal
+		const bool takes_all = is_civic_centre(b.type) || b.type == BLD_DOCK; // food wood stone metal
 		if (harvest && (food || other || takes_all)) {
 			// Prefer what the unit gathered last (lastGathered), if the dropsite takes it.
 			uint8_t pref = units_.res_type_carried[k];
@@ -11490,7 +11562,7 @@ void Simulation::destroy_building(Building &b) {
 	b.build_progress = 0.0f;
 	record_death((float)b.cell_x, (float)b.cell_y, b.team, b.team, b.type, true); // no killer, no loot
 	rebuild_nav_grid();
-	if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER) rebuild_territory();
+	if (is_territory_root(b.type)) rebuild_territory();
 }
 
 void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
@@ -11704,7 +11776,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		Building &b = buildings_[it->second];
 		if (b.wrecked || b.team == to) continue;
 		b.has_rally_point = false;
-		eject_or_kill(b); // GarrisonHolder.OnOwnershipChanged
+		eject_or_kill(b, to); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
 		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
 		if (b.team < MAX_PLAYERS)
@@ -11715,7 +11787,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		b.capture_points_by_team.fill(0.0f);
 		if (to < MAX_PLAYERS) b.capture_points_by_team[to] = b.max_capture_points;
 		b.capture_points = to < MAX_PLAYERS ? b.max_capture_points : 0.0f;
-		roots |= b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER;
+		roots |= is_territory_root(b.type);
 	}
 	if (roots) rebuild_territory();
 }
@@ -11847,7 +11919,7 @@ bool Simulation::dropsite_accepts(size_t i, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || !dropsite_usable_by(units_.team[i], b) || b.build_progress < 1.0f) return false;
 	const uint8_t rt = units_.res_type_carried[i];
 	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return b.type == BLD_DOCK;
-	if (b.type == BLD_TOWN_CENTER || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
+	if (is_civic_centre(b.type) || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)) return true;
 	if (b.type == BLD_STOREHOUSE) return rt != RES_FOOD;
 	return b.type == BLD_FARMSTEAD && rt == RES_FOOD;
 }
@@ -12109,9 +12181,9 @@ void Simulation::update_petra_threat_map(float dt) {
 		if (b.build_progress < 0.5f) continue;
 		float b_power = 0.0f;
 		int b_rad = 4;
-		if (b.type == BLD_TOWN_CENTER) { b_power = 28.0f; b_rad = 9; }
+		if (is_civic_centre(b.type)) { b_power = 28.0f; b_rad = 9; }
 		else if (b.type == BLD_FORTRESS) { b_power = 42.0f; b_rad = 12; }
-		else if (b.type == BLD_TOWER) { b_power = 20.0f; b_rad = 9; }
+		else if (is_defense_tower(b.type)) { b_power = 20.0f; b_rad = 9; }
 		else if (b.type == BLD_DOCK) { b_power = 14.0f; b_rad = 8; }
 		else if (b.type == BLD_BARRACKS) { b_power = 6.0f; b_rad = 4; }
 		else if (b.type == BLD_GATE) { b_power = 8.0f; b_rad = 4; }
@@ -12176,9 +12248,9 @@ void Simulation::update_petra_bases(float dt) {
 
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0) continue;
-		if (b.type == BLD_TOWN_CENTER) {
+		if (is_civic_centre(b.type)) {
 			tc_ids.push_back(b.id);
-		} else if (b.type == BLD_FORTRESS || b.type == BLD_TOWER || b.type == BLD_STOREHOUSE) {
+		} else if (b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_STOREHOUSE) {
 			outpost_ids.push_back(b.id);
 		}
 	}
@@ -12471,7 +12543,7 @@ void Simulation::petra_manage_workers(float dt) {
 
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER || b.type == BLD_STOREHOUSE) {
+		if (is_territory_root(b.type) || b.type == BLD_STOREHOUSE) {
 			float b_threat = get_threat_at(b.x, b.z);
 			if (b_threat < best_shelter_score) {
 				best_shelter_score = b_threat;
@@ -12516,7 +12588,7 @@ void Simulation::petra_manage_workers(float dt) {
 					float dz = units_.pos_z[i] - sb.z;
 					const float reach = sb.half_size + 2.5f;
 					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap &&
-					    unit_garrisonable(i) && petra_around(sb).unit) { // else garrisonManager would let it straight out
+					    structure_accepts_garrison(sb, i) && petra_around(sb).unit) { // else garrisonManager would let it straight out
 						uint32_t uid = units_.id[i];
 						order_garrison(&uid, 1, sb.id);
 					}
@@ -12570,7 +12642,7 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (bit == building_id_to_idx_.end()) continue;
 			const Building &b = buildings_[bit->second];
 			if (!(t.trainers & bld_bit(b.type))) continue;
-			if (!hero && (b.type == BLD_TOWN_CENTER || b.type == BLD_TEMPLE)) continue;
+			if (!hero && (is_civic_centre(b.type) || b.type == BLD_TEMPLE)) continue;
 			if (b.queue.size() >= 4 || !can_train_at(petra_pid_, t.unit_type, b.type, tmpl)) continue;
 			return bid;
 		}
@@ -12629,7 +12701,7 @@ void Simulation::petra_manage_military_production(float dt) {
 
 	for (const auto &b : buildings_) {
 		if (!petra_foe(b.team) || b.build_progress < 0.5f) continue;
-		if (b.type == BLD_FORTRESS || b.type == BLD_TOWER || b.type == BLD_GATE || b.type == BLD_WALL_SEGMENT) {
+		if (b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_GATE || b.type == BLD_WALL_SEGMENT) {
 			enemy_forts++;
 		}
 	}
@@ -12860,7 +12932,7 @@ int Simulation::petra_train_more_workers() {
 			if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) continue;
 			in_training += o.count;
 			if (unit_gather_class(o.unit_type, o.tmpl) == GATHER_SUPPORT) queued_supports += o.count;
-			else if (b.type == BLD_TOWN_CENTER && unit_gather_class(o.unit_type, o.tmpl) == GATHER_INFANTRY) queued_soldiers += o.count;
+			else if (is_civic_centre(b.type) && unit_gather_class(o.unit_type, o.tmpl) == GATHER_INFANTRY) queued_soldiers += o.count;
 		}
 	}
 	const int total = workers + queued_supports + queued_soldiers;
@@ -12892,7 +12964,7 @@ int Simulation::petra_train_more_workers() {
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
 			    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= PRODUCTION_QUEUE_MAX) continue;
-			if (cc_only && b.type != BLD_TOWN_CENTER) continue;
+			if (cc_only && !is_civic_centre(b.type)) continue;
 			if (!can_train_at(petra_pid_, unit_type, b.type, tmpl)) continue;
 			if (!best || b.queue.size() < best_len) { best = b.id; best_len = b.queue.size(); }
 		}
@@ -13036,7 +13108,7 @@ void Simulation::petra_assign_repairs() {
 	std::vector<uint32_t> taken; // sent this pass: their state changes next tick
 	for (size_t k : damaged) {
 		const Building &b = buildings_[k];
-		const bool anchor = b.type == BLD_TOWN_CENTER;
+		const bool anchor = is_civic_centre(b.type);
 		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_GATE || b.type == BLD_PALISADE;
 		const bool wonder = b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER;
 		const float health = b.hp / b.max_hp;
@@ -13114,10 +13186,10 @@ void Simulation::petra_staff_foundations() {
 		// 7 on a fortress or wonder, 4 on military buildings, towers and the market, 3 on
 		// houses and wood dropsites, else 2. (Petra's fields get their 3 farmers.)
 		int want = 2;
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY ||
+		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
 		    (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER)) want = 15;
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
-		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || b.type == BLD_TOWER ||
+		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
 		else if (b.type == BLD_HOUSE || b.type == BLD_STOREHOUSE || b.type == BLD_FIELD) want = 3;
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0});
@@ -13153,14 +13225,14 @@ void Simulation::petra_staff_foundations() {
 	// anchor or the wonder in wonder victory; every worker while there is no base yet.
 	bool has_base = false;
 	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f && !b.wrecked) { has_base = true; break; }
+		if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress >= 1.0f && !b.wrecked) { has_base = true; break; }
 	int max_total = (int)std::ceil((float)workers * petra_builder_ratio());
 	if (max_total < 2 && workers > 1) max_total = 2;
 	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap();
 	auto budget_for = [&](const Building &b) {
 		int cap = max_total;
 		if (b.type == BLD_HOUSE && house_short) cap += 2;
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER))
+		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER))
 			cap = std::max(cap, 15);
 		if (!has_base) cap = workers;
 		return cap - building;
@@ -13169,7 +13241,7 @@ void Simulation::petra_staff_foundations() {
 	// is built with invaders near.
 	auto near_invaders = [&](const Building &b) {
 		if (!petra_defense_army_.active) return false;
-		const bool critical = b.type == BLD_TOWN_CENTER || b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER ||
+		const bool critical = is_civic_centre(b.type) || b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER ||
 		                      b.type == BLD_GATE || b.type == BLD_PALISADE || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER);
 		const float dx = b.x - petra_defense_army_.cx, dz = b.z - petra_defense_army_.cz;
 		return !critical && dx * dx + dz * dz < 12000.0f / 16.0f;
@@ -13451,7 +13523,7 @@ void Simulation::petra_manage_economy(float dt) {
 		std::vector<Drop> drops;
 		for (const auto &b : buildings_) {
 			if (b.team == petra_pid_ && b.hp > 0 &&
-			    (b.type == BLD_TOWN_CENTER || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK))
+			    (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK))
 				drops.push_back({b.x, b.z, naval_map ? petra_building_land(b) : (uint16_t)0});
 		}
 		for (const auto &base : petra_bases_)
@@ -13581,7 +13653,7 @@ Simulation::PetraHuntScan Simulation::petra_hunt_scan() const {
 	PetraHuntScan scan;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0 || b.build_progress < 1.0f) continue;
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type))
+		if (is_civic_centre(b.type) || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type))
 			scan.food_drops.push_back({b.x, b.z});
 	}
 	for (size_t i = 0; i < units_.count; ++i) {
@@ -13713,7 +13785,7 @@ bool Simulation::petra_start_hunting(size_t u, PetraHuntScan &scan) {
 // its units can collect, else lays out a dock to gather from if it has none.
 void Simulation::petra_build_first_base() {
 	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.type == BLD_TOWN_CENTER) return; // hasPotentialBase
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && is_civic_centre(b.type)) return; // hasPotentialBase
 	PetraHuntScan scan = petra_hunt_scan();
 	uint8_t goal = BLD_TOWN_CENTER;
 	const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
@@ -13842,10 +13914,10 @@ void Simulation::petra_manage_fields(int target_food) {
 			continue;
 		}
 		if (b.build_progress < 1.0f) continue;
-		if (b.type == BLD_TOWN_CENTER || b.type == BLD_FARMSTEAD) {
+		if (is_civic_centre(b.type) || b.type == BLD_FARMSTEAD) {
 			drops.push_back({b.x, b.z});
 			if (b.type == BLD_FARMSTEAD && !farmstead) farmstead = &b;
-			if (b.type == BLD_TOWN_CENTER && !tc) tc = &b;
+			if (is_civic_centre(b.type) && !tc) tc = &b;
 		}
 	}
 	if (field_pending || drops.empty()) return;
@@ -14707,7 +14779,7 @@ void Simulation::petra_manage_naval(float dt) {
 	plan_wants(petra_raid_plan_, PETRA_ATTACK_RAID);
 	// findEconomicCCLocation: a base on another land keeps a transport ship on the sea between.
 	for (const Building &b : buildings_) {
-		if (b.team != petra_pid_ || b.type != BLD_TOWN_CENTER || b.wrecked || b.hp <= 0.0f) continue;
+		if (b.team != petra_pid_ || !is_civic_centre(b.type) || b.wrecked || b.hp <= 0.0f) continue;
 		const uint16_t land = petra_building_land(b, &topo, home);
 		const uint16_t s = land == home ? 0 : topo.sea_between(home, land);
 		if (s && s < nseas) want_transport[s] = std::max(want_transport[s], 1);
@@ -14832,7 +14904,7 @@ void Simulation::petra_manage_buildings(float dt) {
 		// Check if Town Center is already in progress
 		bool tc_in_progress = false;
 		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.build_progress < 1.0f) {
+			if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress < 1.0f) {
 				tc_in_progress = true;
 				break;
 			}
@@ -14957,7 +15029,7 @@ void Simulation::petra_manage_buildings(float dt) {
 				float min_dropsite_dist = 1e9f;
 				for (const auto &b : buildings_) {
 					if (b.team == petra_pid_ && b.hp > 0 &&
-					    (b.type == BLD_TOWN_CENTER || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK)) {
+					    (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK)) {
 						float d = std::hypot(b.x - rx, b.z - rz);
 						min_dropsite_dist = std::min(min_dropsite_dist, d);
 					}
@@ -15095,7 +15167,7 @@ void Simulation::petra_manage_buildings(float dt) {
 	if (petra_ps().phase >= 2) {
 		int tower_count = 0;
 		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && b.type == BLD_TOWER) tower_count++;
+			if (b.team == petra_pid_ && is_defense_tower(b.type)) tower_count++;
 		}
 		if (tower_count < 4) {
 			float base_x = 36.0f, base_z = 36.0f;
@@ -15405,7 +15477,7 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	if (!at) {
 		// No free researcher: lay one out if we have none at all.
 		const PetraBase *home = get_primary_petra_base();
-		if (!have && home && tinfo.researcher != BLD_TOWN_CENTER && building_phase_class(tinfo.researcher) <= petra_ps().phase)
+		if (!have && home && !is_civic_centre(tinfo.researcher) && building_phase_class(tinfo.researcher) <= petra_ps().phase)
 			petra_place_building(tinfo.researcher, home->x, home->z, 4, 14, PETRA_QUEUE_TECH);
 		return false;
 	}
@@ -15775,8 +15847,8 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 		int priority = 0;
 		if (b.type == BLD_WONDER) { priority = 7; has_fortified = true; }
 		else if (b.type == BLD_FORTRESS) { priority = 6; has_fortified = true; }
-		else if (b.type == BLD_TOWER || b.type == BLD_GATE) { priority = 5; has_fortified = true; }
-		else if (b.type == BLD_TOWN_CENTER) { priority = 4; if (b.hp > 800.0f) has_fortified = true; }
+		else if (is_defense_tower(b.type) || b.type == BLD_GATE) { priority = 5; has_fortified = true; }
+		else if (is_civic_centre(b.type)) { priority = 4; if (b.hp > 800.0f) has_fortified = true; }
 		else if (b.type == BLD_BARRACKS || b.type == BLD_TEMPLE) { priority = 3; }
 		else if (b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_MARKET || b.type == BLD_DOCK || b.type == BLD_CORRAL) { priority = 2; }
 		else if (b.type == BLD_HOUSE || b.type == BLD_WALL_SEGMENT) { priority = 1; }
@@ -15882,7 +15954,7 @@ uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const 
 	petra_attack_from_lands(0, home);
 	const PetraNavalTopo *topo = nullptr;
 	auto shoots = [](uint8_t t) {
-		return t == BLD_TOWN_CENTER || t == BLD_TOWER || t == BLD_SENTRY_TOWER || t == BLD_WALL_TOWER || t == BLD_FORTRESS;
+		return is_civic_centre(t) || is_defense_tower(t) || t == BLD_SENTRY_TOWER || t == BLD_WALL_TOWER || t == BLD_FORTRESS;
 	};
 	uint32_t best = 0;
 	float best_d = 1e18f;
@@ -16251,7 +16323,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			for (const auto &b : buildings_) {
 				if (b.team != petra_pid_ || b.build_progress < 1.0f) continue;
 				if (b.type == BLD_BARRACKS) have_barracks = true;
-				if (b.type == BLD_TOWN_CENTER) have_tc = true;
+				if (is_civic_centre(b.type)) have_tc = true;
 			}
 			if (!mgr.rushes_set && have_tc) petra_set_rushes();
 			if (petra_config_.difficulty == PETRA_SANDBOX || !have_barracks) return;
@@ -16549,7 +16621,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				uint32_t ret_bld_id = 0;
 
 				for (const auto &b : buildings_) {
-					if (b.team == petra_pid_ && b.hp > 0 && (b.type == BLD_FORTRESS || b.type == BLD_TOWN_CENTER || b.type == BLD_TOWER)) {
+					if (b.team == petra_pid_ && b.hp > 0 && (b.type == BLD_FORTRESS || is_civic_centre(b.type) || is_defense_tower(b.type))) {
 						float d2 = (b.x - plan.target_x) * (b.x - plan.target_x) +
 						           (b.z - plan.target_z) * (b.z - plan.target_z);
 						if (d2 < nearest_d2) {
@@ -17602,6 +17674,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 		if (decay && unit_capture_strength(units_.unit_type[i]) <= 0.0f) continue;
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || petra_passenger(units_.id[i])) continue;
+		if (!structure_accepts_garrison(holder, i)) continue; // garrisonManager.garrison: the holder's List
 		const uint32_t uid = units_.id[i];
 		if (!petra_attack_can_spare(uid, holds_decay)) continue;
 		if (decay && !petra_same_land(i, holder)) continue;
@@ -17621,15 +17694,16 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 }
 
 // defenseManager.js garrisonAttackedUnit (the nearest healing structure) and
-// garrisonSiegeUnit (the nearest fortress) with room and enough health.
-uint32_t Simulation::petra_garrison_holder_for(size_t i, bool heals_only, bool siege, std::vector<int> &incoming) const {
+// garrisonSiegeUnit (the nearest structure whose List takes it: fortress, arsenal, army
+// camp), ours or an ally's (getAllyStructures), with room and enough health.
+uint32_t Simulation::petra_garrison_holder_for(size_t i, bool heals_only, std::vector<int> &incoming) const {
 	size_t best = SIZE_MAX;
 	float best_d2 = 1e18f;
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
-		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		if (!is_ally(petra_pid_, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
 		if (heals_only && structure_garrison_heal(b) <= 0.0f) continue;
-		if (siege && b.type != BLD_FORTRESS) continue;
+		if (turret_points_of(b) || !structure_accepts_garrison(b, i)) continue; // unit.hasClasses(garrisonableClasses)
 		if (!structure_has_enough_health(b) || (int)b.garrisoned_units.size() + incoming[bi] >= b.garrison_cap) continue;
 		const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
 		const float d2 = dx * dx + dz * dz;
@@ -17670,8 +17744,9 @@ size_t Simulation::petra_attacked_unit_holder(size_t i, bool emergency, const st
 	float best_d2 = 1e18f;
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
-		// Allied holders too in 0 A.D.; RTS0 garrisons only into its own.
-		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		// getAllyStructures: ours or a mutual ally's, whose List takes the unit.
+		if (!is_ally(petra_pid_, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		if (turret_points_of(b) || !structure_accepts_garrison(b, i)) continue;
 		if (!emergency && structure_garrison_heal(b) <= 0.0f) continue;
 		const int slots = (int)b.garrisoned_units.size() + (bi < incoming.size() ? incoming[bi] : 0);
 		if (slots >= b.garrison_cap && (!emergency || b.garrisoned_units.empty())) continue;
@@ -17693,8 +17768,10 @@ bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vec
 	const size_t best = petra_attacked_unit_holder(i, emergency, incoming);
 	if (best == SIZE_MAX) return false;
 	const Building &b = buildings_[best];
-	if (emergency && (int)b.garrisoned_units.size() >= b.garrison_cap) // make room for this one
-		order_ungarrison_single(b.id, b.garrisoned_units.front());
+	if (emergency && (int)b.garrisoned_units.size() >= b.garrison_cap) { // make room for this one
+		const uint32_t first = b.garrisoned_units.front();
+		cmd_unload(petra_pid_, b.id, &first, 1); // Commands.js unload: an ally's holder, only ours
+	}
 	++incoming[best];
 	const uint32_t uid = units_.id[i];
 	order_garrison(&uid, 1, b.id);
@@ -17752,9 +17829,12 @@ void Simulation::petra_manage_garrisons() {
 	// last, a decaying structure gets the garrison that stops its decay (TYPE_DECAY).
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
-		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
-		const bool shoots = building_ai_info(b.type).shoots();
-		const int decay_min = petra_decay_garrison_min(b);
+		if (b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		// An ally's holder only for ours sheltering inside it (garrisonManager.holders).
+		const bool own = b.team == petra_pid_;
+		if (!own && (b.garrisoned_units.empty() || !is_ally(petra_pid_, b.team) || turret_points_of(b))) continue;
+		const bool shoots = own && building_ai_info(b.type).shoots();
+		const int decay_min = own ? petra_decay_garrison_min(b) : 0;
 		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) continue;
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
@@ -17785,7 +17865,7 @@ void Simulation::petra_manage_garrisons() {
 			petra_garrison_attacked_unit((size_t)t, false, incoming);
 			continue;
 		}
-		if (c & TC_STONETHROWER) holder = petra_garrison_holder_for((size_t)t, false, true, incoming);
+		if (c & TC_STONETHROWER) holder = petra_garrison_holder_for((size_t)t, false, incoming);
 		if (holder) {
 			const uint32_t uid = units_.id[t];
 			order_garrison(&uid, 1, holder);
@@ -17886,7 +17966,7 @@ void Simulation::petra_manage_defense(float dt) {
 			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
 			if (dx * dx + dz * dz > reach) continue;
 			const float coop = cooperation(b.team);
-			if ((b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY) && coop >= 0.3f &&
+			if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && coop >= 0.3f &&
 			    (coop >= 0.6f || b.build_progress >= 1.0f))
 				return true;
 			if (help_ally && b.team == owner) return true;
@@ -17954,7 +18034,7 @@ void Simulation::petra_manage_defense(float dt) {
 		bool keep = owner >= 0;
 		for (size_t bi = 0; bi < buildings_.size() && !keep; ++bi) {
 			const Building &b = buildings_[bi];
-			if (b.hp <= 0.0f || (b.type != BLD_TOWN_CENTER && b.type != BLD_MILITARY_COLONY) || b.team >= MAX_PLAYERS) continue;
+			if (b.hp <= 0.0f || (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) || b.team >= MAX_PLAYERS) continue;
 			if (b.team != petra_pid_ && (!is_ally(petra_pid_, b.team) || cooperation(b.team) < 0.3f)) continue;
 			const float dx = units_.pos_x[a] - b.x, dz = units_.pos_z[a] - b.z;
 			keep = dx * dx + dz * dz <= 56.0f * 56.0f;
@@ -18374,7 +18454,7 @@ void Simulation::petra_capture_gaia_relics() {
 			const Building *home = nullptr;
 			float best = 1e30f;
 			for (const auto &b : buildings_) {
-				if (b.team != petra_pid_ || b.type != BLD_TOWN_CENTER || b.build_progress < 1.0f) continue;
+				if (b.team != petra_pid_ || !is_civic_centre(b.type) || b.build_progress < 1.0f) continue;
 				const float d2 = (b.x - rel.x) * (b.x - rel.x) + (b.z - rel.z) * (b.z - rel.z);
 				if (d2 < best) { best = d2; home = &b; }
 			}
@@ -18827,7 +18907,7 @@ void Simulation::petra_manage_emergency(float dt) {
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 		structs++; // getOwnStructures counts foundations too
-		if (b.build_progress >= 1.0f && (b.type == BLD_TOWN_CENTER || b.type == BLD_MILITARY_COLONY)) roots++;
+		if (b.build_progress >= 1.0f && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) roots++;
 	}
 	auto &e = petra_emergency_;
 	// init(): nothing to measure before the match has put anything down.
@@ -20721,7 +20801,7 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 float Simulation::building_vision_range(const Building &b) const {
 	if (b.build_progress < 1.0f) return 0.0f;
 	float bvr = 18.0f; // default building vision
-	if (b.type == BLD_TOWER || b.type == BLD_FORTRESS) bvr = 24.0f;
+	if (is_defense_tower(b.type) || b.type == BLD_FORTRESS) bvr = 24.0f;
 	if (b.type == BLD_DOCK) bvr = 28.0f;
 	if (const float cv = civ_building_vision(b.type); cv > 0.0f) bvr = cv; // e.g. the Ptolemaic Lighthouse
 	if (b.team < MAX_PLAYERS) { // Carrier Pigeons, Arrow Shooters: multiplied, then added metres x0.28
@@ -21213,7 +21293,7 @@ void Simulation::tick_fauna(float dt) {
 			for (const auto &b : buildings_) {
 				if (b.team != owner || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
 				if (b.type == BLD_CORRAL && corral_count(b.id) >= CORRAL_GARRISON_MAX) continue; // GarrisonHolder/Max
-				if (b.type == BLD_CORRAL || (b.type == BLD_TOWN_CENTER && nearest_cid == 0)) {
+				if (b.type == BLD_CORRAL || (is_civic_centre(b.type) && nearest_cid == 0)) {
 					float dx = b.x - fx;
 					float dz = b.z - fz;
 					float d2 = dx * dx + dz * dz;
@@ -22286,7 +22366,7 @@ void Simulation::trigger_survival_init() {
 		for (const Building &b : buildings_) present |= b.team == p;
 		if (!present) continue;
 		for (const Building &b : buildings_)
-			if (b.team == p && b.type == BLD_TOWN_CENTER && b.hp > 0.0f) {
+			if (b.team == p && is_civic_centre(b.type) && b.hp > 0.0f) {
 				triggers_.watched.push_back({b.id, p, 1, kSurvivalCivicCentre, p});
 				break;
 			}
@@ -22438,7 +22518,7 @@ void Simulation::trigger_volcano_garrison_towers() {
 	const uint16_t tmpl = roster_template_named(kVolcanoTowerGarrison);
 	std::vector<uint32_t> towers;
 	for (const Building &b : buildings_)
-		if (b.team == GAIA_PLAYER && b.type == BLD_TOWER && b.build_progress >= 1.0f && b.hp > 0.0f) towers.push_back(b.id);
+		if (b.team == GAIA_PLAYER && is_defense_tower(b.type) && b.build_progress >= 1.0f && b.hp > 0.0f) towers.push_back(b.id);
 	for (uint32_t id : towers) {
 		const int cap = get_garrison_capacity(id);
 		auto it = building_id_to_idx_.find(id);
@@ -22495,7 +22575,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		b.build_progress = 0.0f;
 		record_death(b.x, b.z, b.team, b.team, b.type, true);
 		lost_building = true;
-		lost_root |= b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER;
+		lost_root |= is_territory_root(b.type);
 	}
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.subtype[r] == RES_SUB_FISH) continue;
