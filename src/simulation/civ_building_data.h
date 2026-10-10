@@ -43,6 +43,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Apartment Building", "house", "house", 1800.0f, 1, 0, 175, 0, 50, 20, 12, 22.5f, 1000.0f, 0.5f, 1.0f, 40.0f}, /* structures/cart/apartment */ \
 		{"Imperial Court", "imperial_court", "imperial_court", 4500.0f, 2, 0, 300, 250, 300, 30, 30, 125.0f, 3750.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/civil_centre_court */ \
 		{"Great Tower", "tower_great", "tower_great", 2000.0f, 1, 0, 100, 0, 100, 0, 10, 37.5f, 1000.0f, 0.5f, 1.0f, 20.0f}, /* structures/han/defense_tower_great */ \
+		{"Palisade Gate", "palisade", "palisade", 500.0f, 1, 0, 10, 0, 0, 0, 0, 2.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/palisades_gate */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -81,6 +82,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 35, 10, 0}, /* structures/cart/apartment */ \
 		{0, 0, 60, 60, 50}, /* structures/han/civil_centre_court */ \
 		{0, 0, 20, 20, 0}, /* structures/han/defense_tower_great */ \
+		{0, 0, 2, 0, 0}, /* structures/palisades_gate */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -128,6 +130,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_APARTMENT: return 0x0010; // cart
 		case BLD_IMPERIAL_COURT: return 0x2000; // han
 		case BLD_TOWER_GREAT: return 0x2000; // han
+		case BLD_PALISADE_GATE: return 0x3fff; // athen spart pers rome cart mace brit gaul iber maur kush ptol sele han
 		default: return 0xFFFF;
 	}
 }
@@ -169,6 +172,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_APARTMENT: return 1;
 		case BLD_IMPERIAL_COURT: return 3;
 		case BLD_TOWER_GREAT: return 2;
+		case BLD_PALISADE_GATE: return 1;
 		default: return 0;
 	}
 }
@@ -207,7 +211,7 @@ inline float civ_building_vision(uint8_t type) {
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {
-	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT;
+	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE;
 }
 
 // 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):
