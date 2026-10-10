@@ -1204,6 +1204,15 @@ void Simulation::rebuild_nav_grid() {
 			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
 	}
+	// A 14 m palisade gate is shorter than two navcells, and the towers at its ends block the cell
+	// under their centres, which can be the gate's own: an unlocked gate keeps the cell under its
+	// centre open, so long-range paths still cross it (the towers still block movement).
+	for (const auto &b : buildings_)
+		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
+			auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
+			if (nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_OBSTRUCTED)
+				nav_grid_.cells.at(cx, cy) = NAV_PASSABLE;
+		}
 	// Gaia scenery: oriented rectangles (CCmpObstruction::GetObstructionSquare: u = (cos a, -sin a),
 	// v = (sin a, cos a)), rasterized the same way.
 	for (const Scenery &sc : scenery_) {
@@ -1524,7 +1533,7 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_TOWN_CENTER: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
-	case BLD_PALISADE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_PALISADE: case BLD_PALISADE_GATE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
 	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
@@ -2654,6 +2663,11 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
 			b.half_size < 0.5f * WALL_SEGMENT_LENGTHS[0] - 0.01f)
 		return UPGRADE_ERR_NONE;
+	// ... and of the palisades only palisades_long (to the palisade gate); not a palisade tower,
+	// nor the one-cell palisade maps and older saves place.
+	if (b.type == BLD_PALISADE && (!is_wallset_piece(b.type, b.half_size) || is_palisade_tower(b.type, b.half_size) ||
+			std::fabs(b.half_size - 0.5f * PALISADE_SEGMENT_LENGTHS[0]) > 0.01f))
+		return UPGRADE_ERR_NONE;
 	// Upgrade.js Upgrade(): not while upgrading or producing.
 	if (b.upgrade_to != BLD_TYPE_COUNT || !b.queue.empty()) return UPGRADE_ERR_BUSY;
 	const PlayerState &ps = players_[player_id];
@@ -2744,7 +2758,7 @@ void Simulation::finish_upgrade(Building &b) {
 	if (is_territory_root(to) || civ_building_territory_radius(to) > 0.0f ||
 	    civ_building_territory_radius(from) > 0.0f)
 		rebuild_territory();
-	if (to == BLD_GATE) {
+	if (is_gate_type(to)) {
 		b.gate_open = false;
 		b.gate_locked = false;
 		rebuild_nav_grid(); // a wall blocks long-range paths, an unlocked gate doesn't
@@ -5633,6 +5647,7 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
+	eject_corral_animals(b);
 
 	std::vector<uint32_t> out, stay;
 	for (uint32_t uid : b.garrisoned_units) {
@@ -5863,7 +5878,7 @@ void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fau
 
 	const auto &info = fauna_type_info(fauna_.fauna_type[fidx]);
 	if (!info.is_domestic() || fauna_.behavior[fidx] == FAUNA_CORRALLED) {
-		order_hunt(unit_ids, count, fauna_id); // wild game, or slaughtering penned livestock
+		order_hunt(unit_ids, count, fauna_id); // wild game (penned livestock is out of reach)
 		return;
 	}
 
@@ -6784,7 +6799,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b)) {
 			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
-			if (b.type == BLD_GATE && b.build_progress >= 1.0f)
+			if (is_gate_type(b.type) && b.build_progress >= 1.0f)
 				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
 		}
 	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
@@ -8590,13 +8605,17 @@ void Simulation::tick_production(float dt) {
 		bool stuck = false;
 		for (int n = 0; n < done.count; ++n) {
 			if (animal) {
-				// An animal from the corral's Trainer list; it stays penned while there is room.
+				// An animal from the corral's Trainer list (Trainer.js Spawn): it steps out beside the
+				// corral, or is penned straight away while there is room if the rally point is the
+				// corral itself (autoGarrison).
 				float sx = b.x + 1.6f;
 				float sz = b.z + 1.6f;
-				const bool room = corral_count(b.id) < CORRAL_GARRISON_MAX;
+				const bool pen = b.has_rally_point && b.rally_target_bld_id == b.id && structure_has_enough_health(b) &&
+					corral_count(b.id) < CORRAL_GARRISON_MAX;
+				if (!pen) pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, sx, sz);
 				uint32_t fid = spawn_fauna(sx, sz, corral_animal_for(civ_of(b.team), done.tmpl));
 				auto fit = fauna_id_to_idx_.find(fid);
-				if (room && fit != fauna_id_to_idx_.end()) {
+				if (pen && fit != fauna_id_to_idx_.end()) {
 					size_t fidx = fit->second;
 					fauna_.corral_id[fidx] = b.id;
 					fauna_.behavior[fidx] = FAUNA_CORRALLED;
@@ -10720,6 +10739,23 @@ int Simulation::corral_count(uint32_t corral_id) const {
 	return n;
 }
 
+// GarrisonHolder Eject for the animals penned in `b`: each steps out beside it and grazes.
+void Simulation::eject_corral_animals(const Building &b) {
+	int k = 0;
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.behavior[f] != FAUNA_CORRALLED || fauna_.corral_id[f] != b.id) continue;
+		float ex = b.x + 1.6f, ez = b.z + 1.6f;
+		pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, ex, ez);
+		fauna_.pos_x[f] = ex + 0.3f * (float)(k % 3 - 1); // spread the herd over the spawn point
+		fauna_.pos_z[f] = ez + 0.3f * (float)(k / 3 % 3 - 1);
+		++k;
+		fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
+		fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+		fauna_.corral_id[f] = 0;
+		fauna_.state_timer[f] = 0.0f;
+	}
+}
+
 // 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
 // they die. Of the trained ones that is mixins/fireship.xml (brit, gaul and iber
 // ship_fire): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
@@ -10929,7 +10965,7 @@ void Simulation::tick_gates(float dt) {
 	constexpr float PASS_RANGE = 4.0f;
 	bool nav_changed = false;
 	for (auto &b : buildings_) {
-		if (b.type != BLD_GATE || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		if (!is_gate_type(b.type) || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const bool blocked_paths = blocks_pathfinding(b);
 		bool ally_near = false, unit_inside = false;
 		const float reach_u = b.hu + PASS_RANGE, reach_v = b.hv + PASS_RANGE;
@@ -10957,7 +10993,7 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != player_id || b.type != BLD_GATE || b.build_progress < 1.0f || b.wrecked) return false;
+	if (b.team != player_id || !is_gate_type(b.type) || b.build_progress < 1.0f || b.wrecked) return false;
 	if (b.gate_locked == lock) return false;
 	const bool blocked_paths = blocks_pathfinding(b);
 	b.gate_locked = lock;
@@ -11924,7 +11960,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
 	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
 	// Attack.js Capture RestrictedClasses "Field Palisade Wall" (gates and wall towers are Wall too).
-	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE ||
+	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || is_gate_type(b.type) ||
 			b.type == BLD_WALL_TOWER)
 		return false;
 	if (b.team < MAX_PLAYERS && (b.team == player || is_ally(player, b.team))) return false; // UnitAI CanAttack: not our own
@@ -14130,16 +14166,11 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.food_amount[f] <= 0) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_naval() || (info.flags & FAUNA_F_FISH)) continue; // isHuntable skips SeaCreatures
-		if (fauna_.behavior[f] == FAUNA_HERDED) continue;
-		int owner = -1;
-		if (fauna_.behavior[f] == FAUNA_CORRALLED) {
-			auto bit = building_id_to_idx_.find(fauna_.corral_id[f]);
-			if (bit != building_id_to_idx_.end()) owner = buildings_[bit->second].team;
-			if (owner >= 0 && owner != (int)petra_pid_) continue; // someone else's livestock
-		}
+		// Herded or corralled (garrisoned) livestock is nobody's to hunt.
+		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED) continue;
 		auto git = scan.on_animal.find(fauna_.id[f]);
 		consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers,
-		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(), owner, true);
+		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(), -1, true);
 	}
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_MEAT) continue;
@@ -21300,7 +21331,8 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
 	size_t fidx = it->second;
-	if (!fauna_.alive[fidx]) return;
+	// A corralled animal is garrisoned (GarrisonHolder): nobody can target it until it is ejected.
+	if (!fauna_.alive[fidx] || fauna_.behavior[fidx] == FAUNA_CORRALLED) return;
 
 	for (size_t k = 0; k < count; ++k) {
 		int32_t uidx = lookup_unit(unit_ids[k]);
@@ -21404,7 +21436,7 @@ void Simulation::tick_hunters() {
 		if (it == fauna_id_to_idx_.end()) continue;
 		const size_t f = it->second;
 		if (st == ACTION_MOVE) continue; // herding: order_herd walks the herder over
-		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f) {
+		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED) {
 			units_.target_unit_id[i] = 0;
 			units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
 			units_.has_order[i] = 0;
@@ -21420,10 +21452,8 @@ void Simulation::tick_hunters() {
 		// Attack/Slaughter (infantry, cavalry, women): 1000 hack at 2 m, every second, Domestic animals only.
 		const bool slaughter = finfo.is_domestic() && !unit_is_ship(ut) && !unit_is_siege_engine(ut);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
-		// The animal's footprint; a penned animal is reached over the corral fence.
-		// Slaughter's MaxRange is 2 m even for archers, who walk up to the animal.
-		float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
-		if (fauna_.behavior[f] == FAUNA_CORRALLED) reach += 3.0f;
+		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
+		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (!attack_ready(i, in_reach, slaughter ? 0.0f : unit_combat_at(i).prepare)) continue;
 
@@ -21572,8 +21602,12 @@ void Simulation::tick_fauna(float dt) {
 			if (bit == building_id_to_idx_.end() || buildings_[bit->second].hp <= 0.0f) {
 				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.corral_id[i] = 0;
+			} else if (!structure_has_enough_health(buildings_[bit->second])) {
+				eject_corral_animals(buildings_[bit->second]); // GarrisonHolder EjectHealth 0.5
 			} else {
 				const auto &corral = buildings_[bit->second];
+				// GarrisonHolder/BuffHeal: 1 hp a second.
+				fauna_.hp[i] = std::min(fauna_.max_hp[i], fauna_.hp[i] + building_garrison_heal(corral.type) * dt);
 
 				float cdx = fx - corral.x;
 				float cdz = fz - corral.z;
@@ -21620,7 +21654,8 @@ void Simulation::tick_fauna(float dt) {
 
 			for (const auto &b : buildings_) {
 				if (b.team != owner || b.build_progress < 1.0f || b.hp <= 0.0f) continue;
-				if (b.type == BLD_CORRAL && corral_count(b.id) >= CORRAL_GARRISON_MAX) continue; // GarrisonHolder/Max
+				if (b.type == BLD_CORRAL && (corral_count(b.id) >= CORRAL_GARRISON_MAX || !structure_has_enough_health(b)))
+					continue; // GarrisonHolder/Max, EjectHealth
 				if (b.type == BLD_CORRAL || (is_civic_centre(b.type) && nearest_cid == 0)) {
 					float dx = b.x - fx;
 					float dz = b.z - fz;
