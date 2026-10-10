@@ -176,6 +176,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "MARKET", rtso::BLD_MARKET);
 	bind_enum("BuildingType", "FORTRESS", rtso::BLD_FORTRESS);
 	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
+	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
 	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
 	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
@@ -288,6 +289,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "outpost") return rtso::BLD_OUTPOST;
 	if (n == "fortress" || n == "palisades_fort" || n == "keep") return rtso::BLD_FORTRESS;
 	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
+	if (n == "palisade_gate" || n == "palisades_gate") return rtso::BLD_PALISADE_GATE;
 	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
 	if (n == "wonder") return rtso::BLD_WONDER;
 	if (n == "dock") return rtso::BLD_DOCK;
@@ -1745,8 +1747,9 @@ void RtsoMain::update_cursor() {
 			if (!*want) {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
-					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.behavior[f] != rtso::FAUNA_CORRALLED ? "action-herd" : "action-gather-meat";
+					// A penned animal is garrisoned in its corral: nothing to do with it.
+					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
+					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want) {
@@ -2864,7 +2867,7 @@ void RtsoMain::update_inspector() {
 			show_bar(inspector_aura_bar, inspector_aura_label, false);
 
 			String status;
-			if (found_b->type == rtso::BLD_GATE)
+			if (rtso::is_gate_type(found_b->type))
 				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 			else if (!found_b->queue.empty())
 				status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
@@ -2874,7 +2877,13 @@ void RtsoMain::update_inspector() {
 						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
 						String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 			inspector_stats->set_text(status);
-			inspector_extra->set_text(found_b->has_rally_point ? "Rally point set" : "");
+			// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
+			const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
+			String extra = found_b->has_rally_point ? "Rally point set" : "";
+			if (penned > 0)
+				extra += String(extra.is_empty() ? "" : "\n") + "Penned animals: " + String::num_int64(penned) + " / " +
+						String::num_int64(rtso::CORRAL_GARRISON_MAX);
+			inspector_extra->set_text(extra);
 
 			// Garrison panel: one icon per unit type inside, click to unload one,
 			// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
@@ -2887,7 +2896,7 @@ void RtsoMain::update_inspector() {
 				garrison_grid_.set_visible(true);
 			}
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-			ungarrison_btn->set_visible(!mine.empty());
+			ungarrison_btn->set_visible(!mine.empty() || (penned > 0 && owner == local_player()));
 			inspector_panel->set_visible(true);
 			return;
 		}
@@ -3200,7 +3209,7 @@ void RtsoMain::update_command_panel() {
 			}
 
 			// Gate lock (0 A.D. Gate.js): a locked gate stays shut for everyone.
-			if (found_b->team == local_player() && found_b->type == rtso::BLD_GATE) {
+			if (found_b->team == local_player() && rtso::is_gate_type(found_b->type)) {
 				Button *btn = memnew(Button);
 				btn->set_text(found_b->gate_locked ? "Unlock gate" : "Lock gate");
 				btn->set_tooltip_text(found_b->gate_locked ? "Let your and your allies' units through again"
@@ -3257,6 +3266,9 @@ void RtsoMain::update_command_panel() {
 				} else {
 					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, pciv); ++choice) {
 						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv, choice);
+						const rtso::Simulation::UpgradeCheck check = sim->upgrade_check(local_player(), found_b->id, choice);
+						// Not this piece's (only wall_long and palisades_long become gates).
+						if (check == rtso::Simulation::UPGRADE_ERR_NONE) continue;
 						Button *btn = memnew(Button);
 						String cost;
 						auto add_cost = [&](int v, const char *suffix) {
@@ -3271,7 +3283,7 @@ void RtsoMain::update_command_panel() {
 						btn->set_text(String("Upgrade to ") + rtso::building_type_name(up.to) + (cost.is_empty() ? String() : " (" + cost + ")"));
 						String tip = String(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
 						const char *why = nullptr;
-						switch (sim->upgrade_check(local_player(), found_b->id, choice)) {
+						switch (check) {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
 							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
 							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
@@ -3509,7 +3521,7 @@ void RtsoMain::update_command_panel() {
 					return sim->building_disabled_by_trigger(local_player(), (uint8_t)bt);
 				}), menu.end());
 				for (int bt : menu) {
-					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
+					const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(my_civ, (uint8_t)bt); // the big house
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
 						if (amount <= 0) return;

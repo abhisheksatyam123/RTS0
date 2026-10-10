@@ -194,7 +194,7 @@ class RtsoWorldView : public Node3D {
 	void build_ground_paint(const rtso::Simulation *sim);
 	// Per-biome sun, ambient, fog, sky and water (0 A.D. rmbiome Environment).
 	Ref<Environment> env_base_;
-	void apply_biome_environment(const std::string &biome);
+	void apply_biome_environment(const std::string &biome, const std::string &map_id);
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;
