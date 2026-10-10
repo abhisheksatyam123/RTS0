@@ -325,6 +325,28 @@ static void test_auras() {
 	check(mod(far_horn) == 0.0f, "carnyx: enemy soldier beyond 20 m unaffected");
 	check(mod(woman) == 0.0f, "carnyx: enemy women (not soldiers) unaffected");
 
+	// Units' own auras from their templates: the Roman centurion's Combat Leadership
+	// (soldiers +10% attack within 30 m) and the Gallic trumpeter's carnyx, which the
+	// roster row now carries itself on top of the generic carnyx (one effect, not two).
+	Simulation c;
+	setup(c);
+	const uint16_t centurion = template_named("rome/champion_infantry_swordsman_centurion");
+	const uint16_t trumpeter = template_named("gaul/champion_infantry_trumpeter");
+	check(centurion != CIV_UNIT_TEMPLATE_NONE && trumpeter != CIV_UNIT_TEMPLATE_NONE,
+		"roster has the centurion and the Gallic trumpeter");
+	c.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f, centurion);
+	uint32_t legionary = c.spawn_unit(3.0f, 0.0f, 0, UNIT_SWORDSMAN);
+	c.spawn_unit(30.0f, 30.0f, 1, UNIT_CARNYX, 0.0f, trumpeter);
+	uint32_t foe_near_horn = c.spawn_unit(32.0f, 30.0f, 0, UNIT_SWORDSMAN);
+	c.rebuild_auras();
+	auto cmod = [&](uint32_t id) {
+		int i = idx(c, id);
+		return c.aura_mgr_.query_modifier(c.units_.pos_x[i], c.units_.pos_z[i], c.units_.team[i], AURA_ATTACK,
+			c.units_.tmpl[i], &c.unit_combat_at(i).classes);
+	};
+	check(std::fabs(cmod(legionary) - 1.1f) < 1e-4f, "centurion: own soldier within 30 m +10% attack");
+	check(std::fabs(cmod(foe_near_horn) - 0.9f) < 1e-4f, "Gallic trumpeter: enemy soldier -10% attack, once");
+
 	Simulation t;
 	setup(t);
 	t.spawn_building_world(0.0f, 0.0f, BLD_TEMPLE, 0, 1.0f);
