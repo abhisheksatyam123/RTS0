@@ -133,7 +133,8 @@ static void test_rank() {
 		Res b = res_of(s, 0);
 		float m = rank == 2 ? 1.2f : 1.44f;
 		print_gain(a, b);
-		check(gained(a, b, 5 * m, 4 * m, 0, 1 * m), rank == 2 ? "advanced: x1.2" : "elite: x1.44");
+		// Loot.js GetResources floors each modified amount.
+		check(gained(a, b, std::floor(5 * m), std::floor(4 * m), 0, std::floor(1 * m)), rank == 2 ? "advanced: x1.2" : "elite: x1.44");
 	}
 }
 
@@ -149,6 +150,7 @@ static void test_britons() {
 	Res b = res_of(s, 0);
 	print_gain(a, b);
 	check(gained(a, b, 6, 1, 1, 1), "female citizen pays food 6, wood 1, stone 1, metal 1");
+	s.cmd_delete(0, &sw, 1); // only the cavalryman may take the next kill
 	s.set_team_civ(0, CIV_ATHENIANS);
 	uint32_t cav = s.spawn_unit(0, 3.0f, 0, UNIT_CAVALRY);
 	uint32_t fem2 = s.spawn_unit(1.0f, 3.0f, 1, UNIT_FEMALE_CITIZEN, 1.0f);

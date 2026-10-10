@@ -8,6 +8,7 @@
 #include "simulation/simulation.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 using namespace rtso;
 
@@ -28,6 +29,12 @@ static int32_t idx_of(const Simulation &s, uint32_t id) {
 	auto uv = s.units();
 	for (size_t i = 0; i < uv.count; ++i) if (uv.id[i] == id) return (int32_t)i;
 	return -1;
+}
+
+static uint16_t tmpl_of(const char *id) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+	return CIV_UNIT_TEMPLATE_NONE;
 }
 
 static void fresh(Simulation &s) {
@@ -117,6 +124,180 @@ int main() {
 		b->hp = b->max_hp * 0.09f;
 		garrison(s, ids, 3, fort);
 		CHECK(s.get_garrison_count(fort) == 3);
+	}
+
+	// 5. Heal.js HealableClasses Human: elephants and dogs are Human too.
+	{
+		fresh(s);
+		CHECK(unit_is_human(UNIT_WORKER_ELEPHANT) && unit_is_human(UNIT_WAR_DOG));
+		uint32_t h = s.spawn_unit(0.0f, 0.0f, 0, UNIT_HEALER);
+		uint32_t e = s.spawn_unit(1.0f, 0.0f, 0, UNIT_WORKER_ELEPHANT);
+		const int32_t ei = idx_of(s, e);
+		const float half = s.units().max_hp[ei] * 0.5f;
+		const_cast<float *>(s.units().hp)[ei] = half;
+		s.order_heal(&h, 1, e);
+		run(s, 6.0f);
+		CHECK(s.units().hp[idx_of(s, e)] > half);
+	}
+
+	// 6. Hero healers (template_unit_hero_healer: Hippocrates) heal 6 hp per 2 s at range 20.
+	{
+		fresh(s);
+		const uint16_t hip = tmpl_of("athen/hero_hippocrates");
+		CHECK(hip != CIV_UNIT_TEMPLATE_NONE && unit_is_healer(hip, UNIT_HERO));
+		CHECK(!unit_is_healer(CIV_UNIT_TEMPLATE_NONE, UNIT_HERO) && unit_is_healer(CIV_UNIT_TEMPLATE_NONE, UNIT_HEALER));
+		uint32_t h = s.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, hip);
+		uint32_t u = s.spawn_unit(4.0f, 0.0f, 0, UNIT_SPEARMAN); // 4 units = 16 m: inside 20, outside 12
+		const int32_t ui = idx_of(s, u);
+		const float half = s.units().max_hp[ui] * 0.5f;
+		const_cast<float *>(s.units().hp)[ui] = half;
+		run(s, 7.0f); // idle hero healer finds the injured unit
+		const float gained = s.units().hp[idx_of(s, u)] - half;
+		std::printf("hero healer: +%.1f hp in 7 s, moved to x=%.2f\n", gained, s.units().pos_x[idx_of(s, h)]);
+		CHECK(gained >= 12.0f && gained <= 30.0f); // + Hippocrates' regen aura
+		CHECK(std::fabs(s.units().pos_x[idx_of(s, h)]) < 1.0f); // healed without walking up
+	}
+
+	// 7. Han ministry BuffHeal 1.
+	CHECK(building_garrison_heal(BLD_MINISTRY) == 1.0f);
+
+	// 8. Foundation.js: a deleted foundation refunds ceil(cost x (1 - progress)).
+	{
+		fresh(s);
+		uint32_t f = s.spawn_building_world(10.0f, 10.0f, BLD_HOUSE, 0, 0.5f);
+		CHECK(find_bld(s, f) != nullptr);
+		const float wood0 = s.player(0).res[RES_WOOD];
+		s.cmd_delete(0, &f, 1);
+		const float back = s.player(0).res[RES_WOOD] - wood0;
+		std::printf("half-built house deleted: +%.0f wood\n", back);
+		CHECK(back == std::ceil(building_type_info(BLD_HOUSE).wood_cost * 0.5f));
+		// A finished structure gives nothing back.
+		const float wood1 = s.player(0).res[RES_WOOD];
+		uint32_t done = s.spawn_building_world(30.0f, 30.0f, BLD_HOUSE, 0, 1.0f);
+		s.cmd_delete(0, &done, 1);
+		CHECK(s.player(0).res[RES_WOOD] == wood1);
+	}
+
+	// 9. Builder.js CanRepair: no repairing an enemy structure.
+	{
+		fresh(s);
+		uint32_t enemy = s.spawn_building_world(10.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+		Simulation::Building *b = find_bld(s, enemy);
+		b->hp = b->max_hp * 0.5f;
+		uint32_t w = s.spawn_unit(6.0f, 0.0f, 0, UNIT_VILLAGER);
+		s.order_build_or_repair(&w, 1, enemy);
+		run(s, 10.0f);
+		std::printf("enemy house after repair order: %.0f / %.0f\n", find_bld(s, enemy)->hp, find_bld(s, enemy)->max_hp);
+		CHECK(find_bld(s, enemy)->hp <= find_bld(s, enemy)->max_hp * 0.5f);
+	}
+
+	// 10. rome/siege_scorpio_packed: Pack/Time 5 s instead of 10.
+	{
+		fresh(s);
+		const uint16_t sc = tmpl_of("rome/siege_scorpio_packed");
+		CHECK(sc != CIV_UNIT_TEMPLATE_NONE);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, sc);
+		uint32_t b = s.spawn_unit(3.0f, 0.0f, 0, UNIT_BOLT_SHOOTER);
+		CHECK(std::fabs(s.pack_time_s(idx_of(s, a)) - 5.0f) < 1e-4f);
+		CHECK(std::fabs(s.pack_time_s(idx_of(s, b)) - 10.0f) < 1e-4f);
+	}
+
+	// 11. GarrisonHolder/Max per template (template_structure_*.xml, structures/<civ>/*.xml).
+	{
+		CHECK(building_type_info(BLD_TEMPLE).garrison_cap == 20 && building_type_info(BLD_WONDER).garrison_cap == 50);
+		CHECK(building_type_info(BLD_FORTRESS).garrison_cap == 20 && building_type_info(BLD_CORRAL).garrison_cap == 8);
+		CHECK(building_type_info(BLD_TOWN_CENTER).garrison_cap == 20 && building_type_info(BLD_BARRACKS).garrison_cap == 10);
+		CHECK(building_type_info(BLD_EMBASSY).garrison_cap == 6 && building_type_info(BLD_ARSENAL).garrison_cap == 5);
+		CHECK(building_type_info(BLD_KENNEL).garrison_cap == 10 && building_type_info(BLD_FORGE).garrison_cap == 1);
+		for (uint8_t t : {BLD_STOREHOUSE, BLD_FARMSTEAD, BLD_MARKET, BLD_DOCK, BLD_WALL_SEGMENT, BLD_GATE})
+			CHECK(structure_garrison_max(t, CIV_ATHENIANS) == 0);
+		CHECK(structure_garrison_max(BLD_HOUSE, CIV_ATHENIANS) == 6 && structure_garrison_max(BLD_HOUSE, CIV_BRITONS) == 3);
+		CHECK(structure_garrison_max(BLD_TOWER, CIV_IBERIANS) == 8 && structure_garrison_max(BLD_TOWER, CIV_ROMANS) == 5);
+		CHECK(structure_garrison_max(BLD_STOREHOUSE, CIV_HAN) == 1);
+		fresh(s);
+		s.player(1).civ = CIV_BRITONS;
+		uint32_t h0 = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+		uint32_t h1 = s.spawn_building_world(20.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+		uint32_t st = s.spawn_building_world(0.0f, 20.0f, BLD_STOREHOUSE, 0, 1.0f);
+		std::printf("house caps: athen %d, brit %d; storehouse %d\n", s.get_garrison_capacity(h0),
+				s.get_garrison_capacity(h1), s.get_garrison_capacity(st));
+		CHECK(s.get_garrison_capacity(h0) == 6 && s.get_garrison_capacity(h1) == 3 && s.get_garrison_capacity(st) == 0);
+		uint32_t w = s.spawn_unit(0.0f, 24.0f, 0, UNIT_FEMALE_CITIZEN);
+		garrison(s, &w, 1, st);
+		CHECK(s.get_garrison_count(st) == 0);
+	}
+
+	// 12. GarrisonHolder/List: a barracks takes Infantry, not Cavalry; a house Support but not
+	// a worker elephant (Support+!Elephant); a stable Cavalry; a wonder Support and Soldiers.
+	{
+		auto takes = [](uint8_t bld, uint8_t unit) {
+			return garrison_list_matches(structure_garrison_list(bld, CIV_ATHENIANS), unit_tech_classes(unit));
+		};
+		CHECK(takes(BLD_BARRACKS, UNIT_SPEARMAN) && !takes(BLD_BARRACKS, UNIT_CAVALRY) && !takes(BLD_BARRACKS, UNIT_FEMALE_CITIZEN));
+		CHECK(takes(BLD_STABLE, UNIT_CAVALRY) && !takes(BLD_STABLE, UNIT_SPEARMAN));
+		CHECK(takes(BLD_HOUSE, UNIT_FEMALE_CITIZEN) && !takes(BLD_HOUSE, UNIT_WORKER_ELEPHANT) && !takes(BLD_HOUSE, UNIT_SPEARMAN));
+		CHECK(takes(BLD_WONDER, UNIT_CAVALRY) && takes(BLD_WONDER, UNIT_FEMALE_CITIZEN) && !takes(BLD_WONDER, UNIT_CATAPULT));
+		CHECK(takes(BLD_FORTRESS, UNIT_CATAPULT) && takes(BLD_ARSENAL, UNIT_SIEGE_RAM) && !takes(BLD_ARSENAL, UNIT_SPEARMAN));
+		CHECK(takes(BLD_KENNEL, UNIT_WAR_DOG) && !takes(BLD_TOWN_CENTER, UNIT_WAR_DOG) && takes(BLD_ELEPHANT_STABLE, UNIT_ELEPHANT));
+		CHECK(takes(BLD_FORGE, UNIT_HEALER) && takes(BLD_FORGE, UNIT_ARCHER) && !takes(BLD_FORGE, UNIT_CAVALRY));
+		CHECK(!takes(BLD_CORRAL, UNIT_FEMALE_CITIZEN) && !takes(BLD_TOWER, UNIT_CAVALRY) && takes(BLD_TOWER, UNIT_FEMALE_CITIZEN));
+		CHECK(!garrison_list_matches(structure_garrison_list(BLD_BARRACKS, CIV_ATHENIANS), unit_tech_classes(UNIT_MINISTER)));
+		CHECK(garrison_list_matches(structure_garrison_list(BLD_BARRACKS, CIV_HAN), unit_tech_classes(UNIT_MINISTER)));
+		fresh(s);
+		uint32_t bk = s.spawn_building_world(0.0f, 0.0f, BLD_BARRACKS, 0, 1.0f);
+		uint32_t cav = s.spawn_unit(1.0f, 9.0f, 0, UNIT_CAVALRY);
+		uint32_t sp = s.spawn_unit(3.0f, 9.0f, 0, UNIT_SPEARMAN);
+		uint32_t both[2] = {cav, sp};
+		s.order_garrison(both, 2, bk);
+		run(s, 15.0f);
+		const auto *in = s.get_garrisoned_units(bk);
+		std::printf("barracks after cavalry + spearman garrison order: %d inside\n", s.get_garrison_count(bk));
+		CHECK(s.get_garrison_count(bk) == 1 && in && (*in)[0] == sp);
+		CHECK(!s.can_garrison_in(cav, bk) && s.units().alive[idx_of(s, cav)]);
+		CHECK(!s.garrison_unit_now(cav, bk));
+	}
+
+	// 13. Garrisonable / IsOwnedByMutualAllyOfEntity: a unit garrisons in a mutual ally's
+	// structure and stays its owner's; the holder's owner unloads anyone, the ally only its own,
+	// an enemy neither garrisons nor unloads; ending the alliance puts it out.
+	{
+		fresh(s);
+		s.set_mutual_ally(0, 2); // player 1 is the tests' Petra, which unloads idle shelterers
+		uint32_t temple = s.spawn_building_world(0.0f, 0.0f, BLD_TEMPLE, 2, 1.0f);
+		uint32_t mine = s.spawn_unit(1.0f, 10.0f, 0, UNIT_SPEARMAN);
+		uint32_t theirs = s.spawn_unit(3.0f, 10.0f, 2, UNIT_SPEARMAN);
+		uint32_t foe = s.spawn_unit(5.0f, 10.0f, 3, UNIT_SPEARMAN);
+		s.order_set_stance(&foe, 1, STANCE_PASSIVE); // it only tries to get in
+		CHECK(s.can_garrison_in(mine, temple) && !s.can_garrison_in(foe, temple));
+		auto enter = [&](uint32_t u) { // one more unit in
+			const int want = s.get_garrison_count(temple) + 1;
+			s.order_garrison(&u, 1, temple);
+			for (int t = 0; t < 900 && s.get_garrison_count(temple) < want; ++t) s.tick(0.1f);
+		};
+		enter(mine);
+		enter(theirs);
+		s.order_garrison(&foe, 1, temple);
+		run(s, 3.0f);
+		std::printf("allied temple holds %d (ours, theirs; not the enemy's)\n", s.get_garrison_count(temple));
+		CHECK(s.get_garrison_count(temple) == 2);
+		CHECK(s.units().team[idx_of(s, mine)] == 0 && s.units().action_state[idx_of(s, mine)] == ACTION_GARRISONED);
+		CHECK(s.unloadable_by(0, temple).size() == 1 && s.unloadable_by(2, temple).size() == 2 && s.unloadable_by(3, temple).empty());
+		s.cmd_unload(3, temple, nullptr, 0); // an enemy: nothing
+		CHECK(s.get_garrison_count(temple) == 2);
+		s.cmd_unload(0, temple, &theirs, 1); // the ally can't unload the owner's unit
+		CHECK(s.get_garrison_count(temple) == 2);
+		s.cmd_unload(0, temple, nullptr, 0); // unload-all-by-owner: only ours
+		CHECK(s.get_garrison_count(temple) == 1 && (*s.get_garrisoned_units(temple))[0] == theirs);
+		CHECK(s.units().alive[idx_of(s, mine)] && s.units().team[idx_of(s, mine)] == 0);
+		enter(mine);
+		CHECK(s.get_garrison_count(temple) == 2);
+		s.cmd_unload(2, temple, nullptr, 0); // the owner unloads everyone
+		CHECK(s.get_garrison_count(temple) == 0 && s.units().team[idx_of(s, mine)] == 0);
+		garrison(s, &mine, 1, temple);
+		CHECK(s.get_garrison_count(temple) == 1);
+		s.set_diplomacy(2, 0, Simulation::DIPLO_NEUTRAL); // OnDiplomacyChanged
+		run(s, 0.2f);
+		CHECK(s.get_garrison_count(temple) == 0 && s.units().alive[idx_of(s, mine)] && s.units().team[idx_of(s, mine)] == 0);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
