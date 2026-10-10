@@ -667,8 +667,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     }
     // Two markets and a trader the host walks off, then sends on a Shift-queued
     // route between them (cmd 35, 0 A.D. setup-trade-route).
-    const uint32_t host_market_a = sim.spawn_building_world(-50.0f, -24.0f, BLD_MARKET, 0, 1.0f);
-    const uint32_t host_market_b = sim.spawn_building_world(-50.0f, 26.0f, BLD_MARKET, 0, 1.0f);
+    // Both stand in the host's civic centre territory, so neither decays to Gaia.
+    const uint32_t host_market_a = sim.spawn_building_world(-50.0f, -20.0f, BLD_MARKET, 0, 1.0f);
+    const uint32_t host_market_b = sim.spawn_building_world(-50.0f, 22.0f, BLD_MARKET, 0, 1.0f);
     const uint32_t host_trader = sim.spawn_unit(-46.0f, 0.0f, 0, UNIT_TRADER);
     auto apply_setup = [&](const GameSetupParams &s) {
         sim.set_victory_condition(s.victory >= VICTORY_COUNT ? 0 : s.victory);

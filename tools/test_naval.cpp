@@ -500,7 +500,7 @@ static void test_petra_overseas_attack() {
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
-	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_HOUSE, 0);
+	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	std::vector<uint32_t> army;
 	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
 	s.petra_army_ids_[1] = army; // trained for the attack, not as workers (ids rise, so sorted)
@@ -616,7 +616,7 @@ static void test_petra_concurrent_transports() {
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
-	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_HOUSE, 0);
+	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
 	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
 	std::vector<uint32_t> army;

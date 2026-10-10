@@ -190,6 +190,13 @@ static void test_trade_gain() {
 	CHECK(g.market2 == (int)std::lround(long_route * 0.2 * 1.2)); // the ally's bonus is unchanged
 }
 
+// Civic centres behind both markets, so neither market stands on neutral land and decays
+// to Gaia (TerritoryDecay.js); out of arrow range of the route.
+static void root_markets(Simulation &w) {
+	w.spawn_building_world(-110.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	w.spawn_building_world(110.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+}
+
 static const Simulation::Building *find_bld(const Simulation &s, uint32_t id) {
 	for (const auto &b : s.buildings()) if (b.id == id) return &b;
 	return nullptr;
@@ -202,6 +209,7 @@ static void test_trader_route() {
 	const uint32_t m0 = s.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
 	const uint32_t m1 = s.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
 	CHECK(find_bld(s, m0) && find_bld(s, m1));
+	root_markets(s);
 	// At war, player 1's market is no trade partner and player 0 has no route.
 	CHECK(!s.has_trade_route(0));
 	s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
@@ -213,6 +221,7 @@ static void test_trader_route() {
 	fresh(c);
 	c.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
 	c.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+	root_markets(c);
 	c.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
 
 	const uint32_t trader = s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
@@ -266,11 +275,13 @@ static void test_trading_goods() {
 	// market's owner gets its bonus in stone too.
 	s.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
 	s.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+	root_markets(s);
 	s.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
 	static Simulation c; // the same world without the trader
 	fresh(c);
 	c.spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
 	c.spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+	root_markets(c);
 	c.set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
 	s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
 	run(s, 240.0f);

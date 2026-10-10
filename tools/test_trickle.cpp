@@ -31,7 +31,9 @@ static void fresh(Simulation &s) {
 	s.players_[1].civ = CIV_ATHENIANS;
 	for (uint8_t p = 0; p < 2; ++p) s.players_[p].active = 1, s.players_[p].is_ai = 0; // no Petra spending
 	s.set_victory_condition(VICTORY_ENDLESS);
-	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	// Close enough that the test structures stand in its territory, not on neutral land
+	// where they would decay to Gaia (TerritoryDecay.js).
+	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
 
@@ -128,7 +130,7 @@ int main() {
 	//    refunds the animal's cost.
 	{
 		fresh(s);
-		const uint32_t c = s.spawn_building_world(10.0f, 10.0f, BLD_CORRAL, 0, 1.0f);
+		const uint32_t c = s.spawn_building_world(-25.0f, -15.0f, BLD_CORRAL, 0, 1.0f); // in the civic centre's territory
 		s.players_[0].res[RES_FOOD] = 1000.0f;
 		CHECK(s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE));
 		CHECK(near(s.players_[0].res[RES_FOOD], 850.0f));

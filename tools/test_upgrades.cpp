@@ -83,7 +83,7 @@ int main() {
 	{
 		fresh(s);
 		s.player(0).phase = 2;
-		uint32_t st = s.spawn_building_world(0.0f, 0.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		uint32_t st = s.spawn_building_world(-20.0f, -30.0f, BLD_SENTRY_TOWER, 0, 1.0f); // in the civic centre's territory
 		CHECK(s.cmd_upgrade_building(0, st));
 		run(s, 30.0f);
 		CHECK(!s.cmd_cancel_upgrade(1, st));
@@ -138,7 +138,7 @@ int main() {
 	{
 		fresh(s);
 		s.player(0).phase = 2;
-		uint32_t st = s.spawn_building_world(0.0f, 0.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		uint32_t st = s.spawn_building_world(-20.0f, -30.0f, BLD_SENTRY_TOWER, 0, 1.0f); // in the civic centre's territory
 		TurnManager tm;
 		const uint32_t h0 = tm.compute_sim_hash(s);
 		CHECK(s.cmd_upgrade_building(0, st));

@@ -2520,8 +2520,6 @@ private:
 	Grid<uint16_t> territory_region_;
 	std::vector<TerritoryRegion> territory_regions_;
 	bool territory_regions_dirty_ = true;
-	// Off until build placement keeps structures out of neutral land (see territory_decay_targets).
-	static constexpr bool TERRITORY_DECAY_IN_NEUTRAL_LAND = false;
 	void ensure_territory_regions();
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.

@@ -775,6 +775,8 @@ static void test_projectile_landing() {
 		archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
 		s.order_set_stance(&archer, 1, STANCE_STAND_GROUND);
 		bid = s.spawn_building_world(30.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+		// Its territory: on neutral land the barracks would decay and Petra would garrison the spearman.
+		s.spawn_building_world(52.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
 		spear = dummy(s, 30.0f, building(s, bid)->half_size + 3.0f, UNIT_SPEARMAN, 500.0f); // a float this size keeps the hit exact
 		s.units_.attack_damage[idx(s, spear)] = 0.0f; // never answers
 	};

@@ -20,7 +20,9 @@ static uint32_t fresh(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
 	s.set_player_resources(0, 20000, 20000, 20000, 20000);
-	s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f); // Population/Bonus 20: there is no free base
+	// Population/Bonus 20: there is no free base. Its territory covers the barracks, which
+	// would otherwise decay to Gaia.
+	s.spawn_building_world(-30.0f, -56.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	return s.spawn_building_world(-30.0f, -30.0f, BLD_BARRACKS, 0, 1.0f);
 }
 

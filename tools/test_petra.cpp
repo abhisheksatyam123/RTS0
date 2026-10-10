@@ -461,9 +461,10 @@ static void test_attack_plans() {
 	};
 	{
 		// A storehouse more than 80 m from the idle player's Town Center is the
-		// only structure a rush may target (rushTargetFinder).
+		// only structure a rush may target (rushTargetFinder); still in that Town
+		// Center's territory, so it doesn't decay to Gaia.
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		const uint32_t store = s->spawn_building_world(-36.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false;
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
@@ -860,8 +861,13 @@ static void test_first_base() {
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
 	float tx = 0.0f, tz = 0.0f;
+	// The rest of its base goes too: without the Town Center's territory it would be
+	// decaying to Gaia on neutral land, drawing Petra's workers off the treasure.
 	for (auto &b : s->buildings_)
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; s->destroy_building(b); }
+		if (b.team == 1) {
+			if (b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+			s->destroy_building(b);
+		}
 	run_for(*s, 0.1f);
 	auto &u = s->units_;
 	for (size_t i = 0; i < u.count; ++i) // a nomad start: everyone stands idle

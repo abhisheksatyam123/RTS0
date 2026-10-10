@@ -1445,11 +1445,7 @@ bool Simulation::territory_decay_targets(const Building &b, std::array<float, MA
 	const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
 	const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
 	const uint16_t id = territory_region_.at(tx, tz);
-	if (!id) { // neutral ground: Gaia's own structures don't decay there
-		// 0 A.D. only lets outposts (which don't decay there) and military colonies be placed in
-		// neutral land (BuildRestrictions/Territory). Until RTS0's placement follows those rules
-		// (gap U5), structures standing there keep their points rather than all turning Gaia.
-		if (!TERRITORY_DECAY_IN_NEUTRAL_LAND) return false;
+	if (!id) { // neutral ground: Gaia's own structures don't decay there, nor outposts and docks
 		if (gaia || !neutral) return false;
 		to_gaia = 1.0f;
 		return true;
