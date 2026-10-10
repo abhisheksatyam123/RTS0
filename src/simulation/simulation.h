@@ -160,8 +160,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 51; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 55; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
+	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -397,6 +398,7 @@ public:
 	// Read-only, for the renderer: unit i is attacking a structure it captures
 	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
 	bool unit_capturing(size_t i) const;
+	bool unit_heals(size_t i) const;
 	float healer_range_of(size_t h) const;
 	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
@@ -649,6 +651,15 @@ public:
 	uint32_t formation_of_unit(uint32_t unit_id) const;
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
 	void order_ungarrison(uint32_t building_id);
+	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
+	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
+	void eject_or_kill(Building &b, uint8_t keep_allies_of = 0xFF);
+	// GarrisonHolder.IsAllowedToBeGarrisoned: the unit's owner owns `b` or is its mutual ally
+	// (IsOwnedByMutualAllyOfEntity) and the unit matches the holder's List (a TurretHolder:
+	// Turretable). Room is not checked.
+	bool structure_accepts_garrison(const Building &b, size_t unit_idx) const;
+	bool structure_accepts_classes(const Building &b, uint64_t classes) const;
+	bool can_garrison_in(uint32_t unit_id, uint32_t building_id) const;
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
@@ -657,6 +668,8 @@ public:
 	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
 	// ally only its own units. count 0 unloads every unit `player` may unload.
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
+	// The garrisoned units `player` may unload from `building_id` under those rules.
+	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
@@ -838,6 +851,7 @@ public:
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
+	float game_time() const { return (float)ticks_ * FIXED_STEP; } // seconds since the match started
 	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
 	// Whether a unit or structure of player a may attack one of player b right now.
 	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
@@ -871,8 +885,9 @@ public:
 		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST,
 		UPGRADE_ERR_LIMIT // units: the target's EntityLimits category is full
 	};
-	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
-	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
+	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
+	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
+	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
 	// 0 A.D. Upgrade.js on units (civ_unit_upgrade_table): the Roman elite infantry's
@@ -1174,6 +1189,16 @@ public:
 	bool match_limit_allows(uint8_t player_id, uint16_t tmpl, int count = 1) const;
 	static constexpr int HERO_MATCH_LIMIT = 1;
 	std::array<std::vector<uint16_t>, MAX_PLAYERS> match_trained_; // hero templates each player trained (saved v42)
+	// Petra's army soldiers (0 A.D. units trained without metadata role "worker"): the citizen
+	// infantry an AI player trained outside its civic centres, sorted ids (saved v52). Every
+	// other citizen soldier of an AI is a worker (trainMoreWorkers, the starting units).
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_army_ids_;
+	bool petra_is_worker(size_t i) const;
+	int petra_target_workers() const;
+	int petra_work_phase3() const;
+	int petra_accounted_population() const;
+	int petra_pop_for_barracks1() const;
+	int petra_pop_for_barracks2() const;
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -1217,7 +1242,8 @@ public:
 	}
 	void set_mutual_ally(uint8_t player_id) { set_mutual_ally(0, player_id); }
 	// Allied: the same alliance team from game setup, or a stance both players
-	// chose. Teams win over stances, as 0 A.D.'s locked teams do.
+	// chose. Teams win over stances; without Lock Teams a player who stops allying
+	// a teammate leaves the team (cmd_set_diplomacy), so stances decide from then on.
 	bool is_ally(uint8_t a, uint8_t b) const {
 		if (a == b) return true;
 		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return false;
@@ -1309,6 +1335,7 @@ public:
 			REGROUP    = 4,
 			ABORT      = 5
 		} state = UNEXECUTED;
+		uint8_t kind = 1; // PetraAttackKind of the plan (PETRA_ATTACK_ATTACK until a plan is made)
 
 		uint32_t target_building_id = 0;
 		float staging_x = 0.0f;
@@ -1324,6 +1351,7 @@ public:
 		float retreat_z = 36.0f;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
+	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
@@ -1391,6 +1419,7 @@ public:
 		int capture_cp;         // the owner's Capturable points x100 (0..RELIC_CAPTURE_POINTS*100)
 		bool claimed;           // owned by a player, not Gaia
 		uint8_t owner_team = 255;
+		std::array<float, MAX_PLAYERS + 1> cp{}; // Capturable points per player, then Gaia's
 	};
 
 	// Treasure.js / TreasureCollector.js: a Gaia treasure any land unit can be ordered to
@@ -1648,7 +1677,7 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
-	void apply_status(size_t t, const CombatProfile &att);
+	void apply_status(size_t t, const CombatProfile &att, uint32_t src_id = 0, uint8_t src_owner = 0xFF);
 	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
 	void tick_attack_timer(size_t i, float dt);
 	bool attack_under_way(size_t i) const;
@@ -1656,6 +1685,7 @@ private:
 	bool attack_ready(size_t i, bool in_range, float prepare);
 	void attack_done(size_t i, bool in_range, float repeat);
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
+	void unit_attack_effects(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -1666,9 +1696,10 @@ private:
 	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
 	static float foundation_build_multiplier(int builders);
 	float builder_rate(size_t unit_idx) const;
-	float structure_build_time(const Building &b, uint8_t builder_team) const;
+	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
@@ -1703,6 +1734,7 @@ private:
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
 	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	void fauna_start_attack(size_t f, uint32_t target);  // UnitAI COMBAT for an animal (PrepareTime)
 	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
 	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
@@ -1753,6 +1785,15 @@ private:
 	int32_t projectile_hit_fauna(const Projectile &p) const;
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
+	void fire_at_fauna(size_t i, size_t f);
+	void fauna_killed(size_t f, size_t i);
+	bool projectile_lands_in(const Projectile &p, const Building &b) const;
+	int32_t projectile_hit_structure(const Projectile &p) const;
+	void projectile_hits_structure(const Projectile &p, Building &b);
+	float projectile_damage_to_unit(const Projectile &p, size_t u);
+	float projectile_damage_to_structure(const Projectile &p, const Building &b) const;
+	float unit_damage_to_structure(size_t i, const Building &b) const;
+	float structure_arrow_damage(const Building &shooter, const float res[3]) const;
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
@@ -1887,6 +1928,8 @@ private:
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
+	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	void refund_foundation(const Building &b);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
@@ -1986,6 +2029,9 @@ private:
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
 	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
+	using CapturePools = std::array<float, MAX_PLAYERS + 1>; // per player, then Gaia's
+	bool capture_enemy(int source, int t) const;
+	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
@@ -2034,7 +2080,8 @@ private:
 		float state_timer = 0.0f;
 	} petra_strike_force_;
 
-	AttackPlan petra_attack_plan_;
+	AttackPlan petra_attack_plan_; // attackManager.js upcomingAttacks: the plan being prepared
+	std::vector<AttackPlan> petra_started_attacks_; // attackManager.js startedAttacks: armies on their way or fighting
 	AttackPlan petra_raid_plan_;
 	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
 	int petra_opening_step_ = 0;
@@ -2064,7 +2111,7 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
 	void petra_set_rushes();
@@ -2138,6 +2185,9 @@ private:
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
 	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
+	void petra_lands_around(float x, float z, float half, uint16_t out[8]) const; // a structure's lands, or a unit's
+	void petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const; // same_land, or the home base's lands
+	bool petra_lands_reach(const uint16_t from[8], const uint16_t to[8], bool by_sea, const PetraNavalTopo *&topo) const;
 	bool petra_aboard(uint32_t uid) const;
 	bool petra_is_transport_ship(size_t unit_idx) const;
 	uint16_t petra_ship_sea(size_t unit_idx) const;
@@ -2157,6 +2207,13 @@ private:
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
+	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
+	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
+	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0);
+	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
+	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
+	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
+	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
 	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
 	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
@@ -2181,7 +2238,7 @@ private:
 	// it, so never saved.
 	std::vector<uint32_t> petra_decay_events_, petra_decay_scratch_;
 	void rebuild_territory_grids();
-	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
+	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
@@ -2225,7 +2282,9 @@ private:
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
-	int petra_villager_target() const;
+	int petra_train_more_workers();
+	int petra_pop_room() const; // population left after Petra's queued batches
+	float petra_template_strength(const UnitTypeInfo &ui) const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
@@ -2233,7 +2292,7 @@ private:
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
-	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl);
+	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
 	void petra_change_diplomacy(uint8_t player, uint8_t stance);
 	void petra_last_man_standing_check();
 	int petra_player_entities(uint8_t player) const;
@@ -2267,7 +2326,7 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_)
+	X(petra_sent_diplo_) X(petra_started_attacks_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
@@ -2377,6 +2436,7 @@ private:
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
 			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
+	bool self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued, bool ignore_self_garrison);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);

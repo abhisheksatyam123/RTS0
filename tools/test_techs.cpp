@@ -75,7 +75,8 @@ int main() {
 		CHECK(ti.required_phase >= 1 && ti.required_phase <= 3);
 		CHECK(ti.prerequisite < TECH_COUNT && ti.prerequisite != t);
 		CHECK(ti.civ_mask != 0);
-		CHECK(ti.research_time > 0.0f);
+		// Only the free, instant Seleucid army reforms (pair members with no researchTime) take no time.
+		CHECK(ti.research_time > 0.0f || (t == TECH_TRADITIONAL_ARMY_SELE || t == TECH_REFORMED_ARMY_SELE));
 		for (int e = 0; e < ti.effect_count; ++e)
 			CHECK(tech_effects_table()[ti.effect_begin + e].stat < TSTAT_COUNT);
 	}
@@ -558,6 +559,23 @@ int main() {
 		CHECK(!tech_available_to_civ(TECH_ARCHER_ATTACK_SPREAD, CIV_ROMANS));
 		std::printf("stat techs: ship vision %.2f -> %.2f, outpost %.2f -> %.2f, tower %.2f -> %.2f\n", ship_vis,
 		            v.unit_vision_at(ship), outpost_vis, v.building_vision_range(building(outpost)), tower_vis, v.building_vision_range(building(tower)));
+	}
+
+	// Glorious Expansion (wonder_population_cap): each finished Wonder raises the player's
+	// maximum population by 20%, stacking, once the technology is researched.
+	{
+		static Simulation w;
+		fresh(w);
+		w.set_pop_cap(300);
+		const int base = w.pop_limit(0);
+		w.spawn_building_world(20.0f, 20.0f, BLD_WONDER, 0, 1.0f);
+		w.spawn_building_world(-20.0f, 20.0f, BLD_WONDER, 0, 1.0f);
+		CHECK(w.pop_limit(0) == base);
+		CHECK(tech_info(TECH_WONDER_POPULATION_CAP).researcher == BLD_WONDER);
+		w.players_[0].techs.set(TECH_WONDER_POPULATION_CAP);
+		CHECK(w.pop_limit(0) == (int)std::lround(base * 1.2f * 1.2f));
+		CHECK(w.pop_limit(1) == base);
+		std::printf("Glorious Expansion: population limit %d -> %d with two Wonders\n", base, w.pop_limit(0));
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

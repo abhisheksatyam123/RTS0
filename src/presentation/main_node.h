@@ -297,7 +297,7 @@ public:
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
-	void _on_upgrade_pressed(int cancel);
+	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
 	void _on_dropsite_sharing_pressed(int shared);
@@ -317,6 +317,7 @@ public:
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
 	void _on_lobby_refresh_pressed();
+	void _on_lobby_observe_toggled(bool on);
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
@@ -334,7 +335,8 @@ public:
 	uint8_t view_player() const { return turn_mgr_.is_replaying() ? replay_view_ : local_player(); }
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
-	String player_display_name(uint8_t pid) const;
+	String player_display_name(uint8_t pid) const override;
+	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];
 	void apply_player_names(const Array &names);
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
@@ -430,6 +432,7 @@ private:
 	Vector3 get_ground_click_pos(Vector2 mouse_pos) const;
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
+	bool selection_can_garrison(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();

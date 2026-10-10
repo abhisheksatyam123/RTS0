@@ -124,10 +124,13 @@ int main() {
 		CHECK(s.get_garrison_count(st) == 3);
 		CHECK(s.building_arrow_count(*find_bld(s, st)) == 5);
 
+		// The tower's List is Support Infantry (template_structure_defensive_tower.xml): the
+		// horseman stays out.
 		uint32_t tw = s.spawn_building_world(-20.0f, -50.0f, BLD_TOWER, 0, 1.0f);
 		uint32_t mix[2] = {s.spawn_unit(-18.0f, -46.0f, 0, UNIT_SPEARMAN), s.spawn_unit(-18.0f, -47.0f, 0, UNIT_CAVALRY)};
-		garrison(s, mix, 2, tw);
-		CHECK(s.get_garrison_count(tw) == 2);
+		s.order_garrison(mix, 2, tw);
+		for (int t = 0; t < 100; ++t) s.tick(0.1f);
+		CHECK(s.get_garrison_count(tw) == 1);
 		CHECK(s.building_arrow_count(*find_bld(s, tw)) == 5);
 	}
 

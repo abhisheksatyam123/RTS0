@@ -51,6 +51,10 @@ static void setup(Simulation &s, uint8_t civ0 = CIV_ATHENIANS) {
 	s.set_sim_seed(4242);
 	s.reset();
 	s.set_victory_condition(VICTORY_ENDLESS);
+	// Two human seats: an unseated match hands team 1 to Petra, whose defense
+	// orders its passive dummies to attack.
+	s.set_player_active(0, true, false);
+	s.set_player_active(1, true, false);
 	s.set_team_civ(0, civ0);
 	s.set_team_civ(1, CIV_ROMANS);
 	s.spawn_building_world(-56.0f, -56.0f, BLD_TOWN_CENTER, 0, 1.0f);
