@@ -18994,7 +18994,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_STABLE"
+    "BLD_STABLE",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -19263,8 +19264,8 @@
    "specific_name": "Hán Xìn",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_FORTRESS"
+    "BLD_FORTRESS",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre_court",
@@ -19321,8 +19322,8 @@
    "specific_name": "Liú Bāng",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_FORTRESS"
+    "BLD_FORTRESS",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre_court",
@@ -19379,8 +19380,8 @@
    "specific_name": "Wèi Qīng",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_FORTRESS"
+    "BLD_FORTRESS",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre_court",
@@ -19502,7 +19503,8 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -19621,7 +19623,8 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_MERCENARY_CAMP"
+    "BLD_MERCENARY_CAMP",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -20062,7 +20065,8 @@
    "specific_name": "Fù Nǚ",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre",
