@@ -13145,11 +13145,13 @@ void Simulation::petra_manage_economy(float dt) {
 	std::vector<size_t> reassignable_workers;
 
 	// worker.js: citizen soldiers gather too (most of 0 A.D. Petra's workforce, Economy.supportRatio
-	// 0.3); the ones serving in an attack or raid plan, citizen cavalry (hunters) and the scout don't
-	// take gathering orders here.
-	std::unordered_set<uint32_t> in_plan(petra_attack_plan_.squad.begin(), petra_attack_plan_.squad.end());
+	// 0.3); the ones serving in a started attack or raid, citizen cavalry (hunters) and the scout
+	// don't take gathering orders here. A plan still mustering keeps its citizen soldiers at work
+	// (attackPlan.js trains them with the worker role; they become attackers when it sets off).
+	std::unordered_set<uint32_t> in_plan;
+	for (const AttackPlan *p : {&petra_attack_plan_, &petra_raid_plan_})
+		if (p->state != AttackPlan::MUSTER) in_plan.insert(p->squad.begin(), p->squad.end());
 	for (const AttackPlan &p : petra_started_attacks_) in_plan.insert(p.squad.begin(), p.squad.end());
-	in_plan.insert(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end());
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
@@ -15168,16 +15170,32 @@ bool Simulation::petra_is_worker(size_t i) const {
 }
 
 int Simulation::petra_accounted_workers() const {
-	auto in_plan = [&](uint32_t id) {
-		return petra_in_attack_squad(id) ||
-		       std::find(petra_raid_plan_.squad.begin(), petra_raid_plan_.squad.end(), id) != petra_raid_plan_.squad.end();
+	// headquarters.js getAccountedWorkers: every unit with the Worker role, the citizen soldiers an
+	// attack plan trains included until it sets off (they take the Attack role then), plus the
+	// worker-role units in training queues.
+	auto set_off = [&](uint32_t id) {
+		const auto in = [id](const AttackPlan &p) {
+			return p.state != AttackPlan::MUSTER && std::find(p.squad.begin(), p.squad.end(), id) != p.squad.end();
+		};
+		if (in(petra_attack_plan_) || in(petra_raid_plan_)) return true;
+		for (const AttackPlan &p : petra_started_attacks_)
+			if (in(p)) return true;
+		return false;
 	};
 	int workers = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-		if (gcls == GATHER_FISHING || (petra_is_worker(i) && !in_plan(units_.id[i])))
+		if (gcls == GATHER_FISHING || ((gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY) && !set_off(units_.id[i])))
 			++workers;
+	}
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		for (const ProductionOrder &o : b.queue) {
+			if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) continue;
+			const uint8_t gcls = unit_gather_class(o.unit_type, o.tmpl);
+			if (gcls == GATHER_SUPPORT || gcls == GATHER_INFANTRY || gcls == GATHER_FISHING) workers += o.count;
+		}
 	}
 	return workers;
 }
