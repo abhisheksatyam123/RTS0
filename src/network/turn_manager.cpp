@@ -936,6 +936,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_float(r.z);
 		mix_u8(r.civ);
 		mix_i32(r.capture_cp);
+		for (float c : r.cp) mix_float(c);
 		mix_u8(r.claimed ? 1 : 0);
 	}
 

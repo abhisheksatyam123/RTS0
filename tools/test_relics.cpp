@@ -211,6 +211,31 @@ int main() {
 		            s.relics_.size(), distinct, beside, neutral, passable);
 	}
 
+	// 8d. Capturable.js keeps every player's points: two enemies capturing one Gaia relic
+	// each take their share, the one holding most gets it, the other keeps what it took and
+	// the new owner's regen wins those points back once the fight is over.
+	{
+		fresh(s);
+		const uint32_t id = s.spawn_relic(0.0f, 0.0f);
+		std::vector<uint32_t> a = squad(s, 0, 8, -4.0f, -4.0f);
+		std::vector<uint32_t> b = squad(s, 1, 6, 4.0f, -3.0f);
+		s.order_attack(a.data(), a.size(), id);
+		s.order_attack(b.data(), b.size(), id);
+		for (int t = 0; t < 120 && !relic(s).claimed; ++t) run(s, 0.5f);
+		const auto &cp = relic(s).cp;
+		float sum = 0.0f;
+		for (float c : cp) sum += c;
+		CHECK(relic(s).claimed && relic(s).owner_team == 0);
+		CHECK(cp[1] > 0.0f && cp[0] > cp[1]);
+		CHECK(std::fabs(sum - (float)RELIC_CAPTURE_POINTS) < 0.01f);
+		std::printf("split capture: player 0 holds %.1f, player 1 %.1f, Gaia %.1f\n", cp[0], cp[1], cp[MAX_PLAYERS]);
+		const float b_left = cp[1];
+		for (uint32_t u : b) s.units_.alive[s.lookup_unit(u)] = 0; // player 1's captors fall
+		run(s, 30.0f);
+		CHECK(relic(s).cp[1] == 0.0f && relic(s).cp[0] == (float)RELIC_CAPTURE_POINTS);
+		CHECK(relic(s).owner_team == 0 && b_left > 0.0f);
+	}
+
 	// 9. A save from before relics were catafalques: its relic gets one on the next tick.
 	{
 		fresh(s);

@@ -160,8 +160,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 52; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 54; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
+	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -1396,6 +1397,7 @@ public:
 		int capture_cp;         // the owner's Capturable points x100 (0..RELIC_CAPTURE_POINTS*100)
 		bool claimed;           // owned by a player, not Gaia
 		uint8_t owner_team = 255;
+		std::array<float, MAX_PLAYERS + 1> cp{}; // Capturable points per player, then Gaia's
 	};
 
 	// Treasure.js / TreasureCollector.js: a Gaia treasure any land unit can be ordered to
@@ -1653,7 +1655,7 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
-	void apply_status(size_t t, const CombatProfile &att);
+	void apply_status(size_t t, const CombatProfile &att, uint32_t src_id = 0, uint8_t src_owner = 0xFF);
 	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
 	void tick_attack_timer(size_t i, float dt);
 	bool attack_under_way(size_t i) const;
@@ -1661,6 +1663,7 @@ private:
 	bool attack_ready(size_t i, bool in_range, float prepare);
 	void attack_done(size_t i, bool in_range, float repeat);
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
+	void unit_attack_effects(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -1758,6 +1761,15 @@ private:
 	int32_t projectile_hit_fauna(const Projectile &p) const;
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
+	void fire_at_fauna(size_t i, size_t f);
+	void fauna_killed(size_t f, size_t i);
+	bool projectile_lands_in(const Projectile &p, const Building &b) const;
+	int32_t projectile_hit_structure(const Projectile &p) const;
+	void projectile_hits_structure(const Projectile &p, Building &b);
+	float projectile_damage_to_unit(const Projectile &p, size_t u);
+	float projectile_damage_to_structure(const Projectile &p, const Building &b) const;
+	float unit_damage_to_structure(size_t i, const Building &b) const;
+	float structure_arrow_damage(const Building &shooter, const float res[3]) const;
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
@@ -1991,6 +2003,9 @@ private:
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
 	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
+	using CapturePools = std::array<float, MAX_PLAYERS + 1>; // per player, then Gaia's
+	bool capture_enemy(int source, int t) const;
+	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
