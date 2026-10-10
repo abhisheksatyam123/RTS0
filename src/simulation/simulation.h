@@ -838,6 +838,7 @@ public:
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
+	float game_time() const { return (float)ticks_ * FIXED_STEP; } // seconds since the match started
 	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
 	// Whether a unit or structure of player a may attack one of player b right now.
 	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
@@ -1218,7 +1219,8 @@ public:
 	}
 	void set_mutual_ally(uint8_t player_id) { set_mutual_ally(0, player_id); }
 	// Allied: the same alliance team from game setup, or a stance both players
-	// chose. Teams win over stances, as 0 A.D.'s locked teams do.
+	// chose. Teams win over stances; without Lock Teams a player who stops allying
+	// a teammate leaves the team (cmd_set_diplomacy), so stances decide from then on.
 	bool is_ally(uint8_t a, uint8_t b) const {
 		if (a == b) return true;
 		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return false;
