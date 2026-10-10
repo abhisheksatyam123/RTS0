@@ -2042,7 +2042,7 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	if (mouse_button != MOUSE_BUTTON_LEFT || roster_list->is_item_disabled(index)) return;
 	const int meta = (int)roster_list->get_item_metadata(index);
 	if (meta & ROSTER_ANIMAL) {
-		try_breed(selected_building_id, (uint8_t)(meta & 0xFF));
+		try_breed(selected_building_id, (uint8_t)(meta & 0xFF), train_batch());
 		return;
 	}
 	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
@@ -2050,13 +2050,13 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 
 // Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
 // type and the animal in target_x.
-void RtsoMain::try_breed(uint32_t building_id, uint8_t ftype) {
+void RtsoMain::try_breed(uint32_t building_id, uint8_t ftype, int count) {
 	if (building_id == 0) return;
 	if (turn_cmds()) {
-		post_lockstep(6, nullptr, 0, (float)ftype, 0.0f, building_id, (uint8_t)rtso::UNIT_TYPE_NONE);
+		post_lockstep(6, nullptr, 0, (float)ftype, (float)count, building_id, (uint8_t)rtso::UNIT_TYPE_NONE);
 		return;
 	}
-	sim->cmd_breed_livestock(local_player(), building_id, ftype);
+	sim->cmd_breed_livestock(local_player(), building_id, ftype, count);
 }
 
 void RtsoMain::_on_build_btn_pressed(int btype) {
