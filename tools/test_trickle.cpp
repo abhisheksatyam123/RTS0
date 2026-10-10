@@ -122,7 +122,8 @@ int main() {
 	}
 
 	// 6. The corral trains its civ's animals at their 0 A.D. cost and time: an Athenian cow
-	//    is 150 food and 60 s (45 s after Stockbreeding) and is penned when it comes out;
+	//    is 150 food and 60 s (45 s after Stockbreeding) and steps out beside the corral, or
+	//    is penned when it comes out if the corral's rally point is the corral (autoGarrison);
 	//    a Han corral has no sheep and trains its first animal (a goat) instead; cancelling
 	//    refunds the animal's cost.
 	{
@@ -142,14 +143,27 @@ int main() {
 		CHECK(s.cmd_cancel_train(0, c, 1));
 		CHECK(near(s.players_[0].res[RES_FOOD], 850.0f));
 		run(s, 61.0f);
-		CHECK(s.corral_count(c) == 1);
+		CHECK(s.corral_count(c) == 0);
 		bool cow = false;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			cow |= s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_CATTLE_COW_TRAINABLE && s.fauna_.corral_id[f] == 0 &&
+				s.fauna_.behavior[f] != FAUNA_CORRALLED;
+		CHECK(cow);
+		auto &cb = s.buildings_[s.building_id_to_idx_.at(c)];
+		cb.has_rally_point = true;
+		cb.rally_target_bld_id = c;
+		cb.rally_x = cb.x;
+		cb.rally_z = cb.z;
+		CHECK(s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE));
+		run(s, 46.0f);
+		CHECK(s.corral_count(c) == 1);
+		cow = false;
 		for (size_t f = 0; f < s.fauna_.count; ++f)
 			cow |= s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_CATTLE_COW_TRAINABLE && s.fauna_.corral_id[f] == c;
 		CHECK(cow);
 		CHECK(Simulation::corral_animal_for(CIV_HAN, FAUNA_SHEEP_TRAINABLE) == FAUNA_GOAT_TRAINABLE);
 		CHECK(Simulation::corral_animal_for(CIV_KUSHITES, FAUNA_CATTLE_SANGA_TRAINABLE) == FAUNA_CATTLE_SANGA_TRAINABLE);
-		std::printf("corral: cow 150 food, 60 s; penned on arrival\n");
+		std::printf("corral: cow 150 food, 60 s; out beside it, penned with a rally on the corral\n");
 	}
 
 	// 7. The Persian ice house (structures/pers/ice_house.xml): 1 food every 2 s, 2 after
