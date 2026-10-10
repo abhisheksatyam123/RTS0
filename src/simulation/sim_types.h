@@ -1337,8 +1337,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 inline int structure_garrison_max(uint8_t type, uint8_t civ) {
 	switch (type) {
 		case BLD_HOUSE:
-			return (civ == CIV_BRITONS || civ == CIV_GAULS || civ == CIV_IBERIANS || civ == CIV_MAURYANS ||
-					civ == CIV_PTOLEMIES) ? 3 : 6;
+			return civ < CIV_COUNT && !civ_has_big_house(civ) ? 3 : 6;
 		case BLD_TOWER: return civ == CIV_IBERIANS ? 8 : building_type_info(type).garrison_cap;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 1 : 0;
 		default: return building_type_info(type).garrison_cap;
