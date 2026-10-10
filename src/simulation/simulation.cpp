@@ -5265,8 +5265,8 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	}
 }
 
-bool Simulation::garrison_in_range(size_t i, const Building &b) const {
-	const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
+bool Simulation::garrison_in_range(size_t i, const Building &b, float x, float z) const {
+	const nav::Vec2 gap = nav::footprint_gap(b, x, z);
 	const float ex = gap.x, ez = gap.y;
 	// LoadingRange counts from where a unit can stand: its radius plus the navcell
 	// clearance extension around the structure (0 A.D. measures from the obstruction).
@@ -7275,6 +7275,12 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			return bit != building_id_to_idx_.end() && square(buildings_[bit->second], kBuildReach);
 		}
+		if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
+			// garrison_in_range's LoadingRange, which counts from the unit's centre (square adds its radius).
+			const auto bit = building_id_to_idx_.find(units_.order_target[i]);
+			return bit != building_id_to_idx_.end() &&
+			       square(buildings_[bit->second], GARRISON_LOADING_RANGE + nav::kClearanceExtensionRadius);
+		}
 		if (st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE) {
 			// The dropsite (tick_gather) or market (the trader tick) at the walk's target, or a
 			// worker elephant to drop at.
@@ -7429,6 +7435,11 @@ bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 		auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 		return bit != building_id_to_idx_.end() &&
 				outside_and_in_build_range(buildings_[bit->second], x, z, unit_collision_radius(units_.unit_type[i]));
+	}
+	if (st == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) {
+		// The garrison order gets in within LoadingRange.
+		auto bit = building_id_to_idx_.find(units_.order_target[i]);
+		return bit != building_id_to_idx_.end() && garrison_in_range(i, buildings_[bit->second], x, z);
 	}
 	return false;
 }

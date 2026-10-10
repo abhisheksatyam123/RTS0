@@ -1538,7 +1538,8 @@ private:
 	void avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
 			float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked);
 	// A walker at (x, z) already within reach of the task it walks for (a resource it gathers, a
-	// foundation it builds, a unit it attacks): 0 A.D.'s move to the target's range is done there.
+	// foundation it builds, a unit it attacks, a structure it garrisons in): 0 A.D.'s move to the
+	// target's range is done there.
 	bool walk_in_reach(size_t i, float x, float z) const;
 	// The key of a short path kept round idle units (ShortPathMemo): a short path among this tick's
 	// buildings (short_path_key_) that also went round units.
@@ -2467,7 +2468,8 @@ private:
 	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
 	void start_heal(size_t healer, uint32_t target, uint8_t flags);
 	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
-	bool garrison_in_range(size_t i, const Building &b) const;
+	bool garrison_in_range(size_t i, const Building &b) const { return garrison_in_range(i, b, units_.pos_x[i], units_.pos_z[i]); }
+	bool garrison_in_range(size_t i, const Building &b, float x, float z) const; // as if unit i stood at (x, z)
 	void garrison_now(size_t i, Building &b);
 	void start_cheer(size_t i);                                 // UnitAI Cheer + notifyToCheerInRange
 	void note_kill(uint32_t killer_id, uint32_t victim_id);       // UnitAI shouldCheer
