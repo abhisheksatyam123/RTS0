@@ -300,6 +300,44 @@ int main() {
 		CHECK(s.get_garrison_count(temple) == 0 && s.units().alive[idx_of(s, mine)] && s.units().team[idx_of(s, mine)] == 0);
 	}
 
+	// 14. Repairable on units: template_unit_siege and template_unit_ship (RepairTimeRatio 4), not
+	// fire ships or living units. A builder walks up and repairs MaxHitpoints / (4 x BuildTime)
+	// a second, then stops once the unit is whole (ConstructionFinished -> FinishOrder).
+	{
+		fresh(s);
+		uint32_t ram = s.spawn_unit(10.0f, 0.0f, 0, UNIT_SIEGE_RAM);
+		uint32_t ship = s.spawn_unit(30.0f, 30.0f, 0, UNIT_TRIREME);
+		uint32_t fire = s.spawn_unit(30.0f, 34.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+		uint32_t man = s.spawn_unit(-10.0f, 0.0f, 0, UNIT_SPEARMAN);
+		CHECK(s.is_repairable_unit(ram) && s.is_repairable_unit(ship));
+		CHECK(!s.is_repairable_unit(fire) && !s.is_repairable_unit(man));
+		const int32_t ri = idx_of(s, ram);
+		const float max = s.units().max_hp[ri];
+		const_cast<float *>(s.units().hp)[ri] = max * 0.5f;
+		uint32_t w = s.spawn_unit(4.0f, 0.0f, 0, UNIT_VILLAGER);
+		s.order_build_or_repair(&w, 1, ram);
+		CHECK(s.units().action_state[idx_of(s, w)] == ACTION_REPAIR);
+		for (int t = 0; t < 400 && s.units().hp[idx_of(s, ram)] <= max * 0.5f; ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(s.units().hp[idx_of(s, ram)] > max * 0.5f);
+		const float h0 = s.units().hp[idx_of(s, ram)];
+		run(s, 4.0f);
+		const float rate = (s.units().hp[idx_of(s, ram)] - h0) / 4.0f;
+		const float want = max / (4.0f * civ_template_unit_info(s.units().tmpl[idx_of(s, ram)], UNIT_SIEGE_RAM).train_time);
+		std::printf("ram repaired at %.2f hp/s (want %.2f)\n", rate, want);
+		CHECK(std::fabs(rate - want) < want * 0.1f);
+		run(s, max * 0.5f / want + 2.0f);
+		CHECK(s.units().hp[idx_of(s, ram)] == max);
+		CHECK(s.units().action_state[idx_of(s, w)] == ACTION_IDLE);
+		// No repairing an enemy's ram, a fire ship or a wounded soldier.
+		uint32_t foe = s.spawn_unit(-20.0f, 10.0f, 1, UNIT_SIEGE_RAM);
+		const_cast<float *>(s.units().hp)[idx_of(s, foe)] = 100.0f;
+		const_cast<float *>(s.units().hp)[idx_of(s, man)] = 10.0f;
+		s.order_build_or_repair(&w, 1, foe);
+		CHECK(s.units().action_state[idx_of(s, w)] != ACTION_REPAIR);
+		s.order_build_or_repair(&w, 1, man);
+		CHECK(s.units().action_state[idx_of(s, w)] != ACTION_REPAIR);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
