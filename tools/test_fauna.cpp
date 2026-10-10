@@ -26,6 +26,7 @@ static void run(Simulation &s, float seconds) {
 static void fresh(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
+	for (uint8_t p = 0; p < 2; ++p) s.players_[p].active = 1, s.players_[p].is_ai = 0; // no Petra builders
 	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
