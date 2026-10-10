@@ -140,8 +140,8 @@ TRAINER_BUILDING = {
     "house": "BLD_HOUSE", "barracks": "BLD_BARRACKS", "stable": "BLD_STABLE",
     "range": "BLD_RANGE", "elephant_stable": "BLD_ELEPHANT_STABLE",
     "gymnasium": "BLD_BARRACKS", "mercenary_camp": "BLD_BARRACKS",
-    "embassy": "BLD_EMBASSY", "embassy_celtic": "BLD_EMBASSY",
-    "embassy_iberian": "BLD_EMBASSY", "embassy_italic": "BLD_EMBASSY",
+    # cart/embassy (all seven mercenaries) is in no Builder list: each embassy trains its own.
+    "embassy_celtic": "BLD_EMBASSY",
     "army_camp": "BLD_BARRACKS", "academy": "BLD_BARRACKS",
     "imperial_court": "BLD_TOWN_CENTER", "imperial_ministry": "BLD_TOWN_CENTER",
     "arsenal": "BLD_ARSENAL", "workshop": "BLD_ARSENAL",
@@ -207,7 +207,13 @@ UNIQUE_BUILDINGS = [
     # The palisade gate (structures/palisades_gate, a palisades_long Upgrade; drawn with the
     # palisade until it has its own model). Generic: every civ that lays palisades has it.
     ("BLD_PALISADE_GATE", ["palisades_gate"], "palisade", "palisade"),
+    # Carthage's Iberian and Italic embassies (BLD_EMBASSY is the Celtic one), each training
+    # its own mercenaries; drawn with the embassy until they have their own models.
+    ("BLD_EMBASSY_IBERIAN", ["embassy_iberian"], "embassy", "embassy"),
+    ("BLD_EMBASSY_ITALIC", ["embassy_italic"], "embassy", "embassy"),
 ]
+# Civ structures named by Identity/SpecificName rather than a GenericName they share.
+SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC"}
 # Structures no Builder list names: only an Upgrade reaches them.
 UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
                 "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE"}
@@ -234,8 +240,7 @@ BUILDER_BUILDING = {
     "field": ["BLD_FIELD"], "stable": ["BLD_STABLE"], "range": ["BLD_RANGE"], "forge": ["BLD_FORGE"],
     "arsenal": ["BLD_ARSENAL"], "sentry_tower": ["BLD_SENTRY_TOWER"], "outpost": ["BLD_OUTPOST"],
     "wallset_palisade": ["BLD_PALISADE"], "elephant_stable": ["BLD_ELEPHANT_STABLE"],
-    "theater": ["BLD_THEATER"], "embassy_celtic": ["BLD_EMBASSY"], "embassy_iberian": ["BLD_EMBASSY"],
-    "embassy_italic": ["BLD_EMBASSY"],
+    "theater": ["BLD_THEATER"], "embassy_celtic": ["BLD_EMBASSY"],
 }
 
 
@@ -1456,7 +1461,9 @@ def unique_building_rows(sim_root, generic_masks=None):
             width = 2.0 * float(c.attrs.get("radius", 0)) if c is not None else 0.0
         out.append({
             "enum": enum, "src": src, "civs": civs,
-            "name": t.value("Identity/GenericName", "") or t.value("Identity/SpecificName", ""),
+            # The three Carthaginian embassies share GenericName "Embassy": tell them apart.
+            "name": (t.value("Identity/SpecificName", "") if enum in SPECIFIC_NAME else "")
+                    or t.value("Identity/GenericName", "") or t.value("Identity/SpecificName", ""),
             "generic": t.value("Identity/GenericName", ""),
             "model": model, "portrait": portrait,
             "hp": t.num("Health/Max", 1000.0),

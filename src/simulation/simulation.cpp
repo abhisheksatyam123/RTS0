@@ -15532,12 +15532,12 @@ void Simulation::petra_manage_buildings(float dt) {
 }
 
 // config.js `buildings`: each civ's advanced structures, in Petra's order
-// (Carthage's three embassies are RTS0's one). Petra never builds Rome's
+// (Carthage's Celtic, Iberian and Italic embassies). Petra never builds Rome's
 // Temple of Mars: it is in no list.
 static std::vector<uint8_t> petra_advanced_buildings(uint8_t civ) {
 	switch (civ) {
 		case CIV_ATHENIANS: return {BLD_GYMNASIUM, BLD_PRYTANEION, BLD_THEATER};
-		case CIV_CARTHAGINIANS: return {BLD_EMBASSY};
+		case CIV_CARTHAGINIANS: return {BLD_EMBASSY, BLD_EMBASSY_IBERIAN, BLD_EMBASSY_ITALIC};
 		case CIV_GAULS: return {BLD_ASSEMBLY};
 		case CIV_HAN: return {BLD_ACADEMY};
 		case CIV_IBERIANS: return {BLD_MONUMENT};
