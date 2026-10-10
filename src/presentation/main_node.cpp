@@ -133,6 +133,7 @@ void RtsoMain::_bind_methods() {
 	// (scenes/menu/loading.gd) listens while the match is set up.
 	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -671,7 +672,8 @@ void RtsoMain::_ready() {
 	lobby_observe = memnew(Button);
 	lobby_observe->set_text("Observe");
 	lobby_observe->set_toggle_mode(true);
-	lobby_observe->set_tooltip_text("Join a match in progress as an observer");
+	lobby_observe->set_tooltip_text("Watch instead of playing: host or join a match (or one in progress) as an observer");
+	lobby_observe->connect("toggled", Callable(this, "_on_lobby_observe_toggled"));
 	lobby_actions->add_child(lobby_observe);
 	Button *ref_b = memnew(Button);
 	ref_b->set_text("Refresh");
@@ -2710,10 +2712,12 @@ void RtsoMain::_process(double delta) {
 		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
 		selected_ids.clear();
-	} else if (local_observer_ && !turn_mgr_.is_replaying()) {
-		// Every Game Setup slot was AI: say so for the first few seconds.
+	} else if ((local_observer_ || (net_lockstep() && local_player() >= rtso::MAX_PLAYERS)) && !turn_mgr_.is_replaying()) {
+		// Every Game Setup slot was AI, or this client joined to watch: say so
+		// for the first few seconds.
 		banner_panel->set_visible(match_elapsed_time < 6.0);
-		banner_label->set_text("OBSERVING\nEvery player is an AI. The map is revealed.");
+		banner_label->set_text(local_observer_ ? "OBSERVING\nEvery player is an AI. The map is revealed."
+				: "OBSERVING\nYou are watching this match. The map is revealed.");
 		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
 	}
 }
@@ -5218,6 +5222,12 @@ void RtsoMain::refresh_lobby_rooms() {
 		lobby_status->set_text(String::num_int64((int64_t)lobby_room_cache_.size()) + " rooms");
 }
 
+// A joiner still in game setup changes its mind: tell the host it now wants
+// to watch (or play), as its request at connect did.
+void RtsoMain::_on_lobby_observe_toggled(bool on) {
+	if (net_lockstep() && !net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin(on);
+}
+
 void RtsoMain::_on_lobby_refresh_pressed() {
 	refresh_lobby_rooms();
 }
@@ -5346,9 +5356,16 @@ void RtsoMain::_on_lobby_start_pressed() {
 	// few, turn the first AI slots into human ones (before broadcast, so both
 	// peers seat players identically in assign_slot_players).
 	{
-		int need = 1;
-		for (const auto &p : net_host_.getPeers())
-			if (p.connected && !p.is_observer) ++need;
+		// 0 A.D. game setup assigns observers no player: the host when Observe is
+		// ticked, a joiner that asked to watch (its rejoin request at connect).
+		const bool host_watches = lobby_observe && lobby_observe->is_pressed();
+		setup.observers = host_watches ? 1 : 0;
+		int need = host_watches ? 0 : 1;
+		for (const auto &p : net_host_.getPeers()) {
+			if (!p.connected || p.id == 0) continue;
+			if (!p.is_observer) ++need;
+			else if (p.id < 8) setup.observers |= (uint8_t)(1u << p.id);
+		}
 		for (uint8_t i = 0; i < setup.slot_count; ++i)
 			if (setup.slot_types[i] == 'h') --need;
 		for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)
