@@ -398,6 +398,7 @@ public:
 	// Read-only, for the renderer: unit i is attacking a structure it captures
 	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
 	bool unit_capturing(size_t i) const;
+	bool unit_heals(size_t i) const;
 	float healer_range_of(size_t h) const;
 	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
@@ -1185,6 +1186,9 @@ public:
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
+	int petra_accounted_population() const;
+	int petra_pop_for_barracks1() const;
+	int petra_pop_for_barracks2() const;
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -1682,9 +1686,10 @@ private:
 	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
 	static float foundation_build_multiplier(int builders);
 	float builder_rate(size_t unit_idx) const;
-	float structure_build_time(const Building &b, uint8_t builder_team) const;
+	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
@@ -1719,6 +1724,7 @@ private:
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
 	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	void fauna_start_attack(size_t f, uint32_t target);  // UnitAI COMBAT for an animal (PrepareTime)
 	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
 	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
@@ -1912,6 +1918,8 @@ private:
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
+	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	void refund_foundation(const Building &b);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {

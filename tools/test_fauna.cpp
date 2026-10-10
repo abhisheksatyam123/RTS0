@@ -230,6 +230,32 @@ int main() {
 		std::printf("leash: boar leash %.1f, gave up %s\n", leash, s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK ? "yes" : "no");
 	}
 
+	// 7b. Attack.js timing and resistance: a wolf's first bite waits its PrepareTime (1 s), and
+	// each bite is its damage against the victim's full resistance (unit_resistance).
+	{
+		fresh(s);
+		uint32_t man = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const int32_t u = uidx(s, man);
+		s.units_.speed[u] = 0.0f;
+		s.units_.attack_damage[u] = 0.0f; // it doesn't fight back here
+		s.units_.max_hp[u] = s.units_.hp[u] = 1000.0f;
+		uint32_t wolf = s.spawn_fauna(0.8f, 0.0f, FAUNA_WOLF);
+		const auto &info = fauna_type_info(FAUNA_WOLF);
+		CHECK(info.attack_prepare == 1.0f);
+		s.fauna_attacked((size_t)fidx(s, wolf), man);
+		CHECK(s.fauna_.behavior[fidx(s, wolf)] == FAUNA_ATTACK);
+		run(s, 0.8f);
+		CHECK(s.units_.hp[u] == 1000.0f); // still preparing
+		float res[3];
+		s.unit_resistance((size_t)u, res);
+		const float bite = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
+		                   info.crush_damage * powf(0.9f, res[2]);
+		run(s, 0.4f);
+		CHECK(std::fabs((1000.0f - s.units_.hp[u]) - std::max(1.0f, bite)) < 0.01f);
+		std::printf("wolf bite: first after prepare, %.2f damage (resistance %.1f/%.1f/%.1f)\n",
+		            1000.0f - s.units_.hp[u], res[0], res[1], res[2]);
+	}
+
 	// 8. Herding works for every player: player 1 herds a sheep into its own corral.
 	{
 		fresh(s);
