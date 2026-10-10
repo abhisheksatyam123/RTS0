@@ -41,6 +41,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_stone */ \
 		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_metal */ \
 		{"Apartment Building", "house", "house", 1800.0f, 1, 0, 175, 0, 50, 20, 12, 22.5f, 1000.0f, 0.5f, 1.0f, 40.0f}, /* structures/cart/apartment */ \
+		{"Palisade Gate", "palisade", "palisade", 500.0f, 1, 0, 10, 0, 0, 0, 0, 2.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/palisades_gate */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -77,6 +78,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 40, 40}, /* structures/pers/tachara_stone */ \
 		{0, 0, 0, 40, 40}, /* structures/pers/tachara_metal */ \
 		{0, 0, 35, 10, 0}, /* structures/cart/apartment */ \
+		{0, 0, 2, 0, 0}, /* structures/palisades_gate */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -122,6 +124,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_TACHARA_STONE: return 0x0004; // pers
 		case BLD_TACHARA_METAL: return 0x0004; // pers
 		case BLD_APARTMENT: return 0x0010; // cart
+		case BLD_PALISADE_GATE: return 0x3fff; // athen spart pers rome cart mace brit gaul iber maur kush ptol sele han
 		default: return 0xFFFF;
 	}
 }
@@ -161,6 +164,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_TACHARA_STONE: return 3;
 		case BLD_TACHARA_METAL: return 3;
 		case BLD_APARTMENT: return 1;
+		case BLD_PALISADE_GATE: return 1;
 		default: return 0;
 	}
 }
@@ -196,7 +200,7 @@ inline float civ_building_vision(uint8_t type) {
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {
-	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT;
+	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_PALISADE_GATE;
 }
 
 // 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):

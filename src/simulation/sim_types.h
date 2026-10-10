@@ -407,7 +407,8 @@ enum BuildingType : uint8_t {
 	BLD_TACHARA_STONE = 55,   // pers/tachara_stone
 	BLD_TACHARA_METAL = 56,   // pers/tachara_metal
 	BLD_APARTMENT = 57,       // cart/apartment
-	BLD_TYPE_COUNT = 58
+	BLD_PALISADE_GATE = 58,   // palisades_gate
+	BLD_TYPE_COUNT = 59
 };
 
 #include "civ_building_data.h"
@@ -972,6 +973,9 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
 }
 
+// Gate.js holders: the stone gate and the palisade gate (a palisades_long Upgrade).
+inline constexpr bool is_gate_type(uint8_t type) { return type == BLD_GATE || type == BLD_PALISADE_GATE; }
+
 inline bool is_palisade_tower(uint8_t type, float half_w) {
 	return type == BLD_PALISADE && std::fabs(half_w - PALISADE_TOWER_HALF) < 0.01f;
 }
@@ -981,13 +985,14 @@ inline bool is_palisade_tower(uint8_t type, float half_w) {
 // and their building_type_info row.
 inline bool is_wallset_piece(uint8_t type, float half_w) {
 	if (type == BLD_PALISADE) return std::fabs(half_w - 1.0f) > 0.01f;
+	if (type == BLD_PALISADE_GATE) return true;
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
 // A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
 inline float wallset_piece_value(uint8_t type, float half_w, int what) {
-	if (!is_wallset_piece(type, half_w) || type == BLD_GATE) return -1.0f;
+	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return -1.0f;
 	const WallSetInfo &ws = wallset_info(type == BLD_PALISADE ? WALLSET_PALISADE : WALLSET_STONE);
 	if (is_palisade_tower(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
 	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
@@ -1000,7 +1005,7 @@ inline float wallset_piece_value(uint8_t type, float half_w, int what) {
 // width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
 inline float building_half_depth(uint8_t type, float half_w) {
 	if (!is_wallset_piece(type, half_w) || is_palisade_tower(type, half_w)) return half_w;
-	return type == BLD_PALISADE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
+	return type == BLD_PALISADE || type == BLD_PALISADE_GATE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1020,7 +1025,7 @@ inline uint8_t building_required_phase(uint8_t type) {
 
 // 0 A.D. Upgrade component, for the structures RTS0 has both ends of:
 // template_structure_defensive_tower_sentry.xml (<Tower>) and
-// template_structure_defensive_wall_long.xml (<Gate>). iber/sentry_tower.xml
+// template_structure_defensive_wall_long.xml and palisades_long.xml (<Gate>). iber/sentry_tower.xml
 // overrides the tower's stone cost and time (its wood cost is inherited).
 struct BuildingUpgradeInfo {
 	uint8_t to; // BLD_TYPE_COUNT: this structure has no upgrade
@@ -1039,6 +1044,8 @@ inline BuildingUpgradeInfo generic_building_upgrade(uint8_t from, uint8_t civ) {
 			return {BLD_TOWER, 0, 50, 0, 100, 100.0f, 2, "Reinforce with stone and upgrade to a defense tower."};
 		case BLD_WALL_SEGMENT:
 			return {BLD_GATE, 0, 20, 0, 0, 12.0f, 1, "Allow units access through Walls. Can be locked to prevent access."};
+		case BLD_PALISADE: // palisades_long only (upgrade_check)
+			return {BLD_PALISADE_GATE, 0, 10, 0, 0, 6.0f, 1, "Allow units access through Palisades. Can be locked to prevent access."};
 		default:
 			return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
 	}
@@ -1261,7 +1268,7 @@ inline float building_eject_health(uint8_t type) {
 		case BLD_FORTRESS: return 0.075f;
 		case BLD_CORRAL: return 0.5f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
-		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: return 0.0f;
+		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE: return 0.0f;
 		default: return 0.1f;
 	}
 }
@@ -1291,7 +1298,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: return c | TC_MARKET;
 		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
-		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: return c | TC_WALL | TC_DEFENSIVE;
+		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
@@ -2133,6 +2140,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		case BLD_SENTRY_TOWER:
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 			return "rubble_small";
 		default:
@@ -2161,6 +2169,7 @@ inline const char *civ_building_foundation(uint8_t type) {
 		case BLD_WALL_SEGMENT:
 		case BLD_GATE:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 			return "foundation_wall";
 		case BLD_FIELD:
@@ -2188,6 +2197,7 @@ inline const char *civ_building_scaffold(uint8_t type) {
 		case BLD_SENTRY_TOWER:
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 		case BLD_FIELD:
 			return "scaffold_small";

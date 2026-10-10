@@ -199,9 +199,16 @@ UNIQUE_BUILDINGS = [
     ("BLD_TACHARA_STONE", ["tachara_stone"], "tachara", "tachara"),
     ("BLD_TACHARA_METAL", ["tachara_metal"], "tachara", "tachara"),
     ("BLD_APARTMENT", ["apartment"], "house", "house"),
+    # The palisade gate (structures/palisades_gate, a palisades_long Upgrade; drawn with the
+    # palisade until it has its own model). Generic: every civ that lays palisades has it.
+    ("BLD_PALISADE_GATE", ["palisades_gate"], "palisade", "palisade"),
 ]
 # Structures no Builder list names: only an Upgrade reaches them.
-UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT"}
+UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
+                "BLD_PALISADE_GATE"}
+# Generic structures (structures/<stem>.xml) in UNIQUE_BUILDINGS -> the generic BuildingType
+# whose civs have them too.
+GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
 # Generic structures a civ structure's Upgrade can start from (structures/cart/house).
 UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE"}
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
@@ -1407,7 +1414,7 @@ def emit_json(rows, auras, civ_json, bonuses):
     return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"
 
 
-def unique_building_rows(sim_root):
+def unique_building_rows(sim_root, generic_masks=None):
     """BuildingTypeInfo rows, civ masks and phases for UNIQUE_BUILDINGS, read
     from each structure's 0 A.D. template the way the generic rows in
     sim_types.h were: Health, Cost (metal -> gold), GarrisonHolder,
@@ -1425,6 +1432,11 @@ def unique_building_rows(sim_root):
                     if t is None:
                         t, src = loader.load(name), name
                     break
+        if enum in GENERIC_UNIQUE:
+            name = "structures/%s" % stems[0]
+            mask = (generic_masks or {}).get(GENERIC_UNIQUE[enum], 0)
+            civs = [c for i, c in enumerate(CIVS) if mask >> i & 1]
+            t, src = loader.load(name), name
         if t is None:
             raise SystemExit("no 0 A.D. template for %s" % enum)
         fp = t.get("Footprint/Square")
@@ -1628,7 +1640,8 @@ def main():
     rows, auras, skipped, civ_json, bonuses, team = collect(sim_root)
     header = emit_header(rows, auras, civ_json, bonuses, team)
     js = emit_json(rows, auras, civ_json, bonuses)
-    bld = emit_buildings(unique_building_rows(sim_root), generic_build_masks(sim_root), civ_building_upgrades(sim_root))
+    masks = generic_build_masks(sim_root)
+    bld = emit_buildings(unique_building_rows(sim_root, masks), masks, civ_building_upgrades(sim_root))
     if args.verbose:
         for s in skipped:
             print("skipped:", s, file=sys.stderr)
