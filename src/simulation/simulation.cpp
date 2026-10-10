@@ -20872,10 +20872,7 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
 		if (b != FAUNA_ATTACK) {
-			fauna_.behavior[f] = FAUNA_ATTACK;
-			fauna_.target_unit_id[f] = attacker_id;
-			fauna_.home_x[f] = fauna_.pos_x[f];
-			fauna_.home_z[f] = fauna_.pos_z[f];
+			fauna_start_attack(f, attacker_id);
 		}
 		return;
 	}
@@ -20895,7 +20892,18 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	fauna_.flee_distance[f] = (a >= 0 ? dist_to(a) : 0.0f) + info.flee_distance;
 }
 
-// An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
+// UnitAI COMBAT for an animal: it goes for `target` from where it stands, and its first bite
+// waits Attack/Melee PrepareTime (or what is left of the last RepeatTime, if longer).
+void Simulation::fauna_start_attack(size_t f, uint32_t target) {
+	fauna_.behavior[f] = FAUNA_ATTACK;
+	fauna_.target_unit_id[f] = target;
+	fauna_.home_x[f] = fauna_.pos_x[f];
+	fauna_.home_z[f] = fauna_.pos_z[f];
+	fauna_.attack_timer[f] = std::max(fauna_.attack_timer[f], fauna_type_info(fauna_.fauna_type[f]).attack_prepare);
+}
+
+// An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Resistance),
+// against the unit's full resistance (template, techs, rank, auras, a wall turret).
 void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
@@ -21224,6 +21232,8 @@ void Simulation::tick_fauna(float dt) {
 			const float dx = units_.pos_x[t] - fx, dz = units_.pos_z[t] - fz;
 			const float len = std::sqrt(dx * dx + dz * dz);
 			if (len > info.attack_range + 0.6f) {
+				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
+				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
 				const float sp = info.speed * info.run_mult;
 				// Straight at the target; when a pond or cliff is in the way, 45 or 90 degrees
 				// to either side (animals have no long-range path here; polar_sea_triggers.js
@@ -21301,10 +21311,7 @@ void Simulation::tick_fauna(float dt) {
 				const float q = info.stance == FAUNA_STANCE_DEFENSIVE ? std::min(info.attack_range + info.vision * 0.5f, info.vision) : info.vision;
 				const int32_t u = nearest_foe(fx, fz, q, true);
 				if (u >= 0) {
-					fauna_.behavior[i] = FAUNA_ATTACK;
-					fauna_.target_unit_id[i] = units_.id[u];
-					fauna_.home_x[i] = fx;
-					fauna_.home_z[i] = fz;
+					fauna_start_attack(i, units_.id[u]);
 					continue;
 				}
 			}
@@ -22094,10 +22101,7 @@ void Simulation::trigger_polar_sea_wave() {
 		if (n == 0) continue;
 		for (uint32_t id : pack) {
 			const size_t f = fauna_id_to_idx_[id];
-			fauna_.behavior[f] = FAUNA_ATTACK;
-			fauna_.target_unit_id[f] = best[0];
-			fauna_.home_x[f] = fauna_.pos_x[f];
-			fauna_.home_z[f] = fauna_.pos_z[f];
+			fauna_start_attack(f, best[0]);
 			TriggerAttackOrder o;
 			o.fauna_id = id;
 			for (uint32_t j = 0; j < n; ++j) o.targets[j] = best[j];
@@ -22143,10 +22147,7 @@ void Simulation::tick_trigger_attack_orders() {
 			orders.erase(orders.begin() + (std::ptrdiff_t)k);
 			continue;
 		}
-		fauna_.behavior[f] = FAUNA_ATTACK;
-		fauna_.target_unit_id[f] = o.targets[0];
-		fauna_.home_x[f] = fauna_.pos_x[f];
-		fauna_.home_z[f] = fauna_.pos_z[f];
+		fauna_start_attack(f, o.targets[0]);
 		++k;
 	}
 }
