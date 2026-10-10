@@ -680,6 +680,7 @@ static void chases() {
 			s.order_set_stance(&target, 1, STANCE_PASSIVE);
 		}
 		const uint32_t a = s.spawn_unit(0.0f, -30.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		s.set_reveal_map(true); // the player sees the far shore (a chase into the fog ends, CheckTargetVisible)
 		if (house) s.order_attack_building(&a, 1, target);
 		else s.order_attack(&a, 1, target);
 		int gave_up = -1, wet = 0;
@@ -728,6 +729,7 @@ static void chases() {
 		const uint32_t foe = s.spawn_unit(20.0f, 0.0f, 1, UNIT_SPEARMAN, 0.0f);
 		s.order_set_stance(&foe, 1, STANCE_PASSIVE);
 		const uint32_t a = s.spawn_unit(-20.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		s.set_reveal_map(true); // the player sees the cliff top (a chase into the fog ends, CheckTargetVisible)
 		s.order_attack(&a, 1, foe);
 		int hit = -1, on_cliff = 0;
 		for (int t = 0; t < 2400 && hit < 0; ++t) {
