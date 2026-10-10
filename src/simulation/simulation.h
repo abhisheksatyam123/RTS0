@@ -679,7 +679,7 @@ public:
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
 	static bool is_dropsite_type(uint8_t type) {
-		return type == BLD_TOWN_CENTER || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
+		return is_civic_centre(type) || type == BLD_DOCK || type == BLD_STOREHOUSE || type == BLD_FARMSTEAD ||
 			civ_building_is_dropsite(type);
 	} // carries a load b accepts
 	void set_unit_hp(uint32_t unit_id, float hp); // scenarios and tests: clamped to 0..max
@@ -871,7 +871,7 @@ public:
 	// target in place, keeping its health fraction, capture share and garrison.
 	enum UpgradeCheck : uint8_t {
 		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST,
-		UPGRADE_ERR_LIMIT // units: the target's EntityLimits category is full
+		UPGRADE_ERR_LIMIT // the target's EntityLimits category is full
 	};
 	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
 	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
