@@ -287,6 +287,14 @@ struct PetraDefenseBuild {
 	uint32_t pending = 0;
 };
 
+// baseManager.js gatherers[type] for wood, stone and metal: the played turn of the next check and
+// the gatherers counted gathering (used) and walking to a dropsite (lost) since the last one.
+struct PetraDropsiteCheck {
+	int32_t next_check[3] = {};
+	int32_t used[3] = {};
+	int32_t lost[3] = {};
+};
+
 // emergencyManager.js
 struct PetraEmergency {
 	int ref_pop = 0;

@@ -469,7 +469,8 @@ static void test_attack_plans() {
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			for (const auto &plan : s->petra_started_attacks()) {
-				if (plan.state != Simulation::AttackPlan::WALKING) continue;
+				// Under way: marching, or already hit on the way.
+				if (plan.state != Simulation::AttackPlan::WALKING && plan.state != Simulation::AttackPlan::ATTACKED) continue;
 				if (plan.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
 					rushed = true;
 					rush_at_store |= plan.target_building_id == store;
@@ -1334,15 +1335,18 @@ static void test_expansion_small_nodes() {
 	int ccs = 0;
 	size_t stores = 0;
 	float t = 0.0f;
-	for (; t < 90.0f && (ccs < 2 || stores <= stores_before); t += 1.0f) {
+	for (; t < 90.0f && ccs < 2; t += 1.0f) {
 		run_for(*s, 1.0f);
 		ccs = 0;
-		stores = 0;
-		for (const auto &b : s->buildings()) {
+		for (const auto &b : s->buildings())
 			if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.hp > 0.0f) ++ccs;
-			if (b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f) ++stores;
-		}
 	}
+	// checkResourceLevels' storehouse site (findBestDropsiteLocation) among the same trees.
+	s->petra_pid_ = 1;
+	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->petra_place_dropsite(RES_WOOD);
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f) ++stores;
 	std::printf("  expansion on 200-wood trees: %d Town Centers after %.0fs, %zu storehouses (had %zu)\n", ccs, t, stores, stores_before);
 	CHECK(ccs >= 2, "Petra lays out a second civic centre among 200-wood trees");
 	CHECK(stores > stores_before, "and a storehouse by a forest of them");
@@ -2076,6 +2080,49 @@ static void test_build_defenses() {
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
 }
 
+// baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
+// back lays a storehouse by a forest at least 15 tiles from our dropsites, and its foundation
+// restarts every count; headquarters.js buildFarmstead lays one farmstead once there is a
+// storehouse and a house.
+static void test_dropsites() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->petra_pid_ = 1;
+	auto count = [&](uint8_t type, bool foundations_only) {
+		int n = 0;
+		for (const auto &b : s->buildings_)
+			n += b.team == 1 && b.type == type && b.hp > 0.0f && (!foundations_only || b.build_progress < 1.0f);
+		return n;
+	};
+	const int stores = count(BLD_STOREHOUSE, false);
+	auto &dc = s->petra_dropsite_check_;
+	dc = PetraDropsiteCheck{};
+	dc.used[0] = 120; dc.lost[0] = 40;
+	s->petra_check_resource_levels(1000);
+	CHECK(count(BLD_STOREHOUSE, false) == stores + 1, "a high lost share lays a storehouse");
+	for (const auto &b : s->buildings_) {
+		if (b.team != 1 || b.type != BLD_STOREHOUSE || b.build_progress >= 1.0f) continue;
+		for (const auto &o : s->buildings_)
+			if (o.team == 1 && o.id != b.id && (is_civic_centre(o.type) || o.type == BLD_STOREHOUSE))
+				CHECK(std::hypot(o.x - b.x, o.z - b.z) >= 15.0f, "the new storehouse keeps 15 tiles from our dropsites");
+	}
+	dc.used[1] = 50; dc.lost[1] = 50;
+	s->petra_check_resource_levels(1001);
+	CHECK(dc.used[1] == 0 && dc.lost[1] == 0 && dc.next_check[1] == 1001, "a storehouse foundation restarts the counts");
+	CHECK(count(BLD_STOREHOUSE, false) == stores + 1, "one storehouse at a time");
+	const int farms = count(BLD_FARMSTEAD, false);
+	s->petra_build_farmstead();
+	s->petra_build_farmstead();
+	std::printf("  dropsites: storehouses %d -> %d, farmsteads %d -> %d\n", stores, count(BLD_STOREHOUSE, false), farms, count(BLD_FARMSTEAD, false));
+	CHECK(count(BLD_FARMSTEAD, false) == std::max(farms, 1), "one farmstead");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -2119,6 +2166,7 @@ int main() {
 	test_concurrent_attacks();
 	test_worker_mix();
 	test_build_defenses();
+	test_dropsites();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
