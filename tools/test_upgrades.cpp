@@ -197,6 +197,56 @@ int main() {
 		std::printf("tower placed after Tower Health: %.0f hp (was %.0f)\n", find_bld(s, new_tower)->max_hp, base);
 	}
 
+	// 9. Civ structure upgrades (structures/<civ>/*.xml Upgrade): the Persian Tachara's
+	// four tribute forms (10 s, free; each trickles 10 of its resource every 2 s and can
+	// switch to the other three) and the Carthaginian house's apartment (50 wood, 50
+	// stone, 55 s; population bonus 20, still trains women). Neither can be laid.
+	{
+		CHECK(building_upgrade_count(BLD_TACHARA, CIV_PERSIANS) == 4);
+		CHECK(building_upgrade_count(BLD_TACHARA, CIV_ATHENIANS) == 0);
+		CHECK(building_upgrade_count(BLD_TACHARA_FOOD, CIV_PERSIANS) == 3);
+		CHECK(building_upgrade(BLD_TACHARA, CIV_PERSIANS, 2).to == BLD_TACHARA_STONE);
+		CHECK(building_upgrade(BLD_TACHARA, CIV_PERSIANS, 4).to == BLD_TYPE_COUNT);
+		const BuildingUpgradeInfo apt = building_upgrade(BLD_HOUSE, CIV_CARTHAGINIANS);
+		CHECK(apt.to == BLD_APARTMENT && apt.wood_cost == 50 && apt.stone_cost == 50 && apt.time == 55.0f);
+		CHECK(building_upgrade(BLD_HOUSE, CIV_ATHENIANS).to == BLD_TYPE_COUNT);
+		CHECK(!civ_can_build(CIV_PERSIANS, BLD_TACHARA_FOOD) && civ_can_build(CIV_PERSIANS, BLD_TACHARA));
+		CHECK(!civ_can_build(CIV_CARTHAGINIANS, BLD_APARTMENT));
+		CHECK(building_type_info(BLD_APARTMENT).pop_bonus == 20);
+		CHECK(building_type_info(BLD_TACHARA_METAL).max_hp == building_type_info(BLD_TACHARA).max_hp);
+
+		fresh(s);
+		s.set_player_civ(CIV_PERSIANS);
+		s.player(0).phase = 3;
+		const uint32_t ta = s.spawn_building_world(-25.0f, -25.0f, BLD_TACHARA, 0, 1.0f);
+		CHECK(s.upgrade_check(0, ta, 4) == Simulation::UPGRADE_ERR_NONE);
+		CHECK(s.cmd_upgrade_building(0, ta, 3)); // metal
+		run(s, 10.5f);
+		CHECK(find_bld(s, ta)->type == BLD_TACHARA_METAL);
+		const float metal = s.player(0).gold();
+		run(s, 10.0f);
+		CHECK(near(s.player(0).gold() - metal, 50.0f)); // 10 every 2 s
+		// It still researches the Tachara's technologies and trains its heroes.
+		CHECK(s.research_check(0, TECH_IMMORTALS, ta) != Simulation::TECH_ERR_BUILDING);
+		// And switches to another tribute.
+		CHECK(s.cmd_upgrade_building(0, ta, 0));
+		CHECK(find_bld(s, ta)->upgrade_to == BLD_TACHARA_FOOD);
+		run(s, 10.5f);
+		CHECK(find_bld(s, ta)->type == BLD_TACHARA_FOOD);
+
+		fresh(s);
+		s.set_player_civ(CIV_CARTHAGINIANS);
+		const uint32_t h = s.spawn_building_world(-25.0f, -25.0f, BLD_HOUSE, 0, 1.0f);
+		const int pop0 = s.pop_max(0);
+		CHECK(s.cmd_upgrade_building(0, h));
+		CHECK(s.player(0).wood() == 950.0f && s.player(0).stone() == 950.0f);
+		run(s, 55.5f);
+		CHECK(find_bld(s, h)->type == BLD_APARTMENT);
+		CHECK(s.pop_max(0) > pop0);
+		CHECK(s.can_train_at(0, UNIT_FEMALE_CITIZEN, BLD_APARTMENT) == s.can_train_at(0, UNIT_FEMALE_CITIZEN, BLD_HOUSE));
+		CHECK(!s.can_train_at(0, UNIT_SPEARMAN, BLD_APARTMENT));
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
