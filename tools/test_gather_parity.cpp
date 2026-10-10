@@ -5,6 +5,10 @@
 //   - Athenian Silver Owls (phase_town_athen / phase_city_athen): Workers metal.ore x1.1 at
 //     Town and again at City; stone untouched.
 //   - Loot.js GetResources / GetXp floor the modified amounts.
+//   - ResourceSupply Change timers run per supply: a fruit bush's Regrowth ticks 6 s after its
+//     timer started, not on a map-wide clock.
+//   - ResourceGatherer.StartGathering fixes the gather rate: a field's diminishing returns are
+//     those when the farmer started, until she stops gathering.
 //   g++ -std=c++20 -O2 -Isrc tools/test_gather_parity.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_gather_parity && /tmp/test_gather_parity
@@ -13,6 +17,7 @@
 #undef private
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 using namespace rtso;
 
@@ -112,6 +117,55 @@ int main() {
 		s.collect_loot(0, 0, loot, 1.5f, RES_COUNT, 0); // 7.5 -> 7, 10.5 -> 10
 		std::printf("  loot: food +%d, metal +%d\n", s.player_resource(0, RES_FOOD) - food0, s.player_resource(0, RES_GOLD) - metal0);
 		CHECK(s.player(0).res[RES_FOOD] == (float)food0 + 7.0f && s.player(0).res[RES_GOLD] == (float)metal0 + 10.0f);
+	}
+
+	// 5. A fruit bush's regrowth timer starts with the bush (ResourceSupply Init), 1 s into the
+	// match here, so its ticks come at 7 s, 13 s, ... (not at 6 s, 12 s).
+	{
+		static Simulation s;
+		fresh(s);
+		run(s, 1.0f);
+		const uint32_t bush = s.spawn_resource_world(30.0f, 30.0f, RES_FOOD, 200);
+		auto amount = [&]() { return s.resources_.amount[s.res_id_to_idx_[bush]]; };
+		run(s, 1.0f);
+		s.resources_.amount[s.res_id_to_idx_[bush]] = 190;
+		run(s, 4.5f); // 6.5 s
+		const int at_6_5 = amount();
+		run(s, 0.6f); // 7.1 s
+		const int at_7_1 = amount();
+		run(s, 6.0f); // 13.1 s
+		std::printf("  fruit timer: %d at 6.5 s, %d at 7.1 s, %d at 13.1 s\n", at_6_5, at_7_1, amount());
+		CHECK(at_6_5 == 190 && at_7_1 == 191 && amount() == 192);
+	}
+
+	// 6. A farmer alone on a field keeps her full rate until her load ends, though four more
+	// join her (diminishing returns at StartGathering); her next load is slower.
+	{
+		static Simulation s;
+		fresh(s);
+		s.spawn_building_world(-30.0f, 10.0f, BLD_FARMSTEAD, 0, 1.0f);
+		const uint32_t field = s.spawn_building_world(-20.0f, 10.0f, BLD_FIELD, 0, 1.0f);
+		const uint32_t first = s.spawn_unit(-16.0f, 10.0f, 0, UNIT_FEMALE_CITIZEN);
+		run(s, 0.1f);
+		s.order_build_or_repair(&first, 1, field);
+		run(s, 2.0f);
+		const int32_t f = s.lookup_unit(first);
+		const float alone = s.units_.gather_rate[f];
+		std::vector<uint32_t> more;
+		for (int k = 0; k < 4; ++k) more.push_back(s.spawn_unit(-16.0f, 12.0f + k, 0, UNIT_FEMALE_CITIZEN));
+		s.order_build_or_repair(more.data(), more.size(), field);
+		run(s, 2.0f);
+		const float later = s.units_.gather_rate[s.lookup_unit(first)];
+		const float joined = s.units_.gather_rate[s.lookup_unit(more[0])];
+		// Her next load, once she has been to the farmstead.
+		float next = 0.0f;
+		for (int k = 0; k < 2000 && !(next > 0.0f && next < alone); ++k) {
+			run(s, 0.1f);
+			next = s.units_.gather_rate[s.lookup_unit(first)];
+		}
+		std::printf("  field: alone %.3f/s, after four join %.3f/s (theirs %.3f/s), her next load %.3f/s\n",
+				alone, later, joined, next);
+		CHECK(alone > 0.0f && later == alone && joined < alone && std::fabs(next - joined) < 1e-4f);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

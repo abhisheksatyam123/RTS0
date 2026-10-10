@@ -151,6 +151,8 @@ static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 48;
 static constexpr uint32_t SAVE_VERSION_STATUS_SOURCE = 54;
 // Petra's army soldiers apart from its worker soldiers (tick_state_io section 9e).
 static constexpr uint32_t SAVE_VERSION_PETRA_ROLES = 55;
+// Each unit's gather rate fixed at the start of its gathering, each supply's regrowth timer.
+static constexpr uint32_t SAVE_VERSION_GATHER_TIMERS = 56;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -923,6 +925,8 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
 	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
 	if (type == RES_FOOD && subtype == RES_SUB_NONE) resources_.max_amount[idx] = amount;
+	// ResourceSupply Init starts its Change timer: fruit Regrowth every 6 s, fish Spawn every 2 s.
+	resources_.regrow_left[idx] = regrow_interval(type, subtype);
 	resources_.flora[idx] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 	res_id_to_idx_[rid] = idx;
 	return rid;
@@ -7584,6 +7588,11 @@ void Simulation::tick_gather(float dt) {
 		if (!units_.alive[i]) continue;
 		if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT && units_.action_state[i] != ACTION_GARRISONED) elephants.push_back((uint32_t)i);
 		const uint32_t rid = units_.target_resource_id[i];
+		// Leaving GATHERING (StopGathering) drops the rate fixed at its start.
+		if (units_.gather_res[i] != 0 && (units_.action_state[i] != ACTION_GATHER || rid != units_.gather_res[i])) {
+			units_.gather_res[i] = 0;
+			units_.gather_rate[i] = 0.0f;
+		}
 		if (units_.action_state[i] != ACTION_GATHER || rid == 0 || units_.unit_type[i] == UNIT_FISHING_BOAT) continue;
 		if (!field_bld_by_res_.count(rid)) supply_gatherers_[rid].total++;
 	}
@@ -7780,27 +7789,34 @@ void Simulation::tick_gather(float dt) {
 				}
 				// ResourceGatherer: one unit every 1 / rate seconds, the rate being the class's
 				// Rates entry with technology and AI difficulty multipliers (ResourceGatherer/Rates/*,
-				// ResourceGatherer/BaseSpeed) and a field's diminishing returns.
+				// ResourceGatherer/BaseSpeed) and a field's diminishing returns. StartGathering fixes
+				// it (its timer's interval) until the unit stops gathering this supply, so a field's
+				// diminishing returns are those when the load was started.
 				// (Gather techs name stone.rock, metal.ore and so on, never *.ruins.)
-				float rate = class_rate * ai_gather_mult(uteam);
-				const Civilization civ = civ_of(uteam);
-				if (!ruins) {
-					rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind];
-					// Athenian Silver Owls: phase_town_athen and phase_city_athen each give Workers
-					// ResourceGatherer/Rates/metal.ore x1.1.
-					if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
-							(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
-						for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+				const uint32_t rid = units_.target_resource_id[i];
+				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
+					float rate = class_rate * ai_gather_mult(uteam);
+					const Civilization civ = civ_of(uteam);
+					if (!ruins) {
+						rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind];
+						// Athenian Silver Owls: phase_town_athen and phase_city_athen each give Workers
+						// ResourceGatherer/Rates/metal.ore x1.1.
+						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
+								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
+							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+					}
+					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
+					// pyramid, catafalques, Han ministers): the strongest one in reach.
+					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
+							units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
+						rate /= 1.0f - g;
+					// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
+					for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
+					if (field_efficiency > 0.0f) rate *= field_efficiency;
+					units_.gather_res[i] = rid;
+					units_.gather_rate[i] = rate;
 				}
-				// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
-				// pyramid, catafalques, Han ministers): the strongest one in reach.
-				if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
-						units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
-					rate /= 1.0f - g;
-				// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
-				for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
-				if (field_efficiency > 0.0f) rate *= field_efficiency;
-				const float interval = 1.0f / rate;
+				const float interval = 1.0f / units_.gather_rate[i];
 				// GATHERING enter: the player's order stops being forced once work starts.
 				units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
 				// ResourceGatherer PerformGather: a load of another type is dropped (DropResources).
@@ -7823,32 +7839,35 @@ void Simulation::tick_gather(float dt) {
 		}
 	}
 
-	// Fish nobody is fishing regrow 1 food every 2 s, up to their supply (ResourceSupply Change/Spawn,
-	// State notGathered). Only boats at the fish count (activeGatherers), not those on their way.
-	const uint64_t regrow_ticks = (uint64_t)std::lround(FISH_REGROW_INTERVAL_S / FIXED_STEP);
-	if (ticks_ % regrow_ticks == 0) {
-		std::vector<uint32_t> fished;
-		for (size_t i = 0; i < n; ++i) {
-			if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.action_state[i] != ACTION_GATHER) continue;
-			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-			if (rit == res_id_to_idx_.end()) continue;
-			const float dx = units_.pos_x[i] - resources_.x[rit->second], dz = units_.pos_z[i] - resources_.z[rit->second];
-			if (dx * dx + dz * dz < FISH_GATHER_REACH * FISH_GATHER_REACH) fished.push_back(units_.target_resource_id[i]);
-		}
-		for (size_t r = 0; r < resources_.count; ++r) {
-			if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
-			if (resources_.amount[r] >= FISH_FOOD_SUPPLY ||
-					std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) continue;
-			resources_.amount[r] += 1;
-		}
+	// ResourceSupply Change timers, one per supply: fruit regrows 1 food every 6 s up to its Max,
+	// gathered or not (template_gaia_fruit Regrowth); fish 1 food every 2 s up to their supply while
+	// no boat is at them (template_gaia_fish Spawn, State notGathered: activeGatherers, not the boats
+	// on their way). A timer starts when the supply drops below its Max (CheckTimers on Change) or its
+	// last boat leaves, ticks a full interval later, and stops at Max or while a boat fishes it.
+	std::vector<uint32_t> fished;
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.action_state[i] != ACTION_GATHER) continue;
+		auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+		if (rit == res_id_to_idx_.end()) continue;
+		const float dx = units_.pos_x[i] - resources_.x[rit->second], dz = units_.pos_z[i] - resources_.z[rit->second];
+		if (dx * dx + dz * dz < FISH_GATHER_REACH * FISH_GATHER_REACH) fished.push_back(units_.target_resource_id[i]);
 	}
-	// Fruit bushes regrow 1 food every 6 s up to their Max, gathered or not
-	// (template_gaia_fruit.xml ResourceSupply/Change/Regrowth); an emptied bush is gone.
-	const uint64_t fruit_ticks = (uint64_t)std::lround(FRUIT_REGROW_INTERVAL_S / FIXED_STEP);
-	if (ticks_ % fruit_ticks == 0) {
-		for (size_t r = 0; r < resources_.count; ++r) {
-			if (resources_.amount[r] <= 0 || resources_.amount[r] >= resources_.max_amount[r] || !resources_.alive[r]) continue;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		const float interval = regrow_interval(resources_.type[r], resources_.subtype[r]);
+		if (interval <= 0.0f || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		const bool fish = resources_.subtype[r] == RES_SUB_FISH;
+		const int32_t max = fish ? FISH_FOOD_SUPPLY : resources_.max_amount[r];
+		float &left = resources_.regrow_left[r];
+		if (fish && std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) { left = -1.0f; continue; }
+		if (left < 0.0f) {
+			if (resources_.amount[r] < max) left = interval; // StartTimer: the first tick a full interval on
+			continue;
+		}
+		left -= dt;
+		while (left <= 1e-4f) {
+			if (resources_.amount[r] >= max) { left = -1.0f; break; } // Change made nothing: StopTimer
 			resources_.amount[r] += 1;
+			left += interval;
 		}
 	}
 
@@ -18974,7 +18993,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -19844,6 +19863,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			U.poison_src[i] = U.burning_src[i] = 0;
 			U.poison_owner[i] = U.burning_owner[i] = 0xFF;
 		}
+		if (ar.version >= SAVE_VERSION_GATHER_TIMERS) {
+			ar.pod(U.gather_rate[i]); ar.pod(U.gather_res[i]);
+		} else {
+			U.gather_rate[i] = 0.0f; U.gather_res[i] = 0; // the next gather tick starts afresh
+		}
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
 		if (!ar.ok) return;
@@ -20146,6 +20170,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// v49: each tree's and fruit bush's FloraKind (older saves: the biome's pick).
 	if (ar.version >= SAVE_VERSION_TERRAIN_FLORA)
 		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.flora[r]);
+	// v56: each supply's Change timer (older saves: running from now, a full interval to go).
+	if (ar.version >= SAVE_VERSION_GATHER_TIMERS) {
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.regrow_left[r]);
+	} else if constexpr (Ar::loading) {
+		for (size_t r = 0; r < s.resources_.count; ++r)
+			s.resources_.regrow_left[r] = regrow_interval(s.resources_.type[r], s.resources_.subtype[r]);
+	}
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
