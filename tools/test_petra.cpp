@@ -158,7 +158,15 @@ static void test_roster_army() {
 			bool idle_alive = false;
 			for (const auto &b : s->buildings())
 				if (b.team == 0 && b.hp > 0.0f && !b.wrecked) idle_alive = true;
-			if (!idle_alive) s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
+			// Garrisoned like the first ones, so Petra shells it rather than capturing a string of
+			// fortresses that each keep 20 of its soldiers inside against decay (TYPE_DECAY).
+			if (!idle_alive) {
+				const uint32_t fort = s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
+				for (int k = 0; k < 10; ++k) {
+					const uint32_t man = s->spawn_unit(18.0f + (float)(k % 5), 31.0f - (float)(k / 5), 0, UNIT_SPEARMAN);
+					s->order_garrison(&man, 1, fort);
+				}
+			}
 			for (const auto &b : s->buildings())
 				if (b.team == 1 && b.build_progress >= 1.0f && !b.wrecked) {
 					if (b.type == BLD_GYMNASIUM || b.type == BLD_THEATER) advanced = true;
@@ -1987,11 +1995,17 @@ static void test_decay_garrison_from_attack() {
 		plan.state = Simulation::AttackPlan::ATTACKED;
 		const std::vector<uint32_t> army = plan.squad;
 		s->petra_started_attacks_.push_back(plan);
-		// A fortress's garrison stops its decay; a tower's (5 of the 20 it needs) can't.
+		// A tower's garrison (5 of the 20 it needs) can't stop its decay. Neither can a stock
+		// fortress's (GarrisonHolder/Max 20 of the 30 it needs), so this one is given room
+		// for 30 to exercise the garrison that does.
 		const uint32_t held = s->spawn_building_world(tx + (holdable ? 4.0f : 0.0f), tz, holdable ? BLD_FORTRESS : BLD_TOWER, 1);
 		int need = 0, cap = 0;
 		if (auto it = s->building_id_to_idx_.find(held); it != s->building_id_to_idx_.end()) {
 			need = s->petra_decay_garrison_min(s->buildings_[it->second]);
+			if (holdable) {
+				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "a stock fortress holds 20 of the 30 its decay needs");
+				s->buildings_[it->second].garrison_cap = need;
+			}
 			cap = s->buildings_[it->second].garrison_cap;
 		}
 		run_for(*s, 15.0f);

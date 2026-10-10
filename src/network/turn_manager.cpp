@@ -237,7 +237,10 @@ std::string TurnManager::rejoin_path(const char *tag) const {
 }
 
 bool TurnManager::is_observer() const {
-	return net_host_ && !net_host_->isHost() && rejoined_ && local_player() >= MAX_PLAYERS;
+	// A late observer, or a client seated with no player at NMT_GAME_START
+	// (assigned to watch in game setup, or no human slot left for it).
+	if (!net_host_ || net_host_->getRole() == NetRole::None || local_player() < MAX_PLAYERS) return false;
+	return rejoined_ || net_game_started_;
 }
 
 void TurnManager::request_rejoin(bool observe) {
@@ -263,6 +266,9 @@ void TurnManager::receive_rejoin(uint32_t author, const RejoinMsg &msg) {
 		if (msg.kind != RejoinMsg::REQUEST || author == 0) return;
 		if (msg.reason == 1) observer_requests_.insert(author);
 		else observer_requests_.erase(author);
+		// Still in game setup: the client asks to watch (0 A.D. assigns it no
+		// player), so Start seats it as an observer.
+		if (current_turn_ == 0 && !lockstep_peers_set_) net_host_->setPeerObserver(author, msg.reason == 1);
 		if (std::find(rejoin_requests_.begin(), rejoin_requests_.end(), author) == rejoin_requests_.end())
 			rejoin_requests_.push_back(author);
 		return;
@@ -538,8 +544,10 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 void TurnManager::assign_slot_players(const GameSetupParams &setup) {
 	client_player_.clear();
 	uint32_t client = 0;
-	for (uint8_t slot = 0; slot < setup.slot_count && slot < 8; ++slot)
-		if (setup.slot_types[slot] == 'h') client_player_[client++] = slot;
+	auto skip_observers = [&] { while (client < 8 && ((setup.observers >> client) & 1)) client_player_[client++] = 0xFF; };
+	skip_observers();
+	for (uint8_t slot = 0; slot < setup.slot_count && slot < 8 && client < 8; ++slot)
+		if (setup.slot_types[slot] == 'h') { client_player_[client++] = slot; skip_observers(); }
 	for (; client < 8; ++client) client_player_[client] = 0xFF;
 }
 
@@ -1176,7 +1184,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		// current_turn_ + COMMAND_DELAY and keep our own copy for that turn: every
 		// peer, us included, runs it there.
 		const bool lockstep = lockstep_net_active();
-		if (lockstep && is_observer()) {
+		if (lockstep && is_observer() && !net_host_->isHost()) { // the host still relays seat changes
 			// An observer only watches: whatever it posted goes nowhere.
 			pending_local_cmds_.clear();
 		} else if (lockstep) {

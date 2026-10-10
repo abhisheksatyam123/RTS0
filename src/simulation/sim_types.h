@@ -905,21 +905,22 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time,
 		// capture max, regen, garrison regen, territory decay (Capturable from
 		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
-		// farmstead 300)
+		// farmstead 300). garrison is GarrisonHolder/Max (0: none; the house's civ value and
+		// other civ overrides are in structure_garrison_max, the List in structure_garrison_list).
 		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 3, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 20, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
 		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 20, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 50, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
@@ -1328,6 +1329,62 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
 		default: return c;
 	}
+}
+
+// 0 A.D. GarrisonHolder/Max where a civ's own template differs from the
+// building_type_info row (template_structure_*.xml): the small house
+// (template_structure_civic_house, 3) for Britons, Gauls, Iberians, Mauryas and
+// Ptolemies, the big house (template_structure_civic_house_big, 6) for the rest;
+// iber/defense_tower 8; han/storehouse and han/farmstead 1 (a Minister's seat).
+inline int structure_garrison_max(uint8_t type, uint8_t civ) {
+	switch (type) {
+		case BLD_HOUSE:
+			return (civ == CIV_BRITONS || civ == CIV_GAULS || civ == CIV_IBERIANS || civ == CIV_MAURYANS ||
+					civ == CIV_PTOLEMIES) ? 3 : 6;
+		case BLD_TOWER: return civ == CIV_IBERIANS ? 8 : building_type_info(type).garrison_cap;
+		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 1 : 0;
+		default: return building_type_info(type).garrison_cap;
+	}
+}
+
+// 0 A.D. GarrisonHolder/List (MatchesClassList: any entry, "A+B" needs both, "!A" forbids
+// A). Support is RTS0's TC_CIVILIAN. corral "Animal" takes no unit (penned animals are fauna);
+// the Han lists add Minister (structures/han/*.xml), all but the sentry and wall towers.
+struct GarrisonClassList { uint8_t n; TechClassExpr e[5]; };
+inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
+	constexpr uint64_t SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
+	GarrisonClassList l{};
+	auto add = [&](uint64_t need, uint64_t forbid = 0) { l.e[l.n++] = {need, forbid}; };
+	switch (type) {
+		case BLD_TOWN_CENTER: case BLD_TEMPLE: case BLD_EMBASSY: case BLD_THEATER: case BLD_GYMNASIUM:
+		case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_SYSSITON: case BLD_TACHARA: case BLD_AMPHITHEATER:
+		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
+		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
+		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
+		case BLD_TACHARA_METAL:
+			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
+		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
+		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
+		case BLD_STABLE: add(CAV); break;
+		case BLD_TOWER: case BLD_SENTRY_TOWER: add(SUP); add(INF); break; // template_structure_defensive_tower
+		case BLD_FORTRESS: case BLD_ARMY_CAMP: add(SUP); add(INF); add(CAV); add(TC_SIEGE); break;
+		case BLD_WONDER: add(SUP); add(TC_SOLDIER); break;
+		case BLD_FORGE: add(INF); add(TC_HEALER); break;
+		case BLD_ARSENAL: add(TC_SIEGE); break;
+		case BLD_ELEPHANT_STABLE: add(TC_ELEPHANT); break;
+		case BLD_KENNEL: add(TC_DOG); break;
+		case BLD_ACADEMY: add(INF); add(CAV); break;
+		case BLD_MINISTRY: add(SUP); add(INF); break;
+		case BLD_SUPER_DOCK: add(SUP); add(INF); add(CAV); add(TC_SHIP); break;
+		default: break; // storehouse, farmstead, corral, market, dock, ...: none
+	}
+	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && l.n < 5) add(TC_MINISTER);
+	return l;
+}
+inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) {
+	for (uint8_t k = 0; k < l.n; ++k)
+		if ((classes & l.e[k].need) == l.e[k].need && (classes & l.e[k].forbid) == 0) return true;
+	return false;
 }
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }

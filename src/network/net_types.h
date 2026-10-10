@@ -352,6 +352,9 @@ struct GameSetupParams {
 	char slot_types[8] = {'h', 'a', 'x', 'x', 'x', 'x', 'x', 'x'};
 	uint8_t teams[8] = {1, 2, 0, 0, 0, 0, 0, 0};
 	uint8_t slot_count = 2;
+	// 0 A.D. gamesetup observers (a client assigned no player): bit k = lockstep
+	// client k watches, takes no human slot and sends no orders.
+	uint8_t observers = 0;
 };
 namespace detail {
 // Player names ride in the attribute string, so the separators are %-escaped; at most
@@ -436,6 +439,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
 	s += ";res=" + std::to_string((unsigned)p.start_res);
+	if (p.observers) s += ";obs=" + std::to_string((unsigned)p.observers);
 	char types[9] = {0}, teamstr[64] = {0};
 	size_t tp = 0, sp = 0;
 	for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
@@ -550,6 +554,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "diff") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.difficulty = x; }
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
 			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.start_res = x; }
+			else if (k == "obs") { uint8_t x; if (detail::parse_u8(v, 0, 255, x)) out.observers = x; }
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
 				uint8_t x; if (detail::parse_u8(v, 0, 13, x)) out.civs[k[3] - '0'] = x;
 			}
