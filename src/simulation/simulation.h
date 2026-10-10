@@ -160,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 51; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 52; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
@@ -711,6 +711,7 @@ public:
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
@@ -1310,6 +1311,7 @@ public:
 			REGROUP    = 4,
 			ABORT      = 5
 		} state = UNEXECUTED;
+		uint8_t kind = 1; // PetraAttackKind of the plan (PETRA_ATTACK_ATTACK until a plan is made)
 
 		uint32_t target_building_id = 0;
 		float staging_x = 0.0f;
@@ -1325,6 +1327,7 @@ public:
 		float retreat_z = 36.0f;
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
+	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
 	const AttackPlan &petra_raid_plan() const { return petra_raid_plan_; }
 	const PetraAttackManager &petra_attack_manager() const { return petra_attack_mgr_; }
 	int petra_opening_step() const { return petra_opening_step_; }
@@ -1512,6 +1515,7 @@ private:
 	bool chase_goal(size_t i, float &key_x, float &key_z, float &to_x, float &to_z) const;
 	bool chase_path_kept(size_t i) const;
 	bool chase_falls_short(size_t i) const;
+	void abandon_chase(size_t i);
 	void give_up_attack(size_t i);
 	void tick_gather(float dt);
 	// Fields (0 A.D. template_structure_resource_field): a finished field owns
@@ -1750,6 +1754,9 @@ private:
 	const CombatProfile *projectile_profile(uint32_t source_id) const;
 	float projectile_speed_of(uint32_t source_id, uint8_t visual) const;
 	int32_t projectile_hit_unit(const Projectile &p) const;
+	int32_t projectile_hit_fauna(const Projectile &p) const;
+	void projectile_hits_fauna(const Projectile &p, size_t f);
+	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
@@ -2031,7 +2038,8 @@ private:
 		float state_timer = 0.0f;
 	} petra_strike_force_;
 
-	AttackPlan petra_attack_plan_;
+	AttackPlan petra_attack_plan_; // attackManager.js upcomingAttacks: the plan being prepared
+	std::vector<AttackPlan> petra_started_attacks_; // attackManager.js startedAttacks: armies on their way or fighting
 	AttackPlan petra_raid_plan_;
 	PetraAttackManager petra_attack_mgr_; // attackManager.js plan counters and sizes
 	int petra_opening_step_ = 0;
@@ -2061,7 +2069,7 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
 	void petra_set_rushes();
@@ -2135,6 +2143,9 @@ private:
 	uint16_t petra_home_land(float x, float z, const PetraNavalTopo *topo = nullptr) const;
 	uint16_t petra_overseas(const PetraNavalTopo &t, float from_x, float from_z, uint32_t target_id) const;
 	uint16_t petra_plan_overseas(float base_x, float base_z, uint32_t target_id) const;
+	void petra_lands_around(float x, float z, float half, uint16_t out[8]) const; // a structure's lands, or a unit's
+	void petra_attack_from_lands(uint16_t same_land, uint16_t out[8]) const; // same_land, or the home base's lands
+	bool petra_lands_reach(const uint16_t from[8], const uint16_t to[8], bool by_sea, const PetraNavalTopo *&topo) const;
 	bool petra_aboard(uint32_t uid) const;
 	bool petra_is_transport_ship(size_t unit_idx) const;
 	uint16_t petra_ship_sea(size_t unit_idx) const;
@@ -2154,6 +2165,13 @@ private:
 	void petra_manage_military_production(float dt);
 	void petra_manage_tactical_attacks(float dt);
 	void petra_retake_civic_centres(); // defenseManager.js OwnershipChanged -> switchDefenseToAttack
+	void petra_update_attack_plan(AttackPlan &plan, float base_x, float base_z); // one plan's attackPlan.js step
+	void petra_attack_units(AttackPlan &plan); // attackPlan.js update while attacking: each unit's target
+	uint32_t petra_plan_next_target(AttackPlan &plan, float &tx, float &tz, uint16_t same_land = 0);
+	bool petra_in_attack_squad(uint32_t uid) const; // in the prepared or a started attack's army
+	bool petra_attack_can_spare(uint32_t uid, bool decay) const; // garrisonUnitsInside's attack plan rule
+	void petra_attack_remove_unit(uint32_t uid); // attackPlan.js removeUnit, from every plan
+	uint8_t petra_attack_enemy() const; // the player Petra's attacks are aimed at, 0xFF for none
 	// This tick's civic centre captures (OwnershipChanged), appended in tick_capture and
 	// read by Petra later in the same tick; cleared at the end of tick(), so never saved.
 	struct CivicCentreCapture { uint32_t building_id; uint8_t from, to; };
@@ -2264,7 +2282,7 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_)
+	X(petra_sent_diplo_) X(petra_started_attacks_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
