@@ -160,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 53; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 54; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
@@ -1655,7 +1655,7 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
-	void apply_status(size_t t, const CombatProfile &att);
+	void apply_status(size_t t, const CombatProfile &att, uint32_t src_id = 0, uint8_t src_owner = 0xFF);
 	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
 	void tick_attack_timer(size_t i, float dt);
 	bool attack_under_way(size_t i) const;

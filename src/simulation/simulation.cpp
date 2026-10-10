@@ -148,6 +148,7 @@ static constexpr uint32_t SAVE_VERSION_SPIES = 44;
 static constexpr uint32_t SAVE_VERSION_UNIT_UPGRADES = 45;
 // ProductionQueue.js: batches, technologies and paid costs in each queue item, plus autoqueue.
 static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 48;
+static constexpr uint32_t SAVE_VERSION_STATUS_SOURCE = 54;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -8475,7 +8476,7 @@ void Simulation::tick_combat(float dt) {
 			}
 
 			// Attack/Melee/ApplyStatus. 0 A.D. has no spear snare or trample knockback.
-			apply_status(t, unit_combat_at(i));
+			apply_status(t, unit_combat_at(i), units_.id[i], units_.team[i]);
 
 			if (units_.hp[t] <= 0) {
 				units_.alive[t] = 0;
@@ -9361,7 +9362,7 @@ void Simulation::tick_projectiles(float dt) {
 					if (p.status_effect != 0) {
 						// The shooter's ApplyStatus (its profile; nothing if it died in flight).
 						const int32_t src = lookup_unit(p.source_id);
-						if (src >= 0) apply_status((size_t)tidx, unit_combat_at((size_t)src));
+						if (src >= 0) apply_status((size_t)tidx, unit_combat_at((size_t)src), p.source_id, p.team);
 					}
 					if (units_.hp[tidx] <= 0) {
 						units_.alive[tidx] = 0;
@@ -9404,13 +9405,18 @@ void Simulation::tick_projectiles(float dt) {
 // 0 A.D. Attack/*/ApplyStatus on unit t from an attacker with profile `att`, unless t's
 // Resistance blocks it (ships, siege, structures block poison). Stackability "Extend"
 // (poison) adds the duration; "Stack" (burning) is kept as one timer that also adds
-// its duration, which deals the same total damage.
-void Simulation::apply_status(size_t t, const CombatProfile &att) {
+// its duration, which deals the same total damage. The status keeps who applied it and
+// their owner (StatusEffectsReceiver.AddStatus attacker, attackerOwner), the last one to
+// renew it.
+void Simulation::apply_status(size_t t, const CombatProfile &att, uint32_t src_id, uint8_t src_owner) {
 	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status)) return;
 	const uint8_t bit = status_effect_bit(att.status);
 	units_.status_effects[t] |= bit;
-	float &timer = att.status == 1 ? units_.poison_timer[t] : units_.burning_timer[t];
+	const bool poison = att.status == 1;
+	float &timer = poison ? units_.poison_timer[t] : units_.burning_timer[t];
 	timer = std::max(timer, 0.0f) + att.status_time;
+	(poison ? units_.poison_src : units_.burning_src)[t] = src_id;
+	(poison ? units_.poison_owner : units_.burning_owner)[t] = src_owner;
 }
 
 // Damage per second of status `kind` (1 Poisoned, 2 Burning): each comes from a
@@ -9556,34 +9562,43 @@ void Simulation::tick_status_effects(float dt) {
 		if (!units_.alive[i]) continue;
 
 		// 0 A.D. StatusEffectsReceiver: Poisoned and Burning deal their damage per second
-		// until their time runs out. RTS0 never applies snare, slow, bleed or knockback
-		// (0 A.D. has none); clear any an old save carries.
+		// until their time runs out, each as an attack by whoever applied it
+		// (Attacking.HandleAttackEffects with its attacker and attackerOwner): its xp,
+		// the kill, the loot and the statistics go to them. RTS0 never applies snare,
+		// slow, bleed or knockback (0 A.D. has none); clear any an old save carries.
 		units_.status_effects[i] &= (uint8_t)(EFFECT_POISON | EFFECT_BURNING);
-		bool hurt = false;
-		auto tick_status = [&](uint8_t bit, float &timer, uint8_t kind) {
-			if (!(units_.status_effects[i] & bit)) return;
-			hurt = true;
+		uint32_t killer = 0;
+		uint8_t killer_owner = 0xFF;
+		auto tick_status = [&](uint8_t bit, float &timer, uint8_t kind, uint32_t src, uint8_t owner) {
+			if (!(units_.status_effects[i] & bit) || !units_.alive[i]) return;
 			const float step = std::min(dt, std::max(timer, 0.0f));
 			timer -= dt;
 			const float dmg = status_dps(kind) * step;
 			if (!invulnerable(units_.id[i])) {
+				award_damage_xp(src, i, dmg);
 				units_.hp[i] -= dmg;
-				note_attacked(0, 0xFF, units_.id[i], units_.team[i], false, dmg); // the status's source is not kept
+				note_attacked(src, owner, units_.id[i], units_.team[i], false, dmg);
+				if (units_.hp[i] <= 0.0f) {
+					killer = src;
+					killer_owner = owner;
+					units_.alive[i] = 0; // the other status no longer counts
+				}
 			}
 			if (timer <= 0.0f) {
 				units_.status_effects[i] &= (uint8_t)~bit;
 				timer = 0.0f;
 			}
 		};
-		tick_status(EFFECT_POISON, units_.poison_timer[i], 1);
-		tick_status(EFFECT_BURNING, units_.burning_timer[i], 2);
-		if (hurt && units_.hp[i] <= 0.0f) {
-			units_.alive[i] = 0;
+		tick_status(EFFECT_POISON, units_.poison_timer[i], 1, units_.poison_src[i], units_.poison_owner[i]);
+		tick_status(EFFECT_BURNING, units_.burning_timer[i], 2, units_.burning_src[i], units_.burning_owner[i]);
+		if (!units_.alive[i]) {
 			units_.action_state[i] = ACTION_DYING;
-			record_unit_death(i, (uint8_t)(1 - units_.team[i]));
-			stat_unit_lost(i, 0xFF); // the effect's source is not kept
+			note_kill(killer, units_.id[i]);
+			record_unit_death(i, killer_owner < MAX_PLAYERS ? killer_owner : (uint8_t)(1 - units_.team[i]));
+			stat_unit_lost(i, killer_owner);
 			if (units_.team[i] == 0) record_.units_lost++;
 			else record_.enemies_killed++;
+			collect_unit_loot(killer, killer_owner, i);
 		}
 	}
 
@@ -18645,7 +18660,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -19331,6 +19346,8 @@ bool Simulation::load_state(const char *filepath) {
 			units_.xp[u] = 0;
 			units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
 			units_.poison_timer[u] = units_.burning_timer[u] = 0.0f;
+			units_.poison_src[u] = units_.burning_src[u] = 0;
+			units_.poison_owner[u] = units_.burning_owner[u] = 0xFF;
 		}
 		for (WaypointPath &wp : unit_paths_) wp.clear();
 		projectiles_.clear();
@@ -19505,6 +19522,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else {
 			U.short_path[i] = ShortPathMemo{};
 			U.motion[i] = MotionTurn{};
+		}
+		if (ar.version >= SAVE_VERSION_STATUS_SOURCE) {
+			ar.pod(U.poison_src[i]); ar.pod(U.poison_owner[i]);
+			ar.pod(U.burning_src[i]); ar.pod(U.burning_owner[i]);
+		} else {
+			U.poison_src[i] = U.burning_src[i] = 0;
+			U.poison_owner[i] = U.burning_owner[i] = 0xFF;
 		}
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
