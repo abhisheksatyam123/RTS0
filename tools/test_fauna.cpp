@@ -415,8 +415,10 @@ int main() {
 		static Simulation t;
 		CHECK(t.load_state(path));
 		CHECK(t.resources_.max_amount[t.res_id_to_idx_[bush]] == 200);
-		run(s, 30.0f);
-		run(t, 30.0f);
+		// The bush's timer stopped at Max; it starts again on the first tick that sees it below
+		// (CheckTimers), so the fifth food comes a tick after 30 s. The timer survives save/load.
+		run(s, 30.1f);
+		run(t, 30.1f);
 		CHECK(amount(s, bush) == 125 && amount(t, bush) == 125);
 		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
 		std::remove(path);
