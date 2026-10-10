@@ -58,6 +58,14 @@ const Default kDefaults[] = {
 	{"gui.session.aurasrange", "true"},
 	{"gui.session.healrange", "true"},
 	{"gui.session.notifications.attack", "true"},
+	{"gui.session.notifications.tribute", "true"},
+	{"gui.session.notifications.barter", "true"},
+	{"gui.session.notifications.phase", "completed"},
+	{"gui.session.diplomacycolors.self", "21 55 149"},
+	{"gui.session.diplomacycolors.ally", "86 180 31"},
+	{"gui.session.diplomacycolors.neutral", "231 200 5"},
+	{"gui.session.diplomacycolors.enemy", "150 20 20"},
+	{"chat.timestamp", "true"},
 	{"gui.loadingscreen.progressdescription", "false"},
 };
 constexpr int kDefaultCount = (int)(sizeof(kDefaults) / sizeof(kDefaults[0]));

@@ -2446,6 +2446,7 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	// ProductionQueue.js RemoveItem: Trainer/Researcher refund what the item cost.
 	const ProductionOrder &item = b.queue[queue_idx];
 	if (item.is_tech() || item.paid[RES_FOOD] + item.paid[RES_WOOD] + item.paid[RES_GOLD] + item.paid[RES_STONE] > 0.0f) {
+		if (item.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
 		ps.refund(item.paid[RES_FOOD], item.paid[RES_WOOD], item.paid[RES_GOLD], item.paid[RES_STONE]);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
@@ -2489,6 +2490,9 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 		stats_[to].tributes_received += (uint32_t)amounts[r];
 		note_tribute(from, to, (uint8_t)r, amounts[r]); // Petra's TributeExchanged event
 	}
+	SessionNotice n{SessionNotice::TRIBUTE, from, to, 0, {}};
+	for (int r = 0; r < RES_COUNT; ++r) n.amounts[r] = amounts[r];
+	note_session(n);
 	return true;
 }
 
@@ -2645,6 +2649,7 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
 		* tech_mods(player_id).bld_research_time[b.type] * ai_time_mult(player_id);
 	b.queue.push_back(order);
+	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	return true;
 }
 
@@ -3148,6 +3153,7 @@ void Simulation::apply_tech_mods_to_unit(size_t idx) {
 void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 	if (player_id >= MAX_PLAYERS) return;
 	PlayerState &ps = players_[player_id];
+	if (!ps.techs.has(tech_id)) note_phase(SessionNotice::PHASE_COMPLETED, player_id, tech_id);
 	ps.techs.set(tech_id);
 	if (tech_id == TECH_PHASE_TOWN) ps.phase = std::max<uint8_t>(ps.phase, 2);
 	else if (tech_id == TECH_PHASE_CITY) ps.phase = 3;
@@ -3235,6 +3241,7 @@ bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType b
 	ps.res[buy] += (float)received;
 	stats_[player_id].resources_sold[sell] += (uint32_t)amount;
 	stats_[player_id].resources_bought[buy] += (uint32_t)received;
+	note_session({SessionNotice::BARTER, player_id, (uint8_t)sell, (uint8_t)buy, {amount, received}});
 
 	// Each deal of 100 moves the sold resource's price down and the bought one's up by 2%.
 	const float difference = BARTER_DIFFERENCE_PER_DEAL * (float)amount / (float)BARTER_DEAL_AMOUNT;
@@ -3272,6 +3279,8 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 			}
 		players_[player_id].team = player_id;
 	}
+	if (diplomacy_[player_id][target] != stance)
+		note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}}); // Commands.js "diplomacy" notification
 	set_diplomacy(player_id, target, stance);
 	return true;
 }
@@ -6284,8 +6293,15 @@ void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t 
 	}
 }
 
+void Simulation::note_phases_aborted(const Building &b) {
+	if (b.team >= MAX_PLAYERS) return;
+	for (const ProductionOrder &o : b.queue)
+		if (o.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, b.team, o.tech);
+}
+
 void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 	if (b.wrecked) return;
+	note_phases_aborted(b);
 	refund_foundation(b);
 	stat_building_lost(b, killer);
 	b.wrecked = true;
@@ -12001,6 +12017,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 }
 
 void Simulation::destroy_building(Building &b) {
+	if (!b.wrecked) note_phases_aborted(b);
 	refund_foundation(b);
 	eject_or_kill(b);
 	b.garrisoned_units.clear();
