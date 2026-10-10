@@ -290,6 +290,8 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | `src/presentation/match_archive.cpp`, `scenes/menu/replay_browser.gd` | Replay folder layout (commands plus metadata), replay list, actions, filters and compatibility check from 0 A.D. 0.28 `source/ps/Replay.cpp`, `gui/replaymenu/*` (`replay_menu.js`, `replay_filters.js`, `replay_actions.js`, `replay_menu.xml` layout, columns, filters, details and buttons), observer and player view from `gui/session/` replay perspective | Port |
 | `src/simulation/tech_data.h` Diaspora row, `Simulation::dropsite_usable_by`, `cmd_set_dropsite_sharing` | 0 A.D. 0.28 `simulation/data/technologies/unlock_shared_dropsites.json`, `ResourceDropsite.js` (Sharable, IsShared, SetSharing), `Player.js` sharedDropsites, `Commands.js` set-dropsite-sharing | Port |
 | `scenes/session/savegame_dialog.gd` | Save and load dialogs from 0 A.D. 0.28 `gui/savedgames/save.js`, `load.js`, `savegame_list.js` | Port |
+| `assets/l10n/*.po` | 0 A.D. translations (`binaries/data/mods/public/l10n/<lang>.*.po`, `binaries/data/l10n/<lang>.engine.po` at 61a3b95), one file per language with the translators credited in its header; same license as 0 A.D. (GPL-2.0-or-later for strings from code, CC BY-SA 3.0 for strings from data) | `tools/fetch_0ad_l10n.py` |
+| `scenes/menu/user_settings.gd` (`_apply_locale`, `resolve_locale`), the Language option in `scenes/menu/options.gd` | 0 A.D. `source/i18n/L10n.cpp` (locale config key, system-language fallback), `gui/locale/locale.js` (language list) | Port |
 
 Fonts in `assets/fonts/` carry their own licenses; see `assets/LICENSE`.
 
