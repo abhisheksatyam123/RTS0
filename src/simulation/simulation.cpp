@@ -95,6 +95,12 @@ uint64_t unit_classes(uint16_t tmpl, uint8_t type) {
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 }
 
+// Classes a GarrisonHolder List sees: RTS0's villager plays 0 A.D.'s support civilian
+// (template_unit_support_slave: Support), which its roster row doesn't list.
+uint64_t garrison_classes(uint16_t tmpl, uint8_t type) {
+	return unit_classes(tmpl, type) | (type == UNIT_VILLAGER ? (uint64_t)TC_CIVILIAN : 0);
+}
+
 } // namespace
 
 // 0 A.D. BuildingAI.js roundCount: firing rounds per Attack/Ranged/RepeatTime.
@@ -1943,6 +1949,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	const Building fp = wall_piece_footprint(p);
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, fp.half_d);
+	b.garrison_cap = structure_garrison_cap(b); // its length's turret points
 	if (const float health = wallset_piece_value(b.type, b.half_size, 0); health > 0.0f) {
 		// wall_long/medium/short (palisades_*) Health by length, after the same civ and technology bonuses.
 		b.max_hp *= health / building_type_info(b.type).max_hp;
@@ -2698,10 +2705,14 @@ void Simulation::finish_upgrade(Building &b) {
 	b.capture_regen_rate = ninfo.capture_regen_rate;
 	b.capture_garrison_regen_rate = ninfo.capture_garrison_regen_rate;
 	b.territory_decay_rate = ninfo.territory_decay_rate;
-	// TransferGarrisonedUnits: whoever doesn't fit in the new structure is unloaded.
+	// TransferGarrisonedUnits: whoever the new structure doesn't take, or doesn't fit, is unloaded.
 	b.garrison_cap = structure_garrison_cap(b);
-	while ((int)b.garrisoned_units.size() > b.garrison_cap)
-		order_ungarrison_single(b.id, b.garrisoned_units.back());
+	for (const uint32_t uid : std::vector<uint32_t>(b.garrisoned_units))
+		if (const int32_t g = lookup_unit(uid); g >= 0 && !turret_points_of(b) &&
+				!structure_accepts_classes(b, garrison_classes(units_.tmpl[g], units_.unit_type[g])))
+			order_ungarrison_single(b.id, uid);
+	for (size_t n = b.garrisoned_units.size(); n-- > 0 && (int)b.garrisoned_units.size() > b.garrison_cap;)
+		order_ungarrison_single(b.id, b.garrisoned_units[n]); // one with no spot outside stays
 	b.attack_timer = 0.0f; // the new entity's BuildingAI starts fresh
 	b.arrow_round = 0;
 	b.arrows_left = 0;
@@ -5241,9 +5252,8 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 	// the way are ignored) and get in once within its LoadingRange (tick_unit_ai).
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
-		if (uidx < 0 || !units_.alive[uidx] || units_.team[uidx] != b.team) continue;
-		if (!unit_garrisonable((size_t)uidx)) continue;
-		if (turret_points_of(b) && !unit_turretable((size_t)uidx)) continue; // TurretHolder.CanOccupy
+		if (uidx < 0 || !units_.alive[uidx]) continue;
+		if (!structure_accepts_garrison(b, (size_t)uidx)) continue; // own or allied, on the List
 		if (garrison_in_range((size_t)uidx, b)) {
 			if ((int)b.garrisoned_units.size() >= b.garrison_cap) continue;
 			garrison_now((size_t)uidx, b);
@@ -5333,13 +5343,57 @@ const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
 	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
 	if (kind < 0) return nullptr;
 	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
-	const TurretPointSet &set = TURRET_POINTS[civ < CIV_COUNT ? civ : 0][kind];
+	const int c = civ < CIV_COUNT ? civ : 0;
+	if (is_wallset_piece(b.type, b.half_size)) {
+		// A WallSet piece holds its own template's points: wall_long's or wall_medium's by length,
+		// wall_gate's for a gate; wall_short has none (and no garrison either).
+		static constexpr TurretPointSet NONE{};
+		const int k = b.type == BLD_GATE ? 2 : b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[0] - 0.01f ? 0
+				: b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[1] - 0.01f ? 1 : -1;
+		return k < 0 ? &NONE : &TURRET_POINTS_WALLSET[c][k];
+	}
+	const TurretPointSet &set = TURRET_POINTS[c][kind];
 	return set.count ? &set : nullptr;
 }
 
+// Where turret point k of `b` stands in the world. A WallSet piece's points are in 0 A.D.'s frame
+// of the wall (x along it), turned with it; a one-cell piece's lie unturned around its centre.
+static void turret_point_world(const Simulation::Building &b, const TurretPoint &p, float &x, float &z) {
+	if (!is_wallset_piece(b.type, b.half_size)) {
+		x = b.x + p.x;
+		z = b.z + p.z;
+		return;
+	}
+	const float c = std::cos(b.rot), s = std::sin(b.rot);
+	x = b.x + p.x * c + p.z * s;
+	z = b.z - p.x * s + p.z * c;
+}
+
+// GarrisonHolder/Max of the template the builder's civ placed (set once when the structure is
+// placed or upgraded, and kept through captures as the entity's template is).
 int Simulation::structure_garrison_cap(const Building &b) const {
 	const TurretPointSet *pts = turret_points_of(b);
-	return pts ? pts->count : building_type_info(b.type).garrison_cap;
+	if (pts) return pts->count;
+	return structure_garrison_max(b.type, b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_COUNT);
+}
+
+bool Simulation::structure_accepts_classes(const Building &b, uint64_t classes) const {
+	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_COUNT;
+	return garrison_list_matches(structure_garrison_list(b.type, civ), classes);
+}
+
+bool Simulation::structure_accepts_garrison(const Building &b, size_t i) const {
+	if (!is_ally(units_.team[i], b.team) || !unit_garrisonable(i)) return false;
+	if (turret_points_of(b)) return unit_turretable(i); // TurretHolder.CanOccupy (mutual ally too)
+	return structure_accepts_classes(b, garrison_classes(units_.tmpl[i], units_.unit_type[i]));
+}
+
+bool Simulation::can_garrison_in(uint32_t unit_id, uint32_t building_id) const {
+	const int32_t i = lookup_unit(unit_id);
+	auto it = building_id_to_idx_.find(building_id);
+	if (i < 0 || !units_.alive[i] || it == building_id_to_idx_.end()) return false;
+	const Building &b = buildings_[it->second];
+	return !b.wrecked && b.build_progress >= 1.0f && b.garrison_cap > 0 && structure_accepts_garrison(b, (size_t)i);
 }
 
 uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
@@ -5352,13 +5406,15 @@ uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
 }
 
 // The point a turret unit stands on: the free one nearest its position.
-static int nearest_turret_point(const TurretPointSet &pts, float bx, float bz, float x, float z,
+static int nearest_turret_point(const TurretPointSet &pts, const Simulation::Building &b, float x, float z,
 		const bool *taken = nullptr) {
 	int best = 0;
 	float best_d2 = 1e30f;
 	for (int k = 0; k < pts.count; ++k) {
 		if (taken && taken[k]) continue;
-		const float dx = bx + pts.pt[k].x - x, dz = bz + pts.pt[k].z - z;
+		float px, pz;
+		turret_point_world(b, pts.pt[k], px, pz);
+		const float dx = px - x, dz = pz - z;
 		if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = k; }
 	}
 	return best;
@@ -5370,12 +5426,13 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	bool taken[TURRET_POINTS_MAX] = {};
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t u = lookup_unit(uid);
-		if (u >= 0) taken[nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u])] = true;
+		if (u >= 0) taken[nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u])] = true;
 	}
 	int k = 0;
 	while (k < pts->count && taken[k]) ++k;
 	if (k == pts->count) return;
-	const float x = b.x + pts->pt[k].x, z = b.z + pts->pt[k].z;
+	float x, z;
+	turret_point_world(b, pts->pt[k], x, z);
 	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
 	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
 	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
@@ -5432,11 +5489,13 @@ void Simulation::tick_turrets() {
 				list.erase(list.begin() + (std::ptrdiff_t)k);
 				continue;
 			}
-			const int pi = nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u], taken);
+			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
 			taken[pi] = true;
 			const TurretPoint &p = pts->pt[pi];
-			units_.pos_x[u] = units_.target_x[u] = b.x + p.x;
-			units_.pos_z[u] = units_.target_z[u] = b.z + p.z;
+			float px, pz;
+			turret_point_world(b, p, px, pz);
+			units_.pos_x[u] = units_.target_x[u] = px;
+			units_.pos_z[u] = units_.target_z[u] = pz;
 			units_.vel_x[u] = units_.vel_z[u] = 0.0f;
 			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
 			turret_height_[list[k]] = p.y;
@@ -5450,7 +5509,7 @@ bool Simulation::garrison_unit_now(uint32_t unit_id, uint32_t building_id) {
 	auto it = building_id_to_idx_.find(building_id);
 	if (i < 0 || !units_.alive[i] || it == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[it->second];
-	if (b.team != units_.team[i] || (int)b.garrisoned_units.size() >= b.garrison_cap) return false;
+	if (!structure_accepts_garrison(b, (size_t)i) || (int)b.garrisoned_units.size() >= b.garrison_cap) return false;
 	garrison_now((size_t)i, b);
 	return true;
 }
@@ -5526,6 +5585,13 @@ void Simulation::tick_garrison_holders() {
 			eject_or_kill(b);
 			continue;
 		}
+		// OnDiplomacyChanged / OnGlobalOwnershipChanged: a unit whose owner is no longer the
+		// holder's owner or its mutual ally leaves (turrets step down in tick_turrets).
+		if (!turret_points_of(b))
+			for (uint32_t uid : b.garrisoned_units) {
+				const int32_t i = lookup_unit(uid);
+				if (i >= 0 && !is_ally(units_.team[i], b.team)) { eject_or_kill(b, b.team); break; }
+			}
 		if (!heal_now) continue;
 		const float rate = structure_garrison_heal(b);
 		const GarrisonRegenAura regen = structure_garrison_regen(b.type);
@@ -5575,8 +5641,20 @@ void Simulation::order_ungarrison(uint32_t building_id) {
 
 // GarrisonHolder.EjectOrKill (the structure too damaged to hold them, destroyed or
 // changing hands): the garrison is unloaded, and whoever finds no room outside dies inside.
-void Simulation::eject_or_kill(Building &b) {
+// OnGlobalOwnershipChanged / OnDiplomacyChanged pass the (new) owner: units of that player
+// and its mutual allies stay in.
+void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 	if (b.garrisoned_units.empty()) return;
+	std::vector<uint32_t> kept;
+	if (keep_allies_of != 0xFF) {
+		std::vector<uint32_t> leave;
+		for (uint32_t uid : b.garrisoned_units) {
+			const int32_t i = lookup_unit(uid);
+			(i >= 0 && is_ally(units_.team[i], keep_allies_of) ? kept : leave).push_back(uid);
+		}
+		if (leave.empty()) return;
+		b.garrisoned_units = std::move(leave);
+	}
 	order_ungarrison(b.id);
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t i = lookup_unit(uid);
@@ -5588,7 +5666,7 @@ void Simulation::eject_or_kill(Building &b) {
 		stat_unit_lost((size_t)i, 0xFF);
 		if (units_.team[i] == 0) record_.units_lost++;
 	}
-	b.garrisoned_units.clear();
+	b.garrisoned_units = std::move(kept);
 }
 
 // Garrisonable.UnGarrison: UnitAI.Ungarrison replaces whatever was queued behind the
@@ -5656,6 +5734,18 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	}
 }
 
+std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t building_id) const {
+	std::vector<uint32_t> out;
+	auto bit = building_id_to_idx_.find(building_id);
+	if (bit == building_id_to_idx_.end()) return out;
+	const Building &b = buildings_[bit->second];
+	if (b.team == player) return b.garrisoned_units;
+	if (!is_ally(player, b.team)) return out;
+	for (uint32_t uid : b.garrisoned_units)
+		if (const int32_t i = lookup_unit(uid); i >= 0 && units_.team[i] == player) out.push_back(uid);
+	return out;
+}
+
 static bool alert_filter(uint8_t unit_type, bool traders) {
 	const uint64_t c = unit_tech_classes(unit_type);
 	return traders ? (c & TC_TRADER) && !(c & TC_SHIP) : (c & TC_FEMALECITIZEN) != 0;
@@ -5681,7 +5771,8 @@ bool Simulation::cmd_raise_alert(uint8_t player, uint32_t building_id) {
 		for (size_t h = 0; h < buildings_.size(); ++h) {
 			const Building &b = buildings_[h];
 			if (b.team != player || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0 ||
-					turret_points_of(b) || !structure_has_enough_health(b)) // turrets aren't a GarrisonHolder
+					turret_points_of(b) || !structure_has_enough_health(b) || // turrets aren't a GarrisonHolder
+					!structure_accepts_garrison(b, i))
 				continue;
 			const float d = edge_distance(b, ux, uz);
 			if (d > best_d || (d == best_d && best >= 0)) continue;
@@ -8118,7 +8209,9 @@ void Simulation::tick_production(float dt) {
 			}
 			// Trainer.js Spawn: a rally point that garrisons in the trainer itself puts each
 			// unit straight inside while there is room (autoGarrison), with no spot outside needed.
-			if (self_garrison_rally(b, done.unit_type, done.tmpl) && (int)b.garrisoned_units.size() < b.garrison_cap) {
+			// GarrisonHolder.IsAllowedToGarrison: only a unit on the trainer's List goes in.
+			if (self_garrison_rally(b, done.unit_type, done.tmpl) && (int)b.garrisoned_units.size() < b.garrison_cap &&
+					structure_accepts_classes(b, garrison_classes(done.tmpl, done.unit_type))) {
 				const uint32_t uid = spawn_unit(b.x, b.z, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
 				if (const int32_t ti = lookup_unit(uid); ti >= 0) {
 					stat_unit_trained((size_t)ti);
@@ -9266,7 +9359,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		if (best == owner) return false;
 		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
 		b.rally_more.clear();
-		eject_or_kill(b); // GarrisonHolder.OnOwnershipChanged
+		eject_or_kill(b, best == GAIA ? GAIA_PLAYER : (uint8_t)best); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
 		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
 		if (b.team < MAX_PLAYERS)
@@ -10752,7 +10845,8 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 		}
 		case ORDER_GARRISON: {
 			const Building *b = building(o.target);
-			return b && b->team == team && b->build_progress >= 1.0f && (int)b->garrisoned_units.size() < b->garrison_cap;
+			return b && b->build_progress >= 1.0f && (int)b->garrisoned_units.size() < b->garrison_cap &&
+					structure_accepts_garrison(*b, i);
 		}
 		case ORDER_GUARD: {
 			const int32_t t = lookup_unit(o.target);
@@ -11146,7 +11240,7 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 					return;
 				}
 				if (ignore_self_garrison && t.id == b.id) return;
-				if ((int)t.garrisoned_units.size() < t.garrison_cap) {
+				if ((int)t.garrisoned_units.size() < t.garrison_cap && structure_accepts_garrison(t, (size_t)i)) {
 					order_garrison(&uid, 1, t.id, queued);
 					return;
 				}
@@ -11659,7 +11753,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		Building &b = buildings_[it->second];
 		if (b.wrecked || b.team == to) continue;
 		b.has_rally_point = false;
-		eject_or_kill(b); // GarrisonHolder.OnOwnershipChanged
+		eject_or_kill(b, to); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
 		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
 		if (b.team < MAX_PLAYERS)
@@ -12471,7 +12565,7 @@ void Simulation::petra_manage_workers(float dt) {
 					float dz = units_.pos_z[i] - sb.z;
 					const float reach = sb.half_size + 2.5f;
 					if (dx * dx + dz * dz <= reach * reach && (int)sb.garrisoned_units.size() < sb.garrison_cap &&
-					    unit_garrisonable(i) && petra_around(sb).unit) { // else garrisonManager would let it straight out
+					    structure_accepts_garrison(sb, i) && petra_around(sb).unit) { // else garrisonManager would let it straight out
 						uint32_t uid = units_.id[i];
 						order_garrison(&uid, 1, sb.id);
 					}
@@ -17579,6 +17673,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 		if (decay && unit_capture_strength(units_.unit_type[i]) <= 0.0f) continue;
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || petra_passenger(units_.id[i])) continue;
+		if (!structure_accepts_garrison(holder, i)) continue; // garrisonManager.garrison: the holder's List
 		const uint32_t uid = units_.id[i];
 		if (!petra_attack_can_spare(uid, holds_decay)) continue;
 		if (decay && !petra_same_land(i, holder)) continue;
@@ -17598,15 +17693,16 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 }
 
 // defenseManager.js garrisonAttackedUnit (the nearest healing structure) and
-// garrisonSiegeUnit (the nearest fortress) with room and enough health.
-uint32_t Simulation::petra_garrison_holder_for(size_t i, bool heals_only, bool siege, std::vector<int> &incoming) const {
+// garrisonSiegeUnit (the nearest structure whose List takes it: fortress, arsenal, army
+// camp), ours or an ally's (getAllyStructures), with room and enough health.
+uint32_t Simulation::petra_garrison_holder_for(size_t i, bool heals_only, std::vector<int> &incoming) const {
 	size_t best = SIZE_MAX;
 	float best_d2 = 1e18f;
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
-		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		if (!is_ally(petra_pid_, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
 		if (heals_only && structure_garrison_heal(b) <= 0.0f) continue;
-		if (siege && b.type != BLD_FORTRESS) continue;
+		if (turret_points_of(b) || !structure_accepts_garrison(b, i)) continue; // unit.hasClasses(garrisonableClasses)
 		if (!structure_has_enough_health(b) || (int)b.garrisoned_units.size() + incoming[bi] >= b.garrison_cap) continue;
 		const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
 		const float d2 = dx * dx + dz * dz;
@@ -17647,8 +17743,9 @@ size_t Simulation::petra_attacked_unit_holder(size_t i, bool emergency, const st
 	float best_d2 = 1e18f;
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
-		// Allied holders too in 0 A.D.; RTS0 garrisons only into its own.
-		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		// getAllyStructures: ours or a mutual ally's, whose List takes the unit.
+		if (!is_ally(petra_pid_, b.team) || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		if (turret_points_of(b) || !structure_accepts_garrison(b, i)) continue;
 		if (!emergency && structure_garrison_heal(b) <= 0.0f) continue;
 		const int slots = (int)b.garrisoned_units.size() + (bi < incoming.size() ? incoming[bi] : 0);
 		if (slots >= b.garrison_cap && (!emergency || b.garrisoned_units.empty())) continue;
@@ -17670,8 +17767,10 @@ bool Simulation::petra_garrison_attacked_unit(size_t i, bool emergency, std::vec
 	const size_t best = petra_attacked_unit_holder(i, emergency, incoming);
 	if (best == SIZE_MAX) return false;
 	const Building &b = buildings_[best];
-	if (emergency && (int)b.garrisoned_units.size() >= b.garrison_cap) // make room for this one
-		order_ungarrison_single(b.id, b.garrisoned_units.front());
+	if (emergency && (int)b.garrisoned_units.size() >= b.garrison_cap) { // make room for this one
+		const uint32_t first = b.garrisoned_units.front();
+		cmd_unload(petra_pid_, b.id, &first, 1); // Commands.js unload: an ally's holder, only ours
+	}
 	++incoming[best];
 	const uint32_t uid = units_.id[i];
 	order_garrison(&uid, 1, b.id);
@@ -17729,9 +17828,12 @@ void Simulation::petra_manage_garrisons() {
 	// last, a decaying structure gets the garrison that stops its decay (TYPE_DECAY).
 	for (size_t bi = 0; bi < buildings_.size(); ++bi) {
 		const Building &b = buildings_[bi];
-		if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
-		const bool shoots = building_ai_info(b.type).shoots();
-		const int decay_min = petra_decay_garrison_min(b);
+		if (b.wrecked || b.build_progress < 1.0f || b.garrison_cap <= 0) continue;
+		// An ally's holder only for ours sheltering inside it (garrisonManager.holders).
+		const bool own = b.team == petra_pid_;
+		if (!own && (b.garrisoned_units.empty() || !is_ally(petra_pid_, b.team) || turret_points_of(b))) continue;
+		const bool shoots = own && building_ai_info(b.type).shoots();
+		const int decay_min = own ? petra_decay_garrison_min(b) : 0;
 		if (b.garrisoned_units.empty() && !shoots && decay_min == 0) continue;
 		const PetraAround around = petra_around(b);
 		std::vector<uint32_t> leave;
@@ -17762,7 +17864,7 @@ void Simulation::petra_manage_garrisons() {
 			petra_garrison_attacked_unit((size_t)t, false, incoming);
 			continue;
 		}
-		if (c & TC_STONETHROWER) holder = petra_garrison_holder_for((size_t)t, false, true, incoming);
+		if (c & TC_STONETHROWER) holder = petra_garrison_holder_for((size_t)t, false, incoming);
 		if (holder) {
 			const uint32_t uid = units_.id[t];
 			order_garrison(&uid, 1, holder);
