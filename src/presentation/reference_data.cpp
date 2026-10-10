@@ -350,7 +350,7 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	if (type < 0 || type >= rtso::BLD_TYPE_COUNT) return d;
 	const uint8_t b = (uint8_t)type;
 	const uint8_t c = (civ >= 0 && civ < rtso::CIV_COUNT) ? (uint8_t)civ : 0;
-	const auto &bi = rtso::building_type_info(b);
+	const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(c, b); // the big house
 	d["kind"] = "structure";
 	d["type"] = b;
 	d["civ"] = c;
@@ -366,7 +366,7 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	const rtso::CombatProfile &cp = rtso::building_combat(b);
 	d["armour"] = armour_dict(cp.hack_armor, cp.pierce_armor, cp.crush_armor);
 	d["pop_bonus"] = bi.pop_bonus;
-	d["garrison"] = bi.garrison_cap;
+	d["garrison"] = rtso::structure_garrison_max(b, c); // the civ's own GarrisonHolder/Max
 	d["garrison_heal"] = rtso::building_garrison_heal(b);
 	d["capture_points"] = bi.capture_max_points;
 	d["capture_regen"] = bi.capture_regen_rate;

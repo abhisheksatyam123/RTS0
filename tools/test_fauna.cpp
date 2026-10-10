@@ -26,6 +26,7 @@ static void run(Simulation &s, float seconds) {
 static void fresh(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
+	for (uint8_t p = 0; p < 2; ++p) s.players_[p].active = 1, s.players_[p].is_ai = 0; // no Petra builders
 	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
@@ -230,6 +231,32 @@ int main() {
 		std::printf("leash: boar leash %.1f, gave up %s\n", leash, s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK ? "yes" : "no");
 	}
 
+	// 7b. Attack.js timing and resistance: a wolf's first bite waits its PrepareTime (1 s), and
+	// each bite is its damage against the victim's full resistance (unit_resistance).
+	{
+		fresh(s);
+		uint32_t man = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		const int32_t u = uidx(s, man);
+		s.units_.speed[u] = 0.0f;
+		s.units_.attack_damage[u] = 0.0f; // it doesn't fight back here
+		s.units_.max_hp[u] = s.units_.hp[u] = 1000.0f;
+		uint32_t wolf = s.spawn_fauna(0.8f, 0.0f, FAUNA_WOLF);
+		const auto &info = fauna_type_info(FAUNA_WOLF);
+		CHECK(info.attack_prepare == 1.0f);
+		s.fauna_attacked((size_t)fidx(s, wolf), man);
+		CHECK(s.fauna_.behavior[fidx(s, wolf)] == FAUNA_ATTACK);
+		run(s, 0.8f);
+		CHECK(s.units_.hp[u] == 1000.0f); // still preparing
+		float res[3];
+		s.unit_resistance((size_t)u, res);
+		const float bite = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
+		                   info.crush_damage * powf(0.9f, res[2]);
+		run(s, 0.4f);
+		CHECK(std::fabs((1000.0f - s.units_.hp[u]) - std::max(1.0f, bite)) < 0.01f);
+		std::printf("wolf bite: first after prepare, %.2f damage (resistance %.1f/%.1f/%.1f)\n",
+		            1000.0f - s.units_.hp[u], res[0], res[1], res[2]);
+	}
+
 	// 8. Herding works for every player: player 1 herds a sheep into its own corral.
 	{
 		fresh(s);
@@ -244,9 +271,13 @@ int main() {
 		CHECK(f >= 0 && s.fauna_.behavior[f] == FAUNA_CORRALLED);
 		CHECK(f >= 0 && s.fauna_.corral_id[f] == corral1);
 		CHECK(f >= 0 && s.fauna_.corral_id[f] != corral0);
-		// Ordering a penned animal slaughters it.
+		// A penned animal is out of reach until the corral lets it out; then it is slaughtered.
 		s.order_herd(&herder, 1, sheep);
-		run(s, 20.0f);
+		run(s, 5.0f);
+		CHECK(f_alive(s, sheep));
+		s.cmd_unload(1, corral1, nullptr, 0);
+		s.order_hunt(&herder, 1, sheep); // the herder has wandered off to work meanwhile
+		for (int t = 0; t < 1200 && f_alive(s, sheep); ++t) run(s, Simulation::FIXED_STEP);
 		CHECK(!f_alive(s, sheep));
 	}
 
@@ -274,6 +305,41 @@ int main() {
 		s.fauna_.corral_id[fidx(s, penned)] = pen;
 		s.fauna_attacked((size_t)fidx(s, penned), foe);
 		CHECK(s.fauna_.behavior[fidx(s, penned)] == FAUNA_CORRALLED);
+		// A penned animal is garrisoned (GarrisonHolder List Animal): no one can slaughter it
+		// over the fence; it heals 1 hp a second (BuffHeal); Unload all lets it out; a corral
+		// below half health (EjectHealth 0.5) ejects its animals and takes no more.
+		{
+			uint32_t butcher = s.spawn_unit(-9.0f, 10.0f, 1, UNIT_FEMALE_CITIZEN);
+			s.order_hunt(&butcher, 1, penned);
+			CHECK(s.units_.target_unit_id[uidx(s, butcher)] != penned);
+			uint32_t herd_ids[1] = {butcher};
+			s.order_herd(herd_ids, 1, penned);
+			s.fauna_.hp[fidx(s, penned)] -= 5.0f;
+			const float hurt = s.fauna_.hp[fidx(s, penned)];
+			run(s, 3.0f);
+			CHECK(f_alive(s, penned) && s.fauna_.behavior[fidx(s, penned)] == FAUNA_CORRALLED);
+			CHECK(std::fabs(s.fauna_.hp[fidx(s, penned)] - (hurt + 3.0f)) < 0.2f);
+			CHECK(s.corral_count(pen) == 1);
+			s.cmd_unload(0, pen, nullptr, 0); // not the owner
+			CHECK(s.corral_count(pen) == 1);
+			s.cmd_unload(1, pen, nullptr, 0);
+			CHECK(s.corral_count(pen) == 0 && s.fauna_.corral_id[fidx(s, penned)] == 0);
+			s.order_hunt(&butcher, 1, penned);
+			for (int t = 0; t < 400 && f_alive(s, penned); ++t) run(s, Simulation::FIXED_STEP);
+			CHECK(!f_alive(s, penned));
+
+			uint32_t ewe = s.spawn_fauna(-12.0f, 11.0f, FAUNA_SHEEP);
+			s.fauna_.behavior[fidx(s, ewe)] = FAUNA_CORRALLED;
+			s.fauna_.corral_id[fidx(s, ewe)] = pen;
+			auto &pb = s.buildings_[s.building_id_to_idx_.at(pen)];
+			pb.hp = pb.max_hp * 0.4f;
+			run(s, 0.2f);
+			CHECK(s.corral_count(pen) == 0 && s.fauna_.behavior[fidx(s, ewe)] != FAUNA_CORRALLED);
+			uint32_t shepherd = s.spawn_unit(-10.0f, 13.0f, 1, UNIT_FEMALE_CITIZEN);
+			s.order_herd(&shepherd, 1, ewe);
+			run(s, 5.0f);
+			CHECK(s.corral_count(pen) == 0);
+		}
 
 		fresh(s);
 		uint32_t archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
@@ -349,8 +415,10 @@ int main() {
 		static Simulation t;
 		CHECK(t.load_state(path));
 		CHECK(t.resources_.max_amount[t.res_id_to_idx_[bush]] == 200);
-		run(s, 30.0f);
-		run(t, 30.0f);
+		// The bush's timer stopped at Max; it starts again on the first tick that sees it below
+		// (CheckTimers), so the fifth food comes a tick after 30 s. The timer survives save/load.
+		run(s, 30.1f);
+		run(t, 30.1f);
 		CHECK(amount(s, bush) == 125 && amount(t, bush) == 125);
 		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
 		std::remove(path);

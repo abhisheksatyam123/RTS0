@@ -122,7 +122,8 @@ int main() {
 	}
 
 	// 6. The corral trains its civ's animals at their 0 A.D. cost and time: an Athenian cow
-	//    is 150 food and 60 s (45 s after Stockbreeding) and is penned when it comes out;
+	//    is 150 food and 60 s (45 s after Stockbreeding) and steps out beside the corral, or
+	//    is penned when it comes out if the corral's rally point is the corral (autoGarrison);
 	//    a Han corral has no sheep and trains its first animal (a goat) instead; cancelling
 	//    refunds the animal's cost.
 	{
@@ -142,14 +143,52 @@ int main() {
 		CHECK(s.cmd_cancel_train(0, c, 1));
 		CHECK(near(s.players_[0].res[RES_FOOD], 850.0f));
 		run(s, 61.0f);
-		CHECK(s.corral_count(c) == 1);
+		CHECK(s.corral_count(c) == 0);
 		bool cow = false;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			cow |= s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_CATTLE_COW_TRAINABLE && s.fauna_.corral_id[f] == 0 &&
+				s.fauna_.behavior[f] != FAUNA_CORRALLED;
+		CHECK(cow);
+		auto &cb = s.buildings_[s.building_id_to_idx_.at(c)];
+		cb.has_rally_point = true;
+		cb.rally_target_bld_id = c;
+		cb.rally_x = cb.x;
+		cb.rally_z = cb.z;
+		CHECK(s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE));
+		run(s, 46.0f);
+		CHECK(s.corral_count(c) == 1);
+		cow = false;
 		for (size_t f = 0; f < s.fauna_.count; ++f)
 			cow |= s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_CATTLE_COW_TRAINABLE && s.fauna_.corral_id[f] == c;
 		CHECK(cow);
 		CHECK(Simulation::corral_animal_for(CIV_HAN, FAUNA_SHEEP_TRAINABLE) == FAUNA_GOAT_TRAINABLE);
 		CHECK(Simulation::corral_animal_for(CIV_KUSHITES, FAUNA_CATTLE_SANGA_TRAINABLE) == FAUNA_CATTLE_SANGA_TRAINABLE);
-		std::printf("corral: cow 150 food, 60 s; penned on arrival\n");
+		std::printf("corral: cow 150 food, 60 s; out beside it, penned with a rally on the corral\n");
+	}
+
+	// 6b. Batch training at the corral (Trainer.js, corral BatchTimeModifier 0.7): five sheep
+	//     cost five times one and take 40 s x 5^0.7 (BuildTime x n^modifier); they all come out when it ends, and
+	//     autoqueue queues the same batch again.
+	{
+		fresh(s);
+		const uint32_t c = s.spawn_building_world(10.0f, 10.0f, BLD_CORRAL, 0, 1.0f);
+		s.players_[0].res[RES_FOOD] = 1000.0f;
+		CHECK(s.cmd_breed_livestock(0, c, FAUNA_SHEEP_TRAINABLE, 5));
+		CHECK(near(s.players_[0].res[RES_FOOD], 750.0f));
+		const auto &q = s.buildings_[s.building_id_to_idx_.at(c)].queue;
+		const float t5 = 40.0f * std::pow(5.0f, 0.7f);
+		CHECK(q.size() == 1 && q[0].count == 5 && near(q[0].duration, t5));
+		CHECK(s.cmd_set_autoqueue(0, c, true));
+		run(s, t5 + 1.0f);
+		int sheep = 0;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			sheep += s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_SHEEP_TRAINABLE;
+		CHECK(sheep == 5);
+		CHECK(q.size() == 1 && q[0].count == 5);
+		CHECK(near(s.players_[0].res[RES_FOOD], 500.0f));
+		CHECK(s.cmd_cancel_train(0, c, 0));
+		CHECK(near(s.players_[0].res[RES_FOOD], 750.0f));
+		std::printf("corral batch: 5 sheep 250 food, %.0f s\n", t5);
 	}
 
 	// 7. The Persian ice house (structures/pers/ice_house.xml): 1 food every 2 s, 2 after

@@ -401,10 +401,43 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
 	BLD_ICE_HOUSE = 51,       // pers/ice_house
 	BLD_SUPER_DOCK = 52,      // cart/super_dock (Cothon)
-	BLD_TYPE_COUNT = 53
+	// Reached only by an Upgrade (civ_building_upgrade_only).
+	BLD_TACHARA_FOOD = 53,    // pers/tachara_food
+	BLD_TACHARA_WOOD = 54,    // pers/tachara_wood
+	BLD_TACHARA_STONE = 55,   // pers/tachara_stone
+	BLD_TACHARA_METAL = 56,   // pers/tachara_metal
+	BLD_APARTMENT = 57,       // cart/apartment
+	BLD_IMPERIAL_COURT = 58,  // han/civil_centre_court (a Civic Center: is_civic_centre)
+	BLD_TOWER_GREAT = 59,     // han/defense_tower_great (a defense tower: is_defense_tower)
+	BLD_PALISADE_GATE = 60,   // palisades_gate
+	BLD_TYPE_COUNT = 61
 };
 
 #include "civ_building_data.h"
+
+// The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
+// forms research the Tachara's technologies, the apartment the house's, the Han
+// Imperial Court the Civic Center's, the Great Archery Tower the defense tower's).
+inline constexpr uint8_t building_research_base(uint8_t type) {
+	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
+	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
+	       : type == BLD_IMPERIAL_COURT ? (uint8_t)BLD_TOWN_CENTER
+	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER : type;
+}
+
+// 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
+// territory root, a dropsite for every resource, a conquest-critical base).
+inline constexpr bool is_civic_centre(uint8_t type) {
+	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT;
+}
+// The defense tower and its Han Great Archery Tower form (StoneTower).
+inline constexpr bool is_defense_tower(uint8_t type) {
+	return type == BLD_TOWER || type == BLD_TOWER_GREAT;
+}
+// Structures that root territory on their own: civic centres, fortresses, defense towers.
+inline constexpr bool is_territory_root(uint8_t type) {
+	return is_civic_centre(type) || type == BLD_FORTRESS || is_defense_tower(type);
+}
 
 enum ResourceType : uint8_t {
 	RES_WOOD = 0,
@@ -468,6 +501,11 @@ constexpr int32_t FISH_FOOD_SUPPLY = 1000;
 constexpr int FISH_MAX_GATHERERS = 4;
 constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
 constexpr float FRUIT_REGROW_INTERVAL_S = 6.0f; // template_gaia_fruit Regrowth Interval 6000
+// The ResourceSupply Change interval a supply runs (fruit Regrowth, fish Spawn), -1 for none.
+inline float regrow_interval(uint8_t type, uint8_t subtype) {
+	if (type != RES_FOOD) return -1.0f;
+	return subtype == RES_SUB_FISH ? FISH_REGROW_INTERVAL_S : subtype == RES_SUB_NONE ? FRUIT_REGROW_INTERVAL_S : -1.0f;
+}
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
 
@@ -521,6 +559,16 @@ enum : uint8_t {
 	ORDER_FLAG_SUB_SHIFT = 5,
 	ORDER_FLAG_SUB_MASK = 0xE0
 };
+// An attack-move keeps the structures it walks past in bits 5-7 (attackMove targetClasses
+// "avoid", as Petra's attackPlan.js passes them): which defences, and economic structures.
+enum : uint8_t {
+	ORDER_AVOID_SHIFT = 5,
+	ORDER_AVOID_MASK = 0x60,
+	ORDER_AVOID_WALLS_FORTRESS = 1, // Palisade, Wall, Fortress
+	ORDER_AVOID_WALLS_TOWERS = 2,   // Palisade, Wall, Tower, Fortress
+	ORDER_AVOID_WALLS = 3,          // Palisade, Wall
+	ORDER_AVOID_ECONOMY = 0x80      // House, Storehouse, Farmstead, Field, Forge
+};
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
 struct UnitOrder {
@@ -550,6 +598,9 @@ inline constexpr int RELIC_REGEN_RATE = 10;
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
 inline constexpr float HEAL_HP = 5.0f;
+// template_unit_hero_healer.xml Heal: Health 6, Range 20 (m, before COMBAT_DISTANCE_SCALE).
+inline constexpr float HERO_HEAL_HP = 6.0f;
+inline constexpr float HERO_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
@@ -563,7 +614,7 @@ struct AlertRaiserInfo {
 };
 inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 	constexpr float S = 0.28f;
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: out = {false, 120 * S, 180 * S, 100 * S}; return true;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: out = {false, 50 * S, 100 * S, 100 * S}; return true;
 		case BLD_MARKET: out = {true, -1.0f, -1.0f, 100 * S}; return true;
@@ -775,6 +826,22 @@ inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
 }
 
+// A unit's Clearance for pushing and for the obstruction it is to walkers while it stands still
+// (0 A.D. CCmpUnitMotionManager, CCmpObstructionManager unit shapes). 0 A.D. gives infantry 0.8 m;
+// RTS0 draws its units bigger and keeps them further apart, so each unit's clearance follows its
+// body (unit_collision_radius) and 0 A.D.'s crowd lengths scale by PUSH_SCALE, which puts two
+// villagers left alone 1.4 units apart as before.
+inline constexpr float PUSH_SCALE = 5.0f / 6.0f; // RTS0 units per 0 A.D. metre in a crowd
+inline float unit_push_clearance(uint8_t type) {
+	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
+}
+
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines and war elephants.
+// A heavy unit pushes harder and is harder to push.
+inline float unit_push_weight(uint8_t type) {
+	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT ? 50.0f : 10.0f;
+}
+
 // 0 A.D. Attack.js CanAttack: fishing/merchant/trader/healer ship no (or
 // RestrictedClasses !SeaCreature). Fish are gathered, not fought.
 inline bool unit_can_attack(uint8_t type) {
@@ -870,21 +937,22 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time,
 		// capture max, regen, garrison regen, territory decay (Capturable from
 		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
-		// farmstead 300)
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 5, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		// farmstead 300). garrison is GarrisonHolder/Max (0: none; the house's civ value and
+		// other civ overrides are in structure_garrison_max, the List in structure_garrison_list).
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 20, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 3, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 5, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 30, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 20, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
 		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 10, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 5, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 5, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 10, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 20, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 50, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 0, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
@@ -906,6 +974,30 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
+}
+
+// 0 A.D. structures/{athen,spart,mace,sele,kush,cart,pers,rome,han}/house.xml take
+// template_structure_civic_house_big (Population/Bonus 10, 150 wood, BuildTime 50, Health
+// 1200); the other civs keep template_structure_civic_house (5, 75, 30, 800).
+inline bool civ_has_big_house(uint8_t civ) {
+	switch (civ) {
+		case CIV_ATHENIANS: case CIV_SPARTANS: case CIV_MACEDONIANS: case CIV_SELEUCIDS: case CIV_KUSHITES:
+		case CIV_CARTHAGINIANS: case CIV_PERSIANS: case CIV_ROMANS: case CIV_HAN: return true;
+		default: return false;
+	}
+}
+
+// building_type_info for a civ: the big house where the civ has one (its time and health
+// scaled from RTS0's house row by 0 A.D.'s big/small ratio). The apartment keeps its row.
+inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
+	BuildingTypeInfo info = building_type_info(type);
+	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
+		info.pop_bonus = 10;
+		info.wood_cost = 150;
+		info.build_time *= 50.0f / 30.0f;
+		info.max_hp *= 1200.0f / 800.0f;
+	}
+	return info;
 }
 
 // 0 A.D. WallSet (template_structure_wallset.xml, structures/*_wallset_stone.xml): a wall is
@@ -963,6 +1055,9 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
 }
 
+// Gate.js holders: the stone gate and the palisade gate (a palisades_long Upgrade).
+inline constexpr bool is_gate_type(uint8_t type) { return type == BLD_GATE || type == BLD_PALISADE_GATE; }
+
 inline bool is_palisade_tower(uint8_t type, float half_w) {
 	return type == BLD_PALISADE && std::fabs(half_w - PALISADE_TOWER_HALF) < 0.01f;
 }
@@ -972,13 +1067,14 @@ inline bool is_palisade_tower(uint8_t type, float half_w) {
 // and their building_type_info row.
 inline bool is_wallset_piece(uint8_t type, float half_w) {
 	if (type == BLD_PALISADE) return std::fabs(half_w - 1.0f) > 0.01f;
+	if (type == BLD_PALISADE_GATE) return true;
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
 // A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
 inline float wallset_piece_value(uint8_t type, float half_w, int what) {
-	if (!is_wallset_piece(type, half_w) || type == BLD_GATE) return -1.0f;
+	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return -1.0f;
 	const WallSetInfo &ws = wallset_info(type == BLD_PALISADE ? WALLSET_PALISADE : WALLSET_STONE);
 	if (is_palisade_tower(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
 	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
@@ -991,7 +1087,7 @@ inline float wallset_piece_value(uint8_t type, float half_w, int what) {
 // width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
 inline float building_half_depth(uint8_t type, float half_w) {
 	if (!is_wallset_piece(type, half_w) || is_palisade_tower(type, half_w)) return half_w;
-	return type == BLD_PALISADE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
+	return type == BLD_PALISADE || type == BLD_PALISADE_GATE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1011,7 +1107,7 @@ inline uint8_t building_required_phase(uint8_t type) {
 
 // 0 A.D. Upgrade component, for the structures RTS0 has both ends of:
 // template_structure_defensive_tower_sentry.xml (<Tower>) and
-// template_structure_defensive_wall_long.xml (<Gate>). iber/sentry_tower.xml
+// template_structure_defensive_wall_long.xml and palisades_long.xml (<Gate>). iber/sentry_tower.xml
 // overrides the tower's stone cost and time (its wood cost is inherited).
 struct BuildingUpgradeInfo {
 	uint8_t to; // BLD_TYPE_COUNT: this structure has no upgrade
@@ -1021,7 +1117,8 @@ struct BuildingUpgradeInfo {
 	const char *tooltip;
 };
 
-inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
+// The generic upgrades, which every civ has (one choice each).
+inline BuildingUpgradeInfo generic_building_upgrade(uint8_t from, uint8_t civ) {
 	switch (from) {
 		case BLD_SENTRY_TOWER:
 			if (civ == CIV_IBERIANS)
@@ -1029,17 +1126,40 @@ inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
 			return {BLD_TOWER, 0, 50, 0, 100, 100.0f, 2, "Reinforce with stone and upgrade to a defense tower."};
 		case BLD_WALL_SEGMENT:
 			return {BLD_GATE, 0, 20, 0, 0, 12.0f, 1, "Allow units access through Walls. Can be locked to prevent access."};
+		case BLD_PALISADE: // palisades_long only (upgrade_check)
+			return {BLD_PALISADE_GATE, 0, 10, 0, 0, 6.0f, 1, "Allow units access through Palisades. Can be locked to prevent access."};
 		default:
 			return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
 	}
+}
+
+// Upgrade choice k (0-based) of a `from` structure owned by a `civ` player: the
+// civ's own structure upgrades (civ_building_upgrade_table(), e.g. the Tachara's
+// four tribute forms) first, then the generic one. `to` is BLD_TYPE_COUNT past the last.
+inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ, int k = 0) {
+	const uint16_t bit = civ < 16 ? (uint16_t)(1u << civ) : 0;
+	for (const CivBuildingUpgrade *u = civ_building_upgrade_table(); u->from != BLD_TYPE_COUNT; ++u) {
+		if (u->from != from || !(u->civs & bit)) continue;
+		if (k-- == 0)
+			return {u->to, u->food_cost, u->wood_cost, u->gold_cost, u->stone_cost, u->time, u->phase, u->tooltip};
+	}
+	if (k == 0) return generic_building_upgrade(from, civ);
+	return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
+}
+
+// How many Upgrade choices building_upgrade() offers.
+inline int building_upgrade_count(uint8_t from, uint8_t civ) {
+	int n = 0;
+	while (n < 8 && building_upgrade(from, civ, n).to != BLD_TYPE_COUNT) ++n;
+	return n;
 }
 
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
 inline uint8_t building_phase_class(uint8_t type) {
-	switch (type) {
-		case BLD_HOUSE: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
+	switch (building_research_base(type)) {
+		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
 			return 1;
 		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY:
@@ -1196,11 +1316,12 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 	}
 }
 
-// 0 A.D. Identity class Human (infantry, cavalry, support units): what Heal.js
+// 0 A.D. Identity class Human (every organic unit, elephants and dogs too): what Heal.js
 // HealableClasses on template_unit_support_healer.xml accepts.
 inline bool unit_is_human(uint8_t type) {
-	const uint64_t c = unit_tech_classes(type);
-	return (c & TC_ORGANIC) && !(c & (TC_ELEPHANT | TC_DOG));
+	// Elephants, dogs, champions and heroes all carry Human (template_unit_elephant,
+	// template_unit_dog, template_unit_champion, template_unit_hero).
+	return (unit_tech_classes(type) & TC_ORGANIC) != 0;
 }
 
 // 0 A.D. GarrisonHolder on land siege: template_unit_siege_tower.xml (Max 20) and
@@ -1213,8 +1334,8 @@ inline bool unit_is_human(uint8_t type) {
 // maximum health a structure unloads its garrison and takes no one in. 0 = no
 // garrison in 0 A.D. (storehouse, farmstead, market, gate, dock, walls, outpost).
 inline float building_garrison_heal(uint8_t type) {
-	switch (type) {
-		case BLD_TOWN_CENTER: case BLD_CORRAL: return 1.0f;
+	switch (building_research_base(type)) {
+		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: return 1.0f; // han/ministry BuffHeal 1
 		case BLD_TEMPLE: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
@@ -1229,7 +1350,7 @@ inline float building_eject_health(uint8_t type) {
 		case BLD_FORTRESS: return 0.075f;
 		case BLD_CORRAL: return 0.5f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
-		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: return 0.0f;
+		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE: return 0.0f;
 		default: return 0.1f;
 	}
 }
@@ -1247,11 +1368,11 @@ inline uint64_t building_tech_classes(uint8_t type) {
 	uint8_t phase = building_required_phase(type);
 	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
 	switch (type) {
-		case BLD_TOWN_CENTER: return c | TC_CIVCENTRE | TC_CIVIC;
-		case BLD_HOUSE: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
+		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_BARRACKS: return c | TC_BARRACKS;
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
-		case BLD_TOWER: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
+		case BLD_TOWER: case BLD_TOWER_GREAT: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
 		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
 		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
@@ -1259,7 +1380,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: return c | TC_MARKET;
 		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
-		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: return c | TC_WALL | TC_DEFENSIVE;
+		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
@@ -1270,6 +1391,73 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
 		default: return c;
 	}
+}
+
+// Whether an attack-move with these avoid bits skips a structure of `type`.
+inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
+	const uint64_t c = building_tech_classes(type);
+	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
+	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
+		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS_TOWERS: return (c & (TC_WALL | TC_TOWER | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS: return (c & TC_WALL) != 0;
+		default: return false;
+	}
+}
+
+// 0 A.D. GarrisonHolder/Max where a civ's own template differs from the
+// building_type_info row (template_structure_*.xml): the small house
+// (template_structure_civic_house, 3) for Britons, Gauls, Iberians, Mauryas and
+// Ptolemies, the big house (template_structure_civic_house_big, 6) for the rest;
+// iber/defense_tower 8; han/storehouse and han/farmstead 1 (a Minister's seat).
+inline int structure_garrison_max(uint8_t type, uint8_t civ) {
+	switch (type) {
+		case BLD_HOUSE:
+			return civ < CIV_COUNT && !civ_has_big_house(civ) ? 3 : 6;
+		case BLD_TOWER: return civ == CIV_IBERIANS ? 8 : building_type_info(type).garrison_cap;
+		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 1 : 0;
+		default: return building_type_info(type).garrison_cap;
+	}
+}
+
+// 0 A.D. GarrisonHolder/List (MatchesClassList: any entry, "A+B" needs both, "!A" forbids
+// A). Support is RTS0's TC_CIVILIAN. corral "Animal" takes no unit (penned animals are fauna);
+// the Han lists add Minister (structures/han/*.xml), all but the sentry and wall towers.
+struct GarrisonClassList { uint8_t n; TechClassExpr e[5]; };
+inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
+	constexpr uint64_t SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
+	GarrisonClassList l{};
+	auto add = [&](uint64_t need, uint64_t forbid = 0) { l.e[l.n++] = {need, forbid}; };
+	switch (building_research_base(type)) { // the court and great tower keep their parent's List
+		case BLD_TOWN_CENTER: case BLD_TEMPLE: case BLD_EMBASSY: case BLD_THEATER: case BLD_GYMNASIUM:
+		case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_SYSSITON: case BLD_TACHARA: case BLD_AMPHITHEATER:
+		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
+		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
+		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
+		case BLD_TACHARA_METAL:
+			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
+		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
+		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
+		case BLD_STABLE: add(CAV); break;
+		case BLD_TOWER: case BLD_SENTRY_TOWER: add(SUP); add(INF); break; // template_structure_defensive_tower
+		case BLD_FORTRESS: case BLD_ARMY_CAMP: add(SUP); add(INF); add(CAV); add(TC_SIEGE); break;
+		case BLD_WONDER: add(SUP); add(TC_SOLDIER); break;
+		case BLD_FORGE: add(INF); add(TC_HEALER); break;
+		case BLD_ARSENAL: add(TC_SIEGE); break;
+		case BLD_ELEPHANT_STABLE: add(TC_ELEPHANT); break;
+		case BLD_KENNEL: add(TC_DOG); break;
+		case BLD_ACADEMY: add(INF); add(CAV); break;
+		case BLD_MINISTRY: add(SUP); add(INF); break;
+		case BLD_SUPER_DOCK: add(SUP); add(INF); add(CAV); add(TC_SHIP); break;
+		default: break; // storehouse, farmstead, corral, market, dock, ...: none
+	}
+	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && l.n < 5) add(TC_MINISTER);
+	return l;
+}
+inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) {
+	for (uint8_t k = 0; k < l.n; ++k)
+		if ((classes & l.e[k].need) == l.e[k].need && (classes & l.e[k].forbid) == 0) return true;
+	return false;
 }
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
@@ -1519,6 +1707,18 @@ inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+// Cost/Population of a unit (heroes, dogs and catafalques 0, siege and warships 2-4);
+// units without a roster template fall back to their UnitType row.
+inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).pop_cost : unit_type_info(type).pop_cost;
+}
+
+// Identity class Healer (Heal component): support healers and hero healers.
+inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
+	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	return (c & TC_HEALER) != 0;
 }
 
 // 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
@@ -1956,7 +2156,8 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 // Structures this civilization may build: every generic one, plus its own
 // civ-specific ones (0 A.D. structures/<civ>/, civ_building_civ_mask()).
 inline bool civ_can_build(uint8_t civ, uint8_t type) {
-	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u);
+	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u) &&
+	       !civ_building_upgrade_only(type);
 }
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {
@@ -1972,7 +2173,7 @@ struct CivInfo {
 	// 0 A.D. civ bonuses that act on gathering and trade. Unit bonuses are
 	// folded into each civ's roster; building and population bonuses are in
 	// civ_player_bonus_table(). Both come from tools/extract_0ad_rosters.py.
-	float metal_gather_mult; // Athenian "Silver Owls"
+	float metal_gather_mult; // Athenian "Silver Owls": Workers metal x this at Town and again at City
 	float trade_gain_mult; // land traders: Persian "Darics" (units/pers/support_trader GainMultiplier)
 	float ship_trade_gain_mult; // merchant ships: Carthaginian (units/cart/ship_merchant GainMultiplier)
 	// Added to the Market/InternationalBonus of the civ's markets and docks:
@@ -2074,10 +2275,11 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		ready = true;
 	}
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
-	if (type == BLD_TOWN_CENTER)
+	if (is_civic_centre(type))
 		return cc_rubble[civ];
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_HOUSE:
+		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
 		case BLD_TOWER:
@@ -2086,6 +2288,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		case BLD_SENTRY_TOWER:
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 			return "rubble_small";
 		default:
@@ -2095,8 +2298,9 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 
 // 0 A.D. VisualActor/FoundationActor per structure class.
 inline const char *civ_building_foundation(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_HOUSE:
+		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
 			return "foundation_3x3";
@@ -2113,6 +2317,7 @@ inline const char *civ_building_foundation(uint8_t type) {
 		case BLD_WALL_SEGMENT:
 		case BLD_GATE:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 			return "foundation_wall";
 		case BLD_FIELD:
@@ -2130,7 +2335,7 @@ inline const char *civ_building_foundation(uint8_t type) {
 }
 
 inline const char *civ_building_scaffold(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_HOUSE:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
@@ -2140,6 +2345,7 @@ inline const char *civ_building_scaffold(uint8_t type) {
 		case BLD_SENTRY_TOWER:
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 		case BLD_FIELD:
 			return "scaffold_small";

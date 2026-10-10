@@ -135,8 +135,8 @@ inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 // The 0 A.D. class of a structure type (template_structure_*.xml), or
 // STAT_BLD_TOTAL when it is in none of buildingsClasses (walls, fields...).
 inline uint8_t stat_building_class(uint8_t type) {
-	switch (type) {
-	case BLD_HOUSE: return STAT_BLD_HOUSE;
+	switch (building_research_base(type)) {
+	case BLD_HOUSE: case BLD_APARTMENT: return STAT_BLD_HOUSE;
 	case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_DOCK: case BLD_CORRAL: case BLD_FIELD:
 		return STAT_BLD_ECONOMIC;
 	case BLD_OUTPOST: return STAT_BLD_OUTPOST;

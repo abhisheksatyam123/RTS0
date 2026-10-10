@@ -192,15 +192,37 @@ UNIQUE_BUILDINGS = [
     ("BLD_TEMPLE_MARS", ["temple_mars"], "temple_mars", "temple_mars"),
     ("BLD_ICE_HOUSE", ["ice_house"], "ice_house", "ice_house"),
     ("BLD_SUPER_DOCK", ["super_dock"], "super_dock", "super_dock"),
+    # Reached only by an Upgrade (UPGRADE_ONLY): the Tachara's four tribute forms and
+    # the Carthaginian apartment (drawn with the house until it has its own model).
+    ("BLD_TACHARA_FOOD", ["tachara_food"], "tachara", "tachara"),
+    ("BLD_TACHARA_WOOD", ["tachara_wood"], "tachara", "tachara"),
+    ("BLD_TACHARA_STONE", ["tachara_stone"], "tachara", "tachara"),
+    ("BLD_TACHARA_METAL", ["tachara_metal"], "tachara", "tachara"),
+    ("BLD_APARTMENT", ["apartment"], "house", "house"),
+    # The Han Imperial Court (a Civic Center upgrade) and Great Archery Tower (a defense
+    # tower upgrade): RTS0 treats them as their base type wherever the role matters
+    # (is_civic_centre, is_defense_tower).
+    ("BLD_IMPERIAL_COURT", ["civil_centre_court"], "imperial_court", "imperial_court"),
+    ("BLD_TOWER_GREAT", ["defense_tower_great"], "tower_great", "tower_great"),
+    # The palisade gate (structures/palisades_gate, a palisades_long Upgrade; drawn with the
+    # palisade until it has its own model). Generic: every civ that lays palisades has it.
+    ("BLD_PALISADE_GATE", ["palisades_gate"], "palisade", "palisade"),
 ]
+# Structures no Builder list names: only an Upgrade reaches them.
+UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
+                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE"}
+# Generic structures (structures/<stem>.xml) in UNIQUE_BUILDINGS -> the generic BuildingType
+# whose civs have them too.
+GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
+# Generic structures a civ structure's Upgrade can start from (structures/cart/house,
+# structures/han/civil_centre, structures/han/defense_tower).
+UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
 for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:
     for _st in _stems:
         TRAINER_BUILDING[_st] = _enum
-TRAINER_BUILDING.update({"tachara_food": "BLD_TACHARA", "tachara_wood": "BLD_TACHARA",
-                         "tachara_stone": "BLD_TACHARA", "tachara_metal": "BLD_TACHARA",
-                         "imperial_ministry": "BLD_MINISTRY", "ministry": "BLD_MINISTRY"})
+TRAINER_BUILDING.update({"imperial_ministry": "BLD_MINISTRY", "ministry": "BLD_MINISTRY"})
 # 0 A.D. Builder/Entities structure kinds -> the generic RTS0 BuildingTypes they
 # let a civ lay (a stone wallset brings its towers and gates).
 BUILDER_BUILDING = {
@@ -370,6 +392,14 @@ class TemplateLoader:
             merge_into(node, elem)
         self.cache[name] = node
         return node
+
+    def own_tokens(self, name, path):
+        """Tokens a template file lists itself under path, not its parents' (empty for mixins)."""
+        f = os.path.join(self.root, name + ".xml")
+        if "|" in name or not os.path.isfile(f):
+            return []
+        e = ET.parse(f).getroot().find(path)
+        return e.text.split() if e is not None and e.text else []
 
     def apply_mixin(self, node, mixin):
         """Overlay mixins/<mixin>.xml, after its own parent mixins (e.g. merc_inf -> mercenary)."""
@@ -1056,6 +1086,7 @@ def collect(sim_root):
             if "Relic" in c:
                 flags.append("ROSTER_RELIC")
             hero_auras = []
+            own_auras = loader.own_tokens(name, "Auras")
             for aname in t.tokens("Auras"):
                 apath = os.path.join(sim_root, "data", "auras", aname + ".json")
                 if not os.path.isfile(apath):
@@ -1063,8 +1094,9 @@ def collect(sim_root):
                 with open(apath, encoding="utf-8") as f:
                     a = json.load(f)
                 aid = aname.rsplit("/", 1)[-1]
-                if not aid.startswith(civ + "_"):
-                    continue  # generic auras (garrison, formation) apply to every unit of a kind
+                if not aid.startswith(civ + "_") and not (aname.startswith("units/") and aname in own_auras):
+                    continue  # generic auras (garrison, formation) apply to every unit of a kind; a
+                    # unit's own (the centurion's Combat Leadership, a Celtic healer's) are its
                 known = next((i for i, x in enumerate(auras) if x["id"] == aid), None)
                 if known is not None:
                     hero_auras.append(known)
@@ -1388,7 +1420,7 @@ def emit_json(rows, auras, civ_json, bonuses):
     return json.dumps(doc, indent=1, ensure_ascii=False, sort_keys=False) + "\n"
 
 
-def unique_building_rows(sim_root):
+def unique_building_rows(sim_root, generic_masks=None):
     """BuildingTypeInfo rows, civ masks and phases for UNIQUE_BUILDINGS, read
     from each structure's 0 A.D. template the way the generic rows in
     sim_types.h were: Health, Cost (metal -> gold), GarrisonHolder,
@@ -1406,6 +1438,11 @@ def unique_building_rows(sim_root):
                     if t is None:
                         t, src = loader.load(name), name
                     break
+        if enum in GENERIC_UNIQUE:
+            name = "structures/%s" % stems[0]
+            mask = (generic_masks or {}).get(GENERIC_UNIQUE[enum], 0)
+            civs = [c for i, c in enumerate(CIVS) if mask >> i & 1]
+            t, src = loader.load(name), name
         if t is None:
             raise SystemExit("no 0 A.D. template for %s" % enum)
         fp = t.get("Footprint/Square")
@@ -1441,7 +1478,45 @@ def unique_building_rows(sim_root):
     return out
 
 
-def emit_buildings(rows, generic_masks):
+def civ_building_upgrades(sim_root):
+    """0 A.D. Upgrade choices of the civs' own structures whose source and target
+    are RTS0 BuildingTypes: [(from enum, to enum, {civ}, cost, time, phase, tooltip)].
+    Generic upgrades (sentry tower, wall to gate) stay in sim_types.h building_upgrade()."""
+    loader = TemplateLoader(sim_root)
+    enum_of = dict(UPGRADE_FROM_GENERIC)
+    for enum, stems, _model, _portrait in UNIQUE_BUILDINGS:
+        for st in stems:
+            enum_of[st] = enum
+    found = {}
+    for civ in CIVS:
+        sdir = os.path.join(loader.root, "structures", civ)
+        for fn in sorted(os.listdir(sdir)):
+            stem = fn[:-4]
+            if not fn.endswith(".xml") or stem not in enum_of:
+                continue
+            up = loader.load("structures/%s/%s" % (civ, stem)).get("Upgrade")
+            if up is None:
+                continue
+            for choice in sorted(up.children):
+                c = up.children[choice]
+                ent = (c.value("Entity") or "").replace("{civ}", civ).replace("{native}", civ)
+                to = enum_of.get(ent.rsplit("/", 1)[-1])
+                if not to or not loader.exists(ent):
+                    continue
+                phase = 1
+                for tech in c.tokens("Requirements/Techs"):
+                    phase = max(phase, PHASE_OF_TECH.get(tech, 1))
+                key = (enum_of[stem], to)
+                cost = tuple(int(c.num("Cost/" + r)) for r in ("food", "wood", "metal", "stone"))
+                if key in found:
+                    found[key][2].add(civ)
+                    continue
+                found[key] = [enum_of[stem], to, {civ}, cost, c.num("Time"), phase, c.value("Tooltip", "")]
+    order = BUILDING_BITS.index
+    return sorted(found.values(), key=lambda u: (order(u[0]), order(u[1])))
+
+
+def emit_buildings(rows, generic_masks, upgrades=()):
     out = []
     w = out.append
     w("// GENERATED by tools/extract_0ad_rosters.py from 0 A.D. simulation/templates/structures/")
@@ -1515,6 +1590,38 @@ def emit_buildings(rows, generic_masks):
     w("\t}")
     w("}")
     w("")
+    w("// True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):")
+    w("// no civ lays its foundation.")
+    w("inline bool civ_building_upgrade_only(uint8_t type) {")
+    w("\treturn %s;" % (" || ".join("type == %s" % r["enum"] for r in rows if r["enum"] in UPGRADE_ONLY) or "false"))
+    w("}")
+    w("")
+    w("// 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):")
+    w("// from, civs (bit per Civilization), to, food/wood/gold(metal)/stone cost, seconds,")
+    w("// phase the choice requires, tooltip. building_upgrade() lists them before the generic ones.")
+    w("struct CivBuildingUpgrade {")
+    w("\tuint8_t from;")
+    w("\tuint16_t civs;")
+    w("\tuint8_t to;")
+    w("\tint16_t food_cost, wood_cost, gold_cost, stone_cost;")
+    w("\tfloat time;")
+    w("\tuint8_t phase;")
+    w("\tconst char *tooltip;")
+    w("};")
+    w("inline constexpr int CIV_BUILDING_UPGRADE_COUNT = %d;" % len(upgrades))
+    w("inline const CivBuildingUpgrade *civ_building_upgrade_table() {")
+    w("\tstatic const CivBuildingUpgrade kUpgrades[CIV_BUILDING_UPGRADE_COUNT + 1] = {")
+    for frm, to, civs, cost, secs, phase, tip in upgrades:
+        mask = 0
+        for c in civs:
+            mask |= 1 << CIVS.index(c)
+        w("\t\t{%s, 0x%04x, %s, %d, %d, %d, %d, %s, %d, %s}," % (frm, mask, to, cost[0], cost[1], cost[2], cost[3],
+                                                             f(secs), phase, cstr(tip)))
+    w("\t\t{BLD_TYPE_COUNT, 0, BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr},")
+    w("\t};")
+    w("\treturn kUpgrades;")
+    w("}")
+    w("")
     w("// True for a civ-specific structure that takes every resource (ResourceDropsite).")
     w("inline bool civ_building_is_dropsite(uint8_t type) {")
     drops = [r["enum"] for r in rows if r["dropsite"]]
@@ -1539,7 +1646,8 @@ def main():
     rows, auras, skipped, civ_json, bonuses, team = collect(sim_root)
     header = emit_header(rows, auras, civ_json, bonuses, team)
     js = emit_json(rows, auras, civ_json, bonuses)
-    bld = emit_buildings(unique_building_rows(sim_root), generic_build_masks(sim_root))
+    masks = generic_build_masks(sim_root)
+    bld = emit_buildings(unique_building_rows(sim_root, masks), masks, civ_building_upgrades(sim_root))
     if args.verbose:
         for s in skipped:
             print("skipped:", s, file=sys.stderr)

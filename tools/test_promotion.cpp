@@ -171,6 +171,18 @@ int main() {
 		CHECK(near(s.promotion_required_xp(j), 100.0f));
 	}
 
+	// 5b. The Roman centurion's Combat Leadership (centurion_1): soldiers within 30 m need
+	//     25% less xp to promote, like Han Xin's Northern Army; one farther away does not.
+	{
+		fresh(s, CIV_ROMANS);
+		s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f, tmpl_of("rome/champion_infantry_swordsman_centurion"));
+		const size_t i = idx(s, s.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("rome/infantry_spearman_b")));
+		const size_t j = idx(s, s.spawn_unit(40.0f, 40.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("rome/infantry_spearman_b")));
+		s.rebuild_auras();
+		CHECK(near(s.promotion_required_xp(i), 75.0f));
+		CHECK(near(s.promotion_required_xp(j), 100.0f));
+	}
+
 	// 6. Rigorous Training: a unit garrisoned in a barracks gains 1 xp a second.
 	{
 		fresh(s, CIV_ATHENIANS);

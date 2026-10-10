@@ -76,6 +76,9 @@
 //     such builders farm the field or gather near the dropsite they finish.
 // 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
 //     nearest dropsite to idle.
+// 46. ShouldAbandonChase: once a second a chase whose target is hidden in the player's fog ends,
+//     a player's attack too (CheckTargetVisible).
+// 47. Attacked by a unit hidden in the fog: the unit doesn't charge it (APPROACHING enter).
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -641,7 +644,7 @@ static void test_garrison_approach() {
 	std::printf("18. garrison walks to the structure\n");
 	Simulation s;
 	setup(s);
-	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 0, 1.0f);
 	uint32_t u = s.spawn_unit(-30, 0, 0, UNIT_SPEARMAN);
 	uint32_t e = post(s, -15, 3, UNIT_SPEARMAN, 5000.0f);
 	const float ehp = hp_of(s, e);
@@ -654,7 +657,7 @@ static void test_garrison_approach() {
 		const auto *gg = s.get_garrisoned_units(house);
 		return gg && gg->size() == 1;
 	});
-	check(in, "gets in once it reaches the house");
+	check(in, "gets in once it reaches the barracks (a house takes Support only)");
 	check(hp_of(s, e) == ehp, "without fighting the enemy on the way");
 }
 
@@ -685,7 +688,7 @@ static void test_capture_rules() {
 	{
 		Simulation s;
 		setup(s);
-		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
 		uint32_t g[2] = {s.spawn_unit(0, 6, 1, UNIT_SPEARMAN), s.spawn_unit(1, 6, 1, UNIT_SPEARMAN)};
 		s.order_garrison(g, 2, house);
 		run(s, 10.0f);
@@ -899,7 +902,7 @@ static void test_ungarrison_rally() {
 	std::printf("27. ungarrison follows the rally point\n");
 	Simulation s;
 	setup(s);
-	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 0, 1.0f);
 	uint32_t a = s.spawn_unit(8, 0, 0, UNIT_SPEARMAN), b = s.spawn_unit(3, 1, 0, UNIT_SPEARMAN);
 	s.order_garrison(&a, 1, house);
 	s.order_walk(&a, 1, -20, 10, true); // waits behind the garrison order for good
@@ -928,7 +931,7 @@ static void test_ungarrison_rally() {
 	// Lockstep: cmd 13 with ids unloads just those.
 	Simulation l;
 	setup(l);
-	const uint32_t h2 = l.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	const uint32_t h2 = l.spawn_building_world(0, 0, BLD_BARRACKS, 0, 1.0f);
 	uint32_t c1 = l.spawn_unit(3, 0, 0, UNIT_SPEARMAN), c2 = l.spawn_unit(3, 1, 0, UNIT_SPEARMAN);
 	l.garrison_unit_now(c1, h2);
 	l.garrison_unit_now(c2, h2);
@@ -1131,6 +1134,12 @@ static void test_unitai_combat() {
 		s.order_set_stance(&a, 1, violent ? STANCE_VIOLENT : STANCE_AGGRESSIVE);
 		uint32_t e = s.spawn_unit(-35, -30, 1, UNIT_CAVALRY, 5000.0f);
 		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		// Passive scouts of its own keep the rider in sight: an attack on a unit hidden in
+		// the fog is dropped whatever the stance (ShouldAbandonChase, CheckTargetVisible).
+		for (float sx : {-10.0f, 15.0f, 40.0f}) {
+			uint32_t scout = s.spawn_unit(sx, -40, 0, UNIT_CAVALRY, 5000.0f);
+			s.order_set_stance(&scout, 1, STANCE_PASSIVE);
+		}
 		run_until(s, 5.0f, [&] { return target_of(s, a) == e; });
 		s.order_walk(&e, 1, 55, -30);
 		const float vision = s.unit_base_vision(idx_of(s, a));
@@ -1737,6 +1746,73 @@ static void test_idle_at_dropsite() {
 	(void)store;
 }
 
+
+static void test_chase_into_fog() {
+	std::printf("46. a chase is dropped once the target is hidden in the fog (ShouldAbandonChase)\n");
+	for (int forced = 0; forced < 2; ++forced) {
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(-40, -30, 0, UNIT_SWORDSMAN, 5000.0f);
+		s.order_set_stance(&a, 1, STANCE_VIOLENT);
+		uint32_t e = s.spawn_unit(-33, -30, 1, UNIT_CAVALRY, 5000.0f);
+		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		if (forced) s.order_attack(&a, 1, e);
+		run_until(s, 5.0f, [&] { return target_of(s, a) == e; });
+		s.order_walk(&e, 1, 55, -30);
+		const bool dropped = run_until(s, 30.0f, [&] { return target_of(s, a) != e; });
+		const int ai = idx_of(s, a), ei = idx_of(s, e);
+		const bool hidden = !s.los_visible(0, s.units_.pos_x[ei], s.units_.pos_z[ei]);
+		check(dropped && hidden && s.unit_order(a).kind != ORDER_ATTACK,
+				forced ? "a player's attack on a rider gone into the fog ends" : "so does a violent unit's own chase");
+		(void)ai;
+	}
+}
+
+
+static void test_hidden_attacker() {
+	std::printf("47. a unit doesn't charge an attacker hidden in the fog (APPROACHING, CheckTargetVisible)\n");
+	Simulation s;
+	setup(s);
+	uint32_t sw = s.spawn_unit(-40, 0, 0, UNIT_SWORDSMAN, 5000.0f);
+	uint32_t far = s.spawn_unit(10, 0, 1, UNIT_ARCHER, 5000.0f);
+	s.order_set_stance(&far, 1, STANCE_PASSIVE);
+	run(s, DT); // line of sight
+	const int si = idx_of(s, sw);
+	check(!s.los_visible(0, x_of(s, far), z_of(s, far)), "the archer stands in the fog");
+	s.units_.attacked_by[si] = far;
+	s.respond_to_attack((size_t)si);
+	check(target_of(s, sw) != far && act_of(s, sw) != ACTION_ATTACK, "the swordsman doesn't go for it");
+	s.set_reveal_map(true);
+	s.units_.attacked_by[si] = far;
+	s.respond_to_attack((size_t)si);
+	check(target_of(s, sw) == far, "one in sight is answered");
+}
+
+static void test_patrol_loop() {
+	std::printf("48. queued patrol points are walked round in a loop (PATROLLING MovementUpdate)\n");
+	Simulation s;
+	setup(s);
+	uint32_t p = s.spawn_unit(-10, 0, 0, UNIT_SPEARMAN);
+	s.order_patrol(&p, 1, 10, 0);
+	s.order_patrol(&p, 1, 10, 15, true);
+	s.order_patrol(&p, 1, -10, 15, true);
+	const float wx[3] = {10, 10, -10}, wz[3] = {0, 15, 15};
+	std::vector<int> seen;
+	int at = -1;
+	for (int i = 0; i < 600 && seen.size() < 7; ++i) { // 120 s
+		s.tick(DT);
+		int now = -1;
+		for (int k = 0; k < 3; ++k)
+			if (dist(s, p, wx[k], wz[k]) < 1.5f) now = k;
+		if (now >= 0 && now != at) seen.push_back(now);
+		if (now >= 0) at = now;
+	}
+	std::string order;
+	for (int k : seen) order += (char)('A' + k);
+	std::printf("  waypoints in order: %s\n", order.c_str());
+	check(order.rfind("ABCABCA", 0) == 0, "after the last point it goes back to the first, not the one before");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1785,6 +1861,9 @@ int main(int argc, char **argv) {
 	test_flee_source();
 	test_autoharvest();
 	test_idle_at_dropsite();
+	test_chase_into_fog();
+	test_hidden_attacker();
+	test_patrol_loop();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

@@ -61,6 +61,11 @@ struct UnitSoA {
 	int16_t *waypoint_count = nullptr; // G1 Petra/Formation - waypoint count (WaypointPath::count)
 	float *poison_timer = nullptr;
 	float *burning_timer = nullptr;
+	// StatusEffectsReceiver: who applied each status and their owner, credited with its damage and kill.
+	uint32_t *poison_src = nullptr;
+	uint32_t *burning_src = nullptr;
+	uint8_t *poison_owner = nullptr;
+	uint8_t *burning_owner = nullptr;
 	uint8_t *pack_state = nullptr; // PackState (0 A.D. Pack.js); PACK_NONE for units without Pack
 	float *pack_elapsed = nullptr; // seconds into the current pack/unpack
 	// 0 A.D. UnitAI order state (see UnitOrderKind): the current order, who hit the
@@ -80,6 +85,10 @@ struct UnitSoA {
 	float *aura_hp_mult = nullptr; // Health/Max multiplier from auras now applied to max_hp (1 = none)
 	uint32_t *flee_from = nullptr; // UnitAI FLEEING order.data.target: the unit, structure or animal fled from
 	float *flee_dist = nullptr; // FLEEING distanceToFlee: done once this far from flee_from
+	// ResourceGatherer.StartGathering: the rate fixed when the unit starts on gather_res (0: not
+	// gathering), kept until it leaves; a field's diminishing returns are those at the start.
+	float *gather_rate = nullptr;
+	uint32_t *gather_res = nullptr;
 	ShortPathMemo *short_path = nullptr; // the short path around buildings the unit is walking
 	MotionTurn *motion = nullptr; // UnitMotion's failed movements and this turn's move
 
@@ -99,10 +108,11 @@ struct UnitSoA {
 		FREE(stance); FREE(formation); FREE(kills); FREE(rank);
 		FREE(status_effects); FREE(xp); FREE(waypoint_cur); FREE(waypoint_count);
 		FREE(poison_timer); FREE(burning_timer);
+		FREE(poison_src); FREE(burning_src); FREE(poison_owner); FREE(burning_owner);
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
 		FREE(xp_partial); FREE(short_path); FREE(motion);
-		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist);
+		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist); FREE(gather_rate); FREE(gather_res);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -160,6 +170,10 @@ struct UnitSoA {
 		realloc_aligned(waypoint_count, c * sizeof(int16_t));
 		realloc_aligned(poison_timer, c * sizeof(float));
 		realloc_aligned(burning_timer, c * sizeof(float));
+		realloc_aligned(poison_src, c * sizeof(uint32_t));
+		realloc_aligned(burning_src, c * sizeof(uint32_t));
+		realloc_aligned(poison_owner, c * sizeof(uint8_t));
+		realloc_aligned(burning_owner, c * sizeof(uint8_t));
 		realloc_aligned(pack_state, c * sizeof(uint8_t));
 		realloc_aligned(pack_elapsed, c * sizeof(float));
 		realloc_aligned(order_kind, c * sizeof(uint8_t));
@@ -176,6 +190,8 @@ struct UnitSoA {
 		realloc_aligned(aura_hp_mult, c * sizeof(float));
 		realloc_aligned(flee_from, c * sizeof(uint32_t));
 		realloc_aligned(flee_dist, c * sizeof(float));
+		realloc_aligned(gather_rate, c * sizeof(float));
+		realloc_aligned(gather_res, c * sizeof(uint32_t));
 		realloc_aligned(short_path, c * sizeof(ShortPathMemo));
 		realloc_aligned(motion, c * sizeof(MotionTurn));
 		cap = c;
@@ -210,6 +226,8 @@ struct UnitSoA {
 		waypoint_count[i] = 0;
 		poison_timer[i] = 0.0f;
 		burning_timer[i] = 0.0f;
+		poison_src[i] = burning_src[i] = 0;
+		poison_owner[i] = burning_owner[i] = 0xFF;
 		// 0 A.D. trains siege engines as their "_packed" template.
 		pack_state[i] = unit_has_pack(u_tmpl, u_type) ? PACK_PACKED : PACK_NONE;
 		pack_elapsed[i] = 0.0f;
@@ -227,6 +245,8 @@ struct UnitSoA {
 		aura_hp_mult[i] = 1.0f;
 		flee_from[i] = 0;
 		flee_dist[i] = 0.0f;
+		gather_rate[i] = 0.0f;
+		gather_res[i] = 0;
 		short_path[i] = ShortPathMemo{};
 		motion[i] = MotionTurn{};
 		hp[i] = max_hp[i] = info.hp;
@@ -269,6 +289,10 @@ struct UnitSoA {
 			waypoint_count[idx] = waypoint_count[last];
 			poison_timer[idx] = poison_timer[last];
 			burning_timer[idx] = burning_timer[last];
+			poison_src[idx] = poison_src[last];
+			burning_src[idx] = burning_src[last];
+			poison_owner[idx] = poison_owner[last];
+			burning_owner[idx] = burning_owner[last];
 			pack_state[idx] = pack_state[last];
 			pack_elapsed[idx] = pack_elapsed[last];
 			order_kind[idx] = order_kind[last];
@@ -285,6 +309,8 @@ struct UnitSoA {
 			aura_hp_mult[idx] = aura_hp_mult[last];
 			flee_from[idx] = flee_from[last];
 			flee_dist[idx] = flee_dist[last];
+			gather_rate[idx] = gather_rate[last];
+			gather_res[idx] = gather_res[last];
 			short_path[idx] = short_path[last];
 			motion[idx] = motion[last];
 		}
@@ -302,6 +328,8 @@ struct ResourceSoA {
 	uint8_t *max_gatherers = nullptr; // ResourceSupply/MaxGatherers
 	int32_t *max_amount = nullptr; // ResourceSupply/Max a regrowing supply returns to (fruit), 0 = none
 	uint8_t *flora = nullptr; // FloraKind: the plant a tree or fruit supply shows
+	// ResourceSupply Change timer (fruit Regrowth, fish Spawn): seconds to its next tick, < 0 stopped.
+	float *regrow_left = nullptr;
 	uint8_t *alive = nullptr;
 	uint32_t *id = nullptr;
 
@@ -316,9 +344,10 @@ struct ResourceSoA {
 		if (max_gatherers) free(max_gatherers);
 		if (max_amount) free(max_amount);
 		if (flora) free(flora);
+		if (regrow_left) free(regrow_left);
 		if (alive) free(alive);
 		if (id) free(id);
-		x = z = nullptr; amount = max_amount = nullptr; type = subtype = max_gatherers = flora = alive = nullptr; id = nullptr; cap = count = 0;
+		x = z = nullptr; regrow_left = nullptr; amount = max_amount = nullptr; type = subtype = max_gatherers = flora = alive = nullptr; id = nullptr; cap = count = 0;
 	}
 	~ResourceSoA() { free_all(); }
 
@@ -337,7 +366,7 @@ struct ResourceSoA {
 		ra(x, c * sizeof(float)); ra(z, c * sizeof(float));
 		ra(amount, c * sizeof(int32_t)); ra(type, c * sizeof(uint8_t));
 		ra(subtype, c * sizeof(uint8_t)); ra(max_gatherers, c * sizeof(uint8_t));
-		ra(max_amount, c * sizeof(int32_t)); ra(flora, c * sizeof(uint8_t));
+		ra(max_amount, c * sizeof(int32_t)); ra(flora, c * sizeof(uint8_t)); ra(regrow_left, c * sizeof(float));
 		ra(alive, c * sizeof(uint8_t)); ra(id, c * sizeof(uint32_t));
 		cap = c;
 	}
@@ -346,7 +375,7 @@ struct ResourceSoA {
 		if (count >= cap) reserve(cap ? cap * 2 : 256);
 		size_t i = count++;
 		x[i] = rx; z[i] = rz; amount[i] = amt;
-		type[i] = rtype; subtype[i] = rsub; max_gatherers[i] = rmax; max_amount[i] = 0; flora[i] = 0; alive[i] = 1; id[i] = rid;
+		type[i] = rtype; subtype[i] = rsub; max_gatherers[i] = rmax; max_amount[i] = 0; flora[i] = 0; regrow_left[i] = -1.0f; alive[i] = 1; id[i] = rid;
 		return i;
 	}
 
@@ -357,7 +386,7 @@ struct ResourceSoA {
 			x[idx] = x[last]; z[idx] = z[last];
 			amount[idx] = amount[last]; type[idx] = type[last];
 			subtype[idx] = subtype[last]; max_gatherers[idx] = max_gatherers[last];
-			max_amount[idx] = max_amount[last]; flora[idx] = flora[last];
+			max_amount[idx] = max_amount[last]; flora[idx] = flora[last]; regrow_left[idx] = regrow_left[last];
 			alive[idx] = alive[last]; id[idx] = id[last];
 		}
 		count--;

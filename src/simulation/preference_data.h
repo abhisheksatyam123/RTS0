@@ -452,7 +452,7 @@ inline const PrefUnitRow *pref_class_table() {
 	return kTable;
 }
 
-inline constexpr uint8_t PREF_BUILDING_ROWS = 53; // BuildingTypes; one more row for any other structure
+inline constexpr uint8_t PREF_BUILDING_ROWS = 61; // BuildingTypes; one more row for any other structure
 // Each BuildingType's preference classes as a target.
 inline const uint8_t *pref_building_classes() {
 	static const uint8_t kTable[PREF_BUILDING_ROWS + 1] = {
@@ -509,6 +509,14 @@ inline const uint8_t *pref_building_classes() {
 		0x08, // BLD_TEMPLE_MARS: structures/rome/temple_mars
 		0x08, // BLD_ICE_HOUSE: structures/pers/ice_house
 		0x08, // BLD_SUPER_DOCK: structures/cart/super_dock
+		0x08, // BLD_TACHARA_FOOD: structures/pers/tachara_food
+		0x08, // BLD_TACHARA_WOOD: structures/pers/tachara_wood
+		0x08, // BLD_TACHARA_STONE: structures/pers/tachara_stone
+		0x08, // BLD_TACHARA_METAL: structures/pers/tachara_metal
+		0x08, // BLD_APARTMENT: structures/cart/apartment
+		0x08, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court
+		0x08, // BLD_TOWER_GREAT: structures/han/defense_tower_great
+		0x08, // BLD_PALISADE_GATE: structures/palisades_gate
 		0x08, // default: template_structure
 	};
 	return kTable;

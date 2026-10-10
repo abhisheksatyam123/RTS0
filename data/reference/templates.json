@@ -2324,7 +2324,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/infantry_javelineer_iber_b": {
@@ -2367,7 +2368,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/infantry_slinger_iber_b": {
@@ -2410,7 +2412,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/infantry_spearman_b": {
@@ -2452,7 +2455,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/infantry_swordsman_gaul_b": {
@@ -2495,7 +2499,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/infantry_swordsman_ital_b": {
@@ -2538,7 +2543,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/ship_arrow": {
@@ -2688,7 +2694,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/support_female_citizen_house": {
@@ -2727,7 +2734,8 @@
     22,
     23,
     25,
-    52
+    52,
+    57
    ]
   },
   "cart/support_healer_b": {
@@ -7535,6 +7543,21 @@
     "Relic"
    ],
    "builds": []
+  },
+  "pers/champion_infantry_archer_upgrade": {
+   "generic_name": "Persian Immortal",
+   "specific_name": "Anušiya",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Ranged",
+    "Archer",
+    "Immortal"
+   ],
+   "builds": []
   }
  },
  "structures": {
@@ -7870,6 +7893,18 @@
      "Council"
     ],
     "template": "structures/athen/prytaneion"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "spart": {
@@ -8204,6 +8239,18 @@
      "Syssiton"
     ],
     "template": "structures/spart/syssiton"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "pers": {
@@ -8538,6 +8585,62 @@
      "IceHouse"
     ],
     "template": "structures/pers/ice_house"
+   },
+   "53": {
+    "generic_name": "Winter Palace",
+    "specific_name": "Taçara",
+    "tooltip": "Train Heroes and make use of the “Satrapy Tribute” feature.",
+    "history": "",
+    "classes": [
+     "City",
+     "Palace"
+    ],
+    "template": "structures/pers/tachara_food"
+   },
+   "54": {
+    "generic_name": "Winter Palace",
+    "specific_name": "Taçara",
+    "tooltip": "Train Heroes and make use of the “Satrapy Tribute” feature.",
+    "history": "",
+    "classes": [
+     "City",
+     "Palace"
+    ],
+    "template": "structures/pers/tachara_wood"
+   },
+   "55": {
+    "generic_name": "Winter Palace",
+    "specific_name": "Taçara",
+    "tooltip": "Train Heroes and make use of the “Satrapy Tribute” feature.",
+    "history": "",
+    "classes": [
+     "City",
+     "Palace"
+    ],
+    "template": "structures/pers/tachara_stone"
+   },
+   "56": {
+    "generic_name": "Winter Palace",
+    "specific_name": "Taçara",
+    "tooltip": "Train Heroes and make use of the “Satrapy Tribute” feature.",
+    "history": "",
+    "classes": [
+     "City",
+     "Palace"
+    ],
+    "template": "structures/pers/tachara_metal"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "rome": {
@@ -8898,6 +9001,18 @@
      "TempleOfMars"
     ],
     "template": "structures/rome/temple_mars"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "cart": {
@@ -9222,6 +9337,30 @@
      "Shipyard"
     ],
     "template": "structures/cart/super_dock"
+   },
+   "57": {
+    "generic_name": "Apartment Building",
+    "specific_name": "Bet",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Village",
+     "House"
+    ],
+    "template": "structures/cart/apartment"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "mace": {
@@ -9545,6 +9684,18 @@
      "Library"
     ],
     "template": "structures/mace/library"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "brit": {
@@ -9869,6 +10020,18 @@
      "Kennel"
     ],
     "template": "structures/brit/kennel"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "gaul": {
@@ -10192,6 +10355,18 @@
      "Council"
     ],
     "template": "structures/gaul/assembly"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "iber": {
@@ -10515,6 +10690,18 @@
      "Town"
     ],
     "template": "structures/iber/monument"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "maur": {
@@ -10849,6 +11036,18 @@
      "Pillar"
     ],
     "template": "structures/maur/pillar_ashoka"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "kush": {
@@ -11223,6 +11422,18 @@
      "TempleOfAmun"
     ],
     "template": "structures/kush/temple_amun"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "ptol": {
@@ -11582,6 +11793,18 @@
      "Colony"
     ],
     "template": "structures/ptol/military_colony"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "sele": {
@@ -11918,6 +12141,18 @@
      "Colony"
     ],
     "template": "structures/sele/military_colony"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
    }
   },
   "han": {
@@ -12255,6 +12490,45 @@
      "Town"
     ],
     "template": "structures/han/ministry"
+   },
+   "58": {
+    "generic_name": "Imperial Court",
+    "specific_name": "Cháotíng",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "CivilCentre",
+     "ImperialCourt",
+     "City"
+    ],
+    "template": "structures/han/civil_centre_court"
+   },
+   "59": {
+    "generic_name": "Great Tower",
+    "specific_name": "Dà Fángyù Tǎ",
+    "tooltip": "Garrison Infantry for additional arrows. Needs the “Murder Holes” technology to protect its foot.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "StoneTower",
+     "GreatTower"
+    ],
+    "template": "structures/han/defense_tower_great"
+   },
+   "60": {
+    "generic_name": "Bamboo Stockade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/han/palisades_gate"
    }
   }
  },

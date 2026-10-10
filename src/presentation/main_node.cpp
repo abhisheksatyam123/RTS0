@@ -9,6 +9,7 @@
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include "user_config.h"
+#include "display_colors.h"
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -68,7 +69,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
-	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
+	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "choice"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("_on_dropsite_sharing_pressed", "shared"), &RtsoMain::_on_dropsite_sharing_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
@@ -109,6 +110,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
 	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
+	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
@@ -117,6 +119,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
+	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
+	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
@@ -133,6 +137,7 @@ void RtsoMain::_bind_methods() {
 	// (scenes/menu/loading.gd) listens while the match is set up.
 	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -174,6 +179,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "MARKET", rtso::BLD_MARKET);
 	bind_enum("BuildingType", "FORTRESS", rtso::BLD_FORTRESS);
 	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
+	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
 	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
 	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
@@ -286,6 +292,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "outpost") return rtso::BLD_OUTPOST;
 	if (n == "fortress" || n == "palisades_fort" || n == "keep") return rtso::BLD_FORTRESS;
 	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
+	if (n == "palisade_gate" || n == "palisades_gate") return rtso::BLD_PALISADE_GATE;
 	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
 	if (n == "wonder") return rtso::BLD_WONDER;
 	if (n == "dock") return rtso::BLD_DOCK;
@@ -671,7 +678,8 @@ void RtsoMain::_ready() {
 	lobby_observe = memnew(Button);
 	lobby_observe->set_text("Observe");
 	lobby_observe->set_toggle_mode(true);
-	lobby_observe->set_tooltip_text("Join a match in progress as an observer");
+	lobby_observe->set_tooltip_text("Watch instead of playing: host or join a match (or one in progress) as an observer");
+	lobby_observe->connect("toggled", Callable(this, "_on_lobby_observe_toggled"));
 	lobby_actions->add_child(lobby_observe);
 	Button *ref_b = memnew(Button);
 	ref_b->set_text("Refresh");
@@ -1298,7 +1306,7 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 	const uint8_t me = local_player();
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
-		if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 	const uint32_t m1 = sim->spawn_building_world(cx - 30.0f, cz, rtso::BLD_MARKET, me, 1.0f);
 	const uint32_t m2 = sim->spawn_building_world(cx + 30.0f, cz + 10.0f, rtso::BLD_MARKET, me, 1.0f);
 	clear_selection();
@@ -1330,7 +1338,7 @@ Dictionary RtsoMain::debug_guard_step(int step) {
 	if (step == 0) {
 		float cx = 0.0f, cz = 0.0f;
 		for (const auto &b : sim->buildings())
-			if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+			if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 		const uint32_t a = sim->spawn_unit(cx - 20.0f, cz, me, rtso::UNIT_SPEARMAN);
 		const uint32_t b = sim->spawn_unit(cx - 22.0f, cz, me, rtso::UNIT_SPEARMAN);
 		sim->order_guard(&a, 1, b);
@@ -1356,7 +1364,7 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	const uint8_t me = local_player();
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
-		if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 	const uint32_t id = sim->spawn_building_world(cx + 24.0f, cz + 24.0f, (uint8_t)btype, me, 1.0f);
 	clear_selection();
 	selected_building_id = id;
@@ -1364,6 +1372,61 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	for (int i = 0; i < production_bar->get_child_count(); ++i)
 		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) out.push_back(btn->get_text());
 	return out;
+}
+
+// Test hook: selects the local player's first unit that can build (step one
+// call) and reports the command button whose text starts with `prefix`: its
+// instance id, global rect and whether build placement is active.
+Dictionary RtsoMain::debug_command_button(const String &prefix) {
+	Dictionary d;
+	if (!sim) return d;
+	if (selected_ids.is_empty()) {
+		auto uview = sim->units();
+		for (size_t i = 0; i < uview.count; ++i) {
+			if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+			if (uview.unit_type[i] != rtso::UNIT_FEMALE_CITIZEN && uview.unit_type[i] != rtso::UNIT_VILLAGER) continue;
+			clear_selection();
+			selected_ids.push_back((int32_t)uview.id[i]);
+			break;
+		}
+	}
+	d["build_mode"] = build_mode;
+	for (int i = 0; i < production_bar->get_child_count(); ++i) {
+		Button *btn = Object::cast_to<Button>(production_bar->get_child(i));
+		if (!btn || !btn->get_text().begins_with(prefix)) continue;
+		d["id"] = (int64_t)btn->get_instance_id();
+		d["rect"] = btn->get_global_rect();
+		d["disabled"] = btn->is_disabled();
+		break;
+	}
+	return d;
+}
+
+// Test hook: step 0 places a barracks with a rally point and selects it; step 1
+// does what a right-click on the barracks itself does; every step reports the
+// rally point and whether the barracks centre / a far spot count as "itself".
+Dictionary RtsoMain::debug_unset_rally_step(int step) {
+	Dictionary d;
+	if (!sim || net_lockstep()) return d;
+	const uint8_t me = local_player();
+	if (step == 0) {
+		float cx = 0.0f, cz = 0.0f;
+		for (const auto &b : sim->buildings())
+			if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+		const uint32_t id = sim->spawn_building_world(cx + 24.0f, cz - 24.0f, rtso::BLD_BARRACKS, me, 1.0f);
+		sim->cmd_set_rally_point(me, id, cx + 40.0f, cz - 24.0f, 0, 0, false);
+		clear_selection();
+		selected_building_id = id;
+	}
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		if (step == 1 && over_own_rally_structure(Vector3(b.x, 0, b.z)))
+			post_lockstep(14, nullptr, 0, 0, 0, selected_building_id, 1);
+		d["has_rally"] = b.has_rally_point;
+		d["over_self"] = over_own_rally_structure(Vector3(b.x + b.half_size * 0.5f, 0, b.z));
+		d["over_far"] = over_own_rally_structure(Vector3(b.x + 30.0f, 0, b.z));
+	}
+	return d;
 }
 
 Dictionary RtsoMain::get_audio_state() const {
@@ -1646,9 +1709,100 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 			(key.is_empty() ? String() : " [color=#aaaaaa](" + key + " to view)[/color]") + "\n");
 }
 
+// colorizePlayernameByID: the name in the player's displayed colour.
+String RtsoMain::colored_player_name(uint8_t pid) const {
+	const uint32_t rgb = sim ? rtso::display_colors::rgb(*sim, pid) : 0xFFFFFFu;
+	return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + player_display_name(pid) + "[/color]";
+}
+
+// DiplomacyColors.toggle (session.diplomacycolors, the dialog and minimap buttons).
+void RtsoMain::toggle_diplomacy_colors() {
+	rtso::display_colors::toggle();
+	if (minimap_view) minimap_view->queue_redraw();
+	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
+}
+
+// 0 A.D. ChatMessageFormatSimulation: who sees which tribute, barter, phase and
+// diplomacy line. Observers (and defeated players) see more, as g_IsObserver does.
+void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices) {
+	if (notices.empty() || !sim || !chat_window_.is_ready() || turn_mgr_.is_replaying()) return;
+	using N = rtso::Simulation::SessionNotice;
+	const uint8_t me = local_player();
+	const bool observer = me >= rtso::MAX_PLAYERS || sim->is_defeated(me);
+	auto mutual_ally = [&](uint8_t a, uint8_t b) {
+		return a < rtso::MAX_PLAYERS && b < rtso::MAX_PLAYERS && sim->get_diplomacy(a, b) == rtso::Simulation::DIPLO_ALLY &&
+				sim->get_diplomacy(b, a) == rtso::Simulation::DIPLO_ALLY;
+	};
+	// getLocalizedResourceAmounts: "100 food, 50 wood and 200 metal".
+	auto amounts_text = [](const int32_t *amounts, const uint8_t *types, int n) {
+		static const char *kNames[rtso::RES_COUNT] = {"wood", "metal", "stone", "food"}; // RES_* order
+		String parts[rtso::RES_COUNT];
+		int count = 0;
+		for (int i = 0; i < n; ++i)
+			if (amounts[i] > 0 && types[i] < rtso::RES_COUNT)
+				parts[count++] = String::num_int64(amounts[i]) + " " + kNames[types[i]];
+		String out;
+		for (int i = 0; i < count; ++i)
+			out += (i == 0 ? "" : i == count - 1 ? " and " : ", ") + parts[i];
+		return out;
+	};
+	for (const N &n : notices) {
+		String line;
+		if (n.kind == N::TRIBUTE) {
+			// GetTributableCodes order: food, wood, stone, metal.
+			static const uint8_t kOrder[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+			int32_t a[4];
+			for (int i = 0; i < 4; ++i) a[i] = n.amounts[kOrder[i]];
+			const String what = amounts_text(a, kOrder, 4);
+			if (n.other == me) line = colored_player_name(n.player) + " has sent you " + what + ".";
+			else if (n.player == me) line = "You have sent " + colored_player_name(n.other) + " " + what + ".";
+			else if (user_opts_.tribute_notice &&
+					(observer || (sim->teams_locked() && mutual_ally(n.player, me) && mutual_ally(n.other, me))))
+				line = colored_player_name(n.player) + " has sent " + colored_player_name(n.other) + " " + what + ".";
+		} else if (n.kind == N::BARTER) {
+			if (observer && user_opts_.barter_notice) {
+				const String given = amounts_text(&n.amounts[0], &n.other, 1);
+				const String gained = amounts_text(&n.amounts[1], &n.tech, 1);
+				line = colored_player_name(n.player) + " bartered " + given + " for " + gained + ".";
+			}
+		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
+			if (user_opts_.phase_notice == 0 || (n.player != me && !observer && !mutual_ally(n.player, me))) continue;
+			const String phase = String(rtso::tech_info(n.tech).name);
+			if (n.kind == N::PHASE_COMPLETED) line = colored_player_name(n.player) + " has reached the " + phase + ".";
+			else if (user_opts_.phase_notice == 2 && n.kind == N::PHASE_STARTED)
+				line = colored_player_name(n.player) + " is advancing to the " + phase + ".";
+			else if (user_opts_.phase_notice == 2)
+				line = "The " + phase + " of " + colored_player_name(n.player) + " has been aborted.";
+		} else if (n.kind == N::DIPLOMACY) {
+			static const char *kWord[3] = {"allied with", "neutral with", "at war with"};
+			const char *word = kWord[n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2];
+			if (observer) line = colored_player_name(n.player) + " is now " + word + " " + colored_player_name(n.other) + ".";
+			else if (n.player == me) line = "You are now " + String(word) + " " + colored_player_name(n.other) + ".";
+			else if (n.other == me) line = colored_player_name(n.player) + " is now " + word + " you.";
+		}
+		if (!line.is_empty()) chat_window_.append_line(line + "\n");
+	}
+}
+
 // Context cursors (0 A.D. gui/session/unit_actions.js "cursor" of each action
 // and input.js updateCursorAndTooltip, art/textures/cursors/action-*.png): the
 // cursor shows what a right-click would do with the current selection.
+// unit_actions.js "unset-rallypoint" getActionInfo: the target is the selected
+// structure itself and it has a rally point.
+bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
+	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		if (b.team != local_player() || !b.has_rally_point) return false;
+		// Inside the turned footprint (u axis = (ux, uz), half extents hu, hv).
+		const float dx = at.x - b.x, dz = at.z - b.z;
+		const float u = dx * b.ux + dz * b.uz, v = -dx * b.uz + dz * b.ux;
+		const float hu = b.hu > 0.0f ? b.hu : b.half_size, hv = b.hv > 0.0f ? b.hv : b.half_size;
+		return std::fabs(u) <= hu && std::fabs(v) <= hv;
+	}
+	return false;
+}
+
 void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
@@ -1661,8 +1815,12 @@ void RtsoMain::update_cursor() {
 		if (rtso::hotkeys::held("session.flare")) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
-			want = "cursor-rally";
-			hot = Vector2(5, 31);
+			if (over_own_rally_structure(get_ground_click_pos(mouse))) {
+				want = "action-unset-rally";
+			} else {
+				want = "cursor-rally";
+				hot = Vector2(5, 31);
+			}
 		} else if (!selected_ids.is_empty()) {
 			const Vector3 at = get_ground_click_pos(mouse);
 			const uint8_t me = local_player();
@@ -1677,7 +1835,7 @@ void RtsoMain::update_cursor() {
 				for (int s = 0; s < selected_ids.size() && !healer; ++s)
 					for (size_t i = 0; i < uv.count; ++i)
 						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
-							healer = uv.unit_type[i] == rtso::UNIT_HEALER;
+							healer = rtso::unit_is_healer(uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uv.unit_type[i]);
 							break;
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
@@ -1695,8 +1853,9 @@ void RtsoMain::update_cursor() {
 			if (!*want) {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
-					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.behavior[f] != rtso::FAUNA_CORRALLED ? "action-herd" : "action-gather-meat";
+					// A penned animal is garrisoned in its corral: nothing to do with it.
+					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
+					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want) {
@@ -1725,14 +1884,15 @@ void RtsoMain::update_cursor() {
 					// (or attack-move's Ctrl) attacks instead.
 					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
 						want = "action-gather-grain";
-					else if (b.team != me)
-						want = !sim->is_hostile(me, b.team) ? ""
-								: (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
+					else if (b.team != me && sim->is_hostile(me, b.team))
+						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
 										  b.max_capture_points <= 0.0f)
 								? "action-attack" : "action-capture";
-					else if (b.build_progress < 1.0f || b.type == rtso::BLD_FIELD) want = "action-build";
-					else if (b.hp < b.max_hp) want = "action-repair";
-					else if (b.garrison_cap > 0) want = "action-garrison";
+					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
+					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
+					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
+					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
+					else if (selection_can_garrison(b.id)) want = "action-garrison";
 					break;
 				}
 			}
@@ -1894,6 +2054,15 @@ void RtsoMain::_on_template_info_pressed() {
 }
 
 // Tests: select the local player's first structure or first live unit.
+// unit_actions.js "garrison" actionCheck: some selected unit may garrison in this own or allied
+// structure (its GarrisonHolder List, IsOwnedByMutualAllyOfEntity). Room is not checked.
+bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
+	if (!sim) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_garrison_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
+	return false;
+}
+
 bool RtsoMain::select_first_own(bool building) {
 	if (!sim) return false;
 	selected_ids.clear();
@@ -1979,7 +2148,7 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 	if (mouse_button != MOUSE_BUTTON_LEFT || roster_list->is_item_disabled(index)) return;
 	const int meta = (int)roster_list->get_item_metadata(index);
 	if (meta & ROSTER_ANIMAL) {
-		try_breed(selected_building_id, (uint8_t)(meta & 0xFF));
+		try_breed(selected_building_id, (uint8_t)(meta & 0xFF), train_batch());
 		return;
 	}
 	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
@@ -1987,13 +2156,13 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 
 // Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
 // type and the animal in target_x.
-void RtsoMain::try_breed(uint32_t building_id, uint8_t ftype) {
+void RtsoMain::try_breed(uint32_t building_id, uint8_t ftype, int count) {
 	if (building_id == 0) return;
 	if (turn_cmds()) {
-		post_lockstep(6, nullptr, 0, (float)ftype, 0.0f, building_id, (uint8_t)rtso::UNIT_TYPE_NONE);
+		post_lockstep(6, nullptr, 0, (float)ftype, (float)count, building_id, (uint8_t)rtso::UNIT_TYPE_NONE);
 		return;
 	}
-	sim->cmd_breed_livestock(local_player(), building_id, ftype);
+	sim->cmd_breed_livestock(local_player(), building_id, ftype, count);
 }
 
 void RtsoMain::_on_build_btn_pressed(int btype) {
@@ -2009,15 +2178,17 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 	}
 }
 
-// 0 A.D. Upgrade.js through lockstep command 26 (param 1 = cancel and refund).
-void RtsoMain::_on_upgrade_pressed(int cancel) {
+// 0 A.D. Upgrade.js through lockstep command 26: `choice` is which of
+// building_upgrade()'s choices (target_x), -1 cancels and refunds (param 1).
+void RtsoMain::_on_upgrade_pressed(int choice) {
 	if (selected_building_id == 0) return;
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, 0, 0, selected_building_id, cancel ? 1 : 0);
-	else if (cancel)
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, choice < 0 ? 0.0f : (float)choice, 0,
+				selected_building_id, choice < 0 ? 1 : 0);
+	else if (choice < 0)
 		sim->cmd_cancel_upgrade(local_player(), selected_building_id);
 	else
-		sim->cmd_upgrade_building(local_player(), selected_building_id);
+		sim->cmd_upgrade_building(local_player(), selected_building_id, choice);
 }
 
 // 0 A.D. Gate.js LockGate / UnlockGate through lockstep command 27.
@@ -2283,6 +2454,13 @@ void RtsoMain::refresh_user_options() {
 	user_opts_.flare_time = (float)std::clamp(uc::get_number("gui.session.flarelifetime"), 0.0, 60.0);
 	user_opts_.drag_delta = (float)std::clamp(uc::get_number("gui.session.dragdelta"), 1.0, 200.0);
 	user_opts_.attack_notice = uc::get_bool("gui.session.notifications.attack");
+	user_opts_.tribute_notice = uc::get_bool("gui.session.notifications.tribute");
+	user_opts_.barter_notice = uc::get_bool("gui.session.notifications.barter");
+	{
+		const std::string phase = uc::get("gui.session.notifications.phase");
+		user_opts_.phase_notice = phase == "none" ? 0 : phase == "all" ? 2 : 1;
+	}
+	chat_window_.set_timestamps(uc::get_bool("chat.timestamp"));
 	range_overlays_.show_attack = uc::get_bool("gui.session.attackrange");
 	range_overlays_.show_auras = uc::get_bool("gui.session.aurasrange");
 	range_overlays_.show_heal = uc::get_bool("gui.session.healrange");
@@ -2451,6 +2629,8 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::record_draw((int)sim->unit_count(), (int)sim->building_count());
 
 	const uint8_t viewer = view_player();
+	rtso::display_colors::refresh_config();
+	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
 	view->sync(sim, (float)delta, selected_ids);
@@ -2483,6 +2663,15 @@ void RtsoMain::_process(double delta) {
 			}
 			txt += line;
 		}
+		// CeasefireManager: "You can attack in %(time)s" for the last 10 s, then
+		// "You can attack now!" for 5 s.
+		if (sim->ceasefire_seconds() > 0.0f) {
+			const float left = sim->ceasefire_seconds() - sim->game_time();
+			String line;
+			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
+			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
+			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
+		}
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
@@ -2497,9 +2686,11 @@ void RtsoMain::_process(double delta) {
 	update_command_panel();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
+	show_session_notices(sim->take_session_notices());
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
+	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
 	// BattleDetection says so, victory and defeat playlists at the end).
@@ -2688,10 +2879,12 @@ void RtsoMain::_process(double delta) {
 		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
 		selected_ids.clear();
-	} else if (local_observer_ && !turn_mgr_.is_replaying()) {
-		// Every Game Setup slot was AI: say so for the first few seconds.
+	} else if ((local_observer_ || (net_lockstep() && local_player() >= rtso::MAX_PLAYERS)) && !turn_mgr_.is_replaying()) {
+		// Every Game Setup slot was AI, or this client joined to watch: say so
+		// for the first few seconds.
 		banner_panel->set_visible(match_elapsed_time < 6.0);
-		banner_label->set_text("OBSERVING\nEvery player is an AI. The map is revealed.");
+		banner_label->set_text(local_observer_ ? "OBSERVING\nEvery player is an AI. The map is revealed."
+				: "OBSERVING\nYou are watching this match. The map is revealed.");
 		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
 	}
 }
@@ -2790,7 +2983,7 @@ void RtsoMain::update_inspector() {
 			show_bar(inspector_aura_bar, inspector_aura_label, false);
 
 			String status;
-			if (found_b->type == rtso::BLD_GATE)
+			if (rtso::is_gate_type(found_b->type))
 				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 			else if (!found_b->queue.empty())
 				status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
@@ -2800,18 +2993,26 @@ void RtsoMain::update_inspector() {
 						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
 						String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 			inspector_stats->set_text(status);
-			inspector_extra->set_text(found_b->has_rally_point ? "Rally point set" : "");
+			// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
+			const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
+			String extra = found_b->has_rally_point ? "Rally point set" : "";
+			if (penned > 0)
+				extra += String(extra.is_empty() ? "" : "\n") + "Penned animals: " + String::num_int64(penned) + " / " +
+						String::num_int64(rtso::CORRAL_GARRISON_MAX);
+			inspector_extra->set_text(extra);
 
 			// Garrison panel: one icon per unit type inside, click to unload one,
-			// Shift+click (session.unloadtype) to unload that type, U unloads all.
-			if (!found_b->garrisoned_units.empty() && owner == local_player()) {
+			// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
+			// structure only our own units inside (Commands.js unload / unload-all-by-owner).
+			const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), found_b->id);
+			if (!mine.empty()) {
 				auto uview = sim->units();
-				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, found_b->garrisoned_units.data(), found_b->garrisoned_units.size()),
+				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
 						"Click to unload one, Shift+click to unload all of this type.");
 				garrison_grid_.set_visible(true);
 			}
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-			ungarrison_btn->set_visible(!found_b->garrisoned_units.empty() && owner == local_player());
+			ungarrison_btn->set_visible(!mine.empty() || (penned > 0 && owner == local_player()));
 			inspector_panel->set_visible(true);
 			return;
 		}
@@ -2969,8 +3170,9 @@ void RtsoMain::_on_selection_group_clicked(int key) {
 // unload one unit of the group, or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
 	if (!sim || selected_building_id == 0) return;
-	const auto *inside = sim->get_garrisoned_units(selected_building_id);
-	if (!inside || inside->empty()) return;
+	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), selected_building_id);
+	const auto *inside = &mine;
+	if (inside->empty()) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
 	std::vector<uint32_t> out;
@@ -2993,17 +3195,12 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 void RtsoMain::update_command_panel() {
 	if (!command_panel) return;
 
-	// Clear existing dynamic buttons in actions_bar and production_bar
-	TypedArray<Node> act_children = actions_bar->get_children();
-	for (int i = 0; i < act_children.size(); ++i) {
-		Node *n = Object::cast_to<Node>(act_children[i]);
-		if (n) { actions_bar->remove_child(n); memdelete(n); }
-	}
-	TypedArray<Node> prod_children = production_bar->get_children();
-	for (int i = 0; i < prod_children.size(); ++i) {
-		Node *n = Object::cast_to<Node>(prod_children[i]);
-		if (n) { production_bar->remove_child(n); memdelete(n); }
-	}
+	// The buttons are built after the current ones each frame, then
+	// keep_command_buttons() keeps whichever set is older when both look and
+	// act the same. Replacing them every frame meant a click's press landed on
+	// one Button and its release on the next, so pressed never fired.
+	const int old_actions = actions_bar->get_child_count();
+	const int old_production = production_bar->get_child_count();
 
 	if (selected_building_id != 0) {
 		const auto &bldgs = sim->buildings();
@@ -3074,7 +3271,7 @@ void RtsoMain::update_command_panel() {
 			// out with the reason research_check() gives.
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (ti.researcher != rtso::building_research_base(found_b->type) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
@@ -3123,7 +3320,7 @@ void RtsoMain::update_command_panel() {
 			}
 
 			// Gate lock (0 A.D. Gate.js): a locked gate stays shut for everyone.
-			if (found_b->team == local_player() && found_b->type == rtso::BLD_GATE) {
+			if (found_b->team == local_player() && rtso::is_gate_type(found_b->type)) {
 				Button *btn = memnew(Button);
 				btn->set_text(found_b->gate_locked ? "Unlock gate" : "Lock gate");
 				btn->set_tooltip_text(found_b->gate_locked ? "Let your and your allies' units through again"
@@ -3175,11 +3372,14 @@ void RtsoMain::update_command_panel() {
 					Button *btn = memnew(Button);
 					btn->set_text(String("Cancel upgrade to ") + rtso::building_type_name(found_b->upgrade_to));
 					btn->set_tooltip_text("Stop upgrading and get the resources back");
-					btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(1));
+					btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(-1));
 					production_bar->add_child(btn);
 				} else {
-					const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv);
-					if (up.to != rtso::BLD_TYPE_COUNT) {
+					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, pciv); ++choice) {
+						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv, choice);
+						const rtso::Simulation::UpgradeCheck check = sim->upgrade_check(local_player(), found_b->id, choice);
+						// Not this piece's (only wall_long and palisades_long become gates).
+						if (check == rtso::Simulation::UPGRADE_ERR_NONE) continue;
 						Button *btn = memnew(Button);
 						String cost;
 						auto add_cost = [&](int v, const char *suffix) {
@@ -3194,10 +3394,11 @@ void RtsoMain::update_command_panel() {
 						btn->set_text(String("Upgrade to ") + rtso::building_type_name(up.to) + (cost.is_empty() ? String() : " (" + cost + ")"));
 						String tip = String(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
 						const char *why = nullptr;
-						switch (sim->upgrade_check(local_player(), found_b->id)) {
+						switch (check) {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
 							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
 							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
+							case rtso::Simulation::UPGRADE_ERR_LIMIT: why = "Limit reached"; break;
 							default: break;
 						}
 						if (why) {
@@ -3205,7 +3406,7 @@ void RtsoMain::update_command_panel() {
 							btn->set_disabled(true);
 						}
 						btn->set_tooltip_text(tip);
-						btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(0));
+						btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(choice));
 						production_bar->add_child(btn);
 					}
 				}
@@ -3431,7 +3632,7 @@ void RtsoMain::update_command_panel() {
 					return sim->building_disabled_by_trigger(local_player(), (uint8_t)bt);
 				}), menu.end());
 				for (int bt : menu) {
-					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
+					const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(my_civ, (uint8_t)bt); // the big house
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
 						if (amount <= 0) return;
@@ -3455,6 +3656,44 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 		}
+	}
+	keep_command_buttons(actions_bar, old_actions);
+	keep_command_buttons(production_bar, old_production);
+}
+
+// Everything that makes a command button look or act differently: its text,
+// tooltip, enabled state, icon, size, overrides and what pressed calls.
+static String command_button_signature(Node *n) {
+	Button *b = Object::cast_to<Button>(n);
+	if (!b) return n ? n->get_class() : String();
+	String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
+	Ref<Texture2D> ico = b->get_button_icon();
+	if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
+	s += String("\x1fm") + String(Variant(b->get_custom_minimum_size()));
+	if (b->has_theme_color_override("font_color")) s += String("\x1fc") + String(Variant(b->get_theme_color("font_color")));
+	if (b->has_theme_font_size_override("font_size")) s += String("\x1ff") + String::num_int64(b->get_theme_font_size("font_size"));
+	TypedArray<Dictionary> conns = b->get_signal_connection_list("pressed");
+	for (int i = 0; i < conns.size(); ++i) {
+		Callable c = Dictionary(conns[i])["callable"];
+		s += String("\x1fp") + String(c.get_method()) + String(Variant(c.get_bound_arguments()));
+	}
+	return s;
+}
+
+// bar holds the previous frame's buttons (the first `old_count`) followed by
+// this frame's. Keep the old ones when the two sets match, so a press and its
+// release reach the same Button; otherwise swap in the new ones.
+void RtsoMain::keep_command_buttons(Control *bar, int old_count) {
+	const int total = bar->get_child_count();
+	const int fresh = total - old_count;
+	bool same = fresh == old_count;
+	for (int i = 0; same && i < old_count; ++i)
+		same = command_button_signature(bar->get_child(i)) == command_button_signature(bar->get_child(old_count + i));
+	const int from = same ? old_count : 0, to = same ? total : old_count;
+	for (int i = to - 1; i >= from; --i) {
+		Node *n = bar->get_child(i);
+		bar->remove_child(n);
+		memdelete(n);
 	}
 }
 
@@ -3743,6 +3982,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("selection.idlebuilder")) { find_idle_unit(IDLE_BUILDER); return; }
 
 		if (fired("session.gui.diplomacy.toggle")) { toggle_diplomacy(); return; }
+		if (fired("session.diplomacycolors")) { toggle_diplomacy_colors(); return; }
 		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
 		if (fired("session.gui.barter.toggle")) {
 			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
@@ -4201,6 +4441,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			Vector3 click_pos = get_ground_click_pos(mouse_pos);
 
+			// Right-clicking the selected structure itself drops its rally point
+			// (unit_actions.js "unset-rallypoint", lockstep command 14 param 1).
+			if (over_own_rally_structure(click_pos)) {
+				if (turn_cmds())
+					post_lockstep(14, nullptr, 0, 0, 0, selected_building_id, 1);
+				else
+					sim->cmd_unset_rally_point(local_player(), selected_building_id);
+				return;
+			}
 			// If building selected, right click sets Rally Point!
 			if (selected_building_id != 0) {
 				uint32_t target_res = 0, target_bld = 0;
@@ -4277,7 +4526,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			bool garrison_click = false;
 			if (rtso::hotkeys::held("session.garrison")) {
 				for (const auto &b : sim->buildings()) {
-					if (b.team != local_player()) continue;
+					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz <= hit_r * hit_r) {
 						garrison_click = true;
@@ -4402,7 +4651,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (int k = 0; k < selected_ids.size() && !first_healer; ++k) {
 					for (size_t i = 0; i < uview.count; ++i)
 						if (uview.id[i] == (uint32_t)selected_ids[k]) {
-							if (uview.unit_type[i] == rtso::UNIT_HEALER) first_healer = uview.id[i];
+							if (rtso::unit_is_healer(uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.unit_type[i])) first_healer = uview.id[i];
 							break;
 						}
 				}
@@ -4536,12 +4785,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						else
 							sim->order_gather(sel_ptr, sel_n, gaia_grain, queue_shift);
 						play_civ_voice("gather");
-					} else if (b.team != local_player()) {
+					} else if (b.team != local_player() && sim->is_hostile(local_player(), b.team)) {
 						if (turn_cmds())
 							post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, qbit); // capture (0 A.D. default)
 						else
 							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
 						play_civ_voice("attack");
+					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
+						break; // neutral: walk there
+					} else if (b.team != local_player()) {
+						// An ally's structure: repair it, else garrison (Garrisonable / IsOwnedByMutualAllyOfEntity).
+						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+							if (turn_cmds())
+								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("build");
+						} else if (selection_can_garrison(b.id)) {
+							if (turn_cmds())
+								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
+							clear_selection();
+						} else {
+							break; // nothing to do there: walk
+						}
 					} else {
 						// 0 A.D. "returnresource" comes first: carriers take their load to this dropsite.
 						bool carriers = false;
@@ -4565,12 +4833,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->cmd_upgrade_building(local_player(), b.id);
 							play_civ_voice("build");
-						} else {
+						} else if (selection_can_garrison(b.id)) {
 							if (turn_cmds())
 								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 							clear_selection();
+						} else {
+							break; // no selected unit is on its GarrisonHolder List: walk
 						}
 					}
 					return;
@@ -4864,7 +5134,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (cam_rig) {
 			cam_rig->set_map_bounds_half(sim->map_half());
 			for (const auto &b : sim->buildings()) {
-				if (b.team == local_player() && b.type == rtso::BLD_TOWN_CENTER) {
+				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
 					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 					break;
 				}
@@ -5124,14 +5394,6 @@ String RtsoMain::player_display_name(uint8_t pid) const {
 void RtsoMain::apply_player_names(const Array &names) {
 	for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
 		player_names_[p] = p < names.size() ? String(names[p]).strip_edges().left(48) : String();
-	if (!sim) return;
-	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-		const auto &ps = sim->player(p);
-		String label = ps.active ? player_display_name(p) + " (" + String(rtso::civ_info(ps.civ).name) + ")" : String("-");
-		if (ps.active && p == local_player()) label += " (You)";
-		else if (ps.active && ps.is_ai) label += " (AI)";
-		diplo_dialog_.set_player_label(p, label);
-	}
 }
 
 void RtsoMain::sync_victory_selector() {
@@ -5178,6 +5440,12 @@ void RtsoMain::refresh_lobby_rooms() {
 	}
 	if (lobby_status)
 		lobby_status->set_text(String::num_int64((int64_t)lobby_room_cache_.size()) + " rooms");
+}
+
+// A joiner still in game setup changes its mind: tell the host it now wants
+// to watch (or play), as its request at connect did.
+void RtsoMain::_on_lobby_observe_toggled(bool on) {
+	if (net_lockstep() && !net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin(on);
 }
 
 void RtsoMain::_on_lobby_refresh_pressed() {
@@ -5308,9 +5576,16 @@ void RtsoMain::_on_lobby_start_pressed() {
 	// few, turn the first AI slots into human ones (before broadcast, so both
 	// peers seat players identically in assign_slot_players).
 	{
-		int need = 1;
-		for (const auto &p : net_host_.getPeers())
-			if (p.connected && !p.is_observer) ++need;
+		// 0 A.D. game setup assigns observers no player: the host when Observe is
+		// ticked, a joiner that asked to watch (its rejoin request at connect).
+		const bool host_watches = lobby_observe && lobby_observe->is_pressed();
+		setup.observers = host_watches ? 1 : 0;
+		int need = host_watches ? 0 : 1;
+		for (const auto &p : net_host_.getPeers()) {
+			if (!p.connected || p.id == 0) continue;
+			if (!p.is_observer) ++need;
+			else if (p.id < 8) setup.observers |= (uint8_t)(1u << p.id);
+		}
 		for (uint8_t i = 0; i < setup.slot_count; ++i)
 			if (setup.slot_types[i] == 'h') --need;
 		for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)

@@ -194,7 +194,7 @@ class RtsoWorldView : public Node3D {
 	void build_ground_paint(const rtso::Simulation *sim);
 	// Per-biome sun, ambient, fog, sky and water (0 A.D. rmbiome Environment).
 	Ref<Environment> env_base_;
-	void apply_biome_environment(const std::string &biome);
+	void apply_biome_environment(const std::string &biome, const std::string &map_id);
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;
@@ -341,6 +341,7 @@ private:
 	Ref<ArrayMesh> border_mesh_;
 	Ref<ShaderMaterial> border_mat_;
 	std::vector<uint8_t> border_grid_cache_;
+	uint64_t border_colors_ = 0; // display_colors::key the borders were drawn with
 	float border_half_ = 0.0f;
 	void update_territory_borders(const rtso::Simulation *sim);
 	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);

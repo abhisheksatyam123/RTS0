@@ -92,13 +92,14 @@ def fauna_rows(loader):
         if stance not in STANCES:
             raise SystemExit(f"{stem}: unknown stance {stance}")
         melee = t.get("Attack/Melee")
-        hack = pierce = crush = rng = rep = 0.0
+        hack = pierce = crush = rng = rep = prep = 0.0
         if melee is not None:
             hack = melee.num("Damage/Hack")
             pierce = melee.num("Damage/Pierce")
             crush = melee.num("Damage/Crush")
             rng = melee.num("MaxRange")
             rep = melee.num("RepeatTime") / 1000.0
+            prep = melee.num("PrepareTime", 0.0) / 1000.0
         supply = t.get("ResourceSupply")
         food = int(supply.num("Max")) if supply is not None else 0
         rtype = supply.value("Type", "") if supply is not None else ""
@@ -132,11 +133,12 @@ def fauna_rows(loader):
             "feed_min": t.num("UnitAI/FeedTimeMin") / 1000.0,
             "feed_max": t.num("UnitAI/FeedTimeMax") / 1000.0,
             "hack": hack, "pierce": pierce, "crush": crush,
-            "range": r1(rng * MELEE_RANGE_SCALE), "repeat": rep,
+            "range": r1(rng * MELEE_RANGE_SCALE), "repeat": rep, "prepare": prep,
             "hack_armor": t.num("Resistance/Entity/Damage/Hack"),
             "pierce_armor": t.num("Resistance/Entity/Damage/Pierce"),
             "crush_armor": t.num("Resistance/Entity/Damage/Crush"),
             "xp": t.num("Loot/xp"),
+            "footprint": round(footprint_radius(t), 3),
             "corral_food": corral_food(loader, t),
             "cost": [int(t.num("Cost/Resources/" + r)) for r in ("food", "wood", "stone", "metal")],
             "build_time": t.num("Cost/BuildTime"),
@@ -232,6 +234,18 @@ def scenery_rows(loader):
     return rows
 
 
+def footprint_radius(t):
+    """Footprint radius in 0 A.D. metres; a square counts as the circle of the same area
+    (as extract_0ad_attack.py's footprint_of, which DelayedDamage hits test against)."""
+    c = t.get("Footprint/Circle")
+    if c is not None and "radius" in c.attrs:
+        return float(c.attrs["radius"])
+    q = t.get("Footprint/Square")
+    if q is not None and "width" in q.attrs:
+        return (float(q.attrs["width"]) * float(q.attrs["depth"]) / 3.141592653589793) ** 0.5
+    return 0.0
+
+
 def f(x):
     s = repr(float(x))
     return s + "f"
@@ -296,8 +310,10 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tfloat hack_damage, pierce_damage, crush_damage; // Attack/Melee/Damage")
     w("\tfloat attack_range;        // Attack/Melee/MaxRange")
     w("\tfloat attack_cooldown;     // Attack/Melee/RepeatTime, seconds")
+    w("\tfloat attack_prepare;      // Attack/Melee/PrepareTime, seconds: the first hit waits this long")
     w("\tfloat hack_armor, pierce_armor, crush_armor; // Resistance levels (0.9^level)")
     w("\tfloat loot_xp;")
+    w("\tfloat footprint;          // Footprint radius in 0 A.D. metres (a square as the circle of equal area)")
     w("\tbool is_domestic() const { return flags & FAUNA_F_DOMESTIC; }")
     w("\tbool is_naval() const { return flags & FAUNA_F_NAVAL; }")
     w("\tfloat attack_damage() const { return hack_damage + pierce_damage + crush_damage; }")
@@ -314,8 +330,8 @@ def emit(fauna, treasures, ruins, scenery, corral):
             cstr(r["stem"]), cstr(r["name"]), cstr(r["model"]), f(r["hp"]), f(r["speed"]), f(r["run"]),
             str(r["food"]), str(r["gatherers"]), r["stance"], r["flags"], f(r["vision"]), f(r["flee"]),
             f(r["roam"]), f(r["roam_min"]), f(r["roam_max"]), f(r["feed_min"]), f(r["feed_max"]),
-            f(r["hack"]), f(r["pierce"]), f(r["crush"]), f(r["range"]), f(r["repeat"]),
-            f(r["hack_armor"]), f(r["pierce_armor"]), f(r["crush_armor"]), f(r["xp"])]) + "},")
+            f(r["hack"]), f(r["pierce"]), f(r["crush"]), f(r["range"]), f(r["repeat"]), f(r["prepare"]),
+            f(r["hack_armor"]), f(r["pierce_armor"]), f(r["crush_armor"]), f(r["xp"]), f(r["footprint"])]) + "},")
     w("\t};")
     w("\treturn kTable[ftype < FAUNA_COUNT ? ftype : 0];")
     w("}")

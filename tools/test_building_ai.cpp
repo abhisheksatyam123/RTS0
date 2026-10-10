@@ -2,10 +2,15 @@
 // GarrisonArrowClasses x GarrisonArrowMultiplier (capped at MaxArrowCount) per
 // Attack/Ranged/RepeatTime, fired over ten rounds after PrepareTime, each at a random
 // target weighted towards PreferredClasses (Human), with the template's damage and range.
+// Of Gaia only units and dangerous animals are shot (SetupGaiaRangeQuery), and only what
+// the owner sees (CheckTargetVisible); armour auras naming Structure (Maximus) count.
 //   g++ -std=c++20 -O2 -Isrc tools/test_building_ai.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_building_ai && /tmp/test_building_ai
+#define private public
 #include "simulation/simulation.h"
+#undef private
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <set>
@@ -58,6 +63,20 @@ static uint32_t foe(Simulation &s, float x, float z, UnitType t = UNIT_SPEARMAN)
 	return u;
 }
 
+static uint16_t template_named(const char *suffix) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+		const char *id = civ_unit_template(t).id;
+		size_t n = std::strlen(id), m = std::strlen(suffix);
+		if (n >= m && std::strcmp(id + n - m, suffix) == 0) return t;
+	}
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
+static int32_t fauna_idx(const Simulation &s, uint32_t id) {
+	const auto it = s.fauna_id_to_idx_.find(id);
+	return it == s.fauna_id_to_idx_.end() ? -1 : (int32_t)it->second;
+}
+
 static void garrison(Simulation &s, uint32_t *ids, size_t n, uint32_t bld) {
 	s.order_garrison(ids, n, bld);
 	for (int t = 0; t < 900 && s.get_garrison_count(bld) < (int)n; ++t) s.tick(0.1f);
@@ -105,10 +124,13 @@ int main() {
 		CHECK(s.get_garrison_count(st) == 3);
 		CHECK(s.building_arrow_count(*find_bld(s, st)) == 5);
 
+		// The tower's List is Support Infantry (template_structure_defensive_tower.xml): the
+		// horseman stays out.
 		uint32_t tw = s.spawn_building_world(-20.0f, -50.0f, BLD_TOWER, 0, 1.0f);
 		uint32_t mix[2] = {s.spawn_unit(-18.0f, -46.0f, 0, UNIT_SPEARMAN), s.spawn_unit(-18.0f, -47.0f, 0, UNIT_CAVALRY)};
-		garrison(s, mix, 2, tw);
-		CHECK(s.get_garrison_count(tw) == 2);
+		s.order_garrison(mix, 2, tw);
+		for (int t = 0; t < 100; ++t) s.tick(0.1f);
+		CHECK(s.get_garrison_count(tw) == 1);
 		CHECK(s.building_arrow_count(*find_bld(s, tw)) == 5);
 	}
 
@@ -231,6 +253,73 @@ int main() {
 		ArrowCounter x, y;
 		for (int t = 0; t < 100; ++t) { s.tick(Simulation::FIXED_STEP); l.tick(Simulation::FIXED_STEP); x.step(s, cc); y.step(l, cc); }
 		CHECK(x.fired.size() == y.fired.size());
+	}
+
+	// 8. Gaia: a wolf (a dangerous animal) in range draws arrows and they hurt it; a deer
+	// and a Gaia tower do not (OnRangeUpdate keeps animals only if IsDangerousAnimal, and
+	// Gaia structures have no UnitAI).
+	{
+		fresh(s, 3);
+		uint32_t cc = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const float half = find_bld(s, cc)->half_size;
+		const uint32_t wolf = s.spawn_fauna(-40.0f + half + 6.0f, -40.0f, FAUNA_WOLF);
+		CHECK(fauna_type_info(FAUNA_WOLF).is_dangerous() && fauna_idx(s, wolf) >= 0);
+		const float hp0 = s.fauna_.hp[fauna_idx(s, wolf)];
+		ArrowCounter a;
+		for (int t = 0; t < 60; ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, cc); }
+		bool at_wolf = !a.fired.empty();
+		for (const Projectile &p : a.fired) at_wolf = at_wolf && p.target_unit_id == wolf;
+		std::printf("civic centre at a wolf: %zu arrows, wolf hp %.1f -> %.1f\n", a.fired.size(), hp0,
+				fauna_idx(s, wolf) >= 0 ? s.fauna_.hp[fauna_idx(s, wolf)] : 0.0f);
+		CHECK(at_wolf);
+		CHECK(fauna_idx(s, wolf) < 0 || s.fauna_.hp[fauna_idx(s, wolf)] < hp0 || !s.fauna_.alive[fauna_idx(s, wolf)]);
+
+		fresh(s, 3);
+		cc = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		CHECK(!fauna_type_info(FAUNA_DEER).is_dangerous());
+		s.spawn_fauna(-40.0f + half + 6.0f, -40.0f, FAUNA_DEER);
+		s.spawn_building_world(-40.0f, -40.0f + half + 10.0f, BLD_TOWER, GAIA_PLAYER, 1.0f);
+		ArrowCounter d;
+		for (int t = 0; t < 60; ++t) { s.tick(Simulation::FIXED_STEP); d.step(s, cc); }
+		CHECK(d.fired.empty());
+	}
+
+	// 9. CheckTargetVisible: a tower that sees only a tenth as far holds its arrows at a
+	// foe in range but out of sight, and shoots once an own unit stands by the foe.
+	{
+		fresh(s, 4);
+		uint32_t tw = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWER, 0, 1.0f);
+		const float half = find_bld(s, tw)->half_size;
+		s.tech_mods_[0].bld_vision[BLD_TOWER] = 0.1f;
+		const float fx = -40.0f + half + 15.0f;
+		foe(s, fx, -40.0f);
+		ArrowCounter a;
+		for (int t = 0; t < 60; ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, tw); }
+		CHECK(!s.los_visible(0, fx, -40.0f));
+		CHECK(a.fired.empty());
+		uint32_t scout = s.spawn_unit(fx - 2.0f, -42.0f, 0, UNIT_CAVALRY, 100000.0f);
+		s.order_set_stance(&scout, 1, STANCE_PASSIVE);
+		for (int t = 0; t < 60; ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, tw); }
+		std::printf("tower with a scout by the foe: %zu arrows\n", a.fired.size());
+		CHECK(s.los_visible(0, fx, -40.0f));
+		CHECK(!a.fired.empty());
+	}
+
+	// 10. Maximus' Shield of Rome: his player's structures get +1 hack, pierce and crush.
+	{
+		fresh(s, 6);
+		s.set_team_civ(0, CIV_ROMANS);
+		uint32_t cc = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		float base[3], with[3];
+		s.structure_resistance(*find_bld(s, cc), base);
+		const uint16_t maximus = template_named("rome/hero_maximus");
+		CHECK(maximus != CIV_UNIT_TEMPLATE_NONE);
+		s.spawn_unit(40.0f, 40.0f, 0, UNIT_HERO, 0.0f, maximus);
+		s.rebuild_auras();
+		s.structure_resistance(*find_bld(s, cc), with);
+		std::printf("civic centre resistance %.0f/%.0f/%.0f, with Maximus %.0f/%.0f/%.0f\n",
+				base[0], base[1], base[2], with[0], with[1], with[2]);
+		CHECK(near(with[0], base[0] + 1.0f) && near(with[1], base[1] + 1.0f) && near(with[2], base[2] + 1.0f));
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

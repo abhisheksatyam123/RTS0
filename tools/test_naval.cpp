@@ -220,6 +220,15 @@ static void test_fishing() {
 	int32_t lone_amount = 0;
 	const uint8_t *sub = subtype_of(s, lone, &lone_amount);
 	CHECK(sub && *sub == RES_SUB_FISH && lone_amount == 560);
+	// A boat still on its way doesn't stop the regrowth: only boats at the fish count
+	// (ResourceSupply State notGathered reads activeGatherers).
+	const uint32_t late = s.spawn_unit(-10.0f, -6.0f, 0, UNIT_FISHING_BOAT);
+	s.order_gather(&late, 1, lone);
+	run(s, 4.0f);
+	subtype_of(s, lone, &lone_amount);
+	const int32_t li = s.lookup_unit(late);
+	std::printf("fishing: a boat sailing to the untouched fish (at x %.1f), which regrows to %d\n", s.units().pos_x[li], lone_amount);
+	CHECK(gather_target(s, late) == lone && lone_amount == 562);
 
 	// A boat whose fish runs out moves on to the nearest fish on its sea.
 	static Simulation t;
@@ -494,6 +503,7 @@ static void test_petra_overseas_attack() {
 	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_HOUSE, 0);
 	std::vector<uint32_t> army;
 	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army; // trained for the attack, not as workers (ids rise, so sorted)
 	run(s, 1.0f);
 	auto &slot = s; // player 1 is PETRA_PLAYER: its state lives in the petra_* members
 	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
@@ -564,7 +574,8 @@ static void test_petra_overseas_base() {
 		run(s, 1.0f);
 		for (size_t i = 0; i < s.units().count; ++i)
 			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
-			    std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+			    std::fabs(s.units().pos_z[i]) < 14.0f && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) != north &&
+			    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) != south) ++waded; // in the strait, not on a beach
 		for (const auto &b : s.buildings())
 			if (!cc && b.team == 1 && b.type == BLD_TOWN_CENTER && b.z < -16.0f) { cc = b.id; placed_at = (float)k; }
 		if (first_ashore < 0.0f)
@@ -610,6 +621,7 @@ static void test_petra_concurrent_transports() {
 	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
 	std::vector<uint32_t> army;
 	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army; // trained for the attack, not as workers (ids rise, so sorted)
 	for (int k = 0; k < 10; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
 	// Wood on the south land only: Petra settles there.
 	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-36.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
@@ -821,6 +833,47 @@ static void test_dock_takes_all() {
 	CHECK(ok && s.player_resource(0, RES_WOOD) == 10);
 }
 
+// attackPlan.js isValidTarget (sameLand) and rushTargetFinder: an enemy structure on a
+// plateau no land unit can climb (another land, with no sea to it) is no target. A plan
+// sent there parked its army below the cliff and re-targeted every 25 s for ever.
+static void test_petra_unreachable_target() {
+	static Simulation s;
+	s.set_sim_seed(7);
+	s.reset();
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			const float mx = x - 30.0f, mz = z + 42.0f; // a sheer-sided mesa on the south land
+			h[(size_t)j * RES + i] = mx * mx + mz * mz < 12.0f * 12.0f ? 60.0f : height_at(x, z);
+		}
+	s.set_terrain_data(h, RES, 0.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+	for (uint8_t p = 0; p < 4; ++p) s.set_player_active(p, true, false);
+	s.set_team_civ(0, CIV_CARTHAGINIANS);
+	s.set_team_civ(1, CIV_ATHENIANS);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, -40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t barracks = s.spawn_building_world(30.0f, -42.0f, BLD_BARRACKS, 0); // on the mesa
+	const uint32_t house = s.spawn_building_world(0.0f, -50.0f, BLD_HOUSE, 0);         // below it
+	run(s, 1.0f);
+	const uint16_t below = s.petra_land_at(-30.0f, -30.0f), top = s.petra_land_at(30.0f, -42.0f);
+	CHECK(below && top && below != top);
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t attack = s.find_petra_attack_target(tx, tz);
+	const uint32_t rush = s.find_petra_rush_target(tx, tz);
+	// An army standing on the mesa's land retargets only up there.
+	const uint32_t up_there = s.find_petra_attack_target(tx, tz, top);
+	std::printf("Petra attack targets with a barracks on a mesa: attack %s, rush %s, from the mesa %s\n",
+	            attack == house ? "the house below" : attack == barracks ? "the mesa barracks" : "none",
+	            rush == house ? "the house below" : rush == barracks ? "the mesa barracks" : "none",
+	            up_there == barracks ? "the barracks" : "other");
+	CHECK(attack == house && rush == house && up_there == barracks);
+}
+
 int main() {
 	test_transport();
 	test_dropsite_own_land();
@@ -834,6 +887,7 @@ int main() {
 	test_ship_leaves_shore_house();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();

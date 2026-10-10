@@ -1,4 +1,5 @@
 #include "world_view_node.h"
+#include "display_colors.h"
 #include "territory_boundary.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
@@ -592,9 +593,10 @@ void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_s
 	if (v.fx_flame) v.fx_flame->set_emitting(level >= 2);
 }
 
-// The player's Game Setup colour (0 A.D. PlayerColor, rtso::PLAYER_COLORS).
+// The player's Game Setup colour (0 A.D. PlayerColor, rtso::PLAYER_COLORS), or
+// its diplomacy colour while those are on (display_colors.h).
 static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
-	const uint32_t rgb = sim->player_color(pid);
+	const uint32_t rgb = rtso::display_colors::rgb(*sim, pid);
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
 }
 
@@ -826,7 +828,9 @@ void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id,
 void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	const auto &grid = sim->territory_grid();
 	if (grid.w <= 0 || grid.h <= 0) return;
-	if (grid.data == border_grid_cache_ && border_half_ == sim->map_half()) return;
+	const uint64_t colors = rtso::display_colors::key(*sim);
+	if (grid.data == border_grid_cache_ && border_half_ == sim->map_half() && border_colors_ == colors) return;
+	border_colors_ = colors;
 	border_grid_cache_ = grid.data;
 	border_half_ = sim->map_half();
 
@@ -1948,7 +1952,7 @@ void RtsoWorldView::build_ground_paint(const rtso::Simulation *sim) {
 // Per-map sun, ambient light, fog, sky and water, from the Environment block
 // of the 0 A.D. random-map biome each RTS0 biome follows
 // (maps/random/rmbiome/generic/*.json, named after each row).
-void RtsoWorldView::apply_biome_environment(const std::string &biome) {
+void RtsoWorldView::apply_biome_environment(const std::string &biome, const std::string &map_id) {
 	struct Rgb { float r, g, b; };
 	struct Env {
 		const char *biome;
@@ -1978,6 +1982,33 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome) {
 	const Env *e = &kEnvs[0];
 	for (const auto &x : kEnvs)
 		if (biome == x.biome) { e = &x; break; }
+	// A ported 0 A.D. scenario carries its own Environment block
+	// (tools/port_0ad_maps.py "environment"); it wins over the biome's.
+	Env own = *e;
+	std::string own_sky;
+	{
+		const String path = "res://data/maps/" + String(map_id.c_str()) + ".json";
+		Ref<FileAccess> f = FileAccess::file_exists(path) ? FileAccess::open(path, FileAccess::READ) : Ref<FileAccess>();
+		const Variant root = f.is_valid() ? JSON::parse_string(f->get_as_text()) : Variant();
+		const Dictionary env = root.get_type() == Variant::DICTIONARY ? Dictionary(Dictionary(root).get("environment", Dictionary())) : Dictionary();
+		if (!env.is_empty()) {
+			auto rgb = [&](const char *key, Rgb &out) {
+				const Array a = env.get(key, Array());
+				if (a.size() == 3) out = { (float)a[0], (float)a[1], (float)a[2] };
+			};
+			rgb("sun_color", own.sun);
+			rgb("ambient_color", own.ambient);
+			rgb("fog_color", own.fog);
+			rgb("water_color", own.water_color);
+			rgb("water_tint", own.water_tint);
+			own.sun_elevation = (float)env.get("sun_elevation", own.sun_elevation);
+			own.sun_rotation = (float)env.get("sun_rotation", own.sun_rotation);
+			own.murkiness = (float)env.get("water_murkiness", own.murkiness);
+			own_sky = String(env.get("sky_set", String(own.sky))).utf8().get_data();
+			own.sky = own_sky.c_str();
+			e = &own;
+		}
+	}
 	auto col = [](const Rgb &c, float k = 1.0f) { return Color(c.r * k, c.g * k, c.b * k, 1.0f); };
 
 	Node *scene = get_parent();
@@ -2218,6 +2249,18 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 			water_mesh_node = memnew(MeshInstance3D);
 			water_mesh_node->set_mesh(water_mesh);
 			if (water_shader_mat.is_valid()) {
+				// Mipmapped copies of 0 A.D.'s lake normals: the import keeps
+				// none, and distant water then aliases into a regular grid.
+				for (const char *slot : { "wave_normal_a", "wave_normal_b" }) {
+					const String path = String(slot) == "wave_normal_a" ? "res://assets/textures/water/lake_normal0001.png"
+					                                                      : "res://assets/textures/water/lake_normal0031.png";
+					Ref<Texture2D> src = ResourceLoader::get_singleton()->exists(path) ? Ref<Texture2D>(ResourceLoader::get_singleton()->load(path)) : Ref<Texture2D>();
+					Ref<Image> img = src.is_valid() ? src->get_image() : Ref<Image>();
+					if (img.is_null()) continue;
+					if (img->is_compressed()) img->decompress();
+					img->generate_mipmaps();
+					water_shader_mat->set_shader_parameter(slot, ImageTexture::create_from_image(img));
+				}
 				water_mesh_node->set_material_override(water_shader_mat);
 			} else {
 				water_mat.instantiate();
@@ -2249,7 +2292,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	} else if (water_mesh_node) {
 		water_mesh_node->set_visible(false);
 	}
-	apply_biome_environment(sim->current_map_biome());
+	apply_biome_environment(sim->current_map_biome(), sim->current_map_id());
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {

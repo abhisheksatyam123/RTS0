@@ -76,7 +76,7 @@ struct PetraConfig {
 
 	// queueManager.js Config.priorities
 	int prio_emergency = 1000;
-	int prio_villager  = 300;
+	int prio_villager  = 600;
 	int prio_military  = 600;
 	int prio_tech      = 700;
 	int prio_trade     = 1;
@@ -129,7 +129,7 @@ struct PetraConfig {
 		if (difficulty == PETRA_SANDBOX)
 			work_phase3 = 999; // config.js:322 sandbox never cities
 		prio_emergency = 1000;
-		prio_villager  = 300;
+		prio_villager  = 600;
 		prio_military  = (aggressive > 0.70f) ? 720 : 600;
 		prio_tech      = 700;
 		prio_trade     = 1;
@@ -276,6 +276,23 @@ struct PetraDefenseArmy {
 	float cx = 0.0f;
 	float cz = 0.0f;
 	bool active = false;
+};
+
+// headquarters.js buildDefenses: when each kind was last queued (seconds of game time) and the
+// defenseBuilding queue's plan, the structure type + 1 (0: none).
+struct PetraDefenseBuild {
+	float tower_start = 0.0f;    // towerStartTime: stone towers
+	float fortress_start = 0.0f; // fortressStartTime
+	float fort_start = 180.0f;   // fortStartTime: sentry towers, from fortStartTime + towerLapseTime
+	uint32_t pending = 0;
+};
+
+// baseManager.js gatherers[type] for wood, stone and metal: the played turn of the next check and
+// the gatherers counted gathering (used) and walking to a dropsite (lost) since the last one.
+struct PetraDropsiteCheck {
+	int32_t next_check[3] = {};
+	int32_t used[3] = {};
+	int32_t lost[3] = {};
 };
 
 // emergencyManager.js

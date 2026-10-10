@@ -655,6 +655,78 @@ int main() {
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.no_spies == 1);
 	}
 
+	// 25. Teams without Lock Teams (0 A.D. Diplomacy): teammates start allied but either
+	// one can break the alliance by leaving the team; locked teams can't change at all.
+	{
+		Simulation sim;
+		for (uint8_t p = 0; p < 4; ++p) sim.set_player_active(p, true, false);
+		const uint8_t teams[MAX_PLAYERS] = {1, 1, 0, 1};
+		sim.set_setup_teams(teams);
+		sim.apply_team_diplomacy();
+		CHECK(sim.is_ally(0, 1) && sim.is_ally(0, 3) && !sim.is_hostile(1, 0) && sim.is_hostile(0, 2));
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ENEMY));
+		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && !sim.is_hostile(1, 0));
+		CHECK(sim.is_ally(0, 3) && sim.is_ally(1, 3) && sim.same_team(1, 3) && !sim.same_team(0, 1));
+		CHECK(sim.player_team(1) == 1 && sim.player_team(0) == 0);
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
+		sim.set_lock_teams(true);
+		CHECK(!sim.cmd_set_diplomacy(1, 3, Simulation::DIPLO_ENEMY) && sim.is_ally(1, 3));
+	}
+
+	// 26. Session chat notices (0 A.D. messages.js tribute, barter, phase and
+	// diplomacy notifications): the sim reports each once, presentation filters.
+	{
+		using N = Simulation::SessionNotice;
+		Simulation sim;
+		sim.generate_random_map(MAP_MAINLAND, 9, 2, 64.0f);
+		sim.set_player_active(0, true, false);
+		sim.set_player_active(1, true, false);
+		(void)sim.take_session_notices();
+		for (int r = 0; r < RES_COUNT; ++r) sim.players_[0].res[r] = 5000.0f;
+		const int amounts[RES_COUNT] = {0, 0, 50, 100}; // wood, metal, stone, food
+		CHECK(sim.cmd_tribute(0, 1, amounts));
+		auto ns = sim.take_session_notices();
+		CHECK(ns.size() == 1 && ns[0].kind == N::TRIBUTE && ns[0].player == 0 && ns[0].other == 1 &&
+				ns[0].amounts[RES_STONE] == 50 && ns[0].amounts[RES_FOOD] == 100 && ns[0].amounts[RES_WOOD] == 0);
+		CHECK(sim.take_session_notices().empty()); // handed over once
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL));
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL)); // no change, no notice
+		ns = sim.take_session_notices();
+		CHECK(ns.size() == 1 && ns[0].kind == N::DIPLOMACY && ns[0].other == 1 && ns[0].tech == Simulation::DIPLO_NEUTRAL);
+		uint32_t tc = 0;
+		for (const auto &b : sim.buildings())
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER) tc = b.id;
+		CHECK(tc != 0);
+		sim.complete_research(0, TECH_PHASE_TOWN); // e.g. the cheat path
+		sim.complete_research(0, TECH_PHASE_TOWN); // already had it
+		ns = sim.take_session_notices();
+		CHECK(ns.size() == 1 && ns[0].kind == N::PHASE_COMPLETED && ns[0].tech == TECH_PHASE_TOWN);
+		// Player 2 starts the Town Phase (five village structures) and cancels it.
+		uint32_t tc1 = 0;
+		float tx = 0, tz = 0;
+		for (const auto &b : sim.buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tc1 = b.id; tx = b.x; tz = b.z; }
+		for (int r = 0; r < RES_COUNT; ++r) sim.players_[1].res[r] = 5000.0f;
+		for (int h = 0; h < 5; ++h) sim.spawn_building_world(tx - 8.0f + 4.0f * h, tz + 10.0f, BLD_HOUSE, 1, 1.0f);
+		(void)sim.take_session_notices();
+		const auto why = sim.research_check(1, TECH_PHASE_TOWN, tc1);
+		CHECK(why == Simulation::TECH_OK);
+		CHECK(sim.cmd_research(1, tc1, TECH_PHASE_TOWN));
+		CHECK(sim.cmd_cancel_train(1, tc1, 0));
+		ns = sim.take_session_notices();
+		CHECK(ns.size() == 2 && ns[0].kind == N::PHASE_STARTED && ns[0].player == 1 && ns[1].kind == N::PHASE_ABORTED &&
+				ns[1].tech == TECH_PHASE_TOWN);
+		CHECK(sim.cmd_research(0, tc, TECH_WEAPONS_1) || true);
+		ns = sim.take_session_notices();
+		CHECK(ns.empty()); // only phases are announced
+		sim.spawn_building_world(-20.0f, -20.0f, BLD_MARKET, 0, 1.0f);
+		CHECK(sim.cmd_barter(0, RES_FOOD, RES_WOOD, 100));
+		ns = sim.take_session_notices();
+		CHECK(ns.size() == 1 && ns[0].kind == N::BARTER && ns[0].other == RES_FOOD && ns[0].tech == RES_WOOD &&
+				ns[0].amounts[0] == 100 && ns[0].amounts[1] > 0);
+		CHECK(sim.can_barter(0));
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

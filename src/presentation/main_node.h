@@ -140,6 +140,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		float flare_time = 6.0f;
 		float drag_delta = 4.0f;
 		bool attack_notice = true;
+		bool tribute_notice = true;
+		bool barter_notice = true;
+		uint8_t phase_notice = 1; // gui.session.notifications.phase: 0 none, 1 completed, 2 all
 	} user_opts_;
 	void refresh_user_options();
 	RtsoSelectionGrid selection_grid_;
@@ -297,7 +300,7 @@ public:
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
-	void _on_upgrade_pressed(int cancel);
+	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
 	void _on_dropsite_sharing_pressed(int shared);
@@ -317,6 +320,7 @@ public:
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);
 	void _on_lobby_refresh_pressed();
+	void _on_lobby_observe_toggled(bool on);
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
@@ -334,7 +338,8 @@ public:
 	uint8_t view_player() const { return turn_mgr_.is_replaying() ? replay_view_ : local_player(); }
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
-	String player_display_name(uint8_t pid) const;
+	String player_display_name(uint8_t pid) const override;
+	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];
 	void apply_player_names(const Array &names);
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
@@ -393,6 +398,8 @@ public:
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
+	Dictionary debug_command_button(const String &prefix);
+	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
 	std::vector<uint32_t> trade_origin_traders_;
@@ -430,9 +437,11 @@ private:
 	Vector3 get_ground_click_pos(Vector2 mouse_pos) const;
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
+	bool selection_can_garrison(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();
+	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
@@ -443,13 +452,18 @@ private:
 	void try_train_template(uint32_t building_id, uint16_t tmpl, int count = 1);
 	// The batch the next train click queues: gui.session.batchtrainingsize while Shift is held.
 	int train_batch() const;
-	void try_breed(uint32_t building_id, uint8_t ftype);
+	void try_breed(uint32_t building_id, uint8_t ftype, int count = 1);
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
+	bool over_own_rally_structure(const Vector3 &at) const;
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
+	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
+	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
+	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
+	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);

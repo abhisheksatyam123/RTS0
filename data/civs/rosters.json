@@ -3833,7 +3833,11 @@
    "specific_name": "Kuruš",
    "phase": 3,
    "trainers": [
-    "BLD_TACHARA"
+    "BLD_TACHARA",
+    "BLD_TACHARA_FOOD",
+    "BLD_TACHARA_WOOD",
+    "BLD_TACHARA_STONE",
+    "BLD_TACHARA_METAL"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -3892,7 +3896,11 @@
    "specific_name": "Dārayavahuš",
    "phase": 3,
    "trainers": [
-    "BLD_TACHARA"
+    "BLD_TACHARA",
+    "BLD_TACHARA_FOOD",
+    "BLD_TACHARA_WOOD",
+    "BLD_TACHARA_STONE",
+    "BLD_TACHARA_METAL"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -3953,7 +3961,11 @@
    "specific_name": "Xšayāršā",
    "phase": 3,
    "trainers": [
-    "BLD_TACHARA"
+    "BLD_TACHARA",
+    "BLD_TACHARA_FOOD",
+    "BLD_TACHARA_WOOD",
+    "BLD_TACHARA_STONE",
+    "BLD_TACHARA_METAL"
    ],
    "trained_at_0ad": [
     "tachara",
@@ -5061,7 +5073,10 @@
     "ROSTER_CHAMPION"
    ],
    "unlock_tech": "TECH_ROMAN_REFORMS",
-   "auras": [],
+   "auras": [
+    23,
+    24
+   ],
    "civ_bonuses": [],
    "classes": [
     "Centurion",
@@ -5115,8 +5130,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    23,
-    24
+    25,
+    26
    ],
    "civ_bonuses": [],
    "classes": [
@@ -5171,7 +5186,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    25
+    27
    ],
    "civ_bonuses": [],
    "classes": [
@@ -5226,7 +5241,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    26
+    28
    ],
    "civ_bonuses": [],
    "classes": [
@@ -6748,8 +6763,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    28,
-    29
+    30,
+    31
    ],
    "civ_bonuses": [],
    "classes": [
@@ -6804,7 +6819,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    30
+    32
    ],
    "civ_bonuses": [],
    "classes": [
@@ -6857,7 +6872,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    31
+    33
    ],
    "civ_bonuses": [],
    "classes": [
@@ -7752,7 +7767,8 @@
    "specific_name": "Aštāh",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE"
+    "BLD_HOUSE",
+    "BLD_APARTMENT"
    ],
    "trained_at_0ad": [
     "apartment",
@@ -8284,9 +8300,9 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    34,
-    35,
-    36
+    36,
+    37,
+    38
    ],
    "civ_bonuses": [],
    "classes": [
@@ -8341,7 +8357,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    37
+    39
    ],
    "civ_bonuses": [],
    "classes": [
@@ -8395,7 +8411,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    38
+    40
    ],
    "civ_bonuses": [],
    "classes": [
@@ -9592,7 +9608,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    41
+    43
    ],
    "civ_bonuses": [],
    "classes": [
@@ -9648,7 +9664,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    42
+    44
    ],
    "civ_bonuses": [
     "brit_woad_warriors"
@@ -9704,7 +9720,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    43
+    45
    ],
    "civ_bonuses": [],
    "classes": [
@@ -10337,7 +10353,9 @@
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
-   "auras": [],
+   "auras": [
+    46
+   ],
    "civ_bonuses": [],
    "classes": [
     "Healer",
@@ -10798,7 +10816,9 @@
     "ROSTER_CHAMPION"
    ],
    "unlock_tech": "TECH_NONE",
-   "auras": [],
+   "auras": [
+    49
+   ],
    "civ_bonuses": [],
    "classes": [
     "Champion",
@@ -10851,7 +10871,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    46
+    50
    ],
    "civ_bonuses": [],
    "classes": [
@@ -10905,7 +10925,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    47
+    51
    ],
    "civ_bonuses": [],
    "classes": [
@@ -10960,7 +10980,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    48
+    52
    ],
    "civ_bonuses": [],
    "classes": [
@@ -11580,7 +11600,9 @@
    ],
    "flags": [],
    "unlock_tech": "TECH_NONE",
-   "auras": [],
+   "auras": [
+    46
+   ],
    "civ_bonuses": [],
    "classes": [
     "Healer",
@@ -11939,8 +11961,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    51,
-    52
+    55,
+    56
    ],
    "civ_bonuses": [],
    "classes": [
@@ -11994,7 +12016,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    53
+    57
    ],
    "civ_bonuses": [],
    "classes": [
@@ -12049,8 +12071,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    54,
-    55
+    58,
+    59
    ],
    "civ_bonuses": [],
    "classes": [
@@ -13303,7 +13325,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    58
+    62
    ],
    "civ_bonuses": [],
    "classes": [
@@ -13360,8 +13382,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    59,
-    60
+    63,
+    64
    ],
    "civ_bonuses": [],
    "classes": [
@@ -13413,8 +13435,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    61,
-    62
+    65,
+    66
    ],
    "civ_bonuses": [],
    "classes": [
@@ -14614,7 +14636,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    65
+    69
    ],
    "civ_bonuses": [],
    "classes": [
@@ -14670,9 +14692,9 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    66,
-    67,
-    68
+    70,
+    71,
+    72
    ],
    "civ_bonuses": [],
    "classes": [
@@ -14725,8 +14747,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    69,
-    70
+    73,
+    74
    ],
    "civ_bonuses": [],
    "classes": [
@@ -16042,9 +16064,9 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    72,
-    73,
-    74
+    76,
+    77,
+    78
    ],
    "civ_bonuses": [],
    "classes": [
@@ -16098,8 +16120,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    75,
-    76
+    79,
+    80
    ],
    "civ_bonuses": [],
    "classes": [
@@ -16152,7 +16174,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    77
+    81
    ],
    "civ_bonuses": [],
    "classes": [
@@ -17738,7 +17760,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    81
+    85
    ],
    "civ_bonuses": [],
    "classes": [
@@ -17793,7 +17815,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    82
+    86
    ],
    "civ_bonuses": [],
    "classes": [
@@ -17848,7 +17870,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    83
+    87
    ],
    "civ_bonuses": [],
    "classes": [
@@ -18972,7 +18994,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_STABLE"
+    "BLD_STABLE",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -19241,8 +19264,8 @@
    "specific_name": "Hán Xìn",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_FORTRESS"
+    "BLD_FORTRESS",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre_court",
@@ -19253,8 +19276,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    86,
-    87
+    90,
+    91
    ],
    "civ_bonuses": [],
    "classes": [
@@ -19299,8 +19322,8 @@
    "specific_name": "Liú Bāng",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_FORTRESS"
+    "BLD_FORTRESS",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre_court",
@@ -19311,8 +19334,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    88,
-    89
+    92,
+    93
    ],
    "civ_bonuses": [],
    "classes": [
@@ -19357,8 +19380,8 @@
    "specific_name": "Wèi Qīng",
    "phase": 3,
    "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_FORTRESS"
+    "BLD_FORTRESS",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre_court",
@@ -19370,8 +19393,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    90,
-    91
+    94,
+    95
    ],
    "civ_bonuses": [],
    "classes": [
@@ -19480,7 +19503,8 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -19599,7 +19623,8 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_MERCENARY_CAMP"
+    "BLD_MERCENARY_CAMP",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -20040,7 +20065,8 @@
    "specific_name": "Fù Nǚ",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -20491,10 +20517,10 @@
    "flags": [],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    93,
-    94,
-    92,
-    95
+    97,
+    98,
+    96,
+    99
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20717,7 +20743,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    27
+    29
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20760,8 +20786,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    32,
-    33
+    34,
+    35
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20804,8 +20830,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    39,
-    40
+    41,
+    42
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20848,8 +20874,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    44,
-    45
+    47,
+    48
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20892,8 +20918,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    49,
-    50
+    53,
+    54
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20936,8 +20962,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    56,
-    57
+    60,
+    61
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20980,8 +21006,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    63,
-    64
+    67,
+    68
    ],
    "civ_bonuses": [],
    "classes": [
@@ -21024,7 +21050,7 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    71
+    75
    ],
    "civ_bonuses": [],
    "classes": [
@@ -21067,9 +21093,9 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    78,
-    79,
-    80
+    82,
+    83,
+    84
    ],
    "civ_bonuses": [],
    "classes": [
@@ -21112,8 +21138,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    84,
-    85
+    88,
+    89
    ],
    "civ_bonuses": [],
    "classes": [
@@ -21889,6 +21915,79 @@
     "AURA_ARMOR",
     1,
     1000.0
+   ]
+  },
+  {
+   "id": "centurion_1",
+   "name": "Combat Leadership",
+   "description": "Soldiers +10% attack damage and −25% experience points for promotion.",
+   "type": "range",
+   "radius": 30.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 1.1
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 1.1
+    },
+    {
+     "value": "Promotion/RequiredXp",
+     "multiply": 0.75
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.1,
+    8.4
+   ]
+  },
+  {
+   "id": "centurion_2",
+   "name": "Century Maneuvers",
+   "description": "Marian Legionaries and Centurions +10% movement speed.",
+   "type": "range",
+   "radius": 30.0,
+   "affects": [
+    "Legionary",
+    "Centurion"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "UnitMotion/WalkSpeed",
+     "multiply": 1.1
+    }
+   ],
+   "rts0": [
+    "AURA_SPEED",
+    1.1,
+    8.4
    ]
   },
   {
@@ -22679,6 +22778,50 @@
    ]
   },
   {
+   "id": "celtic_healer",
+   "name": "Deas Celtica",
+   "description": "Soldiers +5% attack damage.",
+   "type": "range",
+   "radius": 10.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 1.05
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 1.05
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    1.05,
+    2.8000000000000003
+   ]
+  },
+  {
    "id": "gaul_catafalque_1",
    "name": "Ambush Slaughter",
    "description": "Warring with the Romans, Ambiorix realized the futility of open warfare and instead resorted to ambush tactics. The Gauls quickly learned where and when to execute surprise attacks.\nSoldiers +5% melee and ranged attack damage and −25% promotion experience.",
@@ -22745,6 +22888,54 @@
     }
    ],
    "rts0": null
+  },
+  {
+   "id": "carnyx",
+   "name": "Intimidating Sound",
+   "description": "Enemy Soldiers −10% attack damage and capture attack strength.",
+   "type": "range",
+   "radius": 20.0,
+   "affects": [
+    "Soldier"
+   ],
+   "players": [
+    "Enemy"
+   ],
+   "modifications": [
+    {
+     "value": "Attack/Capture/Capture",
+     "multiply": 0.9
+    },
+    {
+     "value": "Attack/Melee/Damage/Hack",
+     "multiply": 0.9
+    },
+    {
+     "value": "Attack/Melee/Damage/Pierce",
+     "multiply": 0.9
+    },
+    {
+     "value": "Attack/Melee/Damage/Crush",
+     "multiply": 0.9
+    },
+    {
+     "value": "Attack/Ranged/Damage/Hack",
+     "multiply": 0.9
+    },
+    {
+     "value": "Attack/Ranged/Damage/Pierce",
+     "multiply": 0.9
+    },
+    {
+     "value": "Attack/Ranged/Damage/Crush",
+     "multiply": 0.9
+    }
+   ],
+   "rts0": [
+    "AURA_ATTACK",
+    0.9,
+    5.6000000000000005
+   ]
   },
   {
    "id": "gaul_hero_brennus",
