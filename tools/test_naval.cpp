@@ -220,6 +220,15 @@ static void test_fishing() {
 	int32_t lone_amount = 0;
 	const uint8_t *sub = subtype_of(s, lone, &lone_amount);
 	CHECK(sub && *sub == RES_SUB_FISH && lone_amount == 560);
+	// A boat still on its way doesn't stop the regrowth: only boats at the fish count
+	// (ResourceSupply State notGathered reads activeGatherers).
+	const uint32_t late = s.spawn_unit(-10.0f, -6.0f, 0, UNIT_FISHING_BOAT);
+	s.order_gather(&late, 1, lone);
+	run(s, 4.0f);
+	subtype_of(s, lone, &lone_amount);
+	const int32_t li = s.lookup_unit(late);
+	std::printf("fishing: a boat sailing to the untouched fish (at x %.1f), which regrows to %d\n", s.units().pos_x[li], lone_amount);
+	CHECK(gather_target(s, late) == lone && lone_amount == 562);
 
 	// A boat whose fish runs out moves on to the nearest fish on its sea.
 	static Simulation t;
@@ -565,7 +574,8 @@ static void test_petra_overseas_base() {
 		run(s, 1.0f);
 		for (size_t i = 0; i < s.units().count; ++i)
 			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
-			    std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+			    std::fabs(s.units().pos_z[i]) < 14.0f && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) != north &&
+			    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) != south) ++waded; // in the strait, not on a beach
 		for (const auto &b : s.buildings())
 			if (!cc && b.team == 1 && b.type == BLD_TOWN_CENTER && b.z < -16.0f) { cc = b.id; placed_at = (float)k; }
 		if (first_ashore < 0.0f)
