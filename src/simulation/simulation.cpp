@@ -1093,8 +1093,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 		current_map_biome_ = kBiomeNames[biome_override_];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
-	RmsGenerator::paint_terrain(*this, seed);
-	RmsGenerator::plant_flora(*this, seed);
+	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
+	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
 	rebuild_nav_grid();
