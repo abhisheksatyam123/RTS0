@@ -128,7 +128,8 @@ def status_immunity(t):
 def attack_of(t):
     atk, _ranged = ex.primary_attack(t)
     if atk is None:
-        return {"restricted": [], "spread": 0.0, "bonuses": [], "status": (0, 0.0, 0.0)}
+        return {"restricted": [], "spread": 0.0, "bonuses": [], "status": (0, 0.0, 0.0),
+                "prepare": 0.0, "proj_speed": 0.0, "proj_gravity": 0.0}
     restricted = [c for c in atk.tokens("RestrictedClasses") if not c.startswith("!")]
     bonuses = []
     b = atk.get("Bonuses")
@@ -139,7 +140,8 @@ def attack_of(t):
         if classes and abs(mult - 1.0) > 1e-9:
             bonuses.append((classes, mult, civ))
     return {"restricted": restricted, "spread": atk.num("Projectile/Spread", 0.0), "bonuses": bonuses,
-            "status": status_of(atk)}
+            "status": status_of(atk), "prepare": atk.num("PrepareTime", 0.0) / 1000.0,
+            "proj_speed": atk.num("Projectile/Speed", 0.0), "proj_gravity": atk.num("Projectile/Gravity", 0.0)}
 
 
 def footprint_of(t):
@@ -256,6 +258,8 @@ def emit(units, generic, buildings, classes):
     w("\tuint8_t status; // ApplyStatus its attack applies: 0 none, 1 Poisoned, 2 Burning")
     w("\tfloat status_dps, status_time; // that status's damage per second and duration (s)")
     w("\tuint8_t status_immune; // statuses it blocks (bits 1 Poisoned, 2 Burning; BlockChance 1)")
+    w("\tfloat prepare; // Attack PrepareTime (s): the first hit lands this long after an attack starts")
+    w("\tfloat proj_speed, proj_gravity; // Projectile Speed (m/s, horizontal) and Gravity (m/s^2), 0 = melee")
     w("};")
     w("")
 
@@ -270,10 +274,11 @@ def emit(units, generic, buildings, classes):
             bon.append("{{0, 0}, 1.0f, 255}")
         arm = row.get("armour", (0, 0, 0))
         st = a["status"]
-        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d}, // %s" % (
+        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d, %s, %s, %s}, // %s" % (
             mask(row["classes"], index), mask(a["restricted"], index), f(a["spread"]), len(a["bonuses"]),
             ", ".join(bon), f(arm[0]), f(arm[1]), f(arm[2]), f(round(row["footprint"], 3)),
-            st[0], f(round(st[1], 4)), f(st[2]), row["immune"], comment)
+            st[0], f(round(st[1], 4)), f(st[2]), row["immune"], f(round(a["prepare"], 4)),
+            f(a["proj_speed"]), f(a["proj_gravity"]), comment)
 
     w("// 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).")
     w("inline constexpr float COMBAT_DISTANCE_SCALE = %s;" % f(ex.RANGED_RANGE_SCALE))

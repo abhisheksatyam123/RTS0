@@ -68,8 +68,9 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
-	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
+	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "choice"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
+	ClassDB::bind_method(D_METHOD("_on_dropsite_sharing_pressed", "shared"), &RtsoMain::_on_dropsite_sharing_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
 	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
@@ -2008,15 +2009,17 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 	}
 }
 
-// 0 A.D. Upgrade.js through lockstep command 26 (param 1 = cancel and refund).
-void RtsoMain::_on_upgrade_pressed(int cancel) {
+// 0 A.D. Upgrade.js through lockstep command 26: `choice` is which of
+// building_upgrade()'s choices (target_x), -1 cancels and refunds (param 1).
+void RtsoMain::_on_upgrade_pressed(int choice) {
 	if (selected_building_id == 0) return;
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, 0, 0, selected_building_id, cancel ? 1 : 0);
-	else if (cancel)
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, choice < 0 ? 0.0f : (float)choice, 0,
+				selected_building_id, choice < 0 ? 1 : 0);
+	else if (choice < 0)
 		sim->cmd_cancel_upgrade(local_player(), selected_building_id);
 	else
-		sim->cmd_upgrade_building(local_player(), selected_building_id);
+		sim->cmd_upgrade_building(local_player(), selected_building_id, choice);
 }
 
 // 0 A.D. Gate.js LockGate / UnlockGate through lockstep command 27.
@@ -2035,6 +2038,16 @@ void RtsoMain::_on_autoqueue_pressed(int on) {
 		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_AUTOQUEUE, nullptr, 0, 0, 0, selected_building_id, on ? 1 : 0);
 	else
 		sim->cmd_set_autoqueue(local_player(), selected_building_id, on != 0);
+}
+
+// 0 A.D. set-dropsite-sharing through lockstep command 45.
+void RtsoMain::_on_dropsite_sharing_pressed(int shared) {
+	if (selected_building_id == 0) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SET_DROPSITE_SHARING, nullptr, 0, 0, 0, selected_building_id,
+				shared ? 1 : 0);
+	else
+		sim->cmd_set_dropsite_sharing(local_player(), selected_building_id, shared != 0);
 }
 
 // 0 A.D. AlertRaiser alert-raise / alert-end through lockstep command 35.
@@ -2463,7 +2476,23 @@ void RtsoMain::_process(double delta) {
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
-			txt += String::utf8(n->text);
+			// GuiInterface time notifications: %(time)s is the time left (timeToString).
+			String line = String::utf8(n->text);
+			if (line.contains("%(time)s")) {
+				const uint32_t now = sim->trigger_state().time_ms;
+				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
+				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
+			}
+			txt += line;
+		}
+		// CeasefireManager: "You can attack in %(time)s" for the last 10 s, then
+		// "You can attack now!" for 5 s.
+		if (sim->ceasefire_seconds() > 0.0f) {
+			const float left = sim->ceasefire_seconds() - sim->game_time();
+			String line;
+			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
+			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
+			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
@@ -2482,6 +2511,7 @@ void RtsoMain::_process(double delta) {
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
+	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
 	// BattleDetection says so, victory and defeat playlists at the end).
@@ -3056,7 +3086,7 @@ void RtsoMain::update_command_panel() {
 			// out with the reason research_check() gives.
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (ti.researcher != rtso::building_research_base(found_b->type) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
@@ -3114,6 +3144,17 @@ void RtsoMain::update_command_panel() {
 				production_bar->add_child(btn);
 			}
 
+			// Dropsite sharing (0 A.D. ResourceDropsite.js): shown once the owner has Diaspora.
+			if (found_b->team == local_player() && rtso::Simulation::is_dropsite_type(found_b->type) &&
+					sim->player(local_player()).has_tech(rtso::TECH_UNLOCK_SHARED_DROPSITES)) {
+				Button *btn = memnew(Button);
+				btn->set_text(found_b->dropsite_shared ? "Stop sharing dropsite" : "Share dropsite");
+				btn->set_tooltip_text(found_b->dropsite_shared ? "Allies can no longer drop resources here"
+						: "Let allies with Diaspora drop resources here");
+				btn->connect("pressed", Callable(this, "_on_dropsite_sharing_pressed").bind(found_b->dropsite_shared ? 0 : 1));
+				production_bar->add_child(btn);
+			}
+
 			// Alert (0 A.D. AlertRaiser.js): civilians take shelter, then go back to work.
 			rtso::AlertRaiserInfo alert;
 			if (found_b->team == local_player() && found_b->build_progress >= 1.0f &&
@@ -3146,11 +3187,11 @@ void RtsoMain::update_command_panel() {
 					Button *btn = memnew(Button);
 					btn->set_text(String("Cancel upgrade to ") + rtso::building_type_name(found_b->upgrade_to));
 					btn->set_tooltip_text("Stop upgrading and get the resources back");
-					btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(1));
+					btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(-1));
 					production_bar->add_child(btn);
 				} else {
-					const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv);
-					if (up.to != rtso::BLD_TYPE_COUNT) {
+					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, pciv); ++choice) {
+						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv, choice);
 						Button *btn = memnew(Button);
 						String cost;
 						auto add_cost = [&](int v, const char *suffix) {
@@ -3165,7 +3206,7 @@ void RtsoMain::update_command_panel() {
 						btn->set_text(String("Upgrade to ") + rtso::building_type_name(up.to) + (cost.is_empty() ? String() : " (" + cost + ")"));
 						String tip = String(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
 						const char *why = nullptr;
-						switch (sim->upgrade_check(local_player(), found_b->id)) {
+						switch (sim->upgrade_check(local_player(), found_b->id, choice)) {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
 							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
 							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
@@ -3176,7 +3217,7 @@ void RtsoMain::update_command_panel() {
 							btn->set_disabled(true);
 						}
 						btn->set_tooltip_text(tip);
-						btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(0));
+						btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(choice));
 						production_bar->add_child(btn);
 					}
 				}
@@ -3397,6 +3438,10 @@ void RtsoMain::update_command_panel() {
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
 				for (int bt = rtso::CIV_BUILDING_FIRST; bt < rtso::BLD_TYPE_COUNT; ++bt)
 					if (rtso::civ_can_build(my_civ, (uint8_t)bt)) menu.push_back(bt);
+				// The map script's SetDisabledTemplates (Survival of the Fittest) hides those structures.
+				menu.erase(std::remove_if(menu.begin(), menu.end(), [&](int bt) {
+					return sim->building_disabled_by_trigger(local_player(), (uint8_t)bt);
+				}), menu.end());
 				for (int bt : menu) {
 					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
 					String cost;
@@ -4892,6 +4937,15 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		heights[i] = (float)h_arr[i];
 	}
 	sim->set_terrain_data(heights, h_res, water_h);
+	// 0 A.D. per-tile terrain textures (port_0ad_maps.py extract_pmp_terrain).
+	if (d.has("terrain") && d["terrain"].get_type() == Variant::DICTIONARY) {
+		Dictionary t = d["terrain"];
+		Array tn = t.get("names", Array());
+		std::vector<std::string> names;
+		for (int i = 0; i < tn.size(); ++i) names.push_back(String(tn[i]).utf8().get_data());
+		sim->set_terrain_tiles(rtso::Simulation::terrain_tiles_from_rle((int)t.get("res", 0), std::move(names),
+				String(t.get("rle", "")).utf8().get_data()));
+	}
 
 	// Spawn Resources
 	Array res_arr = d.get("resources", Array());
@@ -4904,7 +4958,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 		uint8_t rtype = rtso::RES_WOOD;
 		uint8_t rsub = rtso::RES_SUB_NONE;
-		if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
+		// A plant name ("pine", "berry", ...) is a tree or fruit supply of that FloraKind.
+		const uint8_t flora = rtso::flora_kind_by_name(rtype_str.utf8().get_data());
+		if (flora < rtso::FLORA_COUNT && rtso::flora_is_fruit(flora)) rtype = rtso::RES_FOOD;
+		else if (rtype_str == "gold" || rtype_str == "metal") rtype = rtso::RES_GOLD;
 		else if (rtype_str == "stone" || rtype_str == "rock") rtype = rtso::RES_STONE;
 		else if (rtype_str == "food" || rtype_str == "fruit") rtype = rtso::RES_FOOD;
 		else if (rtype_str == "fish") { // 0 A.D. gaia/fish/*: only fishing boats gather it
@@ -4913,7 +4970,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (!r.has("amount")) amt = rtso::FISH_FOOD_SUPPLY;
 		}
 
-		sim->spawn_resource_world(rx, rz, rtype, amt, rsub);
+		// 0 A.D. ResourceSupply/MaxGatherers when the template differs from its class (banyan 12, baobab 9).
+		const int maxg = std::clamp((int)r.get("max_gatherers", 0), 0, 255);
+		sim->spawn_resource_world(rx, rz, rtype, amt, rsub, (uint8_t)maxg, flora < rtso::FLORA_COUNT ? flora : rtso::FLORA_DEFAULT);
 	}
 
 	// Spawn Wildlife Fauna
@@ -5077,14 +5136,6 @@ String RtsoMain::player_display_name(uint8_t pid) const {
 void RtsoMain::apply_player_names(const Array &names) {
 	for (int p = 0; p < rtso::MAX_PLAYERS; ++p)
 		player_names_[p] = p < names.size() ? String(names[p]).strip_edges().left(48) : String();
-	if (!sim) return;
-	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-		const auto &ps = sim->player(p);
-		String label = ps.active ? player_display_name(p) + " (" + String(rtso::civ_info(ps.civ).name) + ")" : String("-");
-		if (ps.active && p == local_player()) label += " (You)";
-		else if (ps.active && ps.is_ai) label += " (AI)";
-		diplo_dialog_.set_player_label(p, label);
-	}
 }
 
 void RtsoMain::sync_victory_selector() {

@@ -6905,145 +6905,145 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -55.25,
       "z": -68.57,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -54.43,
       "z": -66.6,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.68,
       "z": -67.25,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.24,
       "z": -68.59,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -52.43,
       "z": -65.48,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -53.61,
       "z": -68.5,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 45.19,
       "z": -58.39,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 47.36,
       "z": -60.41,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 46.47,
       "z": -61.48,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 48.26,
       "z": -62.06,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 49.05,
       "z": -63.79,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 49.91,
       "z": -62.09,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 52.42,
       "z": 36.8,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 53.09,
       "z": 35.9,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 53.19,
       "z": 34.97,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 54.76,
       "z": 35.81,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 55.49,
       "z": 36.56,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 56.64,
       "z": 35.55,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -62.85,
       "z": 34.72,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -63.48,
       "z": 37.32,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -65.17,
       "z": 38.7,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -67.1,
       "z": 37.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -65.15,
       "z": 36.87,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -63.71,
       "z": 39.37,
       "amount": 200
@@ -7097,13 +7097,13 @@
       "amount": 5000
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -6.61,
       "z": 80.77,
       "amount": 400
     },
     {
-      "type": "food",
+      "type": "date",
       "x": -5.36,
       "z": 52.13,
       "amount": 400
@@ -7250,97 +7250,113 @@
       "type": "palm",
       "x": 43.69,
       "z": 43.28,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 61.39,
       "z": 60.56,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 46.61,
       "z": -39.7,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 53.41,
       "z": -69.03,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -63.54,
       "z": -40.61,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -46.34,
       "z": -45.03,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -51.91,
       "z": 54.08,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -56.96,
       "z": 36.16,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -73.7,
       "z": 48.59,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 54.17,
       "z": 30.82,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 40.48,
       "z": -46.55,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -63.35,
       "z": -61.53,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 3.61,
       "z": -90.42,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -4.86,
       "z": 42.98,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -57.4,
       "z": -3.88,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 59.21,
       "z": -1.92,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     }
   ],
   "fauna": [
@@ -8048,5 +8064,65 @@
       "angle": 2.3562,
       "scale": 0.25
     }
-  ]
+  ],
+  "terrain": {
+    "res": 192,
+    "names": [
+      "desert_sand_dunes_100_rotate",
+      "desert_sand_dunes_100",
+      "desert_sand_smooth",
+      "desert_dirt_rocks_2",
+      "desert_dirt_rocks_3_scrub",
+      "desert_dirt_rocks_1",
+      "desert_forestfloor_palms",
+      "desert_shore_stones",
+      "desert_grass_a_stones",
+      "desert_shore_stones_wet",
+      "desert_dirt_rough_2",
+      "desert_sand_stones",
+      "desert_cliff_egypt_1",
+      "desert_cliff_egypt_2",
+      "desert_city_tile",
+      "desert_dirt_rough",
+      "desert_lakebed_dry",
+      "desert_sand_smooth_b",
+      "desert_sand_scrub",
+      "desert_sand_dunes_stones",
+      "desert_dirt_cracks",
+      "desert_city_tile_plaza",
+      "desert_dirt_rocks_3",
+      "desert_grass_a",
+      "desert_grass_a_sand",
+      "desert_sand_wet"
+    ],
+    "rle": "MAAqAQICDAEFAgABAQJKATAAKgENAgEBBQIAAQICSQEwACoBGQJJATAANgEGAgABBQJJATEAIwEBAgABBQILAQoCSQExACIBCQILAQoCSQExACEBCQILAQICAQEDAkwBMQAfAQYCAAEBAgEBBgMBAQUCAgEDAksBMQAdAQYCBAEIAwEBBAIEAQICSwExAB0BBQIFAQgDAQECAgcBAgJKATAAIQECAgIBBQIFAwUCBwEBAjcBAgQDAQIFCAEwACEBAgIAAQcCBQMHAgIBBQI2AQYEAgUIATAAIQECAgABAwIBAQECBQMAAQYCAQEGAjcBAAQBBQIEAgUIATAAIQEFAgABBAYGBwEBCAIAAQMCOAEBBQIEAgUIAS8AIwEEAgUGAQcFCAEGBwIAAQECOwEBBQEEAgUIAS4AJAECAgIGAgcJCAIGAQEDAgABAgIAAQMCNgEGBQgBLQAkAQICAAECBgEIAAcJCAMGAAEDAgABAQIBAQMCNgEFBQkBKwAlAQMCAAYAAQAHAggCCQIIAgkBCAAHAgYBAQICAAEBAgEBBAJFASoAJAEFAgAGAAEABwEICwkABwAIAQYABwABBQIAAQUCRQEkACoBBQIABgIHDQkACAIGAAcAAQQCAAECAkgBJAApAQYCAAEBBw4JAQgCBgABBAIAAQICSAEkACkBBQIBAQAHEQkCBgAHAAEDAgEBAgIAAQIDQwEkACgBBgIAAQEHEQkACAEGAAcBAQcCAAEDA0IBIwApAQYCAAEBCBEJAggABwEBBwIGA0ABIgAqAQUCAQEBCBIJAQgBBwABBAIBAQcDQAEiACoBBQIAAQIIEgkBCAEHAAEEAgEBBwNAASEADgEABhsBBQIAAQIIEgkCCAAHAAEFAgABBwNAASAADQEEBhkBBQIAAQEIEwkCCAAHAAEFAgABBgNBAR8AAwMJAQYGFwEFAgABAQYACBMJAggABwEBBQIAAQUDFwEBCigBHQABCgIDCQsGBhYBBAICAQEGAQgTCQEIAAcBAQICAAEBAgEBBAMRAQMLBQolARwAAAECCgIDCAsIBhQBBgIBAQEGAQgTCQEIAAcAAQMCAAEBAhABAQoDAQULBQolARwAAAECCgIDAwsCBwILBgYTAQQCAAEDAgIBAggSCQEIAAcAAQMCAAECAg4BAgoBAQECAgoBCwcKJAEcAAIKAwMBCwcHBgYQAQ4CAAECCBIJAAgBBgABAwIBAQECDgECCgMCAgoBCwcKAAECAyABHAACCgMDAAsJBwQGAAsQAQQCAAEIAgABAAcCCBEJAAgBBgABBAIAAQECDgEBCgABAAICCgECAQcBCwUKAAIEAx8BHAACAQEDAgsLBwAGAQIACxYBAgIAAQUCAAcDCBAJAQgBAQQCAAEBAgsBAgoBAQECAgoFBwUKAAIFAx4BGwADAQMLDQcDAhUBAQIAAQYCAQcCCA8JAggBAQQCAAECAgoBAgoBAQQCBwcBCgEHAAIGAx0BGgAEAQMLDgcCAhUBCQIAAQEGAQgPCQIIAgEDAgEBAQIPAQMCDAcAAgALBQMdARkABQEDCw4HAwIJAQQDAQoDAQkCAAEDBgAJAQgLCQIIAwEDAgEBAQIPAQALAgINBwALBQMdARQACgEBCwECDQcEAgkBBAMBCgYBBgIBAQAHAgYCCAkJAwgDAQMCAQEBAg0BAQoACwICDQcACwEKAwMdARMACwEDAg0HBAIJAQQDAQoEAQMCAAEEAgEBAgYDCAcJAAgCBgQBBwINAQEKAgsAAg4HAgoAAh8BCAACAQYADAECAg4HBAIHAQEDAgoBAwEKAwEDAgEBBQIBAQEGAAcDCAUJAAcACAIGBQEGAgsBAwoBCxAHAgoAAh8BBwAWAQMCDgcFAgYBBAoCAwQBAgIDAQQCAwEBBwIGAggEBwEGAQIDAQICEAEDCgELEAcAAgEKAQIeAQYAFwECAg8HBQIGAQMKAwMLAQYCAwECBgIIAgcHAgABAwIQAQMKAAsRBwIKAQI9AQICDwcEAgsBAwMMAQECAAECAgYBAggAAQ0CEAEECgALEQcDCgACPQEDAg0HBQIcAQICAAECAgkBAwIDAQQCEAEFCgALEQcDCgACPQEDAg0HAQsBAh4BAgIAAQICCQEDAgQBAwIQAQUKAQsQBwEKAQIACzwBBgIBBwALBgcFCx4BAwIAAQECCgECAhkBAQoBAQEKAQsQBwMCAAs8AQcCAwsBBwcLHwEUAh4BBAoNBwACAQoCCzwBBwIMCyABEwIcAQcKAAsMBwACAQoACwIKOwEHAgoLIwEEAioBBAoACwEKDQcGCjsBBwIJCyUBAwIrAQIKAAsAAgEKDQcFCj0BBQIIC1sBAwILBwUKAAs9AQUCYwEEAgsHBQoACz8BAQJlAQYCBwcABgALAQoACwIKqQEFAgUHBAYBCwEKAAupAQUCAQsBBwALBgYACwEKrAEBAgYLBgYAC5QBAwAWAQYLCAaNAQEABAEGAAIBAQAQAQULBgaOAQQAAAENABUBBgaKARkAFAEEBosBGQAWAQAGjQEHAAEBAAIBAAQBBACoAQMAAAEFALUBAgAAAQYAuAEGALgBBgC4AQYAmwEBAhsBBQCaAQcCFwEEAJoBCAIZAQEAmgEJAgsBAQaaAQgEAQELAgoBAgYAAQIGlAEBBggEDQIKAQcGkgEABAEGCAQMAgsBCAaQAQEGAgQFCQEEDAIAAQEMAA0CDgANBwEFBo4BAAQBBgIEBgkABAEGBQEEAgIMAA0CDgANAwwAAQQMAwaOAQMECAkABAEGBgQDAQIMAA0CDgANCgwCBo0BBAQICQAEAQYBBAMMAAQCAQMMAA0BDgENCgwBBgkCgwEEBAkJAAQBBgEEAwwBAQUMAA0BDgANCwwBBgoCggEDBAoJAwQKDAoBBgwCBgoCgQEDBAkJAgQKDA0BBQwCBgABCQKBAQIECQkCBAYMEwEGDAEBCQKAAQMEBwkDBAcMFAEHDAkCgAEDBAYJAwQGDAwBAg8IAQUMAAEIAoABAgQGCQMEBgwGAQMGAgEDDwMBAg8CAQYMAQEFAn8BAgQGCQIEBgwFAQUGAwEJDwMBBgwAAQUCfgEDBAUJAgQHDAMBBwYMDwUBBgwGAiEBAQNZAQMEBAkDBAYMAwEHBgkPAAoIAQYMAAEBAgABAgIhAQMDVwELBAUMBAEGBgIPAAEFDwIKAgEDCgEBBwwBAgAGIwEEA1gBAQYCBAEGAAQBBgUMBQEEBgEPAhAICgIQBAoBAQcMAwYiAQUDCwEDAkcBAwYABAEGAAQBBgQMBgEDBgIPAhAFCgUQAwoDAQYMAwYhAQYDCgEEAkkBAQYBBAIBBAwGAQMGAAoCDwEKABADCgcQAAoCDwMBBgwDBiEBBgMKAQICUgEEDAYBAgYBCgIPBQoJEAAPBQEGDCUBBgNgAQQMCQEBDwgKAhADCgIQAA8FAQAMAw0BDCUBBgNgAQMMCgEBDwIKAxACCgAQCAoDBgIBAg4ADQAMJwEEA2EBAwwKAQEPBAoBEAsKBAYCAQUOKAECA2ABAQwDDQkBBgoCEAQKAhACCgQGAQEADAANBA6MAQUNCAEGCgQQAwoCEAIKBAYBAQAMAw0BDowBBg4HAQYKBRACCgIQAgoDBgIBAAwEDQAMiwEADQYOBwEFCgYQAgoCEAIKAwYAAQgMiwEGDQgBBQoHEAgKAgYAAQgMiwEGDQoBAgoIEAgKAQYAAQkMAAEBBokBBQ0KAQIKCBADCgEQAAoADwIGAAEJDAMGiQEEDAoBAwoBEAMKAg8CCgIQAA8CBgABCAwEBooBAwwKAQMKAQEDCgIPAQoDEAAPAgYAAQgMBAaKAQQMCQEJCgQPARACDwIGAwEFDAQGigEEDAoBCAoKDwYBAwwAAQMGiwEFDA4BAQoLDwYBAwwBAQMGiwEGDA0BAQoJDwgBAwwAAQIGjgEGDBABAw8LAQQMAAECBo4BBwweAQQMkwEIDB0BBAyUAQgMGgEFDJYBCQwUAQgMmAEJDBEBCQyZAQoMEAEIDJsBCQwKAQEMAg0IDJ8BCQwBAQQMAQ0BDgENBwyaAQYGAAEODAENAQ4BDQUMkgEKAAUGAAEPDAANAQ4BDQEMNAECDxABAQJLAQoAAAEEBgIBDQwADQEOAQ0ADDQBAw8QAQECSwEDAAABBwAHAQwMAA0CDgANAAwyAQIDAg9fAQIAAwEGAAcBBgwAAQMMAg4ADTMBBQMBCkEBAREZAQQAAQEGAAoBBwYBAQEOMgEBDwYDAAo+AQASABEEAhcBBAABAQMAAAECAAkBBwY2AQEPBwMBDzoBABIAEQgCBwEBEwsBBQABAQIAAQEGAAIBCQY2AQEPBwMBDzoBAREIAgEBAwsFEwoBBAABAQIAAQEHAAEBCAYyAQECBAsGAwAKAQsNAQUCJQEBEQQCBBQAAgQLBRMKAQkAAQEIADcBAgoFAgMLBQMCDwALCwEGAiUBABEEAgYUAwsHEwoBAQAAAREANgEACgIPBAIECwQDBA8KAQYCJAEAEQECChQDCwcTCwECAAABDwA0AQIKAg8FAgcLBQ8JAQcCJAEAEQECDBQCCwECAhMDFAkBAgAAAQYABAEEADMBAgoBDwECBhQECwQCAQ8AAgYBCQIjAQATAgIMFAALARUBAgYUCQECAAEBBQAEAQQABgECAykBAQoCDwECBhQACwEUAQsBDwECAw8GAQgCIwEAEwMCChQACwUVBhQKAQkABAEEAAQBBgMnAQAKAg8ACwECARQBAgIUAAsBFAELAQ8BAgMPAAEBDwMBCAIiAQARCQIMFQACBhQJAQcABgEFAAMBBgMoAQIPAAsHFAELARQBCwMCAgoADwABAg8FAQICJQEKAgwVBxQJAQQACQEFAAMBBgMoAQIPCBQGCwEPAAIDCgABAg8FAQECJQEIAg8VAxQAAgIUCQEFAAkBBAAEAQUDAAIlAQQPBBQBFQECBBUBCwAPAhQDCgIPLAEDAgIDARYQFQMUAAICFAoBBAAJAQQABQEEAwACAwEKAhUBBA8EFAsVAAsDFAIKAg8rAQICABQAFgIDARYRFQIUAQIBFAsBAgALAQQAAAECAgMBAQIEAQoCFQEEDwQUDBUACwMUBA8rAQICABQAFgIDARYRFQIUAQIBFAwBAgAKAQQAAwILAQoCEwEFDwMUDRUBCwIUAw8rAQMCABQAFgIDARYQFQMUAAICFAsBAwAHAQICAAEBAAACAAECAgMBAgIEAQQCAAEGAhIBAQ8AAQIPAxQOFQELARQEDyoBAwIAFAUWEBUHFAsBAwAGAQMCAAEBAAMCAgEGAgIBBAIBAQYCEQEEDwALARQRFQALARQEDyoBAwICFAMWDxUACwYUDQECAAUBAwIBAQkFAAICEgMCAAEKAgABAQIQAQUPARQAAhEVAAsCFAMPAQIoAQQCBBQQFQALBhQVAQICAwEEBQQXAAIDEgMCAAEJAgABAQIQAQUPARQACxIVAhQAAgEPAgIoAQATAwIEFBEVAAIFFBUBAQIBAQMCABIBBQEYABcAGAAXABgAFwUSAQIAAQwCDwEGDwMLERUACwEUBgImAQETAwIDFBIVAAICFAECFAEBAgIBBAIAEgAXARgFFwAYBBIGAgABCAIOAQIPAgoFCxAVAQsHAiYBABMEAgMUERUCAgEUAgITAQECAQEDAgABAxgFFwEYAQYCEgABAQIAAQkCAAEBAg0BAw8DCgQLDxUBCwIUBAImAQETAwIEFAwVARQCFQICARQCAhQBARIAAgISAAIBGAAGBxcCBQAGABgABgASAQEOAg0BAw8DCgULDhUBCwIUBAIlAQETBAIEFAwVBRQBAgEUAQIVAQUSAAIAGAIGBBcAGAMFAAYBGAASEAINAQIPAwoABgAKBAsNFQYLAQInAQETBAIEFAALCxUGFAQCFgEEEgEYAAYBBQMXAAUCGQEFAAIBBgASAQIBBQsCDgECDwAKAAEEBgULCxUHCycBAxMDAgQUAAsMFQALARMCFAATAQIAExQBAQIAAQMSAAIBBgMFARgABQUZAQIBEgACAwUJAg4BAg8BCgYGBAsKFQgLJwEDEwQCBBQBCwoVAAsIExQBAQIAAQMSAAIABgYFBxkAAgEGAAIDBQcCEAECDwEKBgYFCwkVBQsCCiYBBhMBAgABAQsCFAMLCBUBCwYTFQEBAgABAgUBFwMFCxkAAgIGAAICBQcCEAEBDwEKCAYACwECAwsFFQcLBAokAQgTAAECCwQUAQsGFQILAxMCAhUBAQIDBQAYABcBGAAFDRkCBgACAwUGAhIBAgoGBgUCBwsCDwMLAAEECiQBBxMBAQILBBQCCwUVBAsGAgMBAQMPAQMFABgBFwAYAAUNGQACAgYBBQcCEwECCgYGBgIGCwQPAAIACwABAwomAQYTAQECCwQUAwsABgEVBQsHAgEBBAMNAQMFABgCFwAYAAUOGQMGCQISAQIKAAEEBgICAQ8CAgYLAQ8AAgEPAgIBAQEKBAECEQMBBREUAQUTAgEFCwEUAQsEBgQLCQIFAw0BAwUAGAIXAQUOGQACAgYBAgABBgISAQEKAwEABgEBAgIBDwMCBQsBDwICAw8HAQwRFgEBEwQBBQsBFAALBgYCCwoCBQMNAQMFABgCFwAFDxkAAgEYAAYJAhwBAQIDDwECBQsBDwICBw8CAQ0RHgEHCwYGAAsLAgABBQMNAQIFARgBFwAYAAUPGQACARgABgkCHAEBAgMPAAIFCwACAg8DAgUPAQEMEQUBAREYAQYLCAYLAgABBAMOAQIFABgCFwAYAAUQGQECARcAAQcCGgEBCgABAAIDDwACBQsAAgIPAwIDDwMBCxEGAQIRGAEFCwATBgYLAhUBAgUAGAEXARgABRAZAAIAGAAXARgEAgABAQIaAQMKAQ8AAgEBBgsAAgIPAQIDDwQBChEAAQIRAwECERkBBAsAEwYGCgIVAQIFAAEAGAEGAQURGQACABgBFwAYBAIAAQECDgEEAwYBBQoJAQACBw8EAQ8RBAEBERsBAQsCEwQGABMJAhYBAgUBAQEGAQURGQACABgBFwAYAAEGAg0BAAMDCgADBwEECgsBBQ8EARERAwEBER0BBBMABgITAAEHAhcBAQUBAQIGAQURGQECARcAGAABBQIOAQADAwoAAwgBAwoLAQEPAQIGAQgRAQEGEQMBAREdAQcTAQEFAh0BBAYAAhAZAAIBBgAXABgGAg4BBQMJAQAPAQoWAQYRAwEGESQBBhMDAQECHwEBBgAYAgYPGQECAQYBFwMCEQEFAyMBAxEFAQIRAgIBESQBBRMmAQACAAYAGAIGAAIOGQACAwYBAhQBBQMjAQERAgEEAgIRBAImAQETJwEBAgAGABgCBgACDhkAAgMGAQIVAQQDIgECEQIBDAJQAQECAAYAGAIGAAINGQACAhcBEgECAwEBAhABAgMiAQIRAwEOAgARRwEDAgABAgIABgAYAQYBAgwZAAIDFwESAQIDAQECNgECEQMBCgIAAQQCRAEFAgABAQIAAQACABgBBgEYAAIKGQACABgDFwESAwJBAQURBQIAAQQCQgEEAgIBAwICBgIYAAIIGQECAhcAGAISAAIAAQECQAECEQkCAQEDAkIBAgIFAQQCABgAFwEYAQIFGQECAQYAFwEYABcCEgEBAQI+AQMRCwIAAQMCABEIAQIFAAECBTsBAwIAGAIXABgGAgQGARcCEgACAQECAj0BAREDAgARAgICAQcCABEIAQYFPAECAgEYAxcAGAgGAQICEgACAwEBAj4BAgICEQECAgEHAgERBwEHBT8BABcBGAMXBwYCAkcBAgICEQABAQICAQgCABEHAQYFQQEEGAAXAwYBAQIFSQEBAgABAREBAQECAQEJAgARBgEHBUEBBQUAAQIFAAEDBQABAQJFAQICAREFAgABCgIGAQYFQgEOBQABAwI6AQERBgEBAgABAREJAgERBQJRAQsFAwECAgIBAQI1AQIRBQEBAgEBCgICEQQCVAECBQACDQECAjQBAxEFAQECAQEBAgABCQIAEQQCTQECAgMBAwUAAgABAgIIAQECMwEFEQUBAgIAEQwCABECAgERTQECAgMBAAICBQUCBwEBAjIBBREDAQERAQEBAgARDAIBEQECARFUAQECAAEIAjoBBBECAQQRAAEBAgARBAIBEQkCARFTAQICAQECAgEBAwI5AQMRAQEHEQABAwICAQARCgIBEVMBAgIBAQICAwEBAjkBCxEWAgARWQEBAj4BAhEAAQMRAQEAEQ0CAREIAgARmQEHEQEBBQICERECABGYAQgRBgIAEQABAhEKAgARBAIAEZgBBRECAQQCAhEBAQIRCQIBEQMCmQEDEQoBAREHAQYRAQEAEQMCpwEBEQwBBRECAg=="
+  },
+  "environment": {
+    "sky_set": "cloudless",
+    "sun_color": [
+      0.7373,
+      0.6745,
+      0.549
+    ],
+    "sun_elevation": 0.877437,
+    "sun_rotation": -0.730175,
+    "ambient_color": [
+      0.502,
+      0.502,
+      0.502
+    ],
+    "water_type": "lake",
+    "water_color": [
+      0.2941,
+      0.349,
+      0.6941
+    ],
+    "water_tint": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "water_waviness": 4.0,
+    "water_murkiness": 0.298828
+  }
 }

@@ -32,7 +32,8 @@
 //     for the scarcest finite resource; its trading goods favour what it lacks.
 // 11. Kush builds its Blemmye and Noba camps and Temple of Amun, Rome its
 //     Temple of Vesta (config.js buildings), and Rome researches its champion
-//     unlock and trains champions (researchWantedTechs unlock_champion).
+//     unlock and trains champions unless its population is already at the cap
+//     (researchWantedTechs unlock_champion).
 //  Exit: 0 = PASS, 1 = FAIL.
 // The ally check reads the sim's death log, which has no public accessor.
 #define private public
@@ -78,8 +79,8 @@ static void test_no_early_rush() {
 	float t = 0.0f;
 	for (; t < 300.0f && s->petra_phase() < 2; t += Simulation::FIXED_STEP) {
 		s->tick(Simulation::FIXED_STEP);
-		const auto st = s->petra_attack_plan().state;
-		if (st == Simulation::AttackPlan::WALKING || st == Simulation::AttackPlan::ATTACKED) attacked = true;
+		for (const auto &p : s->petra_started_attacks())
+			if (p.state == Simulation::AttackPlan::WALKING || p.state == Simulation::AttackPlan::ATTACKED) attacked = true;
 	}
 	std::printf("  arena: %.0fs in village phase, player units %d -> %d, attack launched: %s, rushes allowed %d\n",
 	            t, start_units, count_units(*s, 0, false), attacked ? "yes" : "no", s->petra_attack_manager().max_rushes);
@@ -458,15 +459,15 @@ static void test_attack_plans() {
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
-			const auto &m = s->petra_attack_manager();
-			const auto &plan = s->petra_attack_plan();
-			if (plan.state != Simulation::AttackPlan::WALKING) continue;
-			if (m.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
-				rushed = true;
-				rush_at_store |= plan.target_building_id == store;
+			for (const auto &plan : s->petra_started_attacks()) {
+				if (plan.state != Simulation::AttackPlan::WALKING) continue;
+				if (plan.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
+					rushed = true;
+					rush_at_store |= plan.target_building_id == store;
+				}
+				if (plan.kind == PETRA_ATTACK_ATTACK) attack_size = std::max(attack_size, (int)plan.initial_squad_size);
+				if (plan.kind == PETRA_ATTACK_HUGE) huge_size = std::max(huge_size, (int)plan.initial_squad_size);
 			}
-			if (m.kind == PETRA_ATTACK_ATTACK) attack_size = m.target_size;
-			if (m.kind == PETRA_ATTACK_HUGE) huge_size = m.target_size;
 		}
 		const auto &m = s->petra_attack_manager();
 		std::printf("  aggressive: rushes allowed %d, village rush %s (at the storehouse %s), launched rush %d attack %d huge %d, sizes %d / %d\n",
@@ -524,7 +525,8 @@ static void test_attack_plans() {
 		CHECK(kinds.size() >= 3 && kinds[0] == PETRA_ATTACK_ATTACK && kinds[1] == PETRA_ATTACK_ATTACK,
 		      "the first two plans are Attack");
 		CHECK(kinds.size() >= 3 && kinds[2] == PETRA_ATTACK_HUGE, "then HugeAttack");
-		CHECK(m.launched[PETRA_ATTACK_ATTACK] == 2, "both Attack plans march");
+		// With a HugeAttack under way the next plan is an Attack again (attackManager.js).
+		CHECK(m.launched[PETRA_ATTACK_ATTACK] >= 2, "both Attack plans march");
 		CHECK(huge_size > 2 * attack_size, "a HugeAttack musters a much larger army");
 	}
 	{
@@ -933,10 +935,15 @@ static void test_civ_structures() {
 				if (u.alive[i] && u.team[i] == 1 && u.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
 				    (civ_unit_template(u.tmpl[i]).flags & ROSTER_CHAMPION)) champion = true;
 		}
-		std::printf("  %s by 40 min: camp %s, temple %s, champions %s\n", civ_info((Civilization)civ).name,
-		            camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no");
+		// An economy that fills the population cap before the unlock finishes has no room
+		// left to train champions in (nothing of Petra's dies once the idle player is gone).
+		const bool unlocked = s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_INFANTRY) || s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_CAVALRY);
+		const bool capped = s->pop_current(1) >= s->pop_cap();
+		std::printf("  %s by 40 min: camp %s, temple %s, champions %s (unlocked %s, population at its cap %s)\n",
+		            civ_info((Civilization)civ).name, camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no",
+		            unlocked ? "yes" : "no", capped ? "yes" : "no");
 		if (civ == CIV_KUSHITES) CHECK(camp && temple, "Kush builds its camps and the Temple of Amun");
-		else CHECK(temple && champion, "Rome builds the Temple of Vesta and unlocks its champions");
+		else CHECK(temple && (champion || (unlocked && capped)), "Rome builds the Temple of Vesta and unlocks its champions");
 	}
 }
 
@@ -1157,6 +1164,10 @@ static void test_army_answers_attackers() {
 	for (const auto &b : s->buildings()) if (b.id == house) half = b.half_size;
 	CHECK(half > 0.0f, "an enemy house to attack");
 	if (half <= 0.0f) return;
+	// Clear player 0's own units away, so the only attacker is the one below.
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
 	std::vector<uint32_t> squad;
 	// Sturdy enough that player 0's own units nearby can't break up the squad first.
 	for (int k = 0; k < 3; ++k) squad.push_back(s->spawn_unit(hx + half + 1.0f, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN, 1.0e4f));
@@ -1174,9 +1185,15 @@ static void test_army_answers_attackers() {
 	run_for(*s, 4.0f);
 	const int32_t i = s->lookup_unit(squad[0]);
 	const bool turned = i >= 0 && s->units().alive[i] && s->units_.target_unit_id[i] == foe;
-	std::printf("  army under attack at a structure: the soldier hit turns on its attacker: %s (plan state %d)\n",
-	            turned ? "yes" : "no", (int)plan.state);
+	int helpers = 0; // attackPlan.js: the two nearest squad mates join in
+	for (size_t k = 1; k < squad.size(); ++k) {
+		const int32_t j = s->lookup_unit(squad[k]);
+		if (j >= 0 && s->units_.target_unit_id[j] == foe) ++helpers;
+	}
+	std::printf("  army under attack at a structure: the soldier hit turns on its attacker: %s, helpers %d (plan state %d)\n",
+	            turned ? "yes" : "no", helpers, (int)plan.state);
 	CHECK(turned, "a Petra soldier attacked while at a structure fights back at once");
+	CHECK(helpers == 2, "its two nearest squad mates turn on the attacker too");
 }
 
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
@@ -1368,6 +1385,67 @@ static void test_repairs() {
 	CHECK(c2 && c2->hp > c2->max_hp * 0.3f, "and heals");
 	CHECK(on_house <= 1, "a house takes one repairer at most");
 	CHECK(!house_id || (h2 && h2->hp > h2->max_hp * 0.5f), "the damaged house is repaired too");
+}
+
+// researchManager.js update: wanted techs (gather rates, capacities) in any phase,
+// preferred ones (stone and metal rates, arrows, regeneration) from the town phase,
+// then any technology at random from the city phase.
+static void test_research_choices() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
+	s->players_[1].phase = 2;
+	// Enough workers that checkPausedQueues lets minorTech run.
+	for (int k = 0; k < 12; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	s->spawn_building(cx + 8, cz, BLD_STOREHOUSE, 1);
+	s->spawn_building(cx - 8, cz, BLD_FARMSTEAD, 1);
+	s->spawn_building(cx, cz + 9, BLD_FORGE, 1);
+	auto researched = [&](std::initializer_list<uint8_t> stats) {
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t) {
+			if (!s->players_[1].has_tech(t)) continue;
+			const TechInfo &ti = tech_info(t);
+			for (uint16_t i = 0; i < ti.effect_count; ++i) {
+				bool hit = false;
+				for (uint8_t st : stats) hit |= tech_effects_table()[ti.effect_begin + i].stat == st;
+				if (hit) { ++n; break; }
+			}
+		}
+		return n;
+	};
+	auto forge_techs = [&] {
+		int n = 0;
+		for (uint8_t t = 1; t < TECH_COUNT; ++t) n += s->players_[1].has_tech(t) && tech_info(t).researcher == BLD_FORGE;
+		return n;
+	};
+	for (int k = 0; k < 12; ++k) {
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		run_for(*s, 10.0f);
+	}
+	const int eco = researched({TSTAT_GATHER_GRAIN, TSTAT_GATHER_WOOD, TSTAT_CARRY_FOOD, TSTAT_CARRY_WOOD});
+	const int mines = researched({TSTAT_GATHER_STONE, TSTAT_GATHER_METAL});
+	const int fights = forge_techs();
+	std::printf("  town phase: %d grain/wood/capacity techs, %d stone/metal techs, %d forge techs\n", eco, mines, fights);
+	CHECK(eco >= 3, "researches gather rates and capacities past the first tier");
+	CHECK(mines >= 2, "researches stone and metal rates in the town phase");
+	CHECK(fights == 0, "no random forge techs before the city phase");
+	s->players_[1].phase = 3;
+	for (int k = 0; k < 12; ++k) {
+		s->set_player_resources(1, 5000, 5000, 5000, 5000);
+		run_for(*s, 10.0f);
+	}
+	const int fights3 = forge_techs();
+	std::printf("  city phase: %d forge techs\n", fights3);
+	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
 }
 
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
@@ -1771,18 +1849,119 @@ static void test_retake_civic_centre() {
 		b.capture_points_by_team[0] = b.max_capture_points;
 	}
 	bool lost = false, switched = false;
+	size_t squad = 0;
 	for (float t = 0.0f; t < 1.0f && !switched; t += Simulation::FIXED_STEP) {
 		hold();
 		s->tick(Simulation::FIXED_STEP);
 		lost |= s->buildings()[s->building_id_to_idx_.at(tc_id)].team == 0;
-		const auto &plan = s->petra_attack_plan();
-		switched = plan.target_building_id == tc_id && plan.state == Simulation::AttackPlan::ATTACKED && !plan.squad.empty();
+		for (const auto &plan : s->petra_started_attacks())
+			if (plan.target_building_id == tc_id && plan.state == Simulation::AttackPlan::ATTACKED && !plan.squad.empty()) {
+				switched = true;
+				squad = plan.squad.size();
+			}
 	}
-	const size_t squad = s->petra_attack_plan().squad.size();
 	std::printf("  civic centre captured (%zu defending): lost %s, defense turned into an attack on it %s (%zu units)\n",
 	            defenders, lost ? "yes" : "no", switched ? "yes" : "no", squad);
 	CHECK(defenders > 0 && lost, "the enemy takes a defended Town Center");
 	CHECK(switched, "the defense army attacks the captured civic centre");
+}
+
+// attackManager.js update: a new Attack musters while another marches, as long as fewer
+// than min(2, 1 + popMax/100) are under way and more than 12 population slots are free.
+static void test_concurrent_attacks() {
+	for (int big = 0; big < 2; ++big) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->players_[1].phase = 2;
+		s->spawn_building_world(tx + 14.0f, tz, BLD_BARRACKS, 1, 1.0f);
+		if (big)
+			for (int k = 0; k < 16; ++k) s->spawn_building_world(tx - 16.0f + 4.0f * (float)(k % 4), tz + 12.0f + 4.0f * (float)(k / 4), BLD_HOUSE, 1, 1.0f);
+		auto &mgr = s->petra_attack_mgr_;
+		mgr.rushes_set = 1;
+		mgr.max_rushes = 0;
+		mgr.attack_number = 1;
+		// An Attack already on its way.
+		Simulation::AttackPlan marching;
+		marching.kind = PETRA_ATTACK_ATTACK;
+		marching.state = Simulation::AttackPlan::WALKING;
+		for (int k = 0; k < 4; ++k) marching.squad.push_back(s->spawn_unit(tx - 10.0f + 2.0f * (float)k, tz - 12.0f, 1, UNIT_SPEARMAN));
+		marching.initial_squad_size = marching.squad.size();
+		marching.staging_x = marching.target_x = tx;
+		marching.staging_z = marching.target_z = tz - 20.0f;
+		s->petra_started_attacks_.push_back(marching);
+		run_for(*s, 1.0f);
+		const int cap = s->pop_max(1);
+		const bool second = s->petra_attack_plan().state == Simulation::AttackPlan::MUSTER;
+		std::printf("  concurrent attacks: population cap %d, one marching, a second musters %s\n", cap, second ? "yes" : "no");
+		if (big) CHECK(cap >= 100 && second, "a second Attack musters while one marches (popMax >= 100)");
+		else CHECK(cap < 50 && !second, "a small population runs one Attack at a time");
+	}
+}
+
+// defenseManager.js garrisonUnitsInside, TYPE_DECAY: a structure just captured in enemy
+// land takes its garrison even from an attack under way, and those units leave the plan.
+static void test_decay_garrison_from_attack() {
+	for (int holdable = 0; holdable < 2; ++holdable) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 20.0f);
+		const Simulation::Building *foe_cc = nullptr;
+		for (const auto &b : s->buildings_)
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) foe_cc = &b;
+		CHECK(foe_cc != nullptr, "player 0 has a civic centre");
+		if (!foe_cc) return;
+		const uint32_t cc_id = foe_cc->id;
+		const float cx = foe_cc->x, cz = foe_cc->z, tx = cx + 14.0f, tz = cz;
+		// Petra's other soldiers are gone: only the army attacking the civic centre is left
+		// when a structure beside it turns Petra's.
+		for (size_t q = 0; q < s->units_.count; ++q)
+			if (s->units_.alive[q] && s->units_.team[q] == 1 && !petra_is_support_unit(s->units_.unit_type[q])) { s->units_.alive[q] = 0; s->units_.action_state[q] = ACTION_DYING; }
+		Simulation::AttackPlan plan;
+		plan.kind = PETRA_ATTACK_ATTACK;
+		for (int k = 0; k < 6; ++k) plan.squad.push_back(s->spawn_unit(tx + 4.0f + (float)k, tz + 8.0f, 1, UNIT_SPEARMAN, 1.0e4f));
+		plan.initial_squad_size = plan.squad.size();
+		plan.target_building_id = cc_id;
+		plan.target_x = cx; plan.target_z = cz;
+		plan.state = Simulation::AttackPlan::ATTACKED;
+		const std::vector<uint32_t> army = plan.squad;
+		s->petra_started_attacks_.push_back(plan);
+		// A fortress's garrison stops its decay; a tower's (5 of the 20 it needs) can't.
+		const uint32_t held = s->spawn_building_world(tx + (holdable ? 4.0f : 0.0f), tz, holdable ? BLD_FORTRESS : BLD_TOWER, 1);
+		int need = 0, cap = 0;
+		if (auto it = s->building_id_to_idx_.find(held); it != s->building_id_to_idx_.end()) {
+			need = s->petra_decay_garrison_min(s->buildings_[it->second]);
+			cap = s->buildings_[it->second].garrison_cap;
+		}
+		run_for(*s, 15.0f);
+		auto it = s->building_id_to_idx_.find(held);
+		const bool ours = it != s->building_id_to_idx_.end() && s->buildings_[it->second].team == 1;
+		int inside = 0, still_in_plan = 0;
+		for (uint32_t uid : army) {
+			if (ours) {
+				const auto &g = s->buildings_[it->second].garrisoned_units;
+				if (std::find(g.begin(), g.end(), uid) != g.end()) ++inside;
+			}
+			if (s->petra_in_attack_squad(uid)) ++still_in_plan;
+		}
+		std::printf("  decaying %s beside an attack: needs %d of %d, %d of the army inside, %d left in the attack\n",
+		            holdable ? "fortress" : "tower", need, cap, inside, still_in_plan);
+		if (holdable) {
+			CHECK(need > 0 && need <= cap && ours && inside == 6, "Petra pulls soldiers out of an attack to hold a decaying fortress");
+			CHECK(still_in_plan == 0, "and they leave the attack plan");
+		} else {
+			CHECK(need > cap && inside == 0, "a tower no garrison can hold takes no soldiers from the attack");
+		}
+	}
 }
 
 int main() {
@@ -1816,6 +1995,7 @@ int main() {
 	test_idle_return();
 	test_gather_limits();
 	test_decay_garrison();
+	test_decay_garrison_from_attack();
 	test_decay_destroy();
 	test_defense_by_strength();
 	test_builders_per_foundation();
@@ -1823,6 +2003,8 @@ int main() {
 	test_placement_miss_memory_exact();
 	test_defend_allies();
 	test_retake_civic_centre();
+	test_research_choices();
+	test_concurrent_attacks();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

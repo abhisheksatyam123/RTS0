@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <vector>
 
 using namespace rtso;
 
@@ -265,6 +266,87 @@ int main() {
 		p.player(0).phase = 3;
 		CHECK(std::fabs(p.batch_time_multiplier(0, BLD_STABLE, 5) - std::pow(5.0f, smod - 0.2f)) < 1e-4f);
 		CHECK(!tech_available_to_civ(TECH_STABLE_BATCH_TRAINING, CIV_PERSIANS));
+	}
+
+	// 10. Footprint.PickSpawnPoint: each trained unit spawns on its own free spot around the
+	//     footprint, the side facing the rally point first; with no room the rest of the batch
+	//     stays queued (already paid) until there is; ejected garrisons spread out the same way.
+	{
+		auto spread = [](const Simulation &s, uint8_t team, uint8_t type, float &mean_x) {
+			auto u = s.units();
+			std::vector<size_t> idx;
+			for (size_t i = 0; i < u.count; ++i) if (u.alive[i] && u.team[i] == team && u.unit_type[i] == type) idx.push_back(i);
+			const float r = unit_collision_radius(type);
+			bool apart = true;
+			mean_x = 0.0f;
+			for (size_t a = 0; a < idx.size(); ++a) {
+				mean_x += u.pos_x[idx[a]] / (float)idx.size();
+				for (size_t c = a + 1; c < idx.size(); ++c) {
+					const float dx = u.pos_x[idx[a]] - u.pos_x[idx[c]], dz = u.pos_z[idx[a]] - u.pos_z[idx[c]];
+					if (dx * dx + dz * dz < 4.0f * r * r - 1e-4f) apart = false;
+				}
+			}
+			return apart;
+		};
+		Simulation s;
+		const uint32_t b = fresh(s);
+		const Simulation::Building bb = bld(s, b);
+		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 5));
+		const float t = bld(s, b).queue.front().duration;
+		for (int k = 0; k < (int)(t / Simulation::FIXED_STEP) + 1 && count_units(s, 0, UNIT_SPEARMAN) == 0; ++k) s.tick(Simulation::FIXED_STEP);
+		float mean_x = 0.0f;
+		CHECK(count_units(s, 0, UNIT_SPEARMAN) == 5);
+		CHECK(spread(s, 0, UNIT_SPEARMAN, mean_x)); // checked on the tick they appear, before any pushing
+		auto u = s.units();
+		bool outside = true;
+		for (size_t i = 0; i < u.count; ++i)
+			if (u.alive[i] && u.unit_type[i] == UNIT_SPEARMAN && std::fabs(u.pos_x[i] - bb.x) < bb.hu && std::fabs(u.pos_z[i] - bb.z) < bb.hv) outside = false;
+		CHECK(outside);
+
+		Simulation w;
+		const uint32_t wb = fresh(w);
+		w.cmd_set_rally_point(0, wb, -60.0f, -30.0f);
+		CHECK(w.cmd_train(0, wb, UNIT_SPEARMAN, 5));
+		for (int k = 0; k < 2000 && count_units(w, 0, UNIT_SPEARMAN) == 0; ++k) w.tick(Simulation::FIXED_STEP);
+		float west = 0.0f;
+		CHECK(spread(w, 0, UNIT_SPEARMAN, west));
+		CHECK(west < bld(w, wb).x - bld(w, wb).hu); // the rally point's side
+		std::printf("spawn points: a batch of 5 on 5 spots, mean x %.1f by the building at %.1f, %.1f toward a rally point to the west\n", mean_x, bb.x, west);
+
+		// No room: a ring of enemy units around the footprint holds the batch.
+		Simulation f;
+		const uint32_t fb = fresh(f);
+		const Simulation::Building fbb = bld(f, fb);
+		const float before = total_res(f);
+		CHECK(f.cmd_train(0, fb, UNIT_SPEARMAN, 2));
+		const float paid = before - total_res(f);
+		run(f, bld(f, fb).queue.front().duration - 0.5f); // the ring closes just before the batch is done
+		CHECK(count_units(f, 0, UNIT_SPEARMAN) == 0);
+		std::vector<uint32_t> ring;
+		for (float x = fbb.x - fbb.hu - 4.0f; x <= fbb.x + fbb.hu + 4.0f; x += 1.0f)
+			for (float z = fbb.z - fbb.hv - 4.0f; z <= fbb.z + fbb.hv + 4.0f; z += 1.0f)
+				if (std::fabs(x - fbb.x) > fbb.hu || std::fabs(z - fbb.z) > fbb.hv) ring.push_back(f.spawn_unit(x, z, 1, UNIT_FEMALE_CITIZEN));
+		for (int k = 0; k < (int)(0.6f / Simulation::FIXED_STEP); ++k) f.tick(Simulation::FIXED_STEP);
+		CHECK(count_units(f, 0, UNIT_SPEARMAN) == 0);
+		CHECK(bld(f, fb).queue.size() == 1 && bld(f, fb).queue.front().count == 2);
+		f.cmd_delete(1, ring.data(), ring.size());
+		run(f, 5.0f);
+		CHECK(count_units(f, 0, UNIT_SPEARMAN) == 2 && bld(f, fb).queue.empty());
+		CHECK(std::fabs(before - paid - total_res(f)) < 0.01f); // paid once, not again
+		std::printf("spawn points: a ringed barracks keeps its batch of 2 queued, then trains it once the ring is gone\n");
+
+		// GarrisonHolder.Eject spreads the garrison out too.
+		Simulation g;
+		fresh(g);
+		const uint32_t cc = g.spawn_building_world(30.0f, 30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		std::vector<uint32_t> men;
+		for (int k = 0; k < 6; ++k) men.push_back(g.spawn_unit(30.0f + (float)k, 40.0f, 0, UNIT_SPEARMAN));
+		g.order_garrison(men.data(), men.size(), cc);
+		run(g, 15.0f);
+		CHECK(bld(g, cc).garrisoned_units.size() == 6);
+		g.order_ungarrison(cc);
+		float gx = 0.0f;
+		CHECK(count_units(g, 0, UNIT_SPEARMAN) == 6 && spread(g, 0, UNIT_SPEARMAN, gx));
 	}
 
 	if (failures) {

@@ -1335,9 +1335,12 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 36) { // Raise (param 0) or end (1) an alert
 			if (c.param == 1) sim.cmd_end_alert(pl, c.target_id);
 			else sim.cmd_raise_alert(pl, c.target_id);
-		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel.
+		} else if (c.cmd_type == 26) { // Structure upgrade — target_id=building, param 0 start / 1 cancel,
+			// target_x = which upgrade choice (the Tachara's four tribute forms).
 			if (c.param == 1) sim.cmd_cancel_upgrade(pl, c.target_id);
-			else sim.cmd_upgrade_building(pl, c.target_id);
+			else if (c.target_x >= 0.0f && c.target_x < 8.0f) sim.cmd_upgrade_building(pl, c.target_id, (int)c.target_x);
+		} else if (c.cmd_type == 45) { // Dropsite sharing — target_id=building, param 1 share / 0 stop.
+			sim.cmd_set_dropsite_sharing(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 28) { // Gate lock — target_id=building, param 1 lock / 0 unlock.
 			sim.cmd_lock_gate(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 29) { // Pack / unpack siege — param 1 pack / 0 unpack.

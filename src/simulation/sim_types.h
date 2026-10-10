@@ -156,7 +156,8 @@ enum MapType : uint8_t {
 	MAP_POMPEII = 80,
 	MAP_LATIUM = 81,
 	MAP_UNKNOWN = 82,
-	MAP_TYPE_COUNT = 83
+	MAP_SURVIVAL_OF_THE_FITTEST = 83,
+	MAP_TYPE_COUNT = 84
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -268,7 +269,8 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_ISLAND_STRONGHOLD, "island_stronghold", "Island Stronghold (RMS)", "temperate", true, "Teams start off with nearly adjacent civic centers on a small island, offering a fortified base from which to expand."},
 		{MAP_POMPEII, "pompeii", "Pompeii (RMS)", "volcanic", true, "Pompeii, an ancient Roman coastal city in Campania, buried under ash and pumice when Mount Vesuvius erupted in AD 79."},
 		{MAP_LATIUM, "latium", "Latium (RMS)", "latium", true, "The Italian peninsula: the fertile volcanic region of central western Italy where Rome was founded."},
-		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."}
+		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."},
+		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -399,7 +401,13 @@ enum BuildingType : uint8_t {
 	BLD_TEMPLE_MARS = 50,     // rome/temple_mars
 	BLD_ICE_HOUSE = 51,       // pers/ice_house
 	BLD_SUPER_DOCK = 52,      // cart/super_dock (Cothon)
-	BLD_TYPE_COUNT = 53
+	// Reached only by an Upgrade (civ_building_upgrade_only).
+	BLD_TACHARA_FOOD = 53,    // pers/tachara_food
+	BLD_TACHARA_WOOD = 54,    // pers/tachara_wood
+	BLD_TACHARA_STONE = 55,   // pers/tachara_stone
+	BLD_TACHARA_METAL = 56,   // pers/tachara_metal
+	BLD_APARTMENT = 57,       // cart/apartment
+	BLD_TYPE_COUNT = 58
 };
 
 #include "civ_building_data.h"
@@ -421,6 +429,37 @@ enum ResourceSubtype : uint8_t {
 	RES_SUB_FISH = 3, // food.fish: only fishing boats gather it
 	RES_SUB_RUINS = 4 // stone.ruins / metal.ruins (template_gaia_ruins): gather_class_ruins_rate
 };
+
+// The plant a tree or fruit supply shows: 0 A.D.'s gaia/tree/* and gaia/fruit/*
+// templates grouped by the vegetation models RTS0 has (assets/models/vegetation).
+// Only the drawing reads it; FLORA_DEFAULT lets the viewer pick from the map's biome.
+enum FloraKind : uint8_t {
+	FLORA_DEFAULT = 0,
+	FLORA_BROADLEAF = 1, // elm, maple, poplar, olive, carob, teak, banyan and other leafy trees
+	FLORA_PINE = 2,      // pine, fir, cedar, cypress, juniper
+	FLORA_PALM = 3,      // date, fan, palmyra and tropical palms
+	FLORA_OAK = 4,
+	FLORA_BAOBAB = 5,
+	FLORA_ACACIA = 6,
+	FLORA_BAMBOO = 7,
+	FLORA_BUSH = 8,      // gaia/tree/bush_* and saplings
+	FLORA_BERRY = 9,     // gaia/fruit/berry_*, grapes
+	FLORA_APPLE = 10,    // gaia/fruit/apple, fig
+	FLORA_DATE = 11,     // gaia/fruit/date
+	FLORA_COUNT = 12
+};
+
+// The FloraKind a map JSON "resources" type names ("pine", "berry", ...; tools/port_0ad_maps.py),
+// or FLORA_COUNT for a name that is not a plant ("tree" and "food" are FLORA_DEFAULT).
+inline uint8_t flora_kind_by_name(const char *name) {
+	static const char *const kNames[FLORA_COUNT] = {
+		"tree", "broadleaf", "pine", "palm", "oak", "baobab", "acacia", "bamboo", "bush", "berry", "apple", "date"};
+	for (int k = 0; k < FLORA_COUNT; ++k)
+		if (std::strcmp(name, kNames[k]) == 0) return (uint8_t)k;
+	if (std::strcmp(name, "food") == 0 || std::strcmp(name, "fruit") == 0) return FLORA_DEFAULT;
+	return FLORA_COUNT;
+}
+inline bool flora_is_fruit(uint8_t kind) { return kind == FLORA_BERRY || kind == FLORA_APPLE || kind == FLORA_DATE; }
 
 // 0 A.D. Gaia ResourceSupply Max amounts that random maps place: gaia/tree/* hold
 // 200 wood, template_gaia_ore and template_gaia_rock 1000 metal or stone, and their
@@ -476,7 +515,11 @@ enum UnitOrderFlag : uint8_t {
 	ORDER_FLAG_ALLOW_CAPTURE = 2,// Attack.js allowCapture: capture structures instead of damaging them
 	ORDER_FLAG_UNITS_ONLY = 4,   // attack-move targetClasses "Unit" (session.attackmoveUnit)
 	ORDER_FLAG_INTERRUPTED = 8,  // fighting or fleeing; go back to the order afterwards
-	ORDER_FLAG_CHEER = 16        // killed its target (UnitAI shouldCheer)
+	ORDER_FLAG_CHEER = 16,       // killed its target (UnitAI shouldCheer)
+	// ORDER_BUILD only (bit 5 holds a gather order's subtype): a forced build that reached its
+	// site (REPAIRING enter, order.data.autoharvest), so ConstructionFinished farms the field
+	// or gathers near the new dropsite.
+	ORDER_FLAG_AUTOHARVEST = 32
 };
 // A gather order keeps its resource's subtype (ResourceSubtype) in flag bits 5-7, so the
 // unit can look for the same kind once the resource is gone (UnitAI GATHER FINDINGNEWTARGET).
@@ -984,7 +1027,8 @@ struct BuildingUpgradeInfo {
 	const char *tooltip;
 };
 
-inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
+// The generic upgrades, which every civ has (one choice each).
+inline BuildingUpgradeInfo generic_building_upgrade(uint8_t from, uint8_t civ) {
 	switch (from) {
 		case BLD_SENTRY_TOWER:
 			if (civ == CIV_IBERIANS)
@@ -997,12 +1041,33 @@ inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ) {
 	}
 }
 
+// Upgrade choice k (0-based) of a `from` structure owned by a `civ` player: the
+// civ's own structure upgrades (civ_building_upgrade_table(), e.g. the Tachara's
+// four tribute forms) first, then the generic one. `to` is BLD_TYPE_COUNT past the last.
+inline BuildingUpgradeInfo building_upgrade(uint8_t from, uint8_t civ, int k = 0) {
+	const uint16_t bit = civ < 16 ? (uint16_t)(1u << civ) : 0;
+	for (const CivBuildingUpgrade *u = civ_building_upgrade_table(); u->from != BLD_TYPE_COUNT; ++u) {
+		if (u->from != from || !(u->civs & bit)) continue;
+		if (k-- == 0)
+			return {u->to, u->food_cost, u->wood_cost, u->gold_cost, u->stone_cost, u->time, u->phase, u->tooltip};
+	}
+	if (k == 0) return generic_building_upgrade(from, civ);
+	return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
+}
+
+// How many Upgrade choices building_upgrade() offers.
+inline int building_upgrade_count(uint8_t from, uint8_t civ) {
+	int n = 0;
+	while (n < 8 && building_upgrade(from, civ, n).to != BLD_TYPE_COUNT) ++n;
+	return n;
+}
+
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
 inline uint8_t building_phase_class(uint8_t type) {
 	switch (type) {
-		case BLD_HOUSE: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
+		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
 			return 1;
 		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY:
@@ -1062,6 +1127,9 @@ enum TechStat : uint8_t {
 	TSTAT_TECH_COST_FOOD, TSTAT_TECH_COST_WOOD, TSTAT_TECH_COST_STONE, TSTAT_TECH_COST_METAL, // Researcher/TechCostMultiplier
 	TSTAT_LOOT_FOOD, TSTAT_LOOT_WOOD, TSTAT_LOOT_STONE, TSTAT_LOOT_METAL, // Looter/Resource/<res>
 	TSTAT_BATCH_TIME, // Trainer/BatchTimeModifier of training structures (added)
+	TSTAT_SPREAD,          // Attack/Ranged/Projectile/Spread
+	TSTAT_GARRISON_ARROWS, // BuildingAI/GarrisonArrowMultiplier
+	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
 	TSTAT_COUNT
 };
 
@@ -1208,7 +1276,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
 	switch (type) {
 		case BLD_TOWN_CENTER: return c | TC_CIVCENTRE | TC_CIVIC;
-		case BLD_HOUSE: return c | TC_HOUSE | TC_CIVIC;
+		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_BARRACKS: return c | TC_BARRACKS;
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
 		case BLD_TOWER: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
@@ -1233,6 +1301,13 @@ inline uint64_t building_tech_classes(uint8_t type) {
 }
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
+
+// The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
+// forms research the Tachara's technologies, the apartment the house's).
+inline constexpr uint8_t building_research_base(uint8_t type) {
+	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
+	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE : type;
+}
 
 static_assert(BLD_TYPE_COUNT <= 64, "bld_bit() masks are uint64_t");
 inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << type) : 0ull; }
@@ -1916,7 +1991,8 @@ inline uint32_t civ_train_mask(uint8_t civ) {
 // Structures this civilization may build: every generic one, plus its own
 // civ-specific ones (0 A.D. structures/<civ>/, civ_building_civ_mask()).
 inline bool civ_can_build(uint8_t civ, uint8_t type) {
-	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u);
+	return type < BLD_TYPE_COUNT && civ < 16 && ((civ_building_civ_mask(type) >> civ) & 1u) &&
+	       !civ_building_upgrade_only(type);
 }
 
 inline bool civ_can_train(uint8_t civ, uint8_t type) {
@@ -2038,6 +2114,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		return cc_rubble[civ];
 	switch (type) {
 		case BLD_HOUSE:
+		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
 		case BLD_TOWER:
@@ -2057,6 +2134,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 inline const char *civ_building_foundation(uint8_t type) {
 	switch (type) {
 		case BLD_HOUSE:
+		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
 			return "foundation_3x3";

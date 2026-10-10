@@ -6709,73 +6709,85 @@
       "type": "palm",
       "x": -93.73,
       "z": -71.6,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -81.11,
       "z": -71.81,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -92.82,
       "z": -82.27,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 74.61,
       "z": 93.06,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 87.49,
       "z": 94.39,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 76.11,
       "z": 81.19,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -40.8,
       "z": 65.38,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -76.87,
       "z": 10.37,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -109.71,
       "z": -31.23,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -34.3,
       "z": -141.18,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 1.97,
       "z": -72.86,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 63.71,
       "z": -36.63,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -9205,7 +9217,8 @@
       "type": "palm",
       "x": -66.24,
       "z": -55.33,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -9814,49 +9827,49 @@
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -69.52,
       "z": -87.11,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -69.99,
       "z": -88.61,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -69.49,
       "z": -90.37,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -68.23,
       "z": -91.19,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -68.89,
       "z": -93.43,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -66.65,
       "z": -94.02,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.93,
       "z": 85.35,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 68.67,
       "z": 82.4,
       "amount": 200
@@ -9865,43 +9878,50 @@
       "type": "palm",
       "x": -38.97,
       "z": -66.41,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -4.35,
       "z": -55.53,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -52.76,
       "z": 2.62,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -99.09,
       "z": -85.26,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -88.24,
       "z": -101.3,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 97.62,
       "z": 65.98,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 76.41,
       "z": 70.94,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -13411,70 +13431,78 @@
       "type": "palm",
       "x": 4.41,
       "z": 62.28,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 1.5,
       "z": 61.35,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 28.24,
       "z": 63.67,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -27.31,
       "z": -70.63,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -24.6,
       "z": -68.35,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -19.32,
       "z": -69.28,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -9.2,
       "z": -58.57,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -38.6,
       "z": 8.95,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.12,
       "z": 83.6,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 66.34,
       "z": 81.58,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 67.17,
       "z": 79.49,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 69.43,
       "z": 80.5,
       "amount": 200
@@ -13615,13 +13643,15 @@
       "type": "palm",
       "x": 67.33,
       "z": 64.65,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 64.37,
       "z": 69.1,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -14065,43 +14095,50 @@
       "type": "palm",
       "x": 134.98,
       "z": -33.57,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 138.37,
       "z": -31.86,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 139.77,
       "z": -33.95,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 136.63,
       "z": -32.93,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 123.18,
       "z": -50.17,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -39.46,
       "z": -95.05,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 96.55,
       "z": 5.39,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "stone",
@@ -14119,55 +14156,64 @@
       "type": "palm",
       "x": -82.47,
       "z": 87.56,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -68.55,
       "z": 79.02,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -93.02,
       "z": 73.1,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -73.04,
       "z": 60.81,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 84.28,
       "z": -82.65,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 71.64,
       "z": -82.64,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 67.43,
       "z": -98.66,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 79.89,
       "z": -110.99,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 94.06,
       "z": -97.78,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
@@ -14989,112 +15035,119 @@
       "type": "palm",
       "x": -33.51,
       "z": 140.71,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -29.1,
       "z": 144.61,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -22.33,
       "z": 134.4,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 6.23,
       "z": -25.28,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -14.2,
       "z": 13.88,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 19.98,
       "z": -30.19,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -6.84,
       "z": -0.11,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 62.66,
       "z": -98.77,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 64.2,
       "z": -102.47,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 63.75,
       "z": -104.12,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 62.94,
       "z": -106.67,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 63.06,
       "z": -108.38,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": 65.01,
       "z": -107.3,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -68.88,
       "z": 68.52,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -68.04,
       "z": 70.6,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -68.69,
       "z": 73.64,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -68.29,
       "z": 75.43,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -66.46,
       "z": 71.68,
       "amount": 200
     },
     {
-      "type": "food",
+      "type": "berry",
       "x": -66.72,
       "z": 76.04,
       "amount": 200
@@ -15193,157 +15246,183 @@
       "type": "palm",
       "x": 20.12,
       "z": 134.51,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -4.28,
       "z": 72.0,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -25.46,
       "z": 112.62,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 13.77,
       "z": 88.32,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -29.81,
       "z": 132.06,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 55.29,
       "z": 141.86,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -30.41,
       "z": 91.77,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -93.36,
       "z": -20.17,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -144.72,
       "z": 28.52,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -89.28,
       "z": -98.06,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -82.91,
       "z": -100.23,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -71.02,
       "z": -84.81,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -72.1,
       "z": -70.17,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -92.93,
       "z": -90.26,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -79.09,
       "z": -94.67,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 65.42,
       "z": -79.43,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 75.81,
       "z": -107.75,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 83.19,
       "z": 63.82,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 79.57,
       "z": 66.64,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 85.57,
       "z": 61.4,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 94.42,
       "z": 95.66,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 81.76,
       "z": 60.36,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 71.84,
       "z": 77.62,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": 88.94,
       "z": 64.22,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -74.09,
       "z": 91.47,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     },
     {
       "type": "palm",
       "x": -0.32,
       "z": -139.17,
-      "amount": 300
+      "amount": 300,
+      "max_gatherers": 12
     }
   ],
   "fauna": [
@@ -17612,5 +17691,75 @@
       "angle": 2.3562,
       "scale": 0.25
     }
-  ]
+  ],
+  "terrain": {
+    "res": 320,
+    "names": [
+      "desert_sand_smooth",
+      "desert_dirt_rough",
+      "desert_dirt_rough_2",
+      "desert_sand_dunes_100_rotate",
+      "desert_cliff_egypt_1",
+      "desert_dirt_cracks",
+      "desert_dirt_rocks_3_scrub",
+      "desert_lakebed_dry_b",
+      "desert_cliff_base",
+      "desert_dirt_rocks_2",
+      "desert_sand_stones",
+      "desert_forestfloor_palms",
+      "desert_city_tile",
+      "desert_city_tile_plaza",
+      "desert_dirt_rocks_1",
+      "savanna_tile_a",
+      "desert_lakebed_dry",
+      "desert_dirt_rocks_3",
+      "desert_farmland",
+      "desert_sand_wet",
+      "desert_sand_smooth_b",
+      "desert_sand_dunes_rocks",
+      "desert_sand_dunes_100",
+      "desert_sand_scrub"
+    ],
+    "rle": "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AgATEgMABBSPAAUGAAAMEgcLAQooEwMACQsQAAkLAQAAAxETCgsCABMSAwADFHUABgMUAAMGDhIGCwEKKRMCAAkLEAAJCwEAFBMAAAkLAQAUEnsACAMTAAIGDxIFCwIKKBMDAAcLEQAJCwEAFhMBAAgLAAAUEnoACgMUABASBQsBCikTAgAICxAACQsCABcTAQAHCwAAFBJ5AAwDAAAFAwwAEBIFCwEKKBMDAAcLEQAJCwEAGBMCAAcLFBJ2ABcDCwAQEgULAQooEwIABwsRAAkLAQAaEwEABwsUEnUAGQMKABASBAsAAAEKJxMDAAcLEQAJCwAAHBMBAAYLAAMUEi8ABRY9ABsDCAAREgQLAgomEwMABwsSAAkLAAAcEwEABwsAAxMSKAAOFjoAHQMHABESBAsCCiUTAwAICxEACQsAAB4TAQAGCwADExIlABIWOAAfAwYAERIECwEKJRMDAAgLEgAJCyATAAAGCwADAAASEiUAExY3AB8DBgAREgQLAQojEwQACQsSAAgLAAAgEwAABwsAABISFQACCwwAExY3AB8DBQASEgQLAQohEwUACQsTAAgLIhMAAAcLAAASEhQAAwsHABgWNgAfAwUAEhIECwEKHxMGAAoLEwAHCwAAIhMAAAcLAAASEhQAAwsGABkWNgAfAwUAEhIECwEKGRMBCgATCAAKCxQABwsAACITAAAICxISFAAECwUAGhY2AB0DBgASEgQLAQoWEwAABgoFAAsLFAAHCwAAIxMAAAgLEhIUAAQLBAAdFjQAGwMHABISBQsAChYTBwoBAA4LFQAGCwEAJBMAAAcLEhIVAAQLAQAfFjUABAMCABEDCAAREgYLAAAACxQTAwoEAA8LFQAHCwEAJRMHCxISFQAECwEAIRY7AA0DDAAREgYLAQAUEwIAFAsWAAYLAQAnEwcLERIWAAMLAAAjFjsACwMNABISBgsAABITBAATCxcABgsBACcTAAAGCxESGwAkFjsACQMOABISBgsBABETAwATCxcABwsBACgTAAAFCxESGwAlFjsABwMPABMSBgsBCgAADhMBCgAAEwsZAAYLAgAoEwAABgsQEhsAIBYAAAQWOwAFAxEAEhIHCwEKAQAJEwEAAgoAABILGgAGCwIAKBMAAAYLEBIIAAAGAxEABgwAHhYAAwIAAxZUABISCAsFAAETAQoAAAQK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"
+  },
+  "environment": {
+    "sky_set": "cloudless",
+    "sun_color": [
+      0.7765,
+      0.749,
+      0.5765
+    ],
+    "sun_elevation": 0.773126,
+    "sun_rotation": -0.650408,
+    "ambient_color": [
+      0.3922,
+      0.4745,
+      0.6549
+    ],
+    "fog_color": [
+      0.8588,
+      0.8039,
+      0.6118
+    ],
+    "fog_factor": 0.002881,
+    "fog_thickness": 0.313477,
+    "water_type": "clap",
+    "water_color": [
+      0.4824,
+      0.5843,
+      0.8118
+    ],
+    "water_tint": [
+      0.5373,
+      0.7373,
+      0.8941
+    ],
+    "water_waviness": 1.0,
+    "water_murkiness": 0.71875,
+    "brightness": 0.008789,
+    "contrast": 0.720703,
+    "saturation": 0.99,
+    "bloom": 0.1999,
+    "post_effect": "default"
+  }
 }

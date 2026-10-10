@@ -118,8 +118,13 @@ static void test_attack_in_range() {
 	check(hp_of(s, tgt) == hp0 && s.projectiles().empty(), "holds fire while unpacking");
 	run(s, 1.4f);
 	check(pack_of(s, cat) == PACK_UNPACKED, "unpacked after 10 s");
-	run(s, 8.0f);
-	check(hp_of(s, tgt) < hp0, "fires once unpacked");
+	// PrepareTime (3 s) after unpacking it shoots; a stone can land wide (Spread).
+	bool fired = false;
+	for (int i = 0; i < 40; ++i) {
+		s.tick(DT);
+		fired |= !s.projectiles().empty();
+	}
+	check(fired || hp_of(s, tgt) < hp0, "fires once unpacked");
 	check(std::fabs(x_of(s, cat)) < 0.3f, "stays put while firing");
 }
 
@@ -168,6 +173,7 @@ static void test_out_of_range() {
 	const float r = s.unit_info_at(idx_of(s, bolt)).attack_range;
 	uint32_t tgt = dummy(s, -40.0f + r + 20.0f, 0.0f);
 	const float hp0 = hp_of(s, tgt);
+	s.set_reveal_map(true); // the target stands beyond its vision: let the player see it (CheckTargetVisible)
 	s.order_attack(&bolt, 1, tgt);
 	run(s, 1.0f);
 	check(pack_of(s, bolt) == PACK_PACKING, "packs to chase a target out of range");

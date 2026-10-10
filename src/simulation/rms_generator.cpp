@@ -1,4 +1,5 @@
 #include "rms_generator.h"
+#include "terrain_biomes.h"
 #include "simulation.h"
 #include "heightmap_images.h"
 #include <cmath>
@@ -7,6 +8,7 @@
 #include <cstring>
 #include <limits>
 #include <queue>
+#include <unordered_map>
 
 namespace rtso {
 
@@ -3514,6 +3516,120 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 		++i;
 	}
 	for (const auto &sp : spawns) hm.level_area(sp.x, sp.z, 14.0f, 4.0f, sp.base_height);
+}
+
+// survivalofthefittest.js heights times this (0 A.D. metres to RTS0 random-map units).
+constexpr float kSurvivalHeight = 0.35f;
+
+void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
+	// survivalofthefittest.js: everything starts as a plateau at heightHill (30); a central
+	// area (0.15 of the map across) and a passage from it to the map edge between each pair
+	// of neighbours are cut down to heightLand (3). Players sit on the plateau at 0.3, their
+	// attackers come from 0.45 behind them; hills (55) stand on the rest of the plateau.
+	const float k = kSurvivalHeight;
+	water_h = -5.0f;
+	hm.init(hm.res, hm.map_half, 30.0f * k);
+	const float half = hm.map_half, size = 2.0f * half;
+	const int n = std::max(1, num_players);
+	hm.level_area(0.0f, 0.0f, 0.15f * size, 3.0f, 3.0f * k);
+	const float start = rng.range_float(0.0f, 6.2831853f);
+	place_ring_spawns(hm, spawns, num_players, 0.3f * size, start, 6.2831853f, 30.0f * k);
+	// Passages: PathPlacer(mapCenter, passage[i], scaleByMapSize(14, 24)), smoothed over 4 tiles.
+	const float width = (float)scale_by_map_size(14, 24, half);
+	for (int i = 0; i < n; ++i) {
+		const float a = start + 3.14159265f / (float)n + 6.2831853f * (float)i / (float)n;
+		const float ex = std::cos(a) * 0.5f * size, ez = std::sin(a) * 0.5f * size;
+		const float len = std::hypot(ex, ez);
+		for (float t = 0.0f; t <= len; t += 2.0f)
+			hm.level_area(ex * t / len, ez * t / len, width * 0.5f, 4.0f, 3.0f * k);
+	}
+	// The plateau's hills, clear of each base, its attacker point and the halfway point
+	// (clPlayer) and of the low land.
+	auto clear = [&](float x, float z, float r) {
+		for (int i = 0; i < n; ++i) {
+			const float a = start + 6.2831853f * (float)i / (float)n;
+			for (float f : {0.3f, 0.375f, 0.45f})
+				if (std::hypot(x - std::cos(a) * f * size, z - std::sin(a) * f * size) < 20.0f + r) return false;
+		}
+		return true;
+	};
+	const int hills = scale_by_map_size(3, 12, half) * n;
+	for (int i = 0, tries = 0; i < hills && tries < hills * 40; ++tries) {
+		const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+		const float r = rng.range_float(4.0f, 8.0f);
+		if (std::hypot(x, z) > half - r - 2.0f || !clear(x, z, r) || hm.sample_world(x, z) < 30.0f * k - 0.5f) continue;
+		bool flat = true;
+		for (int d = 0; d < 8 && flat; ++d)
+			flat = hm.sample_world(x + std::cos(0.785398f * d) * (r + 5.0f), z + std::sin(0.785398f * d) * (r + 5.0f)) >= 30.0f * k - 0.5f;
+		if (!flat) continue;
+		hm.raise_plateau(x, z, r, 0.0f, 0.0f, 25.0f * k, 3.0f);
+		++i;
+	}
+	for (auto &sp : spawns) sp.base_height = 30.0f * k;
+}
+
+void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
+	const float k = kSurvivalHeight;
+	const float half = hm.map_half, size = 2.0f * half;
+	const int n = (int)spawns.size();
+	const float land_r = 0.15f * size;
+	for (int i = 0; i < n; ++i) {
+		const auto &sp = spawns[(size_t)i];
+		const uint8_t team = sp.team;
+		const float a = std::atan2(sp.z, sp.x);
+		// getStartingEntities filtered to the civic centre and the infantry.
+		sim.spawn_building_world(sp.x, sp.z, BLD_TOWN_CENTER, team, 1.0f);
+		const float fx = sp.forward_dir_x, fz = sp.forward_dir_z, rx = -fz, rz = fx;
+		sim.spawn_unit(sp.x + fx * 6.0f + rx * 2.0f, sp.z + fz * 6.0f + rz * 2.0f, team, UNIT_SPEARMAN);
+		sim.spawn_unit(sp.x + fx * 6.0f - rx * 2.0f, sp.z + fz * 6.0f - rz * 2.0f, team, UNIT_SPEARMAN);
+		sim.spawn_unit(sp.x + fx * 5.0f + rx * 4.5f, sp.z + fz * 5.0f + rz * 4.5f, team, UNIT_ARCHER);
+		sim.spawn_unit(sp.x + fx * 5.0f - rx * 4.5f, sp.z + fz * 5.0f - rz * 4.5f, team, UNIT_ARCHER);
+		// The treasure seeker: findLocationInDirectionBasedOnHeight(player, centre, -3, 3.5, 3),
+		// the first spot towards the centre down at the low land, then 3 tiles on.
+		float wx = sp.x, wz = sp.z;
+		const float d = std::hypot(sp.x, sp.z);
+		for (float t = 0.0f; t < d; t += 0.5f) {
+			const float x = sp.x - std::cos(a) * t, z = sp.z - std::sin(a) * t;
+			if (hm.sample_world(x, z) <= 3.5f * k) {
+				wx = x - std::cos(a) * 3.0f;
+				wz = z - std::sin(a) * 3.0f;
+				break;
+			}
+		}
+		sim.spawn_unit(wx, wz, team, UNIT_FEMALE_CITIZEN);
+		// The attacker spawn point, owned by the player.
+		sim.add_trigger_point('A', std::cos(a) * 0.45f * size, std::sin(a) * 0.45f * size, team);
+	}
+	// Treasure points B, C and D: scaleByMapSize(40, 140) each in the central area,
+	// 5 tiles inside its edge.
+	const int count = scale_by_map_size(40, 140, half);
+	for (uint8_t ref : {(uint8_t)'B', (uint8_t)'C', (uint8_t)'D'})
+		for (int i = 0, tries = 0; i < count && tries < count * 100; ++tries) {
+			const float r = (land_r - 5.0f) * std::sqrt(rng.next_float()), t = rng.range_float(0.0f, 6.2831853f);
+			const float x = std::cos(t) * r, z = std::sin(t) * r;
+			if (hm.sample_world(x, z) > 3.0f * k + 0.5f) continue;
+			sim.add_trigger_point(ref, x, z);
+			++i;
+		}
+	// Forests and straggler trees in the central area (stayClasses(clLand, 4)), clear of
+	// the treasure seekers.
+	auto near_women = [&](float x, float z) {
+		for (const auto &sp : spawns) {
+			const float a = std::atan2(sp.z, sp.x);
+			if (std::hypot(x - std::cos(a) * land_r, z - std::sin(a) * land_r) < 8.0f) return true;
+		}
+		return false;
+	};
+	const int forests = scale_by_map_size(3, 10, half);
+	for (int f = 0; f < forests; ++f) {
+		const float r = (land_r - 8.0f) * std::sqrt(rng.next_float()), t = rng.range_float(0.0f, 6.2831853f);
+		const float cx = std::cos(t) * r, cz = std::sin(t) * r;
+		if (near_women(cx, cz)) continue;
+		const int trees = rng.range_int(4, 8);
+		for (int j = 0; j < trees; ++j)
+			sim.spawn_resource_world(cx + rng.range_float(-3.0f, 3.0f), cz + rng.range_float(-3.0f, 3.0f), RES_WOOD, 800);
+	}
+	(void)config;
 }
 
 // Map-specific entities of the trigger maps.
@@ -8034,6 +8150,9 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 		case MAP_EXTINCT_VOLCANO:
 			synth_extinct_volcano(hm, rng, water_h, spawns, config.num_players);
 			break;
+		case MAP_SURVIVAL_OF_THE_FITTEST:
+			synth_survival_of_the_fittest(hm, rng, water_h, spawns, config.num_players);
+			break;
 		case MAP_AEGEAN_SEA:
 			synth_aegean_sea(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
@@ -8113,10 +8232,18 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 	}
 
-	ease_routes_between_bases(hm, spawns, water_h);
+	// Survival of the Fittest's cliffs are meant to keep the bases apart; the waves come over them.
+	if (config.map_type != MAP_SURVIVAL_OF_THE_FITTEST) ease_routes_between_bases(hm, spawns, water_h);
 
 	// Transfer heightmap to simulation
 	sim.set_terrain_data(hm.data, hm.res, water_h);
+
+	// Survival of the Fittest places only its own entities: civic centres, infantry, the
+	// treasure seekers, trigger points and the central forests (no mines, hunt or relics).
+	if (config.map_type == MAP_SURVIVAL_OF_THE_FITTEST) {
+		place_survival_entities(sim, hm, spawns, rng, config);
+		return true;
+	}
 
 	// Distribute balanced player bases and starter clusters
 	distribute_player_bases(sim, hm, spawns, rng, config);
@@ -8137,6 +8264,162 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 
 	return true;
+}
+
+void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed) {
+	const BiomeFlora *f = biome_flora(sim.current_map_biome().c_str());
+	if (!f) return;
+	auto hash = [&](int x, int z, uint32_t salt) {
+		uint32_t h = seed * 0x9E3779B1u ^ salt * 0x85EBCA77u ^ (uint32_t)x * 0xC2B2AE3Du ^ (uint32_t)z * 0x27D4EB2Fu;
+		h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+		return h;
+	};
+	auto options = [](const uint8_t (*set)[2]) { int n = 0; while (n < 3 && set[n][0] != FLORA_DEFAULT) ++n; return n; };
+	// setupBiome_<biome>'s pickRandom, once per map.
+	const uint8_t *t12 = f->tree12[hash(0, 0, 1) % (uint32_t)options(f->tree12)];
+	const uint8_t *t45 = f->tree45[hash(0, 0, 2) % (uint32_t)options(f->tree45)];
+	int n3 = 0;
+	while (n3 < 5 && f->tree3[n3] != FLORA_DEFAULT) ++n3;
+	const uint8_t t3 = f->tree3[hash(0, 0, 3) % (uint32_t)n3];
+
+	const auto rv = sim.resources();
+	// Trees per 2-tile cell, to tell forests from stragglers.
+	std::unordered_map<uint64_t, int> cells;
+	auto cell_key = [](int cx, int cz) { return (uint64_t)(uint32_t)cx << 32 | (uint32_t)cz; };
+	for (size_t r = 0; r < rv.count; ++r)
+		if (rv.type[r] == RES_WOOD && rv.subtype[r] == RES_SUB_NONE)
+			++cells[cell_key((int)std::floor(rv.x[r] * 0.5f), (int)std::floor(rv.z[r] * 0.5f))];
+	for (size_t r = 0; r < rv.count; ++r) {
+		const int tx = (int)std::floor(rv.x[r]), tz = (int)std::floor(rv.z[r]);
+		if (rv.type[r] == RES_FOOD && rv.subtype[r] == RES_SUB_NONE) {
+			sim.set_resource_flora(rv.id[r], f->fruit);
+			continue;
+		}
+		if (rv.type[r] != RES_WOOD || rv.subtype[r] != RES_SUB_NONE) continue;
+		const int cx = (int)std::floor(rv.x[r] * 0.5f), cz = (int)std::floor(rv.z[r] * 0.5f);
+		int near = -1; // the tree itself
+		for (int dz = -1; dz <= 1; ++dz)
+			for (int dx = -1; dx <= 1; ++dx) {
+				auto it = cells.find(cell_key(cx + dx, cz + dz));
+				if (it != cells.end()) near += it->second;
+			}
+		const uint32_t h = hash(tx, tz, 4);
+		uint8_t kind;
+		if (near >= 4) {
+			// createDefaultForests: each forest is either a tree1/tree2 or a tree4/tree5 mix.
+			const bool second = hash((int)std::floor(rv.x[r] / 12.0f), (int)std::floor(rv.z[r] / 12.0f), 5) & 1u;
+			kind = (second ? t45 : t12)[h & 1u];
+		} else {
+			// createStragglerTrees: [tree1, tree2, tree4, tree3].
+			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
+			kind = pick[h % 4u];
+		}
+		sim.set_resource_flora(rv.id[r], kind);
+	}
+}
+
+void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed) {
+	const float half = sim.map_half();
+	const int res = std::clamp((int)std::lround(2.0f * half), 1, Simulation::MAX_TERRAIN_TILE_RES);
+	const float cell = 2.0f * half / (float)res;
+	const TerrainBiome &b = terrain_biome(sim.current_map_biome().c_str());
+	Simulation::TerrainTiles t;
+	t.res = res;
+	t.tiles.assign((size_t)res * (size_t)res, 0);
+	auto index_of = [&](const char *name) -> uint8_t {
+		for (size_t i = 0; i < t.names.size(); ++i)
+			if (t.names[i] == name) return (uint8_t)i;
+		t.names.push_back(name);
+		return (uint8_t)(t.names.size() - 1);
+	};
+	auto hash = [&](int x, int z, uint32_t salt) {
+		uint32_t h = seed * 0x9E3779B1u ^ salt * 0x85EBCA77u ^ (uint32_t)x * 0xC2B2AE3Du ^ (uint32_t)z * 0x27D4EB2Fu;
+		h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+		return h;
+	};
+	// rmgen's TerrainPainter with an array: one of the names per tile.
+	auto pick = [&](const char *const *list, int n, int x, int z, uint32_t salt) {
+		int k = 0;
+		while (k < n && list[k]) ++k;
+		return index_of(k ? list[hash(x, z, salt) % (uint32_t)k] : b.main[0]);
+	};
+	// Smooth value noise for clumped patches (createPatches' blobs), about `scale` tiles across.
+	auto noise = [&](float x, float z, float scale, uint32_t salt) {
+		const float fx = x / scale, fz = z / scale;
+		const int x0 = (int)std::floor(fx), z0 = (int)std::floor(fz);
+		const float tx = fx - (float)x0, tz = fz - (float)z0;
+		auto v = [&](int a, int c) { return (float)(hash(a, c, salt) & 0xFFFF) / 65535.0f; };
+		const float sx = tx * tx * (3.0f - 2.0f * tx), sz = tz * tz * (3.0f - 2.0f * tz);
+		const float a = v(x0, z0) + (v(x0 + 1, z0) - v(x0, z0)) * sx;
+		const float c = v(x0, z0 + 1) + (v(x0 + 1, z0 + 1) - v(x0, z0 + 1)) * sx;
+		return a + (c - a) * sz;
+	};
+	// Masks: forest floor round trees, dirt round mines, road round civic centres.
+	std::vector<uint8_t> forest(t.tiles.size(), 0), mine(t.tiles.size(), 0), road(t.tiles.size(), 0);
+	auto stamp = [&](std::vector<uint8_t> &m, float x, float z, float r, uint8_t v) {
+		const int cx = (int)std::floor((x + half) / cell), cz = (int)std::floor((z + half) / cell);
+		const int rr = (int)std::ceil(r / cell);
+		for (int dz = -rr; dz <= rr; ++dz)
+			for (int dx = -rr; dx <= rr; ++dx) {
+				const int tx = cx + dx, tz = cz + dz;
+				if (tx < 0 || tz < 0 || tx >= res || tz >= res) continue;
+				const float wx = -half + ((float)tx + 0.5f) * cell - x, wz = -half + ((float)tz + 0.5f) * cell - z;
+				if (wx * wx + wz * wz > r * r) continue;
+				uint8_t &d = m[(size_t)tz * (size_t)res + (size_t)tx];
+				d = std::max(d, v);
+			}
+	};
+	const auto rv = sim.resources();
+	for (size_t i = 0; i < rv.count; ++i) {
+		if (!rv.alive[i]) continue;
+		const uint8_t sub = rv.subtype ? rv.subtype[i] : 0;
+		if (rv.type[i] == RES_WOOD) { stamp(forest, rv.x[i], rv.z[i], 2.5f, 1); stamp(forest, rv.x[i], rv.z[i], 1.5f, 2); }
+		else if ((rv.type[i] == RES_GOLD || rv.type[i] == RES_STONE) && sub != RES_SUB_FISH) stamp(mine, rv.x[i], rv.z[i], 2.5f, 1);
+	}
+	// placePlayerBase's CityPatch: road inside a third of the base radius
+	// (defaultPlayerBaseRadius, 15-25 tiles), wild road round it.
+	const float base_r = 15.0f + 10.0f * std::clamp((2.0f * half - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f);
+	for (const auto &bd : sim.buildings())
+		if (bd.type == BLD_TOWN_CENTER) { stamp(road, bd.x, bd.z, base_r / 3.0f + 1.5f, 1); stamp(road, bd.x, bd.z, base_r / 3.0f * 0.6f, 2); }
+	const float water = sim.water_height();
+	const bool has_water = water > -0.5f;
+	const float metre = HEIGHT_PER_METRE;
+	for (int tz = 0; tz < res; ++tz)
+		for (int tx = 0; tx < res; ++tx) {
+			const size_t j = (size_t)tz * (size_t)res + (size_t)tx;
+			const float x = -half + ((float)tx + 0.5f) * cell, z = -half + ((float)tz + 0.5f) * cell;
+			const float h = sim.get_terrain_height(x, z);
+			const float e = 0.5f * cell;
+			const float gx = (sim.get_terrain_height(x + e, z) - sim.get_terrain_height(x - e, z)) / (2.0f * e);
+			const float gz = (sim.get_terrain_height(x, z + e) - sim.get_terrain_height(x, z - e)) / (2.0f * e);
+			const float slope = std::sqrt(gx * gx + gz * gz); // RTS0 height units per unit, as 0 A.D. metres per 4 m tile x 0.25
+			uint8_t v;
+			// Under water, the shore band up to 1.5 m above it, the blend to 3 m.
+			if (has_water && h < water) v = index_of(b.water);
+			else if (has_water && h < water + 1.5f * metre) v = index_of(b.shore);
+			// 0 A.D. rmgen paints cliffs on slopes of 2 m per tile and steeper, hills from 1.25.
+			else if (slope >= 2.0f * metre) v = pick(b.cliff, 2, tx, tz, 1);
+			else if (slope >= 1.25f * metre) v = pick(b.hill, 2, tx, tz, 2);
+			else if (road[j] == 2) v = index_of(b.road);
+			else if (road[j] == 1) v = index_of(b.road_wild);
+			else if (forest[j] == 2) v = index_of(b.forest[(hash(tx, tz, 3) & 1) && b.forest[1] ? 1 : 0]);
+			else if (forest[j] == 1) v = (hash(tx, tz, 4) & 1) ? index_of(b.forest[0]) : pick(b.main, 4, tx, tz, 5);
+			else if (mine[j]) v = pick(b.dirt, 2, tx, tz, 6);
+			else if (has_water && h < water + 3.0f * metre) v = index_of(b.shore_blend);
+			else {
+				// createPatches over the main terrain: [main, tier1], [tier1, tier2],
+				// [tier2, tier3] clumps, then tier4 and dirt patches.
+				const float n1 = noise(x, z, 9.0f, 7), n2 = noise(x, z, 6.0f, 8), n3 = noise(x, z, 5.0f, 9);
+				if (n1 > 0.78f) v = index_of(b.tier[2] ? b.tier[2] : b.main[0]);
+				else if (n1 > 0.70f) v = index_of(b.tier[1] ? b.tier[1] : b.main[0]);
+				else if (n1 > 0.62f) v = index_of(b.tier[0] ? b.tier[0] : b.main[0]);
+				else if (n2 > 0.80f) v = index_of(b.tier[3] ? b.tier[3] : b.main[0]);
+				else if (n3 > 0.86f) v = pick(b.dirt, 2, tx, tz, 10);
+				else v = pick(b.main, 4, tx, tz, 11);
+			}
+			t.tiles[j] = v;
+		}
+	sim.set_terrain_tiles(std::move(t));
 }
 
 void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config) {

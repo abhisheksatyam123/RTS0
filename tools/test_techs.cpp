@@ -524,6 +524,42 @@ int main() {
 	CHECK(c.player_phase() == 2);
 	CHECK(tm.compute_sim_hash(c) == tm.compute_sim_hash(d));
 
+	// Stat technologies (Archery Training, Bolt Accuracy, Lookouts, Exploration, Carrier
+	// Pigeons, Crenellations, Murder Holes) and the Vision/Range rows of Healing Range and
+	// Arrow Shooters: multiplied first, then added metres x0.28.
+	{
+		static Simulation v;
+		fresh(v);
+		v.set_player_civ(CIV_CARTHAGINIANS);
+		auto idx = [&](uint32_t id) { auto u = v.units(); for (size_t i = 0; i < u.count; ++i) if (u.id[i] == id) return i; return (size_t)0; };
+		const size_t archer = idx(v.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER));
+		const size_t ship = idx(v.spawn_unit(0.0f, 10.0f, 0, UNIT_TRIREME));
+		const size_t healer = idx(v.spawn_unit(0.0f, 20.0f, 0, UNIT_HEALER));
+		const uint32_t outpost = v.spawn_building_world(20.0f, 20.0f, BLD_OUTPOST, 0, 1.0f);
+		const uint32_t tower = v.spawn_building_world(30.0f, -20.0f, BLD_TOWER, 0, 1.0f);
+		auto building = [&](uint32_t id) -> const Simulation::Building & { return v.buildings_[v.building_id_to_idx_[id]]; };
+		const float ship_vis = v.unit_vision_at(ship), healer_vis = v.unit_vision_at(healer);
+		const float outpost_vis = v.building_vision_range(building(outpost)), tower_vis = v.building_vision_range(building(tower));
+		CHECK(std::fabs(v.unit_tech_mods(0, UNIT_ARCHER, v.units_.tmpl[archer]).spread - 1.0f) < 1e-6f);
+		for (uint8_t t : {TECH_ARCHER_ATTACK_SPREAD, TECH_SHIP_VISION, TECH_EXPLORATION, TECH_OUTPOST_VISION,
+		                  TECH_TOWER_CRENELLATIONS, TECH_TOWER_MURDERHOLES, TECH_HEAL_RANGE, TECH_TOWER_RANGE})
+			v.complete_research(0, t);
+		CHECK(std::fabs(v.unit_tech_mods(0, UNIT_ARCHER, v.units_.tmpl[archer]).spread - 0.8f) < 1e-6f);
+		CHECK(std::fabs(v.unit_vision_at(ship) - ship_vis * 1.1f * 1.2f) < 1e-3f);
+		CHECK(std::fabs(v.unit_vision_at(healer) - (healer_vis + 5.0f * 0.28f)) < 1e-3f);
+		CHECK(std::fabs(v.building_vision_range(building(outpost)) - outpost_vis * 1.333333f) < 1e-3f);
+		CHECK(std::fabs(v.building_vision_range(building(tower)) - (tower_vis + 8.0f * 0.28f)) < 1e-3f);
+		CHECK(std::fabs(v.tech_mods(0).bld_garrison_arrows[BLD_TOWER] - 1.4f) < 1e-6f);
+		CHECK(v.tech_mods(0).bld_min_range[BLD_TOWER] == 0.0f && v.tech_mods(0).bld_min_range[BLD_FORTRESS] == 0.0f);
+		CHECK(v.tech_mods(0).bld_min_range[BLD_BARRACKS] < 0.0f);
+		// Bolt Accuracy is the arsenal's, and not every civ's (siege_bolt_accuracy notciv list).
+		CHECK(tech_info(TECH_SIEGE_BOLT_ACCURACY).researcher == BLD_ARSENAL);
+		CHECK(!tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_PERSIANS) && tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_ROMANS));
+		CHECK(!tech_available_to_civ(TECH_ARCHER_ATTACK_SPREAD, CIV_ROMANS));
+		std::printf("stat techs: ship vision %.2f -> %.2f, outpost %.2f -> %.2f, tower %.2f -> %.2f\n", ship_vis,
+		            v.unit_vision_at(ship), outpost_vis, v.building_vision_range(building(outpost)), tower_vis, v.building_vision_range(building(tower)));
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
