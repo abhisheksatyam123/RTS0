@@ -8566,32 +8566,7 @@ void Simulation::tick_combat(float dt) {
 		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 
-		// GetAttackEffectsData: the attack's Damage after technologies, rank and attack
-		// auras, as against units. Siege demolition power comes from 0 A.D.'s own crush
-		// damage (rams 150, stone throwers 250 in their templates).
-		float att_dmg[3];
-		unit_attack_effects(i, att_dmg);
-		float hack_dmg = att_dmg[0];
-		float pierce_dmg = att_dmg[1];
-		float crush_dmg = att_dmg[2];
-
-		// The structure template's own Resistance/Entity/Damage levels (a civic centre
-		// is 25 hack, 35 pierce, 3 crush) and the attacker's Bonuses against it.
-		const CombatProfile &b_combat = building_combat(b.type);
-		const float b_bonus = combat_bonus(unit_combat_at(i), b_combat, civ_of(b.team));
-		hack_dmg *= b_bonus;
-		pierce_dmg *= b_bonus;
-		crush_dmg *= b_bonus;
-		float b_armor[3];
-		structure_resistance(b, b_armor);
-		const float b_hack_armor = b_armor[0];
-		const float b_pierce_armor = b_armor[1];
-		const float b_crush_armor = b_armor[2];
-
-		// Attack.js GetTotalAttackEffects has no minimum: arrows barely scratch stone.
-		float bld_dmg = hack_dmg * powf(0.9f, b_hack_armor) + pierce_dmg * powf(0.9f, b_pierce_armor) +
-				crush_dmg * powf(0.9f, b_crush_armor);
-
+		const float bld_dmg = unit_damage_to_structure(i, b);
 		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i],
 				civ_of(units_.team[i]));
 
@@ -8600,9 +8575,17 @@ void Simulation::tick_combat(float dt) {
 			float sy = (ut == UNIT_TRIREME) ? 3.0f : (ut == UNIT_CATAPULT ? 2.0f : 1.4f);
 			uint8_t vis = (ut == UNIT_CATAPULT) ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
 			float launch_y = unit_height(i) + sy;
-			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
+			// Attack.js PerformAttack: aimed at the structure's position and scattered by
+			// Spread as against units; tick_projectiles decides what it lands on.
+			const float dist = std::sqrt(dx * dx + dz * dz);
+			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], ut, units_.tmpl[i]).spread : 1.0f;
+			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
+			float disp_x = 0.0f, disp_z = 0.0f;
+			random_normal_2d(disp_x, disp_z);
+			const float land_x = b.x + disp_x * sigma, land_z = b.z + disp_z * sigma;
+			float land_y = get_terrain_height(land_x, land_z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
-			           b.x, land_y, b.z,
+			           land_x, land_y, land_z,
 			           bld_dmg, units_.team[i], b.id, EFFECT_NONE, 2, true, vis, units_.id[i],
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
@@ -8782,7 +8765,11 @@ void Simulation::tick_combat(float dt) {
 				structure_resistance(ob, oa);
 				// Attack.js has no minimum damage: arrows barely scratch stone.
 				const float dmg = hack * powf(0.9f, oa[0]) + pierce * powf(0.9f, oa[1]) + crush * powf(0.9f, oa[2]);
-				fire_arrow(b.x, launch_y, b.z, ob.x, get_terrain_height(ob.x, ob.z) + 1.0f, ob.z,
+				const float sigma = spread * std::hypot(ob.x - b.x, ob.z - b.z) / 100.0f;
+				float disp_x = 0.0f, disp_z = 0.0f;
+				random_normal_2d(disp_x, disp_z);
+				const float lx = ob.x + disp_x * sigma, lz = ob.z + disp_z * sigma;
+				fire_arrow(b.x, launch_y, b.z, lx, get_terrain_height(lx, lz) + 1.0f, lz,
 						dmg, b.team, ob.id, 0, 1, true, 0, b.id);
 				continue;
 			}
@@ -9249,11 +9236,9 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 		// A structure's arrow aimed at a unit and landing on an animal.
 		const auto bit = building_id_to_idx_.find(p.source_id);
 		if (bit != building_id_to_idx_.end()) {
-			const Building &b = buildings_[bit->second];
-			const BuildingAIInfo &ai = building_ai_info(b.type);
 			const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
-			const float pierce = ai.pierce * (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_attack[b.type] : 1.0f);
-			dmg = ai.hack * powf(0.9f, fi.hack_armor) + pierce * powf(0.9f, fi.pierce_armor) + ai.crush * powf(0.9f, fi.crush_armor);
+			const float res[3] = {fi.hack_armor, fi.pierce_armor, fi.crush_armor};
+			dmg = structure_arrow_damage(buildings_[bit->second], res);
 		}
 	}
 	fauna_.hp[f] -= dmg;
@@ -9294,6 +9279,45 @@ int32_t Simulation::projectile_hit_unit(const Projectile &p) const {
 	return best;
 }
 
+// PositionHelper.TestCollision against a structure: the landing point is on its footprint.
+bool Simulation::projectile_lands_in(const Projectile &p, const Building &b) const {
+	return !b.wrecked && b.hp > 0.0f && edge_distance(b, p.target_x, p.target_z) <= 0.0f;
+}
+
+// The enemy structure whose footprint holds where projectile p lands, or -1.
+int32_t Simulation::projectile_hit_structure(const Projectile &p) const {
+	for (size_t o = 0; o < buildings_.size(); ++o) {
+		const Building &b = buildings_[o];
+		if (!is_hostile(p.team, b.team) || !projectile_lands_in(p, b)) continue;
+		return (int32_t)o;
+	}
+	return -1;
+}
+
+// Projectile p hits structure b (Attacking.HandleAttackEffects): its effects against the
+// structure's resistance at impact; a structure brought to nothing is razed.
+void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
+	const float dmg = projectile_damage_to_structure(p, b);
+	note_attacked(p.source_id, p.team, b.id, b.team, true, dmg);
+	b.hp -= dmg;
+	if (b.team == 0)
+		raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
+	if (b.hp < b.max_hp * 0.33f)
+		b.is_burning = true;
+	if (b.hp > 0.0f) return;
+	if (p.team == 0)
+		record_.enemies_killed++;
+	else if (b.team == 0)
+		record_.buildings_destroyed++;
+	if (b.team == 0)
+		raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
+	collect_building_loot(p.source_id, p.team, b);
+	mark_building_wreck(b, p.team);
+	rebuild_nav_grid();
+	if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER)
+		rebuild_territory();
+}
+
 void Simulation::tick_projectiles(float dt) {
 	for (auto &p : projectiles_) {
 		if (!p.alive) continue;
@@ -9307,16 +9331,20 @@ void Simulation::tick_projectiles(float dt) {
 			p.progress = 1.0f;
 			p.alive = false;
 
-			if (p.target_unit_id != 0) {
-				int32_t tidx = projectile_hit_unit(p);
-				if (tidx >= 0 && units_.alive[tidx] && units_.id[tidx] != p.target_unit_id) {
-					// DelayedDamage.js Hit: the attack's effects apply to whoever it hit, so a
-					// stray deals what the shooter's attack does to that unit. A shooter
-					// that died in flight keeps the damage it fired with.
-					const int32_t src = lookup_unit(p.source_id);
-					if (src >= 0) p.damage = unit_attack_damage((size_t)src, (size_t)tidx);
+			if (p.target_unit_id != 0 || p.target_building_id != 0) {
+				// DelayedDamage.js Hit: the aimed target takes it if the projectile lands
+				// inside its footprint (PositionHelper.TestCollision); otherwise the nearest
+				// enemy unit, then enemy structure, whose footprint holds the landing point,
+				// then an animal there; failing all that it misses.
+				int32_t hb = -1;
+				if (p.target_building_id != 0) {
+					const auto it = building_id_to_idx_.find(p.target_building_id);
+					if (it != building_id_to_idx_.end() && projectile_lands_in(p, buildings_[it->second])) hb = (int32_t)it->second;
 				}
+				const int32_t tidx = hb < 0 ? projectile_hit_unit(p) : -1;
+				if (hb < 0 && tidx < 0) hb = projectile_hit_structure(p);
 				if (tidx >= 0 && units_.alive[tidx]) {
+					p.damage = projectile_damage_to_unit(p, (size_t)tidx);
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, p.damage);
 					if (!invulnerable(units_.id[tidx])) units_.hp[tidx] -= p.damage;
@@ -9344,35 +9372,10 @@ void Simulation::tick_projectiles(float dt) {
 						collect_unit_loot(p.source_id, p.team, (size_t)tidx);
 					}
 				}
-				if (tidx < 0) {
+				if (hb >= 0) projectile_hits_structure(p, buildings_[(size_t)hb]);
+				if (tidx < 0 && hb < 0) {
 					const int32_t f = projectile_hit_fauna(p);
 					if (f >= 0) projectile_hits_fauna(p, (size_t)f);
-				}
-			} else if (p.target_building_id != 0) {
-				auto bit = building_id_to_idx_.find(p.target_building_id);
-				if (bit != building_id_to_idx_.end()) {
-					Building &b = buildings_[bit->second];
-					if (!b.wrecked && b.hp > 0.0f) {
-						note_attacked(p.source_id, p.team, b.id, b.team, true, p.damage);
-						b.hp -= p.damage;
-						if (b.team == 0)
-							raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
-						if (b.hp < b.max_hp * 0.33f)
-							b.is_burning = true;
-						if (b.hp <= 0.0f) {
-							if (p.team == 0)
-								record_.enemies_killed++;
-							else if (b.team == 0)
-								record_.buildings_destroyed++;
-							if (b.team == 0)
-								raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
-							collect_building_loot(p.source_id, p.team, b);
-							mark_building_wreck(b, p.team);
-							rebuild_nav_grid();
-							if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER)
-								rebuild_territory();
-						}
-					}
 				}
 			}
 
@@ -9442,6 +9445,54 @@ void Simulation::unit_attack_effects(size_t i, float out[3]) const {
 	out[0] = uinfo.hack_damage * mul;
 	out[1] = uinfo.pierce_damage * mul;
 	out[2] = uinfo.crush_damage * mul;
+}
+
+// The damage unit i's attack deals to structure b: its Damage after technologies, rank
+// and attack auras (GetAttackEffectsData) times its Bonuses against the structure, each
+// reduced by the structure's Resistance (template levels plus armour auras) as
+// 0.9^armour. GetTotalAttackEffects has no minimum: arrows barely scratch stone. Siege
+// demolition power is 0 A.D.'s own crush damage (rams 150, stone throwers 250).
+float Simulation::unit_damage_to_structure(size_t i, const Building &b) const {
+	float d[3], res[3];
+	unit_attack_effects(i, d);
+	structure_resistance(b, res);
+	const float bonus = combat_bonus(unit_combat_at(i), building_combat(b.type), civ_of(b.team));
+	return bonus * (d[0] * powf(0.9f, res[0]) + d[1] * powf(0.9f, res[1]) + d[2] * powf(0.9f, res[2]));
+}
+
+// A structure's arrow (BuildingAI) against resistance `res`: its Attack/Ranged Damage,
+// pierce scaled by its owner's technologies.
+float Simulation::structure_arrow_damage(const Building &shooter, const float res[3]) const {
+	const BuildingAIInfo &ai = building_ai_info(shooter.type);
+	const float pierce = ai.pierce * (shooter.team < MAX_PLAYERS ? tech_mods(shooter.team).bld_attack[shooter.type] : 1.0f);
+	return ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+}
+
+// DelayedDamage.js Hit -> Attacking.HandleAttackEffects: the projectile's effects meet
+// the Resistance of whatever it landed on as it is at impact. The effects are the
+// shooter's (techs, rank, auras); one that is gone keeps what was worked out at launch.
+float Simulation::projectile_damage_to_unit(const Projectile &p, size_t u) {
+	const int32_t src = lookup_unit(p.source_id);
+	if (src >= 0) return unit_attack_damage((size_t)src, u);
+	const auto bit = building_id_to_idx_.find(p.source_id);
+	if (bit != building_id_to_idx_.end()) {
+		float res[3];
+		unit_resistance(u, res);
+		return structure_arrow_damage(buildings_[bit->second], res);
+	}
+	return p.damage;
+}
+
+float Simulation::projectile_damage_to_structure(const Projectile &p, const Building &b) const {
+	const int32_t src = lookup_unit(p.source_id);
+	if (src >= 0) return unit_damage_to_structure((size_t)src, b);
+	const auto bit = building_id_to_idx_.find(p.source_id);
+	if (bit != building_id_to_idx_.end()) {
+		float res[3];
+		structure_resistance(b, res);
+		return structure_arrow_damage(buildings_[bit->second], res);
+	}
+	return p.damage;
 }
 
 // A unit's attack timer runs as 0 A.D. Attack.js's interval timer:

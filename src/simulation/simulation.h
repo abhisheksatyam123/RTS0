@@ -1759,6 +1759,13 @@ private:
 	int32_t projectile_hit_fauna(const Projectile &p) const;
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
+	bool projectile_lands_in(const Projectile &p, const Building &b) const;
+	int32_t projectile_hit_structure(const Projectile &p) const;
+	void projectile_hits_structure(const Projectile &p, Building &b);
+	float projectile_damage_to_unit(const Projectile &p, size_t u);
+	float projectile_damage_to_structure(const Projectile &p, const Building &b) const;
+	float unit_damage_to_structure(size_t i, const Building &b) const;
+	float structure_arrow_damage(const Building &shooter, const float res[3]) const;
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);

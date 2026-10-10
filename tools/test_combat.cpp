@@ -35,6 +35,10 @@
 // 14. Damage as GetTotalAttackEffects: no minimum (an archer barely scratches a ram);
 //     a unit's damage to structures follows its techs, rank and attack auras like its
 //     damage to units; capture strength is divided by 0.1 + 0.9 * hp / maxHp.
+// 15. Projectiles land on what is there (DelayedDamage.js Hit): an arrow aimed at a
+//     structure that lands on a unit hurts the unit, one aimed at a unit that lands in an
+//     enemy structure hurts the structure, each by the shooter's attack against its own
+//     armour at impact; one landing on nothing misses; arrows at structures scatter.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -45,6 +49,7 @@
 #undef private
 
 #include <cmath>
+#include <set>
 #include <cstdio>
 #include <cstring>
 
@@ -722,6 +727,92 @@ static void test_damage_effects() {
 	}
 }
 
+// Fire one arrow from unit `src` that lands at (x, z), aimed at `target` (a structure
+// when `at_building`), with a launch damage the hit must not use, and tick until it lands.
+static void land_arrow(Simulation &s, uint32_t src, float x, float z, uint32_t target, bool at_building) {
+	const int i = idx(s, src);
+	s.fire_arrow(s.units_.pos_x[i], 2.0f, s.units_.pos_z[i], x, 0.8f, z, 999.0f, 0, target, 0, 1, at_building, 0, src);
+	const uint32_t pid = s.projectiles_.back().id;
+	for (int k = 0; k < 400; ++k) {
+		bool flying = false;
+		for (const Projectile &p : s.projectiles_) flying |= p.id == pid;
+		if (!flying) return;
+		s.tick(DT);
+	}
+}
+
+static void test_projectile_landing() {
+	std::printf("15. projectiles land on what is there (DelayedDamage.js Hit)\n");
+	auto scene = [](Simulation &s, uint32_t &archer, uint32_t &bid, uint32_t &spear) {
+		setup(s);
+		archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		s.order_set_stance(&archer, 1, STANCE_STAND_GROUND);
+		bid = s.spawn_building_world(30.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+		spear = dummy(s, 30.0f, building(s, bid)->half_size + 3.0f, UNIT_SPEARMAN, 500.0f); // a float this size keeps the hit exact
+		s.units_.attack_damage[idx(s, spear)] = 0.0f; // never answers
+	};
+	{
+		// Aimed at the barracks, lands on the spearman beside it: he takes the archer's
+		// attack against his own armour, the barracks nothing.
+		Simulation s;
+		uint32_t archer, bid, spear;
+		scene(s, archer, bid, spear);
+		const int sp = idx(s, spear);
+		const float hp0 = s.units_.hp[sp], bhp0 = building(s, bid)->hp;
+		const float want = s.unit_attack_damage((size_t)idx(s, archer), (size_t)sp);
+		land_arrow(s, archer, s.units_.pos_x[sp], s.units_.pos_z[sp], bid, true);
+		std::printf("      arrow at the barracks lands on a spearman: -%.3f (attack %.3f), barracks -%.3f\n",
+				hp0 - s.units_.hp[sp], want, bhp0 - building(s, bid)->hp);
+		check(std::fabs(hp0 - s.units_.hp[sp] - want) < 1e-3f && building(s, bid)->hp == bhp0,
+				"a stray from a structure attack hits the unit it lands on");
+	}
+	{
+		// Aimed at the spearman, lands inside the barracks: the barracks takes the
+		// archer's attack against its own armour.
+		Simulation s;
+		uint32_t archer, bid, spear;
+		scene(s, archer, bid, spear);
+		Simulation::Building *b = building(s, bid);
+		const float bhp0 = b->hp, want = s.unit_damage_to_structure((size_t)idx(s, archer), *b);
+		const float hp0 = s.units_.hp[idx(s, spear)];
+		land_arrow(s, archer, b->x, b->z, spear, false);
+		std::printf("      arrow at the spearman lands in the barracks: -%.3f (attack %.3f)\n", bhp0 - building(s, bid)->hp, want);
+		check(std::fabs(bhp0 - building(s, bid)->hp - want) < 1e-3f && s.units_.hp[idx(s, spear)] == hp0,
+				"a stray hits the enemy structure it lands in");
+	}
+	{
+		// Lands on open ground beyond both: nothing is hurt.
+		Simulation s;
+		uint32_t archer, bid, spear;
+		scene(s, archer, bid, spear);
+		const float bhp0 = building(s, bid)->hp, hp0 = s.units_.hp[idx(s, spear)];
+		land_arrow(s, archer, 30.0f, -building(s, bid)->half_size - 6.0f, bid, true);
+		check(building(s, bid)->hp == bhp0 && s.units_.hp[idx(s, spear)] == hp0, "an arrow that lands on nothing misses");
+	}
+	{
+		// An archer shooting a far structure scatters by its Spread like against units.
+		Simulation s;
+		uint32_t archer, bid, spear;
+		scene(s, archer, bid, spear);
+		s.units_.pos_z[idx(s, spear)] = 60.0f; // out of the way
+		Simulation::Building *b = building(s, bid);
+		s.units_.pos_x[idx(s, archer)] = b->x - b->half_size - 15.0f;
+		s.order_attack_building(&archer, 1, bid, false, false);
+		std::set<uint32_t> seen;
+		float min_x = 1e9f, max_x = -1e9f, min_z = 1e9f, max_z = -1e9f;
+		for (int k = 0; k < 1500; ++k) {
+			s.tick(DT);
+			for (const Projectile &p : s.projectiles_) {
+				if (p.source_id != archer || !seen.insert(p.id).second) continue;
+				min_x = std::min(min_x, p.target_x); max_x = std::max(max_x, p.target_x);
+				min_z = std::min(min_z, p.target_z); max_z = std::max(max_z, p.target_z);
+			}
+		}
+		std::printf("      %zu arrows at the barracks land over %.2f x %.2f\n", seen.size(), max_x - min_x, max_z - min_z);
+		check(seen.size() >= 5 && max_x - min_x > 0.05f && max_z - min_z > 0.05f, "arrows at a structure scatter by Spread");
+	}
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -737,6 +828,7 @@ int main() {
 	test_structure_auras();
 	test_timing_projectiles();
 	test_damage_effects();
+	test_projectile_landing();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
