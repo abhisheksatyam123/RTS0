@@ -18,7 +18,7 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 52;
+inline constexpr uint8_t BUILDING_AI_ROWS = 60;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -73,6 +73,14 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TEMPLE_VESTA: structures/rome/temple_vesta
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TEMPLE_MARS: structures/rome/temple_mars
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_ICE_HOUSE: structures/pers/ice_house
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SUPER_DOCK: structures/cart/super_dock
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_FOOD: structures/pers/tachara_food
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_WOOD: structures/pers/tachara_wood
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_STONE: structures/pers/tachara_stone
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_TACHARA_METAL: structures/pers/tachara_metal
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_APARTMENT: structures/cart/apartment
+		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court (the Civic Center's BuildingAI)
+		{8, 10, 1.0f, TC_INFANTRY, 0.0f, 8.0f, 0.0f, 2.8f, 19.6f, 5.6f, 0.4f, 3.5f, true}, // BLD_TOWER_GREAT: structures/han/defense_tower_great (tower x2 arrows, MaxArrowCount 10, +10 m range, Origin Y 20)
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // none
 	};
 	return kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];

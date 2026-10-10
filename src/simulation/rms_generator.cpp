@@ -8380,7 +8380,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed) {
 	// (defaultPlayerBaseRadius, 15-25 tiles), wild road round it.
 	const float base_r = 15.0f + 10.0f * std::clamp((2.0f * half - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f);
 	for (const auto &bd : sim.buildings())
-		if (bd.type == BLD_TOWN_CENTER) { stamp(road, bd.x, bd.z, base_r / 3.0f + 1.5f, 1); stamp(road, bd.x, bd.z, base_r / 3.0f * 0.6f, 2); }
+		if (is_civic_centre(bd.type)) { stamp(road, bd.x, bd.z, base_r / 3.0f + 1.5f, 1); stamp(road, bd.x, bd.z, base_r / 3.0f * 0.6f, 2); }
 	const float water = sim.water_height();
 	const bool has_water = water > -0.5f;
 	const float metre = HEIGHT_PER_METRE;

@@ -199,11 +199,18 @@ UNIQUE_BUILDINGS = [
     ("BLD_TACHARA_STONE", ["tachara_stone"], "tachara", "tachara"),
     ("BLD_TACHARA_METAL", ["tachara_metal"], "tachara", "tachara"),
     ("BLD_APARTMENT", ["apartment"], "house", "house"),
+    # The Han Imperial Court (a Civic Center upgrade) and Great Archery Tower (a defense
+    # tower upgrade): RTS0 treats them as their base type wherever the role matters
+    # (is_civic_centre, is_defense_tower).
+    ("BLD_IMPERIAL_COURT", ["civil_centre_court"], "imperial_court", "imperial_court"),
+    ("BLD_TOWER_GREAT", ["defense_tower_great"], "tower_great", "tower_great"),
 ]
 # Structures no Builder list names: only an Upgrade reaches them.
-UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT"}
-# Generic structures a civ structure's Upgrade can start from (structures/cart/house).
-UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE"}
+UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
+                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT"}
+# Generic structures a civ structure's Upgrade can start from (structures/cart/house,
+# structures/han/civil_centre, structures/han/defense_tower).
+UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
 # Units of a civ-specific structure train only there, as in 0 A.D. (Petra builds
 # these structures since #105).
 for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:

@@ -24,6 +24,15 @@ uniform float terrain_half = 0.0;
 uniform float water_level = 0.0;
 uniform float murkiness : hint_range(0.0, 2.0) = 0.8;
 
+// 0 A.D.'s animated water normals (art/textures/animated/water/lake), two
+// frames scrolled against each other at two scales as water_high.fs does
+// with normalMap/normalMap2. Mipmapped, so distant water averages out
+// instead of the regular highlight grid the old sin/cos ripple drew.
+uniform sampler2D wave_normal_a : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D wave_normal_b : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float wave_tile = 6.0;     // world units per normal-map repeat
+uniform float wave_strength = 0.45;
+
 varying vec3 v_world_pos;
 
 void vertex() {
@@ -38,13 +47,15 @@ void vertex() {
 void fragment() {
 	float t = TIME * wave_speed;
 	
-	// Dynamic animated normal perturbation for sparkling water surface
-	vec2 uv1 = v_world_pos.xz * (wave_scale * 0.4) + vec2(t * 0.05, t * 0.03);
-	vec2 uv2 = v_world_pos.xz * (wave_scale * 0.7) - vec2(t * 0.04, -t * 0.06);
-
-	float wave_n1 = sin(uv1.x * 6.28) * cos(uv1.y * 6.28);
-	float wave_n2 = cos(uv2.x * 6.28) * sin(uv2.y * 6.28);
-	vec3 perturbed_norm = normalize(vec3(wave_n1 * 0.15 + wave_n2 * 0.1, 1.0, wave_n1 * 0.1 - wave_n2 * 0.15));
+	// Two scrolling lookups of the wave normals, flat water's tangent frame
+	// being world x/z.
+	vec2 uv1 = v_world_pos.xz / wave_tile + vec2(t * 0.050, t * 0.030);
+	vec2 uv2 = v_world_pos.xz / (wave_tile * 1.7) - vec2(t * 0.035, -t * 0.045);
+	vec2 n1 = texture(wave_normal_a, uv1).rg * 2.0 - 1.0;
+	vec2 n2 = texture(wave_normal_b, uv2).rg * 2.0 - 1.0;
+	vec2 slope = (n1 + n2) * wave_strength;
+	float wave_n1 = n1.x * 2.0;
+	vec3 perturbed_norm = normalize(vec3(slope.x, 1.0, slope.y));
 	NORMAL = (VIEW_MATRIX * vec4(perturbed_norm, 0.0)).xyz;
 
 	// Fresnel effect for realistic surface reflectance

@@ -247,6 +247,69 @@ int main() {
 		CHECK(!s.can_train_at(0, UNIT_SPEARMAN, BLD_APARTMENT));
 	}
 
+	// 10. The Han Imperial Court (civil_centre -> civil_centre_court: 300 wood, 300 stone,
+	// 40 s, City phase) and Great Archery Tower (defense_tower -> defense_tower_great:
+	// 200 stone, 40 s). Both keep their base type's role (a Civic Center: territory root,
+	// dropsite; a stone tower that shoots) and EntityLimits allows one of each.
+	{
+		const BuildingUpgradeInfo ct = building_upgrade(BLD_TOWN_CENTER, CIV_HAN);
+		CHECK(ct.to == BLD_IMPERIAL_COURT && ct.wood_cost == 300 && ct.stone_cost == 300 && ct.time == 40.0f &&
+			ct.required_phase == 3);
+		const BuildingUpgradeInfo gt = building_upgrade(BLD_TOWER, CIV_HAN);
+		CHECK(gt.to == BLD_TOWER_GREAT && gt.stone_cost == 200 && gt.wood_cost == 0 && gt.time == 40.0f);
+		CHECK(!civ_can_build(CIV_HAN, BLD_IMPERIAL_COURT) && !civ_can_build(CIV_HAN, BLD_TOWER_GREAT));
+		CHECK(is_civic_centre(BLD_IMPERIAL_COURT) && is_defense_tower(BLD_TOWER_GREAT));
+		CHECK(is_territory_root(BLD_IMPERIAL_COURT) && is_territory_root(BLD_TOWER_GREAT));
+		CHECK(building_tech_classes(BLD_IMPERIAL_COURT) & TC_CIVCENTRE);
+		CHECK(building_tech_classes(BLD_TOWER_GREAT) & TC_STONETOWER);
+		CHECK(building_type_info(BLD_IMPERIAL_COURT).max_hp > building_type_info(BLD_TOWN_CENTER).max_hp);
+		CHECK(building_type_info(BLD_TOWER_GREAT).max_hp > building_type_info(BLD_TOWER).max_hp);
+		CHECK(building_ai_info(BLD_TOWER_GREAT).shoots() &&
+			building_ai_info(BLD_TOWER_GREAT).max_range > building_ai_info(BLD_TOWER).max_range);
+		CHECK(building_ai_info(BLD_IMPERIAL_COURT).default_arrows == building_ai_info(BLD_TOWN_CENTER).default_arrows);
+		// GarrisonHolder: the court holds 1.5x the Civic Center (30), the great tower 10, each with
+		// its parent's List (cavalry into the court, not into the tower).
+		CHECK(structure_garrison_max(BLD_IMPERIAL_COURT, CIV_HAN) == 30 && structure_garrison_max(BLD_TOWER_GREAT, CIV_HAN) == 10);
+		CHECK(garrison_list_matches(structure_garrison_list(BLD_IMPERIAL_COURT, CIV_HAN), TC_CAVALRY));
+		CHECK(garrison_list_matches(structure_garrison_list(BLD_TOWER_GREAT, CIV_HAN), TC_INFANTRY));
+		CHECK(!garrison_list_matches(structure_garrison_list(BLD_TOWER_GREAT, CIV_HAN), TC_CAVALRY));
+
+		fresh(s);
+		s.set_player_civ(CIV_HAN);
+		s.set_player_resources(0, 2000, 2000, 2000, 2000);
+		uint32_t cc = 0;
+		for (const auto &b : s.buildings())
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER) cc = b.id;
+		const uint32_t cc2 = s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		s.player(0).phase = 2;
+		CHECK(s.upgrade_check(0, cc) == Simulation::UPGRADE_ERR_PHASE);
+		s.player(0).phase = 3;
+		CHECK(s.cmd_upgrade_building(0, cc));
+		CHECK(s.player(0).wood() == 1700.0f && s.player(0).stone() == 1700.0f);
+		// Upgrade.js ChangeUpgradedEntityCount: the second Civic Center can't start one too.
+		CHECK(s.upgrade_check(0, cc2) == Simulation::UPGRADE_ERR_LIMIT);
+		run(s, 40.5f);
+		CHECK(find_bld(s, cc)->type == BLD_IMPERIAL_COURT);
+		CHECK(s.upgrade_check(0, cc2) == Simulation::UPGRADE_ERR_LIMIT);
+		// Han heroes train at the court (and fortress), no longer at a plain Civic Center.
+		uint16_t hero = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t t = civ_roster_begin(CIV_HAN); t < civ_roster_end(CIV_HAN); ++t)
+			if (civ_unit_template(t).flags & ROSTER_HERO) hero = t;
+		CHECK(hero != CIV_UNIT_TEMPLATE_NONE);
+		CHECK((civ_unit_template(hero).trainers & bld_bit(BLD_IMPERIAL_COURT)) &&
+			!(civ_unit_template(hero).trainers & bld_bit(BLD_TOWN_CENTER)));
+		// Still a Civic Center for training: citizens come from it as before.
+		CHECK(s.can_train_at(0, UNIT_FEMALE_CITIZEN, BLD_IMPERIAL_COURT));
+
+		const uint32_t t1 = s.spawn_building_world(0.0f, -40.0f, BLD_TOWER, 0, 1.0f);
+		const uint32_t t2 = s.spawn_building_world(-40.0f, 0.0f, BLD_TOWER, 0, 1.0f);
+		CHECK(s.cmd_upgrade_building(0, t1));
+		CHECK(s.upgrade_check(0, t2) == Simulation::UPGRADE_ERR_LIMIT);
+		run(s, 40.5f);
+		CHECK(find_bld(s, t1)->type == BLD_TOWER_GREAT);
+		CHECK(find_bld(s, t1)->hp > building_type_info(BLD_TOWER).max_hp);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
