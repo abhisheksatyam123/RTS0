@@ -31,7 +31,6 @@ class RtsoMiniMapView : public Control {
 	bool show_territory = true;
 	bool show_resources = true;
 	uint8_t local_player = 0; // player whose units read as "own" and whose fog is drawn
-	bool show_diplo_palette = false; // ally/enemy palette per DiplomacyDialog stances (UI_PARITY Minimap bullet)
 
 	// 3-state shroud view. 0 A.D. rasterises a 3-level LOS bitmap
 	// (visible=255 / explored=127 / unexplored=0, graphics/LOSTexture.cpp:443-449)
@@ -60,6 +59,7 @@ class RtsoMiniMapView : public Control {
 	// outlines in _draw(); see ensure_territory_texture() in minimap_view.cpp.
 	Ref<ImageTexture> territory_tex_;
 	std::vector<uint8_t> territory_tex_cache_;
+	uint64_t territory_colors_ = 0; // display_colors::key the texture was drawn with
 	bool ensure_territory_texture();
 	Color player_color(uint8_t pid) const;
 
@@ -95,7 +95,8 @@ public:
 			default: return "On";
 		}
 	}
-	void toggle_diplomacy() { show_diplo_palette = !show_diplo_palette; queue_redraw(); }
+	// 0 A.D. MiniMapDiplomacyColorsButton: diplomacy colours everywhere (display_colors.h).
+	void toggle_diplomacy();
 };
 
 #endif
