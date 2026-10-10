@@ -10841,6 +10841,12 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 		return;
 	}
+	// Attack -> APPROACHING enter: an attacker hidden in the fog (a far archer nobody on the team
+	// sees) can't be approached (CheckTargetVisible), so the order ends at once. Fleeing ignores it.
+	if (!structure) {
+		const int32_t a = lookup_unit(attacker_id);
+		if (a >= 0 && attack_target_hidden(i, (size_t)a)) return;
+	}
 	const float range = units_.attack_range[i];
 	const float vision = unit_base_vision(i);
 	const Building *sb = nullptr;
