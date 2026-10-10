@@ -278,6 +278,23 @@ struct PetraDefenseArmy {
 	bool active = false;
 };
 
+// headquarters.js buildDefenses: when each kind was last queued (seconds of game time) and the
+// defenseBuilding queue's plan, the structure type + 1 (0: none).
+struct PetraDefenseBuild {
+	float tower_start = 0.0f;    // towerStartTime: stone towers
+	float fortress_start = 0.0f; // fortressStartTime
+	float fort_start = 180.0f;   // fortStartTime: sentry towers, from fortStartTime + towerLapseTime
+	uint32_t pending = 0;
+};
+
+// baseManager.js gatherers[type] for wood, stone and metal: the played turn of the next check and
+// the gatherers counted gathering (used) and walking to a dropsite (lost) since the last one.
+struct PetraDropsiteCheck {
+	int32_t next_check[3] = {};
+	int32_t used[3] = {};
+	int32_t lost[3] = {};
+};
+
 // emergencyManager.js
 struct PetraEmergency {
 	int ref_pop = 0;
