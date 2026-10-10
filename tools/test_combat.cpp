@@ -41,6 +41,8 @@
 //     armour at impact; one landing on nothing misses; arrows at structures scatter.
 // 16. A ranged hunter shoots arrows at the animal (Attack.js PerformAttack); the one that
 //     kills it gives the archer its Loot xp and the archer goes on to gather the carcass.
+// 17. Poisoned and Burning damage counts as an attack by whoever applied it: the xp, the
+//     kill and the statistics go to them, and the source is saved.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -841,6 +843,41 @@ static void test_ranged_hunting() {
 	check(st == ACTION_GATHER || st == ACTION_MOVE || st == ACTION_RETURN_DROPSITE, "the archer goes on to gather the carcass");
 }
 
+static void test_status_credit() {
+	std::printf("17. status effects credit whoever applied them (StatusEffectsReceiver)\n");
+	Simulation s;
+	setup(s);
+	const uint16_t maiden = template_named("maur/champion_maiden_archer");
+	const CombatProfile &mp = unit_combat(maiden, UNIT_ARCHER_MAIDEN);
+	uint32_t archer = s.spawn_unit(-40.0f, 0.0f, 0, UNIT_ARCHER);
+	s.order_set_stance(&archer, 1, STANCE_STAND_GROUND);
+	uint32_t v = dummy(s, 40.0f, 0.0f, UNIT_SWORDSMAN, 2.0f);
+	const uint16_t xp0 = s.units_.xp[idx(s, archer)];
+	const uint32_t kills0 = s.stats_[0].enemy_units_killed[STAT_UNIT_TOTAL];
+	s.apply_status((size_t)idx(s, v), mp, archer, 0);
+	const int vi = idx(s, v);
+	for (int k = 0; k < 2000 && s.units_.alive[vi]; ++k) s.tick(DT);
+	std::printf("      poisoned swordsman dead %d; archer xp %d -> %d; player 0 kills %u -> %u\n", (int)!s.units_.alive[vi],
+			xp0, s.units_.xp[idx(s, archer)], kills0, s.stats_[0].enemy_units_killed[STAT_UNIT_TOTAL]);
+	check(!s.units_.alive[vi], "poison kills the swordsman");
+	check(s.units_.xp[idx(s, archer)] > xp0, "the poisoner gets the xp of the damage it did");
+	check(s.stats_[0].enemy_units_killed[STAT_UNIT_TOTAL] == kills0 + 1, "the kill counts for the poisoner's player");
+
+	// Saved and loaded, a status keeps its source.
+	Simulation a;
+	setup(a);
+	uint32_t a_arch = a.spawn_unit(-40.0f, 0.0f, 0, UNIT_ARCHER);
+	uint32_t a_v = dummy(a, 40.0f, 0.0f, UNIT_SWORDSMAN, 2.0f);
+	a.apply_status((size_t)idx(a, a_v), mp, a_arch, 0);
+	const char *path = "/tmp/rts0_test_status_credit.sav";
+	check(a.save_state(path), "save");
+	Simulation b;
+	check(b.load_state(path), "load");
+	std::remove(path);
+	const int bv = idx(b, a_v);
+	check(bv >= 0 && b.units_.poison_src[bv] == a_arch && b.units_.poison_owner[bv] == 0, "the poison's source survives save and load");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -858,6 +895,7 @@ int main() {
 	test_damage_effects();
 	test_projectile_landing();
 	test_ranged_hunting();
+	test_status_credit();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
