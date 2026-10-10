@@ -1527,11 +1527,30 @@ private:
 	struct MoveSteps {
 		const float *from_x = nullptr, *from_z = nullptr; // where it stood before move_units()
 		const float *want_x = nullptr, *want_z = nullptr; // the step it tried to take
-		const uint8_t *blocked = nullptr; // a closed gate stopped the step (CheckMovement failed)
+		const uint8_t *blocked = nullptr; // a closed gate or a unit standing still stopped the step (CheckMovement failed)
+		const uint8_t *moving = nullptr;  // WALK_* flags: WALK_MOVING is 0 A.D. MotionState::isMoving
 		size_t count = 0;
 	};
+	enum : uint8_t { WALK_MOVING = 1, WALK_STEER = 2 };
 	void move_units(float dt, Arena &arena, MoveSteps &steps);
-	void separation(float dt, Arena &arena);
+	// move_units' second pass: a walker's step that runs into a unit standing still stops, and the
+	// walker takes a short path round the idle units (0 A.D. CheckMovement and HandleObstructedMove).
+	void avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, const float *aim_x, const float *aim_z,
+			float *npx, float *npz, float *want_x, float *want_z, uint8_t *blocked);
+	// A walker at (x, z) already within reach of the task it walks for (a resource it gathers, a
+	// foundation it builds, a unit it attacks, a structure it garrisons in): 0 A.D.'s move to the
+	// target's range is done there.
+	bool walk_in_reach(size_t i, float x, float z) const;
+	// The key of a short path kept round idle units (ShortPathMemo): a short path among this tick's
+	// buildings (short_path_key_) that also went round units.
+	uint32_t idle_path_key() const { const uint32_t k = short_path_key_ ^ 0x5BD1E995u; return k ? k : 1u; }
+	// The key of a short path round idle units whose waypoint the unit reached last tick: it searches
+	// on from that corner, as 0 A.D. follows the whole short path.
+	uint32_t idle_corner_key() const { const uint32_t k = short_path_key_ ^ 0x2F6B3A51u; return k ? k : 2u; }
+	// The key of a search round idle units that found no way from where the unit stands (the memo
+	// holds that spot): it searches again there only every fourth turn.
+	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
+	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
 	void patrol_next_leg(size_t i);
 	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
@@ -2449,7 +2468,8 @@ private:
 	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
 	void start_heal(size_t healer, uint32_t target, uint8_t flags);
 	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
-	bool garrison_in_range(size_t i, const Building &b) const;
+	bool garrison_in_range(size_t i, const Building &b) const { return garrison_in_range(i, b, units_.pos_x[i], units_.pos_z[i]); }
+	bool garrison_in_range(size_t i, const Building &b, float x, float z) const; // as if unit i stood at (x, z)
 	void garrison_now(size_t i, Building &b);
 	void start_cheer(size_t i);                                 // UnitAI Cheer + notifyToCheerInRange
 	void note_kill(uint32_t killer_id, uint32_t victim_id);       // UnitAI shouldCheer
