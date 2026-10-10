@@ -196,6 +196,16 @@ int main()
 			check(civ_unit_template(i).unlock_tech == TECH_UNLOCK_CHAMPION_INFANTRY,
 				"Roman champion infantry waits for Unlock Champion Infantry");
 
+	// A unit's own auras outside the civ's hero set: the centurion's Combat Leadership
+	// and Century Maneuvers (units/centurion_1, units/centurion_2).
+	for (uint16_t i = civ_roster_begin(CIV_ROMANS); i < civ_roster_end(CIV_ROMANS); ++i) {
+		const CivUnitTemplate &u = civ_unit_template(i);
+		if (std::strcmp(u.id, "rome/champion_infantry_swordsman_centurion") != 0) continue;
+		check(u.auras[0] >= 0 && std::strcmp(civ_hero_aura(u.auras[0]).id, "centurion_1") == 0 &&
+			u.auras[1] >= 0 && std::strcmp(civ_hero_aura(u.auras[1]).id, "centurion_2") == 0,
+			"the Roman centurion carries Combat Leadership and Century Maneuvers");
+	}
+
 	std::printf("%d/%d checks passed (%u unit templates, %u hero auras)\n",
 		g_checks - g_failed, g_checks, CIV_UNIT_TEMPLATE_COUNT, CIV_HERO_AURA_COUNT);
 	return g_failed == 0 ? 0 : 1;
