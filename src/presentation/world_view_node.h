@@ -197,6 +197,7 @@ class RtsoWorldView : public Node3D {
 	Ref<Environment> env_base_;
 	void apply_biome_environment(const std::string &biome, const std::string &map_id);
 	bool apply_sky_box(const godot::Ref<godot::Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const godot::Color &ground);
+	godot::Ref<godot::Shader> sky_box_shader_;
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;

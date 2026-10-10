@@ -1038,7 +1038,9 @@ enum ClipId : uint8_t {
 };
 
 static const StringName &clip_name(ClipId id) {
-	static const StringName names[CLIP_COUNT] = {
+	// Leaked on purpose: Godot objects in statics would be destroyed after the
+	// engine has gone, crashing the exit (here and in the caches below).
+	static const StringName *names = new StringName[CLIP_COUNT]{
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
 		StringName("GatherTree"), StringName("GatherOre"), StringName("GatherRock"),
@@ -1957,12 +1959,11 @@ bool RtsoWorldView::apply_sky_box(const Ref<Sky> &sky, const std::string &set, c
 	}
 	const String dir = "res://assets/textures/skies/" + name + "/";
 	if (!ResourceLoader::get_singleton()->exists(dir + String("top.png"))) return false;
-	static Ref<Shader> shader;
-	if (shader.is_null()) shader = ResourceLoader::get_singleton()->load("res://shaders/sky_box.gdshader");
-	if (shader.is_null()) return false;
+	if (sky_box_shader_.is_null()) sky_box_shader_ = ResourceLoader::get_singleton()->load("res://shaders/sky_box.gdshader");
+	if (sky_box_shader_.is_null()) return false;
 	Ref<ShaderMaterial> mat;
 	mat.instantiate();
-	mat->set_shader(shader);
+	mat->set_shader(sky_box_shader_);
 	for (const char *face : { "front", "back", "left", "right", "top" }) {
 		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(dir + String(face) + String(".png"));
 		if (tex.is_null()) return false;
@@ -2104,7 +2105,7 @@ namespace {
 // 0 A.D. terrain name -> texture key (data/terrain/terrain_textures.json, written
 // by tools/map_0ad_terrains.py); the textures are assets/textures/terrain/<key>.png.
 const Dictionary &terrain_texture_table() {
-	static Dictionary table;
+	static Dictionary &table = *new Dictionary();
 	static bool loaded = false;
 	if (!loaded) {
 		loaded = true;
@@ -2122,7 +2123,7 @@ const Dictionary &terrain_texture_table() {
 // and format), a plain earth tone when the texture is missing.
 constexpr int kTerrainLayerSize = 256;
 Ref<Image> terrain_layer_image(const String &name) {
-	static std::unordered_map<std::string, Ref<Image>> cache;
+	static auto &cache = *new std::unordered_map<std::string, Ref<Image>>();
 	const std::string key_s = name.utf8().get_data();
 	if (auto it = cache.find(key_s); it != cache.end()) return it->second;
 	const String key = terrain_texture_table().get(name, name);
