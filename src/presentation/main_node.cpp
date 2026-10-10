@@ -1695,8 +1695,9 @@ void RtsoMain::update_cursor() {
 			if (!*want) {
 				auto fv = sim->fauna();
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
-					if (!fv.alive[f] || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.behavior[f] != rtso::FAUNA_CORRALLED ? "action-herd" : "action-gather-meat";
+					// A penned animal is garrisoned in its corral: nothing to do with it.
+					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
+					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want) {
@@ -2812,7 +2813,13 @@ void RtsoMain::update_inspector() {
 						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
 						String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 			inspector_stats->set_text(status);
-			inspector_extra->set_text(found_b->has_rally_point ? "Rally point set" : "");
+			// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
+			const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
+			String extra = found_b->has_rally_point ? "Rally point set" : "";
+			if (penned > 0)
+				extra += String(extra.is_empty() ? "" : "\n") + "Penned animals: " + String::num_int64(penned) + " / " +
+						String::num_int64(rtso::CORRAL_GARRISON_MAX);
+			inspector_extra->set_text(extra);
 
 			// Garrison panel: one icon per unit type inside, click to unload one,
 			// Shift+click (session.unloadtype) to unload that type, U unloads all.
@@ -2823,7 +2830,7 @@ void RtsoMain::update_inspector() {
 				garrison_grid_.set_visible(true);
 			}
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-			ungarrison_btn->set_visible(!found_b->garrisoned_units.empty() && owner == local_player());
+			ungarrison_btn->set_visible((!found_b->garrisoned_units.empty() || penned > 0) && owner == local_player());
 			inspector_panel->set_visible(true);
 			return;
 		}
