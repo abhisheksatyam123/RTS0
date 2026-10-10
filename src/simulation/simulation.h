@@ -161,7 +161,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 59; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 60; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
@@ -594,6 +594,9 @@ public:
 	// bribe a random trader or merchant ship of `target` for its vision (500 metal, x1.5
 	// against Counterintelligence; a quarter of that is lost when nothing can be bribed).
 	enum BribeResult : uint8_t { BRIBE_OK, BRIBE_NOT_ALLOWED, BRIBE_NO_UNITS, BRIBE_TOO_EXPENSIVE };
+	// Commands.js "attack-request": `player` asks its allies to attack `target`; their
+	// Petras answer at the end of the AI turn (attackManager.js checkEvents).
+	void cmd_attack_request(uint8_t player, uint8_t target);
 	BribeResult cmd_bribe(uint8_t player, uint8_t target);
 	int bribe_cost(uint8_t player, uint8_t target, bool failed = false) const; // metal
 	bool can_bribe(uint8_t player, uint8_t target) const;
@@ -1397,6 +1400,9 @@ public:
 		uint32_t retreat_base_id = 0;
 		float retreat_x = 36.0f;
 		float retreat_z = 36.0f;
+		uint8_t target_player = 0xFF; // attackPlan.js targetPlayer (0xFF until a target is chosen)
+		bool forced = false;    // forceStart: march with what it has, take any target
+		bool requested = false; // started at an ally's request: asks no one to join
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
@@ -2232,7 +2238,7 @@ private:
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
-	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
 	bool petra_raid_target_ok(uint32_t bld_id) const;
@@ -2457,6 +2463,9 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
+	std::vector<std::pair<uint8_t, uint8_t>> petra_attack_requests_; // (source, target), drained each AI turn
+	void petra_process_attack_requests();
+	void petra_answer_attack_request(uint8_t source, uint8_t target);
 	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
 	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();
