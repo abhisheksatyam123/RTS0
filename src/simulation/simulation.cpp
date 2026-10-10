@@ -3167,6 +3167,25 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 		return false;
 	// Commands.js "diplomacy": refused during a ceasefire and when teams are locked.
 	if (ceasefire_active() || teams_locked()) return false;
+	// Unlocked teams only set the starting alliances: a player who stops allying a
+	// teammate leaves the team. Its stances with the former teammates stay allied both
+	// ways, as 0 A.D.'s were, except the one it just changed. A team's id is its lowest
+	// member, so the members left behind renumber.
+	if (stance != DIPLO_ALLY && players_[player_id].team == players_[target].team) {
+		const uint8_t old = players_[player_id].team;
+		uint8_t mates = 0, lowest = MAX_PLAYERS;
+		for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+			if (q != player_id && players_[q].team == old) {
+				mates |= (uint8_t)(1u << q);
+				if (lowest == MAX_PLAYERS) lowest = q;
+			}
+		for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+			if ((mates >> q) & 1) {
+				players_[q].team = lowest;
+				diplomacy_[player_id][q] = diplomacy_[q][player_id] = DIPLO_ALLY;
+			}
+		players_[player_id].team = player_id;
+	}
 	set_diplomacy(player_id, target, stance);
 	return true;
 }
