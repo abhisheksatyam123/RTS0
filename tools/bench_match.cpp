@@ -35,7 +35,9 @@ Counts count_state(const Simulation &s) {
 	for (size_t i = 0; i < u.count; ++i) {
 		if (!u.alive[i] || u.team[i] > 1) continue;
 		c.units[u.team[i]]++;
-		if (u.unit_type[i] == UNIT_VILLAGER || u.unit_type[i] == UNIT_FEMALE_CITIZEN) c.workers[u.team[i]]++;
+		// Workers as Petra counts them: support units and citizen soldiers (who gather too).
+		const uint8_t g = unit_gather_class(u.unit_type[i], u.tmpl[i]);
+		if (g == GATHER_SUPPORT || g == GATHER_INFANTRY) c.workers[u.team[i]]++;
 	}
 	for (const auto &b : s.buildings()) {
 		if (b.team <= 1 && b.hp > 0) c.buildings[b.team]++;
