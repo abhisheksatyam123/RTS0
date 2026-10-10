@@ -3,7 +3,8 @@
 // the overlap limits; segments take their length's share of wall_long's cost and health, block
 // the cells under their turned footprint, keep them through save/load, and only a long one
 // upgrades to a gate. A wall snaps onto the player's towers and stops at the first piece it can't
-// pay for. Palisades are a WallSet of their own (wallset_palisade).
+// pay for. Palisades are a WallSet of their own (wallset_palisade), and a long one upgrades to a
+// palisade gate.
 //   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
@@ -219,6 +220,67 @@ int main() {
 		float x, z;
 		Simulation::unpack_wall_point(Simulation::pack_wall_point(-37.25f, 101.5f), x, z);
 		CHECK(x == -37.25f && z == 101.5f);
+	}
+
+	// 9. A long palisade upgrades to a palisade gate (palisades_long Upgrade: 10 wood, 6 s) with
+	//    palisades_gate's 500 health; palisade towers and one-cell palisades don't. Unlocked, the
+	//    gate lets long-range paths through; locked, it doesn't.
+	setup(s, 0.0f);
+	{
+		s.player(0).res[RES_WOOD] = 1000.0f;
+		CHECK(s.cmd_build_wall(0, -3.5f, 10.0f, 3.5f, 10.0f, nullptr, 0, false, WALLSET_PALISADE) == 5);
+		const uint32_t cell = s.spawn_building_world(20.0f, 20.0f, BLD_PALISADE, 0, 1.0f);
+		uint32_t long_id = 0, tower_id = 0;
+		for (const auto &bld : s.buildings()) {
+			if (bld.type != BLD_PALISADE) continue;
+			auto &m = const_cast<Simulation::Building &>(bld);
+			m.build_progress = 1.0f;
+			m.hp = m.max_hp;
+			if (bld.id == cell) continue;
+			(is_palisade_tower(bld.type, bld.half_size) ? tower_id : long_id) = bld.id;
+		}
+		const BuildingUpgradeInfo up = building_upgrade(BLD_PALISADE, CIV_ATHENIANS);
+		CHECK(up.to == BLD_PALISADE_GATE && up.wood_cost == 10 && up.time == 6.0f);
+		CHECK(!civ_can_build(CIV_ATHENIANS, BLD_PALISADE_GATE));
+		CHECK(s.upgrade_check(0, tower_id) == Simulation::UPGRADE_ERR_NONE);
+		CHECK(s.upgrade_check(0, cell) == Simulation::UPGRADE_ERR_NONE);
+		CHECK(s.upgrade_check(0, long_id) == Simulation::UPGRADE_OK);
+		const float wood0 = s.player(0).res[RES_WOOD];
+		CHECK(s.cmd_upgrade_building(0, long_id));
+		CHECK(wood0 - s.player(0).res[RES_WOOD] == 10.0f);
+		for (int k = 0; k < (int)(6.2f / Simulation::FIXED_STEP); ++k) s.tick(Simulation::FIXED_STEP);
+		const Simulation::Building *g = find_bld(s, long_id);
+		CHECK(g && g->type == BLD_PALISADE_GATE);
+		if (g) {
+			const float scale = s.structure_max_hp(BLD_PALISADE_GATE, 0) / building_type_info(BLD_PALISADE_GATE).max_hp;
+			CHECK(std::fabs(g->max_hp - 500.0f * scale) < 0.5f && g->hp == g->max_hp);
+			CHECK(g->half_size == 1.75f && g->half_d == PALISADE_HALF_DEPTH);
+			auto [cx, cy] = s.nav_grid().world_to_cell(g->x, g->z);
+			const bool open_paths = s.nav_grid().cells.at(cx, cy) != NAV_OBSTRUCTED;
+			CHECK(s.cmd_lock_gate(0, long_id, true));
+			const bool locked_blocks = s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED;
+			std::printf("  palisade gate: %.0f hp, paths %s unlocked, %s locked\n", g->max_hp, open_paths ? "cross" : "blocked",
+					locked_blocks ? "blocked" : "cross");
+			CHECK(open_paths && locked_blocks);
+			// Unlocked again, the owner's spearman walks through it.
+			CHECK(s.cmd_lock_gate(0, long_id, false));
+			const float gx = g->x;
+			uint32_t u = s.spawn_unit(gx, 6.0f, 0, UNIT_SPEARMAN);
+			s.cmd_move(&u, 1, gx, 14.0f);
+			float cross_x = 1e9f, z = 6.0f;
+			for (int k = 0; k < (int)(12.0f / Simulation::FIXED_STEP) && z < 13.5f; ++k) {
+				s.tick(Simulation::FIXED_STEP);
+				const auto uv = s.units();
+				size_t i = 0;
+				while (i < uv.count && uv.id[i] != u) ++i;
+				if (i == uv.count) break;
+				const float pz = uv.pos_z[i];
+				if (z < 10.0f && pz >= 10.0f) cross_x = uv.pos_x[i];
+				z = pz;
+			}
+			std::printf("  own spearman through the palisade gate: z %.1f, crossed at x %.2f (gate at %.2f)\n", z, cross_x, gx);
+			CHECK(z >= 13.5f && std::fabs(cross_x - gx) < 1.2f);
+		}
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
