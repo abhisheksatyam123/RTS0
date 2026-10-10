@@ -61,7 +61,7 @@ static float seconds_until(Simulation &s, uint32_t bid, bool (*done)(const Simul
 // takes RepairTimeRatio (2) x the build time for the missing health.
 static void test_build_and_repair() {
 	static Simulation s;
-	const float build_time = building_type_info(BLD_HOUSE).build_time;
+	const float build_time = civ_building_type_info(s.player_civ(0), BLD_HOUSE).build_time; // athen: the big house
 	float took[2] = {};
 	for (int k = 0; k < 2; ++k) {
 		const int builders = k ? 3 : 1;
