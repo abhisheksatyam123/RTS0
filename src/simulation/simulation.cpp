@@ -1945,6 +1945,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	const Building fp = wall_piece_footprint(p);
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, fp.half_d);
+	b.garrison_cap = structure_garrison_cap(b); // its length's turret points
 	if (const float health = wallset_piece_value(b.type, b.half_size, 0); health > 0.0f) {
 		// wall_long/medium/short (palisades_*) Health by length, after the same civ and technology bonuses.
 		b.max_hp *= health / building_type_info(b.type).max_hp;
@@ -5335,8 +5336,30 @@ const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
 	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
 	if (kind < 0) return nullptr;
 	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
-	const TurretPointSet &set = TURRET_POINTS[civ < CIV_COUNT ? civ : 0][kind];
+	const int c = civ < CIV_COUNT ? civ : 0;
+	if (is_wallset_piece(b.type, b.half_size)) {
+		// A WallSet piece holds its own template's points: wall_long's or wall_medium's by length,
+		// wall_gate's for a gate; wall_short has none (and no garrison either).
+		static constexpr TurretPointSet NONE{};
+		const int k = b.type == BLD_GATE ? 2 : b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[0] - 0.01f ? 0
+				: b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[1] - 0.01f ? 1 : -1;
+		return k < 0 ? &NONE : &TURRET_POINTS_WALLSET[c][k];
+	}
+	const TurretPointSet &set = TURRET_POINTS[c][kind];
 	return set.count ? &set : nullptr;
+}
+
+// Where turret point k of `b` stands in the world. A WallSet piece's points are in 0 A.D.'s frame
+// of the wall (x along it), turned with it; a one-cell piece's lie unturned around its centre.
+static void turret_point_world(const Simulation::Building &b, const TurretPoint &p, float &x, float &z) {
+	if (!is_wallset_piece(b.type, b.half_size)) {
+		x = b.x + p.x;
+		z = b.z + p.z;
+		return;
+	}
+	const float c = std::cos(b.rot), s = std::sin(b.rot);
+	x = b.x + p.x * c + p.z * s;
+	z = b.z - p.x * s + p.z * c;
 }
 
 int Simulation::structure_garrison_cap(const Building &b) const {
@@ -5354,13 +5377,15 @@ uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
 }
 
 // The point a turret unit stands on: the free one nearest its position.
-static int nearest_turret_point(const TurretPointSet &pts, float bx, float bz, float x, float z,
+static int nearest_turret_point(const TurretPointSet &pts, const Simulation::Building &b, float x, float z,
 		const bool *taken = nullptr) {
 	int best = 0;
 	float best_d2 = 1e30f;
 	for (int k = 0; k < pts.count; ++k) {
 		if (taken && taken[k]) continue;
-		const float dx = bx + pts.pt[k].x - x, dz = bz + pts.pt[k].z - z;
+		float px, pz;
+		turret_point_world(b, pts.pt[k], px, pz);
+		const float dx = px - x, dz = pz - z;
 		if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = k; }
 	}
 	return best;
@@ -5372,12 +5397,13 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	bool taken[TURRET_POINTS_MAX] = {};
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t u = lookup_unit(uid);
-		if (u >= 0) taken[nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u])] = true;
+		if (u >= 0) taken[nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u])] = true;
 	}
 	int k = 0;
 	while (k < pts->count && taken[k]) ++k;
 	if (k == pts->count) return;
-	const float x = b.x + pts->pt[k].x, z = b.z + pts->pt[k].z;
+	float x, z;
+	turret_point_world(b, pts->pt[k], x, z);
 	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
 	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
 	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
@@ -5434,11 +5460,13 @@ void Simulation::tick_turrets() {
 				list.erase(list.begin() + (std::ptrdiff_t)k);
 				continue;
 			}
-			const int pi = nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u], taken);
+			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
 			taken[pi] = true;
 			const TurretPoint &p = pts->pt[pi];
-			units_.pos_x[u] = units_.target_x[u] = b.x + p.x;
-			units_.pos_z[u] = units_.target_z[u] = b.z + p.z;
+			float px, pz;
+			turret_point_world(b, p, px, pz);
+			units_.pos_x[u] = units_.target_x[u] = px;
+			units_.pos_z[u] = units_.target_z[u] = pz;
 			units_.vel_x[u] = units_.vel_z[u] = 0.0f;
 			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
 			turret_height_[list[k]] = p.y;
