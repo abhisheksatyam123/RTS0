@@ -26,6 +26,7 @@ static void run(Simulation &s, float seconds) {
 static void fresh(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
+	for (uint8_t p = 0; p < 2; ++p) s.players_[p].active = 1, s.players_[p].is_ai = 0; // no Petra builders
 	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
@@ -270,9 +271,13 @@ int main() {
 		CHECK(f >= 0 && s.fauna_.behavior[f] == FAUNA_CORRALLED);
 		CHECK(f >= 0 && s.fauna_.corral_id[f] == corral1);
 		CHECK(f >= 0 && s.fauna_.corral_id[f] != corral0);
-		// Ordering a penned animal slaughters it.
+		// A penned animal is out of reach until the corral lets it out; then it is slaughtered.
 		s.order_herd(&herder, 1, sheep);
-		run(s, 20.0f);
+		run(s, 5.0f);
+		CHECK(f_alive(s, sheep));
+		s.cmd_unload(1, corral1, nullptr, 0);
+		s.order_hunt(&herder, 1, sheep); // the herder has wandered off to work meanwhile
+		for (int t = 0; t < 1200 && f_alive(s, sheep); ++t) run(s, Simulation::FIXED_STEP);
 		CHECK(!f_alive(s, sheep));
 	}
 
@@ -300,6 +305,41 @@ int main() {
 		s.fauna_.corral_id[fidx(s, penned)] = pen;
 		s.fauna_attacked((size_t)fidx(s, penned), foe);
 		CHECK(s.fauna_.behavior[fidx(s, penned)] == FAUNA_CORRALLED);
+		// A penned animal is garrisoned (GarrisonHolder List Animal): no one can slaughter it
+		// over the fence; it heals 1 hp a second (BuffHeal); Unload all lets it out; a corral
+		// below half health (EjectHealth 0.5) ejects its animals and takes no more.
+		{
+			uint32_t butcher = s.spawn_unit(-9.0f, 10.0f, 1, UNIT_FEMALE_CITIZEN);
+			s.order_hunt(&butcher, 1, penned);
+			CHECK(s.units_.target_unit_id[uidx(s, butcher)] != penned);
+			uint32_t herd_ids[1] = {butcher};
+			s.order_herd(herd_ids, 1, penned);
+			s.fauna_.hp[fidx(s, penned)] -= 5.0f;
+			const float hurt = s.fauna_.hp[fidx(s, penned)];
+			run(s, 3.0f);
+			CHECK(f_alive(s, penned) && s.fauna_.behavior[fidx(s, penned)] == FAUNA_CORRALLED);
+			CHECK(std::fabs(s.fauna_.hp[fidx(s, penned)] - (hurt + 3.0f)) < 0.2f);
+			CHECK(s.corral_count(pen) == 1);
+			s.cmd_unload(0, pen, nullptr, 0); // not the owner
+			CHECK(s.corral_count(pen) == 1);
+			s.cmd_unload(1, pen, nullptr, 0);
+			CHECK(s.corral_count(pen) == 0 && s.fauna_.corral_id[fidx(s, penned)] == 0);
+			s.order_hunt(&butcher, 1, penned);
+			for (int t = 0; t < 400 && f_alive(s, penned); ++t) run(s, Simulation::FIXED_STEP);
+			CHECK(!f_alive(s, penned));
+
+			uint32_t ewe = s.spawn_fauna(-12.0f, 11.0f, FAUNA_SHEEP);
+			s.fauna_.behavior[fidx(s, ewe)] = FAUNA_CORRALLED;
+			s.fauna_.corral_id[fidx(s, ewe)] = pen;
+			auto &pb = s.buildings_[s.building_id_to_idx_.at(pen)];
+			pb.hp = pb.max_hp * 0.4f;
+			run(s, 0.2f);
+			CHECK(s.corral_count(pen) == 0 && s.fauna_.behavior[fidx(s, ewe)] != FAUNA_CORRALLED);
+			uint32_t shepherd = s.spawn_unit(-10.0f, 13.0f, 1, UNIT_FEMALE_CITIZEN);
+			s.order_herd(&shepherd, 1, ewe);
+			run(s, 5.0f);
+			CHECK(s.corral_count(pen) == 0);
+		}
 
 		fresh(s);
 		uint32_t archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);

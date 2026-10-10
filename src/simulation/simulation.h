@@ -160,7 +160,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 55; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 56; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
@@ -297,7 +297,7 @@ public:
 		float upgrade_duration = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
 
-		// 0 A.D. Gate.js (BLD_GATE only). An unlocked gate never blocks long-range
+		// 0 A.D. Gate.js (gates: is_gate_type). An unlocked gate never blocks long-range
 		// pathfinding and blocks movement only while closed; a locked gate stays
 		// closed and blocks both.
 		bool gate_open = false;
@@ -308,12 +308,12 @@ public:
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {
-		return building_blocks_movement(b.type) && (b.type != BLD_GATE || b.gate_locked);
+		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || b.gate_locked);
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
 	// A foundation blocks nothing until it is committed (Foundation.js Commit).
 	static bool blocks_movement_now(const Building &b) {
-		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open) &&
+		return building_blocks_movement(b.type) && !(is_gate_type(b.type) && b.gate_open) &&
 				(b.committed || b.build_progress >= 0.99f);
 	}
 
@@ -542,8 +542,9 @@ public:
 			bool queued = false, bool allow_capture = false);
 	// Attack-move (UnitAI WalkAndFight): fight units, then structures unless units_only,
 	// on the way, and carry on to (tx, tz) afterwards.
+	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-			bool queued = false, bool units_only = false, bool allow_capture = false);
+			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
@@ -670,6 +671,8 @@ public:
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
 	// The garrisoned units `player` may unload from `building_id` under those rules.
 	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
+	// Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
+	int corral_count(uint32_t corral_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
@@ -1201,6 +1204,10 @@ public:
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;
+	void petra_build_defenses();
+	void petra_check_resource_levels(int32_t turn);
+	uint32_t petra_place_dropsite(uint8_t res);
+	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -1741,7 +1748,7 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	int corral_count(uint32_t corral_id) const;
+	void eject_corral_animals(const Building &b);
 	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
 	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
@@ -2110,6 +2117,8 @@ private:
 	PetraConfig petra_config_;
 	PetraDefenseArmy petra_defense_army_;
 	PetraEmergency petra_emergency_;
+	PetraDefenseBuild petra_defense_build_;
+	PetraDropsiteCheck petra_dropsite_check_;
 	PetraQueueManager petra_queues_;
 	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), one per owner
 	const PetraTransportPlan *petra_transport_for(uint8_t owner) const;
@@ -2132,7 +2141,9 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0) const;
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
+	uint8_t petra_enemy_player(uint8_t kind) const;
+	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
 	void petra_set_rushes();
@@ -2140,8 +2151,11 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
-	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz);
+	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
+	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
 	bool petra_unit_reserved(uint32_t uid) const;
+	bool petra_mustering(uint32_t uid) const;
+	void petra_leave_mustering(uint32_t uid);
 
 	std::vector<PetraBase> petra_bases_;
 	// Foundations whose build progress has stalled; builders that could not
@@ -2347,7 +2361,7 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_) X(petra_started_attacks_)
+	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
