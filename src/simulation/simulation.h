@@ -1186,6 +1186,9 @@ public:
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
+	int petra_accounted_population() const;
+	int petra_pop_for_barracks1() const;
+	int petra_pop_for_barracks2() const;
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
