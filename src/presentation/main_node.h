@@ -431,6 +431,7 @@ private:
 	Vector3 get_ground_click_pos(Vector2 mouse_pos) const;
 	std::pair<int, int> mouse_cell(Vector2 mouse_pos) const;
 	void clear_selection();
+	bool selection_can_garrison(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();
