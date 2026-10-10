@@ -903,7 +903,7 @@ static void test_barter() {
 	std::printf("  barter: contingency deal %s, gold %.0f -> %.0f\n", contingency ? "yes" : "no", gold_before, ps.gold());
 	CHECK(contingency && ps.gold() > gold_before, "sells spare food for the scarcest finite resource");
 
-	ps.food() = 100.0f; ps.wood() = 3000.0f; ps.gold() = 100.0f; ps.stone() = 3000.0f;
+	ps.food() = 300.0f; ps.wood() = 3000.0f; ps.gold() = 50.0f; ps.stone() = 3000.0f;
 	s->petra_set_trading_goods();
 	const uint8_t *g = s->trading_goods(1);
 	std::printf("  trading goods: food %d wood %d stone %d gold %d\n", g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD]);
