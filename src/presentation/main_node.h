@@ -297,7 +297,7 @@ public:
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
-	void _on_upgrade_pressed(int cancel);
+	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
 	void _on_dropsite_sharing_pressed(int shared);
@@ -334,7 +334,8 @@ public:
 	uint8_t view_player() const { return turn_mgr_.is_replaying() ? replay_view_ : local_player(); }
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
-	String player_display_name(uint8_t pid) const;
+	String player_display_name(uint8_t pid) const override;
+	bool mass_tribute_held() const override { return rtso::hotkeys::held("session.masstribute"); }
 	String player_names_[rtso::MAX_PLAYERS];
 	void apply_player_names(const Array &names);
 	void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
