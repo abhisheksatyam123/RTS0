@@ -2199,6 +2199,18 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 			water_mesh_node = memnew(MeshInstance3D);
 			water_mesh_node->set_mesh(water_mesh);
 			if (water_shader_mat.is_valid()) {
+				// Mipmapped copies of 0 A.D.'s lake normals: the import keeps
+				// none, and distant water then aliases into a regular grid.
+				for (const char *slot : { "wave_normal_a", "wave_normal_b" }) {
+					const String path = String(slot) == "wave_normal_a" ? "res://assets/textures/water/lake_normal0001.png"
+					                                                      : "res://assets/textures/water/lake_normal0031.png";
+					Ref<Texture2D> src = ResourceLoader::get_singleton()->exists(path) ? Ref<Texture2D>(ResourceLoader::get_singleton()->load(path)) : Ref<Texture2D>();
+					Ref<Image> img = src.is_valid() ? src->get_image() : Ref<Image>();
+					if (img.is_null()) continue;
+					if (img->is_compressed()) img->decompress();
+					img->generate_mipmaps();
+					water_shader_mat->set_shader_parameter(slot, ImageTexture::create_from_image(img));
+				}
 				water_mesh_node->set_material_override(water_shader_mat);
 			} else {
 				water_mat.instantiate();
