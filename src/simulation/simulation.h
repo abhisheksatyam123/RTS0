@@ -670,6 +670,8 @@ public:
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
 	// The garrisoned units `player` may unload from `building_id` under those rules.
 	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
+	// Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
+	int corral_count(uint32_t corral_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
@@ -1741,7 +1743,7 @@ private:
 	// Pays a trade gain into `player`'s stock and its gather statistics.
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
-	int corral_count(uint32_t corral_id) const;
+	void eject_corral_animals(const Building &b);
 	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
 	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
