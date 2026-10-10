@@ -8553,7 +8553,10 @@ void Simulation::tick_combat(float dt) {
 			if (!in_range || (units_.attack_timer[i] > 0.0f && units_.attack_timer[i] != ATTACK_DUE)) continue;
 			units_.attack_timer[i] = CAPTURE_REPEAT_S;
 			units_.action_state[i] = ACTION_ATTACK;
-			capture_attack_[bit->second][units_.team[i]] += capture_strength;
+			// GetTotalAttackEffects: a damaged structure is easier to capture, the
+			// strength divided by 0.1 + 0.9 * hp / maxHp (up to x10).
+			const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+			capture_attack_[bit->second][units_.team[i]] += capture_strength / (0.1f + 0.9f * health);
 			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 			continue;
 		}
@@ -8563,13 +8566,14 @@ void Simulation::tick_combat(float dt) {
 		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 
-		const auto &uinfo_att = unit_info_at(i);
-		float hack_dmg = uinfo_att.hack_damage;
-		float pierce_dmg = uinfo_att.pierce_damage;
-		float crush_dmg = uinfo_att.crush_damage;
-
-		// Siege demolition power comes from 0 A.D.'s own crush damage (rams 150,
-		// stone throwers 250 in their templates); no extra multiplier on top.
+		// GetAttackEffectsData: the attack's Damage after technologies, rank and attack
+		// auras, as against units. Siege demolition power comes from 0 A.D.'s own crush
+		// damage (rams 150, stone throwers 250 in their templates).
+		float att_dmg[3];
+		unit_attack_effects(i, att_dmg);
+		float hack_dmg = att_dmg[0];
+		float pierce_dmg = att_dmg[1];
+		float crush_dmg = att_dmg[2];
 
 		// The structure template's own Resistance/Entity/Damage levels (a civic centre
 		// is 25 hack, 35 pierce, 3 crush) and the attacker's Bonuses against it.
@@ -8584,11 +8588,9 @@ void Simulation::tick_combat(float dt) {
 		const float b_pierce_armor = b_armor[1];
 		const float b_crush_armor = b_armor[2];
 
-		float bld_dmg = std::max(1.0f,
-			hack_dmg * powf(0.9f, b_hack_armor) +
-			pierce_dmg * powf(0.9f, b_pierce_armor) +
-			crush_dmg * powf(0.9f, b_crush_armor)
-		);
+		// Attack.js GetTotalAttackEffects has no minimum: arrows barely scratch stone.
+		float bld_dmg = hack_dmg * powf(0.9f, b_hack_armor) + pierce_dmg * powf(0.9f, b_pierce_armor) +
+				crush_dmg * powf(0.9f, b_crush_armor);
 
 		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i],
 				civ_of(units_.team[i]));
@@ -8625,18 +8627,8 @@ void Simulation::tick_combat(float dt) {
 
 				collect_building_loot(units_.id[i], units_.team[i], b); // 0 A.D. Looter.js
 
-				// Evacuate garrisoned units with casualty damage
-				for (uint32_t guid : b.garrisoned_units) {
-					int32_t gidx = lookup_unit(guid);
-					if (gidx >= 0 && (size_t)gidx < units_.count) {
-						units_.pos_x[gidx] = b.x + 2.0f;
-						units_.pos_z[gidx] = b.z + 2.0f;
-						units_.alive[gidx] = 1;
-						units_.action_state[gidx] = ACTION_IDLE;
-						units_.hp[gidx] = std::max(5.0f, units_.hp[gidx] * 0.5f);
-					}
-				}
-				b.garrisoned_units.clear();
+				// GarrisonHolder OnDestroy -> EjectOrKill: the garrison walks out unharmed.
+				if (!b.garrisoned_units.empty()) order_ungarrison(b.id);
 				mark_building_wreck(b, units_.team[i]);
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
@@ -9234,13 +9226,13 @@ int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
 }
 
 // The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs),
-// each reduced by the animal's Resistance as 0.9^armour, at least 1.
+// each reduced by the animal's Resistance as 0.9^armour.
 float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
-	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return std::max(1.0f, units_.attack_damage[i]);
+	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
 	const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
-	return std::max(1.0f, uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
+	return (uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
 			uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
 			uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor));
 }
@@ -9429,21 +9421,27 @@ float Simulation::status_dps(uint8_t kind) {
 // The damage unit i's attack deals to unit t (0 A.D. Attacking.HandleAttackEffects):
 // its Hack, Pierce and Crush (scaled by techs) times its template Bonuses against t
 // (helpers/Attack.js GetAttackBonus) and its attack auras, each reduced by t's
-// Resistance as 0.9^armour, at least 1.
+// Resistance as 0.9^armour (GetTotalAttackEffects: no minimum).
 float Simulation::unit_attack_damage(size_t i, size_t t) {
-	const auto &uinfo_att = unit_info_at(i);
-	float target_armor[3];
+	float target_armor[3], d[3];
 	unit_resistance(t, target_armor);
-	const float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
-	float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
-	// Attack auras (hero bonuses, enemy carnyx and hero penalties); 0 = none in range
+	unit_attack_effects(i, d);
+	const float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
+	return mul * (d[0] * powf(0.9f, target_armor[0]) + d[1] * powf(0.9f, target_armor[1]) + d[2] * powf(0.9f, target_armor[2]));
+}
+
+// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: the
+// template's, scaled by technologies and rank (attack_damage over the template total),
+// times its attack auras (hero bonuses, enemy carnyx and hero penalties).
+void Simulation::unit_attack_effects(size_t i, float out[3]) const {
+	const auto &uinfo = unit_info_at(i);
+	float mul = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	if (aura > 0.0f) mul *= aura;
-	return std::max(1.0f,
-		uinfo_att.hack_damage * dmg_scale * mul * powf(0.9f, target_armor[0]) +
-		uinfo_att.pierce_damage * dmg_scale * mul * powf(0.9f, target_armor[1]) +
-		uinfo_att.crush_damage * dmg_scale * mul * powf(0.9f, target_armor[2]));
+	if (aura > 0.0f) mul *= aura; // 0 = none in range
+	out[0] = uinfo.hack_damage * mul;
+	out[1] = uinfo.pierce_damage * mul;
+	out[2] = uinfo.crush_damage * mul;
 }
 
 // A unit's attack timer runs as 0 A.D. Attack.js's interval timer:
@@ -20468,19 +20466,12 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 // An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
 void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-	const auto &uinfo = unit_info_at(u);
-	const float ra = rank_melee_armor(u); // unit_advanced.json / unit_elite.json
-	float hack_a = uinfo.hack_armor + ra, pierce_a = uinfo.pierce_armor + ra, crush_a = uinfo.crush_armor + ra;
-	if (units_.team[u] < MAX_PLAYERS && units_.unit_type[u] < UNIT_TYPE_COUNT) {
-		const float *armor = tech_mods(units_.team[u]).armor[units_.unit_type[u]];
-		hack_a += armor[0];
-		pierce_a += armor[1];
-		crush_a += armor[2];
-	}
-	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
-	                  info.crush_damage * powf(0.9f, crush_a);
-	if (!invulnerable(units_.id[u])) units_.hp[u] -= std::max(1.0f, dmg);
-	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, std::max(1.0f, dmg));
+	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
+	unit_resistance(u, res);
+	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
+	                  info.crush_damage * powf(0.9f, res[2]);
+	if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
+	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg);
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
@@ -20539,7 +20530,7 @@ void Simulation::tick_hunters() {
 			attack_done(i, in_reach, units_.attack_cooldown[i]);
 			dmg = unit_damage_to_fauna(i, f);
 		}
-		fauna_.hp[f] -= std::max(1.0f, dmg);
+		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i]);
 		if (fauna_.hp[f] > 0.0f) continue;
 

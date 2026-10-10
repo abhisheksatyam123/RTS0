@@ -1661,6 +1661,7 @@ private:
 	bool attack_ready(size_t i, bool in_range, float prepare);
 	void attack_done(size_t i, bool in_range, float repeat);
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
+	void unit_attack_effects(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
