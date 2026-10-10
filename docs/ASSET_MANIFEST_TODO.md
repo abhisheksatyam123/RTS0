@@ -159,7 +159,7 @@ Textures:
   - Reference portraits: `portraits/catafalque.png` for the Catafalque Overview.
   - Formations: 12 PNG (`formations/`). The 0 A.D. formation count of 14 comes from the 2026-08-29 audit and was not re-verified (zip absent).
   - Auras and minimap: 19 and 22 files matched by name. Runtime wiring of these was not re-audited.
-  - Cursors: 22 (`assets/textures/cursors/`: 21 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (set-rally variants, the disabled variants, the arrow) are not copied yet.
+  - Cursors: 23 (`assets/textures/cursors/`: 22 `action-*` and `cursor-rally`), wired by `update_cursor`. 0 A.D.'s remaining cursors (the remaining set-rally variants, the disabled variants, the arrow) are not copied yet.
 - **2026-08-29 gap list: closed.** The 18 missing GLBs from the 2026-08-29 gap list are all shipped (see the matrices above). Re-export a single id with `python3 tools/extract_0ad_assets.py --only <ids>` (see [assets/README.md](../assets/README.md)).
 
 ## G7-H2 push (2026-10-05): HIGH-VISIBILITY class batch, +31 models (507 → 538)

@@ -375,6 +375,7 @@ int main() {
 		std::printf("autogarrison: a ringed barracks with its rally point on itself takes its batch of %zu inside\n",
 				bld(f, fb).garrisoned_units.size());
 
+		ringed(f, fb); // the first ring's idle units have pushed each other apart by now
 		f.cmd_unload(0, fb, nullptr, 0);
 		f.tick(Simulation::FIXED_STEP);
 		CHECK(bld(f, fb).garrisoned_units.size() == 2 && count_units(f, 0, UNIT_SPEARMAN) == 0);

@@ -810,6 +810,22 @@ inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
 }
 
+// A unit's Clearance for pushing and for the obstruction it is to walkers while it stands still
+// (0 A.D. CCmpUnitMotionManager, CCmpObstructionManager unit shapes). 0 A.D. gives infantry 0.8 m;
+// RTS0 draws its units bigger and keeps them further apart, so each unit's clearance follows its
+// body (unit_collision_radius) and 0 A.D.'s crowd lengths scale by PUSH_SCALE, which puts two
+// villagers left alone 1.4 units apart as before.
+inline constexpr float PUSH_SCALE = 5.0f / 6.0f; // RTS0 units per 0 A.D. metre in a crowd
+inline float unit_push_clearance(uint8_t type) {
+	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
+}
+
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines and war elephants.
+// A heavy unit pushes harder and is harder to push.
+inline float unit_push_weight(uint8_t type) {
+	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT ? 50.0f : 10.0f;
+}
+
 // 0 A.D. Attack.js CanAttack: fishing/merchant/trader/healer ship no (or
 // RestrictedClasses !SeaCreature). Fish are gathered, not fought.
 inline bool unit_can_attack(uint8_t type) {
