@@ -12334,6 +12334,33 @@
      "Town"
     ],
     "template": "structures/han/ministry"
+   },
+   "58": {
+    "generic_name": "Imperial Court",
+    "specific_name": "Cháotíng",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "CivilCentre",
+     "ImperialCourt",
+     "City"
+    ],
+    "template": "structures/han/civil_centre_court"
+   },
+   "59": {
+    "generic_name": "Great Tower",
+    "specific_name": "Dà Fángyù Tǎ",
+    "tooltip": "Garrison Infantry for additional arrows. Needs the “Murder Holes” technology to protect its foot.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "StoneTower",
+     "GreatTower"
+    ],
+    "template": "structures/han/defense_tower_great"
    }
   }
  },

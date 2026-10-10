@@ -407,10 +407,36 @@ enum BuildingType : uint8_t {
 	BLD_TACHARA_STONE = 55,   // pers/tachara_stone
 	BLD_TACHARA_METAL = 56,   // pers/tachara_metal
 	BLD_APARTMENT = 57,       // cart/apartment
-	BLD_TYPE_COUNT = 58
+	BLD_IMPERIAL_COURT = 58,  // han/civil_centre_court (a Civic Center: is_civic_centre)
+	BLD_TOWER_GREAT = 59,     // han/defense_tower_great (a defense tower: is_defense_tower)
+	BLD_TYPE_COUNT = 60
 };
 
 #include "civ_building_data.h"
+
+// The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
+// forms research the Tachara's technologies, the apartment the house's, the Han
+// Imperial Court the Civic Center's, the Great Archery Tower the defense tower's).
+inline constexpr uint8_t building_research_base(uint8_t type) {
+	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
+	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
+	       : type == BLD_IMPERIAL_COURT ? (uint8_t)BLD_TOWN_CENTER
+	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER : type;
+}
+
+// 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
+// territory root, a dropsite for every resource, a conquest-critical base).
+inline constexpr bool is_civic_centre(uint8_t type) {
+	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT;
+}
+// The defense tower and its Han Great Archery Tower form (StoneTower).
+inline constexpr bool is_defense_tower(uint8_t type) {
+	return type == BLD_TOWER || type == BLD_TOWER_GREAT;
+}
+// Structures that root territory on their own: civic centres, fortresses, defense towers.
+inline constexpr bool is_territory_root(uint8_t type) {
+	return is_civic_centre(type) || type == BLD_FORTRESS || is_defense_tower(type);
+}
 
 enum ResourceType : uint8_t {
 	RES_WOOD = 0,
@@ -572,7 +598,7 @@ struct AlertRaiserInfo {
 };
 inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 	constexpr float S = 0.28f;
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: out = {false, 120 * S, 180 * S, 100 * S}; return true;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: out = {false, 50 * S, 100 * S, 100 * S}; return true;
 		case BLD_MARKET: out = {true, -1.0f, -1.0f, 100 * S}; return true;
@@ -782,6 +808,22 @@ inline float unit_building_clearance(uint8_t type) {
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
+}
+
+// A unit's Clearance for pushing and for the obstruction it is to walkers while it stands still
+// (0 A.D. CCmpUnitMotionManager, CCmpObstructionManager unit shapes). 0 A.D. gives infantry 0.8 m;
+// RTS0 draws its units bigger and keeps them further apart, so each unit's clearance follows its
+// body (unit_collision_radius) and 0 A.D.'s crowd lengths scale by PUSH_SCALE, which puts two
+// villagers left alone 1.4 units apart as before.
+inline constexpr float PUSH_SCALE = 5.0f / 6.0f; // RTS0 units per 0 A.D. metre in a crowd
+inline float unit_push_clearance(uint8_t type) {
+	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
+}
+
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines and war elephants.
+// A heavy unit pushes harder and is harder to push.
+inline float unit_push_weight(uint8_t type) {
+	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT ? 50.0f : 10.0f;
 }
 
 // 0 A.D. Attack.js CanAttack: fishing/merchant/trader/healer ship no (or
@@ -1070,7 +1112,7 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
 inline uint8_t building_phase_class(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
 		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
 			return 1;
@@ -1246,7 +1288,7 @@ inline bool unit_is_human(uint8_t type) {
 // maximum health a structure unloads its garrison and takes no one in. 0 = no
 // garrison in 0 A.D. (storehouse, farmstead, market, gate, dock, walls, outpost).
 inline float building_garrison_heal(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: return 1.0f; // han/ministry BuffHeal 1
 		case BLD_TEMPLE: return 3.0f;
 		case BLD_WONDER: return 5.0f;
@@ -1280,11 +1322,11 @@ inline uint64_t building_tech_classes(uint8_t type) {
 	uint8_t phase = building_required_phase(type);
 	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
 	switch (type) {
-		case BLD_TOWN_CENTER: return c | TC_CIVCENTRE | TC_CIVIC;
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
 		case BLD_BARRACKS: return c | TC_BARRACKS;
 		case BLD_STOREHOUSE: return c | TC_STOREHOUSE;
-		case BLD_TOWER: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
+		case BLD_TOWER: case BLD_TOWER_GREAT: return c | TC_TOWER | TC_STONETOWER | TC_DEFENSIVE;
 		case BLD_SENTRY_TOWER: return c | TC_TOWER | TC_SENTRYTOWER | TC_DEFENSIVE;
 		case BLD_WALL_TOWER: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
@@ -1329,7 +1371,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 	constexpr uint64_t SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
 	GarrisonClassList l{};
 	auto add = [&](uint64_t need, uint64_t forbid = 0) { l.e[l.n++] = {need, forbid}; };
-	switch (type) {
+	switch (building_research_base(type)) { // the court and great tower keep their parent's List
 		case BLD_TOWN_CENTER: case BLD_TEMPLE: case BLD_EMBASSY: case BLD_THEATER: case BLD_GYMNASIUM:
 		case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_SYSSITON: case BLD_TACHARA: case BLD_AMPHITHEATER:
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
@@ -1362,13 +1404,6 @@ inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) 
 }
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
-
-// The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
-// forms research the Tachara's technologies, the apartment the house's).
-inline constexpr uint8_t building_research_base(uint8_t type) {
-	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
-	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE : type;
-}
 
 static_assert(BLD_TYPE_COUNT <= 64, "bld_bit() masks are uint64_t");
 inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << type) : 0ull; }
@@ -2177,9 +2212,9 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		ready = true;
 	}
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
-	if (type == BLD_TOWN_CENTER)
+	if (is_civic_centre(type))
 		return cc_rubble[civ];
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_HOUSE:
 		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
@@ -2199,7 +2234,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 
 // 0 A.D. VisualActor/FoundationActor per structure class.
 inline const char *civ_building_foundation(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_HOUSE:
 		case BLD_APARTMENT:
 		case BLD_STOREHOUSE:
@@ -2235,7 +2270,7 @@ inline const char *civ_building_foundation(uint8_t type) {
 }
 
 inline const char *civ_building_scaffold(uint8_t type) {
-	switch (type) {
+	switch (building_research_base(type)) {
 		case BLD_HOUSE:
 		case BLD_STOREHOUSE:
 		case BLD_CORRAL:
