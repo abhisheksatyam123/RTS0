@@ -1,11 +1,11 @@
 #ifndef RTSO_DIPLOMACY_DIALOG_H
 #define RTSO_DIPLOMACY_DIALOG_H
 
-// P4 stage-1 leaf widget: diplomacy & tribute dialog (0 A.D.
-// gui/session/diplomacy/DiplomacyDialog.js parity). Owns the 8-player
-// stance matrix; stance changes ride lockstep cmd 22 and tribute lockstep
-// cmd 27 (Simulation::cmd_tribute) via RtsoDiplomacyHost; bribes ride lockstep
-// cmd 42 (Simulation::cmd_bribe).
+// Diplomacy and tribute dialog: 0 A.D. gui/session/diplomacy (DiplomacyDialog.js,
+// DiplomacyPlayerText.js, StanceButton.js, TributeButton.js, SpyRequestButton.js,
+// DiplomacyDialogCeasefireCounter.js). One row per player of the match, seen from
+// the local player. Stance changes ride lockstep cmd 22, tribute cmd 27 and bribes
+// cmd 42 through RtsoDiplomacyHost.
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -20,157 +20,179 @@
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/color.hpp>
 #include <godot_cpp/variant/string.hpp>
-#include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
 #include "../simulation/simulation.h"
 #include "chat_window.h"
-#include "safe_select.h"
 
 using namespace godot;
 
-// Hooks the dialog needs from the RtsoMain coordinator. All but ui_sim()
-// are existing RtsoMain methods overriding these directly; ui_sim() is a
-// thin inline forward to the existing Simulation member.
+// Hooks the dialog needs from the RtsoMain coordinator.
 class RtsoDiplomacyHost {
 public:
 	virtual ~RtsoDiplomacyHost() = default;
-	virtual bool net_lockstep() const = 0; // existing RtsoMain hook
+	virtual bool net_lockstep() const = 0;
 	// Orders go through the TurnManager (always in a match, so replays record them).
 	virtual bool turn_cmds() const = 0;
-	// Existing RtsoMain hook -> TurnManager cmd 22 dispatch (stance).
 	virtual void post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 			float x, float z, uint32_t tid, uint8_t param) = 0;
-	virtual void play_sfx(const char *path) = 0; // existing RtsoMain hook
-	virtual void play_alarm(const char *path) = 0; // existing RtsoMain hook
-	virtual void update_hud() = 0; // existing RtsoMain hook
-	// The player this client plays as: the row of the stance matrix it owns.
-	virtual uint8_t local_player() const = 0; // existing RtsoMain hook
-	virtual rtso::Simulation *ui_sim() = 0; // existing sim member forward
+	virtual void play_sfx(const char *path) = 0;
+	virtual void play_alarm(const char *path) = 0;
+	virtual void update_hud() = 0;
+	// The player this client plays as (0xFF for an observer).
+	virtual uint8_t local_player() const = 0;
+	virtual rtso::Simulation *ui_sim() = 0;
+	// 0 A.D. colorizePlayernameByID's name: lobby, Options or AI name.
+	virtual String player_display_name(uint8_t pid) const = 0;
+	// The session.masstribute hotkey (Shift) is held.
+	virtual bool mass_tribute_held() const = 0;
 };
 
 class RtsoDiplomacyDialog {
 public:
-	// owner: signal target object (RtsoMain, bound methods). parent: ui
-	// CanvasLayer. host: coordinator hooks. chat: feedback log sink.
-	void build(Object *owner, Node *parent, RtsoDiplomacyHost *host,
-			RtsoChatWindow *chat) {
+	// TributeButton.js DefaultAmount and MassAmount.
+	static constexpr int TRIBUTE_DEFAULT = 100, TRIBUTE_MASS = 500;
+	// 0 A.D. GetTributableCodes order: food, wood, stone, metal.
+	static constexpr uint8_t TRIBUTE_RES[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+	static const char *res_name(uint8_t res) {
+		switch (res) {
+			case rtso::RES_FOOD: return "food";
+			case rtso::RES_WOOD: return "wood";
+			case rtso::RES_STONE: return "stone";
+			default: return "metal";
+		}
+	}
+	// TributeButton.nextAmount: the next multiple of the mass amount.
+	static int next_tribute_amount(int amount) { return TRIBUTE_MASS * (amount / TRIBUTE_MASS + 1); }
+	// DiplomacyPlayerText "Theirs": `them`'s stance towards `me`, as 0 A.D.'s isAlly /
+	// isNeutral read it. A ceasefire makes every enemy neutral (CeasefireManager.StartCeasefire).
+	static const char *stance_text(const rtso::Simulation &sim, uint8_t them, uint8_t me) {
+		if (them == me) return "";
+		const uint8_t s = effective_stance(sim, them, me);
+		return s == rtso::Simulation::DIPLO_ALLY ? "Ally" : s == rtso::Simulation::DIPLO_NEUTRAL ? "Neutral" : "Enemy";
+	}
+	static uint8_t effective_stance(const rtso::Simulation &sim, uint8_t from, uint8_t to) {
+		uint8_t s = sim.get_diplomacy(from, to);
+		if (s == rtso::Simulation::DIPLO_ENEMY && sim.ceasefire_active()) s = rtso::Simulation::DIPLO_NEUTRAL;
+		return s;
+	}
+	// DiplomacyPlayerText team caption: 1-based, or "None" for a player alone on its team.
+	// RTS0 keeps a team as its lowest member's id, so teams are numbered in member order.
+	static String team_text(const rtso::Simulation &sim, uint8_t pid) {
+		int number = 0;
+		bool shared = false;
+		uint8_t seen[rtso::MAX_PLAYERS] = {};
+		for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q) {
+			if (!sim.player(q).active && q != pid) continue;
+			const uint8_t t = sim.player_team(q);
+			bool has_mate = false;
+			for (uint8_t r = 0; r < rtso::MAX_PLAYERS; ++r)
+				has_mate |= r != q && (sim.player(r).active || r == pid) && sim.player_team(r) == t;
+			if (!has_mate || seen[t & 7]) continue;
+			seen[t & 7] = 1;
+			++number;
+			if (t == sim.player_team(pid)) { shared = true; break; }
+		}
+		return shared ? String::num_int64(number) : String("None");
+	}
+
+	void build(Object *owner, Node *parent, RtsoDiplomacyHost *host, RtsoChatWindow *chat) {
 		host_ = host;
 		chat_ = chat;
-		// =========================================================================
-		// 6. DIPLOMACY & TRIBUTE DIALOG (8-Player Matrix)
-		// =========================================================================
 		panel_ = memnew(Panel);
 		panel_->set_anchor(SIDE_LEFT, 0.5f);
 		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 0.5f);
 		panel_->set_anchor(SIDE_BOTTOM, 0.5f);
-		panel_->set_offset(SIDE_LEFT, -320.0f);
-		panel_->set_offset(SIDE_RIGHT, 320.0f);
-		panel_->set_offset(SIDE_TOP, -210.0f);
-		panel_->set_offset(SIDE_BOTTOM, 210.0f);
+		panel_->set_offset(SIDE_LEFT, -400.0f);
+		panel_->set_offset(SIDE_RIGHT, 400.0f);
+		panel_->set_offset(SIDE_TOP, -200.0f);
+		panel_->set_offset(SIDE_BOTTOM, 200.0f);
+		Ref<StyleBoxFlat> style;
+		style.instantiate();
+		style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.97f));
+		style->set_corner_radius_all(8);
+		style->set_border_width_all(2);
+		style->set_border_color(Color(0.85f, 0.72f, 0.25f, 0.95f));
+		panel_->add_theme_stylebox_override("panel", style);
 
-		Ref<StyleBoxFlat> diplo_style;
-		diplo_style.instantiate();
-		diplo_style->set_bg_color(Color(0.06f, 0.07f, 0.10f, 0.97f));
-		diplo_style->set_corner_radius_all(8);
-		diplo_style->set_border_width_all(2);
-		diplo_style->set_border_color(Color(0.85f, 0.72f, 0.25f, 0.95f));
-		panel_->add_theme_stylebox_override("panel", diplo_style);
+		VBoxContainer *vbox = memnew(VBoxContainer);
+		vbox->set_anchors_preset(Control::PRESET_FULL_RECT);
+		vbox->set_offset(SIDE_LEFT, 16.0f);
+		vbox->set_offset(SIDE_RIGHT, -16.0f);
+		vbox->set_offset(SIDE_TOP, 12.0f);
+		vbox->set_offset(SIDE_BOTTOM, -12.0f);
+		vbox->add_theme_constant_override("separation", 5);
+		panel_->add_child(vbox);
 
-		VBoxContainer *diplo_vbox = memnew(VBoxContainer);
-		diplo_vbox->set_anchor(SIDE_LEFT, 0.0f);
-		diplo_vbox->set_anchor(SIDE_RIGHT, 1.0f);
-		diplo_vbox->set_anchor(SIDE_TOP, 0.0f);
-		diplo_vbox->set_anchor(SIDE_BOTTOM, 1.0f);
-		diplo_vbox->set_offset(SIDE_LEFT, 16.0f);
-		diplo_vbox->set_offset(SIDE_RIGHT, -16.0f);
-		diplo_vbox->set_offset(SIDE_TOP, 12.0f);
-		diplo_vbox->set_offset(SIDE_BOTTOM, -12.0f);
-		diplo_vbox->add_theme_constant_override("separation", 6);
-		panel_->add_child(diplo_vbox);
+		Label *title = memnew(Label);
+		title->set_text("Diplomacy");
+		title->add_theme_font_size_override("font_size", 16);
+		title->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
+		vbox->add_child(title);
 
-		Label *diplo_title = memnew(Label);
-		diplo_title->set_text("🏛️ Hellenic League — Diplomacy & Tribute Matrix");
-		diplo_title->add_theme_font_size_override("font_size", 15);
-		diplo_title->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-		diplo_title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
-		diplo_vbox->add_child(diplo_title);
+		// DiplomacyDialog.xml header: Name, Civilization, Team, Theirs, A, N, E, Tribute.
+		HBoxContainer *head = memnew(HBoxContainer);
+		head->add_theme_constant_override("separation", 6);
+		const char *heads[] = {"Name", "Civilization", "Team", "Theirs", "A", "N", "E", "Tribute", ""};
+		const float widths[] = {NAME_W, CIV_W, TEAM_W, THEIRS_W, STANCE_W, STANCE_W, STANCE_W, TRIBUTE_W * 4 + 18.0f, SPY_W};
+		for (int i = 0; i < 9; ++i) {
+			Label *l = memnew(Label);
+			l->set_text(heads[i]);
+			l->set_custom_minimum_size(Vector2(widths[i], 20));
+			l->add_theme_font_size_override("font_size", 11);
+			l->add_theme_color_override("font_color", Color(0.85f, 0.8f, 0.6f));
+			if (i >= 4 && i <= 6) l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			head->add_child(l);
+		}
+		vbox->add_child(head);
+		vbox->add_child(memnew(HSeparator));
 
-		HSeparator *diplo_sep1 = memnew(HSeparator);
-		diplo_vbox->add_child(diplo_sep1);
-
-		const char *player_names[8] = {
-			"🔵 Athens (You)",
-			"🔴 Sparta (AI)",
-			"🟡 Persia (AI)",
-			"🟣 Rome (AI)",
-			"⚪ Carthage (AI)",
-			"🟢 Macedon (AI)",
-			"🟠 Gaul (AI)",
-			"🟤 Maurya (AI)"
-		};
-
-		for (int p = 0; p < 8; ++p) {
-			HBoxContainer *prow = memnew(HBoxContainer);
-			prow->set_custom_minimum_size(Vector2(0, 26));
-			prow->add_theme_constant_override("separation", 8);
-
-			player_names_[p] = memnew(Label);
-			player_names_[p]->set_custom_minimum_size(Vector2(165, 24));
-			player_names_[p]->set_text(player_names[p]);
-			player_names_[p]->add_theme_font_size_override("font_size", 11);
-			prow->add_child(player_names_[p]);
-
-			stances_[p] = memnew(RtsoSafeSelect);
-			stances_[p]->set_custom_minimum_size(Vector2(95, 24));
-			stances_[p]->add_theme_font_size_override("font_size", 10);
-			if (p == 0) {
-				stances_[p]->add_item("Self", 0);
-				stances_[p]->set_disabled(true);
-			} else {
-				stances_[p]->add_item("Ally", 0);
-				stances_[p]->add_item("Neutral", 1);
-				stances_[p]->add_item("Enemy", 2);
-				stances_[p]->select(2); // Enemy
-				stances_[p]->connect("item_selected", Callable(owner, "_on_diplo_stance_changed").bind(p));
+		for (int p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			Row &r = rows_[p];
+			r.box = memnew(HBoxContainer);
+			r.box->set_custom_minimum_size(Vector2(0, 26));
+			r.box->add_theme_constant_override("separation", 6);
+			r.name = add_label(r.box, NAME_W);
+			r.civ = add_label(r.box, CIV_W);
+			r.team = add_label(r.box, TEAM_W);
+			r.theirs = add_label(r.box, THEIRS_W);
+			for (int s = 0; s < 3; ++s) {
+				r.stance[s] = memnew(Button);
+				r.stance[s]->set_custom_minimum_size(Vector2(STANCE_W, 22));
+				r.stance[s]->add_theme_font_size_override("font_size", 11);
+				r.stance[s]->set_tooltip_text(s == 0 ? "Ally" : s == 1 ? "Neutral" : "Enemy");
+				r.stance[s]->connect("pressed", Callable(owner, "_on_diplo_stance_changed").bind(s, p));
+				r.box->add_child(r.stance[s]);
 			}
-			prow->add_child(stances_[p]);
-
-			if (p == 0) {
-				Label *self_lbl = memnew(Label);
-				self_lbl->set_text("— Player Base Command —");
-				self_lbl->add_theme_font_size_override("font_size", 10);
-				self_lbl->add_theme_color_override("font_color", Color(0.6f, 0.6f, 0.7f));
-				prow->add_child(self_lbl);
-			} else {
-				const char *t_icons[4] = {"🍞 +100", "🌲 +100", "🪙 +100", "🪨 +100"};
-				int t_res[4] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_GOLD, rtso::RES_STONE};
-				for (int r = 0; r < 4; ++r) {
-					Button *tb = memnew(Button);
-					tb->set_custom_minimum_size(Vector2(68, 22));
-					tb->set_text(t_icons[r]);
-					tb->add_theme_font_size_override("font_size", 9);
-					tb->connect("pressed", Callable(owner, "_on_diplo_tribute_pressed").bind(p, t_res[r]));
-					prow->add_child(tb);
-				}
-				// 0 A.D. DiplomacyDialog spy-request button (needs Espionage).
-				spy_btns_[p] = memnew(Button);
-				spy_btns_[p]->set_custom_minimum_size(Vector2(52, 22));
-				spy_btns_[p]->set_text("Spy");
-				spy_btns_[p]->add_theme_font_size_override("font_size", 9);
-				spy_btns_[p]->connect("pressed", Callable(owner, "_on_diplo_spy_pressed").bind(p));
-				prow->add_child(spy_btns_[p]);
+			for (int t = 0; t < 4; ++t) {
+				r.tribute[t] = memnew(Button);
+				r.tribute[t]->set_custom_minimum_size(Vector2(TRIBUTE_W, 22));
+				r.tribute[t]->add_theme_font_size_override("font_size", 10);
+				r.tribute[t]->connect("pressed", Callable(owner, "_on_diplo_tribute_pressed").bind(p, (int)TRIBUTE_RES[t]));
+				r.box->add_child(r.tribute[t]);
+				r.amount[t] = TRIBUTE_DEFAULT;
 			}
-
-			diplo_vbox->add_child(prow);
+			r.spy = memnew(Button);
+			r.spy->set_custom_minimum_size(Vector2(SPY_W, 22));
+			r.spy->set_text("Spy");
+			r.spy->add_theme_font_size_override("font_size", 10);
+			r.spy->connect("pressed", Callable(owner, "_on_diplo_spy_pressed").bind(p));
+			r.box->add_child(r.spy);
+			r.outcome = add_label(r.box, 70.0f);
+			vbox->add_child(r.box);
 		}
 
-		HSeparator *diplo_sep2 = memnew(HSeparator);
-		diplo_vbox->add_child(diplo_sep2);
+		vbox->add_child(memnew(HSeparator));
+		ceasefire_ = memnew(Label);
+		ceasefire_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		ceasefire_->add_theme_font_size_override("font_size", 12);
+		vbox->add_child(ceasefire_);
 
 		close_btn_ = memnew(Button);
 		close_btn_->set_custom_minimum_size(Vector2(130, 28));
@@ -178,123 +200,186 @@ public:
 		close_btn_->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
 		close_btn_->add_theme_font_size_override("font_size", 11);
 		close_btn_->connect("pressed", Callable(owner, "toggle_diplomacy"));
-		diplo_vbox->add_child(close_btn_);
+		vbox->add_child(close_btn_);
 
 		panel_->set_visible(false);
 		parent->add_child(panel_);
 	}
 
 	bool is_open() const { return panel_ != nullptr && panel_->is_visible(); }
-	void set_player_label(int p, const String &text) {
-		if (p >= 0 && p < 8 && player_names_[p]) player_names_[p]->set_text(text);
-	}
 
 	void close() {
 		if (panel_) panel_->set_visible(false);
 	}
 
+	// DiplomacyDialog.open: only a player (not an observer) opens it.
 	void toggle() {
-		if (!panel_) return;
+		if (!panel_ || !host_) return;
+		if (!panel_->is_visible() && host_->local_player() >= rtso::MAX_PLAYERS) return;
 		panel_->set_visible(!panel_->is_visible());
 		if (panel_->is_visible()) {
 			host_->play_sfx("res://assets/sounds/ui/diplomacy.ogg");
-			// 0 A.D. DiplomacyDialog: stances are fixed while teams are locked or a ceasefire runs.
-			const rtso::Simulation *sim = host_->ui_sim();
-			const bool fixed = sim && (sim->teams_locked() || sim->ceasefire_active());
-			for (int p = 1; p < 8; ++p)
-				if (stances_[p]) stances_[p]->set_disabled(fixed);
-			refresh_spies();
+			refresh();
 		}
 	}
 
-	// Spy buttons: shown while spies aren't disabled, usable once Espionage is researched.
-	void refresh_spies() {
+	// DiplomacyDialog.updatePanels, run each frame while open (registerSimulationUpdateHandler).
+	void refresh() {
 		const rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
-		const uint8_t me = host_ ? host_->local_player() : 0xFF;
-		for (int p = 1; p < 8; ++p) {
-			if (!spy_btns_[p]) continue;
-			spy_btns_[p]->set_visible(sim && !sim->spies_disabled());
-			const bool can = sim && sim->can_bribe(me, (uint8_t)p);
-			spy_btns_[p]->set_disabled(!can);
-			spy_btns_[p]->set_tooltip_text(can
-					? "Bribe a unit of this player to share its vision: " + String::num_int64(sim->bribe_cost(me, (uint8_t)p)) + " metal."
-					: String("Research Espionage at the market to bribe this player's units."));
+		if (!sim || !panel_) return;
+		const uint8_t me = host_->local_player();
+		if (me >= rtso::MAX_PLAYERS) { close(); return; }
+		const bool mass_held = host_->mass_tribute_held();
+		const bool stances_hidden = sim->ceasefire_active() || sim->teams_locked();
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			Row &r = rows_[p];
+			const bool in_match = sim->player(p).active || p == me;
+			r.box->set_visible(in_match);
+			if (!in_match) continue;
+			const uint32_t rgb = sim->player_color(p);
+			const Color col(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f);
+			set_text(r.name, host_->player_display_name(p));
+			r.name->add_theme_color_override("font_color", col);
+			set_text(r.civ, rtso::civ_info(sim->player_civ(p)).name);
+			set_text(r.team, team_text(*sim, p));
+			set_text(r.theirs, stance_text(*sim, p, me));
+			const bool defeated = sim->is_defeated(p);
+			set_text(r.outcome, defeated ? "Defeated" : ((sim->winner_mask() >> p) & 1) ? "Won" : "");
+			// DiplomacyDialogPlayerControl: no controls for yourself or a player out of the game.
+			const bool inactive = p == me || defeated || sim->is_defeated(me);
+			const uint8_t cur = effective_stance(*sim, me, p);
+			for (int s = 0; s < 3; ++s) {
+				r.stance[s]->set_visible(!inactive && !stances_hidden);
+				r.stance[s]->set_text(cur == s ? "x" : "");
+				r.stance[s]->set_disabled(cur == s);
+			}
+			for (int t = 0; t < 4; ++t) {
+				r.tribute[t]->set_visible(!inactive);
+				// TributeButton.onMassTributeRelease: releasing Shift sends a gathered mass tribute.
+				if (!mass_held && r.amount[t] >= TRIBUTE_MASS) send_tribute(p, t);
+				r.tribute[t]->set_text(String::num_int64(r.amount[t]) + " " + res_name(TRIBUTE_RES[t]));
+				r.tribute[t]->set_tooltip_text("Tribute " + String::num_int64(r.amount[t]) + " " + res_name(TRIBUTE_RES[t]) +
+						" to " + host_->player_display_name(p) + ". Shift-click to tribute " +
+						String::num_int64(next_tribute_amount(r.amount[t])) + ".");
+			}
+			// SpyRequestButton.update: hidden when spies are disabled or for a mutual ally
+			// whose vision is already shared (RTS0 allies always share it).
+			const bool spy_hidden = inactive || sim->spies_disabled() || sim->is_ally(p, me);
+			r.spy->set_visible(!spy_hidden);
+			if (!spy_hidden) {
+				const bool can = sim->can_bribe(me, p);
+				r.spy->set_disabled(!can);
+				r.spy->set_tooltip_text(String("Bribe a random unit from this player and share its vision during a limited period.\n") +
+						(sim->player(me).has_tech(rtso::TECH_UNLOCK_SPIES)
+										? "Costs " + String::num_int64(sim->bribe_cost(me, p)) + " metal."
+										: String("Requires Espionage (research it at the market).")));
+			}
+		}
+		// DiplomacyDialogCeasefireCounter.
+		ceasefire_->set_visible(sim->ceasefire_active());
+		if (sim->ceasefire_active()) {
+			const int s = (int)std::ceil(sim->ceasefire_remaining());
+			set_text(ceasefire_, "Remaining ceasefire time: " + String::num_int64(s / 60) + ":" + (s % 60 < 10 ? "0" : "") +
+					String::num_int64(s % 60) + ".");
 		}
 	}
 
-	// 0 A.D. "spy-request" (VisionSharing.AddSpy). Lockstep: cmd 42, since resources and
-	// the fog are hashed; offline the sim applies it now and reports the outcome.
+	// StanceButton.onPress: Commands.js "diplomacy" (lockstep cmd 22; offline the sim applies it now).
+	void stance_changed(int stance, int player_idx) {
+		rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
+		const uint8_t me = host_ ? host_->local_player() : 0xFF;
+		if (!sim || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS || me >= rtso::MAX_PLAYERS || player_idx == me) return;
+		if (sim->teams_locked() || sim->ceasefire_active()) return; // the buttons are hidden then
+		if (host_->turn_cmds())
+			host_->post_lockstep(22, nullptr, 0, 0, 0, (uint32_t)player_idx, (uint8_t)stance);
+		else
+			sim->cmd_set_diplomacy(me, (uint8_t)player_idx, (uint8_t)stance);
+		refresh();
+	}
+
+	// TributeButton.onPress: Shift-click raises the amount to the next 500, a plain
+	// click sends it (Commands.js "tribute", lockstep cmd 27).
+	void tribute_pressed(int player_idx, int res_type) {
+		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS) return;
+		int t = 0;
+		while (t < 4 && TRIBUTE_RES[t] != res_type) ++t;
+		if (t == 4) return;
+		Row &r = rows_[player_idx];
+		if (host_->mass_tribute_held()) r.amount[t] = next_tribute_amount(r.amount[t]);
+		else send_tribute((uint8_t)player_idx, t);
+		refresh();
+	}
+
+	// SpyRequestButton.onPress: Commands.js "spy-request" (lockstep cmd 42).
 	void spy_pressed(int player_idx) {
-		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= 8) return;
-		const uint8_t me = host_->local_player();
-		rtso::Simulation *sim = host_->ui_sim();
-		if (!sim->can_bribe(me, (uint8_t)player_idx)) return;
+		rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
+		const uint8_t me = host_ ? host_->local_player() : 0xFF;
+		if (!sim || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS || !sim->can_bribe(me, (uint8_t)player_idx)) return;
 		String msg;
 		bool ok;
 		if (host_->turn_cmds()) {
 			ok = sim->player_resource(me, rtso::RES_GOLD) >= sim->bribe_cost(me, (uint8_t)player_idx);
 			if (ok) host_->post_lockstep(42, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
-			msg = ok ? "Bribing a unit of Player " : "Not enough metal to bribe Player ";
+			msg = ok ? "Bribing a unit of " : "Not enough metal to bribe ";
 		} else {
-			const auto r = sim->cmd_bribe(me, (uint8_t)player_idx);
-			ok = r == rtso::Simulation::BRIBE_OK;
-			msg = ok ? "Bribed a unit of Player "
-					: r == rtso::Simulation::BRIBE_NO_UNITS ? "There are no bribable units for Player "
-															: "Not enough metal to bribe Player ";
+			const auto res = sim->cmd_bribe(me, (uint8_t)player_idx);
+			ok = res == rtso::Simulation::BRIBE_OK;
+			msg = ok ? "Bribed a unit of "
+					: res == rtso::Simulation::BRIBE_NO_UNITS ? "There are no bribable units for "
+															  : "Not enough metal to bribe ";
 		}
-		if (chat_) chat_->append_line("[color=#eebb22]" + msg + String::num_int64(player_idx + 1) + "[/color]\n");
+		if (chat_) chat_->append_line("[color=#eebb22]" + msg + host_->player_display_name((uint8_t)player_idx) + "[/color]\n");
 		if (ok) host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
 		else host_->play_alarm("res://assets/sounds/ui/alarm.ogg");
 		host_->update_hud();
-		refresh_spies();
+		refresh();
 	}
 
-	// Lockstep stance change: cmd 22 (TurnManager dispatch) when online,
-	// validated sim cmd offline. 0 A.D. DiplomacyDialog parity.
-	void stance_changed(int stance, int player_idx) {
-		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= 8) return;
-		if (host_->ui_sim()->teams_locked() || host_->ui_sim()->ceasefire_active()) {
-			if (chat_) chat_->append_line(String("[color=#eebb22]Diplomacy can't change while ") +
-					(host_->ui_sim()->teams_locked() ? "teams are locked." : "the ceasefire lasts.") + "[/color]\n");
-			return;
-		}
-		// Lockstep: stance MUST be a turn command (cmd_type 22, turn_manager.cpp dispatch)
-		// — diplomacy_state() is hashed (turn_manager.cpp:213), so a local-only change
-		// desyncs peers. Offline applies immediately via the validated sim cmd.
-		// 0 A.D. Diplomacy.js / DiplomacyDialog.js OnStanceChange parity.
-		if (host_->turn_cmds())
-			host_->post_lockstep(22, nullptr, 0, 0, 0, (uint32_t)player_idx, (uint8_t)stance);
-		else
-			host_->ui_sim()->cmd_set_diplomacy(host_->local_player(), (uint8_t)player_idx, (uint8_t)stance);
-		String st_name = (stance == 0) ? "Ally" : ((stance == 1) ? "Neutral" : "Enemy");
-		UtilityFunctions::print("[RTS0] Set diplomacy stance with Player ", player_idx + 1, " to ", st_name);
-		if (chat_) {
-			chat_->append_line("[color=#eebb22]🏛️ Diplomacy with Player " + String::num_int64(player_idx + 1) + " set to " + st_name + "[/color]\n");
-		}
+private:
+	static constexpr float NAME_W = 150.0f, CIV_W = 100.0f, TEAM_W = 40.0f, THEIRS_W = 56.0f, STANCE_W = 26.0f,
+		TRIBUTE_W = 72.0f, SPY_W = 40.0f;
+	struct Row {
+		HBoxContainer *box = nullptr;
+		Label *name = nullptr, *civ = nullptr, *team = nullptr, *theirs = nullptr, *outcome = nullptr;
+		Button *stance[3] = {};
+		Button *tribute[4] = {};
+		Button *spy = nullptr;
+		int amount[4] = {};
+	};
+
+	static Label *add_label(HBoxContainer *box, float w) {
+		Label *l = memnew(Label);
+		l->set_custom_minimum_size(Vector2(w, 22));
+		l->add_theme_font_size_override("font_size", 11);
+		l->set_clip_text(true);
+		box->add_child(l);
+		return l;
+	}
+	static void set_text(Label *l, const String &s) {
+		if (l && l->get_text() != s) l->set_text(s);
 	}
 
-	// Tribute (0 A.D. Player.js TributeResource). Lockstep: a turn command
-	// (cmd 27), since resources are hashed; offline the sim applies it now.
-	void tribute_pressed(int player_idx, int res_type) {
-		if (!host_ || !host_->ui_sim() || player_idx < 0 || player_idx >= 8 || res_type < 0 || res_type >= 4) return;
-		const uint8_t me = host_->local_player();
-		if (player_idx == me) return;
+	// TributeButton.performTribute, then back to the default amount.
+	void send_tribute(uint8_t to, int t) {
 		rtso::Simulation *sim = host_->ui_sim();
+		const uint8_t me = host_->local_player();
+		Row &r = rows_[to];
+		const int amount = r.amount[t];
+		r.amount[t] = TRIBUTE_DEFAULT;
+		if (!sim || me >= rtso::MAX_PLAYERS || to == me) return;
+		const uint8_t res = TRIBUTE_RES[t];
 		bool ok;
 		if (host_->turn_cmds()) {
-			// Checked here only to give feedback; the sim validates again when the turn runs.
-			ok = sim->player_resource(me, (uint8_t)res_type) >= 100;
-			if (ok) host_->post_lockstep(27, nullptr, 0, 100.0f, 0, (uint32_t)player_idx, (uint8_t)res_type);
+			// Checked here only for feedback; the sim validates again when the turn runs.
+			ok = sim->player_resource(me, res) >= amount;
+			if (ok) host_->post_lockstep(27, nullptr, 0, (float)amount, 0, (uint32_t)to, res);
 		} else {
-			ok = sim->cmd_tribute(me, (uint8_t)player_idx, (uint8_t)res_type, 100);
+			ok = sim->cmd_tribute(me, to, res, amount);
 		}
 		if (ok) {
-			const char *r_names[4] = {"Wood", "Gold", "Stone", "Food"};
-			String r_name = (res_type >= 0 && res_type < 4) ? r_names[res_type] : "Resource";
-			UtilityFunctions::print("[RTS0] Sent 100 ", r_name, " tribute to Player ", player_idx + 1);
-			if (chat_) {
-				chat_->append_line("[color=#55ffaa]🎁 Sent 100 " + r_name + " tribute to Player " + String::num_int64(player_idx + 1) + "[/color]\n");
-			}
+			if (chat_)
+				chat_->append_line("[color=#55ffaa]You have sent " + host_->player_display_name(to) + " " +
+						String::num_int64(amount) + " " + res_name(res) + ".[/color]\n");
 			host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
 			host_->update_hud();
 		} else {
@@ -302,11 +387,9 @@ public:
 		}
 	}
 
-private:
 	Panel *panel_ = nullptr;
-	RtsoSafeSelect *stances_[8] = { nullptr };
-	Label *player_names_[8] = { nullptr };
-	Button *spy_btns_[8] = { nullptr };
+	Row rows_[rtso::MAX_PLAYERS];
+	Label *ceasefire_ = nullptr;
 	Button *close_btn_ = nullptr;
 	RtsoDiplomacyHost *host_ = nullptr;
 	RtsoChatWindow *chat_ = nullptr;
