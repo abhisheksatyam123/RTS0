@@ -1941,6 +1941,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	const Building fp = wall_piece_footprint(p);
 	b.rot = fp.rot;
 	b.set_extents(fp.half_size, fp.half_d);
+	b.garrison_cap = structure_garrison_cap(b); // its length's turret points
 	if (const float health = wallset_piece_value(b.type, b.half_size, 0); health > 0.0f) {
 		// wall_long/medium/short (palisades_*) Health by length, after the same civ and technology bonuses.
 		b.max_hp *= health / building_type_info(b.type).max_hp;
@@ -5332,8 +5333,30 @@ const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
 	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
 	if (kind < 0) return nullptr;
 	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
-	const TurretPointSet &set = TURRET_POINTS[civ < CIV_COUNT ? civ : 0][kind];
+	const int c = civ < CIV_COUNT ? civ : 0;
+	if (is_wallset_piece(b.type, b.half_size)) {
+		// A WallSet piece holds its own template's points: wall_long's or wall_medium's by length,
+		// wall_gate's for a gate; wall_short has none (and no garrison either).
+		static constexpr TurretPointSet NONE{};
+		const int k = b.type == BLD_GATE ? 2 : b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[0] - 0.01f ? 0
+				: b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[1] - 0.01f ? 1 : -1;
+		return k < 0 ? &NONE : &TURRET_POINTS_WALLSET[c][k];
+	}
+	const TurretPointSet &set = TURRET_POINTS[c][kind];
 	return set.count ? &set : nullptr;
+}
+
+// Where turret point k of `b` stands in the world. A WallSet piece's points are in 0 A.D.'s frame
+// of the wall (x along it), turned with it; a one-cell piece's lie unturned around its centre.
+static void turret_point_world(const Simulation::Building &b, const TurretPoint &p, float &x, float &z) {
+	if (!is_wallset_piece(b.type, b.half_size)) {
+		x = b.x + p.x;
+		z = b.z + p.z;
+		return;
+	}
+	const float c = std::cos(b.rot), s = std::sin(b.rot);
+	x = b.x + p.x * c + p.z * s;
+	z = b.z - p.x * s + p.z * c;
 }
 
 int Simulation::structure_garrison_cap(const Building &b) const {
@@ -5351,13 +5374,15 @@ uint32_t Simulation::turret_holder_of(uint32_t unit_id) const {
 }
 
 // The point a turret unit stands on: the free one nearest its position.
-static int nearest_turret_point(const TurretPointSet &pts, float bx, float bz, float x, float z,
+static int nearest_turret_point(const TurretPointSet &pts, const Simulation::Building &b, float x, float z,
 		const bool *taken = nullptr) {
 	int best = 0;
 	float best_d2 = 1e30f;
 	for (int k = 0; k < pts.count; ++k) {
 		if (taken && taken[k]) continue;
-		const float dx = bx + pts.pt[k].x - x, dz = bz + pts.pt[k].z - z;
+		float px, pz;
+		turret_point_world(b, pts.pt[k], px, pz);
+		const float dx = px - x, dz = pz - z;
 		if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = k; }
 	}
 	return best;
@@ -5369,12 +5394,13 @@ void Simulation::occupy_turret(size_t i, Building &b) {
 	bool taken[TURRET_POINTS_MAX] = {};
 	for (uint32_t uid : b.garrisoned_units) {
 		const int32_t u = lookup_unit(uid);
-		if (u >= 0) taken[nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u])] = true;
+		if (u >= 0) taken[nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u])] = true;
 	}
 	int k = 0;
 	while (k < pts->count && taken[k]) ++k;
 	if (k == pts->count) return;
-	const float x = b.x + pts->pt[k].x, z = b.z + pts->pt[k].z;
+	float x, z;
+	turret_point_world(b, pts->pt[k], x, z);
 	set_order(i, ORDER_NONE, 0, 0, x, z); // up there: the garrison order is done
 	units_.pos_x[i] = units_.target_x[i] = units_.anchor_x[i] = x;
 	units_.pos_z[i] = units_.target_z[i] = units_.anchor_z[i] = z;
@@ -5431,11 +5457,13 @@ void Simulation::tick_turrets() {
 				list.erase(list.begin() + (std::ptrdiff_t)k);
 				continue;
 			}
-			const int pi = nearest_turret_point(*pts, b.x, b.z, units_.pos_x[u], units_.pos_z[u], taken);
+			const int pi = nearest_turret_point(*pts, b, units_.pos_x[u], units_.pos_z[u], taken);
 			taken[pi] = true;
 			const TurretPoint &p = pts->pt[pi];
-			units_.pos_x[u] = units_.target_x[u] = b.x + p.x;
-			units_.pos_z[u] = units_.target_z[u] = b.z + p.z;
+			float px, pz;
+			turret_point_world(b, p, px, pz);
+			units_.pos_x[u] = units_.target_x[u] = px;
+			units_.pos_z[u] = units_.target_z[u] = pz;
 			units_.vel_x[u] = units_.vel_z[u] = 0.0f;
 			units_.has_order[u] = 0; // SetImmobile: shoots what is in range, never walks
 			turret_height_[list[k]] = p.y;
@@ -14775,40 +14803,7 @@ void Simulation::petra_manage_naval(float dt) {
 }
 
 void Simulation::petra_manage_buildings(float dt) {
-	// 1. Emergency Defense Tower if threatened (threat >= 7.0f)
-	float max_base_threat = 0.0f;
-	float threatened_base_x = 36.0f, threatened_base_z = 36.0f;
-	for (const auto &b : petra_bases_) {
-		if (b.danger_level > max_base_threat) {
-			max_base_threat = b.danger_level;
-			threatened_base_x = b.x;
-			threatened_base_z = b.z;
-		}
-	}
-
-	if (max_base_threat >= 7.0f) {
-		int start_cx = (int)(threatened_base_x / GRID);
-		int start_cz = (int)(threatened_base_z / GRID);
-		bool placed = false;
-		for (int r = 3; r <= 7 && !placed; ++r) {
-			for (int dx = -r; dx <= r && !placed; ++dx) {
-				for (int dz = -r; dz <= r && !placed; ++dz) {
-					if (std::abs(dx) != r && std::abs(dz) != r) continue;
-					int cx = start_cx + dx;
-					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
-					    petra_try_pay(PETRA_QUEUE_EMERGENCY, 0.0f, 100.0f, 0.0f, 100.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
-						auto idle_workers = get_idle_workers(petra_pid_);
-						if (!idle_workers.empty()) {
-							petra_order_builders(idle_workers, 3, bid);
-						}
-						placed = true;
-					}
-				}
-			}
-		}
-	}
+	// (0 A.D.'s defenseManager builds no towers under attack: buildDefenses alone places them.)
 
 	// 2. Automated Multi-Base Forward Expansion when primary resources deplete or in Phase >= 2
 	bool primary_depleted = false;
@@ -15037,53 +15032,43 @@ void Simulation::petra_manage_buildings(float dt) {
 		}
 	}
 
-	// 4. Build Barracks if AI has none
-	bool has_barracks = false;
-	for (const auto &b : buildings_) {
-		if (b.team == petra_pid_ && b.type == BLD_BARRACKS) { has_barracks = true; break; }
-	}
-	if (!has_barracks) {
-		float base_x = 36.0f, base_z = 36.0f;
-		if (const auto *pbase = get_primary_petra_base()) {
-			base_x = pbase->x; base_z = pbase->z;
-		}
-		int start_cx = (int)(base_x / GRID);
-		int start_cz = (int)(base_z / GRID);
-		bool placed = false;
-		for (int r = 3; r <= 8 && !placed; ++r) {
-			for (int dx = -r; dx <= r && !placed; ++dx) {
-				for (int dz = -r; dz <= r && !placed; ++dz) {
-					int cx = start_cx + dx;
-					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2, BLD_BARRACKS) &&
-					    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 150.0f, 50.0f, 50.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, petra_pid_, 0.0f);
-						auto idle_workers = get_idle_workers(petra_pid_);
-						if (!idle_workers.empty()) {
-							petra_order_builders(idle_workers, 3, bid);
-						}
-						placed = true;
-					}
-				}
-			}
-		}
-	}
-
-	// 4b. headquarters.js constructTrainingBuildings: a stable once the barracks
-	// stands, as cavalry train only there (and at the civic centre).
-	if (has_barracks) {
+	// 4. headquarters.js constructTrainingBuildings: the first barracks (a range for a civ
+	// without one) once the accounted population passes Military.popForBarracks1, or while
+	// phasing to town with under 5 village structures; then a stable; a second barracks or range
+	// and a second stable past popForBarracks2, and a third training building 30 later
+	// (foundations count).
+	{
 		const uint8_t civ = petra_ps().civ;
-		bool trains = false, have = false, done_barracks = false;
-		for (uint16_t k : civ_roster_ids(civ))
-			if (civ_unit_template(k).trainers & bld_bit(BLD_STABLE)) { trains = true; break; }
+		const bool can_barracks = civ_can_build(civ, BLD_BARRACKS), can_range = civ_can_build(civ, BLD_RANGE),
+		           can_stable = civ_can_build(civ, BLD_STABLE);
+		int n_barracks = 0, n_ranges = 0, n_stables = 0, n_village = 0;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-			if (b.type == BLD_STABLE) have = true;
-			if (b.type == BLD_BARRACKS && b.build_progress >= 1.0f) done_barracks = true;
+			n_barracks += b.type == BLD_BARRACKS;
+			n_ranges += b.type == BLD_RANGE;
+			n_stables += b.type == BLD_STABLE;
+			if (building_required_phase(b.type) <= 1) ++n_village;
 		}
+		const int pop = petra_accounted_population();
+		const bool phasing_town = petra_ps().phase == 1 && petra_phasing();
 		const PetraBase *home = get_primary_petra_base();
-		if (trains && !have && done_barracks && home && civ_can_build(civ, BLD_STABLE)) {
-			if (const uint32_t bid = petra_place_building(BLD_STABLE, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY)) {
+		uint8_t want = BLD_TYPE_COUNT;
+		if (home && (pop > petra_pop_for_barracks1() || (phasing_town && n_village < 5))) {
+			const int pfb2 = petra_pop_for_barracks2();
+			if (n_barracks + n_ranges == 0)
+				want = can_barracks ? BLD_BARRACKS : can_range ? BLD_RANGE : BLD_TYPE_COUNT;
+			if (want == BLD_TYPE_COUNT && n_stables == 0 && can_stable)
+				want = BLD_STABLE;
+			if (want == BLD_TYPE_COUNT && n_barracks + n_ranges == 1 && pop > pfb2)
+				want = n_barracks == 0 ? (can_barracks ? BLD_BARRACKS : can_range ? BLD_RANGE : BLD_TYPE_COUNT)
+				                       : (can_range ? BLD_RANGE : can_barracks ? BLD_BARRACKS : BLD_TYPE_COUNT);
+			if (want == BLD_TYPE_COUNT && n_stables == 1 && can_stable && pop > pfb2)
+				want = BLD_STABLE;
+			if (want == BLD_TYPE_COUNT && n_barracks + n_ranges + n_stables == 2 && pop > pfb2 + 30)
+				want = can_barracks ? BLD_BARRACKS : can_stable ? BLD_STABLE : can_range ? BLD_RANGE : BLD_TYPE_COUNT;
+		}
+		if (want != BLD_TYPE_COUNT) {
+			if (const uint32_t bid = petra_place_building(want, home->x, home->z, 3, 16, PETRA_QUEUE_MILITARY)) {
 				auto idle = get_idle_workers(petra_pid_);
 				if (!idle.empty()) petra_order_builders(idle, 3, bid);
 			}
@@ -15327,6 +15312,35 @@ int Simulation::petra_work_phase3() const {
 	if (max_pop < 300) scaling *= std::sqrt((float)max_pop / 300.0f);
 	const int work = std::min(std::max((int)(65.0f * scaling), 40), max_pop * 2 / 3);
 	return std::min(work, petra_target_workers());
+}
+
+// headquarters.js getAccountedPopulation: the population plus the units in training queues.
+int Simulation::petra_accounted_population() const {
+	int pop = pop_current(petra_pid_);
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		for (const ProductionOrder &o : b.queue)
+			if (!o.is_tech() && o.unit_type < UNIT_TYPE_COUNT && !o.started) pop += o.count;
+	}
+	return pop;
+}
+
+// config.js Military.popForBarracks1 (25, 12 for a strongly aggressive AI) and popForBarracks2
+// (95), scaled by popScaling (times sqrt(maxPop/300) under 300): at least 12 and at most a fifth
+// of maxPop, and at least 45 and at most two thirds of it.
+static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
+	return max_pop < 300 ? pop_scaling * std::sqrt((float)max_pop / 300.0f) : pop_scaling;
+}
+
+int Simulation::petra_pop_for_barracks1() const {
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const float base = petra_config_.aggressive > 0.7f ? 12.0f : 25.0f;
+	return std::min(std::max((int)(base * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 12), max_pop / 5);
+}
+
+int Simulation::petra_pop_for_barracks2() const {
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	return std::min(std::max((int)(95.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
 }
 
 // researchManager.js:15 checkPhase: Town at pop >= Economy.popPhase2, City when
@@ -16962,7 +16976,7 @@ void Simulation::petra_manage_opening(float dt) {
 		return n;
 	};
 
-	// startingStrategy.js:513 — wood dropsite first, then houses, then barracks
+	// startingStrategy.js:513 — wood dropsite first, then houses
 	uint8_t want = BLD_HOUSE;
 	uint8_t queue = PETRA_QUEUE_VILLAGER;
 	int have_needed = 0;
@@ -16973,9 +16987,9 @@ void Simulation::petra_manage_opening(float dt) {
 		want = BLD_HOUSE;
 		have_needed = petra_opening_step_;
 	} else {
-		want = BLD_BARRACKS;
-		queue = PETRA_QUEUE_MILITARY;
-		have_needed = 1;
+		// startingStrategy.js builds no barracks: constructTrainingBuildings does, by population.
+		petra_opening_step_ = 4;
+		return;
 	}
 
 	if (count_ai(want) >= have_needed) {
@@ -17340,6 +17354,13 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 
 	if (tp.state == PetraTransportPlan::BOARDING) {
 		size_t aboard = get_transport_passenger_count(tp.ship_id);
+		// transportPlan.js: the passengers wait at the beach and board once the ship lies off
+		// it; walking straight at a ship still out at sea would take them into the water. The
+		// boarding clock starts once the ship is there (or has stopped short of it).
+		float dx = units_.pos_x[sidx] - tp.pickup_x;
+		float dz = units_.pos_z[sidx] - tp.pickup_z;
+		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
+		if (!ship_ready && units_.action_state[sidx] == ACTION_MOVE) tp.state_timer = 0.0f;
 		if (tp.state_timer > 28.0f) {
 			if (aboard == 0) {
 				tp.state = PetraTransportPlan::FAILED;
@@ -17352,20 +17373,25 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		// A passenger already heading for the ship keeps its order until it is within
 		// loading reach: a fresh order every turn re-paths it from its own navcell,
 		// which can hold it in place beside a building.
-		std::vector<uint32_t> board;
+		std::vector<uint32_t> board, to_beach;
 		for (uint32_t uid : tp.passenger_ids) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0 || !units_.alive[u]) continue;
 			const bool heading = units_.action_state[u] == ACTION_MOVE && units_.target_unit_id[u] == tp.ship_id;
 			const float ux = units_.pos_x[u] - units_.pos_x[sidx], uz = units_.pos_z[u] - units_.pos_z[sidx];
 			const float reach = ship_loading_reach((size_t)sidx, (size_t)u);
-			if (!heading || ux * ux + uz * uz <= reach * reach) board.push_back(uid);
+			const bool in_reach = ux * ux + uz * uz <= reach * reach;
+			if (!ship_ready && !in_reach) {
+				const float bx = units_.target_x[u] - tp.pickup_x, bz = units_.target_z[u] - tp.pickup_z;
+				const bool to_pickup = units_.action_state[u] == ACTION_MOVE && bx * bx + bz * bz <= 36.0f;
+				if (heading || !to_pickup) to_beach.push_back(uid);
+			} else if (!heading || in_reach) {
+				board.push_back(uid);
+			}
 		}
+		if (!to_beach.empty()) order_walk(to_beach.data(), to_beach.size(), tp.pickup_x, tp.pickup_z, false);
 		if (!board.empty()) order_board_transport(board.data(), board.size(), tp.ship_id);
 		aboard = get_transport_passenger_count(tp.ship_id);
-		float dx = units_.pos_x[sidx] - tp.pickup_x;
-		float dz = units_.pos_z[sidx] - tp.pickup_z;
-		bool ship_ready = (dx * dx + dz * dz) <= 36.0f;
 		if ((aboard >= 1 && aboard >= tp.passenger_ids.size()) ||
 		    (aboard >= 2 && ship_ready && tp.state_timer >= 8.0f))
 			sail();

@@ -1419,13 +1419,20 @@ static void test_repairs() {
 	for (int k = 0; k < 8; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	cc->hp = cc->max_hp * 0.25f;
 	if (house) house->hp = house->max_hp * 0.5f;
-	run_for(*s, 3.0f);
+	// Most repairers at once over 3 s: a foundation laid where some stand pushes them off for a
+	// moment, and they come back.
 	int on_cc = 0, on_house = 0;
 	const auto &u = s->units_;
-	for (size_t i = 0; i < u.count; ++i) {
-		if (!u.alive[i] || u.team[i] != 1 || u.action_state[i] != ACTION_BUILD) continue;
-		on_cc += u.target_building_id[i] == cc_id;
-		on_house += house_id && u.target_building_id[i] == house_id;
+	for (int step = 0; step < 6; ++step) {
+		run_for(*s, 0.5f);
+		int cc_now = 0, house_now = 0;
+		for (size_t i = 0; i < u.count; ++i) {
+			if (!u.alive[i] || u.team[i] != 1 || u.action_state[i] != ACTION_BUILD) continue;
+			cc_now += u.target_building_id[i] == cc_id;
+			house_now += house_id && u.target_building_id[i] == house_id;
+		}
+		on_cc = std::max(on_cc, cc_now);
+		on_house = std::max(on_house, house_now);
 	}
 	run_for(*s, 40.0f);
 	auto find = [&](uint32_t id) -> const Simulation::Building * {
