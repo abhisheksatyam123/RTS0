@@ -163,6 +163,7 @@ static void compare(const Simulation &a, const Simulation &b) {
 		CMP("relic claimed", i, la[i].claimed, lb[i].claimed);
 		CMP("relic civ", i, la[i].civ, lb[i].civ);
 		CMP("relic capture points", i, la[i].capture_cp, lb[i].capture_cp);
+		for (int t = 0; t <= MAX_PLAYERS; ++t) CMP("relic capture points per player", i, la[i].cp[t], lb[i].cp[t]);
 	}
 	CMP("fow_res", 0, a.fow_res(), b.fow_res());
 	if (a.fow_res() == b.fow_res()) {
