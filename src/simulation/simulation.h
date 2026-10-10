@@ -838,6 +838,7 @@ public:
 	float ceasefire_seconds() const { return ceasefire_seconds_; }
 	void set_ceasefire_seconds(float s) { ceasefire_seconds_ = std::max(0.0f, s); }
 	float ceasefire_remaining() const { return std::max(0.0f, ceasefire_seconds_ - (float)ticks_ * FIXED_STEP); }
+	float game_time() const { return (float)ticks_ * FIXED_STEP; } // seconds since the match started
 	bool ceasefire_active() const { return ceasefire_remaining() > 0.0f; }
 	// Whether a unit or structure of player a may attack one of player b right now.
 	bool can_attack(uint8_t a, uint8_t b) const { return !ceasefire_active() && is_hostile(a, b); }
@@ -871,8 +872,9 @@ public:
 		UPGRADE_OK = 0, UPGRADE_ERR_NONE, UPGRADE_ERR_OWNER, UPGRADE_ERR_BUSY, UPGRADE_ERR_PHASE, UPGRADE_ERR_COST,
 		UPGRADE_ERR_LIMIT // units: the target's EntityLimits category is full
 	};
-	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id) const;
-	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id);
+	// `choice`: which of building_upgrade()'s choices (the Tachara has four).
+	UpgradeCheck upgrade_check(uint8_t player_id, uint32_t building_id, int choice = 0) const;
+	bool cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice = 0);
 	// Stops an upgrade in progress and refunds what was paid (Upgrade.js CancelUpgrade).
 	bool cmd_cancel_upgrade(uint8_t player_id, uint32_t building_id);
 	// 0 A.D. Upgrade.js on units (civ_unit_upgrade_table): the Roman elite infantry's
@@ -1217,7 +1219,8 @@ public:
 	}
 	void set_mutual_ally(uint8_t player_id) { set_mutual_ally(0, player_id); }
 	// Allied: the same alliance team from game setup, or a stance both players
-	// chose. Teams win over stances, as 0 A.D.'s locked teams do.
+	// chose. Teams win over stances; without Lock Teams a player who stops allying
+	// a teammate leaves the team (cmd_set_diplomacy), so stances decide from then on.
 	bool is_ally(uint8_t a, uint8_t b) const {
 		if (a == b) return true;
 		if (a >= MAX_PLAYERS || b >= MAX_PLAYERS) return false;
@@ -1658,6 +1661,7 @@ private:
 	bool attack_ready(size_t i, bool in_range, float prepare);
 	void attack_done(size_t i, bool in_range, float repeat);
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
+	void unit_attack_effects(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);

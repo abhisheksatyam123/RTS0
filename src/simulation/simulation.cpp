@@ -2086,7 +2086,7 @@ uint8_t Simulation::train_unlock_tech(uint8_t player_id, uint8_t unit_type, uint
 		// A civ without the unlock trains the unit outright, as in 0 A.D.
 		return tech_available_to_civ(tech, civ) ? tech : (uint8_t)TECH_NONE;
 	};
-	if (bld_type == BLD_HOUSE) {
+	if (bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) {
 		uint8_t tech = tech_available_to_civ(TECH_UNLOCK_CIVILIANS_HOUSE_KUSH, civ)
 				? (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_KUSH : (uint8_t)TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC;
 		return gate(tech);
@@ -2211,7 +2211,7 @@ bool Simulation::can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_
 	if (player_id >= MAX_PLAYERS) return false;
 	if (!entity_limit_allows_unit(player_id, unit_type, tmpl)) return false; // EntityLimits (Hero 1, WarDog, ...)
 	// Houses only ever train citizens, and only once their civ's festival is in.
-	if (bld_type == BLD_HOUSE && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
+	if ((bld_type == BLD_HOUSE || bld_type == BLD_APARTMENT) && !(unit_tech_classes(unit_type) & TC_CIVILIAN)) return false;
 	uint8_t tech = train_unlock_tech(player_id, unit_type, bld_type, tmpl);
 	return tech == TECH_NONE || players_[player_id].has_tech(tech);
 }
@@ -2526,7 +2526,7 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 		if (b.team != player_id || b.build_progress < 1.0f || b.hp <= 0.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX
 		    || b.upgrade_to != BLD_TYPE_COUNT)
 			return TECH_ERR_BUILDING;
-		if (b.type != tinfo.researcher) return TECH_ERR_BUILDING;
+		if (building_research_base(b.type) != tinfo.researcher) return TECH_ERR_BUILDING;
 	}
 	const float *tc = tech_mods(player_id).bld_tech_cost[tinfo.researcher]; // Researcher/TechCostMultiplier
 	if (!ps.can_afford(tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD], tinfo.gold_cost * tc[RES_GOLD],
@@ -2586,12 +2586,12 @@ float Simulation::structure_max_hp(uint8_t type, uint8_t team) const {
 	return hp;
 }
 
-Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t building_id) const {
+Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t building_id, int choice) const {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end() || player_id >= MAX_PLAYERS) return UPGRADE_ERR_NONE;
 	const Building &b = buildings_[bit->second];
 	if (b.team != player_id) return UPGRADE_ERR_OWNER;
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id));
+	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
 	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
 	// Of the WallSet segments only wall_long has an Upgrade (to the gate).
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
@@ -2606,10 +2606,10 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	return UPGRADE_OK;
 }
 
-bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id) {
-	if (upgrade_check(player_id, building_id) != UPGRADE_OK) return false;
+bool Simulation::cmd_upgrade_building(uint8_t player_id, uint32_t building_id, int choice) {
+	if (upgrade_check(player_id, building_id, choice) != UPGRADE_OK) return false;
 	Building &b = buildings_[building_id_to_idx_[building_id]];
-	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id));
+	const BuildingUpgradeInfo up = building_upgrade(b.type, civ_of(player_id), choice);
 	players_[player_id].pay((float)up.food_cost, (float)up.wood_cost, (float)up.gold_cost, (float)up.stone_cost);
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_paid[RES_FOOD] = (float)up.food_cost;
@@ -2645,7 +2645,7 @@ void Simulation::cancel_upgrade(Building &b, uint8_t refund_to) {
 // 0 A.D. helpers/Transform.js ChangeEntityTemplate: the new structure keeps the
 // owner, position, health fraction, capture share and garrison of the old one.
 void Simulation::finish_upgrade(Building &b) {
-	const uint8_t to = b.upgrade_to;
+	const uint8_t to = b.upgrade_to, from = b.type;
 	if (to >= BLD_TYPE_COUNT) return;
 	const BuildingTypeInfo &ninfo = building_type_info(to);
 	const float health_level = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
@@ -2677,7 +2677,9 @@ void Simulation::finish_upgrade(Building &b) {
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
 	b.upgrade_duration = 0.0f;
-	if (to == BLD_TOWN_CENTER || to == BLD_FORTRESS || to == BLD_TOWER) rebuild_territory();
+	if (to == BLD_TOWN_CENTER || to == BLD_FORTRESS || to == BLD_TOWER || civ_building_territory_radius(to) > 0.0f ||
+	    civ_building_territory_radius(from) > 0.0f)
+		rebuild_territory();
 	if (to == BLD_GATE) {
 		b.gate_open = false;
 		b.gate_locked = false;
@@ -3167,6 +3169,25 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 		return false;
 	// Commands.js "diplomacy": refused during a ceasefire and when teams are locked.
 	if (ceasefire_active() || teams_locked()) return false;
+	// Unlocked teams only set the starting alliances: a player who stops allying a
+	// teammate leaves the team. Its stances with the former teammates stay allied both
+	// ways, as 0 A.D.'s were, except the one it just changed. A team's id is its lowest
+	// member, so the members left behind renumber.
+	if (stance != DIPLO_ALLY && players_[player_id].team == players_[target].team) {
+		const uint8_t old = players_[player_id].team;
+		uint8_t mates = 0, lowest = MAX_PLAYERS;
+		for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+			if (q != player_id && players_[q].team == old) {
+				mates |= (uint8_t)(1u << q);
+				if (lowest == MAX_PLAYERS) lowest = q;
+			}
+		for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+			if ((mates >> q) & 1) {
+				players_[q].team = lowest;
+				diplomacy_[player_id][q] = diplomacy_[q][player_id] = DIPLO_ALLY;
+			}
+		players_[player_id].team = player_id;
+	}
 	set_diplomacy(player_id, target, stance);
 	return true;
 }
@@ -8532,7 +8553,10 @@ void Simulation::tick_combat(float dt) {
 			if (!in_range || (units_.attack_timer[i] > 0.0f && units_.attack_timer[i] != ATTACK_DUE)) continue;
 			units_.attack_timer[i] = CAPTURE_REPEAT_S;
 			units_.action_state[i] = ACTION_ATTACK;
-			capture_attack_[bit->second][units_.team[i]] += capture_strength;
+			// GetTotalAttackEffects: a damaged structure is easier to capture, the
+			// strength divided by 0.1 + 0.9 * hp / maxHp (up to x10).
+			const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+			capture_attack_[bit->second][units_.team[i]] += capture_strength / (0.1f + 0.9f * health);
 			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 			continue;
 		}
@@ -8542,13 +8566,14 @@ void Simulation::tick_combat(float dt) {
 		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 
-		const auto &uinfo_att = unit_info_at(i);
-		float hack_dmg = uinfo_att.hack_damage;
-		float pierce_dmg = uinfo_att.pierce_damage;
-		float crush_dmg = uinfo_att.crush_damage;
-
-		// Siege demolition power comes from 0 A.D.'s own crush damage (rams 150,
-		// stone throwers 250 in their templates); no extra multiplier on top.
+		// GetAttackEffectsData: the attack's Damage after technologies, rank and attack
+		// auras, as against units. Siege demolition power comes from 0 A.D.'s own crush
+		// damage (rams 150, stone throwers 250 in their templates).
+		float att_dmg[3];
+		unit_attack_effects(i, att_dmg);
+		float hack_dmg = att_dmg[0];
+		float pierce_dmg = att_dmg[1];
+		float crush_dmg = att_dmg[2];
 
 		// The structure template's own Resistance/Entity/Damage levels (a civic centre
 		// is 25 hack, 35 pierce, 3 crush) and the attacker's Bonuses against it.
@@ -8563,11 +8588,9 @@ void Simulation::tick_combat(float dt) {
 		const float b_pierce_armor = b_armor[1];
 		const float b_crush_armor = b_armor[2];
 
-		float bld_dmg = std::max(1.0f,
-			hack_dmg * powf(0.9f, b_hack_armor) +
-			pierce_dmg * powf(0.9f, b_pierce_armor) +
-			crush_dmg * powf(0.9f, b_crush_armor)
-		);
+		// Attack.js GetTotalAttackEffects has no minimum: arrows barely scratch stone.
+		float bld_dmg = hack_dmg * powf(0.9f, b_hack_armor) + pierce_dmg * powf(0.9f, b_pierce_armor) +
+				crush_dmg * powf(0.9f, b_crush_armor);
 
 		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i],
 				civ_of(units_.team[i]));
@@ -8604,18 +8627,8 @@ void Simulation::tick_combat(float dt) {
 
 				collect_building_loot(units_.id[i], units_.team[i], b); // 0 A.D. Looter.js
 
-				// Evacuate garrisoned units with casualty damage
-				for (uint32_t guid : b.garrisoned_units) {
-					int32_t gidx = lookup_unit(guid);
-					if (gidx >= 0 && (size_t)gidx < units_.count) {
-						units_.pos_x[gidx] = b.x + 2.0f;
-						units_.pos_z[gidx] = b.z + 2.0f;
-						units_.alive[gidx] = 1;
-						units_.action_state[gidx] = ACTION_IDLE;
-						units_.hp[gidx] = std::max(5.0f, units_.hp[gidx] * 0.5f);
-					}
-				}
-				b.garrisoned_units.clear();
+				// GarrisonHolder OnDestroy -> EjectOrKill: the garrison walks out unharmed.
+				if (!b.garrisoned_units.empty()) order_ungarrison(b.id);
 				mark_building_wreck(b, units_.team[i]);
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
@@ -9213,13 +9226,13 @@ int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
 }
 
 // The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs),
-// each reduced by the animal's Resistance as 0.9^armour, at least 1.
+// each reduced by the animal's Resistance as 0.9^armour.
 float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
-	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return std::max(1.0f, units_.attack_damage[i]);
+	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
 	const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
-	return std::max(1.0f, uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
+	return (uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
 			uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
 			uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor));
 }
@@ -9408,21 +9421,27 @@ float Simulation::status_dps(uint8_t kind) {
 // The damage unit i's attack deals to unit t (0 A.D. Attacking.HandleAttackEffects):
 // its Hack, Pierce and Crush (scaled by techs) times its template Bonuses against t
 // (helpers/Attack.js GetAttackBonus) and its attack auras, each reduced by t's
-// Resistance as 0.9^armour, at least 1.
+// Resistance as 0.9^armour (GetTotalAttackEffects: no minimum).
 float Simulation::unit_attack_damage(size_t i, size_t t) {
-	const auto &uinfo_att = unit_info_at(i);
-	float target_armor[3];
+	float target_armor[3], d[3];
 	unit_resistance(t, target_armor);
-	const float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
-	float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
-	// Attack auras (hero bonuses, enemy carnyx and hero penalties); 0 = none in range
+	unit_attack_effects(i, d);
+	const float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
+	return mul * (d[0] * powf(0.9f, target_armor[0]) + d[1] * powf(0.9f, target_armor[1]) + d[2] * powf(0.9f, target_armor[2]));
+}
+
+// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: the
+// template's, scaled by technologies and rank (attack_damage over the template total),
+// times its attack auras (hero bonuses, enemy carnyx and hero penalties).
+void Simulation::unit_attack_effects(size_t i, float out[3]) const {
+	const auto &uinfo = unit_info_at(i);
+	float mul = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	if (aura > 0.0f) mul *= aura;
-	return std::max(1.0f,
-		uinfo_att.hack_damage * dmg_scale * mul * powf(0.9f, target_armor[0]) +
-		uinfo_att.pierce_damage * dmg_scale * mul * powf(0.9f, target_armor[1]) +
-		uinfo_att.crush_damage * dmg_scale * mul * powf(0.9f, target_armor[2]));
+	if (aura > 0.0f) mul *= aura; // 0 = none in range
+	out[0] = uinfo.hack_damage * mul;
+	out[1] = uinfo.pierce_damage * mul;
+	out[2] = uinfo.crush_damage * mul;
 }
 
 // A unit's attack timer runs as 0 A.D. Attack.js's interval timer:
@@ -9972,6 +9991,9 @@ void Simulation::tick_trickle(float dt) {
 				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f * (1 + garrisoned_ministers(b));
 			} else if (b.type == BLD_ICE_HOUSE) {
 				rate[RES_FOOD] = 1.0f;
+			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
+				// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
+				rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
 			} else {
 				continue;
 			}
@@ -19082,6 +19104,9 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.upgrade_duration, sizeof(bld.upgrade_duration));
 			in.read((char *)bld.upgrade_paid.data(), sizeof(bld.upgrade_paid));
 			in.read((char *)&bld.is_burning, sizeof(bld.is_burning));
+			// "No upgrade" is stored as the BLD_TYPE_COUNT of the build that saved it, which
+			// grows when structure types are appended; an upgrade in progress always has a time.
+			if (!(bld.upgrade_duration > 0.0f) || bld.upgrade_to >= BLD_TYPE_COUNT) bld.upgrade_to = BLD_TYPE_COUNT;
 		}
 		if (version >= 13) {
 			in.read((char *)&bld.gate_open, sizeof(bld.gate_open));
@@ -20441,19 +20466,12 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 // An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
 void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-	const auto &uinfo = unit_info_at(u);
-	const float ra = rank_melee_armor(u); // unit_advanced.json / unit_elite.json
-	float hack_a = uinfo.hack_armor + ra, pierce_a = uinfo.pierce_armor + ra, crush_a = uinfo.crush_armor + ra;
-	if (units_.team[u] < MAX_PLAYERS && units_.unit_type[u] < UNIT_TYPE_COUNT) {
-		const float *armor = tech_mods(units_.team[u]).armor[units_.unit_type[u]];
-		hack_a += armor[0];
-		pierce_a += armor[1];
-		crush_a += armor[2];
-	}
-	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
-	                  info.crush_damage * powf(0.9f, crush_a);
-	if (!invulnerable(units_.id[u])) units_.hp[u] -= std::max(1.0f, dmg);
-	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, std::max(1.0f, dmg));
+	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
+	unit_resistance(u, res);
+	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
+	                  info.crush_damage * powf(0.9f, res[2]);
+	if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
+	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg);
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
@@ -20512,7 +20530,7 @@ void Simulation::tick_hunters() {
 			attack_done(i, in_reach, units_.attack_cooldown[i]);
 			dmg = unit_damage_to_fauna(i, f);
 		}
-		fauna_.hp[f] -= std::max(1.0f, dmg);
+		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i]);
 		if (fauna_.hp[f] > 0.0f) continue;
 
