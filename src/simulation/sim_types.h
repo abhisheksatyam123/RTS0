@@ -501,6 +501,11 @@ constexpr int32_t FISH_FOOD_SUPPLY = 1000;
 constexpr int FISH_MAX_GATHERERS = 4;
 constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
 constexpr float FRUIT_REGROW_INTERVAL_S = 6.0f; // template_gaia_fruit Regrowth Interval 6000
+// The ResourceSupply Change interval a supply runs (fruit Regrowth, fish Spawn), -1 for none.
+inline float regrow_interval(uint8_t type, uint8_t subtype) {
+	if (type != RES_FOOD) return -1.0f;
+	return subtype == RES_SUB_FISH ? FISH_REGROW_INTERVAL_S : subtype == RES_SUB_NONE ? FRUIT_REGROW_INTERVAL_S : -1.0f;
+}
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
 
