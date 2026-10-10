@@ -2008,7 +2008,7 @@ struct CivInfo {
 	// 0 A.D. civ bonuses that act on gathering and trade. Unit bonuses are
 	// folded into each civ's roster; building and population bonuses are in
 	// civ_player_bonus_table(). Both come from tools/extract_0ad_rosters.py.
-	float metal_gather_mult; // Athenian "Silver Owls"
+	float metal_gather_mult; // Athenian "Silver Owls": Workers metal x this at Town and again at City
 	float trade_gain_mult; // land traders: Persian "Darics" (units/pers/support_trader GainMultiplier)
 	float ship_trade_gain_mult; // merchant ships: Carthaginian (units/cart/ship_merchant GainMultiplier)
 	// Added to the Market/InternationalBonus of the civ's markets and docks:
