@@ -36,7 +36,7 @@ uniform float water_level = -1000.0;
 
 // Per-tile terrain (0 A.D. CTerrain tiles, Simulation::terrain_tiles): tile_index
 // holds each tile's layer of tile_layers over [-tile_half, tile_half]^2, tile_res
-// tiles a side. Each tile blends into its neighbours with ragged edges, as 0 A.D.
+// tiles a side. Terrains meet along smooth ragged curves (see the blend below), as 0 A.D.
 // blends a tile over its lower-priority neighbours. tile_res 0 = paint by biome.
 uniform sampler2DArray tile_layers : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D tile_index : filter_nearest, repeat_disable;
@@ -103,24 +103,44 @@ void fragment() {
 	vec3 final_color = grass_sample * grass_weight + dirt_sample * dirt_weight + rock_sample * rock_weight;
 
 	if (tile_res > 0.0) {
-		// The four tiles round this point, weighted bilinearly with the edges
-		// sharpened and roughened by noise.
-		vec2 tc = (v_world_pos.xz + vec2(tile_half)) / (2.0 * tile_half) * tile_res - 0.5;
-		vec2 i0 = floor(tc);
+		// Each of the 3x3 tiles round this point pulls towards its terrain with a
+		// weight falling off over 1.5 tiles from its centre (the point is warped by
+		// noise first); the two terrains pulling hardest blend across a narrow band
+		// where their pulls are even. Borders between terrains follow smooth,
+		// ragged curves instead of the tile grid, as 0 A.D.'s blend masks round off
+		// a tile's corners into its neighbours.
 		vec2 en = vec2(texture(noise_tex, v_world_pos.xz * 0.37).r, texture(noise_tex, v_world_pos.xz * 0.37 + vec2(0.53, 0.21)).r);
-		vec2 f = smoothstep(vec2(0.18), vec2(0.82), clamp(tc - i0 + (en - 0.5) * 0.5, 0.0, 1.0));
-		ivec2 c0 = clamp(ivec2(i0), ivec2(0), ivec2(int(tile_res) - 1));
-		ivec2 c1 = clamp(ivec2(i0) + ivec2(1), ivec2(0), ivec2(int(tile_res) - 1));
-		float l00 = floor(texelFetch(tile_index, c0, 0).r * 255.0 + 0.5);
-		float l10 = floor(texelFetch(tile_index, ivec2(c1.x, c0.y), 0).r * 255.0 + 0.5);
-		float l01 = floor(texelFetch(tile_index, ivec2(c0.x, c1.y), 0).r * 255.0 + 0.5);
-		float l11 = floor(texelFetch(tile_index, c1, 0).r * 255.0 + 0.5);
+		vec2 tc = (v_world_pos.xz + vec2(tile_half)) / (2.0 * tile_half) * tile_res + (en - 0.5) * 0.6;
+		ivec2 ci = ivec2(floor(tc));
+		int last = int(tile_res) - 1;
+		float lay[9];
+		float score[9];
+		int n = 0;
+		for (int dz = -1; dz <= 1; dz++) {
+			for (int dx = -1; dx <= 1; dx++) {
+				ivec2 c = ci + ivec2(dx, dz);
+				vec2 d = tc - (vec2(c) + 0.5);
+				float w = max(0.0, 1.0 - dot(d, d) * (1.0 / 2.25));
+				w *= w;
+				float l = floor(texelFetch(tile_index, clamp(c, ivec2(0), ivec2(last)), 0).r * 255.0 + 0.5);
+				int k = 0;
+				while (k < n && lay[k] != l) k++;
+				if (k == n) { lay[n] = l; score[n] = 0.0; n++; }
+				score[k] += w;
+			}
+		}
+		int b1 = 0;
+		for (int k = 1; k < n; k++) if (score[k] > score[b1]) b1 = k;
+		int b2 = b1;
+		for (int k = 0; k < n; k++) if (k != b1 && (b2 == b1 || score[k] > score[b2])) b2 = k;
+		// a = 0.5 on the border (both pull evenly), 1 where only the first pulls.
+		float a = b2 == b1 ? 1.0 : score[b1] / max(score[b1] + score[b2], 1e-5);
+		float f2 = 0.5 * (1.0 - smoothstep(0.5, 0.7, a));
+		// Both sampled unconditionally so mip selection stays smooth across borders.
 		vec2 tuv = v_world_pos.xz / tile_repeat;
-		vec3 s00 = texture(tile_layers, vec3(tuv, l00)).rgb;
-		vec3 s10 = l10 == l00 ? s00 : texture(tile_layers, vec3(tuv, l10)).rgb;
-		vec3 s01 = l01 == l00 ? s00 : texture(tile_layers, vec3(tuv, l01)).rgb;
-		vec3 s11 = l11 == l10 ? s10 : (l11 == l01 ? s01 : texture(tile_layers, vec3(tuv, l11)).rgb);
-		final_color = mix(mix(s00, s10, f.x), mix(s01, s11, f.x), f.y);
+		vec3 t1 = texture(tile_layers, vec3(tuv, lay[b1])).rgb;
+		vec3 t2 = texture(tile_layers, vec3(tuv, lay[b2])).rgb;
+		final_color = mix(t1, t2, f2);
 	}
 
 	// Painted tiles go under cliffs: rock keeps its share.
