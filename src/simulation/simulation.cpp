@@ -10759,8 +10759,11 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 // same type nearby (GATHER "ResourceExhausted"); then the next queued order runs.
 // UnitAI PATROL: on to the other end (the queue's next order goes first).
 void Simulation::patrol_next_leg(size_t i) {
+	// PATROLLING MovementUpdate: the patrol goes back to the end of the queue, so
+	// queued patrol points are walked round in a loop.
 	auto q = order_queues_.find(units_.id[i]);
 	if (q != order_queues_.end() && !q->second.empty()) {
+		if (q->second.size() < 64) q->second.push_back(current_order(i));
 		finish_order(i);
 		return;
 	}
