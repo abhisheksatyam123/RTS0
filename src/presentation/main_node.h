@@ -297,7 +297,7 @@ public:
 	void _on_roster_item_clicked(int index, Vector2 at, int mouse_button);
 	void _on_build_btn_pressed(int btype);
 	void _on_tech_pressed(int tech_id);
-	void _on_upgrade_pressed(int cancel);
+	void _on_upgrade_pressed(int choice);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
 	void _on_dropsite_sharing_pressed(int shared);
