@@ -7556,13 +7556,17 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		const float nz = std::clamp(pz[i] + push_z, -map_half_ + ri, map_half_ - ri);
 		// CCmpUnitMotionManager::Move: a push never carries a unit onto a navcell its passability
 		// class can't cross (CheckMovement), so ships stay afloat and land units ashore. A unit
-		// already off its terrain (a swimmer, or one beside a building) is pushed as before.
+		// already off its terrain (a swimmer, or one beside a building) is pushed as before, but a
+		// land unit on a steep shore is never pushed out into deep water.
 		if (!nav_grid_.cells.blank() && (nx != px[i] || nz != pz[i])) {
 			const uint8_t pass = unit_is_ship(units_.unit_type[i]) ? PASS_SHIP : PASS_INFANTRY;
 			const auto [tcx, tcy] = nav_grid_.world_to_cell(nx, nz);
 			if (!nav_grid_.is_passable_for(tcx, tcy, pass)) {
 				const auto [cx, cy] = nav_grid_.world_to_cell(px[i], pz[i]);
 				if (nav_grid_.is_passable_for(cx, cy, pass)) return;
+				if (pass == PASS_INFANTRY && nav_grid_.cells.inside(tcx, tcy) && nav_grid_.cells.inside(cx, cy) &&
+						nav_grid_.cells.at(tcx, tcy) == NAV_WATER && nav_grid_.cells.at(cx, cy) != NAV_WATER)
+					return;
 			}
 		}
 		px[i] = nx;
