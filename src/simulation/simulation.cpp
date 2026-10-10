@@ -585,8 +585,13 @@ int Simulation::pop_limit(uint8_t player) const {
 	const int limit = pop_cap();
 	if (limit <= 0 || player >= MAX_PLAYERS) return limit;
 	// Player/MaxPopulation modifiers, multiplied then added as ApplyValueModifications does:
-	// the Seleucid relic's Immigration and the TARDIS cheat.
-	return std::max(1, (int)std::lround(limit * tech_mods(player).max_pop) + cheat_mods_[player].max_pop_add);
+	// the Seleucid relic's Immigration, each finished Wonder's Glorious Expansion aura once
+	// the technology is researched (x1.2, stackable) and the TARDIS cheat.
+	float mul = tech_mods(player).max_pop;
+	if (players_[player].has_tech(TECH_WONDER_POPULATION_CAP))
+		for (const auto &b : buildings_)
+			if (b.team == player && b.type == BLD_WONDER && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked) mul *= 1.2f;
+	return std::max(1, (int)std::lround(limit * mul) + cheat_mods_[player].max_pop_add);
 }
 
 int Simulation::pop_max(uint8_t player) const {
@@ -15453,7 +15458,8 @@ void Simulation::petra_manage_research(float dt) {
 		if (petra_tech_affects_only(t, TC_HEALER) || petra_tech_affects_only(t, TC_OUTPOST) || petra_tech_affects_only(t, TC_WALL))
 			return true;
 		const TechInfo &ti = tech_info(t);
-		return !has_ally && ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL;
+		return !has_ally && (t == TECH_UNLOCK_SHARED_LOS ||
+		                     (ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL));
 	}), techs.end());
 	if (techs.empty()) return;
 	// pickRandom, kept while the pick waits for resources: the draw is a hash of
