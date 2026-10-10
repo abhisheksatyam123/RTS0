@@ -149,6 +149,17 @@ int main() {
 	seats.slot_types[0] = 'a'; seats.slot_types[1] = 'h'; seats.slot_types[2] = 'a'; seats.slot_types[3] = 'h';
 	tmc.assign_slot_players(seats);
 	CHECK(tmc.player_for_client(0) == 1 && tmc.player_for_client(1) == 3 && tmc.player_for_client(2) == 0xFF);
+	// 0 A.D. game setup observers take no slot: client 1 watches, client 2 plays the second human slot.
+	seats.observers = 1u << 1;
+	GameSetupParams wire;
+	CHECK(parse_game_start_full(format_game_start_full(seats), wire) && wire.observers == seats.observers);
+	tmc.assign_slot_players(wire);
+	CHECK(tmc.player_for_client(0) == 1 && tmc.player_for_client(1) == 0xFF && tmc.player_for_client(2) == 3);
+	wire.observers = 1; // the host watches
+	tmc.assign_slot_players(wire);
+	CHECK(tmc.player_for_client(0) == 0xFF && tmc.player_for_client(1) == 1 && tmc.player_for_client(2) == 3);
+	seats.observers = 0;
+	CHECK(format_game_start_full(seats).find("obs=") == std::string::npos); // old peers see no new key
 	tmc.reset();
 	CHECK(tmc.player_for_client(1) == 1); // reset drops the seating
 
