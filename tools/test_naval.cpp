@@ -503,6 +503,7 @@ static void test_petra_overseas_attack() {
 	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_HOUSE, 0);
 	std::vector<uint32_t> army;
 	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army; // trained for the attack, not as workers (ids rise, so sorted)
 	run(s, 1.0f);
 	auto &slot = s; // player 1 is PETRA_PLAYER: its state lives in the petra_* members
 	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
@@ -619,6 +620,7 @@ static void test_petra_concurrent_transports() {
 	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
 	std::vector<uint32_t> army;
 	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
+	s.petra_army_ids_[1] = army; // trained for the attack, not as workers (ids rise, so sorted)
 	for (int k = 0; k < 10; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
 	// Wood on the south land only: Petra settles there.
 	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-36.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
