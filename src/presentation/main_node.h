@@ -140,6 +140,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		float flare_time = 6.0f;
 		float drag_delta = 4.0f;
 		bool attack_notice = true;
+		bool tribute_notice = true;
+		bool barter_notice = true;
+		uint8_t phase_notice = 1; // gui.session.notifications.phase: 0 none, 1 completed, 2 all
 	} user_opts_;
 	void refresh_user_options();
 	RtsoSelectionGrid selection_grid_;
@@ -447,7 +450,7 @@ private:
 	void try_train_template(uint32_t building_id, uint16_t tmpl, int count = 1);
 	// The batch the next train click queues: gui.session.batchtrainingsize while Shift is held.
 	int train_batch() const;
-	void try_breed(uint32_t building_id, uint8_t ftype);
+	void try_breed(uint32_t building_id, uint8_t ftype, int count = 1);
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();
@@ -455,6 +458,10 @@ private:
 	void find_idle_unit(IdleKind kind);
 	bool over_own_rally_structure(const Vector3 &at) const;
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
+	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
+	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
+	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
+	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);

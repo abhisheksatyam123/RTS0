@@ -344,6 +344,7 @@ private:
 	Ref<ArrayMesh> border_mesh_;
 	Ref<ShaderMaterial> border_mat_;
 	std::vector<uint8_t> border_grid_cache_;
+	uint64_t border_colors_ = 0; // display_colors::key the borders were drawn with
 	float border_half_ = 0.0f;
 	void update_territory_borders(const rtso::Simulation *sim);
 	Ref<MultiMesh> create_multimesh(const Ref<Mesh> &mesh, bool use_colors = false);

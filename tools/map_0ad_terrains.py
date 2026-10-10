@@ -39,11 +39,14 @@ def used_names():
             t = json.load(f).get("terrain")
         if t:
             names.update(t["names"])
-    biomes = "src/simulation/terrain_biomes.h"
-    if os.path.exists(biomes):
-        with open(biomes) as f:
-            # Every quoted terrain; the bare words are biome names, not terrains.
-            names.update(n for n in re.findall(r'"([A-Za-z0-9_ ]+)"', f.read()) if not re.fullmatch(r"[a-z]+", n))
+    with open("src/simulation/sim_types.h") as f:
+        map_ids = set(re.findall(r'\{MAP_[A-Z0-9_]+, "([a-z0-9_]+)"', f.read()))
+    for header in ("src/simulation/terrain_biomes.h", "src/simulation/script_terrains.h"):
+        if os.path.exists(header):
+            with open(header) as f:
+                # Every quoted terrain; the bare words are biome names and the ids map types, not terrains.
+                names.update(n for n in re.findall(r'"([A-Za-z0-9_ ]+)"', f.read())
+                             if not re.fullmatch(r"[a-z]+", n) and n not in map_ids)
     return sorted(names)
 
 
