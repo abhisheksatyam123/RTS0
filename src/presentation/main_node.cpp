@@ -68,7 +68,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
-	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "cancel"), &RtsoMain::_on_upgrade_pressed);
+	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "choice"), &RtsoMain::_on_upgrade_pressed);
 	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
 	ClassDB::bind_method(D_METHOD("_on_dropsite_sharing_pressed", "shared"), &RtsoMain::_on_dropsite_sharing_pressed);
 	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
@@ -2011,15 +2011,17 @@ void RtsoMain::_on_tech_pressed(int tech_id) {
 	}
 }
 
-// 0 A.D. Upgrade.js through lockstep command 26 (param 1 = cancel and refund).
-void RtsoMain::_on_upgrade_pressed(int cancel) {
+// 0 A.D. Upgrade.js through lockstep command 26: `choice` is which of
+// building_upgrade()'s choices (target_x), -1 cancels and refunds (param 1).
+void RtsoMain::_on_upgrade_pressed(int choice) {
 	if (selected_building_id == 0) return;
 	if (turn_cmds())
-		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, 0, 0, selected_building_id, cancel ? 1 : 0);
-	else if (cancel)
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_UPGRADE_BUILDING, nullptr, 0, choice < 0 ? 0.0f : (float)choice, 0,
+				selected_building_id, choice < 0 ? 1 : 0);
+	else if (choice < 0)
 		sim->cmd_cancel_upgrade(local_player(), selected_building_id);
 	else
-		sim->cmd_upgrade_building(local_player(), selected_building_id);
+		sim->cmd_upgrade_building(local_player(), selected_building_id, choice);
 }
 
 // 0 A.D. Gate.js LockGate / UnlockGate through lockstep command 27.
@@ -3088,7 +3090,7 @@ void RtsoMain::update_command_panel() {
 			// out with the reason research_check() gives.
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (ti.researcher != found_b->type || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (ti.researcher != rtso::building_research_base(found_b->type) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
@@ -3189,11 +3191,11 @@ void RtsoMain::update_command_panel() {
 					Button *btn = memnew(Button);
 					btn->set_text(String("Cancel upgrade to ") + rtso::building_type_name(found_b->upgrade_to));
 					btn->set_tooltip_text("Stop upgrading and get the resources back");
-					btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(1));
+					btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(-1));
 					production_bar->add_child(btn);
 				} else {
-					const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv);
-					if (up.to != rtso::BLD_TYPE_COUNT) {
+					for (int choice = 0; choice < rtso::building_upgrade_count(found_b->type, pciv); ++choice) {
+						const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(found_b->type, pciv, choice);
 						Button *btn = memnew(Button);
 						String cost;
 						auto add_cost = [&](int v, const char *suffix) {
@@ -3208,7 +3210,7 @@ void RtsoMain::update_command_panel() {
 						btn->set_text(String("Upgrade to ") + rtso::building_type_name(up.to) + (cost.is_empty() ? String() : " (" + cost + ")"));
 						String tip = String(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
 						const char *why = nullptr;
-						switch (sim->upgrade_check(local_player(), found_b->id)) {
+						switch (sim->upgrade_check(local_player(), found_b->id, choice)) {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
 							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
 							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
@@ -3219,7 +3221,7 @@ void RtsoMain::update_command_panel() {
 							btn->set_disabled(true);
 						}
 						btn->set_tooltip_text(tip);
-						btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(0));
+						btn->connect("pressed", Callable(this, "_on_upgrade_pressed").bind(choice));
 						production_bar->add_child(btn);
 					}
 				}
