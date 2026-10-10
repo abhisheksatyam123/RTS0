@@ -1196,6 +1196,60 @@ static void test_army_answers_attackers() {
 	CHECK(helpers == 2, "its two nearest squad mates turn on the attacker too");
 }
 
+// defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
+// and leave the plan; those of a started attack are held back.
+static void test_mustering_units_defend() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && (s->units_.team[j] == 0 || (s->units_.team[j] == 1 && !petra_is_support_unit(s->units_.unit_type[j])))) {
+			s->units_.alive[j] = 0;
+			s->units_.action_state[j] = ACTION_DYING;
+		}
+	run_for(*s, 0.5f);
+	// Out of the Town Center's reach, so its garrison doesn't take the soldiers first.
+	const float len = std::sqrt(tx * tx + tz * tz), ux = -tx / len, uz = -tz / len;
+	const float hx = tx + ux * 26.0f, hz = tz + uz * 26.0f;
+	s->spawn_building_world(hx, hz, BLD_HOUSE, 1, 1.0f);
+	const uint32_t mustering = s->spawn_unit(hx - ux * 4.0f, hz - uz * 4.0f, 1, UNIT_SPEARMAN, 1.0e4f);
+	const uint32_t marching = s->spawn_unit(hx - ux * 4.0f + uz * 2.0f, hz - uz * 4.0f - ux * 2.0f, 1, UNIT_SPEARMAN, 1.0e4f);
+	auto &mgr = s->petra_attack_mgr_;
+	mgr.rushes_set = 1;
+	mgr.max_rushes = 0;
+	mgr.target_size = 20;
+	mgr.min_size = 20;
+	auto &plan = s->petra_attack_plan_;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.squad = {mustering};
+	plan.state = Simulation::AttackPlan::MUSTER;
+	Simulation::AttackPlan started;
+	started.kind = PETRA_ATTACK_ATTACK;
+	started.state = Simulation::AttackPlan::WALKING;
+	started.squad = {marching};
+	started.initial_squad_size = 1;
+	started.staging_x = started.target_x = -tx;
+	started.staging_z = started.target_z = -tz;
+	s->petra_started_attacks_.push_back(started);
+	const uint32_t foe = s->spawn_unit(hx + ux * 3.0f, hz + uz * 3.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
+	(void)foe;
+	run_for(*s, 3.0f);
+	const auto &def = s->petra_defense_army_.defender_ids;
+	const bool m_def = std::find(def.begin(), def.end(), mustering) != def.end();
+	const bool w_def = std::find(def.begin(), def.end(), marching) != def.end();
+	const bool m_plan = std::find(plan.squad.begin(), plan.squad.end(), mustering) != plan.squad.end();
+	std::printf("  mustering soldier defends %s (left its plan %s), marching soldier defends %s\n",
+	            m_def ? "yes" : "no", m_plan ? "no" : "yes", w_def ? "yes" : "no");
+	CHECK(m_def && !m_plan, "a soldier of a plan still mustering defends and leaves the plan");
+	CHECK(!w_def, "a soldier of a started attack keeps marching");
+}
+
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
 // territory, not for one it has never seen.
 static void test_relic_capture() {
@@ -1893,8 +1947,10 @@ static void test_concurrent_attacks() {
 		marching.state = Simulation::AttackPlan::WALKING;
 		for (int k = 0; k < 4; ++k) marching.squad.push_back(s->spawn_unit(tx - 10.0f + 2.0f * (float)k, tz - 12.0f, 1, UNIT_SPEARMAN));
 		marching.initial_squad_size = marching.squad.size();
-		marching.staging_x = marching.target_x = tx;
-		marching.staging_z = marching.target_z = tz - 20.0f;
+		marching.staging_x = tx;
+		marching.staging_z = tz - 20.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 0 && b.type == BLD_TOWN_CENTER) { marching.target_building_id = b.id; marching.target_x = b.x; marching.target_z = b.z; }
 		s->petra_started_attacks_.push_back(marching);
 		run_for(*s, 1.0f);
 		const int cap = s->pop_max(1);
@@ -1988,6 +2044,7 @@ int main() {
 	test_nomad_first_base();
 	test_entity_limit_placement();
 	test_army_answers_attackers();
+	test_mustering_units_defend();
 	test_relic_capture();
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();

@@ -521,6 +521,16 @@ enum : uint8_t {
 	ORDER_FLAG_SUB_SHIFT = 5,
 	ORDER_FLAG_SUB_MASK = 0xE0
 };
+// An attack-move keeps the structures it walks past in bits 5-7 (attackMove targetClasses
+// "avoid", as Petra's attackPlan.js passes them): which defences, and economic structures.
+enum : uint8_t {
+	ORDER_AVOID_SHIFT = 5,
+	ORDER_AVOID_MASK = 0x60,
+	ORDER_AVOID_WALLS_FORTRESS = 1, // Palisade, Wall, Fortress
+	ORDER_AVOID_WALLS_TOWERS = 2,   // Palisade, Wall, Tower, Fortress
+	ORDER_AVOID_WALLS = 3,          // Palisade, Wall
+	ORDER_AVOID_ECONOMY = 0x80      // House, Storehouse, Farmstead, Field, Forge
+};
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
 struct UnitOrder {
@@ -1269,6 +1279,18 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
 		default: return c;
+	}
+}
+
+// Whether an attack-move with these avoid bits skips a structure of `type`.
+inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
+	const uint64_t c = building_tech_classes(type);
+	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
+	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
+		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS_TOWERS: return (c & (TC_WALL | TC_TOWER | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS: return (c & TC_WALL) != 0;
+		default: return false;
 	}
 }
 
