@@ -120,6 +120,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
 	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
+	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
+	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
@@ -399,6 +401,7 @@ void RtsoMain::_ready() {
 	ui_layer->add_child(sel_rect);
 
 	debug_overlay = memnew(RtsoDebugOverlay);
+	debug_overlay->set_visible(false); // fps.toggle (Alt+F) shows it, as 0 A.D.'s FPS counter
 	ui_layer->add_child(debug_overlay);
 
 	minimap_view = memnew(RtsoMiniMapView);
@@ -472,7 +475,7 @@ void RtsoMain::_ready() {
 	top_hbox->set_offset(SIDE_RIGHT, -8.0f);
 	top_hbox->set_offset(SIDE_TOP, 4.0f);
 	top_hbox->set_offset(SIDE_BOTTOM, -4.0f);
-	top_hbox->add_theme_constant_override("separation", 10);
+	top_hbox->add_theme_constant_override("separation", 4);
 	top_hud_panel->add_child(top_hbox);
 
 	top_panel_.build(this, top_hbox, sim->player_civ());
@@ -933,11 +936,18 @@ void RtsoMain::_ready() {
 	command_panel->add_child(actions_bar);
 
 	// Production Bar (Training & Tech)
-	production_bar = memnew(HBoxContainer);
-	production_bar->set_position(Vector2(10, 80));
-	production_bar->set_size(Vector2(552, 38));
-	production_bar->add_theme_constant_override("separation", 6);
-	command_panel->add_child(production_bar);
+	// The build menu has 25+ structures: the buttons wrap onto rows and
+	// scroll inside the panel instead of running off the screen at 1280x720.
+	production_scroll = memnew(ScrollContainer);
+	production_scroll->set_position(Vector2(10, 80));
+	production_scroll->set_size(Vector2(552, 40));
+	production_scroll->set_horizontal_scroll_mode(ScrollContainer::SCROLL_MODE_DISABLED);
+	command_panel->add_child(production_scroll);
+	production_bar = memnew(HFlowContainer);
+	production_bar->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	production_bar->add_theme_constant_override("h_separation", 4);
+	production_bar->add_theme_constant_override("v_separation", 2);
+	production_scroll->add_child(production_bar);
 
 	// Visual 8-Slot Production Queue Bar (ProductionQueue.js parity)
 	queue_bar = memnew(HBoxContainer);
@@ -1399,6 +1409,59 @@ Dictionary RtsoMain::debug_command_button(const String &prefix) {
 		d["disabled"] = btn->is_disabled();
 		break;
 	}
+	return d;
+}
+
+// Test hook: clears the selection and returns the screen point of the local
+// Civic Centre's roof (its centre, a little above the ground) and its id, plus
+// what is selected now.
+Dictionary RtsoMain::debug_civic_centre_roof() {
+	Dictionary d;
+	d["selected_building"] = (int64_t)selected_building_id;
+	if (!sim || !cam_rig || !cam_rig->get_camera()) return d;
+	for (const auto &b : sim->buildings()) {
+		if (b.team != local_player() || !rtso::is_civic_centre(b.type)) continue;
+		const auto model = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(sim->team_civ(b.team), b.type)));
+		const float height = model.valid ? model.y_offset + model.aabb.size.y * (model.scale > 0.05f ? model.scale : 1.0f) : 3.0f;
+		const Vector3 roof(b.x, sim->get_terrain_height(b.x, b.z) + height * 0.8f, b.z);
+		d["height"] = height;
+
+		cam_rig->set_target_pos(Vector3(b.x, 0.0f, b.z));
+		d["id"] = (int64_t)b.id;
+		d["roof"] = cam_rig->get_camera()->unproject_position(roof);
+		d["ground_under_roof"] = get_ground_click_pos(cam_rig->get_camera()->unproject_position(roof));
+		d["centre"] = Vector2(b.x, b.z);
+		d["base_radius"] = b.half_size + 0.6f; // the ground test round the base
+		break;
+	}
+	return d;
+}
+
+// Test hook: with select_all, selects every unit the local player owns; reports
+// the selection size and the selection panel's group icons (global rects).
+Dictionary RtsoMain::debug_selection_grid(bool select_all) {
+	Dictionary d;
+	if (!sim) return d;
+	if (select_all) {
+		clear_selection();
+		auto uview = sim->units();
+		for (size_t i = 0; i < uview.count; ++i)
+			if (uview.alive[i] && uview.team[i] == local_player()) selected_ids.push_back((int32_t)uview.id[i]);
+	}
+	d["selected"] = selected_ids.size();
+	Array icons;
+	if (GridContainer *g = selection_grid_.grid()) {
+		for (int i = 0; i < g->get_child_count(); ++i)
+			if (Button *b = Object::cast_to<Button>(g->get_child(i))) {
+				Dictionary e;
+				e["rect"] = b->get_global_rect();
+				e["tip"] = b->get_tooltip_text();
+				e["id"] = (int64_t)b->get_instance_id();
+				e["visible"] = b->is_visible_in_tree();
+				icons.push_back(e);
+			}
+	}
+	d["icons"] = icons;
 	return d;
 }
 
@@ -2643,11 +2706,13 @@ void RtsoMain::_process(double delta) {
 	rtso::PerfTracker::sample_memory();
 	rtso::PerfTracker::maybe_log();
 
-	String perf_txt = rtso::PerfTracker::get_report() +
-		" | Tick US: " + String::num_int64(sim->stats().tick_us) +
-		" | Jobs: " + String::num_int64((int64_t)rtso::JobSystem::instance().parallel_width()) +
-		" | FPS: " + String::num_int64(Engine::get_singleton()->get_frames_per_second());
-	debug_overlay->update_info(perf_txt);
+	if (debug_overlay->is_visible()) {
+		String perf_txt = rtso::PerfTracker::get_report() +
+			" | Tick US: " + String::num_int64(sim->stats().tick_us) +
+			" | Jobs: " + String::num_int64((int64_t)rtso::JobSystem::instance().parallel_width()) +
+			" | FPS: " + String::num_int64(Engine::get_singleton()->get_frames_per_second());
+		debug_overlay->update_info(perf_txt);
+	}
 
 	update_hud();
 	if (sim && time_notification_label_) {
@@ -2899,6 +2964,54 @@ Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 	return ray_origin + ray_dir * t;
 }
 
+// The local player's structure whose box the mouse ray enters first: its
+// turned footprint (hu, hv) from the ground up to a height that grows with its
+// size, so a click on a roof selects it and not the ground behind it.
+uint32_t RtsoMain::building_under_mouse(Vector2 mouse_pos, float *hit_t) const {
+	if (!sim || !cam_rig || !cam_rig->get_camera()) return 0;
+	Camera3D *cam = cam_rig->get_camera();
+	const Vector3 o = cam->project_ray_origin(mouse_pos);
+	const Vector3 d = cam->project_ray_normal(mouse_pos);
+	uint32_t best = 0;
+	float best_t = 1e30f;
+	for (const auto &b : sim->buildings()) {
+		if (b.team != local_player()) continue;
+		const float hu = (b.hu > 0.0f ? b.hu : b.half_size) + 0.3f;
+		const float hv = (b.hv > 0.0f ? b.hv : b.half_size) + 0.3f;
+		const float base = sim->get_terrain_height(b.x, b.z);
+		// The model's own height (ModelLibrary bounds), else one from its size.
+		float height = std::clamp(std::max(hu, hv) * 1.2f, 1.5f, 8.0f);
+		const auto model = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(sim->team_civ(b.team), b.type)));
+		if (model.valid && model.aabb.size.y > 0.1f)
+			height = model.y_offset + model.aabb.size.y * (model.scale > 0.05f ? model.scale : 1.0f);
+		const float top = base + height;
+		// The ray in the structure's frame: u along (ux, uz), v across it.
+		const float px = o.x - b.x, pz = o.z - b.z;
+		const float po[3] = {px * b.ux + pz * b.uz, o.y, -px * b.uz + pz * b.ux};
+		const float pd[3] = {d.x * b.ux + d.z * b.uz, d.y, -d.x * b.uz + d.z * b.ux};
+		const float lo[3] = {-hu, base - 0.5f, -hv}, hi[3] = {hu, top, hv};
+		float t0 = 0.0f, t1 = 1e30f;
+		bool hit = true;
+		for (int a = 0; a < 3 && hit; ++a) {
+			if (std::fabs(pd[a]) < 1e-6f) {
+				hit = po[a] >= lo[a] && po[a] <= hi[a];
+				continue;
+			}
+			float ta = (lo[a] - po[a]) / pd[a], tb = (hi[a] - po[a]) / pd[a];
+			if (ta > tb) std::swap(ta, tb);
+			t0 = std::max(t0, ta);
+			t1 = std::min(t1, tb);
+			hit = t0 <= t1;
+		}
+		if (hit && t0 < best_t) {
+			best_t = t0;
+			best = b.id;
+		}
+	}
+	if (hit_t) *hit_t = best_t;
+	return best;
+}
+
 std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 	Vector3 pos = get_ground_click_pos(mouse_pos);
 	int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
@@ -2936,8 +3049,17 @@ void RtsoMain::update_inspector() {
 	};
 	// The stamina bar has no 0 A.D. counterpart.
 	show_bar(inspector_stamina_bar, inspector_stamina_label, false);
-	selection_grid_.set_visible(false);
-	garrison_grid_.set_visible(false);
+	// Each grid shows if a branch below asks for it; the guard applies the
+	// result once, whichever way update_inspector returns.
+	bool show_selection_grid = false, show_garrison_grid = false;
+	struct GridVisibility {
+		RtsoSelectionGrid &sel, &gar;
+		bool &show_sel, &show_gar;
+		~GridVisibility() {
+			sel.set_visible(show_sel);
+			gar.set_visible(show_gar);
+		}
+	} grid_visibility{selection_grid_, garrison_grid_, show_selection_grid, show_garrison_grid};
 
 	if (selected_building_id != 0) {
 		const rtso::Simulation::Building *found_b = nullptr;
@@ -3009,7 +3131,7 @@ void RtsoMain::update_inspector() {
 				auto uview = sim->units();
 				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
 						"Click to unload one, Shift+click to unload all of this type.");
-				garrison_grid_.set_visible(true);
+				show_garrison_grid = true;
 			}
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
 			ungarrison_btn->set_visible(!mine.empty() || (penned > 0 && owner == local_player()));
@@ -3142,7 +3264,7 @@ void RtsoMain::update_inspector() {
 		inspector_extra->set_text("");
 		ungarrison_btn->set_visible(false);
 		selection_grid_.update(groups, "Click to select only these, Ctrl+click to deselect them.");
-		selection_grid_.set_visible(true);
+		show_selection_grid = true;
 	}
 	inspector_panel->set_visible(true);
 }
@@ -3657,8 +3779,18 @@ void RtsoMain::update_command_panel() {
 			}
 		}
 	}
+	// Compact production buttons, so a wrapped build menu fits a few rows.
+	for (int i = old_production; i < production_bar->get_child_count(); ++i)
+		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i)))
+			if (!btn->has_theme_font_size_override("font_size")) btn->add_theme_font_size_override("font_size", 11);
 	keep_command_buttons(actions_bar, old_actions);
 	keep_command_buttons(production_bar, old_production);
+	// A structure shows its queue under the buttons; a unit selection has no
+	// queue, so the buttons get that room.
+	const bool queue_shown = selected_building_id != 0;
+	if (queue_bar->is_visible() != queue_shown) queue_bar->set_visible(queue_shown);
+	const Vector2 area(552, queue_shown ? 40 : 96);
+	if (production_scroll->get_size() != area) production_scroll->set_size(area);
 }
 
 // Everything that makes a command button look or act differently: its text,
@@ -3875,6 +4007,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (objectives_dialog_.is_open()) {
 				objectives_dialog_.close();
 				return;
+			}
+			// The GDScript dialogs (Barter & Trade, structure tree) close the same way.
+			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) {
+				if (bool(barter->call("is_open"))) {
+					barter->call("toggle");
+					return;
+				}
 			}
 			if (build_mode) enter_build_mode(false);
 			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode)
@@ -4303,11 +4442,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						Vector3 click_pos = get_ground_click_pos(mouse_pos);
 						auto uview = sim->units();
 
+						// A structure the ray reaches first hides the units behind it.
+						float bld_t = 1e30f;
+						building_under_mouse(mouse_pos, &bld_t);
+						Camera3D *pick_cam = cam_rig ? cam_rig->get_camera() : nullptr;
+						const Vector3 ray_o = pick_cam ? pick_cam->project_ray_origin(mouse_pos) : Vector3();
+						const Vector3 ray_d = pick_cam ? pick_cam->project_ray_normal(mouse_pos) : Vector3();
+
 						// Check unit hit
 						size_t best_uidx = (size_t)-1;
 						float best_ud2 = 2.0f * 2.0f;
 						for (size_t i = 0; i < uview.count; ++i) {
 							if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+							if (pick_cam && bld_t < 1e29f) {
+								const Vector3 up(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
+								if ((up - ray_o).dot(ray_d) > bld_t + 0.5f) continue;
+							}
 							float dx = uview.pos_x[i] - click_pos.x;
 							float dz = uview.pos_z[i] - click_pos.z;
 							float d2 = dx * dx + dz * dz;
@@ -4370,9 +4520,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							}
 							play_civ_voice("select");
 						} else {
-							// Check building hit
-							uint32_t hit_bld = 0;
+							// Check building hit: any visible part (0 A.D. picks the
+							// rendered entity), then the old ground test round its base.
+							uint32_t hit_bld = building_under_mouse(mouse_pos, nullptr);
 							for (const auto &b : sim->buildings()) {
+								if (hit_bld != 0) break;
 								if (b.team != local_player()) continue;
 								float dx = b.x - click_pos.x;
 								float dz = b.z - click_pos.z;

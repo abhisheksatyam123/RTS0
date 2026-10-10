@@ -236,7 +236,7 @@ func _make_option(slot: Control) -> RtsoSafeSelect:
 	return ob
 
 func _build_map_filter() -> void:
-	var f := _make_option($VBox/HBox/Left/MapFilterSlot)
+	var f := _make_option($VBox/HBox/LeftScroll/Left/MapFilterSlot)
 	f.add_item("All maps")
 	f.add_item("Scenarios")
 	f.add_item("Random (RMS)")
@@ -244,16 +244,16 @@ func _build_map_filter() -> void:
 	f.item_selected.connect(func(_i: int) -> void: refresh_map_list())
 
 func _build_map_list() -> void:
-	var list: ItemList = $VBox/HBox/Left/MapList
+	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
 
 func _map_filter() -> int:
-	var f: RtsoSafeSelect = $VBox/HBox/Left/MapFilterSlot.get_child(0)
+	var f: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapFilterSlot.get_child(0)
 	return f.get_selected()
 
 func refresh_map_list() -> void:
-	var list: ItemList = $VBox/HBox/Left/MapList
+	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
 	_filtered.clear()
 	var flt := _map_filter()
@@ -279,16 +279,16 @@ func _on_map_list_selected(idx: int) -> void:
 # read them, and TeamPlacement only for the maps that list placement patterns.
 func _update_map_options() -> void:
 	var id := str(_selected_map().get("id", ""))
-	var row := $VBox/HBox/Left/MapOptionsRow
+	var row := $VBox/HBox/LeftScroll/Left/MapOptionsRow
 	if row == null:
 		return
-	$VBox/HBox/Left/MapOptionsRow/WaterLevelLabel.visible = id == "random_flood"
-	$VBox/HBox/Left/MapOptionsRow/WaterLevelSlot.visible = id == "random_flood"
-	$VBox/HBox/Left/MapOptionsRow/SeaRiseLabel.visible = id == "random_extinct_volcano"
-	$VBox/HBox/Left/MapOptionsRow/SeaRiseSlot.visible = id == "random_extinct_volcano"
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelLabel.visible = id == "random_flood"
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.visible = id == "random_flood"
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseLabel.visible = id == "random_extinct_volcano"
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.visible = id == "random_extinct_volcano"
 	var tp := id in TEAM_PLACEMENT_MAPS
-	$VBox/HBox/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
-	$VBox/HBox/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
 	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp
 
 func _selected_map() -> Dictionary:
@@ -317,7 +317,7 @@ func _update_preview() -> void:
 	if m.is_empty():
 		if lbl: lbl.text = "No map selected."
 		return
-	var seed_txt := "Random seed" if int($VBox/HBox/Left/SeedRow/SpinSeed.value) == 0 else "Seed %d" % int($VBox/HBox/Left/SeedRow/SpinSeed.value)
+	var seed_txt := "Random seed" if int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value) == 0 else "Seed %d" % int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
 	if lbl:
 		lbl.text = "%s\n[%s • %s • %dm • %d players]\n\n%s\n\n%s" % [
 			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt, m["desc"]]
@@ -508,66 +508,66 @@ func _clamp_slots_to_map() -> void:
 # ---------------------------------------------------------------- options ---
 
 func _build_options() -> void:
-	var vic := _make_option($VBox/HBox/Left/VictorySlot)
+	var vic := _make_option($VBox/HBox/LeftScroll/Left/VictorySlot)
 	for v in VICTORIES:
 		vic.add_item(v)
 	vic.select(0)
-	var msz := _make_option($VBox/HBox/Left/MapSizeSlot)
+	var msz := _make_option($VBox/HBox/LeftScroll/Left/MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
 	msz.select(0)
-	var pop := _make_option($VBox/HBox/Left/PopCapSlot)
+	var pop := _make_option($VBox/HBox/LeftScroll/Left/PopCapSlot)
 	for p in POP_CAPS:
 		pop.add_item(p[1])
 	pop.select(5) # 0 A.D. default: 300
-	var cf := _make_option($VBox/HBox/Left/CeasefireSlot)
+	var cf := _make_option($VBox/HBox/LeftScroll/Left/CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
 	cf.select(0)
-	var wt := _make_option($VBox/HBox/Left/VictoryTimesRow/WonderTimeSlot)
-	var rt := _make_option($VBox/HBox/Left/VictoryTimesRow/RelicTimeSlot)
+	var wt := _make_option($VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot)
+	var rt := _make_option($VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot)
 	for t in VICTORY_TIMES:
 		wt.add_item("%d min" % t)
 		rt.add_item("hold %d min" % t)
 	wt.select(VICTORY_TIMES.find(20))
 	rt.select(VICTORY_TIMES.find(20))
-	var rc := _make_option($VBox/HBox/Left/VictoryTimesRow/RelicCountSlot)
+	var rc := _make_option($VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot)
 	for c in RELIC_COUNTS:
 		rc.add_item(str(c))
 	rc.select(RELIC_COUNTS.find(2))
-	var wl := _make_option($VBox/HBox/Left/MapOptionsRow/WaterLevelSlot)
+	var wl := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot)
 	for w in WATER_LEVELS:
 		wl.add_item(w)
 	wl.select(0)
-	var sr := _make_option($VBox/HBox/Left/MapOptionsRow/SeaRiseSlot)
+	var sr := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot)
 	for t in SEA_RISE_TIMES:
 		sr.add_item("rise at %d min" % t)
 	sr.select(SEA_RISE_TIMES.find(25))
-	var tpl := _make_option($VBox/HBox/Left/MapOptionsRow/TeamPlacementSlot)
+	var tpl := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot)
 	var tips := PackedStringArray()
 	for p in TEAM_PLACEMENTS:
 		tpl.add_item(p[0])
 		tips.append("%s: %s" % [p[0], p[1]])
-	$VBox/HBox/Left/MapOptionsRow/TeamPlacementLabel.tooltip_text = "\n".join(tips)
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.tooltip_text = "\n".join(tips)
 	tpl.select(0)
-	var res := _make_option($VBox/HBox/Left/ResSlot)
+	var res := _make_option($VBox/HBox/LeftScroll/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
 	res.select(1)
-	var bio := _make_option($VBox/HBox/Left/BiomeSpeedRow/BiomeSlot)
+	var bio := _make_option($VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot)
 	for b in BIOMES:
 		bio.add_item(b)
 	bio.select(0)
-	var spd := _make_option($VBox/HBox/Left/BiomeSpeedRow/SpeedSlot)
+	var spd := _make_option($VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot)
 	for sp in SPEEDS:
 		spd.add_item(sp[1])
 	spd.select(2)
-	_mute_spin($VBox/HBox/Left/SeedRow/SpinSeed)
+	_mute_spin($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed)
 	_mute_spin($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots)
 	$VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value_changed.connect(
 		func(_v: float) -> void: refresh_slots())
-	$VBox/HBox/Left/SeedRow/BtnReroll.pressed.connect(_on_reroll_seed)
-	$VBox/HBox/Left/SeedRow/SpinSeed.value_changed.connect(
+	$VBox/HBox/LeftScroll/Left/SeedRow/BtnReroll.pressed.connect(_on_reroll_seed)
+	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value_changed.connect(
 		func(_v: float) -> void: _update_preview())
 
 func _mute_spin(sb: SpinBox) -> void:
@@ -576,51 +576,51 @@ func _mute_spin(sb: SpinBox) -> void:
 		MatchSettings.strip_engine_popups(sb)
 
 func _on_reroll_seed() -> void:
-	$VBox/HBox/Left/SeedRow/SpinSeed.value = randi() % 1000000000
+	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value = randi() % 1000000000
 	_update_preview()
 
 func _restore_settings() -> void:
 	if not has_node("/root/MatchSettings"):
 		return
 	var ms := get_node("/root/MatchSettings")
-	var vic: RtsoSafeSelect = $VBox/HBox/Left/VictorySlot.get_child(0)
-	var res: RtsoSafeSelect = $VBox/HBox/Left/ResSlot.get_child(0)
-	var bio: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
-	var spd: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
+	var vic: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictorySlot.get_child(0)
+	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
+	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
+	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
 	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
-	$VBox/HBox/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
-	$VBox/HBox/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
-	$VBox/HBox/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
-	$VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
-	$VBox/HBox/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
-	$VBox/HBox/Left/MapVisRow/Cheats.button_pressed = bool(ms.get("cheats"))
-	$VBox/HBox/Left/MapVisRow/DisableSpies.button_pressed = bool(ms.get("disable_spies"))
-	$VBox/HBox/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
-	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
+	$VBox/HBox/LeftScroll/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
+	$VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
+	$VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
+	$VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed = bool(ms.get("regicide_garrison"))
+	$VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
+	$VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed = bool(ms.get("cheats"))
+	$VBox/HBox/LeftScroll/Left/MapVisRow/DisableSpies.button_pressed = bool(ms.get("disable_spies"))
+	$VBox/HBox/LeftScroll/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
+	var pop: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
 	for i in range(POP_CAPS.size()):
 		if int(POP_CAPS[i][0]) == int(ms.get("pop_cap")):
 			pop.select(i)
-	var cf: RtsoSafeSelect = $VBox/HBox/Left/CeasefireSlot.get_child(0)
+	var cf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
-	$VBox/HBox/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
-	$VBox/HBox/Left/MapVisRow/ExploreMap.button_pressed = bool(ms.get("explore_map"))
-	var wt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
+	$VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
+	$VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed = bool(ms.get("explore_map"))
+	var wt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
+	var rt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
+	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
 	var wi := VICTORY_TIMES.find(int(ms.get("wonder_min")))
 	var ri := VICTORY_TIMES.find(int(ms.get("relic_min")))
 	var ci := RELIC_COUNTS.find(int(ms.get("relic_count")))
 	wt.select(wi if wi >= 0 else VICTORY_TIMES.find(20))
 	rt.select(ri if ri >= 0 else VICTORY_TIMES.find(20))
 	rc.select(ci if ci >= 0 else RELIC_COUNTS.find(2))
-	var wl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
+	var wl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
 	wl.select(clampi(int(ms.get("water_level")), 0, WATER_LEVELS.size() - 1))
-	var sr: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
+	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
 	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
-	var tpl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
+	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	tpl.select(clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1))
-	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
+	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
@@ -629,7 +629,7 @@ func _restore_settings() -> void:
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
 			spd.select(i)
-	$VBox/HBox/Left/SeedRow/SpinSeed.value = int(ms.get("seed"))
+	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value = int(ms.get("seed"))
 	# Restore map selection by id.
 	var want: String = str(ms.get("map_id"))
 	for i in range(_filtered.size()):
@@ -669,20 +669,20 @@ func _on_back_pressed() -> void:
 
 func _collect_setup() -> Dictionary:
 	var m := _selected_map()
-	var seed := int($VBox/HBox/Left/SeedRow/SpinSeed.value)
-	var vic: RtsoSafeSelect = $VBox/HBox/Left/VictorySlot.get_child(0)
-	var res: RtsoSafeSelect = $VBox/HBox/Left/ResSlot.get_child(0)
-	var bio: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
-	var spd: RtsoSafeSelect = $VBox/HBox/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
-	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
-	var pop: RtsoSafeSelect = $VBox/HBox/Left/PopCapSlot.get_child(0)
-	var cf: RtsoSafeSelect = $VBox/HBox/Left/CeasefireSlot.get_child(0)
-	var wt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
-	var rt: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
-	var rc: RtsoSafeSelect = $VBox/HBox/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
-	var wl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
-	var sr: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
-	var tpl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
+	var seed := int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
+	var vic: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictorySlot.get_child(0)
+	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
+	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
+	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
+	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
+	var pop: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
+	var cf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/CeasefireSlot.get_child(0)
+	var wt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
+	var rt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
+	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
+	var wl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
+	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
+	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -722,12 +722,12 @@ func _collect_setup() -> Dictionary:
 			beh = int(_slot_rows[i]["beh"])
 			break
 	return {"map": m, "seed": seed, "victory": vic.get_selected(),
-		"waves": $VBox/HBox/Left/Waves.button_pressed,
-		"lms": $VBox/HBox/Left/LastManStanding.button_pressed,
+		"waves": $VBox/HBox/LeftScroll/Left/Waves.button_pressed,
+		"lms": $VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed,
 		"pop_cap": int(POP_CAPS[maxi(pop.get_selected(), 0)][0]),
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
-		"reveal": $VBox/HBox/Left/MapVisRow/RevealMap.button_pressed,
-		"explore": $VBox/HBox/Left/MapVisRow/ExploreMap.button_pressed,
+		"reveal": $VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed,
+		"explore": $VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed,
 		"wonder_min": int(VICTORY_TIMES[maxi(wt.get_selected(), 0)]),
 		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
@@ -740,12 +740,12 @@ func _collect_setup() -> Dictionary:
 		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
 		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
-		"nomad": $VBox/HBox/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
-		"regicide_garrison": $VBox/HBox/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
-		"lock_teams": $VBox/HBox/Left/StartRow/LockTeams.button_pressed,
-		"cheats": $VBox/HBox/Left/MapVisRow/Cheats.button_pressed,
-		"disable_spies": $VBox/HBox/Left/MapVisRow/DisableSpies.button_pressed,
-		"disable_treasures": $VBox/HBox/Left/StartRow/DisableTreasures.button_pressed,
+		"nomad": $VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
+		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
+		"lock_teams": $VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed,
+		"cheats": $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed,
+		"disable_spies": $VBox/HBox/LeftScroll/Left/MapVisRow/DisableSpies.button_pressed,
+		"disable_treasures": $VBox/HBox/LeftScroll/Left/StartRow/DisableTreasures.button_pressed,
 		"humans": humans, "ai": ai_total, "slots": types.size()}
 
 # 0 A.D. PlayerName: slot 1 is you (Options > player name), AI slots take an unused name from
