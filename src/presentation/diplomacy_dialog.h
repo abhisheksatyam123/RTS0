@@ -28,6 +28,7 @@
 
 #include "../simulation/simulation.h"
 #include "chat_window.h"
+#include "display_colors.h"
 
 using namespace godot;
 
@@ -194,6 +195,17 @@ public:
 		ceasefire_->add_theme_font_size_override("font_size", 12);
 		vbox->add_child(ceasefire_);
 
+		// DiplomacyDialogColorsButton: toggles diplomacy colours (session.diplomacycolors).
+		colors_btn_ = memnew(Button);
+		colors_btn_->set_custom_minimum_size(Vector2(170, 28));
+		colors_btn_->set_text("Diplomacy Colors");
+		colors_btn_->set_toggle_mode(true);
+		colors_btn_->set_tooltip_text("Toggle Diplomacy Colors (Alt+X)");
+		colors_btn_->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
+		colors_btn_->add_theme_font_size_override("font_size", 11);
+		colors_btn_->connect("pressed", Callable(owner, "toggle_diplomacy_colors"));
+		vbox->add_child(colors_btn_);
+
 		close_btn_ = memnew(Button);
 		close_btn_->set_custom_minimum_size(Vector2(130, 28));
 		close_btn_->set_text("Close (D / Esc)");
@@ -230,13 +242,14 @@ public:
 		const uint8_t me = host_->local_player();
 		if (me >= rtso::MAX_PLAYERS) { close(); return; }
 		const bool mass_held = host_->mass_tribute_held();
+		if (colors_btn_) colors_btn_->set_pressed_no_signal(rtso::display_colors::state().enabled);
 		const bool stances_hidden = sim->ceasefire_active() || sim->teams_locked();
 		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 			Row &r = rows_[p];
 			const bool in_match = sim->player(p).active || p == me;
 			r.box->set_visible(in_match);
 			if (!in_match) continue;
-			const uint32_t rgb = sim->player_color(p);
+			const uint32_t rgb = rtso::display_colors::rgb(*sim, p); // DiplomacyPlayerText: g_DiplomacyColors
 			const Color col(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f);
 			set_text(r.name, host_->player_display_name(p));
 			r.name->add_theme_color_override("font_color", col);
@@ -377,9 +390,7 @@ private:
 			ok = sim->cmd_tribute(me, to, res, amount);
 		}
 		if (ok) {
-			if (chat_)
-				chat_->append_line("[color=#55ffaa]You have sent " + host_->player_display_name(to) + " " +
-						String::num_int64(amount) + " " + res_name(res) + ".[/color]\n");
+			// "You have sent ..." comes from the tribute notice once the turn runs.
 			host_->play_sfx("res://assets/sounds/ui/bonus.ogg");
 			host_->update_hud();
 		} else {
@@ -391,6 +402,7 @@ private:
 	Row rows_[rtso::MAX_PLAYERS];
 	Label *ceasefire_ = nullptr;
 	Button *close_btn_ = nullptr;
+	Button *colors_btn_ = nullptr;
 	RtsoDiplomacyHost *host_ = nullptr;
 	RtsoChatWindow *chat_ = nullptr;
 };

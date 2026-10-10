@@ -1,5 +1,5 @@
 #include "rms_generator.h"
-#include "terrain_biomes.h"
+#include "script_terrains.h"
 #include "simulation.h"
 #include "heightmap_images.h"
 #include <cmath>
@@ -8266,8 +8266,14 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	return true;
 }
 
-void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed) {
-	const BiomeFlora *f = biome_flora(sim.current_map_biome().c_str());
+// The map script's own terrains and plants, unless game setup chose the biome.
+static const ScriptTerrains *own_terrains(const Simulation &sim, uint8_t type) {
+	return sim.biome_override() < 0 ? script_terrains(map_type_info(type).id) : nullptr;
+}
+
+void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
+	const ScriptTerrains *own = own_terrains(sim, type);
+	const BiomeFlora *f = own ? &own->flora : biome_flora(sim.current_map_biome().c_str());
 	if (!f) return;
 	auto hash = [&](int x, int z, uint32_t salt) {
 		uint32_t h = seed * 0x9E3779B1u ^ salt * 0x85EBCA77u ^ (uint32_t)x * 0xC2B2AE3Du ^ (uint32_t)z * 0x27D4EB2Fu;
@@ -8275,6 +8281,8 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed) {
 		return h;
 	};
 	auto options = [](const uint8_t (*set)[2]) { int n = 0; while (n < 3 && set[n][0] != FLORA_DEFAULT) ++n; return n; };
+	// A set with no trees (polar_sea places none) leaves every plant to the viewer.
+	if (options(f->tree12) == 0 || options(f->tree45) == 0 || f->tree3[0] == FLORA_DEFAULT) return;
 	// setupBiome_<biome>'s pickRandom, once per map.
 	const uint8_t *t12 = f->tree12[hash(0, 0, 1) % (uint32_t)options(f->tree12)];
 	const uint8_t *t45 = f->tree45[hash(0, 0, 2) % (uint32_t)options(f->tree45)];
@@ -8318,11 +8326,12 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed) {
 	}
 }
 
-void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed) {
+void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	const float half = sim.map_half();
 	const int res = std::clamp((int)std::lround(2.0f * half), 1, Simulation::MAX_TERRAIN_TILE_RES);
 	const float cell = 2.0f * half / (float)res;
-	const TerrainBiome &b = terrain_biome(sim.current_map_biome().c_str());
+	const ScriptTerrains *own = own_terrains(sim, type);
+	const TerrainBiome &b = own ? own->terrain : terrain_biome(sim.current_map_biome().c_str());
 	Simulation::TerrainTiles t;
 	t.res = res;
 	t.tiles.assign((size_t)res * (size_t)res, 0);

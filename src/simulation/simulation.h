@@ -340,6 +340,8 @@ public:
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
 	float unit_walk_speed(size_t i) const;
+	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
+	float unit_move_speed(size_t i) const;
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
@@ -382,6 +384,23 @@ public:
 	std::vector<AttackedEvent> take_attacked_events() {
 		std::vector<AttackedEvent> out;
 		out.swap(attacked_events_);
+		return out;
+	}
+	// 0 A.D. session chat notifications (gui/session/messages.js "tribute",
+	// "barter" and "phase"): presentation only like AttackedEvent, never saved,
+	// hashed or read by the simulation, at most kMaxSessionNotices between reads.
+	struct SessionNotice {
+		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5 };
+		uint8_t kind;
+		uint8_t player; // who tributed, bartered, advances or changed its stance
+		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
+		uint8_t tech;   // PHASE_*: the phase technology; BARTER: the resource bought; DIPLOMACY: the stance
+		int32_t amounts[RES_COUNT]; // TRIBUTE: per resource; BARTER: [0] sold, [1] bought
+	};
+	static constexpr size_t kMaxSessionNotices = 256;
+	std::vector<SessionNotice> take_session_notices() {
+		std::vector<SessionNotice> out;
+		out.swap(session_notices_);
 		return out;
 	}
 	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
@@ -701,7 +720,7 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE);
+	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE, int count = 1);
 	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
 	float livestock_train_time(uint8_t player, uint8_t ftype) const;
 
@@ -1853,6 +1872,12 @@ private:
 			bool target_is_building, float damage);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<SessionNotice> session_notices_;
+	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
+	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
+		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
+	}
+	void note_phases_aborted(const Building &b); // a lost or captured structure's queued phases
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
