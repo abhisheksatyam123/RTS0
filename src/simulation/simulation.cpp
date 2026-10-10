@@ -7211,6 +7211,17 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			m = MotionTurn{};
 			continue;
 		}
+		// COMBAT.APPROACHING / CHASING Timer, every second: ShouldAbandonChase drops a unit target
+		// hidden in the player's fog (CheckTargetVisible), a player's own attack too.
+		if (turn_ends && (i + ticks_ / per_turn) % 5 == 0 && units_.action_state[i] == ACTION_ATTACK &&
+				units_.target_unit_id[i] != 0 && (formations_.empty() || formation_group_[i] == 0)) {
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t >= 0 && attack_target_hidden(i, (size_t)t)) {
+				m = MotionTurn{};
+				abandon_chase(i);
+				continue;
+			}
+		}
 		if (steps.want_x[i] != 0.0f || steps.want_z[i] != 0.0f) {
 			if (!m.stepped) {
 				m.from_x = steps.from_x[i];
@@ -7326,6 +7337,19 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_collision_radius(units_.unit_type[i])) > reach;
+}
+
+// ShouldAbandonChase on the COMBAT timer: FinishOrder. A fight the unit picked itself ends and
+// tick_unit_ai takes it back to the order the fight interrupted; a player's attack goes on to the
+// next order, else the unit idles.
+void Simulation::abandon_chase(size_t i) {
+	const bool own = units_.order_kind[i] == ORDER_ATTACK && units_.target_unit_id[i] == units_.order_target[i];
+	if (i < unit_paths_.size()) unit_paths_[i].clear();
+	units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+	units_.target_unit_id[i] = 0;
+	units_.target_x[i] = units_.pos_x[i];
+	units_.target_z[i] = units_.pos_z[i];
+	if (own) finish_order(i);
 }
 
 // UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with likelyFailure: with orders queued after it
@@ -8534,9 +8558,11 @@ void Simulation::tick_combat(float dt) {
 		hack_dmg *= b_bonus;
 		pierce_dmg *= b_bonus;
 		crush_dmg *= b_bonus;
-		const float b_hack_armor = b_combat.hack_armor;
-		const float b_pierce_armor = b_combat.pierce_armor;
-		const float b_crush_armor = b_combat.crush_armor;
+		float b_armor[3];
+		structure_resistance(b, b_armor);
+		const float b_hack_armor = b_armor[0];
+		const float b_pierce_armor = b_armor[1];
+		const float b_crush_armor = b_armor[2];
 
 		float bld_dmg = std::max(1.0f,
 			hack_dmg * powf(0.9f, b_hack_armor) +
@@ -8610,9 +8636,14 @@ void Simulation::tick_combat(float dt) {
 	// the rest. Every arrow goes to a random target, Humans weighing 1 + 2 / (1 + 0)
 	// against 1 for anything else (PreferredClasses), and scatters by the structure's
 	// Projectile/Spread like a unit's arrow (Attack.js PerformAttack); it hurts whatever
-	// it lands on (tick_projectiles).
-	struct ArrowTarget { int32_t idx; bool building; float weight; };
+	// it lands on (tick_projectiles). A target goes in the draw only while the structure's
+	// owner sees it (CheckTargetVisible: units in sight, structures once explored).
+	enum : uint8_t { ARROW_UNIT, ARROW_FAUNA, ARROW_BUILDING };
+	struct ArrowTarget { int32_t idx; uint8_t kind; float weight; };
 	std::vector<ArrowTarget> arrow_targets;
+	// Of Gaia, only what can attack is shot: Gaia units and the dangerous animals in `wild`
+	// (SetupGaiaRangeQuery, OnRangeUpdate's IsDangerousAnimal filter). Gaia structures have
+	// no UnitAI, so they are not shot.
 	for (auto &b : buildings_) {
 		const BuildingAIInfo &ai = building_ai_info(b.type);
 		if (!ai.shoots() || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked || (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER)) continue;
@@ -8638,39 +8669,60 @@ void Simulation::tick_combat(float dt) {
 					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
 		};
 		auto building_target = [&](const Building &ob) {
-			return !ob.wrecked && ob.hp > 0.0f && can_attack(b.team, ob.team)
-					&& (ob.team != GAIA_PLAYER || building_ai_info(ob.type).shoots())
+			return !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
 					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
+		};
+		const bool shoots_gaia = b.team != GAIA_PLAYER && is_hostile(b.team, GAIA_PLAYER);
+		auto fauna_target = [&](int32_t f) {
+			const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+			return shoots_gaia && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
 		};
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
 			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) { any = any || unit_target(i); });
+			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
 			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
 			if (!any) continue;
 			b.arrow_timer_on = true;
 			b.attack_timer = ai.prepare_time;
 			continue;
 		}
+		// CheckTargetVisible: what the owner (or an ally) sees; a structure stays visible
+		// in the fog once explored (its mirage). Gaia's structures see everything.
+		const bool check_los = b.team < MAX_PLAYERS && los_.cells() != 0;
+		auto seen = [&](float x, float z) { return !check_los || los_visible(b.team, x, z); };
+		auto seen_structure = [&](float x, float z) { return !check_los || los_explored(b.team, x, z); };
+		bool in_reach = false; // targetUnits: everything in range, seen or not, keeps the timer going
 		arrow_targets.clear();
 		if (n) {
 			grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) {
 				if (!unit_target(i)) return;
+				in_reach = true;
+				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
 				const bool human = ai.prefers_human && unit_combat_at(i).classes.has(CC_HUMAN);
-				arrow_targets.push_back({i, false, human ? 3.0f : 1.0f});
+				arrow_targets.push_back({i, ARROW_UNIT, human ? 3.0f : 1.0f});
 			});
 		}
+		for (const int32_t f : wild) {
+			if (!fauna_target(f)) continue;
+			in_reach = true;
+			if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 1.0f});
+		}
 		// Structures have Resistance and Health too, so enemy buildings in range draw arrows.
-		for (size_t o = 0; o < buildings_.size(); ++o)
-			if (building_target(buildings_[o])) arrow_targets.push_back({(int32_t)o, true, 1.0f});
-		if (arrow_targets.empty()) { // FireArrows with no targets cancels the timer
+		for (size_t o = 0; o < buildings_.size(); ++o) {
+			if (!building_target(buildings_[o])) continue;
+			in_reach = true;
+			if (seen_structure(buildings_[o].x, buildings_[o].z)) arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, 1.0f});
+		}
+		if (!in_reach) { // FireArrows with no targets cancels the timer
 			b.arrow_timer_on = false;
 			b.attack_timer = 0.0f;
 			continue;
 		}
 		// grid.visit_radius walks cells in a fixed order; sort so the draw never depends on it.
 		std::sort(arrow_targets.begin(), arrow_targets.end(), [](const ArrowTarget &a, const ArrowTarget &c) {
-			return a.building != c.building ? c.building : a.idx < c.idx;
+			return a.kind != c.kind ? a.kind < c.kind : a.idx < c.idx;
 		});
 		b.attack_timer += ai.repeat_time / BUILDING_AI_ROUNDS;
 
@@ -8684,7 +8736,7 @@ void Simulation::tick_combat(float dt) {
 			to_fire = std::min((int)std::floor(sim_rng_.range_float(0.0f, max_roll + 1.0f)), (int)b.arrows_left);
 		}
 		++b.arrow_round;
-		if (to_fire <= 0) continue;
+		if (to_fire <= 0 || arrow_targets.empty()) continue; // nothing seen: the round fires nothing
 
 		float total_weight = 0.0f;
 		for (const ArrowTarget &t : arrow_targets) total_weight += t.weight;
@@ -8698,12 +8750,26 @@ void Simulation::tick_combat(float dt) {
 			size_t pick = 0;
 			while (pick + 1 < arrow_targets.size() && roll >= arrow_targets[pick].weight) roll -= arrow_targets[pick++].weight;
 			const ArrowTarget &t = arrow_targets[pick];
-			if (t.building) {
+			if (t.kind == ARROW_FAUNA) {
+				const size_t f = (size_t)t.idx;
+				const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
+				const float dmg = hack * powf(0.9f, fi.hack_armor) + pierce * powf(0.9f, fi.pierce_armor) +
+						crush * powf(0.9f, fi.crush_armor);
+				const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+				const float dist = std::hypot(fx - b.x, fz - b.z);
+				const float sigma = spread * dist / 100.0f;
+				float disp_x = 0.0f, disp_z = 0.0f;
+				random_normal_2d(disp_x, disp_z);
+				fire_arrow(b.x, launch_y, b.z, fx + disp_x * sigma, get_terrain_height(fx, fz) + 0.8f, fz + disp_z * sigma,
+						dmg, b.team, fauna_.id[f], 0, 1, false, 0, b.id);
+				continue;
+			}
+			if (t.kind == ARROW_BUILDING) {
 				const Building &ob = buildings_[(size_t)t.idx];
-				const CombatProfile &oc = building_combat(ob.type);
+				float oa[3];
+				structure_resistance(ob, oa);
 				// Attack.js has no minimum damage: arrows barely scratch stone.
-				const float dmg = hack * powf(0.9f, oc.hack_armor) + pierce * powf(0.9f, oc.pierce_armor) +
-						crush * powf(0.9f, oc.crush_armor);
+				const float dmg = hack * powf(0.9f, oa[0]) + pierce * powf(0.9f, oa[1]) + crush * powf(0.9f, oa[2]);
 				fire_arrow(b.x, launch_y, b.z, ob.x, get_terrain_height(ob.x, ob.z) + 1.0f, ob.z,
 						dmg, b.team, ob.id, 0, 1, true, 0, b.id);
 				continue;
@@ -9121,6 +9187,71 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 	for (int t = 0; t < MAX_PLAYERS; ++t) b.capture_points_by_team[t] = pts[t];
 }
 
+// DelayedDamage.js Hit on animals: an arrow aimed at an animal (a structure's arrow at a
+// dangerous one) or a stray that lands in an animal's footprint hits it, Gaia being every
+// player's enemy. Returns the fauna index, or -1. Called when no unit was hit.
+int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
+	if (p.team == GAIA_PLAYER || !is_hostile(p.team, GAIA_PLAYER)) return -1;
+	auto inside = [&](size_t f) {
+		const float dx = fauna_.pos_x[f] - p.target_x, dz = fauna_.pos_z[f] - p.target_z;
+		const float r = fauna_type_info(fauna_.fauna_type[f]).footprint * COMBAT_DISTANCE_SCALE;
+		return dx * dx + dz * dz < r * r;
+	};
+	auto hittable = [&](size_t f) { return fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED; };
+	const auto it = fauna_id_to_idx_.find(p.target_unit_id);
+	if (it != fauna_id_to_idx_.end() && hittable(it->second) && inside(it->second)) return (int32_t)it->second;
+	int32_t best = -1;
+	float best_d2 = 0.0f;
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!hittable(f) || !inside(f)) continue;
+		const float dx = fauna_.pos_x[f] - p.target_x, dz = fauna_.pos_z[f] - p.target_z;
+		const float d2 = dx * dx + dz * dz;
+		if (best >= 0 && d2 >= best_d2) continue;
+		best = (int32_t)f;
+		best_d2 = d2;
+	}
+	return best;
+}
+
+// The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs),
+// each reduced by the animal's Resistance as 0.9^armour, at least 1.
+float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
+	const auto &uinfo = unit_info_at(i);
+	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
+	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return std::max(1.0f, units_.attack_damage[i]);
+	const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
+	return std::max(1.0f, uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
+			uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
+			uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor));
+}
+
+// Projectile p lands on animal f: what its shooter's attack does to the animal (a
+// structure's arrow at an animal was worked out when fired). The animal answers
+// (fauna_attacked); tick_fauna leaves the carcass of one that dies, and the shooter
+// gets its Loot xp.
+void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
+	const int32_t src = lookup_unit(p.source_id);
+	float dmg = p.damage;
+	if (src >= 0) dmg = unit_damage_to_fauna((size_t)src, f);
+	else if (!is_fauna_id(p.target_unit_id)) {
+		// A structure's arrow aimed at a unit and landing on an animal.
+		const auto bit = building_id_to_idx_.find(p.source_id);
+		if (bit != building_id_to_idx_.end()) {
+			const Building &b = buildings_[bit->second];
+			const BuildingAIInfo &ai = building_ai_info(b.type);
+			const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
+			const float pierce = ai.pierce * (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_attack[b.type] : 1.0f);
+			dmg = ai.hack * powf(0.9f, fi.hack_armor) + pierce * powf(0.9f, fi.pierce_armor) + ai.crush * powf(0.9f, fi.crush_armor);
+		}
+	}
+	fauna_.hp[f] -= dmg;
+	fauna_attacked(f, src >= 0 ? p.source_id : 0);
+	if (fauna_.hp[f] <= 0.0f && src >= 0) {
+		const float xp = fauna_type_info(fauna_.fauna_type[f]).loot_xp;
+		units_.xp[src] = (uint16_t)std::min(65535.0f, (float)units_.xp[src] + xp);
+	}
+}
+
 // 0 A.D. DelayedDamage.js Hit: a unit's projectile damages its target only if it lands
 // inside the target's footprint (PositionHelper.TestCollision); otherwise the nearest
 // enemy whose footprint holds the landing point takes it, and
@@ -9200,6 +9331,10 @@ void Simulation::tick_projectiles(float dt) {
 						}
 						collect_unit_loot(p.source_id, p.team, (size_t)tidx);
 					}
+				}
+				if (tidx < 0) {
+					const int32_t f = projectile_hit_fauna(p);
+					if (f >= 0) projectile_hits_fauna(p, (size_t)f);
 				}
 			} else if (p.target_building_id != 0) {
 				auto bit = building_id_to_idx_.find(p.target_building_id);
@@ -9970,6 +10105,17 @@ void Simulation::tick_death_damage(float dt) {
 	}
 }
 
+// A structure's Resistance levels: its template's, plus armour auras that name Structure
+// (Maximus' Shield of Rome: his player's structures +1 everywhere).
+void Simulation::structure_resistance(const Building &b, float out[3]) const {
+	const CombatProfile &bc = building_combat(b.type);
+	out[0] = bc.hack_armor;
+	out[1] = bc.pierce_armor;
+	out[2] = bc.crush_armor;
+	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
+	for (int k = 0; k < 3; ++k) out[k] += aura;
+}
+
 void Simulation::unit_resistance(size_t i, float out[3]) const {
 	const auto &info = unit_info_at(i);
 	out[0] = info.hack_armor;
@@ -10056,9 +10202,9 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		if (d2 >= r2) continue;
 		const float m = falloff(std::sqrt(d2), b.x - ox, b.z - oz);
 		if (m <= 0.0f) continue;
-		const CombatProfile &bc = building_combat(b.type);
-		const float dmg = m * (sp.hack * powf(0.9f, bc.hack_armor) + sp.pierce * powf(0.9f, bc.pierce_armor) +
-				sp.crush * powf(0.9f, bc.crush_armor));
+		float ba[3];
+		structure_resistance(b, ba);
+		const float dmg = m * (sp.hack * powf(0.9f, ba[0]) + sp.pierce * powf(0.9f, ba[1]) + sp.crush * powf(0.9f, ba[2]));
 		if (dmg <= 0.0f) continue;
 		note_attacked(attacker_id, attacker_team, b.id, b.team, true, dmg);
 		b.hp -= dmg;
@@ -20001,18 +20147,13 @@ void Simulation::tick_hunters() {
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (!attack_ready(i, in_reach, slaughter ? 0.0f : unit_combat_at(i).prepare)) continue;
 
-		const auto &uinfo = unit_info_at(i);
 		float dmg;
 		if (slaughter) {
 			attack_done(i, in_reach, 1.0f);
 			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
 		} else {
 			attack_done(i, in_reach, units_.attack_cooldown[i]);
-			const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
-			dmg = uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
-			      uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
-			      uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor);
-			if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) dmg = units_.attack_damage[i];
+			dmg = unit_damage_to_fauna(i, f);
 		}
 		fauna_.hp[f] -= std::max(1.0f, dmg);
 		fauna_attacked(f, units_.id[i]);
