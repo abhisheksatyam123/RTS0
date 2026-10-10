@@ -1206,7 +1206,8 @@ public:
 	int petra_pop_for_barracks2() const;
 	void petra_build_defenses();
 	void petra_check_resource_levels(int32_t turn);
-	uint32_t petra_place_dropsite(uint8_t res);
+	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 6000.0f, bool *no_site = nullptr);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;

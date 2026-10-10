@@ -2146,16 +2146,24 @@ static void test_dropsites() {
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_ENDLESS);
-	run_for(*s, 20.0f);
-	s->set_player_resources(1, 5000, 5000, 5000, 5000);
-	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
-	s->petra_pid_ = 1;
 	auto count = [&](uint8_t type, bool foundations_only) {
 		int n = 0;
 		for (const auto &b : s->buildings_)
 			n += b.team == 1 && b.type == type && b.hp > 0.0f && (!foundations_only || b.build_progress < 1.0f);
 		return n;
 	};
+	// The opening storehouse (buildFirstBase) goes up first: its foundation would reset the counts.
+	run_for(*s, 20.0f);
+	for (int k = 0; k < 40 && count(BLD_STOREHOUSE, true) > 0; ++k) run_for(*s, 5.0f);
+	CHECK(count(BLD_STOREHOUSE, true) == 0, "the opening storehouse is finished");
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_STOREHOUSE)
+			for (const auto &o : s->buildings_)
+				if (o.team == 1 && is_civic_centre(o.type))
+					CHECK(std::hypot(o.x - b.x, o.z - b.z) >= 15.0f, "the opening storehouse stands by wood, 15 tiles from the civic centre");
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->petra_pid_ = 1;
 	const int stores = count(BLD_STOREHOUSE, false);
 	auto &dc = s->petra_dropsite_check_;
 	dc = PetraDropsiteCheck{};
