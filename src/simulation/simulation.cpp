@@ -7209,6 +7209,17 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 			m = MotionTurn{};
 			continue;
 		}
+		// COMBAT.APPROACHING / CHASING Timer, every second: ShouldAbandonChase drops a unit target
+		// hidden in the player's fog (CheckTargetVisible), a player's own attack too.
+		if (turn_ends && (i + ticks_ / per_turn) % 5 == 0 && units_.action_state[i] == ACTION_ATTACK &&
+				units_.target_unit_id[i] != 0 && (formations_.empty() || formation_group_[i] == 0)) {
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t >= 0 && attack_target_hidden(i, (size_t)t)) {
+				m = MotionTurn{};
+				abandon_chase(i);
+				continue;
+			}
+		}
 		if (steps.want_x[i] != 0.0f || steps.want_z[i] != 0.0f) {
 			if (!m.stepped) {
 				m.from_x = steps.from_x[i];
@@ -7324,6 +7335,19 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_collision_radius(units_.unit_type[i])) > reach;
+}
+
+// ShouldAbandonChase on the COMBAT timer: FinishOrder. A fight the unit picked itself ends and
+// tick_unit_ai takes it back to the order the fight interrupted; a player's attack goes on to the
+// next order, else the unit idles.
+void Simulation::abandon_chase(size_t i) {
+	const bool own = units_.order_kind[i] == ORDER_ATTACK && units_.target_unit_id[i] == units_.order_target[i];
+	if (i < unit_paths_.size()) unit_paths_[i].clear();
+	units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+	units_.target_unit_id[i] = 0;
+	units_.target_x[i] = units_.pos_x[i];
+	units_.target_z[i] = units_.pos_z[i];
+	if (own) finish_order(i);
 }
 
 // UnitAI COMBAT.APPROACHING / CHASING MovementUpdate with likelyFailure: with orders queued after it
