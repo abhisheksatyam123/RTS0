@@ -1788,6 +1788,31 @@ static void test_hidden_attacker() {
 	check(target_of(s, sw) == far, "one in sight is answered");
 }
 
+static void test_patrol_loop() {
+	std::printf("48. queued patrol points are walked round in a loop (PATROLLING MovementUpdate)\n");
+	Simulation s;
+	setup(s);
+	uint32_t p = s.spawn_unit(-10, 0, 0, UNIT_SPEARMAN);
+	s.order_patrol(&p, 1, 10, 0);
+	s.order_patrol(&p, 1, 10, 15, true);
+	s.order_patrol(&p, 1, -10, 15, true);
+	const float wx[3] = {10, 10, -10}, wz[3] = {0, 15, 15};
+	std::vector<int> seen;
+	int at = -1;
+	for (int i = 0; i < 600 && seen.size() < 7; ++i) { // 120 s
+		s.tick(DT);
+		int now = -1;
+		for (int k = 0; k < 3; ++k)
+			if (dist(s, p, wx[k], wz[k]) < 1.5f) now = k;
+		if (now >= 0 && now != at) seen.push_back(now);
+		if (now >= 0) at = now;
+	}
+	std::string order;
+	for (int k : seen) order += (char)('A' + k);
+	std::printf("  waypoints in order: %s\n", order.c_str());
+	check(order.rfind("ABCABCA", 0) == 0, "after the last point it goes back to the first, not the one before");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1838,6 +1863,7 @@ int main(int argc, char **argv) {
 	test_idle_at_dropsite();
 	test_chase_into_fog();
 	test_hidden_attacker();
+	test_patrol_loop();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

@@ -3467,7 +3467,7 @@ void Simulation::credit_trade(uint8_t player_id, uint8_t res, int amount) {
 		else if (res == RES_STONE) record_.total_stone_gathered += amount;
 		else record_.total_food_gathered += amount;
 	} else {
-		ps.res[res] = std::min(9999.0f, ps.res[res] + (float)amount);
+		ps.res[res] += (float)amount; // Player.js AddResource: no cap
 	}
 	ps.gathered_window[res] += (float)amount;
 }
@@ -5289,7 +5289,7 @@ void Simulation::deposit_carry(size_t i) {
 		stat_gathered(units_.team[i], rt, amt, vegetarian);
 		PlayerState &ps = player(units_.team[i]);
 		if (units_.team[i] == 0) {
-			// Player 0 is uncapped and feeds the HUD rate window and match record.
+			// Player 0 also feeds the HUD rate window and match record.
 			ps.res[rt] += (float)amt;
 			ps.gathered_window[rt] += (float)amt;
 			if (rt == RES_WOOD) record_.total_wood_gathered += amt;
@@ -5297,7 +5297,7 @@ void Simulation::deposit_carry(size_t i) {
 			else if (rt == RES_STONE) record_.total_stone_gathered += amt;
 			else record_.total_food_gathered += amt;
 		} else {
-			ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)amt);
+			ps.res[rt] += (float)amt; // Player.js AddResource: no cap
 			ps.gathered_window[rt] += (float)amt;
 		}
 	}
@@ -6127,7 +6127,8 @@ void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float dama
 	if (a < 0 || !units_.alive[a]) return;
 	float lost = std::min(damage, std::max(0.0f, units_.hp[victim]));
 	if (!(lost > 0.0f) || !(units_.max_hp[victim] > 0.0f)) return;
-	float xp = unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]);
+	// Loot.js GetXp floors the modified value.
+	float xp = std::floor(unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]));
 	gain_xp((size_t)a, xp * lost / units_.max_hp[victim]);
 }
 
@@ -6155,10 +6156,11 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 	bool infantry = false;
 	if (looter_id != 0 && !looter_present(looter_id, &infantry)) return;
 	float res[RES_COUNT] = {};
-	res[RES_FOOD] = loot.food * mult;
-	res[RES_WOOD] = loot.wood * mult;
-	res[RES_STONE] = loot.stone * mult;
-	res[RES_GOLD] = loot.metal * mult;
+	// Loot.js GetResources floors each modified amount.
+	res[RES_FOOD] = std::floor(loot.food * mult);
+	res[RES_WOOD] = std::floor(loot.wood * mult);
+	res[RES_STONE] = std::floor(loot.stone * mult);
+	res[RES_GOLD] = std::floor(loot.metal * mult);
 	if (infantry && civ_of(looter_player) == CIV_BRITONS)
 		for (float &r : res) r += 1.0f;
 	for (int r = 0; r < RES_COUNT; ++r) res[r] += tech_mods(looter_player).loot_add[r]; // Looter/Resource modifiers
@@ -7655,12 +7657,12 @@ void Simulation::tick_gather(float dt) {
 		uint8_t uteam = units_.team[i];
 
 		// 1. Returning to dropsite
-		// Gathering or building workers with a full load return it (Petra's builders rely on
-		// this, as 0 A.D. builders drop carried resources at a dropsite). An idle full worker
-		// stays put, as in UnitAI IDLE (Petra sends it with ReturnResource); a full worker
-		// the player walks elsewhere or sends to fight keeps its order.
-		const uint8_t gst = units_.action_state[i];
-		if (((gst == ACTION_GATHER || gst == ACTION_BUILD) &&
+		// Gathering workers with a full load return it. Builders keep theirs (UnitAI REPAIR
+		// has no ReturnResource; ConstructionFinished drops it at a finished dropsite that
+		// takes it). An idle full worker stays put, as in UnitAI IDLE (Petra sends it with
+		// ReturnResource); a full worker the player walks elsewhere or sends to fight keeps
+		// its order.
+		if ((units_.action_state[i] == ACTION_GATHER &&
 					units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
@@ -7847,8 +7849,11 @@ void Simulation::tick_gather(float dt) {
 				const Civilization civ = civ_of(uteam);
 				if (!ruins) {
 					rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind];
-					if ((rt == RES_GOLD || rt == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f)
-						rate *= civ_info(civ).metal_gather_mult;
+					// Athenian Silver Owls: phase_town_athen and phase_city_athen each give Workers
+					// ResourceGatherer/Rates/metal.ore x1.1.
+					if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
+							(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
+						for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
 				}
 				// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
 				// pyramid, catafalques, Han ministers): the strongest one in reach.
@@ -7881,12 +7886,22 @@ void Simulation::tick_gather(float dt) {
 		}
 	}
 
-	// Fish nobody is fishing regrow 1 food every 2 s, up to their supply (ResourceSupply Change/Spawn).
+	// Fish nobody is fishing regrow 1 food every 2 s, up to their supply (ResourceSupply Change/Spawn,
+	// State notGathered). Only boats at the fish count (activeGatherers), not those on their way.
 	const uint64_t regrow_ticks = (uint64_t)std::lround(FISH_REGROW_INTERVAL_S / FIXED_STEP);
 	if (ticks_ % regrow_ticks == 0) {
+		std::vector<uint32_t> fished;
+		for (size_t i = 0; i < n; ++i) {
+			if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.action_state[i] != ACTION_GATHER) continue;
+			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+			if (rit == res_id_to_idx_.end()) continue;
+			const float dx = units_.pos_x[i] - resources_.x[rit->second], dz = units_.pos_z[i] - resources_.z[rit->second];
+			if (dx * dx + dz * dz < FISH_GATHER_REACH * FISH_GATHER_REACH) fished.push_back(units_.target_resource_id[i]);
+		}
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
-			if (resources_.amount[r] >= FISH_FOOD_SUPPLY || fish_gatherers_.count(resources_.id[r])) continue;
+			if (resources_.amount[r] >= FISH_FOOD_SUPPLY ||
+					std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) continue;
 			resources_.amount[r] += 1;
 		}
 	}
@@ -10825,8 +10840,11 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 // same type nearby (GATHER "ResourceExhausted"); then the next queued order runs.
 // UnitAI PATROL: on to the other end (the queue's next order goes first).
 void Simulation::patrol_next_leg(size_t i) {
+	// PATROLLING MovementUpdate: the patrol goes back to the end of the queue, so
+	// queued patrol points are walked round in a loop.
 	auto q = order_queues_.find(units_.id[i]);
 	if (q != order_queues_.end() && !q->second.empty()) {
+		if (q->second.size() < 64) q->second.push_back(current_order(i));
 		finish_order(i);
 		return;
 	}
@@ -11960,10 +11978,10 @@ void Simulation::tick_heal(size_t h) {
 	units_.attack_timer[h] = HEAL_INTERVAL_S * std::max(0.1f, tech_mods(units_.team[h]).heal_interval[UNIT_HEALER]);
 	const float before = units_.hp[t];
 	units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + heal_amount_of(h));
-	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp.
+	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp (GetXp, floored).
 	if (units_.max_hp[t] > 0.0f)
 		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] *
-				unit_loot(units_.tmpl[t], units_.unit_type[t]).xp * loot_rank_multiplier(units_.rank[t]));
+				std::floor(unit_loot(units_.tmpl[t], units_.unit_type[t]).xp * loot_rank_multiplier(units_.rank[t])));
 }
 
 // UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
@@ -20928,10 +20946,7 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
 		if (b != FAUNA_ATTACK) {
-			fauna_.behavior[f] = FAUNA_ATTACK;
-			fauna_.target_unit_id[f] = attacker_id;
-			fauna_.home_x[f] = fauna_.pos_x[f];
-			fauna_.home_z[f] = fauna_.pos_z[f];
+			fauna_start_attack(f, attacker_id);
 		}
 		return;
 	}
@@ -20951,7 +20966,18 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	fauna_.flee_distance[f] = (a >= 0 ? dist_to(a) : 0.0f) + info.flee_distance;
 }
 
-// An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
+// UnitAI COMBAT for an animal: it goes for `target` from where it stands, and its first bite
+// waits Attack/Melee PrepareTime (or what is left of the last RepeatTime, if longer).
+void Simulation::fauna_start_attack(size_t f, uint32_t target) {
+	fauna_.behavior[f] = FAUNA_ATTACK;
+	fauna_.target_unit_id[f] = target;
+	fauna_.home_x[f] = fauna_.pos_x[f];
+	fauna_.home_z[f] = fauna_.pos_z[f];
+	fauna_.attack_timer[f] = std::max(fauna_.attack_timer[f], fauna_type_info(fauna_.fauna_type[f]).attack_prepare);
+}
+
+// An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Resistance),
+// against the unit's full resistance (template, techs, rank, auras, a wall turret).
 void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
@@ -21280,6 +21306,8 @@ void Simulation::tick_fauna(float dt) {
 			const float dx = units_.pos_x[t] - fx, dz = units_.pos_z[t] - fz;
 			const float len = std::sqrt(dx * dx + dz * dz);
 			if (len > info.attack_range + 0.6f) {
+				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
+				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
 				const float sp = info.speed * info.run_mult;
 				// Straight at the target; when a pond or cliff is in the way, 45 or 90 degrees
 				// to either side (animals have no long-range path here; polar_sea_triggers.js
@@ -21357,10 +21385,7 @@ void Simulation::tick_fauna(float dt) {
 				const float q = info.stance == FAUNA_STANCE_DEFENSIVE ? std::min(info.attack_range + info.vision * 0.5f, info.vision) : info.vision;
 				const int32_t u = nearest_foe(fx, fz, q, true);
 				if (u >= 0) {
-					fauna_.behavior[i] = FAUNA_ATTACK;
-					fauna_.target_unit_id[i] = units_.id[u];
-					fauna_.home_x[i] = fx;
-					fauna_.home_z[i] = fz;
+					fauna_start_attack(i, units_.id[u]);
 					continue;
 				}
 			}
@@ -22150,10 +22175,7 @@ void Simulation::trigger_polar_sea_wave() {
 		if (n == 0) continue;
 		for (uint32_t id : pack) {
 			const size_t f = fauna_id_to_idx_[id];
-			fauna_.behavior[f] = FAUNA_ATTACK;
-			fauna_.target_unit_id[f] = best[0];
-			fauna_.home_x[f] = fauna_.pos_x[f];
-			fauna_.home_z[f] = fauna_.pos_z[f];
+			fauna_start_attack(f, best[0]);
 			TriggerAttackOrder o;
 			o.fauna_id = id;
 			for (uint32_t j = 0; j < n; ++j) o.targets[j] = best[j];
@@ -22199,10 +22221,7 @@ void Simulation::tick_trigger_attack_orders() {
 			orders.erase(orders.begin() + (std::ptrdiff_t)k);
 			continue;
 		}
-		fauna_.behavior[f] = FAUNA_ATTACK;
-		fauna_.target_unit_id[f] = o.targets[0];
-		fauna_.home_x[f] = fauna_.pos_x[f];
-		fauna_.home_z[f] = fauna_.pos_z[f];
+		fauna_start_attack(f, o.targets[0]);
 		++k;
 	}
 }

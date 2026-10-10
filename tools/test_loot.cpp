@@ -133,7 +133,8 @@ static void test_rank() {
 		Res b = res_of(s, 0);
 		float m = rank == 2 ? 1.2f : 1.44f;
 		print_gain(a, b);
-		check(gained(a, b, 5 * m, 4 * m, 0, 1 * m), rank == 2 ? "advanced: x1.2" : "elite: x1.44");
+		// Loot.js GetResources floors each modified amount.
+		check(gained(a, b, std::floor(5 * m), std::floor(4 * m), 0, std::floor(1 * m)), rank == 2 ? "advanced: x1.2" : "elite: x1.44");
 	}
 }
 
