@@ -1204,6 +1204,15 @@ void Simulation::rebuild_nav_grid() {
 			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 		}
 	}
+	// A 14 m palisade gate is shorter than two navcells, and the towers at its ends block the cell
+	// under their centres, which can be the gate's own: an unlocked gate keeps the cell under its
+	// centre open, so long-range paths still cross it (the towers still block movement).
+	for (const auto &b : buildings_)
+		if (is_gate_type(b.type) && !b.wrecked && b.build_progress >= 0.99f && !blocks_pathfinding(b)) {
+			auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
+			if (nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_OBSTRUCTED)
+				nav_grid_.cells.at(cx, cy) = NAV_PASSABLE;
+		}
 	// Gaia scenery: oriented rectangles (CCmpObstruction::GetObstructionSquare: u = (cos a, -sin a),
 	// v = (sin a, cos a)), rasterized the same way.
 	for (const Scenery &sc : scenery_) {
@@ -1524,7 +1533,7 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_TOWN_CENTER: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
-	case BLD_PALISADE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	case BLD_PALISADE: case BLD_PALISADE_GATE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
 	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
@@ -2654,6 +2663,11 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
 			b.half_size < 0.5f * WALL_SEGMENT_LENGTHS[0] - 0.01f)
 		return UPGRADE_ERR_NONE;
+	// ... and of the palisades only palisades_long (to the palisade gate); not a palisade tower,
+	// nor the one-cell palisade maps and older saves place.
+	if (b.type == BLD_PALISADE && (!is_wallset_piece(b.type, b.half_size) || is_palisade_tower(b.type, b.half_size) ||
+			std::fabs(b.half_size - 0.5f * PALISADE_SEGMENT_LENGTHS[0]) > 0.01f))
+		return UPGRADE_ERR_NONE;
 	// Upgrade.js Upgrade(): not while upgrading or producing.
 	if (b.upgrade_to != BLD_TYPE_COUNT || !b.queue.empty()) return UPGRADE_ERR_BUSY;
 	const PlayerState &ps = players_[player_id];
@@ -2744,7 +2758,7 @@ void Simulation::finish_upgrade(Building &b) {
 	if (is_territory_root(to) || civ_building_territory_radius(to) > 0.0f ||
 	    civ_building_territory_radius(from) > 0.0f)
 		rebuild_territory();
-	if (to == BLD_GATE) {
+	if (is_gate_type(to)) {
 		b.gate_open = false;
 		b.gate_locked = false;
 		rebuild_nav_grid(); // a wall blocks long-range paths, an unlocked gate doesn't
@@ -6784,7 +6798,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b)) {
 			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
-			if (b.type == BLD_GATE && b.build_progress >= 1.0f)
+			if (is_gate_type(b.type) && b.build_progress >= 1.0f)
 				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
 		}
 	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
@@ -10949,7 +10963,7 @@ void Simulation::tick_gates(float dt) {
 	constexpr float PASS_RANGE = 4.0f;
 	bool nav_changed = false;
 	for (auto &b : buildings_) {
-		if (b.type != BLD_GATE || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		if (!is_gate_type(b.type) || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const bool blocked_paths = blocks_pathfinding(b);
 		bool ally_near = false, unit_inside = false;
 		const float reach_u = b.hu + PASS_RANGE, reach_v = b.hv + PASS_RANGE;
@@ -10977,7 +10991,7 @@ bool Simulation::cmd_lock_gate(uint8_t player_id, uint32_t building_id, bool loc
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
-	if (b.team != player_id || b.type != BLD_GATE || b.build_progress < 1.0f || b.wrecked) return false;
+	if (b.team != player_id || !is_gate_type(b.type) || b.build_progress < 1.0f || b.wrecked) return false;
 	if (b.gate_locked == lock) return false;
 	const bool blocked_paths = blocks_pathfinding(b);
 	b.gate_locked = lock;
@@ -11943,7 +11957,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) return false;
 	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
 	// Attack.js Capture RestrictedClasses "Field Palisade Wall" (gates and wall towers are Wall too).
-	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE ||
+	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || is_gate_type(b.type) ||
 			b.type == BLD_WALL_TOWER)
 		return false;
 	if (b.team < MAX_PLAYERS && (b.team == player || is_ally(player, b.team))) return false; // UnitAI CanAttack: not our own
