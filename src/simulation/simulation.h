@@ -297,7 +297,7 @@ public:
 		float upgrade_duration = 0.0f;
 		std::array<float, RES_COUNT> upgrade_paid{};
 
-		// 0 A.D. Gate.js (BLD_GATE only). An unlocked gate never blocks long-range
+		// 0 A.D. Gate.js (gates: is_gate_type). An unlocked gate never blocks long-range
 		// pathfinding and blocks movement only while closed; a locked gate stays
 		// closed and blocks both.
 		bool gate_open = false;
@@ -308,12 +308,12 @@ public:
 	};
 	// Whether `b` is rasterized into the nav grid (0 A.D. Obstruction BlockPathfinding).
 	static bool blocks_pathfinding(const Building &b) {
-		return building_blocks_movement(b.type) && (b.type != BLD_GATE || b.gate_locked);
+		return building_blocks_movement(b.type) && (!is_gate_type(b.type) || b.gate_locked);
 	}
 	// Whether units collide with `b` right now (0 A.D. Obstruction BlockMovement).
 	// A foundation blocks nothing until it is committed (Foundation.js Commit).
 	static bool blocks_movement_now(const Building &b) {
-		return building_blocks_movement(b.type) && !(b.type == BLD_GATE && b.gate_open) &&
+		return building_blocks_movement(b.type) && !(is_gate_type(b.type) && b.gate_open) &&
 				(b.committed || b.build_progress >= 0.99f);
 	}
 
