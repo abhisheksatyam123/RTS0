@@ -76,6 +76,8 @@
 //     such builders farm the field or gather near the dropsite they finish.
 // 45. GATHER FINDINGNEWTARGET: an empty-handed gatherer with nothing left nearby walks to the
 //     nearest dropsite to idle.
+// 46. ShouldAbandonChase: once a second a chase whose target is hidden in the player's fog ends,
+//     a player's attack too (CheckTargetVisible).
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -454,12 +456,15 @@ static void test_capture() {
 	setup(s);
 	const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
 	const Simulation::Building *b = bld(s, house);
-	const float hp0 = b->hp, cp0 = b->capture_points_by_team[1];
+	const float cp0 = b->capture_points_by_team[1];
 	// Units standing near the structure without orders take no points any more.
 	uint32_t idle[2] = {s.spawn_unit(-8, 0, 0, UNIT_SPEARMAN), s.spawn_unit(-8, 2, 0, UNIT_SPEARMAN)};
 	s.order_set_stance(idle, 2, STANCE_STAND_GROUND);
 	run(s, 5.0f);
 	check(bld(s, house)->capture_points_by_team[1] == cp0, "idle units near it don't capture");
+	// They do stab it (stand ground, in reach): walk them off so only the capturers count.
+	s.order_walk(idle, 2, -40, 0);
+	const float hp1 = bld(s, house)->hp;
 	uint32_t cap[6];
 	for (int k = 0; k < 6; ++k) cap[k] = s.spawn_unit(-12.0f, -5.0f + 2.0f * k, 0, UNIT_SPEARMAN);
 	s.order_attack_building(cap, 6, house, false, true);
@@ -467,7 +472,7 @@ static void test_capture() {
 	check(s.unit_capturing(idx_of(s, cap[0])), "the renderer sees it capturing (Capture clip)");
 	const bool flipped = run_until(s, 240.0f, [&] { return bld(s, house)->team == 0; });
 	check(flipped, "six spearmen ordered to capture take it");
-	check(bld(s, house)->hp >= hp0 * 0.999f, "without damaging it");
+	check(bld(s, house)->hp >= hp1 * 0.999f, "without damaging it");
 	run(s, 2.0f);
 	check(s.unit_order(cap[0]).kind == ORDER_NONE && act_of(s, cap[0]) != ACTION_ATTACK, "and stop once it is theirs");
 
@@ -1128,6 +1133,12 @@ static void test_unitai_combat() {
 		s.order_set_stance(&a, 1, violent ? STANCE_VIOLENT : STANCE_AGGRESSIVE);
 		uint32_t e = s.spawn_unit(-35, -30, 1, UNIT_CAVALRY, 5000.0f);
 		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		// Passive scouts of its own keep the rider in sight: an attack on a unit hidden in
+		// the fog is dropped whatever the stance (ShouldAbandonChase, CheckTargetVisible).
+		for (float sx : {-10.0f, 15.0f, 40.0f}) {
+			uint32_t scout = s.spawn_unit(sx, -40, 0, UNIT_CAVALRY, 5000.0f);
+			s.order_set_stance(&scout, 1, STANCE_PASSIVE);
+		}
 		run_until(s, 5.0f, [&] { return target_of(s, a) == e; });
 		s.order_walk(&e, 1, 55, -30);
 		const float vision = s.unit_base_vision(idx_of(s, a));
@@ -1734,6 +1745,28 @@ static void test_idle_at_dropsite() {
 	(void)store;
 }
 
+
+static void test_chase_into_fog() {
+	std::printf("46. a chase is dropped once the target is hidden in the fog (ShouldAbandonChase)\n");
+	for (int forced = 0; forced < 2; ++forced) {
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(-40, -30, 0, UNIT_SWORDSMAN, 5000.0f);
+		s.order_set_stance(&a, 1, STANCE_VIOLENT);
+		uint32_t e = s.spawn_unit(-33, -30, 1, UNIT_CAVALRY, 5000.0f);
+		s.order_set_stance(&e, 1, STANCE_PASSIVE);
+		if (forced) s.order_attack(&a, 1, e);
+		run_until(s, 5.0f, [&] { return target_of(s, a) == e; });
+		s.order_walk(&e, 1, 55, -30);
+		const bool dropped = run_until(s, 30.0f, [&] { return target_of(s, a) != e; });
+		const int ai = idx_of(s, a), ei = idx_of(s, e);
+		const bool hidden = !s.los_visible(0, s.units_.pos_x[ei], s.units_.pos_z[ei]);
+		check(dropped && hidden && s.unit_order(a).kind != ORDER_ATTACK,
+				forced ? "a player's attack on a rider gone into the fog ends" : "so does a violent unit's own chase");
+		(void)ai;
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1782,6 +1815,7 @@ int main(int argc, char **argv) {
 	test_flee_source();
 	test_autoharvest();
 	test_idle_at_dropsite();
+	test_chase_into_fog();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

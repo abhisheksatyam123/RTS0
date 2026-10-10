@@ -300,6 +300,7 @@ public:
 	void _on_upgrade_pressed(int cancel);
 	void _on_unit_upgrade_pressed(int to);
 	void _on_gate_lock_pressed(int lock);
+	void _on_dropsite_sharing_pressed(int shared);
 	void _on_pack_pressed(int pack);
 	void _on_map_selected(int index);
 	void _on_civ_selected(int index);
