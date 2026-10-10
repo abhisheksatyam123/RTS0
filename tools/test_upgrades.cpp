@@ -267,6 +267,12 @@ int main() {
 		CHECK(building_ai_info(BLD_TOWER_GREAT).shoots() &&
 			building_ai_info(BLD_TOWER_GREAT).max_range > building_ai_info(BLD_TOWER).max_range);
 		CHECK(building_ai_info(BLD_IMPERIAL_COURT).default_arrows == building_ai_info(BLD_TOWN_CENTER).default_arrows);
+		// GarrisonHolder: the court holds 1.5x the Civic Center (30), the great tower 10, each with
+		// its parent's List (cavalry into the court, not into the tower).
+		CHECK(structure_garrison_max(BLD_IMPERIAL_COURT, CIV_HAN) == 30 && structure_garrison_max(BLD_TOWER_GREAT, CIV_HAN) == 10);
+		CHECK(garrison_list_matches(structure_garrison_list(BLD_IMPERIAL_COURT, CIV_HAN), TC_CAVALRY));
+		CHECK(garrison_list_matches(structure_garrison_list(BLD_TOWER_GREAT, CIV_HAN), TC_INFANTRY));
+		CHECK(!garrison_list_matches(structure_garrison_list(BLD_TOWER_GREAT, CIV_HAN), TC_CAVALRY));
 
 		fresh(s);
 		s.set_player_civ(CIV_HAN);
