@@ -14712,40 +14712,7 @@ void Simulation::petra_manage_naval(float dt) {
 }
 
 void Simulation::petra_manage_buildings(float dt) {
-	// 1. Emergency Defense Tower if threatened (threat >= 7.0f)
-	float max_base_threat = 0.0f;
-	float threatened_base_x = 36.0f, threatened_base_z = 36.0f;
-	for (const auto &b : petra_bases_) {
-		if (b.danger_level > max_base_threat) {
-			max_base_threat = b.danger_level;
-			threatened_base_x = b.x;
-			threatened_base_z = b.z;
-		}
-	}
-
-	if (max_base_threat >= 7.0f) {
-		int start_cx = (int)(threatened_base_x / GRID);
-		int start_cz = (int)(threatened_base_z / GRID);
-		bool placed = false;
-		for (int r = 3; r <= 7 && !placed; ++r) {
-			for (int dx = -r; dx <= r && !placed; ++dx) {
-				for (int dz = -r; dz <= r && !placed; ++dz) {
-					if (std::abs(dx) != r && std::abs(dz) != r) continue;
-					int cx = start_cx + dx;
-					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
-					    petra_try_pay(PETRA_QUEUE_EMERGENCY, 0.0f, 100.0f, 0.0f, 100.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
-						auto idle_workers = get_idle_workers(petra_pid_);
-						if (!idle_workers.empty()) {
-							petra_order_builders(idle_workers, 3, bid);
-						}
-						placed = true;
-					}
-				}
-			}
-		}
-	}
+	// (0 A.D.'s defenseManager builds no towers under attack: buildDefenses alone places them.)
 
 	// 2. Automated Multi-Base Forward Expansion when primary resources deplete or in Phase >= 2
 	bool primary_depleted = false;
@@ -14974,53 +14941,43 @@ void Simulation::petra_manage_buildings(float dt) {
 		}
 	}
 
-	// 4. Build Barracks if AI has none
-	bool has_barracks = false;
-	for (const auto &b : buildings_) {
-		if (b.team == petra_pid_ && b.type == BLD_BARRACKS) { has_barracks = true; break; }
-	}
-	if (!has_barracks) {
-		float base_x = 36.0f, base_z = 36.0f;
-		if (const auto *pbase = get_primary_petra_base()) {
-			base_x = pbase->x; base_z = pbase->z;
-		}
-		int start_cx = (int)(base_x / GRID);
-		int start_cz = (int)(base_z / GRID);
-		bool placed = false;
-		for (int r = 3; r <= 8 && !placed; ++r) {
-			for (int dx = -r; dx <= r && !placed; ++dx) {
-				for (int dz = -r; dz <= r && !placed; ++dz) {
-					int cx = start_cx + dx;
-					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2, BLD_BARRACKS) &&
-					    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 150.0f, 50.0f, 50.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_BARRACKS, petra_pid_, 0.0f);
-						auto idle_workers = get_idle_workers(petra_pid_);
-						if (!idle_workers.empty()) {
-							petra_order_builders(idle_workers, 3, bid);
-						}
-						placed = true;
-					}
-				}
-			}
-		}
-	}
-
-	// 4b. headquarters.js constructTrainingBuildings: a stable once the barracks
-	// stands, as cavalry train only there (and at the civic centre).
-	if (has_barracks) {
+	// 4. headquarters.js constructTrainingBuildings: the first barracks (a range for a civ
+	// without one) once the accounted population passes Military.popForBarracks1, or while
+	// phasing to town with under 5 village structures; then a stable; a second barracks or range
+	// and a second stable past popForBarracks2, and a third training building 30 later
+	// (foundations count).
+	{
 		const uint8_t civ = petra_ps().civ;
-		bool trains = false, have = false, done_barracks = false;
-		for (uint16_t k : civ_roster_ids(civ))
-			if (civ_unit_template(k).trainers & bld_bit(BLD_STABLE)) { trains = true; break; }
+		const bool can_barracks = civ_can_build(civ, BLD_BARRACKS), can_range = civ_can_build(civ, BLD_RANGE),
+		           can_stable = civ_can_build(civ, BLD_STABLE);
+		int n_barracks = 0, n_ranges = 0, n_stables = 0, n_village = 0;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
-			if (b.type == BLD_STABLE) have = true;
-			if (b.type == BLD_BARRACKS && b.build_progress >= 1.0f) done_barracks = true;
+			n_barracks += b.type == BLD_BARRACKS;
+			n_ranges += b.type == BLD_RANGE;
+			n_stables += b.type == BLD_STABLE;
+			if (building_required_phase(b.type) <= 1) ++n_village;
 		}
+		const int pop = petra_accounted_population();
+		const bool phasing_town = petra_ps().phase == 1 && petra_phasing();
 		const PetraBase *home = get_primary_petra_base();
-		if (trains && !have && done_barracks && home && civ_can_build(civ, BLD_STABLE)) {
-			if (const uint32_t bid = petra_place_building(BLD_STABLE, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY)) {
+		uint8_t want = BLD_TYPE_COUNT;
+		if (home && (pop > petra_pop_for_barracks1() || (phasing_town && n_village < 5))) {
+			const int pfb2 = petra_pop_for_barracks2();
+			if (n_barracks + n_ranges == 0)
+				want = can_barracks ? BLD_BARRACKS : can_range ? BLD_RANGE : BLD_TYPE_COUNT;
+			if (want == BLD_TYPE_COUNT && n_stables == 0 && can_stable)
+				want = BLD_STABLE;
+			if (want == BLD_TYPE_COUNT && n_barracks + n_ranges == 1 && pop > pfb2)
+				want = n_barracks == 0 ? (can_barracks ? BLD_BARRACKS : can_range ? BLD_RANGE : BLD_TYPE_COUNT)
+				                       : (can_range ? BLD_RANGE : can_barracks ? BLD_BARRACKS : BLD_TYPE_COUNT);
+			if (want == BLD_TYPE_COUNT && n_stables == 1 && can_stable && pop > pfb2)
+				want = BLD_STABLE;
+			if (want == BLD_TYPE_COUNT && n_barracks + n_ranges + n_stables == 2 && pop > pfb2 + 30)
+				want = can_barracks ? BLD_BARRACKS : can_stable ? BLD_STABLE : can_range ? BLD_RANGE : BLD_TYPE_COUNT;
+		}
+		if (want != BLD_TYPE_COUNT) {
+			if (const uint32_t bid = petra_place_building(want, home->x, home->z, 3, 16, PETRA_QUEUE_MILITARY)) {
 				auto idle = get_idle_workers(petra_pid_);
 				if (!idle.empty()) petra_order_builders(idle, 3, bid);
 			}
@@ -15264,6 +15221,35 @@ int Simulation::petra_work_phase3() const {
 	if (max_pop < 300) scaling *= std::sqrt((float)max_pop / 300.0f);
 	const int work = std::min(std::max((int)(65.0f * scaling), 40), max_pop * 2 / 3);
 	return std::min(work, petra_target_workers());
+}
+
+// headquarters.js getAccountedPopulation: the population plus the units in training queues.
+int Simulation::petra_accounted_population() const {
+	int pop = pop_current(petra_pid_);
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		for (const ProductionOrder &o : b.queue)
+			if (!o.is_tech() && o.unit_type < UNIT_TYPE_COUNT && !o.started) pop += o.count;
+	}
+	return pop;
+}
+
+// config.js Military.popForBarracks1 (25, 12 for a strongly aggressive AI) and popForBarracks2
+// (95), scaled by popScaling (times sqrt(maxPop/300) under 300): at least 12 and at most a fifth
+// of maxPop, and at least 45 and at most two thirds of it.
+static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
+	return max_pop < 300 ? pop_scaling * std::sqrt((float)max_pop / 300.0f) : pop_scaling;
+}
+
+int Simulation::petra_pop_for_barracks1() const {
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const float base = petra_config_.aggressive > 0.7f ? 12.0f : 25.0f;
+	return std::min(std::max((int)(base * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 12), max_pop / 5);
+}
+
+int Simulation::petra_pop_for_barracks2() const {
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	return std::min(std::max((int)(95.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
 }
 
 // researchManager.js:15 checkPhase: Town at pop >= Economy.popPhase2, City when
@@ -16947,7 +16933,7 @@ void Simulation::petra_manage_opening(float dt) {
 		return n;
 	};
 
-	// startingStrategy.js:513 — wood dropsite first, then houses, then barracks
+	// startingStrategy.js:513 — wood dropsite first, then houses
 	uint8_t want = BLD_HOUSE;
 	uint8_t queue = PETRA_QUEUE_VILLAGER;
 	int have_needed = 0;
@@ -16958,9 +16944,9 @@ void Simulation::petra_manage_opening(float dt) {
 		want = BLD_HOUSE;
 		have_needed = petra_opening_step_;
 	} else {
-		want = BLD_BARRACKS;
-		queue = PETRA_QUEUE_MILITARY;
-		have_needed = 1;
+		// startingStrategy.js builds no barracks: constructTrainingBuildings does, by population.
+		petra_opening_step_ = 4;
+		return;
 	}
 
 	if (count_ai(want) >= have_needed) {
