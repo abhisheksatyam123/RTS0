@@ -1677,7 +1677,7 @@ void RtsoMain::update_cursor() {
 				for (int s = 0; s < selected_ids.size() && !healer; ++s)
 					for (size_t i = 0; i < uv.count; ++i)
 						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
-							healer = uv.unit_type[i] == rtso::UNIT_HEALER;
+							healer = rtso::unit_is_healer(uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uv.unit_type[i]);
 							break;
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
@@ -4415,7 +4415,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				for (int k = 0; k < selected_ids.size() && !first_healer; ++k) {
 					for (size_t i = 0; i < uview.count; ++i)
 						if (uview.id[i] == (uint32_t)selected_ids[k]) {
-							if (uview.unit_type[i] == rtso::UNIT_HEALER) first_healer = uview.id[i];
+							if (rtso::unit_is_healer(uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uview.unit_type[i])) first_healer = uview.id[i];
 							break;
 						}
 				}

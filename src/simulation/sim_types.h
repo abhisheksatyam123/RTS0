@@ -582,6 +582,9 @@ inline constexpr int RELIC_REGEN_RATE = 10;
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
 inline constexpr float HEAL_HP = 5.0f;
+// template_unit_hero_healer.xml Heal: Health 6, Range 20 (m, before COMBAT_DISTANCE_SCALE).
+inline constexpr float HERO_HEAL_HP = 6.0f;
+inline constexpr float HERO_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
 inline constexpr float CHEER_TIME_S = 2.8f;
@@ -1250,11 +1253,12 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 	}
 }
 
-// 0 A.D. Identity class Human (infantry, cavalry, support units): what Heal.js
+// 0 A.D. Identity class Human (every organic unit, elephants and dogs too): what Heal.js
 // HealableClasses on template_unit_support_healer.xml accepts.
 inline bool unit_is_human(uint8_t type) {
-	const uint64_t c = unit_tech_classes(type);
-	return (c & TC_ORGANIC) && !(c & (TC_ELEPHANT | TC_DOG));
+	// Elephants, dogs, champions and heroes all carry Human (template_unit_elephant,
+	// template_unit_dog, template_unit_champion, template_unit_hero).
+	return (unit_tech_classes(type) & TC_ORGANIC) != 0;
 }
 
 // 0 A.D. GarrisonHolder on land siege: template_unit_siege_tower.xml (Max 20) and
@@ -1268,7 +1272,7 @@ inline bool unit_is_human(uint8_t type) {
 // garrison in 0 A.D. (storehouse, farmstead, market, gate, dock, walls, outpost).
 inline float building_garrison_heal(uint8_t type) {
 	switch (building_research_base(type)) {
-		case BLD_TOWN_CENTER: case BLD_CORRAL: return 1.0f;
+		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: return 1.0f; // han/ministry BuffHeal 1
 		case BLD_TEMPLE: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
@@ -1573,6 +1577,12 @@ inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+// Identity class Healer (Heal component): support healers and hero healers.
+inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
+	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	return (c & TC_HEALER) != 0;
 }
 
 // 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
@@ -2027,7 +2037,7 @@ struct CivInfo {
 	// 0 A.D. civ bonuses that act on gathering and trade. Unit bonuses are
 	// folded into each civ's roster; building and population bonuses are in
 	// civ_player_bonus_table(). Both come from tools/extract_0ad_rosters.py.
-	float metal_gather_mult; // Athenian "Silver Owls"
+	float metal_gather_mult; // Athenian "Silver Owls": Workers metal x this at Town and again at City
 	float trade_gain_mult; // land traders: Persian "Darics" (units/pers/support_trader GainMultiplier)
 	float ship_trade_gain_mult; // merchant ships: Carthaginian (units/cart/ship_merchant GainMultiplier)
 	// Added to the Market/InternationalBonus of the civ's markets and docks:
