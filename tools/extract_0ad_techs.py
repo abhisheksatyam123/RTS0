@@ -34,8 +34,9 @@ import zipfile
 
 # VisionSharing bribes (unlock_spies, spy_counter): no TechEffect rows, the simulation reads them.
 SPY_TECHS = ("unlock_spies", "spy_counter")
-# Cartography: Simulation::shares_los reads it (Player/sharedLos).
-NAMED_TECHS = SPY_TECHS + ("unlock_shared_los",)
+# Read by name: Cartography (Simulation::shares_los, Player/sharedLos) and Glorious Expansion
+# (Simulation::pop_limit, the wonder's Player/MaxPopulation aura).
+NAMED_TECHS = SPY_TECHS + ("unlock_shared_los", "wonder_population_cap")
 
 # RTS0 civ id order (sim_types.h Civilization) by 0 A.D. civ code.
 CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
@@ -371,7 +372,9 @@ def main() -> int:
         if name in order or name in CIV_TECH_SKIP or name.startswith(("pair_", "phase_")):
             continue
         j = load(name)
-        if not j or not j.get("cost") or "researchTime" not in j:
+        # A pair member that only unlocks units may be free and instant (the Seleucid army
+        # reforms have neither cost nor researchTime).
+        if not j or ((not j.get("cost") or "researchTime" not in j) and not (j.get("pair") and name in unlockers)):
             continue
         mask = civ_mask(j.get("requirements"))
         if mask in (0, full):
