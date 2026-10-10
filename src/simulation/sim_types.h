@@ -409,7 +409,8 @@ enum BuildingType : uint8_t {
 	BLD_APARTMENT = 57,       // cart/apartment
 	BLD_IMPERIAL_COURT = 58,  // han/civil_centre_court (a Civic Center: is_civic_centre)
 	BLD_TOWER_GREAT = 59,     // han/defense_tower_great (a defense tower: is_defense_tower)
-	BLD_TYPE_COUNT = 60
+	BLD_PALISADE_GATE = 60,   // palisades_gate
+	BLD_TYPE_COUNT = 61
 };
 
 #include "civ_building_data.h"
@@ -557,6 +558,16 @@ enum UnitOrderFlag : uint8_t {
 enum : uint8_t {
 	ORDER_FLAG_SUB_SHIFT = 5,
 	ORDER_FLAG_SUB_MASK = 0xE0
+};
+// An attack-move keeps the structures it walks past in bits 5-7 (attackMove targetClasses
+// "avoid", as Petra's attackPlan.js passes them): which defences, and economic structures.
+enum : uint8_t {
+	ORDER_AVOID_SHIFT = 5,
+	ORDER_AVOID_MASK = 0x60,
+	ORDER_AVOID_WALLS_FORTRESS = 1, // Palisade, Wall, Fortress
+	ORDER_AVOID_WALLS_TOWERS = 2,   // Palisade, Wall, Tower, Fortress
+	ORDER_AVOID_WALLS = 3,          // Palisade, Wall
+	ORDER_AVOID_ECONOMY = 0x80      // House, Storehouse, Farmstead, Field, Forge
 };
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
@@ -928,7 +939,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
 		// farmstead 300). garrison is GarrisonHolder/Max (0: none; the house's civ value and
 		// other civ overrides are in structure_garrison_max, the List in structure_garrison_list).
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 20, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
 		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 3, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
@@ -941,7 +952,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 50, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
 		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 0, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
@@ -963,6 +974,30 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
+}
+
+// 0 A.D. structures/{athen,spart,mace,sele,kush,cart,pers,rome,han}/house.xml take
+// template_structure_civic_house_big (Population/Bonus 10, 150 wood, BuildTime 50, Health
+// 1200); the other civs keep template_structure_civic_house (5, 75, 30, 800).
+inline bool civ_has_big_house(uint8_t civ) {
+	switch (civ) {
+		case CIV_ATHENIANS: case CIV_SPARTANS: case CIV_MACEDONIANS: case CIV_SELEUCIDS: case CIV_KUSHITES:
+		case CIV_CARTHAGINIANS: case CIV_PERSIANS: case CIV_ROMANS: case CIV_HAN: return true;
+		default: return false;
+	}
+}
+
+// building_type_info for a civ: the big house where the civ has one (its time and health
+// scaled from RTS0's house row by 0 A.D.'s big/small ratio). The apartment keeps its row.
+inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
+	BuildingTypeInfo info = building_type_info(type);
+	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
+		info.pop_bonus = 10;
+		info.wood_cost = 150;
+		info.build_time *= 50.0f / 30.0f;
+		info.max_hp *= 1200.0f / 800.0f;
+	}
+	return info;
 }
 
 // 0 A.D. WallSet (template_structure_wallset.xml, structures/*_wallset_stone.xml): a wall is
@@ -1020,6 +1055,9 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
 }
 
+// Gate.js holders: the stone gate and the palisade gate (a palisades_long Upgrade).
+inline constexpr bool is_gate_type(uint8_t type) { return type == BLD_GATE || type == BLD_PALISADE_GATE; }
+
 inline bool is_palisade_tower(uint8_t type, float half_w) {
 	return type == BLD_PALISADE && std::fabs(half_w - PALISADE_TOWER_HALF) < 0.01f;
 }
@@ -1029,13 +1067,14 @@ inline bool is_palisade_tower(uint8_t type, float half_w) {
 // and their building_type_info row.
 inline bool is_wallset_piece(uint8_t type, float half_w) {
 	if (type == BLD_PALISADE) return std::fabs(half_w - 1.0f) > 0.01f;
+	if (type == BLD_PALISADE_GATE) return true;
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
 // A WallSet piece's 0 A.D. values (wallset_info) by its type and length; negative when it keeps
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
 inline float wallset_piece_value(uint8_t type, float half_w, int what) {
-	if (!is_wallset_piece(type, half_w) || type == BLD_GATE) return -1.0f;
+	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return -1.0f;
 	const WallSetInfo &ws = wallset_info(type == BLD_PALISADE ? WALLSET_PALISADE : WALLSET_STONE);
 	if (is_palisade_tower(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
 	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
@@ -1048,7 +1087,7 @@ inline float wallset_piece_value(uint8_t type, float half_w, int what) {
 // width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
 inline float building_half_depth(uint8_t type, float half_w) {
 	if (!is_wallset_piece(type, half_w) || is_palisade_tower(type, half_w)) return half_w;
-	return type == BLD_PALISADE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
+	return type == BLD_PALISADE || type == BLD_PALISADE_GATE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1068,7 +1107,7 @@ inline uint8_t building_required_phase(uint8_t type) {
 
 // 0 A.D. Upgrade component, for the structures RTS0 has both ends of:
 // template_structure_defensive_tower_sentry.xml (<Tower>) and
-// template_structure_defensive_wall_long.xml (<Gate>). iber/sentry_tower.xml
+// template_structure_defensive_wall_long.xml and palisades_long.xml (<Gate>). iber/sentry_tower.xml
 // overrides the tower's stone cost and time (its wood cost is inherited).
 struct BuildingUpgradeInfo {
 	uint8_t to; // BLD_TYPE_COUNT: this structure has no upgrade
@@ -1087,6 +1126,8 @@ inline BuildingUpgradeInfo generic_building_upgrade(uint8_t from, uint8_t civ) {
 			return {BLD_TOWER, 0, 50, 0, 100, 100.0f, 2, "Reinforce with stone and upgrade to a defense tower."};
 		case BLD_WALL_SEGMENT:
 			return {BLD_GATE, 0, 20, 0, 0, 12.0f, 1, "Allow units access through Walls. Can be locked to prevent access."};
+		case BLD_PALISADE: // palisades_long only (upgrade_check)
+			return {BLD_PALISADE_GATE, 0, 10, 0, 0, 6.0f, 1, "Allow units access through Palisades. Can be locked to prevent access."};
 		default:
 			return {BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr};
 	}
@@ -1309,7 +1350,7 @@ inline float building_eject_health(uint8_t type) {
 		case BLD_FORTRESS: return 0.075f;
 		case BLD_CORRAL: return 0.5f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
-		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: return 0.0f;
+		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE: return 0.0f;
 		default: return 0.1f;
 	}
 }
@@ -1339,7 +1380,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: return c | TC_MARKET;
 		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
-		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: return c | TC_WALL | TC_DEFENSIVE;
+		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
@@ -1352,6 +1393,18 @@ inline uint64_t building_tech_classes(uint8_t type) {
 	}
 }
 
+// Whether an attack-move with these avoid bits skips a structure of `type`.
+inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
+	const uint64_t c = building_tech_classes(type);
+	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
+	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
+		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS_TOWERS: return (c & (TC_WALL | TC_TOWER | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS: return (c & TC_WALL) != 0;
+		default: return false;
+	}
+}
+
 // 0 A.D. GarrisonHolder/Max where a civ's own template differs from the
 // building_type_info row (template_structure_*.xml): the small house
 // (template_structure_civic_house, 3) for Britons, Gauls, Iberians, Mauryas and
@@ -1360,8 +1413,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 inline int structure_garrison_max(uint8_t type, uint8_t civ) {
 	switch (type) {
 		case BLD_HOUSE:
-			return (civ == CIV_BRITONS || civ == CIV_GAULS || civ == CIV_IBERIANS || civ == CIV_MAURYANS ||
-					civ == CIV_PTOLEMIES) ? 3 : 6;
+			return civ < CIV_COUNT && !civ_has_big_house(civ) ? 3 : 6;
 		case BLD_TOWER: return civ == CIV_IBERIANS ? 8 : building_type_info(type).garrison_cap;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 1 : 0;
 		default: return building_type_info(type).garrison_cap;
@@ -1655,6 +1707,12 @@ inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+// Cost/Population of a unit (heroes, dogs and catafalques 0, siege and warships 2-4);
+// units without a roster template fall back to their UnitType row.
+inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).pop_cost : unit_type_info(type).pop_cost;
 }
 
 // Identity class Healer (Heal component): support healers and hero healers.
@@ -2230,6 +2288,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		case BLD_SENTRY_TOWER:
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 			return "rubble_small";
 		default:
@@ -2258,6 +2317,7 @@ inline const char *civ_building_foundation(uint8_t type) {
 		case BLD_WALL_SEGMENT:
 		case BLD_GATE:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 			return "foundation_wall";
 		case BLD_FIELD:
@@ -2285,6 +2345,7 @@ inline const char *civ_building_scaffold(uint8_t type) {
 		case BLD_SENTRY_TOWER:
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
+		case BLD_PALISADE_GATE:
 		case BLD_WALL_TOWER:
 		case BLD_FIELD:
 			return "scaffold_small";
