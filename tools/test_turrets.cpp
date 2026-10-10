@@ -157,6 +157,38 @@ int main() {
 		std::printf("outpost: 1 archer at height %.2f\n", s.unit_height_offset((size_t)up));
 	}
 
+	// 7. WallSet pieces hold their own length's points (wall_long 16, wall_medium 8, wall_gate 8,
+	//    wall_short none), turned with the wall: archers on a long segment laid along z stand
+	//    along z, within its length, at wall_long's height.
+	{
+		fresh(s);
+		const float L0 = WALL_SEGMENT_LENGTHS[0], L1 = WALL_SEGMENT_LENGTHS[1], L2 = WALL_SEGMENT_LENGTHS[2];
+		const float along_z = -std::atan2(1.0f, 0.0f);
+		const uint32_t lng = s.spawn_wall_piece({BLD_WALL_SEGMENT, 0.0f, 0.0f, along_z, 0.5f * L0}, 0, 1.0f);
+		const uint32_t med = s.spawn_wall_piece({BLD_WALL_SEGMENT, 20.0f, 0.0f, 0.0f, 0.5f * L1}, 0, 1.0f);
+		const uint32_t sht = s.spawn_wall_piece({BLD_WALL_SEGMENT, 20.0f, 20.0f, 0.0f, 0.5f * L2}, 0, 1.0f);
+		CHECK(bld(s, lng).garrison_cap == 16);
+		CHECK(bld(s, med).garrison_cap == 8);
+		CHECK(bld(s, sht).garrison_cap == 0);
+		const float y = TURRET_POINTS_WALLSET[CIV_ATHENIANS][0].pt[0].y;
+		uint32_t up[16];
+		for (int k = 0; k < 16; ++k) up[k] = s.spawn_unit(-3.0f + (k % 8) * 0.8f, -6.0f - (k / 8) * 0.8f, 0, UNIT_ARCHER, 0.0f, archer);
+		s.order_garrison(up, 16, lng);
+		run(s, 10.0f);
+		CHECK(bld(s, lng).garrisoned_units.size() == 16);
+		float zmin = 1e9f, zmax = -1e9f, xmax = 0.0f;
+		for (uint32_t id : bld(s, lng).garrisoned_units) {
+			const int32_t i = s.lookup_unit(id);
+			CHECK(std::fabs(s.unit_height_offset((size_t)i) - y) < 1e-3f);
+			zmin = std::fmin(zmin, s.units_.pos_z[i]);
+			zmax = std::fmax(zmax, s.units_.pos_z[i]);
+			xmax = std::fmax(xmax, std::fabs(s.units_.pos_x[i]));
+		}
+		CHECK(zmax - zmin > 0.5f * L0 && zmax <= 0.5f * L0 + 1e-3f && zmin >= -0.5f * L0 - 1e-3f);
+		CHECK(xmax < WALL_HALF_DEPTH + 0.5f);
+		std::printf("long WallSet segment: 16 archers at %.2f, spread %.2f along it, %.2f across\n", y, zmax - zmin, xmax);
+	}
+
 	if (failures) {
 		std::printf("test_turrets: %d failure(s)\n", failures);
 		return 1;

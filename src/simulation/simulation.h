@@ -651,7 +651,15 @@ public:
 	uint32_t formation_of_unit(uint32_t unit_id) const;
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
 	void order_ungarrison(uint32_t building_id);
-	void eject_or_kill(Building &b);
+	// GarrisonHolder.EjectOrKill. With `keep_allies_of` a player, only units not owned by that
+	// player or a mutual ally of theirs leave (OnGlobalOwnershipChanged, OnDiplomacyChanged).
+	void eject_or_kill(Building &b, uint8_t keep_allies_of = 0xFF);
+	// GarrisonHolder.IsAllowedToBeGarrisoned: the unit's owner owns `b` or is its mutual ally
+	// (IsOwnedByMutualAllyOfEntity) and the unit matches the holder's List (a TurretHolder:
+	// Turretable). Room is not checked.
+	bool structure_accepts_garrison(const Building &b, size_t unit_idx) const;
+	bool structure_accepts_classes(const Building &b, uint64_t classes) const;
+	bool can_garrison_in(uint32_t unit_id, uint32_t building_id) const;
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
@@ -660,6 +668,8 @@ public:
 	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
 	// ally only its own units. count 0 unloads every unit `player` may unload.
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
+	// The garrisoned units `player` may unload from `building_id` under those rules.
+	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
@@ -1188,6 +1198,9 @@ public:
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
+	int petra_accounted_population() const;
+	int petra_pop_for_barracks1() const;
+	int petra_pop_for_barracks2() const;
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -1723,6 +1736,7 @@ private:
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
 	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	void fauna_start_attack(size_t f, uint32_t target);  // UnitAI COMBAT for an animal (PrepareTime)
 	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
 	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
@@ -2226,7 +2240,7 @@ private:
 	// it, so never saved.
 	std::vector<uint32_t> petra_decay_events_, petra_decay_scratch_;
 	void rebuild_territory_grids();
-	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, bool siege, std::vector<int> &incoming) const;
+	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with

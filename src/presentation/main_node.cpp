@@ -1725,14 +1725,15 @@ void RtsoMain::update_cursor() {
 					// (or attack-move's Ctrl) attacks instead.
 					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
 						want = "action-gather-grain";
-					else if (b.team != me)
-						want = !sim->is_hostile(me, b.team) ? ""
-								: (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
+					else if (b.team != me && sim->is_hostile(me, b.team))
+						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
 										  b.max_capture_points <= 0.0f)
 								? "action-attack" : "action-capture";
-					else if (b.build_progress < 1.0f || b.type == rtso::BLD_FIELD) want = "action-build";
-					else if (b.hp < b.max_hp) want = "action-repair";
-					else if (b.garrison_cap > 0) want = "action-garrison";
+					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
+					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
+					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
+					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
+					else if (selection_can_garrison(b.id)) want = "action-garrison";
 					break;
 				}
 			}
@@ -1894,6 +1895,15 @@ void RtsoMain::_on_template_info_pressed() {
 }
 
 // Tests: select the local player's first structure or first live unit.
+// unit_actions.js "garrison" actionCheck: some selected unit may garrison in this own or allied
+// structure (its GarrisonHolder List, IsOwnedByMutualAllyOfEntity). Room is not checked.
+bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
+	if (!sim) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_garrison_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
+	return false;
+}
+
 bool RtsoMain::select_first_own(bool building) {
 	if (!sim) return false;
 	selected_ids.clear();
@@ -2815,15 +2825,17 @@ void RtsoMain::update_inspector() {
 			inspector_extra->set_text(found_b->has_rally_point ? "Rally point set" : "");
 
 			// Garrison panel: one icon per unit type inside, click to unload one,
-			// Shift+click (session.unloadtype) to unload that type, U unloads all.
-			if (!found_b->garrisoned_units.empty() && owner == local_player()) {
+			// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
+			// structure only our own units inside (Commands.js unload / unload-all-by-owner).
+			const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), found_b->id);
+			if (!mine.empty()) {
 				auto uview = sim->units();
-				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, found_b->garrisoned_units.data(), found_b->garrisoned_units.size()),
+				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
 						"Click to unload one, Shift+click to unload all of this type.");
 				garrison_grid_.set_visible(true);
 			}
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-			ungarrison_btn->set_visible(!found_b->garrisoned_units.empty() && owner == local_player());
+			ungarrison_btn->set_visible(!mine.empty());
 			inspector_panel->set_visible(true);
 			return;
 		}
@@ -2981,8 +2993,9 @@ void RtsoMain::_on_selection_group_clicked(int key) {
 // unload one unit of the group, or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
 	if (!sim || selected_building_id == 0) return;
-	const auto *inside = sim->get_garrisoned_units(selected_building_id);
-	if (!inside || inside->empty()) return;
+	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), selected_building_id);
+	const auto *inside = &mine;
+	if (inside->empty()) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
 	std::vector<uint32_t> out;
@@ -4289,7 +4302,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			bool garrison_click = false;
 			if (rtso::hotkeys::held("session.garrison")) {
 				for (const auto &b : sim->buildings()) {
-					if (b.team != local_player()) continue;
+					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz <= hit_r * hit_r) {
 						garrison_click = true;
@@ -4548,12 +4561,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						else
 							sim->order_gather(sel_ptr, sel_n, gaia_grain, queue_shift);
 						play_civ_voice("gather");
-					} else if (b.team != local_player()) {
+					} else if (b.team != local_player() && sim->is_hostile(local_player(), b.team)) {
 						if (turn_cmds())
 							post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, qbit); // capture (0 A.D. default)
 						else
 							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
 						play_civ_voice("attack");
+					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
+						break; // neutral: walk there
+					} else if (b.team != local_player()) {
+						// An ally's structure: repair it, else garrison (Garrisonable / IsOwnedByMutualAllyOfEntity).
+						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+							if (turn_cmds())
+								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("build");
+						} else if (selection_can_garrison(b.id)) {
+							if (turn_cmds())
+								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
+							clear_selection();
+						} else {
+							break; // nothing to do there: walk
+						}
 					} else {
 						// 0 A.D. "returnresource" comes first: carriers take their load to this dropsite.
 						bool carriers = false;
@@ -4577,12 +4609,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->cmd_upgrade_building(local_player(), b.id);
 							play_civ_voice("build");
-						} else {
+						} else if (selection_can_garrison(b.id)) {
 							if (turn_cmds())
 								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 							clear_selection();
+						} else {
+							break; // no selected unit is on its GarrisonHolder List: walk
 						}
 					}
 					return;
