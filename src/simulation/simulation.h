@@ -711,6 +711,7 @@ public:
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
 	float building_arrow_range(const Building &b) const;
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
+	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
@@ -1648,7 +1649,14 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
-	void apply_status(size_t t, const CombatProfile &att); // Attack ApplyStatus (Poisoned, Burning)
+	void apply_status(size_t t, const CombatProfile &att);
+	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
+	void tick_attack_timer(size_t i, float dt);
+	bool attack_under_way(size_t i) const;
+	void stop_attack(size_t i);
+	bool attack_ready(size_t i, bool in_range, float prepare);
+	void attack_done(size_t i, bool in_range, float repeat);
+	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -1740,7 +1748,12 @@ private:
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
+	const CombatProfile *projectile_profile(uint32_t source_id) const;
+	float projectile_speed_of(uint32_t source_id, uint8_t visual) const;
 	int32_t projectile_hit_unit(const Projectile &p) const;
+	int32_t projectile_hit_fauna(const Projectile &p) const;
+	void projectile_hits_fauna(const Projectile &p, size_t f);
+	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
