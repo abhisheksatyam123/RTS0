@@ -320,13 +320,15 @@ int main() {
 		const float before = total_res(f);
 		CHECK(f.cmd_train(0, fb, UNIT_SPEARMAN, 2));
 		const float paid = before - total_res(f);
-		run(f, bld(f, fb).queue.front().duration - 0.5f); // the ring closes just before the batch is done
+		// The ring closes just before the batch is done: its idle units push each other apart, and
+		// within half a second a spot opens at a corner.
+		run(f, bld(f, fb).queue.front().duration - 0.1f);
 		CHECK(count_units(f, 0, UNIT_SPEARMAN) == 0);
 		std::vector<uint32_t> ring;
 		for (float x = fbb.x - fbb.hu - 4.0f; x <= fbb.x + fbb.hu + 4.0f; x += 1.0f)
 			for (float z = fbb.z - fbb.hv - 4.0f; z <= fbb.z + fbb.hv + 4.0f; z += 1.0f)
 				if (std::fabs(x - fbb.x) > fbb.hu || std::fabs(z - fbb.z) > fbb.hv) ring.push_back(f.spawn_unit(x, z, 1, UNIT_FEMALE_CITIZEN));
-		for (int k = 0; k < (int)(0.6f / Simulation::FIXED_STEP); ++k) f.tick(Simulation::FIXED_STEP);
+		for (int k = 0; k < (int)(0.2f / Simulation::FIXED_STEP); ++k) f.tick(Simulation::FIXED_STEP);
 		CHECK(count_units(f, 0, UNIT_SPEARMAN) == 0);
 		CHECK(bld(f, fb).queue.size() == 1 && bld(f, fb).queue.front().count == 2);
 		f.cmd_delete(1, ring.data(), ring.size());
