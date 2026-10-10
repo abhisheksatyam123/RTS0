@@ -1935,11 +1935,17 @@ static void test_decay_garrison_from_attack() {
 		plan.state = Simulation::AttackPlan::ATTACKED;
 		const std::vector<uint32_t> army = plan.squad;
 		s->petra_started_attacks_.push_back(plan);
-		// A fortress's garrison stops its decay; a tower's (5 of the 20 it needs) can't.
+		// A tower's garrison (5 of the 20 it needs) can't stop its decay. Neither can a stock
+		// fortress's (GarrisonHolder/Max 20 of the 30 it needs), so this one is given room
+		// for 30 to exercise the garrison that does.
 		const uint32_t held = s->spawn_building_world(tx + (holdable ? 4.0f : 0.0f), tz, holdable ? BLD_FORTRESS : BLD_TOWER, 1);
 		int need = 0, cap = 0;
 		if (auto it = s->building_id_to_idx_.find(held); it != s->building_id_to_idx_.end()) {
 			need = s->petra_decay_garrison_min(s->buildings_[it->second]);
+			if (holdable) {
+				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "a stock fortress holds 20 of the 30 its decay needs");
+				s->buildings_[it->second].garrison_cap = need;
+			}
 			cap = s->buildings_[it->second].garrison_cap;
 		}
 		run_for(*s, 15.0f);

@@ -644,7 +644,7 @@ static void test_garrison_approach() {
 	std::printf("18. garrison walks to the structure\n");
 	Simulation s;
 	setup(s);
-	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 0, 1.0f);
 	uint32_t u = s.spawn_unit(-30, 0, 0, UNIT_SPEARMAN);
 	uint32_t e = post(s, -15, 3, UNIT_SPEARMAN, 5000.0f);
 	const float ehp = hp_of(s, e);
@@ -657,7 +657,7 @@ static void test_garrison_approach() {
 		const auto *gg = s.get_garrisoned_units(house);
 		return gg && gg->size() == 1;
 	});
-	check(in, "gets in once it reaches the house");
+	check(in, "gets in once it reaches the barracks (a house takes Support only)");
 	check(hp_of(s, e) == ehp, "without fighting the enemy on the way");
 }
 
@@ -688,7 +688,7 @@ static void test_capture_rules() {
 	{
 		Simulation s;
 		setup(s);
-		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
 		uint32_t g[2] = {s.spawn_unit(0, 6, 1, UNIT_SPEARMAN), s.spawn_unit(1, 6, 1, UNIT_SPEARMAN)};
 		s.order_garrison(g, 2, house);
 		run(s, 10.0f);
@@ -902,7 +902,7 @@ static void test_ungarrison_rally() {
 	std::printf("27. ungarrison follows the rally point\n");
 	Simulation s;
 	setup(s);
-	const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 0, 1.0f);
 	uint32_t a = s.spawn_unit(8, 0, 0, UNIT_SPEARMAN), b = s.spawn_unit(3, 1, 0, UNIT_SPEARMAN);
 	s.order_garrison(&a, 1, house);
 	s.order_walk(&a, 1, -20, 10, true); // waits behind the garrison order for good
@@ -931,7 +931,7 @@ static void test_ungarrison_rally() {
 	// Lockstep: cmd 13 with ids unloads just those.
 	Simulation l;
 	setup(l);
-	const uint32_t h2 = l.spawn_building_world(0, 0, BLD_HOUSE, 0, 1.0f);
+	const uint32_t h2 = l.spawn_building_world(0, 0, BLD_BARRACKS, 0, 1.0f);
 	uint32_t c1 = l.spawn_unit(3, 0, 0, UNIT_SPEARMAN), c2 = l.spawn_unit(3, 1, 0, UNIT_SPEARMAN);
 	l.garrison_unit_now(c1, h2);
 	l.garrison_unit_now(c2, h2);
