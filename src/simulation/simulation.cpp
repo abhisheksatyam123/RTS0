@@ -151,6 +151,8 @@ static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 48;
 static constexpr uint32_t SAVE_VERSION_STATUS_SOURCE = 54;
 // Petra's army soldiers apart from its worker soldiers (tick_state_io section 9e).
 static constexpr uint32_t SAVE_VERSION_PETRA_ROLES = 55;
+// Petra's buildDefenses timers and queued defensive structure (each AI's Petra state).
+static constexpr uint32_t SAVE_VERSION_PETRA_DEFENSES = 56;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -15044,75 +15046,12 @@ void Simulation::petra_manage_buildings(float dt) {
 		}
 	}
 
-	// 5. Build Defense Towers in Phase >= 2
-	if (petra_ps().phase >= 2) {
-		int tower_count = 0;
-		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && b.type == BLD_TOWER) tower_count++;
-		}
-		if (tower_count < 4) {
-			float base_x = 36.0f, base_z = 36.0f;
-			if (const auto *pbase = get_primary_petra_base()) {
-				base_x = pbase->x; base_z = pbase->z;
-			}
-			int start_cx = (int)(base_x / GRID);
-			int start_cz = (int)(base_z / GRID);
-			bool placed = false;
-			for (int r = 5; r <= 10 && !placed; ++r) {
-				for (int dx = -r; dx <= 0 && !placed; ++dx) {
-					for (int dz = -r; dz <= 0 && !placed; ++dz) {
-						int cx = start_cx + dx;
-						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
-						    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 100.0f, 0.0f, 100.0f)) {
-							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
-							auto idle_workers = get_idle_workers(petra_pid_);
-							if (!idle_workers.empty()) {
-								petra_order_builders(idle_workers, 2, bid);
-							}
-							placed = true;
-						}
-					}
-				}
-			}
-		}
-	}
+	// 5. headquarters.js buildDefenses: fortresses from the city phase (or while researching it),
+	// sentry towers in the village phase, stone towers from the town phase, each kind spaced by
+	// its lapse time and capped by bases and population.
+	petra_build_defenses();
 
-	// 6. Build Fortress in Phase >= 3
-	if (petra_ps().phase >= 3) {
-		bool has_fortress = false;
-		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && b.type == BLD_FORTRESS) { has_fortress = true; break; }
-		}
-		if (!has_fortress) {
-			float base_x = 36.0f, base_z = 36.0f;
-			if (const auto *pbase = get_primary_petra_base()) {
-				base_x = pbase->x; base_z = pbase->z;
-			}
-			int start_cx = (int)(base_x / GRID);
-			int start_cz = (int)(base_z / GRID);
-			bool placed = false;
-			for (int r = 4; r <= 10 && !placed; ++r) {
-				for (int dx = -r; dx <= 0 && !placed; ++dx) {
-					for (int dz = -r; dz <= 0 && !placed; ++dz) {
-						int cx = start_cx + dx;
-						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 2, BLD_FORTRESS)) {
-							if (!petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, PETRA_FORTRESS_COST[RES_WOOD], PETRA_FORTRESS_COST[RES_GOLD], PETRA_FORTRESS_COST[RES_STONE])) break;
-							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, petra_pid_, 0.0f);
-							auto idle_workers = get_idle_workers(petra_pid_);
-							if (!idle_workers.empty()) {
-								petra_order_builders(idle_workers, 4, bid);
-							}
-							placed = true;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 7. headquarters.js constructTrainingBuildings, city phase: an elephant
+	// 6. headquarters.js constructTrainingBuildings, city phase: an elephant
 	// stable and an arsenal, then (from 80 pop) the civ's own advanced
 	// structures from config.js buildings, the next one only past 110 pop.
 	if (petra_ps().phase >= 3) petra_build_advanced();
@@ -15310,6 +15249,91 @@ int Simulation::petra_pop_for_barracks1() const {
 int Simulation::petra_pop_for_barracks2() const {
 	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
 	return std::min(std::max((int)(95.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
+}
+
+// headquarters.js buildDefenses. The defenseBuilding queue holds one plan at a time
+// (petra_defense_build_.pending); its start time is taken when it is queued, as in 0 A.D.
+// RTS0 has no saveResources/barter pause and no queue priority changes: the plan is paid
+// from the military queue. The structure goes up around the primary base, not on the frontier
+// (findDefensiveLocation): on RTS0's maps a frontier tower lands about 20 tiles from the enemy
+// civic centre, and two Petras then bled each other to near zero population in 12 of 12 seeds.
+void Simulation::petra_build_defenses() {
+	PetraDefenseBuild &d = petra_defense_build_;
+	const PetraConfig &cfg = petra_config_;
+	if (d.pending != 0) {
+		const uint8_t btype = (uint8_t)(d.pending - 1);
+		const BuildingTypeInfo &info = building_type_info(btype);
+		const PetraQueueAccount &a = petra_queues_.accounts[PETRA_QUEUE_MILITARY];
+		const bool affordable = a.food >= info.food_cost && a.wood >= info.wood_cost && a.gold >= info.gold_cost &&
+		                        a.stone >= info.stone_cost && petra_ps().food() >= info.food_cost &&
+		                        petra_ps().wood() >= info.wood_cost && petra_ps().gold() >= info.gold_cost &&
+		                        petra_ps().stone() >= info.stone_cost;
+		if (!affordable) { // registers the want, so the queue gets funded
+			petra_try_pay(PETRA_QUEUE_MILITARY, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost);
+			return;
+		}
+		d.pending = 0;
+		const PetraBase *home = get_primary_petra_base();
+		const uint32_t bid = home ? petra_place_building(btype, home->x, home->z, btype == BLD_FORTRESS ? 4 : 5, 12, PETRA_QUEUE_MILITARY) : 0;
+		if (bid) {
+			auto idle = get_idle_workers(petra_pid_);
+			if (!idle.empty()) petra_order_builders(idle, btype == BLD_FORTRESS ? 4 : 2, bid);
+		}
+		return;
+	}
+
+	const uint8_t civ = petra_ps().civ;
+	auto can_build = [&](uint8_t t) {
+		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+	};
+	int n_fortresses = 0, n_fortress_fnd = 0, n_towers = 0, n_stone = 0, n_tower_fnd = 0, n_bases = 0;
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		const bool fnd = b.build_progress < 1.0f;
+		if (b.type == BLD_FORTRESS) { ++n_fortresses; n_fortress_fnd += fnd; }
+		if (b.type == BLD_TOWER || b.type == BLD_SENTRY_TOWER) { ++n_towers; n_tower_fnd += fnd; }
+		if (b.type == BLD_WALL_TOWER) ++n_towers;
+		if (b.type == BLD_TOWER) ++n_stone;
+		if (b.type == BLD_TOWN_CENTER && !fnd) ++n_bases; // numActiveBases: bases with a civic centre
+	}
+	const float now = game_time();
+	const int diff = cfg.difficulty;
+	// config.js: lapse times scale with the defensive personality; headquarters.js extras.
+	const float tower_lapse = std::round(90.0f * (1.1f - 0.2f * cfg.defensive));
+	const float fortress_lapse = std::round(390.0f * (1.1f - 0.2f * cfg.defensive));
+	const int extra_towers = (int)std::round((float)std::min(diff, 3) * cfg.defensive);
+	const int extra_fortresses = (int)std::round((float)std::max(std::min(diff - 1, 2), 0) * cfg.defensive);
+	int num_sentry = cfg.defensive > 0.7f ? 1 : 0;
+	if (diff >= PETRA_MEDIUM) {
+		num_sentry = diff == PETRA_MEDIUM ? 1 : 2;
+		if (cfg.defensive > 0.7f) ++num_sentry;
+		else if (cfg.defensive < 0.3f) --num_sentry;
+	}
+	const int pop = pop_current(petra_pid_);
+	const uint8_t phase = petra_ps().phase;
+
+	if (phase > 2 || (phase == 2 && petra_phasing())) {
+		if (can_build(BLD_FORTRESS) &&
+		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
+		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2) {
+			d.fortress_start = now;
+			d.pending = BLD_FORTRESS + 1;
+			return;
+		}
+	}
+	if (num_sentry > 0 && phase < 2 && can_build(BLD_SENTRY_TOWER)) {
+		if (n_towers < num_sentry && now > tower_lapse + d.fort_start) {
+			d.fort_start = now;
+			d.pending = BLD_SENTRY_TOWER + 1;
+		}
+		return;
+	}
+	if (phase < 2 || !can_build(BLD_TOWER)) return;
+	if ((n_stone == 0 || now > (1.0f + 0.1f * (float)n_stone) * tower_lapse + d.tower_start) &&
+	    n_stone < 2 * n_bases + 3 + extra_towers && n_stone < pop / 8 && n_tower_fnd < 3) {
+		d.tower_start = now;
+		d.pending = BLD_TOWER + 1;
+	}
 }
 
 // researchManager.js:15 checkPhase: Town at pop >= Economy.popPhase2, City when
@@ -18840,6 +18864,7 @@ void Simulation::petra_reset_ai_state() {
 	petra_opening_timer_ = 0.0f;
 	petra_defense_army_ = PetraDefenseArmy();
 	petra_emergency_ = PetraEmergency();
+	petra_defense_build_ = PetraDefenseBuild{};
 	petra_queues_.reset();
 	petra_transports_.clear();
 	petra_defense_timer_ = 0.0f;
@@ -18972,7 +18997,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -20058,6 +20083,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, PetraSentDiplomacy>) {
 			if (ar.version >= 27) ar.pod(v);
 			else v = PetraSentDiplomacy{};
+		} else if constexpr (std::is_same_v<T, PetraDefenseBuild>) {
+			static_assert(sizeof(PetraDefenseBuild) == 16, "list the new PetraDefenseBuild field below");
+			if (ar.version >= SAVE_VERSION_PETRA_DEFENSES) {
+				ar.pod(v.tower_start); ar.pod(v.fortress_start); ar.pod(v.fort_start); ar.pod(v.pending);
+				if constexpr (Ar::loading)
+					if (v.pending > BLD_TYPE_COUNT) ar.ok = false;
+			} else v = PetraDefenseBuild{};
 		} else {
 			// Raw: only plain values and structs without padding (check with -Wpadded).
 			static_assert(std::is_trivially_copyable_v<T>, "give this Petra field its own case in tick_state_io");

@@ -2016,6 +2016,52 @@ static void test_decay_garrison_from_attack() {
 	}
 }
 
+// headquarters.js buildDefenses: the first sentry tower waits for fortStartTime + towerLapseTime
+// (180 + 90 s, balanced), the defenseBuilding plan holds one structure until it is paid for, and
+// the next stone tower waits (1 + 0.1 * towers) * towerLapseTime after the last one was queued.
+static void test_build_defenses() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_pid_ = 1;
+	auto at = [&](float secs) { s->ticks_ = (uint64_t)(secs / Simulation::FIXED_STEP + 0.5f); };
+	auto count = [&](uint8_t type) {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == type && b.hp > 0.0f;
+		return n;
+	};
+	auto fund = [&] { s->petra_queues_.accounts[Simulation::PETRA_QUEUE_MILITARY] = {5000, 5000, 5000, 5000}; };
+	s->players_[1].phase = 1;
+	at(260.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == 0, "no sentry tower before fortStartTime + towerLapseTime");
+	at(280.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == BLD_SENTRY_TOWER + 1, "a sentry tower is queued after 270 s");
+	const int sentries = count(BLD_SENTRY_TOWER);
+	s->petra_build_defenses();
+	CHECK(count(BLD_SENTRY_TOWER) == sentries, "an unpaid plan waits");
+	fund();
+	s->petra_build_defenses();
+	CHECK(count(BLD_SENTRY_TOWER) == sentries + 1 && s->petra_defense_build_.pending == 0, "the paid plan is placed");
+	at(400.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == 0, "medium difficulty builds one sentry tower");
+	s->players_[1].phase = 2;
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == BLD_TOWER + 1, "the first stone tower is queued in the town phase");
+	fund();
+	s->petra_build_defenses();
+	CHECK(count(BLD_TOWER) == 1, "the stone tower is placed");
+	at(480.0f);
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -2058,6 +2104,7 @@ int main() {
 	test_research_choices();
 	test_concurrent_attacks();
 	test_worker_mix();
+	test_build_defenses();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
