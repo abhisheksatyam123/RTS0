@@ -236,17 +236,21 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			sw.custom_minimum_size = Vector2(30, 30)
 			row.add_child(le)
 			row.add_child(sw)
-			le.text_changed.connect(func(t):
-				var col = _parse_color(t)
-				if col != null:
-					sw.color = col
-					_changed(key, t.strip_edges()))
+			le.text_changed.connect(func(t): _color_edited(key, t, sw))
 			c = row
 	c.name = key.replace(".", "_")
 	label.mouse_entered.connect(func(): _description.text = opt[3])
 	c.mouse_entered.connect(func(): _description.text = opt[3])
 	grid.add_child(c)
 	_controls[key] = [type, c, extra]
+
+## A colour option edited: a valid "R G B" updates the swatch and the setting.
+func _color_edited(key: String, t: String, sw: ColorRect) -> void:
+	var col = _parse_color(t)
+	if col == null:
+		return
+	sw.color = col
+	_changed(key, t.strip_edges())
 
 ## guiToRgbColor: "R G B" with each 0..255, else null.
 static func _parse_color(t: String):
