@@ -810,6 +810,22 @@ inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
 }
 
+// A unit's Clearance for pushing and for the obstruction it is to walkers while it stands still
+// (0 A.D. CCmpUnitMotionManager, CCmpObstructionManager unit shapes). 0 A.D. gives infantry 0.8 m;
+// RTS0 draws its units bigger and keeps them further apart, so each unit's clearance follows its
+// body (unit_collision_radius) and 0 A.D.'s crowd lengths scale by PUSH_SCALE, which puts two
+// villagers left alone 1.4 units apart as before.
+inline constexpr float PUSH_SCALE = 5.0f / 6.0f; // RTS0 units per 0 A.D. metre in a crowd
+inline float unit_push_clearance(uint8_t type) {
+	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
+}
+
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines and war elephants.
+// A heavy unit pushes harder and is harder to push.
+inline float unit_push_weight(uint8_t type) {
+	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT ? 50.0f : 10.0f;
+}
+
 // 0 A.D. Attack.js CanAttack: fishing/merchant/trader/healer ship no (or
 // RestrictedClasses !SeaCreature). Fish are gathered, not fought.
 inline bool unit_can_attack(uint8_t type) {
@@ -907,7 +923,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
 		// farmstead 300). garrison is GarrisonHolder/Max (0: none; the house's civ value and
 		// other civ overrides are in structure_garrison_max, the List in structure_garrison_list).
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 10, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 20, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
 		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 3, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
@@ -920,7 +936,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 50, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
 		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 5, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 0, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
@@ -942,6 +958,30 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	};
 	if (type >= BLD_TYPE_COUNT) return kTable[BLD_HOUSE];
 	return kTable[type];
+}
+
+// 0 A.D. structures/{athen,spart,mace,sele,kush,cart,pers,rome,han}/house.xml take
+// template_structure_civic_house_big (Population/Bonus 10, 150 wood, BuildTime 50, Health
+// 1200); the other civs keep template_structure_civic_house (5, 75, 30, 800).
+inline bool civ_has_big_house(uint8_t civ) {
+	switch (civ) {
+		case CIV_ATHENIANS: case CIV_SPARTANS: case CIV_MACEDONIANS: case CIV_SELEUCIDS: case CIV_KUSHITES:
+		case CIV_CARTHAGINIANS: case CIV_PERSIANS: case CIV_ROMANS: case CIV_HAN: return true;
+		default: return false;
+	}
+}
+
+// building_type_info for a civ: the big house where the civ has one (its time and health
+// scaled from RTS0's house row by 0 A.D.'s big/small ratio). The apartment keeps its row.
+inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
+	BuildingTypeInfo info = building_type_info(type);
+	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
+		info.pop_bonus = 10;
+		info.wood_cost = 150;
+		info.build_time *= 50.0f / 30.0f;
+		info.max_hp *= 1200.0f / 800.0f;
+	}
+	return info;
 }
 
 // 0 A.D. WallSet (template_structure_wallset.xml, structures/*_wallset_stone.xml): a wall is
@@ -1340,8 +1380,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 inline int structure_garrison_max(uint8_t type, uint8_t civ) {
 	switch (type) {
 		case BLD_HOUSE:
-			return (civ == CIV_BRITONS || civ == CIV_GAULS || civ == CIV_IBERIANS || civ == CIV_MAURYANS ||
-					civ == CIV_PTOLEMIES) ? 3 : 6;
+			return civ < CIV_COUNT && !civ_has_big_house(civ) ? 3 : 6;
 		case BLD_TOWER: return civ == CIV_IBERIANS ? 8 : building_type_info(type).garrison_cap;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: return civ == CIV_HAN ? 1 : 0;
 		default: return building_type_info(type).garrison_cap;
@@ -1635,6 +1674,12 @@ inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+// Cost/Population of a unit (heroes, dogs and catafalques 0, siege and warships 2-4);
+// units without a roster template fall back to their UnitType row.
+inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).pop_cost : unit_type_info(type).pop_cost;
 }
 
 // Identity class Healer (Heal component): support healers and hero healers.

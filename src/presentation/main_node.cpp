@@ -117,6 +117,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
+	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
@@ -1368,6 +1369,33 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	return out;
 }
 
+// Test hook: step 0 places a barracks with a rally point and selects it; step 1
+// does what a right-click on the barracks itself does; every step reports the
+// rally point and whether the barracks centre / a far spot count as "itself".
+Dictionary RtsoMain::debug_unset_rally_step(int step) {
+	Dictionary d;
+	if (!sim || net_lockstep()) return d;
+	const uint8_t me = local_player();
+	if (step == 0) {
+		float cx = 0.0f, cz = 0.0f;
+		for (const auto &b : sim->buildings())
+			if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+		const uint32_t id = sim->spawn_building_world(cx + 24.0f, cz - 24.0f, rtso::BLD_BARRACKS, me, 1.0f);
+		sim->cmd_set_rally_point(me, id, cx + 40.0f, cz - 24.0f, 0, 0, false);
+		clear_selection();
+		selected_building_id = id;
+	}
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		if (step == 1 && over_own_rally_structure(Vector3(b.x, 0, b.z)))
+			post_lockstep(14, nullptr, 0, 0, 0, selected_building_id, 1);
+		d["has_rally"] = b.has_rally_point;
+		d["over_self"] = over_own_rally_structure(Vector3(b.x + b.half_size * 0.5f, 0, b.z));
+		d["over_far"] = over_own_rally_structure(Vector3(b.x + 30.0f, 0, b.z));
+	}
+	return d;
+}
+
 Dictionary RtsoMain::get_audio_state() const {
 	static const char *kStates[] = {"off", "menu", "peace", "battle", "victory", "defeat"};
 	Dictionary d;
@@ -1651,6 +1679,22 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 // Context cursors (0 A.D. gui/session/unit_actions.js "cursor" of each action
 // and input.js updateCursorAndTooltip, art/textures/cursors/action-*.png): the
 // cursor shows what a right-click would do with the current selection.
+// unit_actions.js "unset-rallypoint" getActionInfo: the target is the selected
+// structure itself and it has a rally point.
+bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
+	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		if (b.team != local_player() || !b.has_rally_point) return false;
+		// Inside the turned footprint (u axis = (ux, uz), half extents hu, hv).
+		const float dx = at.x - b.x, dz = at.z - b.z;
+		const float u = dx * b.ux + dz * b.uz, v = -dx * b.uz + dz * b.ux;
+		const float hu = b.hu > 0.0f ? b.hu : b.half_size, hv = b.hv > 0.0f ? b.hv : b.half_size;
+		return std::fabs(u) <= hu && std::fabs(v) <= hv;
+	}
+	return false;
+}
+
 void RtsoMain::update_cursor() {
 	Viewport *vp = get_viewport();
 	if (!sim || !vp) return;
@@ -1663,8 +1707,12 @@ void RtsoMain::update_cursor() {
 		if (rtso::hotkeys::held("session.flare")) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
-			want = "cursor-rally";
-			hot = Vector2(5, 31);
+			if (over_own_rally_structure(get_ground_click_pos(mouse))) {
+				want = "action-unset-rally";
+			} else {
+				want = "cursor-rally";
+				hot = Vector2(5, 31);
+			}
 		} else if (!selected_ids.is_empty()) {
 			const Vector3 at = get_ground_click_pos(mouse);
 			const uint8_t me = local_player();
@@ -3461,7 +3509,7 @@ void RtsoMain::update_command_panel() {
 					return sim->building_disabled_by_trigger(local_player(), (uint8_t)bt);
 				}), menu.end());
 				for (int bt : menu) {
-					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
+					const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(my_civ, (uint8_t)bt); // the big house
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
 						if (amount <= 0) return;
@@ -4231,6 +4279,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			Vector3 click_pos = get_ground_click_pos(mouse_pos);
 
+			// Right-clicking the selected structure itself drops its rally point
+			// (unit_actions.js "unset-rallypoint", lockstep command 14 param 1).
+			if (over_own_rally_structure(click_pos)) {
+				if (turn_cmds())
+					post_lockstep(14, nullptr, 0, 0, 0, selected_building_id, 1);
+				else
+					sim->cmd_unset_rally_point(local_player(), selected_building_id);
+				return;
+			}
 			// If building selected, right click sets Rally Point!
 			if (selected_building_id != 0) {
 				uint32_t target_res = 0, target_bld = 0;
