@@ -26,6 +26,7 @@ static void run(Simulation &s, float seconds) {
 static void fresh(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
+	for (uint8_t p = 0; p < 2; ++p) s.players_[p].active = 1, s.players_[p].is_ai = 0; // no Petra builders
 	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
@@ -414,8 +415,10 @@ int main() {
 		static Simulation t;
 		CHECK(t.load_state(path));
 		CHECK(t.resources_.max_amount[t.res_id_to_idx_[bush]] == 200);
-		run(s, 30.0f);
-		run(t, 30.0f);
+		// The bush's timer stopped at Max; it starts again on the first tick that sees it below
+		// (CheckTimers), so the fifth food comes a tick after 30 s. The timer survives save/load.
+		run(s, 30.1f);
+		run(t, 30.1f);
 		CHECK(amount(s, bush) == 125 && amount(t, bush) == 125);
 		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
 		std::remove(path);

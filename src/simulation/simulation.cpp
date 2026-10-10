@@ -157,6 +157,10 @@ static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 48;
 static constexpr uint32_t SAVE_VERSION_STATUS_SOURCE = 54;
 // Petra's army soldiers apart from its worker soldiers (tick_state_io section 9e).
 static constexpr uint32_t SAVE_VERSION_PETRA_ROLES = 55;
+// Petra's buildDefenses timers and queued defensive structure, and its dropsite counts (each AI's Petra state).
+static constexpr uint32_t SAVE_VERSION_PETRA_DEFENSES = 56;
+// Each unit's gather rate fixed at the start of its gathering, each supply's regrowth timer.
+static constexpr uint32_t SAVE_VERSION_GATHER_TIMERS = 57;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -944,6 +948,8 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	size_t idx = resources_.push(wx, wz, amount, type, rid, subtype, max_gatherers);
 	// template_gaia_fruit: a berry/fruit bush regrows towards its ResourceSupply/Max.
 	if (type == RES_FOOD && subtype == RES_SUB_NONE) resources_.max_amount[idx] = amount;
+	// ResourceSupply Init starts its Change timer: fruit Regrowth every 6 s, fish Spawn every 2 s.
+	resources_.regrow_left[idx] = regrow_interval(type, subtype);
 	resources_.flora[idx] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 	res_id_to_idx_[rid] = idx;
 	return rid;
@@ -8102,6 +8108,11 @@ void Simulation::tick_gather(float dt) {
 		if (!units_.alive[i]) continue;
 		if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT && units_.action_state[i] != ACTION_GARRISONED) elephants.push_back((uint32_t)i);
 		const uint32_t rid = units_.target_resource_id[i];
+		// Leaving GATHERING (StopGathering) drops the rate fixed at its start.
+		if (units_.gather_res[i] != 0 && (units_.action_state[i] != ACTION_GATHER || rid != units_.gather_res[i])) {
+			units_.gather_res[i] = 0;
+			units_.gather_rate[i] = 0.0f;
+		}
 		if (units_.action_state[i] != ACTION_GATHER || rid == 0 || units_.unit_type[i] == UNIT_FISHING_BOAT) continue;
 		if (!field_bld_by_res_.count(rid)) supply_gatherers_[rid].total++;
 	}
@@ -8298,27 +8309,34 @@ void Simulation::tick_gather(float dt) {
 				}
 				// ResourceGatherer: one unit every 1 / rate seconds, the rate being the class's
 				// Rates entry with technology and AI difficulty multipliers (ResourceGatherer/Rates/*,
-				// ResourceGatherer/BaseSpeed) and a field's diminishing returns.
+				// ResourceGatherer/BaseSpeed) and a field's diminishing returns. StartGathering fixes
+				// it (its timer's interval) until the unit stops gathering this supply, so a field's
+				// diminishing returns are those when the load was started.
 				// (Gather techs name stone.rock, metal.ore and so on, never *.ruins.)
-				float rate = class_rate * ai_gather_mult(uteam);
-				const Civilization civ = civ_of(uteam);
-				if (!ruins) {
-					rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind];
-					// Athenian Silver Owls: phase_town_athen and phase_city_athen each give Workers
-					// ResourceGatherer/Rates/metal.ore x1.1.
-					if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
-							(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
-						for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+				const uint32_t rid = units_.target_resource_id[i];
+				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
+					float rate = class_rate * ai_gather_mult(uteam);
+					const Civilization civ = civ_of(uteam);
+					if (!ruins) {
+						rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind];
+						// Athenian Silver Owls: phase_town_athen and phase_city_athen each give Workers
+						// ResourceGatherer/Rates/metal.ore x1.1.
+						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
+								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
+							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+					}
+					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
+					// pyramid, catafalques, Han ministers): the strongest one in reach.
+					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
+							units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
+						rate /= 1.0f - g;
+					// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
+					for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
+					if (field_efficiency > 0.0f) rate *= field_efficiency;
+					units_.gather_res[i] = rid;
+					units_.gather_rate[i] = rate;
 				}
-				// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
-				// pyramid, catafalques, Han ministers): the strongest one in reach.
-				if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
-						units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
-					rate /= 1.0f - g;
-				// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
-				for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
-				if (field_efficiency > 0.0f) rate *= field_efficiency;
-				const float interval = 1.0f / rate;
+				const float interval = 1.0f / units_.gather_rate[i];
 				// GATHERING enter: the player's order stops being forced once work starts.
 				units_.order_flags[i] &= (uint8_t)~ORDER_FLAG_FORCE;
 				// ResourceGatherer PerformGather: a load of another type is dropped (DropResources).
@@ -8341,32 +8359,35 @@ void Simulation::tick_gather(float dt) {
 		}
 	}
 
-	// Fish nobody is fishing regrow 1 food every 2 s, up to their supply (ResourceSupply Change/Spawn,
-	// State notGathered). Only boats at the fish count (activeGatherers), not those on their way.
-	const uint64_t regrow_ticks = (uint64_t)std::lround(FISH_REGROW_INTERVAL_S / FIXED_STEP);
-	if (ticks_ % regrow_ticks == 0) {
-		std::vector<uint32_t> fished;
-		for (size_t i = 0; i < n; ++i) {
-			if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.action_state[i] != ACTION_GATHER) continue;
-			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-			if (rit == res_id_to_idx_.end()) continue;
-			const float dx = units_.pos_x[i] - resources_.x[rit->second], dz = units_.pos_z[i] - resources_.z[rit->second];
-			if (dx * dx + dz * dz < FISH_GATHER_REACH * FISH_GATHER_REACH) fished.push_back(units_.target_resource_id[i]);
-		}
-		for (size_t r = 0; r < resources_.count; ++r) {
-			if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
-			if (resources_.amount[r] >= FISH_FOOD_SUPPLY ||
-					std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) continue;
-			resources_.amount[r] += 1;
-		}
+	// ResourceSupply Change timers, one per supply: fruit regrows 1 food every 6 s up to its Max,
+	// gathered or not (template_gaia_fruit Regrowth); fish 1 food every 2 s up to their supply while
+	// no boat is at them (template_gaia_fish Spawn, State notGathered: activeGatherers, not the boats
+	// on their way). A timer starts when the supply drops below its Max (CheckTimers on Change) or its
+	// last boat leaves, ticks a full interval later, and stops at Max or while a boat fishes it.
+	std::vector<uint32_t> fished;
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.action_state[i] != ACTION_GATHER) continue;
+		auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+		if (rit == res_id_to_idx_.end()) continue;
+		const float dx = units_.pos_x[i] - resources_.x[rit->second], dz = units_.pos_z[i] - resources_.z[rit->second];
+		if (dx * dx + dz * dz < FISH_GATHER_REACH * FISH_GATHER_REACH) fished.push_back(units_.target_resource_id[i]);
 	}
-	// Fruit bushes regrow 1 food every 6 s up to their Max, gathered or not
-	// (template_gaia_fruit.xml ResourceSupply/Change/Regrowth); an emptied bush is gone.
-	const uint64_t fruit_ticks = (uint64_t)std::lround(FRUIT_REGROW_INTERVAL_S / FIXED_STEP);
-	if (ticks_ % fruit_ticks == 0) {
-		for (size_t r = 0; r < resources_.count; ++r) {
-			if (resources_.amount[r] <= 0 || resources_.amount[r] >= resources_.max_amount[r] || !resources_.alive[r]) continue;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		const float interval = regrow_interval(resources_.type[r], resources_.subtype[r]);
+		if (interval <= 0.0f || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		const bool fish = resources_.subtype[r] == RES_SUB_FISH;
+		const int32_t max = fish ? FISH_FOOD_SUPPLY : resources_.max_amount[r];
+		float &left = resources_.regrow_left[r];
+		if (fish && std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) { left = -1.0f; continue; }
+		if (left < 0.0f) {
+			if (resources_.amount[r] < max) left = interval; // StartTimer: the first tick a full interval on
+			continue;
+		}
+		left -= dt;
+		while (left <= 1e-4f) {
+			if (resources_.amount[r] >= max) { left = -1.0f; break; } // Change made nothing: StopTimer
 			resources_.amount[r] += 1;
+			left += interval;
 		}
 	}
 
@@ -15430,100 +15451,14 @@ void Simulation::petra_manage_buildings(float dt) {
 		}
 	}
 
-	// 2b. Place Dropsites (Storehouse / Farmstead) adjacent to discovered Resource Clusters
-	{
-		bool dropsite_in_progress = false;
-		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && (b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD) && b.build_progress < 1.0f) {
-				dropsite_in_progress = true;
-				break;
-			}
-		}
-
-		if (!dropsite_in_progress) {
-			float best_cluster_val = -1.0f;
-			float best_cluster_x = 0.0f, best_cluster_z = 0.0f;
-			uint8_t best_cluster_rtype = RES_WOOD;
-
-			for (size_t r = 0; r < resources_.count; ++r) {
-				if (!resources_.alive[r] || resources_.amount[r] < 200) continue; // a whole 0 A.D. tree
-				if (resources_.subtype[r] == RES_SUB_FISH) continue; // the dock serves fish
-				float rx = resources_.x[r];
-				float rz = resources_.z[r];
-				// No line-of-sight test: Petra's resource maps (baseManager.js / headquarters.js
-				// dropsite placement) cover every resource on the map.
-
-				// Storehouses and farmsteads need our own territory (0 A.D. BuildRestrictions).
-				if (territory_owner_at(rx, rz) != petra_pid_) continue;
-				if (!is_position_safe(rx, rz, 5.0f)) continue;
-
-				// Check distance to nearest existing dropsite
-				float min_dropsite_dist = 1e9f;
-				for (const auto &b : buildings_) {
-					if (b.team == petra_pid_ && b.hp > 0 &&
-					    (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK)) {
-						float d = std::hypot(b.x - rx, b.z - rz);
-						min_dropsite_dist = std::min(min_dropsite_dist, d);
-					}
-				}
-
-				if (min_dropsite_dist > 18.0f) {
-					// Count nearby resource cluster density
-					float cluster_amount = 0.0f;
-					int cluster_nodes = 0;
-					int food_count = 0, non_food_count = 0;
-
-					for (size_t j = 0; j < resources_.count; ++j) {
-						if (!resources_.alive[j] || resources_.amount[j] <= 0) continue;
-						if (resources_.subtype[j] == RES_SUB_FISH) continue; // a land dropsite cannot take fish
-						float dj = std::hypot(resources_.x[j] - rx, resources_.z[j] - rz);
-						if (dj <= 14.0f) {
-							cluster_amount += (float)resources_.amount[j];
-							cluster_nodes++;
-							if (resources_.type[j] == RES_FOOD) food_count++;
-							else non_food_count++;
-						}
-					}
-
-					if (cluster_nodes >= 3 || cluster_amount >= 1200.0f) {
-						float score = cluster_amount / (min_dropsite_dist + 1.0f);
-						if (score > best_cluster_val) {
-							best_cluster_val = score;
-							best_cluster_x = rx;
-							best_cluster_z = rz;
-							best_cluster_rtype = (food_count > non_food_count) ? RES_FOOD : RES_WOOD;
-						}
-					}
-				}
-			}
-
-			if (best_cluster_val > 0.0f) {
-				uint8_t dropsite_type = (best_cluster_rtype == RES_FOOD) ? BLD_FARMSTEAD : BLD_STOREHOUSE;
-				int start_cx = (int)(best_cluster_x / GRID);
-				int start_cz = (int)(best_cluster_z / GRID);
-				bool placed = false;
-
-				for (int r = 2; r <= 6 && !placed; ++r) {
-					for (int dx = -r; dx <= r && !placed; ++dx) {
-						for (int dz = -r; dz <= r && !placed; ++dz) {
-							if (std::abs(dx) != r && std::abs(dz) != r) continue;
-							int cx = start_cx + dx;
-							int cz = start_cz + dz;
-							if (petra_can_place(cx, cz, 1, dropsite_type) && is_position_safe(cx * GRID, cz * GRID, 5.0f) &&
-							    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 100.0f, 0.0f, 0.0f)) {
-								uint32_t bid = spawn_building(cx, cz, dropsite_type, petra_pid_, 0.0f);
-								auto idle_workers = get_idle_workers(petra_pid_);
-								if (!idle_workers.empty()) {
-									petra_order_builders(idle_workers, 3, bid);
-								}
-								placed = true;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	// 2b. Dropsites. baseManager.js checkResourceLevels, each played turn (0.2 s) for wood, stone
+	// and metal: count the gatherers gathering ("used") and walking back to a dropsite ("lost");
+	// past 60 of them (150 for wood) a lost share over 15% lays a storehouse where that resource
+	// lies thickest beyond 15 tiles of its dropsites, then the count waits 20 turns. A storehouse
+	// foundation restarts the counts. headquarters.js buildFarmstead: one farmstead, once there is
+	// a storehouse and a house.
+	if (ticks_ % 4 == 0) petra_check_resource_levels((int32_t)(ticks_ / 4));
+	if (ticks_ % 16 == 8) petra_build_farmstead();
 
 	// 3. headquarters.js buildMoreHouses with queueplanBuilding.js houseNeeded: a house goes up
 	// once the free slots, counting the houses already laid down, fall to 10 (15 above 30 pop,
@@ -15595,75 +15530,12 @@ void Simulation::petra_manage_buildings(float dt) {
 		}
 	}
 
-	// 5. Build Defense Towers in Phase >= 2
-	if (petra_ps().phase >= 2) {
-		int tower_count = 0;
-		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && is_defense_tower(b.type)) tower_count++;
-		}
-		if (tower_count < 4) {
-			float base_x = 36.0f, base_z = 36.0f;
-			if (const auto *pbase = get_primary_petra_base()) {
-				base_x = pbase->x; base_z = pbase->z;
-			}
-			int start_cx = (int)(base_x / GRID);
-			int start_cz = (int)(base_z / GRID);
-			bool placed = false;
-			for (int r = 5; r <= 10 && !placed; ++r) {
-				for (int dx = -r; dx <= 0 && !placed; ++dx) {
-					for (int dz = -r; dz <= 0 && !placed; ++dz) {
-						int cx = start_cx + dx;
-						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 1, BLD_TOWER) &&
-						    petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, 100.0f, 0.0f, 100.0f)) {
-							uint32_t bid = spawn_building(cx, cz, BLD_TOWER, petra_pid_, 0.0f);
-							auto idle_workers = get_idle_workers(petra_pid_);
-							if (!idle_workers.empty()) {
-								petra_order_builders(idle_workers, 2, bid);
-							}
-							placed = true;
-						}
-					}
-				}
-			}
-		}
-	}
+	// 5. headquarters.js buildDefenses: fortresses from the city phase (or while researching it),
+	// sentry towers in the village phase, stone towers from the town phase, each kind spaced by
+	// its lapse time and capped by bases and population.
+	petra_build_defenses();
 
-	// 6. Build Fortress in Phase >= 3
-	if (petra_ps().phase >= 3) {
-		bool has_fortress = false;
-		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && b.type == BLD_FORTRESS) { has_fortress = true; break; }
-		}
-		if (!has_fortress) {
-			float base_x = 36.0f, base_z = 36.0f;
-			if (const auto *pbase = get_primary_petra_base()) {
-				base_x = pbase->x; base_z = pbase->z;
-			}
-			int start_cx = (int)(base_x / GRID);
-			int start_cz = (int)(base_z / GRID);
-			bool placed = false;
-			for (int r = 4; r <= 10 && !placed; ++r) {
-				for (int dx = -r; dx <= 0 && !placed; ++dx) {
-					for (int dz = -r; dz <= 0 && !placed; ++dz) {
-						int cx = start_cx + dx;
-						int cz = start_cz + dz;
-						if (petra_can_place(cx, cz, 2, BLD_FORTRESS)) {
-							if (!petra_try_pay(PETRA_QUEUE_MILITARY, 0.0f, PETRA_FORTRESS_COST[RES_WOOD], PETRA_FORTRESS_COST[RES_GOLD], PETRA_FORTRESS_COST[RES_STONE])) break;
-							uint32_t bid = spawn_building(cx, cz, BLD_FORTRESS, petra_pid_, 0.0f);
-							auto idle_workers = get_idle_workers(petra_pid_);
-							if (!idle_workers.empty()) {
-								petra_order_builders(idle_workers, 4, bid);
-							}
-							placed = true;
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 7. headquarters.js constructTrainingBuildings, city phase: an elephant
+	// 6. headquarters.js constructTrainingBuildings, city phase: an elephant
 	// stable and an arsenal, then (from 80 pop) the civ's own advanced
 	// structures from config.js buildings, the next one only past 110 pop.
 	if (petra_ps().phase >= 3) petra_build_advanced();
@@ -15861,6 +15733,206 @@ int Simulation::petra_pop_for_barracks1() const {
 int Simulation::petra_pop_for_barracks2() const {
 	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
 	return std::min(std::max((int)(95.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
+}
+
+// baseManager.js checkResourceLevels for the resources a storehouse takes (RTS0 keeps one count
+// per AI, not one per base). Food goes to fields and the farmstead instead.
+void Simulation::petra_check_resource_levels(int32_t turn) {
+	PetraDropsiteCheck &dc = petra_dropsite_check_;
+	static constexpr uint8_t kTypes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
+	bool foundation = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.type == BLD_STOREHOUSE && b.hp > 0.0f && b.build_progress < 1.0f) { foundation = true; break; }
+	bool counted = false;
+	int32_t used[3] = {}, lost[3] = {};
+	for (int k = 0; k < 3; ++k) {
+		if (foundation) {
+			dc.next_check[k] = turn;
+			dc.used[k] = dc.lost[k] = 0;
+			continue;
+		}
+		if (turn < dc.next_check[k]) continue;
+		if (!counted) { // gatherersByType: our gatherers by the resource they carry
+			counted = true;
+			for (size_t i = 0; i < units_.count; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+				const uint8_t st = units_.action_state[i];
+				if (st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
+				const uint8_t rt = units_.res_type_carried[i];
+				for (int j = 0; j < 3; ++j)
+					if (rt == kTypes[j]) (st == ACTION_GATHER ? used[j] : lost[j])++;
+			}
+		}
+		dc.used[k] += used[k];
+		dc.lost[k] += lost[k];
+		const int32_t total = dc.used[k] + dc.lost[k];
+		if (total > 150 || (total > 60 && kTypes[k] != RES_WOOD)) {
+			const float ratio = (float)dc.lost[k] / (float)total;
+			dc.next_check[k] = turn + 20;
+			dc.used[k] = dc.lost[k] = 0;
+			if (ratio > 0.15f && petra_place_dropsite(kTypes[k])) return; // the foundation resets the rest
+		} else if (total == 0) {
+			dc.next_check[k] = turn + 10;
+		}
+	}
+}
+
+// baseManager.js findBestDropsiteLocation, by resource nodes instead of 0 A.D.'s resource maps:
+// in our territory and out of danger, the most of `res` (twice) and of the other resources a
+// storehouse takes within 14 tiles, nothing within 15 tiles of a dropsite for `res` and a share
+// of it up to 20 tiles (60 m and 80 m in 0 A.D.).
+uint32_t Simulation::petra_place_dropsite(uint8_t res) {
+	if (!civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) return 0;
+	std::vector<std::pair<float, float>> drops;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f &&
+		    (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
+			drops.push_back({b.x, b.z});
+	float best = 0.0f, best_x = 0.0f, best_z = 0.0f;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != res || resources_.amount[r] < 200) continue;
+		const float rx = resources_.x[r], rz = resources_.z[r];
+		if (territory_owner_at(rx, rz) != petra_pid_ || !is_position_safe(rx, rz, 5.0f)) continue;
+		float factor = 1.0f;
+		for (const auto &d : drops) {
+			const float dist = std::hypot(d.first - rx, d.second - rz);
+			if (dist < 15.0f) { factor = 0.0f; break; }
+			if (dist < 20.0f) factor *= (dist - 15.0f) / 5.0f;
+		}
+		if (factor <= 0.0f) continue;
+		float total = 0.0f;
+		for (size_t j = 0; j < resources_.count; ++j) {
+			if (!resources_.alive[j] || resources_.amount[j] <= 0 || resources_.type[j] == RES_FOOD) continue;
+			const float dx = resources_.x[j] - rx, dz = resources_.z[j] - rz;
+			if (dx * dx + dz * dz > 14.0f * 14.0f) continue;
+			total += (float)resources_.amount[j] * (resources_.type[j] == res ? 3.0f : 1.0f);
+		}
+		total *= factor;
+		if (total > best) { best = total; best_x = rx; best_z = rz; }
+	}
+	// quality > 50 on 0 A.D.'s resource maps: about ten trees' worth of the resource.
+	if (best < 6000.0f) return 0;
+	const uint32_t bid = petra_place_building(BLD_STOREHOUSE, best_x, best_z, 2, 6, PETRA_QUEUE_VILLAGER);
+	if (bid) {
+		auto idle = get_idle_workers(petra_pid_);
+		if (!idle.empty()) petra_order_builders(idle, 3, bid);
+	}
+	return bid;
+}
+
+// headquarters.js buildFarmstead: one farmstead (foundations count), only once Petra has a
+// storehouse and a house, by the food nearest its main base.
+void Simulation::petra_build_farmstead() {
+	bool storehouse = false, house = false;
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.type == BLD_FARMSTEAD) return;
+		storehouse |= b.type == BLD_STOREHOUSE;
+		house |= building_tech_classes(b.type) & TC_HOUSE ? true : false;
+	}
+	if (!storehouse || !house || !civ_can_build(petra_ps().civ, BLD_FARMSTEAD) ||
+	    triggers_.building_disabled(petra_pid_, BLD_FARMSTEAD)) return;
+	const PetraBase *home = get_primary_petra_base();
+	if (!home) return;
+	float x = home->x, z = home->z, best = 1e9f;
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.subtype[r] == RES_SUB_FISH ||
+		    resources_.amount[r] <= 0 || field_bld_by_res_.count(resources_.id[r])) continue;
+		const float d = std::hypot(resources_.x[r] - home->x, resources_.z[r] - home->z);
+		if (d < best && d < 32.0f && territory_owner_at(resources_.x[r], resources_.z[r]) == petra_pid_) {
+			best = d; x = resources_.x[r]; z = resources_.z[r];
+		}
+	}
+	const uint32_t bid = petra_place_building(BLD_FARMSTEAD, x, z, 2, 10, PETRA_QUEUE_VILLAGER);
+	if (bid) {
+		auto idle = get_idle_workers(petra_pid_);
+		if (!idle.empty()) petra_order_builders(idle, 3, bid);
+	}
+}
+
+// headquarters.js buildDefenses. The defenseBuilding queue holds one plan at a time
+// (petra_defense_build_.pending); its start time is taken when it is queued, as in 0 A.D.
+// RTS0 has no saveResources/barter pause and no queue priority changes: the plan is paid
+// from the military queue. The structure goes up around the primary base, not on the frontier
+// (findDefensiveLocation): on RTS0's maps a frontier tower lands about 20 tiles from the enemy
+// civic centre, and two Petras then bled each other to near zero population in 12 of 12 seeds.
+void Simulation::petra_build_defenses() {
+	PetraDefenseBuild &d = petra_defense_build_;
+	const PetraConfig &cfg = petra_config_;
+	if (d.pending != 0) {
+		const uint8_t btype = (uint8_t)(d.pending - 1);
+		const BuildingTypeInfo &info = building_type_info(btype);
+		const PetraQueueAccount &a = petra_queues_.accounts[PETRA_QUEUE_MILITARY];
+		const bool affordable = a.food >= info.food_cost && a.wood >= info.wood_cost && a.gold >= info.gold_cost &&
+		                        a.stone >= info.stone_cost && petra_ps().food() >= info.food_cost &&
+		                        petra_ps().wood() >= info.wood_cost && petra_ps().gold() >= info.gold_cost &&
+		                        petra_ps().stone() >= info.stone_cost;
+		if (!affordable) { // registers the want, so the queue gets funded
+			petra_try_pay(PETRA_QUEUE_MILITARY, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost);
+			return;
+		}
+		d.pending = 0;
+		const PetraBase *home = get_primary_petra_base();
+		const uint32_t bid = home ? petra_place_building(btype, home->x, home->z, btype == BLD_FORTRESS ? 4 : 5, 12, PETRA_QUEUE_MILITARY) : 0;
+		if (bid) {
+			auto idle = get_idle_workers(petra_pid_);
+			if (!idle.empty()) petra_order_builders(idle, btype == BLD_FORTRESS ? 4 : 2, bid);
+		}
+		return;
+	}
+
+	const uint8_t civ = petra_ps().civ;
+	auto can_build = [&](uint8_t t) {
+		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+	};
+	int n_fortresses = 0, n_fortress_fnd = 0, n_towers = 0, n_stone = 0, n_tower_fnd = 0, n_bases = 0;
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		const bool fnd = b.build_progress < 1.0f;
+		if (b.type == BLD_FORTRESS) { ++n_fortresses; n_fortress_fnd += fnd; }
+		if (is_defense_tower(b.type) || b.type == BLD_SENTRY_TOWER) { ++n_towers; n_tower_fnd += fnd; }
+		if (b.type == BLD_WALL_TOWER) ++n_towers;
+		if (is_defense_tower(b.type)) ++n_stone;
+		if (is_civic_centre(b.type) && !fnd) ++n_bases; // numActiveBases: bases with a civic centre
+	}
+	const float now = game_time();
+	const int diff = cfg.difficulty;
+	// config.js: lapse times scale with the defensive personality; headquarters.js extras.
+	const float tower_lapse = std::round(90.0f * (1.1f - 0.2f * cfg.defensive));
+	const float fortress_lapse = std::round(390.0f * (1.1f - 0.2f * cfg.defensive));
+	const int extra_towers = (int)std::round((float)std::min(diff, 3) * cfg.defensive);
+	const int extra_fortresses = (int)std::round((float)std::max(std::min(diff - 1, 2), 0) * cfg.defensive);
+	int num_sentry = cfg.defensive > 0.7f ? 1 : 0;
+	if (diff >= PETRA_MEDIUM) {
+		num_sentry = diff == PETRA_MEDIUM ? 1 : 2;
+		if (cfg.defensive > 0.7f) ++num_sentry;
+		else if (cfg.defensive < 0.3f) --num_sentry;
+	}
+	const int pop = pop_current(petra_pid_);
+	const uint8_t phase = petra_ps().phase;
+
+	if (phase > 2 || (phase == 2 && petra_phasing())) {
+		if (can_build(BLD_FORTRESS) &&
+		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
+		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2) {
+			d.fortress_start = now;
+			d.pending = BLD_FORTRESS + 1;
+			return;
+		}
+	}
+	if (num_sentry > 0 && phase < 2 && can_build(BLD_SENTRY_TOWER)) {
+		if (n_towers < num_sentry && now > tower_lapse + d.fort_start) {
+			d.fort_start = now;
+			d.pending = BLD_SENTRY_TOWER + 1;
+		}
+		return;
+	}
+	if (phase < 2 || !can_build(BLD_TOWER)) return;
+	if ((n_stone == 0 || now > (1.0f + 0.1f * (float)n_stone) * tower_lapse + d.tower_start) &&
+	    n_stone < 2 * n_bases + 3 + extra_towers && n_stone < pop / 8 && n_tower_fnd < 3) {
+		d.tower_start = now;
+		d.pending = BLD_TOWER + 1;
+	}
 }
 
 // researchManager.js:15 checkPhase: Town at pop >= Economy.popPhase2, City when
@@ -19352,6 +19424,8 @@ void Simulation::petra_reset_ai_state() {
 	petra_opening_timer_ = 0.0f;
 	petra_defense_army_ = PetraDefenseArmy();
 	petra_emergency_ = PetraEmergency();
+	petra_defense_build_ = PetraDefenseBuild{};
+	petra_dropsite_check_ = PetraDropsiteCheck{};
 	petra_queues_.reset();
 	petra_transports_.clear();
 	petra_defense_timer_ = 0.0f;
@@ -19484,7 +19558,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -20354,6 +20428,11 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			U.poison_src[i] = U.burning_src[i] = 0;
 			U.poison_owner[i] = U.burning_owner[i] = 0xFF;
 		}
+		if (ar.version >= SAVE_VERSION_GATHER_TIMERS) {
+			ar.pod(U.gather_rate[i]); ar.pod(U.gather_res[i]);
+		} else {
+			U.gather_rate[i] = 0.0f; U.gather_res[i] = 0; // the next gather tick starts afresh
+		}
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
 		if (!ar.ok) return;
@@ -20570,6 +20649,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else if constexpr (std::is_same_v<T, PetraSentDiplomacy>) {
 			if (ar.version >= 27) ar.pod(v);
 			else v = PetraSentDiplomacy{};
+		} else if constexpr (std::is_same_v<T, PetraDefenseBuild>) {
+			static_assert(sizeof(PetraDefenseBuild) == 16, "list the new PetraDefenseBuild field below");
+			if (ar.version >= SAVE_VERSION_PETRA_DEFENSES) {
+				ar.pod(v.tower_start); ar.pod(v.fortress_start); ar.pod(v.fort_start); ar.pod(v.pending);
+				if constexpr (Ar::loading)
+					if (v.pending > BLD_TYPE_COUNT) ar.ok = false;
+			} else v = PetraDefenseBuild{};
+		} else if constexpr (std::is_same_v<T, PetraDropsiteCheck>) {
+			if (ar.version >= SAVE_VERSION_PETRA_DEFENSES) ar.pod(v);
+			else v = PetraDropsiteCheck{};
 		} else {
 			// Raw: only plain values and structs without padding (check with -Wpadded).
 			static_assert(std::is_trivially_copyable_v<T>, "give this Petra field its own case in tick_state_io");
@@ -20656,6 +20745,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// v49: each tree's and fruit bush's FloraKind (older saves: the biome's pick).
 	if (ar.version >= SAVE_VERSION_TERRAIN_FLORA)
 		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.flora[r]);
+	// v56: each supply's Change timer (older saves: running from now, a full interval to go).
+	if (ar.version >= SAVE_VERSION_GATHER_TIMERS) {
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.regrow_left[r]);
+	} else if constexpr (Ar::loading) {
+		for (size_t r = 0; r < s.resources_.count; ++r)
+			s.resources_.regrow_left[r] = regrow_interval(s.resources_.type[r], s.resources_.subtype[r]);
+	}
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
