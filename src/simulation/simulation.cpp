@@ -1018,6 +1018,7 @@ uint32_t Simulation::spawn_relic(float x, float z, int civ_pick) {
 	const int32_t i = lookup_unit(id);
 	if (i < 0) return 0;
 	relics_.push_back({id, units_.pos_x[i], units_.pos_z[i], civ, RELIC_CAPTURE_POINTS * 100, false});
+	relics_.back().cp[MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS; // every point Gaia's
 	return id;
 }
 
@@ -8553,7 +8554,10 @@ void Simulation::tick_combat(float dt) {
 			if (!in_range || (units_.attack_timer[i] > 0.0f && units_.attack_timer[i] != ATTACK_DUE)) continue;
 			units_.attack_timer[i] = CAPTURE_REPEAT_S;
 			units_.action_state[i] = ACTION_ATTACK;
-			capture_attack_[bit->second][units_.team[i]] += capture_strength;
+			// GetTotalAttackEffects: a damaged structure is easier to capture, the
+			// strength divided by 0.1 + 0.9 * hp / maxHp (up to x10).
+			const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+			capture_attack_[bit->second][units_.team[i]] += capture_strength / (0.1f + 0.9f * health);
 			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 			continue;
 		}
@@ -8563,13 +8567,14 @@ void Simulation::tick_combat(float dt) {
 		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 
-		const auto &uinfo_att = unit_info_at(i);
-		float hack_dmg = uinfo_att.hack_damage;
-		float pierce_dmg = uinfo_att.pierce_damage;
-		float crush_dmg = uinfo_att.crush_damage;
-
-		// Siege demolition power comes from 0 A.D.'s own crush damage (rams 150,
-		// stone throwers 250 in their templates); no extra multiplier on top.
+		// GetAttackEffectsData: the attack's Damage after technologies, rank and attack
+		// auras, as against units. Siege demolition power comes from 0 A.D.'s own crush
+		// damage (rams 150, stone throwers 250 in their templates).
+		float att_dmg[3];
+		unit_attack_effects(i, att_dmg);
+		float hack_dmg = att_dmg[0];
+		float pierce_dmg = att_dmg[1];
+		float crush_dmg = att_dmg[2];
 
 		// The structure template's own Resistance/Entity/Damage levels (a civic centre
 		// is 25 hack, 35 pierce, 3 crush) and the attacker's Bonuses against it.
@@ -8584,11 +8589,9 @@ void Simulation::tick_combat(float dt) {
 		const float b_pierce_armor = b_armor[1];
 		const float b_crush_armor = b_armor[2];
 
-		float bld_dmg = std::max(1.0f,
-			hack_dmg * powf(0.9f, b_hack_armor) +
-			pierce_dmg * powf(0.9f, b_pierce_armor) +
-			crush_dmg * powf(0.9f, b_crush_armor)
-		);
+		// Attack.js GetTotalAttackEffects has no minimum: arrows barely scratch stone.
+		float bld_dmg = hack_dmg * powf(0.9f, b_hack_armor) + pierce_dmg * powf(0.9f, b_pierce_armor) +
+				crush_dmg * powf(0.9f, b_crush_armor);
 
 		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i],
 				civ_of(units_.team[i]));
@@ -8625,18 +8628,8 @@ void Simulation::tick_combat(float dt) {
 
 				collect_building_loot(units_.id[i], units_.team[i], b); // 0 A.D. Looter.js
 
-				// Evacuate garrisoned units with casualty damage
-				for (uint32_t guid : b.garrisoned_units) {
-					int32_t gidx = lookup_unit(guid);
-					if (gidx >= 0 && (size_t)gidx < units_.count) {
-						units_.pos_x[gidx] = b.x + 2.0f;
-						units_.pos_z[gidx] = b.z + 2.0f;
-						units_.alive[gidx] = 1;
-						units_.action_state[gidx] = ACTION_IDLE;
-						units_.hp[gidx] = std::max(5.0f, units_.hp[gidx] * 0.5f);
-					}
-				}
-				b.garrisoned_units.clear();
+				// GarrisonHolder OnDestroy -> EjectOrKill: the garrison walks out unharmed.
+				if (!b.garrisoned_units.empty()) order_ungarrison(b.id);
 				mark_building_wreck(b, units_.team[i]);
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
@@ -9130,41 +9123,48 @@ void Simulation::tick_capture(float dt) {
 // regenerates RegenRate plus GarrisonRegenRate per garrisoned unit's Capture attack
 // (GetRegenRate) from its enemies; the structure changes hands once its owner holds
 // no points left, to whoever holds most (RegisterCapturePointsChanged).
+// Capturable.js Reduce: `amount` points are taken evenly from every enemy of `to` that holds
+// some (a pool that runs dry passes its share on) and given to `to`. Pool MAX_PLAYERS is Gaia's,
+// everyone's enemy.
+bool Simulation::capture_enemy(int source, int t) const {
+	if (source == t) return false;
+	if (source == MAX_PLAYERS || t == MAX_PLAYERS) return true;
+	return can_attack((uint8_t)source, (uint8_t)t);
+}
+
+void Simulation::capture_reduce(CapturePools &pts, int to, float amount) const {
+	constexpr int GAIA = MAX_PLAYERS;
+	if (amount <= 0.0f) return;
+	float before = 0.0f;
+	for (int t = 0; t <= GAIA; ++t) if (t != to) before += pts[t];
+	int pools = 0;
+	for (int t = 0; t <= GAIA; ++t) if (pts[t] > 0.0f && capture_enemy(to, t)) pools++;
+	if (pools == 0) return;
+	float removed = 0.0f;
+	float share = amount / (float)pools;
+	while (share > 0.0001f) {
+		pools = 0;
+		for (int t = 0; t <= GAIA; ++t) {
+			if (pts[t] <= 0.0f || !capture_enemy(to, t)) continue;
+			if (pts[t] > share) { removed += share; pts[t] -= share; ++pools; }
+			else { removed += pts[t]; pts[t] = 0.0f; }
+		}
+		share = pools ? (amount - removed) / (float)pools : 0.0f;
+	}
+	float after = 0.0f;
+	for (int t = 0; t <= GAIA; ++t) if (t != to) after += pts[t];
+	pts[to] += before - after;
+}
+
 void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 	constexpr int GAIA = MAX_PLAYERS; // pool index
 	const bool gaia_owned = b.team >= MAX_PLAYERS;
 	int owner = gaia_owned ? GAIA : b.team;
-	std::array<float, MAX_PLAYERS + 1> pts{};
+	CapturePools pts{};
 	float held = 0.0f;
 	for (int t = 0; t < MAX_PLAYERS; ++t) { pts[t] = b.capture_points_by_team[t]; held += pts[t]; }
 	pts[GAIA] = std::max(0.0f, b.max_capture_points - held);
-	auto enemy = [&](int source, int t) {
-		if (source == t) return false;
-		if (source == GAIA || t == GAIA) return true; // everyone is Gaia's enemy
-		return can_attack((uint8_t)source, (uint8_t)t);
-	};
-	auto reduce = [&](int to, float amount) {
-		if (amount <= 0.0f) return;
-		float before = 0.0f;
-		for (int t = 0; t <= GAIA; ++t) if (t != to) before += pts[t];
-		int pools = 0;
-		for (int t = 0; t <= GAIA; ++t) if (pts[t] > 0.0f && enemy(to, t)) pools++;
-		if (pools == 0) return;
-		float removed = 0.0f;
-		float share = amount / (float)pools;
-		while (share > 0.0001f) {
-			pools = 0;
-			for (int t = 0; t <= GAIA; ++t) {
-				if (pts[t] <= 0.0f || !enemy(to, t)) continue;
-				if (pts[t] > share) { removed += share; pts[t] -= share; ++pools; }
-				else { removed += pts[t]; pts[t] = 0.0f; }
-			}
-			share = pools ? (amount - removed) / (float)pools : 0.0f;
-		}
-		float after = 0.0f;
-		for (int t = 0; t <= GAIA; ++t) if (t != to) after += pts[t];
-		pts[to] += before - after;
-	};
+	auto reduce = [&](int to, float amount) { capture_reduce(pts, to, amount); };
 	// RegisterCapturePointsChanged: the owner left with no points loses the structure to
 	// whoever holds most, at once (before it can regenerate).
 	auto check_owner = [&]() {
@@ -9234,13 +9234,13 @@ int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
 }
 
 // The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs),
-// each reduced by the animal's Resistance as 0.9^armour, at least 1.
+// each reduced by the animal's Resistance as 0.9^armour.
 float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
-	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return std::max(1.0f, units_.attack_damage[i]);
+	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
 	const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
-	return std::max(1.0f, uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
+	return (uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
 			uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
 			uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor));
 }
@@ -9429,21 +9429,27 @@ float Simulation::status_dps(uint8_t kind) {
 // The damage unit i's attack deals to unit t (0 A.D. Attacking.HandleAttackEffects):
 // its Hack, Pierce and Crush (scaled by techs) times its template Bonuses against t
 // (helpers/Attack.js GetAttackBonus) and its attack auras, each reduced by t's
-// Resistance as 0.9^armour, at least 1.
+// Resistance as 0.9^armour (GetTotalAttackEffects: no minimum).
 float Simulation::unit_attack_damage(size_t i, size_t t) {
-	const auto &uinfo_att = unit_info_at(i);
-	float target_armor[3];
+	float target_armor[3], d[3];
 	unit_resistance(t, target_armor);
-	const float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
-	float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
-	// Attack auras (hero bonuses, enemy carnyx and hero penalties); 0 = none in range
+	unit_attack_effects(i, d);
+	const float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
+	return mul * (d[0] * powf(0.9f, target_armor[0]) + d[1] * powf(0.9f, target_armor[1]) + d[2] * powf(0.9f, target_armor[2]));
+}
+
+// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: the
+// template's, scaled by technologies and rank (attack_damage over the template total),
+// times its attack auras (hero bonuses, enemy carnyx and hero penalties).
+void Simulation::unit_attack_effects(size_t i, float out[3]) const {
+	const auto &uinfo = unit_info_at(i);
+	float mul = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	if (aura > 0.0f) mul *= aura;
-	return std::max(1.0f,
-		uinfo_att.hack_damage * dmg_scale * mul * powf(0.9f, target_armor[0]) +
-		uinfo_att.pierce_damage * dmg_scale * mul * powf(0.9f, target_armor[1]) +
-		uinfo_att.crush_damage * dmg_scale * mul * powf(0.9f, target_armor[2]));
+	if (aura > 0.0f) mul *= aura; // 0 = none in range
+	out[0] = uinfo.hack_damage * mul;
+	out[1] = uinfo.pierce_damage * mul;
+	out[2] = uinfo.crush_damage * mul;
 }
 
 // A unit's attack timer runs as 0 A.D. Attack.js's interval timer:
@@ -10842,6 +10848,12 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		units_.attack_timer[i] = 4.0f; // give up a flight that is stuck
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 		return;
+	}
+	// Attack -> APPROACHING enter: an attacker hidden in the fog (a far archer nobody on the team
+	// sees) can't be approached (CheckTargetVisible), so the order ends at once. Fleeing ignores it.
+	if (!structure) {
+		const int32_t a = lookup_unit(attacker_id);
+		if (a >= 0 && attack_target_hidden(i, (size_t)a)) return;
 	}
 	const float range = units_.attack_range[i];
 	const float vision = unit_base_vision(i);
@@ -18585,7 +18597,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -19366,12 +19378,36 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.splash = v.splash; d.source_id = v.source_id;
 		});
 	};
-	static_assert(sizeof(S::Relic) == 24, "list the new Relic field below");
+	// The relic's v15 on-disk record; per-player points follow it from SAVE_VERSION_RELIC_CP.
+	struct RelicRecord {
+		uint32_t id;
+		float x, z;
+		uint8_t civ;
+		int capture_cp;
+		bool claimed;
+		uint8_t owner_team = 255;
+	};
+	static_assert(sizeof(RelicRecord) == 24 && sizeof(S::Relic) == 24 + 4 * (MAX_PLAYERS + 1),
+	              "list the new Relic field below");
 	auto relic = [&](S::Relic &r) {
-		ar.padded(r, [&](S::Relic &d, const S::Relic &v) {
+		RelicRecord rec{r.id, r.x, r.z, r.civ, r.capture_cp, r.claimed, r.owner_team};
+		ar.padded(rec, [&](RelicRecord &d, const RelicRecord &v) {
 			d.id = v.id; d.x = v.x; d.z = v.z; d.civ = v.civ; d.capture_cp = v.capture_cp;
 			d.claimed = v.claimed; d.owner_team = v.owner_team;
 		});
+		if constexpr (Ar::loading) {
+			r.id = rec.id; r.x = rec.x; r.z = rec.z; r.civ = rec.civ; r.capture_cp = rec.capture_cp;
+			r.claimed = rec.claimed; r.owner_team = rec.owner_team;
+		}
+		if (ar.version >= S::SAVE_VERSION_RELIC_CP) {
+			ar.pod(r.cp);
+		} else if constexpr (Ar::loading) {
+			// Older saves kept the owner's points only; the rest go to Gaia.
+			const int owner = r.claimed && r.owner_team < MAX_PLAYERS ? r.owner_team : MAX_PLAYERS;
+			r.cp.fill(0.0f);
+			r.cp[owner] = std::clamp(r.capture_cp, 0, RELIC_CAPTURE_POINTS * 100) / 100.0f;
+			if (owner != MAX_PLAYERS) r.cp[MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS - r.cp[owner];
+		}
 	};
 	static_assert(sizeof(RecentDeath) == 16, "list the new RecentDeath field below");
 	auto death = [&](RecentDeath &r) {
@@ -20468,19 +20504,12 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 // An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
 void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-	const auto &uinfo = unit_info_at(u);
-	const float ra = rank_melee_armor(u); // unit_advanced.json / unit_elite.json
-	float hack_a = uinfo.hack_armor + ra, pierce_a = uinfo.pierce_armor + ra, crush_a = uinfo.crush_armor + ra;
-	if (units_.team[u] < MAX_PLAYERS && units_.unit_type[u] < UNIT_TYPE_COUNT) {
-		const float *armor = tech_mods(units_.team[u]).armor[units_.unit_type[u]];
-		hack_a += armor[0];
-		pierce_a += armor[1];
-		crush_a += armor[2];
-	}
-	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
-	                  info.crush_damage * powf(0.9f, crush_a);
-	if (!invulnerable(units_.id[u])) units_.hp[u] -= std::max(1.0f, dmg);
-	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, std::max(1.0f, dmg));
+	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
+	unit_resistance(u, res);
+	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
+	                  info.crush_damage * powf(0.9f, res[2]);
+	if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
+	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg);
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
@@ -20539,7 +20568,7 @@ void Simulation::tick_hunters() {
 			attack_done(i, in_reach, units_.attack_cooldown[i]);
 			dmg = unit_damage_to_fauna(i, f);
 		}
-		fauna_.hp[f] -= std::max(1.0f, dmg);
+		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i]);
 		if (fauna_.hp[f] > 0.0f) continue;
 
@@ -21060,8 +21089,15 @@ bool Simulation::can_capture_relic(size_t i, int32_t r) const {
 	const uint8_t team = units_.team[i];
 	if (team >= MAX_PLAYERS || units_.action_state[i] == ACTION_GARRISONED) return false;
 	if (units_.action_state[r] == ACTION_GARRISONED) return false;
-	// Capturable.CanCapture: only an enemy of the owner (Gaia is everyone's) captures.
-	return is_hostile(team, units_.team[r]) && unit_capture_attack_at(i) > 0.0f;
+	// Capturable.CanCapture: the captor's enemies (Gaia is everyone's) hold some points.
+	if (unit_capture_attack_at(i) <= 0.0f) return false;
+	for (const Relic &rel : relics_) {
+		if (rel.id != units_.id[r]) continue;
+		for (int t = 0; t <= MAX_PLAYERS; ++t)
+			if (rel.cp[t] > 0.0f && capture_enemy(team, t)) return true;
+		return false;
+	}
+	return is_hostile(team, units_.team[r]);
 }
 
 // UnitAI Attack with allowCapture: walk up to the catafalque and keep capturing it.
@@ -21092,9 +21128,8 @@ void Simulation::order_capture_relic(const uint32_t *unit_ids, size_t count, uin
 
 // Capture the Relic (template_unit_catafalque.xml, Capturable.js). Once a second each captor
 // within Capture range takes its Capture attack from the owner's points and the owner
-// regains RegenRate; at 0 the strongest captor's owner takes the relic with every point.
-// RTS0 keeps only the owner's points: 0 A.D. splits the rest among the captors, which
-// only matters when several players capture one relic at once.
+// regains RegenRate; at 0 the player holding most points takes the relic. Every player
+// keeps its own points (Relic::cp), as Capturable.js does.
 void Simulation::tick_relics() {
 	if (relics_.empty()) return;
 	const bool pulse = ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) == 0;
@@ -21106,14 +21141,18 @@ void Simulation::tick_relics() {
 			rel.civ = (uint8_t)(rel.id % CIV_COUNT);
 			rel.id = spawn_unit(rel.x, rel.z, owner, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(rel.civ));
 			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
+			rel.cp.fill(0.0f);
+			rel.cp[owner < MAX_PLAYERS ? owner : MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS;
 			r = lookup_unit(rel.id);
 			if (r < 0) continue;
 		}
 		// No Health: nothing wears it down.
 		units_.hp[r] = units_.max_hp[r];
 		if (units_.team[r] != (rel.claimed ? rel.owner_team : GAIA_PLAYER)) {
-			// Changed hands outside capture (a defeated owner's units turn Gaia).
-			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
+			// Changed hands outside capture (a defeated owner's units turn Gaia): the new
+			// owner holds every point.
+			rel.cp.fill(0.0f);
+			rel.cp[units_.team[r] < MAX_PLAYERS ? units_.team[r] : MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS;
 		}
 		float cap[MAX_PLAYERS] = {};
 		const float rr = unit_collision_radius(UNIT_CATAFALQUE);
@@ -21136,25 +21175,35 @@ void Simulation::tick_relics() {
 			if (pulse && can_capture_relic(i, r)) cap[units_.team[i]] += unit_capture_attack_at(i);
 		}
 		if (pulse) {
-			float total = 0.0f;
-			int best = -1;
-			for (int p = 0; p < MAX_PLAYERS; ++p) {
-				total += cap[p];
-				if (cap[p] > 0.0f && (best < 0 || cap[p] > cap[best])) best = p;
-			}
-			const int delta = (int)std::lround((RELIC_REGEN_RATE - total) * 100.0f);
-			rel.capture_cp = std::clamp(rel.capture_cp + delta, 0, RELIC_CAPTURE_POINTS * 100);
-			if (rel.capture_cp == 0 && best >= 0) {
-				// Capturable.js OnCapturePointsChanged: the new owner holds all the points.
-				units_.team[r] = (uint8_t)best;
+			// Capturable.js: each player's Capture attacks Reduce in its favour, then the owner
+			// regains RegenRate; an owner left with no points loses the relic to whoever holds
+			// most (RegisterCapturePointsChanged), and everyone keeps the points they took.
+			constexpr int GAIA = MAX_PLAYERS;
+			auto check_owner = [&]() {
+				const uint8_t team = units_.team[r];
+				const int owner = team < MAX_PLAYERS ? team : GAIA;
+				if (rel.cp[owner] > 0.0001f) return;
+				int best = 0;
+				for (int t = 1; t <= GAIA; ++t) if (rel.cp[t] > rel.cp[best]) best = t;
+				if (best == owner) return;
+				units_.team[r] = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
 				units_.has_order[r] = 0;
 				units_.target_unit_id[r] = 0;
 				units_.action_state[r] = ACTION_IDLE;
 				order_queues_.erase(rel.id);
 				set_order((size_t)r, ORDER_NONE, 0, 0, units_.pos_x[r], units_.pos_z[r]);
-				rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
-				raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, units_.pos_x[r], units_.pos_z[r], rel.id, (uint8_t)best);
-			}
+				if (best != GAIA)
+					raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, units_.pos_x[r], units_.pos_z[r], rel.id, (uint8_t)best);
+			};
+			for (int p = 0; p < MAX_PLAYERS; ++p)
+				if (cap[p] > 0.0f) { capture_reduce(rel.cp, p, cap[p]); check_owner(); }
+			const uint8_t team = units_.team[r];
+			capture_reduce(rel.cp, team < MAX_PLAYERS ? team : GAIA, (float)RELIC_REGEN_RATE);
+			check_owner();
+		}
+		{
+			const uint8_t team = units_.team[r];
+			rel.capture_cp = (int)std::lround(rel.cp[team < MAX_PLAYERS ? team : MAX_PLAYERS] * 100.0f);
 		}
 		rel.x = units_.pos_x[r];
 		rel.z = units_.pos_z[r];

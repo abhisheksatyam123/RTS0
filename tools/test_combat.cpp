@@ -32,6 +32,9 @@
 //     (0.5 s) after it reaches its foe, then every RepeatTime; an arrow flies at its
 //     shooter's Projectile Speed (at the distance scale) with a Gravity arc; an arrow
 //     that lands on another unit deals what the archer's attack does to that unit.
+// 14. Damage as GetTotalAttackEffects: no minimum (an archer barely scratches a ram);
+//     a unit's damage to structures follows its techs, rank and attack auras like its
+//     damage to units; capture strength is divided by 0.1 + 0.9 * hp / maxHp.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -680,6 +683,67 @@ static void test_timing_projectiles() {
 	}
 }
 
+// First hit of unit `u` on structure `bid` (hp lost), or -1.
+static float first_structure_hit(Simulation &s, uint32_t u, uint32_t bid) {
+	Simulation::Building *b = building(s, bid);
+	const float hp0 = b->hp;
+	s.order_attack_building(&u, 1, bid, false, false);
+	for (int k = 0; k < 600; ++k) {
+		s.tick(DT);
+		b = building(s, bid);
+		if (b->hp < hp0) return hp0 - b->hp;
+	}
+	return -1.0f;
+}
+
+static void test_damage_effects() {
+	std::printf("14. attack effects: no minimum, structures, capture\n");
+	{
+		Simulation s;
+		setup(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
+		uint32_t r = dummy(s, 10.0f, 0.0f, UNIT_SIEGE_RAM);
+		const float d = s.unit_attack_damage((size_t)idx(s, a), (size_t)idx(s, r));
+		std::printf("      archer on ram: %.3f per arrow\n", d);
+		check(d > 0.0f && d < 1.0f, "an archer's arrow does a fraction of a point to a ram (no minimum of 1)");
+	}
+	{
+		// The same spearman twice, the second with twice its attack (as a technology
+		// would give): its blow on a barracks doubles too.
+		float hit[2];
+		for (int k = 0; k < 2; ++k) {
+			Simulation s;
+			setup(s);
+			uint32_t bid = s.spawn_building_world(20.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+			uint32_t u = s.spawn_unit(20.0f - building(s, bid)->half_size - 1.5f, 0.0f, 0, UNIT_SPEARMAN);
+			if (k == 1) s.units_.attack_damage[idx(s, u)] *= 2.0f;
+			hit[k] = first_structure_hit(s, u, bid);
+		}
+		std::printf("      spearman on a barracks: %.3f, with twice the attack %.3f\n", hit[0], hit[1]);
+		check(hit[0] > 0.0f && std::fabs(hit[1] - 2.0f * hit[0]) < 1e-3f, "a stronger attack hits structures harder too");
+	}
+	{
+		float pts[2];
+		for (int k = 0; k < 2; ++k) {
+			Simulation s;
+			setup(s);
+			uint32_t bid = s.spawn_building_world(20.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+			Simulation::Building *b = building(s, bid);
+			if (k == 1) b->hp = b->max_hp * 0.5f;
+			uint32_t u = s.spawn_unit(20.0f - b->half_size - 1.0f, 0.0f, 0, UNIT_SPEARMAN);
+			s.order_attack_building(&u, 1, bid, false, true);
+			// The first blow's points, less one tick of the owner's regeneration.
+			pts[k] = 0.0f;
+			for (int t = 0; t < 400 && pts[k] <= 0.0f; ++t) {
+				s.tick(DT);
+				pts[k] = building(s, bid)->capture_points_by_team[0];
+			}
+		}
+		std::printf("      capture per blow: %.3f at full health, %.3f at half\n", pts[0], pts[1]);
+		check(pts[0] > 0.0f && std::fabs(pts[1] / pts[0] - 1.0f / 0.55f) < 0.02f, "a structure at half health is captured 1/0.55 times as fast");
+	}
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -694,6 +758,7 @@ int main() {
 	test_corner_reach();
 	test_structure_auras();
 	test_timing_projectiles();
+	test_damage_effects();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
