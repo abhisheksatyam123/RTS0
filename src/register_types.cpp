@@ -58,6 +58,7 @@ void uninitialize_rtso_module(ModuleInitializationLevel p_level) {
 	}
 	rtso::JobSystem::instance().stop();
 	rtso::ModelLibrary::clear();
+	RtsoWorldView::clear_terrain_caches();
 }
 
 extern "C" {

@@ -2040,9 +2040,22 @@ namespace {
 
 // 0 A.D. terrain name -> texture key (data/terrain/terrain_textures.json, written
 // by tools/map_0ad_terrains.py); the textures are assets/textures/terrain/<key>.png.
-const Dictionary &terrain_texture_table() {
+// The terrain caches below hold engine objects, so they are emptied when the
+// extension unloads (RtsoWorldView::clear_terrain_caches) rather than by static
+// destructors, which run after the engine is gone and crash on exit.
+Dictionary &terrain_texture_table_storage() {
 	static Dictionary table;
-	static bool loaded = false;
+	return table;
+}
+bool terrain_texture_table_loaded = false;
+std::unordered_map<std::string, Ref<Image>> &terrain_layer_cache() {
+	static std::unordered_map<std::string, Ref<Image>> cache;
+	return cache;
+}
+
+const Dictionary &terrain_texture_table() {
+	Dictionary &table = terrain_texture_table_storage();
+	bool &loaded = terrain_texture_table_loaded;
 	if (!loaded) {
 		loaded = true;
 		Ref<FileAccess> f = FileAccess::open("res://data/terrain/terrain_textures.json", FileAccess::READ);
@@ -2059,7 +2072,7 @@ const Dictionary &terrain_texture_table() {
 // and format), a plain earth tone when the texture is missing.
 constexpr int kTerrainLayerSize = 256;
 Ref<Image> terrain_layer_image(const String &name) {
-	static std::unordered_map<std::string, Ref<Image>> cache;
+	auto &cache = terrain_layer_cache();
 	const std::string key_s = name.utf8().get_data();
 	if (auto it = cache.find(key_s); it != cache.end()) return it->second;
 	const String key = terrain_texture_table().get(name, name);
@@ -2115,6 +2128,12 @@ void apply_terrain_tiles(const Ref<ShaderMaterial> &mat, const rtso::Simulation 
 }
 
 } // namespace
+
+void RtsoWorldView::clear_terrain_caches() {
+	terrain_layer_cache().clear();
+	terrain_texture_table_storage().clear();
+	terrain_texture_table_loaded = false;
+}
 
 void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	if (!sim || !terrain) return;

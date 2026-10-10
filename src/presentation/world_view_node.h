@@ -367,6 +367,10 @@ private:
 	void ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
+
+public:
+	// Empties the terrain texture caches; called when the extension unloads.
+	static void clear_terrain_caches();
 };
 
 #endif
