@@ -170,7 +170,7 @@ int main() {
 		s.cmd_delete(0, &f, 1);
 		const float back = s.player(0).res[RES_WOOD] - wood0;
 		std::printf("half-built house deleted: +%.0f wood\n", back);
-		CHECK(back == std::ceil(building_type_info(BLD_HOUSE).wood_cost * 0.5f));
+		CHECK(back == std::ceil(civ_building_type_info(s.player_civ(0), BLD_HOUSE).wood_cost * 0.5f));
 		// A finished structure gives nothing back.
 		const float wood1 = s.player(0).res[RES_WOOD];
 		uint32_t done = s.spawn_building_world(30.0f, 30.0f, BLD_HOUSE, 0, 1.0f);
