@@ -241,9 +241,9 @@ void RtsoMiniMapView::_draw() {
 			if (b.build_progress < 1.0f) continue;
 			Vector2 pos = map_to_mini(b.x, b.z);
 			float radius_m = 0.0f;
-			if (b.type == rtso::BLD_TOWN_CENTER) radius_m = 32.0f;
+			if (rtso::is_civic_centre(b.type)) radius_m = 32.0f;
 			else if (b.type == rtso::BLD_FORTRESS) radius_m = 28.0f;
-			else if (b.type == rtso::BLD_TOWER) radius_m = 18.0f;
+			else if (rtso::is_defense_tower(b.type)) radius_m = 18.0f;
 
 			if (radius_m > 0.0f) {
 				float r_px = (radius_m / (half_map * 2.0f)) * sz.x;
@@ -280,11 +280,11 @@ void RtsoMiniMapView::_draw() {
 		Color col = player_color(b.team);
 		float box_sz = 6.0f;
 
-		if (b.type == rtso::BLD_TOWN_CENTER) {
+		if (rtso::is_civic_centre(b.type)) {
 			box_sz = 9.0f;
 		} else if (b.type == rtso::BLD_BARRACKS) {
 			box_sz = 7.0f;
-		} else if (b.type == rtso::BLD_TOWER) {
+		} else if (rtso::is_defense_tower(b.type)) {
 			box_sz = 5.0f;
 		}
 
