@@ -1083,6 +1083,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else cfg.biome = BIOME_AEGEAN;
 	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
 	cfg.team_placement = team_placement_;
+	cfg.landscape = map_landscape_;
 
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);

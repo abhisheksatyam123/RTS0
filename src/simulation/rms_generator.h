@@ -123,6 +123,14 @@ public:
 		uint8_t teams[8] = {};
 		// Game Setup Team Placement (TEAM_PLACEMENT_*), for the maps that offer it.
 		uint8_t team_placement = TEAM_PLACEMENT_RANDOM;
+		// Game Setup Landscape of the Unknown map (0 A.D. unknown.json Landscapes):
+		// UNKNOWN_LANDSCAPE_RANDOM, _RANDOM_LAND, _RANDOM_NAVAL, or
+		// UNKNOWN_LANDSCAPE_FIRST + one landscape (synth_unknown's order).
+		uint8_t landscape = 0;
+	};
+	enum : uint8_t {
+		UNKNOWN_LANDSCAPE_RANDOM = 0, UNKNOWN_LANDSCAPE_RANDOM_LAND = 1, UNKNOWN_LANDSCAPE_RANDOM_NAVAL = 2,
+		UNKNOWN_LANDSCAPE_FIRST = 3, UNKNOWN_LANDSCAPE_COUNT = 13, // Archipelago .. Mainland
 	};
 
 	struct PlayerSpawn {
@@ -233,7 +241,8 @@ private:
 	static void synth_island_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_pompeii(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_latium(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
-	static void synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
+	static void synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams,
+	                          uint8_t landscape = 0);
 
 	// Fair entity & resource distribution
 	static void distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);

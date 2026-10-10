@@ -727,6 +727,33 @@ int main() {
 		CHECK(sim.can_barter(0));
 	}
 
+	// 27. Landscape (0 A.D. unknown.json Landscapes): Unknown builds the chosen
+	// landscape; Mainland has no water, Central Sea splits the map by water.
+	{
+		auto water_share = [](uint8_t landscape, uint32_t seed) {
+			Simulation sim;
+			sim.set_map_landscape(landscape);
+			sim.generate_random_map(MAP_UNKNOWN, seed, 2, 64.0f);
+			int wet = 0, all = 0;
+			for (float x = -60.0f; x <= 60.0f; x += 2.0f)
+				for (float z = -60.0f; z <= 60.0f; z += 2.0f) {
+					if (x * x + z * z > 58.0f * 58.0f) continue; // circular map
+					++all;
+					wet += sim.get_terrain_height(x, z) < sim.water_height();
+				}
+			return (float)wet / (float)all;
+		};
+		for (uint32_t seed : {3u, 11u}) {
+			CHECK(water_share(3 + 12, seed) == 0.0f);  // Mainland
+			CHECK(water_share(3 + 2, seed) > 0.10f);   // Naval: Central Sea
+		}
+		GameSetupParams gp, back;
+		gp.landscape = 3 + 12;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.landscape == 15);
+		gp.landscape = 0;
+		CHECK(format_game_start_full(gp).find("landscape=") == std::string::npos);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;
