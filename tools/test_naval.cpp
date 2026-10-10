@@ -823,6 +823,47 @@ static void test_dock_takes_all() {
 	CHECK(ok && s.player_resource(0, RES_WOOD) == 10);
 }
 
+// attackPlan.js isValidTarget (sameLand) and rushTargetFinder: an enemy structure on a
+// plateau no land unit can climb (another land, with no sea to it) is no target. A plan
+// sent there parked its army below the cliff and re-targeted every 25 s for ever.
+static void test_petra_unreachable_target() {
+	static Simulation s;
+	s.set_sim_seed(7);
+	s.reset();
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			const float mx = x - 30.0f, mz = z + 42.0f; // a sheer-sided mesa on the south land
+			h[(size_t)j * RES + i] = mx * mx + mz * mz < 12.0f * 12.0f ? 60.0f : height_at(x, z);
+		}
+	s.set_terrain_data(h, RES, 0.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+	for (uint8_t p = 0; p < 4; ++p) s.set_player_active(p, true, false);
+	s.set_team_civ(0, CIV_CARTHAGINIANS);
+	s.set_team_civ(1, CIV_ATHENIANS);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-30.0f, -40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t barracks = s.spawn_building_world(30.0f, -42.0f, BLD_BARRACKS, 0); // on the mesa
+	const uint32_t house = s.spawn_building_world(0.0f, -50.0f, BLD_HOUSE, 0);         // below it
+	run(s, 1.0f);
+	const uint16_t below = s.petra_land_at(-30.0f, -30.0f), top = s.petra_land_at(30.0f, -42.0f);
+	CHECK(below && top && below != top);
+	float tx = 0.0f, tz = 0.0f;
+	const uint32_t attack = s.find_petra_attack_target(tx, tz);
+	const uint32_t rush = s.find_petra_rush_target(tx, tz);
+	// An army standing on the mesa's land retargets only up there.
+	const uint32_t up_there = s.find_petra_attack_target(tx, tz, top);
+	std::printf("Petra attack targets with a barracks on a mesa: attack %s, rush %s, from the mesa %s\n",
+	            attack == house ? "the house below" : attack == barracks ? "the mesa barracks" : "none",
+	            rush == house ? "the house below" : rush == barracks ? "the mesa barracks" : "none",
+	            up_there == barracks ? "the barracks" : "other");
+	CHECK(attack == house && rush == house && up_there == barracks);
+}
+
 int main() {
 	test_transport();
 	test_dropsite_own_land();
@@ -836,6 +877,7 @@ int main() {
 	test_ship_leaves_shore_house();
 	test_petra_navy();
 	test_petra_overseas_attack();
+	test_petra_unreachable_target();
 	test_petra_overseas_base();
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
