@@ -17652,7 +17652,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_TRADITIONAL_ARMY_SELE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17706,7 +17706,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_REFORMED_ARMY_SELE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [

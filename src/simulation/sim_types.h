@@ -1459,7 +1459,9 @@ enum CivBonusStat : uint8_t {
 	CIV_BONUS_BUILDING_WOOD_COST = 3,
 	CIV_BONUS_BUILDING_STONE_COST = 4,
 	CIV_BONUS_BUILDING_CAPTURE_POINTS = 5,
-	CIV_BONUS_POP_CAP = 6
+	CIV_BONUS_POP_CAP = 6,
+	CIV_BONUS_BUILDING_LOOT_WOOD = 7,     // Loot/wood (Ptolemaic houses and economic structures, Seleucid fields)
+	CIV_BONUS_BUILDING_RESEARCH_TIME = 8 // Researcher/TechCostMultiplier/time (Macedonian storehouse: 0)
 };
 
 // An auto-researched 0 A.D. civ bonus acting on buildings or the player.

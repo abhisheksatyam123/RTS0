@@ -2883,6 +2883,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	if (player_id >= MAX_PLAYERS) return;
 	const PlayerState &ps = players_[player_id];
 	Civilization civ = ps.civ;
+	// Auto-researched civ bonuses on Researcher/TechCostMultiplier/time (mace_storehouse replaces it with 0).
+	for (int b = 0; b < BLD_TYPE_COUNT; ++b) m.bld_research_time[b] *= civ_bonus_mult(civ, CIV_BONUS_BUILDING_RESEARCH_TIME, (uint8_t)b);
 	// One modification (a technology's effect row or a relic aura's) on every unit type,
 	// roster template and building type it applies to.
 	auto apply_mod = [&](const TechEffect &e, auto &&applies) {
@@ -6216,7 +6218,9 @@ void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, si
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
-	collect_loot(looter_id, looter_player, building_loot(b.type), 1.0f, RES_COUNT, 0);
+	LootInfo loot = building_loot(b.type);
+	loot.wood *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_LOOT_WOOD, b.type); // ptol_structures, sele_farms
+	collect_loot(looter_id, looter_player, loot, 1.0f, RES_COUNT, 0);
 }
 
 void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t entity_id, uint8_t team) {

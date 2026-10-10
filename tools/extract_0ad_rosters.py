@@ -758,12 +758,12 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
 BUILDING_CLASS = {
     "Structure": BUILDING_BITS,
     "Wall": ["BLD_WALL_SEGMENT", "BLD_GATE", "BLD_WALL_TOWER"],
-    "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER"], "Field": ["BLD_FIELD"],
+    "Tower": ["BLD_TOWER", "BLD_SENTRY_TOWER", "BLD_TOWER_GREAT"], "Field": ["BLD_FIELD"],
     "Storehouse": ["BLD_STOREHOUSE"],
     "House": ["BLD_HOUSE"],
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"],
-    "CivCentre": ["BLD_TOWN_CENTER"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
-    "CivilCentre": ["BLD_TOWN_CENTER"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
     "Barracks": ["BLD_BARRACKS"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {
@@ -771,6 +771,8 @@ BUILDING_STAT = {
     "Cost/Resources/wood": "CIV_BONUS_BUILDING_WOOD_COST",
     "Cost/Resources/stone": "CIV_BONUS_BUILDING_STONE_COST",
     "Capturable/CapturePoints": "CIV_BONUS_BUILDING_CAPTURE_POINTS",
+    "Loot/wood": "CIV_BONUS_BUILDING_LOOT_WOOD",
+    "Researcher/TechCostMultiplier/time": "CIV_BONUS_BUILDING_RESEARCH_TIME",
 }
 
 
@@ -798,6 +800,8 @@ def player_bonus_rows(bonuses):
         for m in b["modifications"]:
             v = m.get("value")
             mult = m.get("multiply")
+            if mult is None and v == "Researcher/TechCostMultiplier/time":
+                mult = m.get("replace")  # the multiplier defaults to 1, so replace is multiply
             if mult is None:
                 continue
             if v == "Player/MaxPopulation":
