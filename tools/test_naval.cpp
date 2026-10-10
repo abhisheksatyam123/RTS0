@@ -220,6 +220,15 @@ static void test_fishing() {
 	int32_t lone_amount = 0;
 	const uint8_t *sub = subtype_of(s, lone, &lone_amount);
 	CHECK(sub && *sub == RES_SUB_FISH && lone_amount == 560);
+	// A boat still on its way doesn't stop the regrowth: only boats at the fish count
+	// (ResourceSupply State notGathered reads activeGatherers).
+	const uint32_t late = s.spawn_unit(-10.0f, -6.0f, 0, UNIT_FISHING_BOAT);
+	s.order_gather(&late, 1, lone);
+	run(s, 4.0f);
+	subtype_of(s, lone, &lone_amount);
+	const int32_t li = s.lookup_unit(late);
+	std::printf("fishing: a boat sailing to the untouched fish (at x %.1f), which regrows to %d\n", s.units().pos_x[li], lone_amount);
+	CHECK(gather_target(s, late) == lone && lone_amount == 562);
 
 	// A boat whose fish runs out moves on to the nearest fish on its sea.
 	static Simulation t;
