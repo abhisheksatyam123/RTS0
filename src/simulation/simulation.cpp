@@ -7077,6 +7077,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	if (!grid.build(arena, n, px, pz, idle, map_half_)) return;
 
 	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
+	constexpr float RANGE_CORNER = 32.0f / 4.0f; // a search on from a corner
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(0.2f / dt)); // 0 A.D. turns last 200 ms
 	const uint32_t key = idle_path_key(), corner_key = idle_corner_key(), stuck_key = idle_stuck_key();
 	const nav::Vec2 U(1.0f, 0.0f), V(0.0f, 1.0f); // unit obstructions are axis-aligned squares
@@ -7177,12 +7178,13 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			if (walk_in_reach(i, x0, z0)) return;
 			blocked[i] = 1;
 			// A short path on the unit's own tick of each turn. One stuck for more than four turns, or
-			// whose last search found no way from where it still stands, searches every fourth turn:
-			// that keeps a crowd's cost down while it waits for the units in its way to leave.
+			// whose last search found no way from where it still stands, searches every fourth turn,
+			// one stuck for more than 12 every eighth and one stuck for more than 24 every 16th: units
+			// boxed in by idle ones can wait there for minutes, and their searches cost the most.
 			const float sx = x0 - memo.x, sz = z0 - memo.z;
 			const bool no_way = memo.key == stuck_key && sx * sx + sz * sz < 0.25f &&
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
-			const uint64_t turn_ticks = failed > 4 || no_way ? per_turn * 4 : per_turn;
+			const uint64_t turn_ticks = per_turn * (failed > 24 ? 16 : failed > 12 ? 8 : failed > 4 || no_way ? 4 : 1);
 			if (!from_corner && (ticks_ + units_.id[i]) % turn_ticks != 0) return;
 		} else if (!from_corner) {
 			return;
@@ -7193,9 +7195,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			if (!step_blocked(x0 + tx * t, z0 + tz * t)) return;
 		}
 
-		// From a corner it looks as far as it may: the unit no longer remembers the range that found
-		// the way to it, and a shorter one could lead back to where it was stuck.
-		const float range = from_corner ? RANGE_MAX
+		// From a corner it looks 32 m round: the unit no longer remembers the range that found the
+		// way to it, and a short one could lead back to where it was stuck.
+		const float range = from_corner ? RANGE_CORNER
 				: std::min(RANGE_MAX, RANGE_MIN + RANGE_STEP * (float)std::max(0, (int)failed - 1));
 		thread_local std::vector<nav::ShortPathSquare> squares;
 		squares.clear();
