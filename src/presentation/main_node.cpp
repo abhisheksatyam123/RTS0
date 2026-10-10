@@ -117,6 +117,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
 	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
 	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
+	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
@@ -1369,6 +1370,34 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	for (int i = 0; i < production_bar->get_child_count(); ++i)
 		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) out.push_back(btn->get_text());
 	return out;
+}
+
+// Test hook: selects the local player's first unit that can build (step one
+// call) and reports the command button whose text starts with `prefix`: its
+// instance id, global rect and whether build placement is active.
+Dictionary RtsoMain::debug_command_button(const String &prefix) {
+	Dictionary d;
+	if (!sim) return d;
+	if (selected_ids.is_empty()) {
+		auto uview = sim->units();
+		for (size_t i = 0; i < uview.count; ++i) {
+			if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+			if (uview.unit_type[i] != rtso::UNIT_FEMALE_CITIZEN && uview.unit_type[i] != rtso::UNIT_VILLAGER) continue;
+			clear_selection();
+			selected_ids.push_back((int32_t)uview.id[i]);
+			break;
+		}
+	}
+	d["build_mode"] = build_mode;
+	for (int i = 0; i < production_bar->get_child_count(); ++i) {
+		Button *btn = Object::cast_to<Button>(production_bar->get_child(i));
+		if (!btn || !btn->get_text().begins_with(prefix)) continue;
+		d["id"] = (int64_t)btn->get_instance_id();
+		d["rect"] = btn->get_global_rect();
+		d["disabled"] = btn->is_disabled();
+		break;
+	}
+	return d;
 }
 
 // Test hook: step 0 places a barracks with a rally point and selects it; step 1
@@ -3079,17 +3108,12 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 void RtsoMain::update_command_panel() {
 	if (!command_panel) return;
 
-	// Clear existing dynamic buttons in actions_bar and production_bar
-	TypedArray<Node> act_children = actions_bar->get_children();
-	for (int i = 0; i < act_children.size(); ++i) {
-		Node *n = Object::cast_to<Node>(act_children[i]);
-		if (n) { actions_bar->remove_child(n); memdelete(n); }
-	}
-	TypedArray<Node> prod_children = production_bar->get_children();
-	for (int i = 0; i < prod_children.size(); ++i) {
-		Node *n = Object::cast_to<Node>(prod_children[i]);
-		if (n) { production_bar->remove_child(n); memdelete(n); }
-	}
+	// The buttons are built after the current ones each frame, then
+	// keep_command_buttons() keeps whichever set is older when both look and
+	// act the same. Replacing them every frame meant a click's press landed on
+	// one Button and its release on the next, so pressed never fired.
+	const int old_actions = actions_bar->get_child_count();
+	const int old_production = production_bar->get_child_count();
 
 	if (selected_building_id != 0) {
 		const auto &bldgs = sim->buildings();
@@ -3545,6 +3569,44 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 		}
+	}
+	keep_command_buttons(actions_bar, old_actions);
+	keep_command_buttons(production_bar, old_production);
+}
+
+// Everything that makes a command button look or act differently: its text,
+// tooltip, enabled state, icon, size, overrides and what pressed calls.
+static String command_button_signature(Node *n) {
+	Button *b = Object::cast_to<Button>(n);
+	if (!b) return n ? n->get_class() : String();
+	String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
+	Ref<Texture2D> ico = b->get_button_icon();
+	if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
+	s += String("\x1fm") + String(Variant(b->get_custom_minimum_size()));
+	if (b->has_theme_color_override("font_color")) s += String("\x1fc") + String(Variant(b->get_theme_color("font_color")));
+	if (b->has_theme_font_size_override("font_size")) s += String("\x1ff") + String::num_int64(b->get_theme_font_size("font_size"));
+	TypedArray<Dictionary> conns = b->get_signal_connection_list("pressed");
+	for (int i = 0; i < conns.size(); ++i) {
+		Callable c = Dictionary(conns[i])["callable"];
+		s += String("\x1fp") + String(c.get_method()) + String(Variant(c.get_bound_arguments()));
+	}
+	return s;
+}
+
+// bar holds the previous frame's buttons (the first `old_count`) followed by
+// this frame's. Keep the old ones when the two sets match, so a press and its
+// release reach the same Button; otherwise swap in the new ones.
+void RtsoMain::keep_command_buttons(Control *bar, int old_count) {
+	const int total = bar->get_child_count();
+	const int fresh = total - old_count;
+	bool same = fresh == old_count;
+	for (int i = 0; same && i < old_count; ++i)
+		same = command_button_signature(bar->get_child(i)) == command_button_signature(bar->get_child(old_count + i));
+	const int from = same ? old_count : 0, to = same ? total : old_count;
+	for (int i = to - 1; i >= from; --i) {
+		Node *n = bar->get_child(i);
+		bar->remove_child(n);
+		memdelete(n);
 	}
 }
 

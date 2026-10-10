@@ -395,6 +395,7 @@ public:
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
+	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
@@ -437,6 +438,7 @@ private:
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();
+	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
