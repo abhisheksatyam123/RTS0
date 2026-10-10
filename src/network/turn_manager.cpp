@@ -1271,7 +1271,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 6) { // Train
 			// At a corral target_x names the animal (corral Trainer list); 0 is the civ's default.
 			if (c.param == UNIT_TYPE_NONE && c.target_x > 0.0f)
-				sim.cmd_breed_livestock(pl, c.target_id, (uint8_t)c.target_x);
+				sim.cmd_breed_livestock(pl, c.target_id, (uint8_t)c.target_x, batch_count(c.target_z));
 			else
 				sim.cmd_train(pl, c.target_id, (UnitType)c.param, batch_count(c.target_z));
 		} else if (c.cmd_type == 7) { // Stance
