@@ -132,8 +132,9 @@ void build_world(Simulation &s, uint32_t seed, ScriptRefs &refs) {
     refs.enemy_buildings.push_back(e_tc);
     refs.enemy_buildings.push_back(e_barracks);
     refs.enemy_buildings.push_back(s.spawn_building_world(34.0f, -6.0f, BLD_TOWER, 1, 1.0f));
-    // Neutral team-2 wonder so victory/capture paths run.
-    refs.enemy_buildings.push_back(s.spawn_building_world(0.0f, 0.0f, BLD_WONDER, 2, 1.0f));
+    // Neutral team-2 wonder so victory/capture paths run. South of the field: its
+    // territory (TerritoryInfluence 100 m) would otherwise cover the middle of the map.
+    refs.enemy_buildings.push_back(s.spawn_building_world(0.0f, -44.0f, BLD_WONDER, 2, 1.0f));
 
     // --- Units -------------------------------------------------------------
     for (int i = 0; i < 6; ++i) {

@@ -572,13 +572,14 @@ static void test_structure_auras() {
 	check(std::fabs(l2.buildings_[l2.building_id_to_idx_[store2]].queue.front().duration - time_plain * 0.85f) < 1e-3f,
 		"library: tech time x0.85");
 	l2.rebuild_territory();
+	const float cc_r = territory_influence_info(BLD_TOWN_CENTER).radius; // 140 m (TerritoryInfluence)
 	float cc_plain = 0.0f;
-	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_plain = r.radius;
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= cc_r) cc_plain = r.radius;
 	l2.spawn_building_world(-10.0f, -40.0f, BLD_THEATER, 0, 1.0f);
 	l2.rebuild_territory();
 	float cc_theater = 0.0f;
-	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_theater = r.radius;
-	check(cc_plain == 32.0f && std::fabs(cc_theater - 32.0f * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= cc_r) cc_theater = r.radius;
+	check(cc_plain == cc_r && std::fabs(cc_theater - cc_r * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
 
 	// Hippocrates' Hippocratic Oath: own and allied healers +1 health per heal, anywhere.
 	Simulation h;

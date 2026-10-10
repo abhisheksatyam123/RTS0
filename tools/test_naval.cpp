@@ -859,6 +859,9 @@ static void test_petra_unreachable_target() {
 	s.spawn_building_world(-30.0f, -40.0f, BLD_TOWN_CENTER, 1);
 	const uint32_t barracks = s.spawn_building_world(30.0f, -42.0f, BLD_BARRACKS, 0); // on the mesa
 	const uint32_t house = s.spawn_building_world(0.0f, -50.0f, BLD_HOUSE, 0);         // below it
+	// Player 0's own Civic Center, out of the 80 m defended radius of both: its territory
+	// connects them, so neither decays (TerritoryDecay.js) and drops out as a target.
+	s.spawn_building_world(25.0f, -63.0f, BLD_TOWN_CENTER, 0);
 	run(s, 1.0f);
 	const uint16_t below = s.petra_land_at(-30.0f, -30.0f), top = s.petra_land_at(30.0f, -42.0f);
 	CHECK(below && top && below != top);

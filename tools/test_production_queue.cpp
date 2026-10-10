@@ -425,12 +425,13 @@ int main() {
 		for (int k = 0; k < 27; ++k) s.spawn_unit(10.0f + (k % 9), -10.0f - k / 9, 0, UNIT_SPEARMAN);
 		CHECK(s.pop_current(0) == s.pop_max(0));
 		s.set_player_resources(0, 1000, 1000, 1000, 1000);
-		const uint32_t b = s.spawn_building_world(-30.0f, -30.0f, BLD_BARRACKS, 0, 1.0f);
+		// In the Civic Centre's territory: alone it would decay to Gaia (TerritoryDecay.js).
+		const uint32_t b = s.spawn_building_world(55.0f, 15.0f, BLD_BARRACKS, 0, 1.0f);
 		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 2)); // queued and paid at the cap
 		CHECK(s.player(0).res[RES_FOOD] < 1000.0f);
 		run(s, 30.0f);
 		CHECK(bld(s, b).queue.size() == 1 && !bld(s, b).queue.front().started);
-		s.spawn_building_world(20.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+		s.spawn_building_world(20.0f, 10.0f, BLD_HOUSE, 0, 1.0f);
 		run(s, 30.0f);
 		CHECK(bld(s, b).queue.empty() && s.pop_current(0) == 32);
 		std::printf("population: CC 20, athen house 10, hero 0, ram 3; a batch at the cap waits for a house\n");
