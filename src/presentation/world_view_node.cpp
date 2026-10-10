@@ -1948,7 +1948,7 @@ void RtsoWorldView::build_ground_paint(const rtso::Simulation *sim) {
 // Per-map sun, ambient light, fog, sky and water, from the Environment block
 // of the 0 A.D. random-map biome each RTS0 biome follows
 // (maps/random/rmbiome/generic/*.json, named after each row).
-void RtsoWorldView::apply_biome_environment(const std::string &biome) {
+void RtsoWorldView::apply_biome_environment(const std::string &biome, const std::string &map_id) {
 	struct Rgb { float r, g, b; };
 	struct Env {
 		const char *biome;
@@ -1978,6 +1978,33 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome) {
 	const Env *e = &kEnvs[0];
 	for (const auto &x : kEnvs)
 		if (biome == x.biome) { e = &x; break; }
+	// A ported 0 A.D. scenario carries its own Environment block
+	// (tools/port_0ad_maps.py "environment"); it wins over the biome's.
+	Env own = *e;
+	std::string own_sky;
+	{
+		const String path = "res://data/maps/" + String(map_id.c_str()) + ".json";
+		Ref<FileAccess> f = FileAccess::file_exists(path) ? FileAccess::open(path, FileAccess::READ) : Ref<FileAccess>();
+		const Variant root = f.is_valid() ? JSON::parse_string(f->get_as_text()) : Variant();
+		const Dictionary env = root.get_type() == Variant::DICTIONARY ? Dictionary(Dictionary(root).get("environment", Dictionary())) : Dictionary();
+		if (!env.is_empty()) {
+			auto rgb = [&](const char *key, Rgb &out) {
+				const Array a = env.get(key, Array());
+				if (a.size() == 3) out = { (float)a[0], (float)a[1], (float)a[2] };
+			};
+			rgb("sun_color", own.sun);
+			rgb("ambient_color", own.ambient);
+			rgb("fog_color", own.fog);
+			rgb("water_color", own.water_color);
+			rgb("water_tint", own.water_tint);
+			own.sun_elevation = (float)env.get("sun_elevation", own.sun_elevation);
+			own.sun_rotation = (float)env.get("sun_rotation", own.sun_rotation);
+			own.murkiness = (float)env.get("water_murkiness", own.murkiness);
+			own_sky = String(env.get("sky_set", String(own.sky))).utf8().get_data();
+			own.sky = own_sky.c_str();
+			e = &own;
+		}
+	}
 	auto col = [](const Rgb &c, float k = 1.0f) { return Color(c.r * k, c.g * k, c.b * k, 1.0f); };
 
 	Node *scene = get_parent();
@@ -2242,7 +2269,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	} else if (water_mesh_node) {
 		water_mesh_node->set_visible(false);
 	}
-	apply_biome_environment(sim->current_map_biome());
+	apply_biome_environment(sim->current_map_biome(), sim->current_map_id());
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {

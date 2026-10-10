@@ -469,7 +469,8 @@ static void test_attack_plans() {
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			for (const auto &plan : s->petra_started_attacks()) {
-				if (plan.state != Simulation::AttackPlan::WALKING) continue;
+				// A rush that musters within reach of its target attacks on the tick it sets out.
+				if (plan.state != Simulation::AttackPlan::WALKING && plan.state != Simulation::AttackPlan::ATTACKED) continue;
 				if (plan.kind == PETRA_ATTACK_RUSH && s->petra_phase() == 1) {
 					rushed = true;
 					rush_at_store |= plan.target_building_id == store;
