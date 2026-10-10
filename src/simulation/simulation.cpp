@@ -9226,8 +9226,8 @@ float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 
 // Projectile p lands on animal f: what its shooter's attack does to the animal (a
 // structure's arrow at an animal was worked out when fired). The animal answers
-// (fauna_attacked); tick_fauna leaves the carcass of one that dies, and the shooter
-// gets its Loot xp.
+// (fauna_attacked); one a unit kills is its kill (fauna_killed), any other leaves its
+// carcass in tick_fauna.
 void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 	const int32_t src = lookup_unit(p.source_id);
 	float dmg = p.damage;
@@ -9243,10 +9243,7 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 	}
 	fauna_.hp[f] -= dmg;
 	fauna_attacked(f, src >= 0 ? p.source_id : 0);
-	if (fauna_.hp[f] <= 0.0f && src >= 0) {
-		const float xp = fauna_type_info(fauna_.fauna_type[f]).loot_xp;
-		units_.xp[src] = (uint16_t)std::min(65535.0f, (float)units_.xp[src] + xp);
-	}
+	if (fauna_.hp[f] <= 0.0f && src >= 0) fauna_killed(f, (size_t)src);
 }
 
 // 0 A.D. DelayedDamage.js Hit: a unit's projectile damages its target only if it lands
@@ -20579,37 +20576,71 @@ void Simulation::tick_hunters() {
 			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
 		} else {
 			attack_done(i, in_reach, units_.attack_cooldown[i]);
+			if (template_has_ranged_attack(units_.tmpl[i], ut, civ_of(units_.team[i]))) {
+				// Attack.js PerformAttack: a ranged hunter's javelin or arrow flies at where
+				// the animal will be, scattered by Spread; it hurts what it lands on
+				// (tick_projectiles, projectile_hits_fauna).
+				fire_at_fauna(i, f);
+				continue;
+			}
 			dmg = unit_damage_to_fauna(i, f);
 		}
 		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i]);
 		if (fauna_.hp[f] > 0.0f) continue;
+		fauna_killed(f, i);
+	}
+}
 
-		// The kill: Looter.js grants the animal's Loot xp; the carcass becomes a meat supply.
-		units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
-		fauna_.alive[f] = 0;
-		fauna_.behavior[f] = FAUNA_CARCASS;
-		uint32_t rid = 0;
-		if (fauna_.food_amount[f] > 0)
-			rid = spawn_resource_world(fx, fz, RES_FOOD, fauna_.food_amount[f], RES_SUB_MEAT, finfo.max_gatherers);
-		for (size_t h = 0; h < n; ++h) {
-			if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
-			units_.target_unit_id[h] = 0;
-			// A fight that broke off an order goes back to it (FINDINGNEWTARGET FinishOrder).
-			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
-					!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
-				order_gather(&units_.id[h], 1, rid, false, false);
-			} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
-					!unit_is_ship(units_.unit_type[h])) {
-				// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
-				// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
-				units_.order_flags[h] |= ORDER_FLAG_CHEER;
-				units_.action_state[h] = ACTION_ATTACK;
-				units_.has_order[h] = 0;
-			} else {
-				units_.action_state[h] = ACTION_IDLE;
-				units_.has_order[h] = 0;
-			}
+// Unit i launches its ranged attack at animal f (Attack.js PerformAttack, as at units).
+void Simulation::fire_at_fauna(size_t i, size_t f) {
+	const uint8_t ut = units_.unit_type[i];
+	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+	const float dist = std::hypot(fx - units_.pos_x[i], fz - units_.pos_z[i]);
+	const uint8_t vis = ut == UNIT_CATAPULT ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
+	const float flight = dist / projectile_speed_of(units_.id[i], vis);
+	const float aim_x = fx + fauna_.vel_x[f] * flight, aim_z = fz + fauna_.vel_z[f] * flight;
+	const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], ut, units_.tmpl[i]).spread : 1.0f;
+	const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
+	float disp_x = 0.0f, disp_z = 0.0f;
+	random_normal_2d(disp_x, disp_z);
+	const float lx = aim_x + disp_x * sigma, lz = aim_z + disp_z * sigma;
+	fire_arrow(units_.pos_x[i], unit_height(i) + 1.4f, units_.pos_z[i], lx, get_terrain_height(lx, lz) + 0.8f, lz,
+			unit_damage_to_fauna(i, f), units_.team[i], fauna_.id[f], 0, 1, false, vis, units_.id[i],
+			unit_splash(units_.tmpl[i], ut));
+}
+
+// Animal f killed by unit i: Looter.js grants the animal's Loot xp, the carcass becomes a
+// meat supply, and everyone hunting it goes on: gatherers to the carcass, the killer of a
+// dangerous animal to a cheer.
+void Simulation::fauna_killed(size_t f, size_t i) {
+	const size_t n = units_.count;
+	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
+	const uint32_t tid = fauna_.id[f];
+	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+	units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
+	fauna_.alive[f] = 0;
+	fauna_.behavior[f] = FAUNA_CARCASS;
+	uint32_t rid = 0;
+	if (fauna_.food_amount[f] > 0)
+		rid = spawn_resource_world(fx, fz, RES_FOOD, fauna_.food_amount[f], RES_SUB_MEAT, finfo.max_gatherers);
+	for (size_t h = 0; h < n; ++h) {
+		if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
+		units_.target_unit_id[h] = 0;
+		// A fight that broke off an order goes back to it (FINDINGNEWTARGET FinishOrder).
+		if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
+				!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
+			order_gather(&units_.id[h], 1, rid, false, false);
+		} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
+				!unit_is_ship(units_.unit_type[h])) {
+			// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
+			// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
+			units_.order_flags[h] |= ORDER_FLAG_CHEER;
+			units_.action_state[h] = ACTION_ATTACK;
+			units_.has_order[h] = 0;
+		} else {
+			units_.action_state[h] = ACTION_IDLE;
+			units_.has_order[h] = 0;
 		}
 	}
 }

@@ -39,6 +39,8 @@
 //     structure that lands on a unit hurts the unit, one aimed at a unit that lands in an
 //     enemy structure hurts the structure, each by the shooter's attack against its own
 //     armour at impact; one landing on nothing misses; arrows at structures scatter.
+// 16. A ranged hunter shoots arrows at the animal (Attack.js PerformAttack); the one that
+//     kills it gives the archer its Loot xp and the archer goes on to gather the carcass.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -813,6 +815,32 @@ static void test_projectile_landing() {
 	}
 }
 
+static void test_ranged_hunting() {
+	std::printf("16. ranged hunters shoot projectiles at animals\n");
+	Simulation s;
+	setup(s);
+	uint32_t archer = s.spawn_unit(-40.0f, -40.0f, 0, UNIT_ARCHER);
+	uint32_t deer = s.spawn_fauna(-28.0f, -40.0f, FAUNA_DEER);
+	const uint16_t xp0 = s.units_.xp[idx(s, archer)];
+	s.order_hunt(&archer, 1, deer);
+	std::set<uint32_t> shots;
+	bool dead = false;
+	for (int k = 0; k < 1200 && !dead; ++k) {
+		s.tick(DT);
+		for (const Projectile &p : s.projectiles_)
+			if (p.source_id == archer && p.target_unit_id == deer) shots.insert(p.id);
+		const auto it = s.fauna_id_to_idx_.find(deer);
+		dead = it == s.fauna_id_to_idx_.end() || !s.fauna_.alive[it->second];
+	}
+	for (int k = 0; k < 50; ++k) s.tick(DT);
+	const int a = idx(s, archer);
+	const uint8_t st = s.units_.action_state[a];
+	std::printf("      %zu shots, deer dead %d, xp %d -> %d, archer state %d\n", shots.size(), (int)dead, xp0, s.units_.xp[a], st);
+	check(!shots.empty(), "an archer hunting a deer shoots arrows at it");
+	check(dead && s.units_.xp[a] == xp0 + fauna_type_info(FAUNA_DEER).loot_xp, "the arrow that kills it gives the archer its Loot xp");
+	check(st == ACTION_GATHER || st == ACTION_MOVE || st == ACTION_RETURN_DROPSITE, "the archer goes on to gather the carcass");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -829,6 +857,7 @@ int main() {
 	test_timing_projectiles();
 	test_damage_effects();
 	test_projectile_landing();
+	test_ranged_hunting();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

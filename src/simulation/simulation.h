@@ -1759,6 +1759,8 @@ private:
 	int32_t projectile_hit_fauna(const Projectile &p) const;
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
+	void fire_at_fauna(size_t i, size_t f);
+	void fauna_killed(size_t f, size_t i);
 	bool projectile_lands_in(const Projectile &p, const Building &b) const;
 	int32_t projectile_hit_structure(const Projectile &p) const;
 	void projectile_hits_structure(const Projectile &p, Building &b);
