@@ -559,23 +559,38 @@ void Simulation::reset() {
 	aura_timer_ = 0.0f;
 }
 
+// A queued batch's population (Trainer.js Item: count x Cost/Population).
+int Simulation::order_pop(const ProductionOrder &o, uint8_t player) const {
+	if (o.is_tech() || o.unit_type >= UNIT_TYPE_COUNT) return 0;
+	const uint16_t tmpl = o.tmpl != CIV_UNIT_TEMPLATE_NONE ? o.tmpl : civ_default_template(civ_of(player), o.unit_type);
+	return o.count * unit_pop_cost(tmpl, o.unit_type);
+}
+
 int Simulation::pop_current(uint8_t player) const {
+	// Player.js popUsed: each unit's Cost/Population.
 	int count = 0;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.team[i] == player && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) count++;
+		if (units_.team[i] == player && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED))
+			count += unit_pop_cost(units_.tmpl[i], units_.unit_type[i]);
 	}
 	// Player.js TryReservePopulationSlots: a started batch already holds its population.
 	for (const auto &b : buildings_)
-		if (b.team == player && !b.queue.empty() && b.queue.front().started) count += b.queue.front().count;
+		if (b.team == player && !b.queue.empty() && b.queue.front().started) count += order_pop(b.queue.front(), player);
 	return count;
 }
 
+// Population/Bonus of a finished structure for its owner (the big house for nine civs,
+// Population/Bonus technologies).
+int Simulation::structure_pop_bonus(uint8_t type, uint8_t player) const {
+	const int base = civ_building_type_info(civ_of(player), type).pop_bonus;
+	return base ? (int)std::lround(base * tech_mods(player).bld_pop_bonus[type]) : 0;
+}
+
 int Simulation::pop_max_uncapped(uint8_t player) const {
-	int cap = 10;
+	// Player.js popBonuses start at 0: a Civic Centre gives 20, houses 5 or 10.
+	int cap = 0;
 	for (const auto &b : buildings_) {
-		if (b.team == player && b.build_progress >= 1.0f) {
-			cap += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(player).bld_pop_bonus[b.type]);
-		}
+		if (b.team == player && b.build_progress >= 1.0f) cap += structure_pop_bonus(b.type, player);
 	}
 	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus;
 	return cap;
@@ -1952,7 +1967,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 }
 
 bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float cost_override) {
-	const BuildingTypeInfo &binfo = building_type_info(b_type);
+	const BuildingTypeInfo binfo = civ_building_type_info(civ_of(player), b_type);
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
 	// Team bonuses (e.g. Persian Training Regimes, Mauryan temples) from the player and its allies.
@@ -2308,7 +2323,8 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
-	if (pop_current(player_id) >= pop_max(player_id)) return false;
+	// Trainer.js queues and pays at the population cap; the batch waits at the front of
+	// the queue for room (Player.BlockTraining) in tick_production.
 	if (!can_train_at(player_id, t.unit_type, b.type, tmpl)) return false;
 	// EntityLimits.js AllowedToTrain(category, count): the whole batch must fit.
 	if (count > 1 && !entity_limit_allows_unit(player_id, t.unit_type, tmpl, count)) return false;
@@ -2587,7 +2603,7 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 }
 
 float Simulation::structure_max_hp(uint8_t type, uint8_t team) const {
-	float hp = building_type_info(type).max_hp;
+	float hp = civ_building_type_info(civ_of(team), type).max_hp;
 	if (team < MAX_PLAYERS) {
 		// 0 A.D. civ structure bonuses (Hellenic Architecture, Wooden Construction, walls, ...)
 		hp *= civ_bonus_mult(civ_of(team), CIV_BONUS_BUILDING_HP, type);
@@ -7839,7 +7855,7 @@ float Simulation::structure_build_time(const Building &b, uint8_t builder_team) 
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
 	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
 	const float piece = wallset_piece_value(type, b.half_size, 2);
-	const float base = piece > 0.0f ? piece : building_type_info(type).build_time;
+	const float base = piece > 0.0f ? piece : civ_building_type_info(civ_of(b.team), type).build_time;
 	float t = base * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
 	t *= civ_bonus_mult(civ_of(builder_team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
 	t *= team_bonus_mult(builder_team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
@@ -8039,7 +8055,7 @@ void Simulation::tick_production(float dt) {
 		ProductionOrder &order = b.queue.front();
 		const bool animal = b.type == BLD_CORRAL || order.unit_type == UNIT_TYPE_NONE;
 		if (!order.is_tech() && !animal && !order.started) {
-			if (bteam < MAX_PLAYERS && pop_current(bteam) + order.count > pop_max(bteam)) continue;
+			if (bteam < MAX_PLAYERS && pop_current(bteam) + order_pop(order, bteam) > pop_max(bteam)) continue;
 			order.started = true;
 		}
 		order.timer += dt;
@@ -12692,7 +12708,7 @@ int Simulation::petra_pop_room() const {
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_) continue;
 		for (const auto &o : b.queue)
-			if (!o.started && !o.is_tech() && o.unit_type < UNIT_TYPE_COUNT) queued += o.count;
+			if (!o.started) queued += order_pop(o, petra_pid_);
 	}
 	return pop_max(petra_pid_) - pop_current(petra_pid_) - queued;
 }
@@ -14956,8 +14972,8 @@ void Simulation::petra_manage_buildings(float dt) {
 		if (limit <= 0 || pop_max_uncapped(petra_pid_) < limit) {
 			int free_slots = pop_max(petra_pid_) - pop, planned = 0;
 			for (const auto &b : buildings_) {
-				if (b.team != petra_pid_ || b.build_progress >= 1.0f || building_type_info(b.type).pop_bonus <= 0) continue;
-				free_slots += (int)std::lround(building_type_info(b.type).pop_bonus * tech_mods(petra_pid_).bld_pop_bonus[b.type]);
+				if (b.team != petra_pid_ || b.build_progress >= 1.0f) continue;
+				free_slots += structure_pop_bonus(b.type, petra_pid_);
 				if (b.type == BLD_HOUSE) ++planned;
 			}
 			const int needed_at = pop > 55 ? 21 : pop > 30 ? 15 : 10;

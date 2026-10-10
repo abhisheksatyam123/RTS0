@@ -7,6 +7,7 @@
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,7 @@ static uint32_t fresh(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
 	s.set_player_resources(0, 20000, 20000, 20000, 20000);
+	s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f); // Population/Bonus 20: there is no free base
 	return s.spawn_building_world(-30.0f, -30.0f, BLD_BARRACKS, 0, 1.0f);
 }
 
@@ -385,6 +387,48 @@ int main() {
 		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0 && u.unit_type[i] == UNIT_SPEARMAN && u.action_state[i] == ACTION_DYING) ++dying;
 		CHECK(bld(f, fb).garrisoned_units.empty() && count_units(f, 0, UNIT_SPEARMAN) == 0 && dying == 2);
 		std::printf("no room: unloading leaves them inside; the structure failing kills the %d that can't get out\n", dying);
+	}
+
+	// 12. Population (Player.js, Cost/Population, Population/Bonus): no free base, a Civic
+	//     Centre gives 20, a corral nothing, the big house 10 for athen and 5 for the Britons'
+	//     small house; heroes cost 0, rams 3; training at the cap queues and pays, then waits.
+	{
+		Simulation s;
+		s.set_sim_seed(5);
+		s.reset();
+		CHECK(s.pop_max(0) == 0);
+		s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		CHECK(s.pop_max(0) == 20);
+		s.spawn_building_world(20.0f, 40.0f, BLD_CORRAL, 0, 1.0f);
+		CHECK(s.pop_max(0) == 20);
+		s.spawn_building_world(20.0f, 20.0f, BLD_HOUSE, 0, 1.0f);
+		CHECK(s.pop_max(0) == 30); // athen/house: template_structure_civic_house_big
+		CHECK(civ_building_type_info(CIV_BRITONS, BLD_HOUSE).pop_bonus == 5 &&
+		      civ_building_type_info(CIV_BRITONS, BLD_HOUSE).wood_cost == building_type_info(BLD_HOUSE).wood_cost);
+		CHECK(civ_building_type_info(CIV_ATHENIANS, BLD_HOUSE).wood_cost == 150);
+		CHECK(civ_building_type_info(CIV_CARTHAGINIANS, BLD_APARTMENT).pop_bonus == building_type_info(BLD_APARTMENT).pop_bonus);
+		uint16_t hero = CIV_UNIT_TEMPLATE_NONE, ram = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+			if (std::strcmp(civ_unit_template(t).id, "athen/hero_pericles") == 0) hero = t;
+			if (std::strcmp(civ_unit_template(t).id, "athen/siege_ram") == 0) ram = t;
+		}
+		CHECK(hero != CIV_UNIT_TEMPLATE_NONE && ram != CIV_UNIT_TEMPLATE_NONE);
+		s.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, hero);
+		CHECK(s.pop_current(0) == 0);
+		s.spawn_unit(2.0f, 0.0f, 0, UNIT_SIEGE_RAM, 0.0f, ram);
+		CHECK(s.pop_current(0) == 3);
+		for (int k = 0; k < 27; ++k) s.spawn_unit(10.0f + (k % 9), -10.0f - k / 9, 0, UNIT_SPEARMAN);
+		CHECK(s.pop_current(0) == s.pop_max(0));
+		s.set_player_resources(0, 1000, 1000, 1000, 1000);
+		const uint32_t b = s.spawn_building_world(-30.0f, -30.0f, BLD_BARRACKS, 0, 1.0f);
+		CHECK(s.cmd_train(0, b, UNIT_SPEARMAN, 2)); // queued and paid at the cap
+		CHECK(s.player(0).res[RES_FOOD] < 1000.0f);
+		run(s, 30.0f);
+		CHECK(bld(s, b).queue.size() == 1 && !bld(s, b).queue.front().started);
+		s.spawn_building_world(20.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+		run(s, 30.0f);
+		CHECK(bld(s, b).queue.empty() && s.pop_current(0) == 32);
+		std::printf("population: CC 20, athen house 10, hero 0, ram 3; a batch at the cap waits for a house\n");
 	}
 
 	if (failures) {

@@ -1125,6 +1125,8 @@ public:
 	float gold_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_GOLD] * 6.0f; }
 	float stone_rate(uint8_t pid = 0) const { return player(pid).gathered_window[RES_STONE] * 6.0f; }
 
+	int order_pop(const ProductionOrder &o, uint8_t player) const;
+	int structure_pop_bonus(uint8_t type, uint8_t player) const;
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
