@@ -12,6 +12,7 @@
 #undef private
 #include "network/turn_manager.h"
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 
 using namespace rtso;
@@ -133,6 +134,32 @@ int main() {
 		run(s, 41.0f);
 		CHECK(near(s.structure_max_hp(BLD_HOUSE, 0) / hp0, 1.2f));
 		CHECK(s.research_check(0, TECH_CIVIL_ENGINEERING_01) == Simulation::TECH_ERR_PAIRED);
+	}
+
+	// Seleucid army reforms (pair_unlock_champions_sele, barracks, free and instant): the
+	// Traditional Army unlocks the champion pikeman, the Reform Army the champion swordsman,
+	// and choosing one closes the other for good.
+	{
+		auto tmpl = [](const char *id) {
+			for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) if (!std::strcmp(civ_unit_template(i).id, id)) return i;
+			return (uint16_t)CIV_UNIT_TEMPLATE_COUNT;
+		};
+		const uint16_t pike = tmpl("sele/champion_infantry_pikeman"), sword = tmpl("sele/champion_infantry_swordsman");
+		CHECK(pike < CIV_UNIT_TEMPLATE_COUNT && sword < CIV_UNIT_TEMPLATE_COUNT);
+		CHECK(tech_pair_partner(TECH_TRADITIONAL_ARMY_SELE) == TECH_REFORMED_ARMY_SELE);
+		CHECK(tech_info(TECH_TRADITIONAL_ARMY_SELE).researcher == BLD_BARRACKS);
+		CHECK(!tech_available_to_civ(TECH_TRADITIONAL_ARMY_SELE, CIV_MACEDONIANS));
+		fresh(s, CIV_SELEUCIDS);
+		const uint32_t barracks = s.spawn_building_world(-30.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		CHECK(!s.cmd_train_template(0, barracks, pike));
+		CHECK(!s.cmd_train_template(0, barracks, sword));
+		const float food = s.players_[0].res[RES_FOOD];
+		CHECK(s.cmd_research(0, barracks, TECH_TRADITIONAL_ARMY_SELE));
+		run(s, 1.0f);
+		CHECK(s.players_[0].has_tech(TECH_TRADITIONAL_ARMY_SELE) && near(s.players_[0].res[RES_FOOD], food));
+		CHECK(s.research_check(0, TECH_REFORMED_ARMY_SELE) == Simulation::TECH_ERR_PAIRED);
+		CHECK(s.cmd_train_template(0, barracks, pike));
+		CHECK(!s.cmd_train_template(0, barracks, sword));
 	}
 
 	if (failures) {

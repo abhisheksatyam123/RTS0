@@ -160,8 +160,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 52; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 55; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
+	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -397,6 +398,7 @@ public:
 	// Read-only, for the renderer: unit i is attacking a structure it captures
 	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
 	bool unit_capturing(size_t i) const;
+	bool unit_heals(size_t i) const;
 	float healer_range_of(size_t h) const;
 	float heal_amount_of(size_t h) const;
 	// 0 A.D. team bonuses (data/auras/teambonuses): the product a player gets on `stat`
@@ -649,6 +651,7 @@ public:
 	uint32_t formation_of_unit(uint32_t unit_id) const;
 	void order_garrison(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false);
 	void order_ungarrison(uint32_t building_id);
+	void eject_or_kill(Building &b);
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
 	// Hitpoints per second each unit garrisoned in `b` regains (BuffHeal plus Living Conditions).
@@ -1176,6 +1179,13 @@ public:
 	bool match_limit_allows(uint8_t player_id, uint16_t tmpl, int count = 1) const;
 	static constexpr int HERO_MATCH_LIMIT = 1;
 	std::array<std::vector<uint16_t>, MAX_PLAYERS> match_trained_; // hero templates each player trained (saved v42)
+	// Petra's army soldiers (0 A.D. units trained without metadata role "worker"): the citizen
+	// infantry an AI player trained outside its civic centres, sorted ids (saved v52). Every
+	// other citizen soldier of an AI is a worker (trainMoreWorkers, the starting units).
+	std::array<std::vector<uint32_t>, MAX_PLAYERS> petra_army_ids_;
+	bool petra_is_worker(size_t i) const;
+	int petra_target_workers() const;
+	int petra_work_phase3() const;
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -1396,6 +1406,7 @@ public:
 		int capture_cp;         // the owner's Capturable points x100 (0..RELIC_CAPTURE_POINTS*100)
 		bool claimed;           // owned by a player, not Gaia
 		uint8_t owner_team = 255;
+		std::array<float, MAX_PLAYERS + 1> cp{}; // Capturable points per player, then Gaia's
 	};
 
 	// Treasure.js / TreasureCollector.js: a Gaia treasure any land unit can be ordered to
@@ -1653,7 +1664,7 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
-	void apply_status(size_t t, const CombatProfile &att);
+	void apply_status(size_t t, const CombatProfile &att, uint32_t src_id = 0, uint8_t src_owner = 0xFF);
 	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
 	void tick_attack_timer(size_t i, float dt);
 	bool attack_under_way(size_t i) const;
@@ -1672,9 +1683,10 @@ private:
 	void leave_foundation(size_t i, const Building &b);
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
+	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
 	static float foundation_build_multiplier(int builders);
 	float builder_rate(size_t unit_idx) const;
-	float structure_build_time(const Building &b, uint8_t builder_team) const;
+	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
@@ -1759,6 +1771,15 @@ private:
 	int32_t projectile_hit_fauna(const Projectile &p) const;
 	void projectile_hits_fauna(const Projectile &p, size_t f);
 	float unit_damage_to_fauna(size_t i, size_t f) const;
+	void fire_at_fauna(size_t i, size_t f);
+	void fauna_killed(size_t f, size_t i);
+	bool projectile_lands_in(const Projectile &p, const Building &b) const;
+	int32_t projectile_hit_structure(const Projectile &p) const;
+	void projectile_hits_structure(const Projectile &p, Building &b);
+	float projectile_damage_to_unit(const Projectile &p, size_t u);
+	float projectile_damage_to_structure(const Projectile &p, const Building &b) const;
+	float unit_damage_to_structure(size_t i, const Building &b) const;
+	float structure_arrow_damage(const Building &shooter, const float res[3]) const;
 	void random_normal_2d(float &x, float &z);
 	void mark_building_wreck(Building &b, uint8_t killer = 0xFF); // killer: StatisticsTracker credit
 	void record_death(float x, float z, uint8_t team, uint8_t killer_team, uint8_t type, bool is_building);
@@ -1893,6 +1914,8 @@ private:
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
+	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	void refund_foundation(const Building &b);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
 	struct PetraPlaceMiss {
@@ -1992,6 +2015,9 @@ private:
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
 	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
+	using CapturePools = std::array<float, MAX_PLAYERS + 1>; // per player, then Gaia's
+	bool capture_enemy(int source, int t) const;
+	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce
 	uint8_t participant_mask_ = 0; // save v10
 	uint8_t defeated_mask_ = 0;
 	uint8_t winner_mask_ = 0;
@@ -2242,7 +2268,9 @@ private:
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
-	int petra_villager_target() const;
+	int petra_train_more_workers();
+	int petra_pop_room() const; // population left after Petra's queued batches
+	float petra_template_strength(const UnitTypeInfo &ui) const;
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
@@ -2250,7 +2278,7 @@ private:
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
-	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl);
+	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
 	void petra_change_diplomacy(uint8_t player, uint8_t stance);
 	void petra_last_man_standing_check();
 	int petra_player_entities(uint8_t player) const;
@@ -2394,6 +2422,7 @@ private:
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
 			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
+	bool self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
 	void apply_rally_step(uint32_t uid, const Building &b, const Building::RallyStep &st, bool queued, bool ignore_self_garrison);
 	void rally_after_ungarrison(uint32_t uid, uint32_t building_id);
