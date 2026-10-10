@@ -702,7 +702,7 @@ static void test_garrisons() {
 	u.hp[w] = u.max_hp[w] * 0.5f;
 	s->order_attack(&foe, 1, woman);
 	bool sheltered = false;
-	for (float t = 0.0f; t < 10.0f && !sheltered; t += Simulation::FIXED_STEP) {
+	for (float t = 0.0f; t < 15.0f && !sheltered; t += Simulation::FIXED_STEP) { // a gatherer standing in her path can hold her up a few seconds (#262)
 		if (u.alive[w]) u.hp[w] = u.max_hp[w] * 0.5f; // she lives long enough to reach it
 		s->tick(Simulation::FIXED_STEP);
 		sheltered = inside(woman);
