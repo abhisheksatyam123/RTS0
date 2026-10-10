@@ -166,6 +166,31 @@ int main() {
 		std::printf("corral: cow 150 food, 60 s; out beside it, penned with a rally on the corral\n");
 	}
 
+	// 6b. Batch training at the corral (Trainer.js, corral BatchTimeModifier 0.7): five sheep
+	//     cost five times one and take 40 s x 5^0.7 (BuildTime x n^modifier); they all come out when it ends, and
+	//     autoqueue queues the same batch again.
+	{
+		fresh(s);
+		const uint32_t c = s.spawn_building_world(10.0f, 10.0f, BLD_CORRAL, 0, 1.0f);
+		s.players_[0].res[RES_FOOD] = 1000.0f;
+		CHECK(s.cmd_breed_livestock(0, c, FAUNA_SHEEP_TRAINABLE, 5));
+		CHECK(near(s.players_[0].res[RES_FOOD], 750.0f));
+		const auto &q = s.buildings_[s.building_id_to_idx_.at(c)].queue;
+		const float t5 = 40.0f * std::pow(5.0f, 0.7f);
+		CHECK(q.size() == 1 && q[0].count == 5 && near(q[0].duration, t5));
+		CHECK(s.cmd_set_autoqueue(0, c, true));
+		run(s, t5 + 1.0f);
+		int sheep = 0;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			sheep += s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_SHEEP_TRAINABLE;
+		CHECK(sheep == 5);
+		CHECK(q.size() == 1 && q[0].count == 5);
+		CHECK(near(s.players_[0].res[RES_FOOD], 500.0f));
+		CHECK(s.cmd_cancel_train(0, c, 0));
+		CHECK(near(s.players_[0].res[RES_FOOD], 750.0f));
+		std::printf("corral batch: 5 sheep 250 food, %.0f s\n", t5);
+	}
+
 	// 7. The Persian ice house (structures/pers/ice_house.xml): 1 food every 2 s, 2 after
 	//    Subterranean Aqueducts, researched at the ice house. Other civs can't build one.
 	{
