@@ -5491,7 +5491,7 @@ void Simulation::tick_garrison_holders() {
 		Building &b = buildings_[bi];
 		if (b.garrisoned_units.empty()) continue;
 		if (!structure_has_enough_health(b)) { // OnHealthChanged -> EjectOrKill
-			order_ungarrison(b.id);
+			eject_or_kill(b);
 			continue;
 		}
 		if (!heal_now) continue;
@@ -5508,37 +5508,55 @@ void Simulation::tick_garrison_holders() {
 	}
 }
 
+// GarrisonHolder.UnloadEntities: each unit leaves onto its own spawn point
+// (PositionHelper.GetSpawnPosition); one with no free spot stays inside. Turrets step down.
 void Simulation::order_ungarrison(uint32_t building_id) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return;
 	Building &b = buildings_[bit->second];
 
-	float angle_step = 6.2831853f / std::max(1, (int)b.garrisoned_units.size());
-	int k = 0;
+	std::vector<uint32_t> out, stay;
 	for (uint32_t uid : b.garrisoned_units) {
 		int32_t idx = lookup_unit(uid);
-		if (idx >= 0) {
-			float a = angle_step * k++;
-			float ex = b.x + cosf(a) * (b.half_size + 1.2f);
-			float ez = b.z + sinf(a) * (b.half_size + 1.2f);
-			const bool turret = turret_height_.count(uid) != 0;
-			// GarrisonHolder.Eject: each unit on its own spawn point; the ring is the last resort.
-			if (!turret) pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez);
-			if (!turret) {
-				units_.pos_x[idx] = ex;
-				units_.pos_z[idx] = ez;
-			}
-			units_.alive[idx] = 1;
-			units_.action_state[idx] = ACTION_IDLE;
-			units_.has_order[idx] = 0;
-			units_.vel_x[idx] = 0.0f;
-			units_.vel_z[idx] = 0.0f;
-			if (turret) leave_turret((size_t)idx, b);
+		if (idx < 0) continue;
+		const bool turret = turret_height_.count(uid) != 0;
+		float ex = b.x, ez = b.z;
+		if (!turret && !pick_spawn_point(b, units_.unit_type[idx], uid, ex, ez)) {
+			stay.push_back(uid);
+			continue;
 		}
+		if (!turret) {
+			units_.pos_x[idx] = ex;
+			units_.pos_z[idx] = ez;
+		}
+		units_.alive[idx] = 1;
+		units_.action_state[idx] = ACTION_IDLE;
+		units_.has_order[idx] = 0;
+		units_.vel_x[idx] = 0.0f;
+		units_.vel_z[idx] = 0.0f;
+		if (turret) leave_turret((size_t)idx, b);
+		out.push_back(uid);
 	}
-	const std::vector<uint32_t> out = std::move(b.garrisoned_units);
-	b.garrisoned_units.clear();
+	b.garrisoned_units = std::move(stay);
 	for (uint32_t uid : out) rally_after_ungarrison(uid, b.id);
+}
+
+// GarrisonHolder.EjectOrKill (the structure too damaged to hold them, destroyed or
+// changing hands): the garrison is unloaded, and whoever finds no room outside dies inside.
+void Simulation::eject_or_kill(Building &b) {
+	if (b.garrisoned_units.empty()) return;
+	order_ungarrison(b.id);
+	for (uint32_t uid : b.garrisoned_units) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0) continue;
+		units_.hp[i] = 0.0f;
+		units_.alive[i] = 0;
+		units_.action_state[i] = ACTION_DYING; // Health.Kill
+		record_unit_death((size_t)i, 0xFF);
+		stat_unit_lost((size_t)i, 0xFF);
+		if (units_.team[i] == 0) record_.units_lost++;
+	}
+	b.garrisoned_units.clear();
 }
 
 // Garrisonable.UnGarrison: UnitAI.Ungarrison replaces whatever was queued behind the
@@ -5565,8 +5583,9 @@ void Simulation::order_ungarrison_single(uint32_t building_id, uint32_t unit_id)
 		if (idx >= 0) {
 			const bool turret = turret_height_.count(unit_id) != 0;
 			if (!turret) {
-				float ex = b.x, ez = b.z + b.half_size + 1.2f;
-				pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez); // GarrisonHolder.Eject
+				float ex = b.x, ez = b.z;
+				// GarrisonHolder.Eject: no free spot outside, and the unit stays in.
+				if (!pick_spawn_point(b, units_.unit_type[idx], unit_id, ex, ez)) return;
 				units_.pos_x[idx] = ex;
 				units_.pos_z[idx] = ez;
 			}
@@ -8045,7 +8064,19 @@ void Simulation::tick_production(float dt) {
 				}
 				continue;
 			}
-			// Trainer.js Spawn: each unit on its own free spot (Footprint.PickSpawnPoint, ships on
+			// Trainer.js Spawn: a rally point that garrisons in the trainer itself puts each
+			// unit straight inside while there is room (autoGarrison), with no spot outside needed.
+			if (self_garrison_rally(b, done.unit_type, done.tmpl) && (int)b.garrisoned_units.size() < b.garrison_cap) {
+				const uint32_t uid = spawn_unit(b.x, b.z, bteam, (UnitType)done.unit_type, 0.0f, done.tmpl);
+				if (const int32_t ti = lookup_unit(uid); ti >= 0) {
+					stat_unit_trained((size_t)ti);
+					garrison_now((size_t)ti, b); // a trained unit is never the Regicide hero
+				}
+				if (bteam < MAX_PLAYERS && done.tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(done.tmpl).flags & ROSTER_HERO))
+					match_trained_[bteam].push_back(done.tmpl);
+				continue;
+			}
+			// Each other unit on its own free spot (Footprint.PickSpawnPoint, ships on
 			// the water by their passability). Units with no room stay queued, already paid,
 			// and the batch tries again next turn ("Can't find free space to spawn trained units").
 			float sx, sz;
@@ -8618,7 +8649,7 @@ void Simulation::tick_combat(float dt) {
 				collect_building_loot(units_.id[i], units_.team[i], b); // 0 A.D. Looter.js
 
 				// GarrisonHolder OnDestroy -> EjectOrKill: the garrison walks out unharmed.
-				if (!b.garrisoned_units.empty()) order_ungarrison(b.id);
+				eject_or_kill(b);
 				mark_building_wreck(b, units_.team[i]);
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
@@ -9167,7 +9198,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 		if (best == owner) return false;
 		b.has_rally_point = false; // RallyPoint.OnOwnershipChanged -> Reset
 		b.rally_more.clear();
-		order_ungarrison(b.id);
+		eject_or_kill(b); // GarrisonHolder.OnOwnershipChanged
 		cancel_upgrade(b, b.team);
 		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
 		if (b.team < MAX_PLAYERS)
@@ -10998,6 +11029,15 @@ bool Simulation::can_gather(size_t i, size_t r) const {
 // for, if it can (gather, build, garrison, attack), and walks there otherwise.
 // Every position is an order; the ones Shift added queue behind the first
 // (RallyPoint.OrderToRallyPoint, queued for i > 0).
+// The rally command a unit of this type gets when the rally point is the trainer itself
+// (Commands.js "garrison" rather than "repair"): garrison, unless a builder would repair it.
+bool Simulation::self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const {
+	if (!b.has_rally_point || b.rally_target_bld_id != b.id || turret_points_of(b)) return false;
+	if (b.build_progress < 1.0f || !structure_has_enough_health(b)) return false;
+	const bool builder = unit_can_build(unit_type, tmpl);
+	return !(builder && (b.hp < b.max_hp || b.type == BLD_FIELD));
+}
+
 void Simulation::apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison) {
 	const Building::RallyStep first{b.rally_x, b.rally_z, b.rally_target_res_id, b.rally_target_bld_id, b.rally_res_type, b.rally_res_sub};
 	apply_rally_step(uid, b, first, false, ignore_self_garrison);
@@ -11324,7 +11364,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 }
 
 void Simulation::destroy_building(Building &b) {
-	order_ungarrison(b.id);
+	eject_or_kill(b);
 	b.garrisoned_units.clear();
 	cancel_upgrade(b, b.team);
 	stat_building_lost(b, 0xFF);
@@ -11547,7 +11587,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		Building &b = buildings_[it->second];
 		if (b.wrecked || b.team == to) continue;
 		b.has_rally_point = false;
-		order_ungarrison(b.id);
+		eject_or_kill(b); // GarrisonHolder.OnOwnershipChanged
 		cancel_upgrade(b, b.team);
 		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
 		if (b.team < MAX_PLAYERS)
