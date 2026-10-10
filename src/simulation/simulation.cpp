@@ -148,6 +148,7 @@ static constexpr uint32_t SAVE_VERSION_SPIES = 44;
 static constexpr uint32_t SAVE_VERSION_UNIT_UPGRADES = 45;
 // ProductionQueue.js: batches, technologies and paid costs in each queue item, plus autoqueue.
 static constexpr uint32_t SAVE_VERSION_PRODUCTION_QUEUE = 48;
+static constexpr uint32_t SAVE_VERSION_STATUS_SOURCE = 54;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -1023,6 +1024,7 @@ uint32_t Simulation::spawn_relic(float x, float z, int civ_pick) {
 	const int32_t i = lookup_unit(id);
 	if (i < 0) return 0;
 	relics_.push_back({id, units_.pos_x[i], units_.pos_z[i], civ, RELIC_CAPTURE_POINTS * 100, false});
+	relics_.back().cp[MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS; // every point Gaia's
 	return id;
 }
 
@@ -8479,7 +8481,7 @@ void Simulation::tick_combat(float dt) {
 			}
 
 			// Attack/Melee/ApplyStatus. 0 A.D. has no spear snare or trample knockback.
-			apply_status(t, unit_combat_at(i));
+			apply_status(t, unit_combat_at(i), units_.id[i], units_.team[i]);
 
 			if (units_.hp[t] <= 0) {
 				units_.alive[t] = 0;
@@ -8558,7 +8560,10 @@ void Simulation::tick_combat(float dt) {
 			if (!in_range || (units_.attack_timer[i] > 0.0f && units_.attack_timer[i] != ATTACK_DUE)) continue;
 			units_.attack_timer[i] = CAPTURE_REPEAT_S;
 			units_.action_state[i] = ACTION_ATTACK;
-			capture_attack_[bit->second][units_.team[i]] += capture_strength;
+			// GetTotalAttackEffects: a damaged structure is easier to capture, the
+			// strength divided by 0.1 + 0.9 * hp / maxHp (up to x10).
+			const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
+			capture_attack_[bit->second][units_.team[i]] += capture_strength / (0.1f + 0.9f * health);
 			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 			continue;
 		}
@@ -8568,33 +8573,7 @@ void Simulation::tick_combat(float dt) {
 		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 
-		const auto &uinfo_att = unit_info_at(i);
-		float hack_dmg = uinfo_att.hack_damage;
-		float pierce_dmg = uinfo_att.pierce_damage;
-		float crush_dmg = uinfo_att.crush_damage;
-
-		// Siege demolition power comes from 0 A.D.'s own crush damage (rams 150,
-		// stone throwers 250 in their templates); no extra multiplier on top.
-
-		// The structure template's own Resistance/Entity/Damage levels (a civic centre
-		// is 25 hack, 35 pierce, 3 crush) and the attacker's Bonuses against it.
-		const CombatProfile &b_combat = building_combat(b.type);
-		const float b_bonus = combat_bonus(unit_combat_at(i), b_combat, civ_of(b.team));
-		hack_dmg *= b_bonus;
-		pierce_dmg *= b_bonus;
-		crush_dmg *= b_bonus;
-		float b_armor[3];
-		structure_resistance(b, b_armor);
-		const float b_hack_armor = b_armor[0];
-		const float b_pierce_armor = b_armor[1];
-		const float b_crush_armor = b_armor[2];
-
-		float bld_dmg = std::max(1.0f,
-			hack_dmg * powf(0.9f, b_hack_armor) +
-			pierce_dmg * powf(0.9f, b_pierce_armor) +
-			crush_dmg * powf(0.9f, b_crush_armor)
-		);
-
+		const float bld_dmg = unit_damage_to_structure(i, b);
 		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i],
 				civ_of(units_.team[i]));
 
@@ -8603,9 +8582,17 @@ void Simulation::tick_combat(float dt) {
 			float sy = (ut == UNIT_TRIREME) ? 3.0f : (ut == UNIT_CATAPULT ? 2.0f : 1.4f);
 			uint8_t vis = (ut == UNIT_CATAPULT) ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
 			float launch_y = unit_height(i) + sy;
-			float land_y = get_terrain_height(b.x, b.z) + 1.5f;
+			// Attack.js PerformAttack: aimed at the structure's position and scattered by
+			// Spread as against units; tick_projectiles decides what it lands on.
+			const float dist = std::sqrt(dx * dx + dz * dz);
+			const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], ut, units_.tmpl[i]).spread : 1.0f;
+			const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
+			float disp_x = 0.0f, disp_z = 0.0f;
+			random_normal_2d(disp_x, disp_z);
+			const float land_x = b.x + disp_x * sigma, land_z = b.z + disp_z * sigma;
+			float land_y = get_terrain_height(land_x, land_z) + 1.5f;
 			fire_arrow(units_.pos_x[i], launch_y, units_.pos_z[i],
-			           b.x, land_y, b.z,
+			           land_x, land_y, land_z,
 			           bld_dmg, units_.team[i], b.id, EFFECT_NONE, 2, true, vis, units_.id[i],
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
@@ -8630,18 +8617,8 @@ void Simulation::tick_combat(float dt) {
 
 				collect_building_loot(units_.id[i], units_.team[i], b); // 0 A.D. Looter.js
 
-				// Evacuate garrisoned units with casualty damage
-				for (uint32_t guid : b.garrisoned_units) {
-					int32_t gidx = lookup_unit(guid);
-					if (gidx >= 0 && (size_t)gidx < units_.count) {
-						units_.pos_x[gidx] = b.x + 2.0f;
-						units_.pos_z[gidx] = b.z + 2.0f;
-						units_.alive[gidx] = 1;
-						units_.action_state[gidx] = ACTION_IDLE;
-						units_.hp[gidx] = std::max(5.0f, units_.hp[gidx] * 0.5f);
-					}
-				}
-				b.garrisoned_units.clear();
+				// GarrisonHolder OnDestroy -> EjectOrKill: the garrison walks out unharmed.
+				if (!b.garrisoned_units.empty()) order_ungarrison(b.id);
 				mark_building_wreck(b, units_.team[i]);
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
@@ -8795,7 +8772,11 @@ void Simulation::tick_combat(float dt) {
 				structure_resistance(ob, oa);
 				// Attack.js has no minimum damage: arrows barely scratch stone.
 				const float dmg = hack * powf(0.9f, oa[0]) + pierce * powf(0.9f, oa[1]) + crush * powf(0.9f, oa[2]);
-				fire_arrow(b.x, launch_y, b.z, ob.x, get_terrain_height(ob.x, ob.z) + 1.0f, ob.z,
+				const float sigma = spread * std::hypot(ob.x - b.x, ob.z - b.z) / 100.0f;
+				float disp_x = 0.0f, disp_z = 0.0f;
+				random_normal_2d(disp_x, disp_z);
+				const float lx = ob.x + disp_x * sigma, lz = ob.z + disp_z * sigma;
+				fire_arrow(b.x, launch_y, b.z, lx, get_terrain_height(lx, lz) + 1.0f, lz,
 						dmg, b.team, ob.id, 0, 1, true, 0, b.id);
 				continue;
 			}
@@ -9135,41 +9116,48 @@ void Simulation::tick_capture(float dt) {
 // regenerates RegenRate plus GarrisonRegenRate per garrisoned unit's Capture attack
 // (GetRegenRate) from its enemies; the structure changes hands once its owner holds
 // no points left, to whoever holds most (RegisterCapturePointsChanged).
+// Capturable.js Reduce: `amount` points are taken evenly from every enemy of `to` that holds
+// some (a pool that runs dry passes its share on) and given to `to`. Pool MAX_PLAYERS is Gaia's,
+// everyone's enemy.
+bool Simulation::capture_enemy(int source, int t) const {
+	if (source == t) return false;
+	if (source == MAX_PLAYERS || t == MAX_PLAYERS) return true;
+	return can_attack((uint8_t)source, (uint8_t)t);
+}
+
+void Simulation::capture_reduce(CapturePools &pts, int to, float amount) const {
+	constexpr int GAIA = MAX_PLAYERS;
+	if (amount <= 0.0f) return;
+	float before = 0.0f;
+	for (int t = 0; t <= GAIA; ++t) if (t != to) before += pts[t];
+	int pools = 0;
+	for (int t = 0; t <= GAIA; ++t) if (pts[t] > 0.0f && capture_enemy(to, t)) pools++;
+	if (pools == 0) return;
+	float removed = 0.0f;
+	float share = amount / (float)pools;
+	while (share > 0.0001f) {
+		pools = 0;
+		for (int t = 0; t <= GAIA; ++t) {
+			if (pts[t] <= 0.0f || !capture_enemy(to, t)) continue;
+			if (pts[t] > share) { removed += share; pts[t] -= share; ++pools; }
+			else { removed += pts[t]; pts[t] = 0.0f; }
+		}
+		share = pools ? (amount - removed) / (float)pools : 0.0f;
+	}
+	float after = 0.0f;
+	for (int t = 0; t <= GAIA; ++t) if (t != to) after += pts[t];
+	pts[to] += before - after;
+}
+
 void Simulation::capture_points_tick(Building &b, size_t bi, float dt) {
 	constexpr int GAIA = MAX_PLAYERS; // pool index
 	const bool gaia_owned = b.team >= MAX_PLAYERS;
 	int owner = gaia_owned ? GAIA : b.team;
-	std::array<float, MAX_PLAYERS + 1> pts{};
+	CapturePools pts{};
 	float held = 0.0f;
 	for (int t = 0; t < MAX_PLAYERS; ++t) { pts[t] = b.capture_points_by_team[t]; held += pts[t]; }
 	pts[GAIA] = std::max(0.0f, b.max_capture_points - held);
-	auto enemy = [&](int source, int t) {
-		if (source == t) return false;
-		if (source == GAIA || t == GAIA) return true; // everyone is Gaia's enemy
-		return can_attack((uint8_t)source, (uint8_t)t);
-	};
-	auto reduce = [&](int to, float amount) {
-		if (amount <= 0.0f) return;
-		float before = 0.0f;
-		for (int t = 0; t <= GAIA; ++t) if (t != to) before += pts[t];
-		int pools = 0;
-		for (int t = 0; t <= GAIA; ++t) if (pts[t] > 0.0f && enemy(to, t)) pools++;
-		if (pools == 0) return;
-		float removed = 0.0f;
-		float share = amount / (float)pools;
-		while (share > 0.0001f) {
-			pools = 0;
-			for (int t = 0; t <= GAIA; ++t) {
-				if (pts[t] <= 0.0f || !enemy(to, t)) continue;
-				if (pts[t] > share) { removed += share; pts[t] -= share; ++pools; }
-				else { removed += pts[t]; pts[t] = 0.0f; }
-			}
-			share = pools ? (amount - removed) / (float)pools : 0.0f;
-		}
-		float after = 0.0f;
-		for (int t = 0; t <= GAIA; ++t) if (t != to) after += pts[t];
-		pts[to] += before - after;
-	};
+	auto reduce = [&](int to, float amount) { capture_reduce(pts, to, amount); };
 	// RegisterCapturePointsChanged: the owner left with no points loses the structure to
 	// whoever holds most, at once (before it can regenerate).
 	auto check_owner = [&]() {
@@ -9239,21 +9227,21 @@ int32_t Simulation::projectile_hit_fauna(const Projectile &p) const {
 }
 
 // The damage of unit i's attack on animal f: Hack, Pierce and Crush (scaled by techs),
-// each reduced by the animal's Resistance as 0.9^armour, at least 1.
+// each reduced by the animal's Resistance as 0.9^armour.
 float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
-	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return std::max(1.0f, units_.attack_damage[i]);
+	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
 	const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
-	return std::max(1.0f, uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
+	return (uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
 			uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
 			uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor));
 }
 
 // Projectile p lands on animal f: what its shooter's attack does to the animal (a
 // structure's arrow at an animal was worked out when fired). The animal answers
-// (fauna_attacked); tick_fauna leaves the carcass of one that dies, and the shooter
-// gets its Loot xp.
+// (fauna_attacked); one a unit kills is its kill (fauna_killed), any other leaves its
+// carcass in tick_fauna.
 void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 	const int32_t src = lookup_unit(p.source_id);
 	float dmg = p.damage;
@@ -9262,19 +9250,14 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 		// A structure's arrow aimed at a unit and landing on an animal.
 		const auto bit = building_id_to_idx_.find(p.source_id);
 		if (bit != building_id_to_idx_.end()) {
-			const Building &b = buildings_[bit->second];
-			const BuildingAIInfo &ai = building_ai_info(b.type);
 			const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
-			const float pierce = ai.pierce * (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_attack[b.type] : 1.0f);
-			dmg = ai.hack * powf(0.9f, fi.hack_armor) + pierce * powf(0.9f, fi.pierce_armor) + ai.crush * powf(0.9f, fi.crush_armor);
+			const float res[3] = {fi.hack_armor, fi.pierce_armor, fi.crush_armor};
+			dmg = structure_arrow_damage(buildings_[bit->second], res);
 		}
 	}
 	fauna_.hp[f] -= dmg;
 	fauna_attacked(f, src >= 0 ? p.source_id : 0);
-	if (fauna_.hp[f] <= 0.0f && src >= 0) {
-		const float xp = fauna_type_info(fauna_.fauna_type[f]).loot_xp;
-		units_.xp[src] = (uint16_t)std::min(65535.0f, (float)units_.xp[src] + xp);
-	}
+	if (fauna_.hp[f] <= 0.0f && src >= 0) fauna_killed(f, (size_t)src);
 }
 
 // 0 A.D. DelayedDamage.js Hit: a unit's projectile damages its target only if it lands
@@ -9307,6 +9290,45 @@ int32_t Simulation::projectile_hit_unit(const Projectile &p) const {
 	return best;
 }
 
+// PositionHelper.TestCollision against a structure: the landing point is on its footprint.
+bool Simulation::projectile_lands_in(const Projectile &p, const Building &b) const {
+	return !b.wrecked && b.hp > 0.0f && edge_distance(b, p.target_x, p.target_z) <= 0.0f;
+}
+
+// The enemy structure whose footprint holds where projectile p lands, or -1.
+int32_t Simulation::projectile_hit_structure(const Projectile &p) const {
+	for (size_t o = 0; o < buildings_.size(); ++o) {
+		const Building &b = buildings_[o];
+		if (!is_hostile(p.team, b.team) || !projectile_lands_in(p, b)) continue;
+		return (int32_t)o;
+	}
+	return -1;
+}
+
+// Projectile p hits structure b (Attacking.HandleAttackEffects): its effects against the
+// structure's resistance at impact; a structure brought to nothing is razed.
+void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
+	const float dmg = projectile_damage_to_structure(p, b);
+	note_attacked(p.source_id, p.team, b.id, b.team, true, dmg);
+	b.hp -= dmg;
+	if (b.team == 0)
+		raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
+	if (b.hp < b.max_hp * 0.33f)
+		b.is_burning = true;
+	if (b.hp > 0.0f) return;
+	if (p.team == 0)
+		record_.enemies_killed++;
+	else if (b.team == 0)
+		record_.buildings_destroyed++;
+	if (b.team == 0)
+		raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
+	collect_building_loot(p.source_id, p.team, b);
+	mark_building_wreck(b, p.team);
+	rebuild_nav_grid();
+	if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER)
+		rebuild_territory();
+}
+
 void Simulation::tick_projectiles(float dt) {
 	for (auto &p : projectiles_) {
 		if (!p.alive) continue;
@@ -9320,16 +9342,20 @@ void Simulation::tick_projectiles(float dt) {
 			p.progress = 1.0f;
 			p.alive = false;
 
-			if (p.target_unit_id != 0) {
-				int32_t tidx = projectile_hit_unit(p);
-				if (tidx >= 0 && units_.alive[tidx] && units_.id[tidx] != p.target_unit_id) {
-					// DelayedDamage.js Hit: the attack's effects apply to whoever it hit, so a
-					// stray deals what the shooter's attack does to that unit. A shooter
-					// that died in flight keeps the damage it fired with.
-					const int32_t src = lookup_unit(p.source_id);
-					if (src >= 0) p.damage = unit_attack_damage((size_t)src, (size_t)tidx);
+			if (p.target_unit_id != 0 || p.target_building_id != 0) {
+				// DelayedDamage.js Hit: the aimed target takes it if the projectile lands
+				// inside its footprint (PositionHelper.TestCollision); otherwise the nearest
+				// enemy unit, then enemy structure, whose footprint holds the landing point,
+				// then an animal there; failing all that it misses.
+				int32_t hb = -1;
+				if (p.target_building_id != 0) {
+					const auto it = building_id_to_idx_.find(p.target_building_id);
+					if (it != building_id_to_idx_.end() && projectile_lands_in(p, buildings_[it->second])) hb = (int32_t)it->second;
 				}
+				const int32_t tidx = hb < 0 ? projectile_hit_unit(p) : -1;
+				if (hb < 0 && tidx < 0) hb = projectile_hit_structure(p);
 				if (tidx >= 0 && units_.alive[tidx]) {
+					p.damage = projectile_damage_to_unit(p, (size_t)tidx);
 					award_damage_xp(p.source_id, (size_t)tidx, p.damage);
 					note_attacked(p.source_id, p.team, units_.id[tidx], units_.team[tidx], false, p.damage);
 					if (!invulnerable(units_.id[tidx])) units_.hp[tidx] -= p.damage;
@@ -9341,7 +9367,7 @@ void Simulation::tick_projectiles(float dt) {
 					if (p.status_effect != 0) {
 						// The shooter's ApplyStatus (its profile; nothing if it died in flight).
 						const int32_t src = lookup_unit(p.source_id);
-						if (src >= 0) apply_status((size_t)tidx, unit_combat_at((size_t)src));
+						if (src >= 0) apply_status((size_t)tidx, unit_combat_at((size_t)src), p.source_id, p.team);
 					}
 					if (units_.hp[tidx] <= 0) {
 						units_.alive[tidx] = 0;
@@ -9357,35 +9383,10 @@ void Simulation::tick_projectiles(float dt) {
 						collect_unit_loot(p.source_id, p.team, (size_t)tidx);
 					}
 				}
-				if (tidx < 0) {
+				if (hb >= 0) projectile_hits_structure(p, buildings_[(size_t)hb]);
+				if (tidx < 0 && hb < 0) {
 					const int32_t f = projectile_hit_fauna(p);
 					if (f >= 0) projectile_hits_fauna(p, (size_t)f);
-				}
-			} else if (p.target_building_id != 0) {
-				auto bit = building_id_to_idx_.find(p.target_building_id);
-				if (bit != building_id_to_idx_.end()) {
-					Building &b = buildings_[bit->second];
-					if (!b.wrecked && b.hp > 0.0f) {
-						note_attacked(p.source_id, p.team, b.id, b.team, true, p.damage);
-						b.hp -= p.damage;
-						if (b.team == 0)
-							raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
-						if (b.hp < b.max_hp * 0.33f)
-							b.is_burning = true;
-						if (b.hp <= 0.0f) {
-							if (p.team == 0)
-								record_.enemies_killed++;
-							else if (b.team == 0)
-								record_.buildings_destroyed++;
-							if (b.team == 0)
-								raise_alert(BattleAlert::ALERT_BUILDING_DESTROYED, b.x, b.z, b.id, b.team);
-							collect_building_loot(p.source_id, p.team, b);
-							mark_building_wreck(b, p.team);
-							rebuild_nav_grid();
-							if (b.type == BLD_TOWN_CENTER || b.type == BLD_FORTRESS || b.type == BLD_TOWER)
-								rebuild_territory();
-						}
-					}
 				}
 			}
 
@@ -9409,13 +9410,18 @@ void Simulation::tick_projectiles(float dt) {
 // 0 A.D. Attack/*/ApplyStatus on unit t from an attacker with profile `att`, unless t's
 // Resistance blocks it (ships, siege, structures block poison). Stackability "Extend"
 // (poison) adds the duration; "Stack" (burning) is kept as one timer that also adds
-// its duration, which deals the same total damage.
-void Simulation::apply_status(size_t t, const CombatProfile &att) {
+// its duration, which deals the same total damage. The status keeps who applied it and
+// their owner (StatusEffectsReceiver.AddStatus attacker, attackerOwner), the last one to
+// renew it.
+void Simulation::apply_status(size_t t, const CombatProfile &att, uint32_t src_id, uint8_t src_owner) {
 	if (att.status == 0 || (unit_combat_at(t).status_immune & att.status)) return;
 	const uint8_t bit = status_effect_bit(att.status);
 	units_.status_effects[t] |= bit;
-	float &timer = att.status == 1 ? units_.poison_timer[t] : units_.burning_timer[t];
+	const bool poison = att.status == 1;
+	float &timer = poison ? units_.poison_timer[t] : units_.burning_timer[t];
 	timer = std::max(timer, 0.0f) + att.status_time;
+	(poison ? units_.poison_src : units_.burning_src)[t] = src_id;
+	(poison ? units_.poison_owner : units_.burning_owner)[t] = src_owner;
 }
 
 // Damage per second of status `kind` (1 Poisoned, 2 Burning): each comes from a
@@ -9434,21 +9440,75 @@ float Simulation::status_dps(uint8_t kind) {
 // The damage unit i's attack deals to unit t (0 A.D. Attacking.HandleAttackEffects):
 // its Hack, Pierce and Crush (scaled by techs) times its template Bonuses against t
 // (helpers/Attack.js GetAttackBonus) and its attack auras, each reduced by t's
-// Resistance as 0.9^armour, at least 1.
+// Resistance as 0.9^armour (GetTotalAttackEffects: no minimum).
 float Simulation::unit_attack_damage(size_t i, size_t t) {
-	const auto &uinfo_att = unit_info_at(i);
-	float target_armor[3];
+	float target_armor[3], d[3];
 	unit_resistance(t, target_armor);
-	const float dmg_scale = (uinfo_att.attack_damage > 0.0f) ? (units_.attack_damage[i] / uinfo_att.attack_damage) : 1.0f;
-	float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
-	// Attack auras (hero bonuses, enemy carnyx and hero penalties); 0 = none in range
+	unit_attack_effects(i, d);
+	const float mul = combat_bonus(unit_combat_at(i), unit_combat_at(t), civ_of(units_.team[t]));
+	return mul * (d[0] * powf(0.9f, target_armor[0]) + d[1] * powf(0.9f, target_armor[1]) + d[2] * powf(0.9f, target_armor[2]));
+}
+
+// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: the
+// template's, scaled by technologies and rank (attack_damage over the template total),
+// times its attack auras (hero bonuses, enemy carnyx and hero penalties).
+void Simulation::unit_attack_effects(size_t i, float out[3]) const {
+	const auto &uinfo = unit_info_at(i);
+	float mul = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	if (aura > 0.0f) mul *= aura;
-	return std::max(1.0f,
-		uinfo_att.hack_damage * dmg_scale * mul * powf(0.9f, target_armor[0]) +
-		uinfo_att.pierce_damage * dmg_scale * mul * powf(0.9f, target_armor[1]) +
-		uinfo_att.crush_damage * dmg_scale * mul * powf(0.9f, target_armor[2]));
+	if (aura > 0.0f) mul *= aura; // 0 = none in range
+	out[0] = uinfo.hack_damage * mul;
+	out[1] = uinfo.pierce_damage * mul;
+	out[2] = uinfo.crush_damage * mul;
+}
+
+// The damage unit i's attack deals to structure b: its Damage after technologies, rank
+// and attack auras (GetAttackEffectsData) times its Bonuses against the structure, each
+// reduced by the structure's Resistance (template levels plus armour auras) as
+// 0.9^armour. GetTotalAttackEffects has no minimum: arrows barely scratch stone. Siege
+// demolition power is 0 A.D.'s own crush damage (rams 150, stone throwers 250).
+float Simulation::unit_damage_to_structure(size_t i, const Building &b) const {
+	float d[3], res[3];
+	unit_attack_effects(i, d);
+	structure_resistance(b, res);
+	const float bonus = combat_bonus(unit_combat_at(i), building_combat(b.type), civ_of(b.team));
+	return bonus * (d[0] * powf(0.9f, res[0]) + d[1] * powf(0.9f, res[1]) + d[2] * powf(0.9f, res[2]));
+}
+
+// A structure's arrow (BuildingAI) against resistance `res`: its Attack/Ranged Damage,
+// pierce scaled by its owner's technologies.
+float Simulation::structure_arrow_damage(const Building &shooter, const float res[3]) const {
+	const BuildingAIInfo &ai = building_ai_info(shooter.type);
+	const float pierce = ai.pierce * (shooter.team < MAX_PLAYERS ? tech_mods(shooter.team).bld_attack[shooter.type] : 1.0f);
+	return ai.hack * powf(0.9f, res[0]) + pierce * powf(0.9f, res[1]) + ai.crush * powf(0.9f, res[2]);
+}
+
+// DelayedDamage.js Hit -> Attacking.HandleAttackEffects: the projectile's effects meet
+// the Resistance of whatever it landed on as it is at impact. The effects are the
+// shooter's (techs, rank, auras); one that is gone keeps what was worked out at launch.
+float Simulation::projectile_damage_to_unit(const Projectile &p, size_t u) {
+	const int32_t src = lookup_unit(p.source_id);
+	if (src >= 0) return unit_attack_damage((size_t)src, u);
+	const auto bit = building_id_to_idx_.find(p.source_id);
+	if (bit != building_id_to_idx_.end()) {
+		float res[3];
+		unit_resistance(u, res);
+		return structure_arrow_damage(buildings_[bit->second], res);
+	}
+	return p.damage;
+}
+
+float Simulation::projectile_damage_to_structure(const Projectile &p, const Building &b) const {
+	const int32_t src = lookup_unit(p.source_id);
+	if (src >= 0) return unit_damage_to_structure((size_t)src, b);
+	const auto bit = building_id_to_idx_.find(p.source_id);
+	if (bit != building_id_to_idx_.end()) {
+		float res[3];
+		structure_resistance(b, res);
+		return structure_arrow_damage(buildings_[bit->second], res);
+	}
+	return p.damage;
 }
 
 // A unit's attack timer runs as 0 A.D. Attack.js's interval timer:
@@ -9507,34 +9567,43 @@ void Simulation::tick_status_effects(float dt) {
 		if (!units_.alive[i]) continue;
 
 		// 0 A.D. StatusEffectsReceiver: Poisoned and Burning deal their damage per second
-		// until their time runs out. RTS0 never applies snare, slow, bleed or knockback
-		// (0 A.D. has none); clear any an old save carries.
+		// until their time runs out, each as an attack by whoever applied it
+		// (Attacking.HandleAttackEffects with its attacker and attackerOwner): its xp,
+		// the kill, the loot and the statistics go to them. RTS0 never applies snare,
+		// slow, bleed or knockback (0 A.D. has none); clear any an old save carries.
 		units_.status_effects[i] &= (uint8_t)(EFFECT_POISON | EFFECT_BURNING);
-		bool hurt = false;
-		auto tick_status = [&](uint8_t bit, float &timer, uint8_t kind) {
-			if (!(units_.status_effects[i] & bit)) return;
-			hurt = true;
+		uint32_t killer = 0;
+		uint8_t killer_owner = 0xFF;
+		auto tick_status = [&](uint8_t bit, float &timer, uint8_t kind, uint32_t src, uint8_t owner) {
+			if (!(units_.status_effects[i] & bit) || !units_.alive[i]) return;
 			const float step = std::min(dt, std::max(timer, 0.0f));
 			timer -= dt;
 			const float dmg = status_dps(kind) * step;
 			if (!invulnerable(units_.id[i])) {
+				award_damage_xp(src, i, dmg);
 				units_.hp[i] -= dmg;
-				note_attacked(0, 0xFF, units_.id[i], units_.team[i], false, dmg); // the status's source is not kept
+				note_attacked(src, owner, units_.id[i], units_.team[i], false, dmg);
+				if (units_.hp[i] <= 0.0f) {
+					killer = src;
+					killer_owner = owner;
+					units_.alive[i] = 0; // the other status no longer counts
+				}
 			}
 			if (timer <= 0.0f) {
 				units_.status_effects[i] &= (uint8_t)~bit;
 				timer = 0.0f;
 			}
 		};
-		tick_status(EFFECT_POISON, units_.poison_timer[i], 1);
-		tick_status(EFFECT_BURNING, units_.burning_timer[i], 2);
-		if (hurt && units_.hp[i] <= 0.0f) {
-			units_.alive[i] = 0;
+		tick_status(EFFECT_POISON, units_.poison_timer[i], 1, units_.poison_src[i], units_.poison_owner[i]);
+		tick_status(EFFECT_BURNING, units_.burning_timer[i], 2, units_.burning_src[i], units_.burning_owner[i]);
+		if (!units_.alive[i]) {
 			units_.action_state[i] = ACTION_DYING;
-			record_unit_death(i, (uint8_t)(1 - units_.team[i]));
-			stat_unit_lost(i, 0xFF); // the effect's source is not kept
+			note_kill(killer, units_.id[i]);
+			record_unit_death(i, killer_owner < MAX_PLAYERS ? killer_owner : (uint8_t)(1 - units_.team[i]));
+			stat_unit_lost(i, killer_owner);
 			if (units_.team[i] == 0) record_.units_lost++;
 			else record_.enemies_killed++;
+			collect_unit_loot(killer, killer_owner, i);
 		}
 	}
 
@@ -10847,6 +10916,12 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		units_.attack_timer[i] = 4.0f; // give up a flight that is stuck
 		units_.order_flags[i] |= ORDER_FLAG_INTERRUPTED;
 		return;
+	}
+	// Attack -> APPROACHING enter: an attacker hidden in the fog (a far archer nobody on the team
+	// sees) can't be approached (CheckTargetVisible), so the order ends at once. Fleeing ignores it.
+	if (!structure) {
+		const int32_t a = lookup_unit(attacker_id);
+		if (a >= 0 && attack_target_hidden(i, (size_t)a)) return;
 	}
 	const float range = units_.attack_range[i];
 	const float vision = unit_base_vision(i);
@@ -18591,7 +18666,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -19277,6 +19352,8 @@ bool Simulation::load_state(const char *filepath) {
 			units_.xp[u] = 0;
 			units_.waypoint_cur[u] = units_.waypoint_count[u] = 0;
 			units_.poison_timer[u] = units_.burning_timer[u] = 0.0f;
+			units_.poison_src[u] = units_.burning_src[u] = 0;
+			units_.poison_owner[u] = units_.burning_owner[u] = 0xFF;
 		}
 		for (WaypointPath &wp : unit_paths_) wp.clear();
 		projectiles_.clear();
@@ -19372,12 +19449,36 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.splash = v.splash; d.source_id = v.source_id;
 		});
 	};
-	static_assert(sizeof(S::Relic) == 24, "list the new Relic field below");
+	// The relic's v15 on-disk record; per-player points follow it from SAVE_VERSION_RELIC_CP.
+	struct RelicRecord {
+		uint32_t id;
+		float x, z;
+		uint8_t civ;
+		int capture_cp;
+		bool claimed;
+		uint8_t owner_team = 255;
+	};
+	static_assert(sizeof(RelicRecord) == 24 && sizeof(S::Relic) == 24 + 4 * (MAX_PLAYERS + 1),
+	              "list the new Relic field below");
 	auto relic = [&](S::Relic &r) {
-		ar.padded(r, [&](S::Relic &d, const S::Relic &v) {
+		RelicRecord rec{r.id, r.x, r.z, r.civ, r.capture_cp, r.claimed, r.owner_team};
+		ar.padded(rec, [&](RelicRecord &d, const RelicRecord &v) {
 			d.id = v.id; d.x = v.x; d.z = v.z; d.civ = v.civ; d.capture_cp = v.capture_cp;
 			d.claimed = v.claimed; d.owner_team = v.owner_team;
 		});
+		if constexpr (Ar::loading) {
+			r.id = rec.id; r.x = rec.x; r.z = rec.z; r.civ = rec.civ; r.capture_cp = rec.capture_cp;
+			r.claimed = rec.claimed; r.owner_team = rec.owner_team;
+		}
+		if (ar.version >= S::SAVE_VERSION_RELIC_CP) {
+			ar.pod(r.cp);
+		} else if constexpr (Ar::loading) {
+			// Older saves kept the owner's points only; the rest go to Gaia.
+			const int owner = r.claimed && r.owner_team < MAX_PLAYERS ? r.owner_team : MAX_PLAYERS;
+			r.cp.fill(0.0f);
+			r.cp[owner] = std::clamp(r.capture_cp, 0, RELIC_CAPTURE_POINTS * 100) / 100.0f;
+			if (owner != MAX_PLAYERS) r.cp[MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS - r.cp[owner];
+		}
 	};
 	static_assert(sizeof(RecentDeath) == 16, "list the new RecentDeath field below");
 	auto death = [&](RecentDeath &r) {
@@ -19427,6 +19528,13 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		} else {
 			U.short_path[i] = ShortPathMemo{};
 			U.motion[i] = MotionTurn{};
+		}
+		if (ar.version >= SAVE_VERSION_STATUS_SOURCE) {
+			ar.pod(U.poison_src[i]); ar.pod(U.poison_owner[i]);
+			ar.pod(U.burning_src[i]); ar.pod(U.burning_owner[i]);
+		} else {
+			U.poison_src[i] = U.burning_src[i] = 0;
+			U.poison_owner[i] = U.burning_owner[i] = 0xFF;
 		}
 		uint8_t has_path = i < s.unit_paths_.size() && s.unit_paths_[i].count > 0;
 		ar.pod(has_path);
@@ -20474,19 +20582,12 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 // An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
 void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-	const auto &uinfo = unit_info_at(u);
-	const float ra = rank_melee_armor(u); // unit_advanced.json / unit_elite.json
-	float hack_a = uinfo.hack_armor + ra, pierce_a = uinfo.pierce_armor + ra, crush_a = uinfo.crush_armor + ra;
-	if (units_.team[u] < MAX_PLAYERS && units_.unit_type[u] < UNIT_TYPE_COUNT) {
-		const float *armor = tech_mods(units_.team[u]).armor[units_.unit_type[u]];
-		hack_a += armor[0];
-		pierce_a += armor[1];
-		crush_a += armor[2];
-	}
-	const float dmg = info.hack_damage * powf(0.9f, hack_a) + info.pierce_damage * powf(0.9f, pierce_a) +
-	                  info.crush_damage * powf(0.9f, crush_a);
-	if (!invulnerable(units_.id[u])) units_.hp[u] -= std::max(1.0f, dmg);
-	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, std::max(1.0f, dmg));
+	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
+	unit_resistance(u, res);
+	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
+	                  info.crush_damage * powf(0.9f, res[2]);
+	if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
+	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg);
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
@@ -20543,37 +20644,71 @@ void Simulation::tick_hunters() {
 			dmg = 1000.0f * powf(0.9f, finfo.hack_armor);
 		} else {
 			attack_done(i, in_reach, units_.attack_cooldown[i]);
+			if (template_has_ranged_attack(units_.tmpl[i], ut, civ_of(units_.team[i]))) {
+				// Attack.js PerformAttack: a ranged hunter's javelin or arrow flies at where
+				// the animal will be, scattered by Spread; it hurts what it lands on
+				// (tick_projectiles, projectile_hits_fauna).
+				fire_at_fauna(i, f);
+				continue;
+			}
 			dmg = unit_damage_to_fauna(i, f);
 		}
-		fauna_.hp[f] -= std::max(1.0f, dmg);
+		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i]);
 		if (fauna_.hp[f] > 0.0f) continue;
+		fauna_killed(f, i);
+	}
+}
 
-		// The kill: Looter.js grants the animal's Loot xp; the carcass becomes a meat supply.
-		units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
-		fauna_.alive[f] = 0;
-		fauna_.behavior[f] = FAUNA_CARCASS;
-		uint32_t rid = 0;
-		if (fauna_.food_amount[f] > 0)
-			rid = spawn_resource_world(fx, fz, RES_FOOD, fauna_.food_amount[f], RES_SUB_MEAT, finfo.max_gatherers);
-		for (size_t h = 0; h < n; ++h) {
-			if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
-			units_.target_unit_id[h] = 0;
-			// A fight that broke off an order goes back to it (FINDINGNEWTARGET FinishOrder).
-			if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
-					!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
-				order_gather(&units_.id[h], 1, rid, false, false);
-			} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
-					!unit_is_ship(units_.unit_type[h])) {
-				// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
-				// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
-				units_.order_flags[h] |= ORDER_FLAG_CHEER;
-				units_.action_state[h] = ACTION_ATTACK;
-				units_.has_order[h] = 0;
-			} else {
-				units_.action_state[h] = ACTION_IDLE;
-				units_.has_order[h] = 0;
-			}
+// Unit i launches its ranged attack at animal f (Attack.js PerformAttack, as at units).
+void Simulation::fire_at_fauna(size_t i, size_t f) {
+	const uint8_t ut = units_.unit_type[i];
+	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+	const float dist = std::hypot(fx - units_.pos_x[i], fz - units_.pos_z[i]);
+	const uint8_t vis = ut == UNIT_CATAPULT ? 2 : ((ut == UNIT_TRIREME || ut == UNIT_BOLT_SHOOTER) ? 1 : 0);
+	const float flight = dist / projectile_speed_of(units_.id[i], vis);
+	const float aim_x = fx + fauna_.vel_x[f] * flight, aim_z = fz + fauna_.vel_z[f] * flight;
+	const float tech_spread = units_.team[i] < MAX_PLAYERS ? unit_tech_mods(units_.team[i], ut, units_.tmpl[i]).spread : 1.0f;
+	const float sigma = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread * dist / 100.0f;
+	float disp_x = 0.0f, disp_z = 0.0f;
+	random_normal_2d(disp_x, disp_z);
+	const float lx = aim_x + disp_x * sigma, lz = aim_z + disp_z * sigma;
+	fire_arrow(units_.pos_x[i], unit_height(i) + 1.4f, units_.pos_z[i], lx, get_terrain_height(lx, lz) + 0.8f, lz,
+			unit_damage_to_fauna(i, f), units_.team[i], fauna_.id[f], 0, 1, false, vis, units_.id[i],
+			unit_splash(units_.tmpl[i], ut));
+}
+
+// Animal f killed by unit i: Looter.js grants the animal's Loot xp, the carcass becomes a
+// meat supply, and everyone hunting it goes on: gatherers to the carcass, the killer of a
+// dangerous animal to a cheer.
+void Simulation::fauna_killed(size_t f, size_t i) {
+	const size_t n = units_.count;
+	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
+	const uint32_t tid = fauna_.id[f];
+	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+	units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
+	fauna_.alive[f] = 0;
+	fauna_.behavior[f] = FAUNA_CARCASS;
+	uint32_t rid = 0;
+	if (fauna_.food_amount[f] > 0)
+		rid = spawn_resource_world(fx, fz, RES_FOOD, fauna_.food_amount[f], RES_SUB_MEAT, finfo.max_gatherers);
+	for (size_t h = 0; h < n; ++h) {
+		if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
+		units_.target_unit_id[h] = 0;
+		// A fight that broke off an order goes back to it (FINDINGNEWTARGET FinishOrder).
+		if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
+				!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
+			order_gather(&units_.id[h], 1, rid, false, false);
+		} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&
+				!unit_is_ship(units_.unit_type[h])) {
+			// shouldCheer: killing a dangerous animal is cheered like a kill in battle;
+			// COMBAT.FINDINGNEWTARGET in tick_unit_ai goes on from here.
+			units_.order_flags[h] |= ORDER_FLAG_CHEER;
+			units_.action_state[h] = ACTION_ATTACK;
+			units_.has_order[h] = 0;
+		} else {
+			units_.action_state[h] = ACTION_IDLE;
+			units_.has_order[h] = 0;
 		}
 	}
 }
@@ -21066,8 +21201,15 @@ bool Simulation::can_capture_relic(size_t i, int32_t r) const {
 	const uint8_t team = units_.team[i];
 	if (team >= MAX_PLAYERS || units_.action_state[i] == ACTION_GARRISONED) return false;
 	if (units_.action_state[r] == ACTION_GARRISONED) return false;
-	// Capturable.CanCapture: only an enemy of the owner (Gaia is everyone's) captures.
-	return is_hostile(team, units_.team[r]) && unit_capture_attack_at(i) > 0.0f;
+	// Capturable.CanCapture: the captor's enemies (Gaia is everyone's) hold some points.
+	if (unit_capture_attack_at(i) <= 0.0f) return false;
+	for (const Relic &rel : relics_) {
+		if (rel.id != units_.id[r]) continue;
+		for (int t = 0; t <= MAX_PLAYERS; ++t)
+			if (rel.cp[t] > 0.0f && capture_enemy(team, t)) return true;
+		return false;
+	}
+	return is_hostile(team, units_.team[r]);
 }
 
 // UnitAI Attack with allowCapture: walk up to the catafalque and keep capturing it.
@@ -21098,9 +21240,8 @@ void Simulation::order_capture_relic(const uint32_t *unit_ids, size_t count, uin
 
 // Capture the Relic (template_unit_catafalque.xml, Capturable.js). Once a second each captor
 // within Capture range takes its Capture attack from the owner's points and the owner
-// regains RegenRate; at 0 the strongest captor's owner takes the relic with every point.
-// RTS0 keeps only the owner's points: 0 A.D. splits the rest among the captors, which
-// only matters when several players capture one relic at once.
+// regains RegenRate; at 0 the player holding most points takes the relic. Every player
+// keeps its own points (Relic::cp), as Capturable.js does.
 void Simulation::tick_relics() {
 	if (relics_.empty()) return;
 	const bool pulse = ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) == 0;
@@ -21112,14 +21253,18 @@ void Simulation::tick_relics() {
 			rel.civ = (uint8_t)(rel.id % CIV_COUNT);
 			rel.id = spawn_unit(rel.x, rel.z, owner, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(rel.civ));
 			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
+			rel.cp.fill(0.0f);
+			rel.cp[owner < MAX_PLAYERS ? owner : MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS;
 			r = lookup_unit(rel.id);
 			if (r < 0) continue;
 		}
 		// No Health: nothing wears it down.
 		units_.hp[r] = units_.max_hp[r];
 		if (units_.team[r] != (rel.claimed ? rel.owner_team : GAIA_PLAYER)) {
-			// Changed hands outside capture (a defeated owner's units turn Gaia).
-			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
+			// Changed hands outside capture (a defeated owner's units turn Gaia): the new
+			// owner holds every point.
+			rel.cp.fill(0.0f);
+			rel.cp[units_.team[r] < MAX_PLAYERS ? units_.team[r] : MAX_PLAYERS] = (float)RELIC_CAPTURE_POINTS;
 		}
 		float cap[MAX_PLAYERS] = {};
 		const float rr = unit_collision_radius(UNIT_CATAFALQUE);
@@ -21142,25 +21287,35 @@ void Simulation::tick_relics() {
 			if (pulse && can_capture_relic(i, r)) cap[units_.team[i]] += unit_capture_attack_at(i);
 		}
 		if (pulse) {
-			float total = 0.0f;
-			int best = -1;
-			for (int p = 0; p < MAX_PLAYERS; ++p) {
-				total += cap[p];
-				if (cap[p] > 0.0f && (best < 0 || cap[p] > cap[best])) best = p;
-			}
-			const int delta = (int)std::lround((RELIC_REGEN_RATE - total) * 100.0f);
-			rel.capture_cp = std::clamp(rel.capture_cp + delta, 0, RELIC_CAPTURE_POINTS * 100);
-			if (rel.capture_cp == 0 && best >= 0) {
-				// Capturable.js OnCapturePointsChanged: the new owner holds all the points.
-				units_.team[r] = (uint8_t)best;
+			// Capturable.js: each player's Capture attacks Reduce in its favour, then the owner
+			// regains RegenRate; an owner left with no points loses the relic to whoever holds
+			// most (RegisterCapturePointsChanged), and everyone keeps the points they took.
+			constexpr int GAIA = MAX_PLAYERS;
+			auto check_owner = [&]() {
+				const uint8_t team = units_.team[r];
+				const int owner = team < MAX_PLAYERS ? team : GAIA;
+				if (rel.cp[owner] > 0.0001f) return;
+				int best = 0;
+				for (int t = 1; t <= GAIA; ++t) if (rel.cp[t] > rel.cp[best]) best = t;
+				if (best == owner) return;
+				units_.team[r] = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
 				units_.has_order[r] = 0;
 				units_.target_unit_id[r] = 0;
 				units_.action_state[r] = ACTION_IDLE;
 				order_queues_.erase(rel.id);
 				set_order((size_t)r, ORDER_NONE, 0, 0, units_.pos_x[r], units_.pos_z[r]);
-				rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
-				raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, units_.pos_x[r], units_.pos_z[r], rel.id, (uint8_t)best);
-			}
+				if (best != GAIA)
+					raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, units_.pos_x[r], units_.pos_z[r], rel.id, (uint8_t)best);
+			};
+			for (int p = 0; p < MAX_PLAYERS; ++p)
+				if (cap[p] > 0.0f) { capture_reduce(rel.cp, p, cap[p]); check_owner(); }
+			const uint8_t team = units_.team[r];
+			capture_reduce(rel.cp, team < MAX_PLAYERS ? team : GAIA, (float)RELIC_REGEN_RATE);
+			check_owner();
+		}
+		{
+			const uint8_t team = units_.team[r];
+			rel.capture_cp = (int)std::lround(rel.cp[team < MAX_PLAYERS ? team : MAX_PLAYERS] * 100.0f);
 		}
 		rel.x = units_.pos_x[r];
 		rel.z = units_.pos_z[r];
