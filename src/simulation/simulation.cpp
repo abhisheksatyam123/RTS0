@@ -2294,7 +2294,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	if (b.team != player_id) return false;
 	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
 		if (b.build_progress < 1.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
-		return cmd_breed_livestock(player_id, building_id);
+		return cmd_breed_livestock(player_id, building_id, FAUNA_SHEEP_TRAINABLE, count);
 	}
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
@@ -5941,22 +5941,28 @@ float Simulation::livestock_train_time(uint8_t player_id, uint8_t ftype) const {
 	return t;
 }
 
-bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, uint8_t ftype) {
+// Trainer.js at a corral: a batch of `count` animals costs count times one and takes
+// BuildTime x count^BatchTimeModifier (0.7 at every civ's corral).
+bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, uint8_t ftype, int count) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
 	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
-	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE)) return false; // Animal 50
+	count = std::clamp(count, 1, 255);
+	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE, count)) return false; // Animal 50
 	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
 	const FaunaTrainCost &c = fauna_train_cost(animal);
-	if (!player(b.team).pay((float)c.res[0], (float)c.res[1], (float)c.res[3], (float)c.res[2])) return false;
-	ProductionOrder o{(uint8_t)UNIT_TYPE_NONE, 0.0f, livestock_train_time(player_id, animal)};
+	const float n = (float)count;
+	if (!player(b.team).pay(n * c.res[0], n * c.res[1], n * c.res[3], n * c.res[2])) return false;
+	ProductionOrder o{(uint8_t)UNIT_TYPE_NONE, 0.0f,
+		livestock_train_time(player_id, animal) * batch_time_multiplier(player_id, b.type, count)};
 	o.tmpl = animal;
-	o.paid[RES_FOOD] = (float)c.res[0];
-	o.paid[RES_WOOD] = (float)c.res[1];
-	o.paid[RES_STONE] = (float)c.res[2];
-	o.paid[RES_GOLD] = (float)c.res[3];
+	o.count = (uint8_t)count;
+	o.paid[RES_FOOD] = n * c.res[0];
+	o.paid[RES_WOOD] = n * c.res[1];
+	o.paid[RES_STONE] = n * c.res[2];
+	o.paid[RES_GOLD] = n * c.res[3];
 	b.queue.push_back(o);
 	return true;
 }
@@ -8742,8 +8748,7 @@ void Simulation::tick_production(float dt) {
 		if (b.autoqueue && bteam < MAX_PLAYERS && !stuck) {
 			bool again;
 			if (animal) {
-				again = true;
-				for (int n = 0; n < done.count && again; ++n) again = cmd_breed_livestock(bteam, b.id, done.tmpl);
+				again = cmd_breed_livestock(bteam, b.id, (uint8_t)done.tmpl, done.count);
 			} else {
 				again = done.tmpl < CIV_UNIT_TEMPLATE_COUNT
 					? cmd_train_template_at(bteam, b.id, done.tmpl, false, done.count)
