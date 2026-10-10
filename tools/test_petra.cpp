@@ -107,7 +107,8 @@ static void test_phase_up() {
 		if (town_at < 0.0f && s->petra_phase() >= 2) town_at = t;
 		if (city_at < 0.0f && s->petra_phase() >= 3) city_at = t;
 		if ((int)(t * 20.0f) % 200 == 0) {
-			int w = count_units(*s, 1, true);
+			int w = 0;
+			for (size_t i = 0; i < s->units_.count; ++i) w += s->units_.alive[i] && s->units_.team[i] == 1 && s->petra_is_worker(i);
 			if (w > peak_workers) peak_workers = w;
 			int f = 0;
 			for (const auto &b : s->buildings())
@@ -903,7 +904,7 @@ static void test_barter() {
 	std::printf("  barter: contingency deal %s, gold %.0f -> %.0f\n", contingency ? "yes" : "no", gold_before, ps.gold());
 	CHECK(contingency && ps.gold() > gold_before, "sells spare food for the scarcest finite resource");
 
-	ps.food() = 100.0f; ps.wood() = 3000.0f; ps.gold() = 100.0f; ps.stone() = 3000.0f;
+	ps.food() = 300.0f; ps.wood() = 3000.0f; ps.gold() = 50.0f; ps.stone() = 3000.0f;
 	s->petra_set_trading_goods();
 	const uint8_t *g = s->trading_goods(1);
 	std::printf("  trading goods: food %d wood %d stone %d gold %d\n", g[RES_FOOD], g[RES_WOOD], g[RES_STONE], g[RES_GOLD]);
@@ -1446,6 +1447,50 @@ static void test_research_choices() {
 	const int fights3 = forge_techs();
 	std::printf("  city phase: %d forge techs\n", fights3);
 	CHECK(fights3 >= 2, "researches other technologies at random in the city phase");
+}
+
+// headquarters.js trainMoreWorkers: the civic centre trains citizen infantry as workers
+// once support units pass supportRatio's curve, and they gather. buildMoreHouses: houses
+// go up before the population is full, at most 3 at once below 80 population.
+static void test_worker_mix() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	int start_soldiers = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 &&
+		    unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]) == GATHER_INFANTRY) ++start_soldiers;
+	int max_houses = 0;
+	for (int k = 0; k < 7 * 60; ++k) {
+		run_for(*s, 1.0f);
+		int houses = 0;
+		for (const auto &b : s->buildings_) houses += b.team == 1 && b.type == BLD_HOUSE && b.build_progress < 1.0f;
+		if (s->pop_current(1) <= 80) max_houses = std::max(max_houses, houses);
+	}
+	int supports = 0, soldiers = 0, gathering = 0;
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1) continue;
+		const uint8_t g = unit_gather_class(s->units_.unit_type[i], s->units_.tmpl[i]);
+		if (g == GATHER_SUPPORT) ++supports;
+		if (g != GATHER_INFANTRY || !s->petra_is_worker(i)) continue;
+		const uint32_t id = s->units_.id[i];
+		const auto &rush = s->petra_attack_plan_.squad;
+		const auto &defenders = s->petra_defense_army_.defender_ids;
+		// A rush takes workers past the first 8, and the defense any soldier nearby.
+		if (std::find(rush.begin(), rush.end(), id) != rush.end() ||
+		    std::find(defenders.begin(), defenders.end(), id) != defenders.end()) continue;
+		++soldiers;
+		gathering += s->units_.action_state[i] == ACTION_GATHER || s->units_.action_state[i] == ACTION_RETURN_DROPSITE;
+	}
+	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering), at most %d houses at once\n",
+	            supports, soldiers, start_soldiers, gathering, max_houses);
+	CHECK(soldiers + (int)s->petra_defense_army_.defender_ids.size() >= 5, "trains citizen infantry as workers");
+	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
+	const float support_max = 0.5f * (float)s->petra_target_workers(); // supportRatio is 0.35-0.5 by difficulty
+	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
+	CHECK(max_houses >= 1 && max_houses <= 3, "houses go up a few at a time");
 }
 
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
@@ -2005,6 +2050,7 @@ int main() {
 	test_retake_civic_centre();
 	test_research_choices();
 	test_concurrent_attacks();
+	test_worker_mix();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

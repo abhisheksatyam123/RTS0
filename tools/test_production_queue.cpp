@@ -349,6 +349,44 @@ int main() {
 		CHECK(count_units(g, 0, UNIT_SPEARMAN) == 6 && spread(g, 0, UNIT_SPEARMAN, gx));
 	}
 
+	// 11. With no room outside: a rally point on the trainer itself puts the batch straight
+	//     inside (Trainer.js autoGarrison); an unload order leaves the garrison inside
+	//     (GetSpawnPosition, not forced); a structure too damaged to hold them kills those
+	//     that cannot get out (GarrisonHolder.EjectOrKill).
+	{
+		auto ringed = [](Simulation &f, uint32_t fb) {
+			const Simulation::Building fbb = bld(f, fb);
+			std::vector<uint32_t> ring;
+			for (float x = fbb.x - fbb.hu - 4.0f; x <= fbb.x + fbb.hu + 4.0f; x += 1.0f)
+				for (float z = fbb.z - fbb.hv - 4.0f; z <= fbb.z + fbb.hv + 4.0f; z += 1.0f)
+					if (std::fabs(x - fbb.x) > fbb.hu || std::fabs(z - fbb.z) > fbb.hv) ring.push_back(f.spawn_unit(x, z, 1, UNIT_FEMALE_CITIZEN));
+			return ring;
+		};
+		Simulation f;
+		const uint32_t fb = fresh(f);
+		f.cmd_set_rally_point(0, fb, bld(f, fb).x, bld(f, fb).z, 0, fb);
+		CHECK(f.cmd_train(0, fb, UNIT_SPEARMAN, 2));
+		run(f, bld(f, fb).queue.front().duration - 0.5f);
+		ringed(f, fb);
+		run(f, 1.0f);
+		CHECK(bld(f, fb).queue.empty() && bld(f, fb).garrisoned_units.size() == 2);
+		std::printf("autogarrison: a ringed barracks with its rally point on itself takes its batch of %zu inside\n",
+				bld(f, fb).garrisoned_units.size());
+
+		f.cmd_unload(0, fb, nullptr, 0);
+		f.tick(Simulation::FIXED_STEP);
+		CHECK(bld(f, fb).garrisoned_units.size() == 2 && count_units(f, 0, UNIT_SPEARMAN) == 0);
+
+		for (auto &b : const_cast<std::vector<Simulation::Building> &>(f.buildings()))
+			if (b.id == fb) b.hp = 1.0f; // below the garrison threshold
+		f.tick(Simulation::FIXED_STEP);
+		auto u = f.units();
+		int dying = 0;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0 && u.unit_type[i] == UNIT_SPEARMAN && u.action_state[i] == ACTION_DYING) ++dying;
+		CHECK(bld(f, fb).garrisoned_units.empty() && count_units(f, 0, UNIT_SPEARMAN) == 0 && dying == 2);
+		std::printf("no room: unloading leaves them inside; the structure failing kills the %d that can't get out\n", dying);
+	}
+
 	if (failures) {
 		std::printf("FAIL: %d checks\n", failures);
 		return 1;
