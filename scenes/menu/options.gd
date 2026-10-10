@@ -63,7 +63,16 @@ const SCHEMA := [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
 		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],
 		["slider", "gui.session.flarelifetime", "Flare display duration", "How long the flare markers on the minimap are displayed in seconds.", [0, 60]],
+		["boolean", "chat.timestamp", "Chat timestamp", "Display the time at which a chat message was posted."],
 		["boolean", "gui.session.notifications.attack", "Chat notification attack", "Show a chat notification if you are attacked by another player."],
+		["boolean", "gui.session.notifications.tribute", "Chat notification tribute", "Show a chat notification if an ally tributes resources to another team member if teams are locked, and all tributes in observer mode."],
+		["boolean", "gui.session.notifications.barter", "Chat notification barter", "Show a chat notification to observers when a player bartered resources."],
+		["dropdown", "gui.session.notifications.phase", "Chat notification phase", "Show a chat notification if you or an ally have started, aborted or completed a new phase, and phases of all players in observer mode.",
+			[["Disable", "none"], ["Completed", "completed"], ["All displayed", "all"]]],
+		["color", "gui.session.diplomacycolors.self", "Diplomacy colors: self", "Color of your units when diplomacy colors are enabled."],
+		["color", "gui.session.diplomacycolors.ally", "Diplomacy colors: ally", "Color of allies when diplomacy colors are enabled."],
+		["color", "gui.session.diplomacycolors.neutral", "Diplomacy colors: neutral", "Color of neutral players when diplomacy colors are enabled."],
+		["color", "gui.session.diplomacycolors.enemy", "Diplomacy colors: enemy", "Color of enemies when diplomacy colors are enabled."],
 		["boolean", "gui.session.attackrange", "Attack range visualization", "Display the attack range of selected defensive structures. (It can also be toggled with the hotkey during a game)."],
 		["boolean", "gui.session.aurasrange", "Aura range visualization", "Display the range of auras of selected units and structures. (It can also be toggled with the hotkey during a game)."],
 		["boolean", "gui.session.healrange", "Heal range visualization", "Display the healing range of selected units. (It can also be toggled with the hotkey during a game)."],
@@ -220,6 +229,18 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 				ob.add_item(item[0])
 			ob.item_selected.connect(func(i): _changed(key, extra[i][1]))
 			c = ob
+		"color":
+			# options.js "color": the "R G B" value with a swatch of it.
+			var row := HBoxContainer.new()
+			var le := LineEdit.new()
+			le.custom_minimum_size = Vector2(160, 30)
+			MatchSettings.prepare_line_edit(le)
+			var sw := ColorRect.new()
+			sw.custom_minimum_size = Vector2(30, 30)
+			row.add_child(le)
+			row.add_child(sw)
+			le.text_changed.connect(func(t): _color_edited(key, t, sw))
+			c = row
 	c.name = key.replace(".", "_")
 	label.mouse_entered.connect(func(): _description.text = opt[3])
 	c.mouse_entered.connect(func(): _description.text = opt[3])
@@ -233,6 +254,26 @@ static func _locale_items() -> Array:
 	for l in UserSettings.available_locales():
 		items.append([UserSettings.LANGUAGE_NAMES.get(l, l), l])
 	return items
+
+## A colour option edited: a valid "R G B" updates the swatch and the setting.
+func _color_edited(key: String, t: String, sw: ColorRect) -> void:
+	var col = _parse_color(t)
+	if col == null:
+		return
+	sw.color = col
+	_changed(key, t.strip_edges())
+
+## guiToRgbColor: "R G B" with each 0..255, else null.
+static func _parse_color(t: String):
+	var parts := t.strip_edges().split(" ", false)
+	if parts.size() != 3:
+		return null
+	var rgb := []
+	for p in parts:
+		if not p.is_valid_int() or int(p) < 0 or int(p) > 255:
+			return null
+		rgb.append(int(p) / 255.0)
+	return Color(rgb[0], rgb[1], rgb[2])
 
 static func _fmt(x: float) -> String:
 	return str(int(x)) if absf(x - roundf(x)) < 0.001 else str(snappedf(x, 0.01))
@@ -251,6 +292,10 @@ func _load_controls() -> void:
 				c.get_child(0).value = float(v)
 				c.get_child(1).text = _fmt(float(v))
 			"number": c.value = float(v)
+			"color":
+				c.get_child(0).text = v
+				var col = _parse_color(v)
+				c.get_child(1).color = col if col != null else Color.WHITE
 			"dropdown":
 				var idx := 0
 				for i in extra.size():
