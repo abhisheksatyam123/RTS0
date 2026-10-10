@@ -1,4 +1,5 @@
 #include "minimap_view.h"
+#include "display_colors.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/rect2.hpp>
 #include <godot_cpp/core/math.hpp>
@@ -104,10 +105,16 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 // 0 = unclaimed, same mapping as territory_owner_at simulation.cpp:762-769)
 // into a single RGBA8 ImageTexture. The grid bytes are memcmp'd once per
 // _draw() and the texture only re-uploaded when ownership actually changes.
-// The player's Game Setup colour (0 A.D. PlayerColor, rtso::PLAYER_COLORS); Gaia is white.
+// The player's drawn colour: its Game Setup colour (0 A.D. PlayerColor,
+// rtso::PLAYER_COLORS), or its diplomacy colour (display_colors.h); Gaia is white.
 Color RtsoMiniMapView::player_color(uint8_t pid) const {
-	const uint32_t rgb = sim ? sim->player_color(pid) : 0xFFFFFFu;
+	const uint32_t rgb = sim ? rtso::display_colors::rgb(*sim, pid) : 0xFFFFFFu;
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
+}
+
+void RtsoMiniMapView::toggle_diplomacy() {
+	rtso::display_colors::toggle();
+	queue_redraw();
 }
 
 bool RtsoMiniMapView::ensure_territory_texture() {
@@ -119,8 +126,10 @@ bool RtsoMiniMapView::ensure_territory_texture() {
 		return false;
 	}
 	const size_t n = grid.data.size();
-	if (territory_tex_cache_.size() != n ||
+	const uint64_t colors = rtso::display_colors::key(*sim);
+	if (territory_tex_cache_.size() != n || territory_colors_ != colors ||
 			std::memcmp(territory_tex_cache_.data(), grid.data.data(), n) != 0) {
+		territory_colors_ = colors;
 		// 0 A.D. TerritoryTexture: each player's land in its Game Setup colour;
 		// alpha carries the blurred edge.
 		Color tint[rtso::MAX_PLAYERS];
@@ -167,19 +176,6 @@ void RtsoMiniMapView::_draw() {
 		return Vector2(nx * sz.x, nz * sz.y);
 	};
 
-	// Diplomacy colours (0 A.D. session "diplomacy colors" toggle, default.cfg
-	// gui.session.diplomacycolors: self 21 55 149, ally 86 180 31, neutral
-	// 231 200 5, enemy 150 20 20) replace player colours while enabled.
-	auto c8 = [](int r, int g, int b) { return Color(r / 255.0f, g / 255.0f, b / 255.0f); };
-	auto diplo_color = [&](uint8_t team, const Color &fallback) -> Color {
-		if (!show_diplo_palette || !sim || team >= rtso::MAX_PLAYERS) return fallback;
-		if (team == local_player) return c8(21, 55, 149);
-		// Every player keeps its own stance row, so read the local player's.
-		uint8_t st = sim->get_diplomacy(local_player, team);
-		if (st == rtso::Simulation::DIPLO_ALLY) return c8(86, 180, 31);
-		if (st == rtso::Simulation::DIPLO_NEUTRAL) return c8(231, 200, 5);
-		return c8(150, 20, 20);
-	};
 
 	// Entities follow the local player's LOS in every shroud mode (the mode only
 	// changes how the shroud is drawn): the sim's per-player LOS via FogMirages.
@@ -292,7 +288,6 @@ void RtsoMiniMapView::_draw() {
 			box_sz = 5.0f;
 		}
 
-		col = diplo_color(b.team, col);
 		if (b.miraged) {
 			col.a *= 0.55f;
 		}
@@ -308,7 +303,7 @@ void RtsoMiniMapView::_draw() {
 		}
 
 		Vector2 pos = map_to_mini(units.pos_x[i], units.pos_z[i]);
-		Color col = diplo_color(units.team[i], player_color(units.team[i]));
+		Color col = player_color(units.team[i]);
 		float rad = (units.unit_type[i] == rtso::UNIT_CAVALRY || units.unit_type[i] == rtso::UNIT_TRADER) ? 3.0f : 2.0f;
 		draw_rect(Rect2(pos.x - rad * 0.5f, pos.y - rad * 0.5f, rad, rad), col, true);
 	}

@@ -272,16 +272,20 @@ public:
 				msg = msg.substr(close_b + 1).strip_edges();
 			}
 		}
-		log_->append_text("[color=" + tag_col + "]" + chan_prefix + " " +
-				sender_guid + "[/color]: " + msg + "\n");
-		post_overlay("[color=" + tag_col + "]" + chan_prefix + " " + sender_guid + "[/color]: " + msg);
+		const String line = stamp() + "[color=" + tag_col + "]" + chan_prefix + " " + sender_guid + "[/color]: " + msg;
+		log_->append_text(line + String("\n"));
+		post_overlay(line);
 	}
 
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback).
 	void append_line(const String &bbcode) {
-		if (log_) log_->append_text(bbcode);
-		post_overlay(bbcode.strip_edges(false, true));
+		const String line = bbcode.is_empty() ? bbcode : stamp() + bbcode;
+		if (log_) log_->append_text(line);
+		post_overlay(line.strip_edges(false, true));
 	}
+
+	// 0 A.D. chat.timestamp: each line opens with the local time, "[HH:MM]".
+	void set_timestamps(bool on) { timestamps_ = on; }
 
 	// Drops overlay lines older than 30 s; hides the overlay while the chat
 	// window (which shows the full history) is open. Call once per frame.
@@ -298,6 +302,13 @@ public:
 	}
 
 private:
+	String stamp() const {
+		if (!timestamps_) return String();
+		const Dictionary t = Time::get_singleton()->get_time_dict_from_system();
+		return "[color=#aaaaaa][lb]" + String::num_int64((int64_t)t["hour"]).pad_zeros(2) + ":" +
+				String::num_int64((int64_t)t["minute"]).pad_zeros(2) + "][/color] ";
+	}
+
 	static constexpr size_t kOverlayLines = 20; // ChatOverlay.js chatLinesNumber
 	static constexpr uint64_t kOverlayTimeoutMs = 30000; // ChatOverlay.js chatTimeout
 
@@ -321,6 +332,7 @@ private:
 	LineEdit *input_ = nullptr;
 	Button *send_btn_ = nullptr;
 	RtsoChatHost *host_ = nullptr;
+	bool timestamps_ = true; // chat.timestamp (default.cfg: true)
 };
 
 #endif
