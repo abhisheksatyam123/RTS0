@@ -350,7 +350,7 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	if (type < 0 || type >= rtso::BLD_TYPE_COUNT) return d;
 	const uint8_t b = (uint8_t)type;
 	const uint8_t c = (civ >= 0 && civ < rtso::CIV_COUNT) ? (uint8_t)civ : 0;
-	const auto &bi = rtso::building_type_info(b);
+	const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(c, b); // the big house
 	d["kind"] = "structure";
 	d["type"] = b;
 	d["civ"] = c;

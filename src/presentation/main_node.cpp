@@ -3443,7 +3443,7 @@ void RtsoMain::update_command_panel() {
 					return sim->building_disabled_by_trigger(local_player(), (uint8_t)bt);
 				}), menu.end());
 				for (int bt : menu) {
-					const rtso::BuildingTypeInfo &bi = rtso::building_type_info((uint8_t)bt);
+					const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(my_civ, (uint8_t)bt); // the big house
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
 						if (amount <= 0) return;
