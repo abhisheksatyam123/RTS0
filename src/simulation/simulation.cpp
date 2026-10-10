@@ -7684,10 +7684,18 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			} else {
 				olen = std::sqrt(h2);
 				if (olen <= PUSH_EPSILON) {
-					// On top of each other: an arbitrary direction, by a's id.
-					const bool dir = (i_is_a ? idi : b.id) % 2;
-					ox = dir ? 1.0f : 0.0f;
-					oz = dir ? 0.0f : 1.0f;
+					// On top of each other: an arbitrary direction. 0 A.D. picks one of the two
+					// axes by a's id; RTS0, which can put many units on one point (a ship's unload
+					// point), picks one of eight by both ids, so a stack spreads over the ground
+					// instead of settling in a line along one axis.
+					constexpr float D = 0.70710678f;
+					static constexpr float DIRS[8][2] = {{0.0f, 1.0f}, {1.0f, 0.0f}, {D, D}, {D, -D},
+							{0.38268343f, 0.92387953f}, {0.92387953f, 0.38268343f}, {0.92387953f, -0.38268343f},
+							{0.38268343f, -0.92387953f}};
+					const uint32_t lo = std::min(idi, b.id), hi = std::max(idi, b.id);
+					const uint32_t dir = (lo * 2654435761u + hi * 40503u) >> 29;
+					ox = DIRS[dir][0];
+					oz = DIRS[dir][1];
 					olen = PUSH_EPSILON;
 				} else {
 					ox /= olen;
