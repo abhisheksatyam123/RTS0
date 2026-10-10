@@ -78,6 +78,7 @@
 //     nearest dropsite to idle.
 // 46. ShouldAbandonChase: once a second a chase whose target is hidden in the player's fog ends,
 //     a player's attack too (CheckTargetVisible).
+// 47. Attacked by a unit hidden in the fog: the unit doesn't charge it (APPROACHING enter).
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_unit_orders.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -1767,6 +1768,26 @@ static void test_chase_into_fog() {
 	}
 }
 
+
+static void test_hidden_attacker() {
+	std::printf("47. a unit doesn't charge an attacker hidden in the fog (APPROACHING, CheckTargetVisible)\n");
+	Simulation s;
+	setup(s);
+	uint32_t sw = s.spawn_unit(-40, 0, 0, UNIT_SWORDSMAN, 5000.0f);
+	uint32_t far = s.spawn_unit(10, 0, 1, UNIT_ARCHER, 5000.0f);
+	s.order_set_stance(&far, 1, STANCE_PASSIVE);
+	run(s, DT); // line of sight
+	const int si = idx_of(s, sw);
+	check(!s.los_visible(0, x_of(s, far), z_of(s, far)), "the archer stands in the fog");
+	s.units_.attacked_by[si] = far;
+	s.respond_to_attack((size_t)si);
+	check(target_of(s, sw) != far && act_of(s, sw) != ACTION_ATTACK, "the swordsman doesn't go for it");
+	s.set_reveal_map(true);
+	s.units_.attacked_by[si] = far;
+	s.respond_to_attack((size_t)si);
+	check(target_of(s, sw) == far, "one in sight is answered");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1816,6 +1837,7 @@ int main(int argc, char **argv) {
 	test_autoharvest();
 	test_idle_at_dropsite();
 	test_chase_into_fog();
+	test_hidden_attacker();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
