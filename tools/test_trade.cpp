@@ -309,12 +309,80 @@ static void test_trading_goods() {
 	for (int r = 0; r < RES_COUNT; ++r) CHECK(l.trading_goods(0)[r] == mix[r]);
 }
 
+// Trader.js: the goods' gain is worked out when they are loaded (CalculateGain in PerformTrade)
+// and paid as such on arrival, whatever was researched on the way; Looter.js gives whoever
+// kills a trader its goods (calculateCarriedResources: all three gains).
+static void test_trader_goods() {
+	static Simulation s, c;
+	for (Simulation *w : {&s, &c}) {
+		fresh(*w);
+		w->spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
+		w->spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+		w->set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
+	}
+	const uint32_t m0 = s.buildings()[0].id, m1 = s.buildings()[1].id;
+	const uint32_t trader = s.spawn_unit(-74.0f, 4.0f, 0, UNIT_TRADER);
+	auto carry = [&]() {
+		const int32_t i = s.lookup_unit(trader);
+		return i < 0 ? -1 : s.units_.carry[i];
+	};
+	// It loads at the first market it reaches, then walks to the other.
+	for (int k = 0; k < 240 && carry() <= 0; ++k) { run(s, 0.5f); run(c, 0.5f); }
+	const Simulation::TradeGain g = s.calculate_trade_gain(*find_bld(s, m0), *find_bld(s, m1), 0);
+	CHECK(carry() == g.trader + g.market1 + g.market2 && g.trader > 0);
+	CHECK(s.trader_goods_.count(trader) && s.trader_goods_[trader].market1 == g.market1);
+	const int leg = s.trader_leg_[trader];
+
+	// Looter.js: a killer gets the goods' trader gain on top of the trader's own Loot.
+	{
+		const int32_t i = s.lookup_unit(trader);
+		const uint8_t goods = s.units_.res_type_carried[i];
+		const int before = s.player_resource(2, goods);
+		s.collect_unit_loot(0, 2, (size_t)i);
+		const int with_goods = s.player_resource(2, goods) - before;
+		s.units_.carry[i] = 0;
+		s.collect_unit_loot(0, 2, (size_t)i);
+		const int without = s.player_resource(2, goods) - before - with_goods;
+		s.units_.carry[i] = g.trader + g.market1 + g.market2;
+		s.player(2).res[goods] = (float)before; // keep the twins alike
+		std::printf("  trader loot: %d with its goods, %d without (gain %d)\n", with_goods, without, g.trader);
+		CHECK(with_goods - without == g.trader + g.market1 + g.market2); // calculateCarriedResources
+	}
+
+	// Researched on the way, a trade gain technology doesn't change what these goods pay:
+	// the trader's gain and, at player 1's market, player 1's market's bonus (market2Gain).
+	s.complete_research(0, TECH_TRADE_GAIN_01);
+	c.complete_research(0, TECH_TRADE_GAIN_01);
+	const Simulation::TradeGain now = s.calculate_trade_gain(*find_bld(s, m0), *find_bld(s, m1), 0);
+	CHECK(now.trader > g.trader);
+	const int p0 = total(s, 0) - total(c, 0);
+	for (int k = 0; k < 600 && s.trader_leg_[trader] == leg; ++k) { run(s, 0.1f); run(c, 0.1f); }
+	CHECK(s.trader_leg_[trader] != leg);
+	const int paid = total(s, 0) - total(c, 0) - p0;
+	std::printf("  goods loaded before the trade gain tech paid %d (loaded %d+%d, now worth %d+%d)\n", paid, g.trader,
+			g.market2, now.trader, now.market2);
+	CHECK(paid == g.trader + g.market2);
+
+	// Saved and loaded, the goods on the way keep their amounts.
+	const char *path = "/tmp/rtso_test_trader_goods.sav";
+	CHECK(s.save_state(path));
+	static Simulation l;
+	fresh(l);
+	CHECK(l.load_state(path));
+	CHECK(l.trader_goods_.size() == 1 && l.trader_goods_[trader].trader == s.trader_goods_[trader].trader &&
+			l.trader_goods_[trader].market2 == s.trader_goods_[trader].market2);
+	TurnManager tm;
+	CHECK(tm.compute_sim_hash(s) == tm.compute_sim_hash(l));
+	std::remove(path);
+}
+
 int main() {
 	test_tribute();
 	test_trading_goods();
 	test_barter();
 	test_trade_gain();
 	test_trader_route();
+	test_trader_goods();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
