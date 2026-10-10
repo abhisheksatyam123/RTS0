@@ -276,7 +276,7 @@ public:
 
 	static const char *building_sound_name(uint8_t type, bool select) {
 		const char *n = "universal";
-		switch (type) {
+		switch (building_research_base(type)) {
 			case BLD_TOWN_CENTER: n = "civ_center"; break;
 			case BLD_HOUSE: n = "house"; break;
 			case BLD_BARRACKS: n = "barracks"; break;

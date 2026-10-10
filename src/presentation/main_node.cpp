@@ -1302,7 +1302,7 @@ Dictionary RtsoMain::debug_trade_route_clicks() {
 	const uint8_t me = local_player();
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
-		if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 	const uint32_t m1 = sim->spawn_building_world(cx - 30.0f, cz, rtso::BLD_MARKET, me, 1.0f);
 	const uint32_t m2 = sim->spawn_building_world(cx + 30.0f, cz + 10.0f, rtso::BLD_MARKET, me, 1.0f);
 	clear_selection();
@@ -1334,7 +1334,7 @@ Dictionary RtsoMain::debug_guard_step(int step) {
 	if (step == 0) {
 		float cx = 0.0f, cz = 0.0f;
 		for (const auto &b : sim->buildings())
-			if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+			if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 		const uint32_t a = sim->spawn_unit(cx - 20.0f, cz, me, rtso::UNIT_SPEARMAN);
 		const uint32_t b = sim->spawn_unit(cx - 22.0f, cz, me, rtso::UNIT_SPEARMAN);
 		sim->order_guard(&a, 1, b);
@@ -1360,7 +1360,7 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	const uint8_t me = local_player();
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
-		if (b.team == me && b.type == rtso::BLD_TOWN_CENTER) { cx = b.x; cz = b.z; break; }
+		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
 	const uint32_t id = sim->spawn_building_world(cx + 24.0f, cz + 24.0f, (uint8_t)btype, me, 1.0f);
 	clear_selection();
 	selected_building_id = id;
@@ -3232,6 +3232,7 @@ void RtsoMain::update_command_panel() {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
 							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
 							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
+							case rtso::Simulation::UPGRADE_ERR_LIMIT: why = "Limit reached"; break;
 							default: break;
 						}
 						if (why) {
@@ -4919,7 +4920,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		if (cam_rig) {
 			cam_rig->set_map_bounds_half(sim->map_half());
 			for (const auto &b : sim->buildings()) {
-				if (b.team == local_player() && b.type == rtso::BLD_TOWN_CENTER) {
+				if (b.team == local_player() && rtso::is_civic_centre(b.type)) {
 					cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 					break;
 				}
