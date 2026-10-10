@@ -542,8 +542,9 @@ public:
 			bool queued = false, bool allow_capture = false);
 	// Attack-move (UnitAI WalkAndFight): fight units, then structures unless units_only,
 	// on the way, and carry on to (tx, tz) afterwards.
+	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-			bool queued = false, bool units_only = false, bool allow_capture = false);
+			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
@@ -2134,7 +2135,9 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0) const;
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
+	uint8_t petra_enemy_player(uint8_t kind) const;
+	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
 	void petra_set_rushes();
@@ -2142,8 +2145,11 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
-	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz);
+	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
+	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
 	bool petra_unit_reserved(uint32_t uid) const;
+	bool petra_mustering(uint32_t uid) const;
+	void petra_leave_mustering(uint32_t uid);
 
 	std::vector<PetraBase> petra_bases_;
 	// Foundations whose build progress has stalled; builders that could not
