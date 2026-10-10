@@ -574,7 +574,8 @@ static void test_petra_overseas_base() {
 		run(s, 1.0f);
 		for (size_t i = 0; i < s.units().count; ++i)
 			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
-			    std::fabs(s.units().pos_z[i]) < 14.0f) ++waded;
+			    std::fabs(s.units().pos_z[i]) < 14.0f && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) != north &&
+			    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) != south) ++waded; // in the strait, not on a beach
 		for (const auto &b : s.buildings())
 			if (!cc && b.team == 1 && b.type == BLD_TOWN_CENTER && b.z < -16.0f) { cc = b.id; placed_at = (float)k; }
 		if (first_ashore < 0.0f)
