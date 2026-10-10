@@ -1945,6 +1945,35 @@ void RtsoWorldView::build_ground_paint(const rtso::Simulation *sim) {
 	paint_dirty_ = false;
 }
 
+// 0 A.D.'s sky box for the SkySet (assets/textures/skies, written by
+// tools/extract_sky_boxes.py), turned so its bright "left" face lies toward the
+// sun as SkyManager::RenderSky does. "default" names no folder in 0 A.D.; it
+// takes one of the everyday sets, fixed per map. False keeps the procedural sky.
+bool RtsoWorldView::apply_sky_box(const Ref<Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const Color &ground) {
+	String name = String(set.c_str()).replace(" ", "_");
+	if (name.is_empty() || name == "default") {
+		static const char *const kEveryday[] = { "cirrus", "cumulus", "sunny" };
+		name = kEveryday[String(map_id.c_str()).hash() % 3];
+	}
+	const String dir = "res://assets/textures/skies/" + name + "/";
+	if (!ResourceLoader::get_singleton()->exists(dir + String("top.png"))) return false;
+	static Ref<Shader> shader;
+	if (shader.is_null()) shader = ResourceLoader::get_singleton()->load("res://shaders/sky_box.gdshader");
+	if (shader.is_null()) return false;
+	Ref<ShaderMaterial> mat;
+	mat.instantiate();
+	mat->set_shader(shader);
+	for (const char *face : { "front", "back", "left", "right", "top" }) {
+		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(dir + String(face) + String(".png"));
+		if (tex.is_null()) return false;
+		mat->set_shader_parameter(String("face_") + face, tex);
+	}
+	mat->set_shader_parameter("sky_yaw", (float)Math_PI * 0.5f - sun_yaw);
+	mat->set_shader_parameter("ground_color", ground);
+	sky->set_material(mat);
+	return true;
+}
+
 // Per-map sun, ambient light, fog, sky and water, from the Environment block
 // of the 0 A.D. random-map biome each RTS0 biome follows
 // (maps/random/rmbiome/generic/*.json, named after each row).
@@ -2007,23 +2036,25 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 	}
 	auto col = [](const Rgb &c, float k = 1.0f) { return Color(c.r * k, c.g * k, c.b * k, 1.0f); };
 
+	// 0 A.D. gives the sun's height above the horizon and its bearing;
+	// above 90 degrees it shines from the other side. Bearings are taken
+	// relative to the Aegean sun, which matches the scene's default light.
+	float sun_elev = e->sun_elevation, sun_rot = e->sun_rotation;
+	if (sun_elev > Math_PI * 0.5f) {
+		sun_elev = (float)Math_PI - sun_elev;
+		sun_rot += (float)Math_PI;
+	}
+	sun_elev = Math::clamp(sun_elev, 0.35f, 1.3f);
+	const float sun_yaw = Math::deg_to_rad(45.0f) + (sun_rot - (-0.909f));
+
 	Node *scene = get_parent();
 	if (scene) {
 		for (int i = 0; i < scene->get_child_count(); ++i) {
 			if (DirectionalLight3D *sun = Object::cast_to<DirectionalLight3D>(scene->get_child(i))) {
-				// 0 A.D. gives the sun's height above the horizon and its bearing;
-				// above 90 degrees it shines from the other side. Bearings are taken
-				// relative to the Aegean sun, which matches the scene's default light.
-				float elev = e->sun_elevation, rot = e->sun_rotation;
-				if (elev > Math_PI * 0.5f) {
-					elev = (float)Math_PI - elev;
-					rot += (float)Math_PI;
-				}
-				elev = Math::clamp(elev, 0.35f, 1.3f);
 				const float peak = std::max(e->sun.r, std::max(e->sun.g, e->sun.b));
 				sun->set_color(col(e->sun, 1.0f / peak));
 				sun->set_param(Light3D::PARAM_ENERGY, 1.25f * peak);
-				sun->set_rotation(Vector3(-elev, Math::deg_to_rad(45.0f) + (rot - (-0.909f)), 0.0f));
+				sun->set_rotation(Vector3(-sun_elev, sun_yaw, 0.0f));
 			} else if (WorldEnvironment *we = Object::cast_to<WorldEnvironment>(scene->get_child(i))) {
 				Ref<Environment> env = we->get_environment();
 				if (env.is_null()) continue;
@@ -2034,6 +2065,11 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 				env->set_ambient_light_color(col(e->ambient, 0.85f / 0.4f));
 				env->set_fog_light_color(col(e->fog));
 				Ref<Sky> sky = env->get_sky();
+				if (sky.is_valid() && apply_sky_box(sky, e->sky, map_id, sun_yaw, col(e->fog))) {
+					// 0 A.D. draws its sky unfogged; the faces carry their own haze.
+					env->set_fog_sky_affect(0.1f);
+					continue;
+				}
 				Ref<ProceduralSkyMaterial> psm = sky.is_valid() ? Ref<ProceduralSkyMaterial>(sky->get_material()) : Ref<ProceduralSkyMaterial>();
 				if (psm.is_valid()) {
 					const Color fog = col(e->fog);
