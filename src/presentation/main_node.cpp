@@ -133,6 +133,7 @@ void RtsoMain::_bind_methods() {
 	// (scenes/menu/loading.gd) listens while the match is set up.
 	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -671,7 +672,8 @@ void RtsoMain::_ready() {
 	lobby_observe = memnew(Button);
 	lobby_observe->set_text("Observe");
 	lobby_observe->set_toggle_mode(true);
-	lobby_observe->set_tooltip_text("Join a match in progress as an observer");
+	lobby_observe->set_tooltip_text("Watch instead of playing: host or join a match (or one in progress) as an observer");
+	lobby_observe->connect("toggled", Callable(this, "_on_lobby_observe_toggled"));
 	lobby_actions->add_child(lobby_observe);
 	Button *ref_b = memnew(Button);
 	ref_b->set_text("Refresh");
@@ -1726,14 +1728,15 @@ void RtsoMain::update_cursor() {
 					// (or attack-move's Ctrl) attacks instead.
 					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
 						want = "action-gather-grain";
-					else if (b.team != me)
-						want = !sim->is_hostile(me, b.team) ? ""
-								: (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
+					else if (b.team != me && sim->is_hostile(me, b.team))
+						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
 										  b.max_capture_points <= 0.0f)
 								? "action-attack" : "action-capture";
-					else if (b.build_progress < 1.0f || b.type == rtso::BLD_FIELD) want = "action-build";
-					else if (b.hp < b.max_hp) want = "action-repair";
-					else if (b.garrison_cap > 0) want = "action-garrison";
+					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
+					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
+					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
+					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
+					else if (selection_can_garrison(b.id)) want = "action-garrison";
 					break;
 				}
 			}
@@ -1895,6 +1898,15 @@ void RtsoMain::_on_template_info_pressed() {
 }
 
 // Tests: select the local player's first structure or first live unit.
+// unit_actions.js "garrison" actionCheck: some selected unit may garrison in this own or allied
+// structure (its GarrisonHolder List, IsOwnedByMutualAllyOfEntity). Room is not checked.
+bool RtsoMain::selection_can_garrison(uint32_t building_id) const {
+	if (!sim) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (sim->can_garrison_in((uint32_t)(int64_t)selected_ids[s], building_id)) return true;
+	return false;
+}
+
 bool RtsoMain::select_first_own(bool building) {
 	if (!sim) return false;
 	selected_ids.clear();
@@ -2701,10 +2713,12 @@ void RtsoMain::_process(double delta) {
 		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
 		selected_ids.clear();
-	} else if (local_observer_ && !turn_mgr_.is_replaying()) {
-		// Every Game Setup slot was AI: say so for the first few seconds.
+	} else if ((local_observer_ || (net_lockstep() && local_player() >= rtso::MAX_PLAYERS)) && !turn_mgr_.is_replaying()) {
+		// Every Game Setup slot was AI, or this client joined to watch: say so
+		// for the first few seconds.
 		banner_panel->set_visible(match_elapsed_time < 6.0);
-		banner_label->set_text("OBSERVING\nEvery player is an AI. The map is revealed.");
+		banner_label->set_text(local_observer_ ? "OBSERVING\nEvery player is an AI. The map is revealed."
+				: "OBSERVING\nYou are watching this match. The map is revealed.");
 		banner_label->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.95f));
 	}
 }
@@ -2822,15 +2836,17 @@ void RtsoMain::update_inspector() {
 			inspector_extra->set_text(extra);
 
 			// Garrison panel: one icon per unit type inside, click to unload one,
-			// Shift+click (session.unloadtype) to unload that type, U unloads all.
-			if (!found_b->garrisoned_units.empty() && owner == local_player()) {
+			// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
+			// structure only our own units inside (Commands.js unload / unload-all-by-owner).
+			const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), found_b->id);
+			if (!mine.empty()) {
 				auto uview = sim->units();
-				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, found_b->garrisoned_units.data(), found_b->garrisoned_units.size()),
+				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
 						"Click to unload one, Shift+click to unload all of this type.");
 				garrison_grid_.set_visible(true);
 			}
 			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-			ungarrison_btn->set_visible((!found_b->garrisoned_units.empty() || penned > 0) && owner == local_player());
+			ungarrison_btn->set_visible(!mine.empty() || (penned > 0 && owner == local_player()));
 			inspector_panel->set_visible(true);
 			return;
 		}
@@ -2988,8 +3004,9 @@ void RtsoMain::_on_selection_group_clicked(int key) {
 // unload one unit of the group, or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
 	if (!sim || selected_building_id == 0) return;
-	const auto *inside = sim->get_garrisoned_units(selected_building_id);
-	if (!inside || inside->empty()) return;
+	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), selected_building_id);
+	const auto *inside = &mine;
+	if (inside->empty()) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
 	std::vector<uint32_t> out;
@@ -4296,7 +4313,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			bool garrison_click = false;
 			if (rtso::hotkeys::held("session.garrison")) {
 				for (const auto &b : sim->buildings()) {
-					if (b.team != local_player()) continue;
+					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
 					if (dx * dx + dz * dz <= hit_r * hit_r) {
 						garrison_click = true;
@@ -4555,12 +4572,31 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						else
 							sim->order_gather(sel_ptr, sel_n, gaia_grain, queue_shift);
 						play_civ_voice("gather");
-					} else if (b.team != local_player()) {
+					} else if (b.team != local_player() && sim->is_hostile(local_player(), b.team)) {
 						if (turn_cmds())
 							post_lockstep(15, sel_ptr, sel_n, 0, 0, b.id, qbit); // capture (0 A.D. default)
 						else
 							sim->order_attack_building(sel_ptr, sel_n, b.id, queue_shift, true);
 						play_civ_voice("attack");
+					} else if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) {
+						break; // neutral: walk there
+					} else if (b.team != local_player()) {
+						// An ally's structure: repair it, else garrison (Garrisonable / IsOwnedByMutualAllyOfEntity).
+						if (b.build_progress < 1.0f || b.hp < b.max_hp) {
+							if (turn_cmds())
+								post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
+							play_civ_voice("build");
+						} else if (selection_can_garrison(b.id)) {
+							if (turn_cmds())
+								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
+							else
+								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
+							clear_selection();
+						} else {
+							break; // nothing to do there: walk
+						}
 					} else {
 						// 0 A.D. "returnresource" comes first: carriers take their load to this dropsite.
 						bool carriers = false;
@@ -4584,12 +4620,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							else
 								sim->cmd_upgrade_building(local_player(), b.id);
 							play_civ_voice("build");
-						} else {
+						} else if (selection_can_garrison(b.id)) {
 							if (turn_cmds())
 								post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
 							else
 								sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
 							clear_selection();
+						} else {
+							break; // no selected unit is on its GarrisonHolder List: walk
 						}
 					}
 					return;
@@ -5191,6 +5229,12 @@ void RtsoMain::refresh_lobby_rooms() {
 		lobby_status->set_text(String::num_int64((int64_t)lobby_room_cache_.size()) + " rooms");
 }
 
+// A joiner still in game setup changes its mind: tell the host it now wants
+// to watch (or play), as its request at connect did.
+void RtsoMain::_on_lobby_observe_toggled(bool on) {
+	if (net_lockstep() && !net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin(on);
+}
+
 void RtsoMain::_on_lobby_refresh_pressed() {
 	refresh_lobby_rooms();
 }
@@ -5319,9 +5363,16 @@ void RtsoMain::_on_lobby_start_pressed() {
 	// few, turn the first AI slots into human ones (before broadcast, so both
 	// peers seat players identically in assign_slot_players).
 	{
-		int need = 1;
-		for (const auto &p : net_host_.getPeers())
-			if (p.connected && !p.is_observer) ++need;
+		// 0 A.D. game setup assigns observers no player: the host when Observe is
+		// ticked, a joiner that asked to watch (its rejoin request at connect).
+		const bool host_watches = lobby_observe && lobby_observe->is_pressed();
+		setup.observers = host_watches ? 1 : 0;
+		int need = host_watches ? 0 : 1;
+		for (const auto &p : net_host_.getPeers()) {
+			if (!p.connected || p.id == 0) continue;
+			if (!p.is_observer) ++need;
+			else if (p.id < 8) setup.observers |= (uint8_t)(1u << p.id);
+		}
 		for (uint8_t i = 0; i < setup.slot_count; ++i)
 			if (setup.slot_types[i] == 'h') --need;
 		for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)
