@@ -7331,7 +7331,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
 			if (!task_path && ((!closing_in && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
-					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_building_clearance(units_.unit_type[i]),
+					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i),
 					steer_obstacles_, units_.target_building_id[i])) ||
 					line_crosses_impassable(px[i], pz[i], tx[i], tz[i]))) {
 				const uint8_t ut = units_.unit_type[i];
@@ -7373,7 +7373,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				// against the building there for good. Like 0 A.D. UnitMotion, which moves on to the
 				// next long-path waypoint once its short path gets as close as it can, it moves on once
 				// within WAYPOINT_NEAR of such a waypoint.
-				const float crowd = unit_building_clearance(units_.unit_type[i]) - ARRIVE_DIST;
+				const float crowd = unit_clearance_at(i) - ARRIVE_DIST;
 				auto crowded = [&](float wx, float wz) {
 					if (crowd <= 0.0f) return false; // ships too: a transport's path can start beside a shore house
 					for (const SteerObstacle &b : steer_obstacles_) {
@@ -7450,7 +7450,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		    !unit_is_ship(units_.unit_type[i])) {
 			const float adx = aim_x - px[i], adz = aim_z - pz[i];
 			if (adx * adx + adz * adz <= nav::BUILDING_STEER_RANGE * nav::BUILDING_STEER_RANGE) {
-				const float c = unit_building_clearance(units_.unit_type[i]) + 0.05f;
+				const float c = unit_clearance_at(i) + 0.05f;
 				for (const SteerObstacle &b : steer_obstacles_)
 					if (std::fabs(aim_x - b.x) < nav::footprint_extent(b) + c &&
 					    std::fabs(aim_z - b.z) < nav::footprint_extent(b) + c &&
@@ -7551,7 +7551,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 			if (round_units) steer = rtso::nav::Vec2(memo.x, memo.z);
 			if (round_units || rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					unit_building_clearance(units_.unit_type[i]), steer_obstacles_, units_.target_building_id[i],
+					unit_clearance_at(i), steer_obstacles_, units_.target_building_id[i],
 					nav_grid_, short_path_key_, memo, steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
@@ -7597,7 +7597,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		}
 		// A closed gate is solid: slide along it, never step into it.
 		if (!closed_gates_.empty()) {
-			const float r = unit_building_clearance(units_.unit_type[i]);
+			const float r = unit_clearance_at(i);
 			auto inside = [&](float x, float z) {
 				for (const auto &g : closed_gates_)
 					if (nav::footprint_contains(g, x, z, r)) return true;
@@ -7845,7 +7845,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			building = units_.target_building_id[i];
 		}
 		nav::Vec2 w, next;
-		if (!nav::search_short_path_with_units(pos, aim, goal, unit_building_clearance(units_.unit_type[i]), ci, range,
+		if (!nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range,
 				steer_obstacles_, building, squares, nav_grid_, w, next)) {
 			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
 			return;
@@ -7961,6 +7961,13 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// and Push adds to it.
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(PUSH_TURN / dt));
 	const bool turn_ends = (ticks_ + 1) % per_turn == 0;
+	// The standing buildings that block movement now, for the building pass below and for
+	// tick_fauna's steps (fauna_can_step), so it is built every tick, with or without units.
+	sep_obstacles_.clear();
+	for (const Building &b : buildings_)
+		if (!b.wrecked && blocks_movement_now(b))
+			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
+	sep_grid_.build(sep_obstacles_, map_half_);
 	if (n < 2) {
 		if (n == 1 && turn_ends) units_.motion[0].pressure = (uint8_t)((PUSH_PRESSURE_DECAY * units_.motion[0].pressure) >> 16);
 		return;
@@ -7981,13 +7988,6 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 
 	UnitGrid grid;
 	if (!grid.build(arena, n, px, pz, units_.alive, map_half_)) return;
-
-	// The building pass below only reads standing buildings that block movement now.
-	sep_obstacles_.clear();
-	for (const Building &b : buildings_)
-		if (!b.wrecked && blocks_movement_now(b))
-			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
-	sep_grid_.build(sep_obstacles_, map_half_);
 
 	// The pair loop's inputs, gathered once: twice the average of where each unit stood before and
 	// after move_units (the pushes compare that), and its pushing data. The widest clearance this
@@ -8147,7 +8147,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// building clearance, as steering does). A building more than b_req from the unit on either
 		// axis pushes nothing; the 0.5 margin keeps that test clear of float rounding, so skipping it
 		// changes no result.
-		const float b_req = unit_building_clearance(units_.unit_type[i]);
+		const float b_req = unit_clearance_at(i);
 		const float b_skip = b_req + 0.5f;
 		// Pushes (qx, qz) out of the rectangle of half sizes (hx, hz) centred on (bx, bz), into (oax, oaz).
 		auto push_square = [&](float qx, float qz, float bx, float bz, float hx, float hz, float &oax, float &oaz) {
@@ -11557,7 +11557,7 @@ void Simulation::tick_gates(float dt) {
 			const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
 			const float dx = std::fabs(l.x), dz = std::fabs(l.y);
 			if (dx > reach_u || dz > reach_v) continue;
-			const float clearance = unit_building_clearance(units_.unit_type[i]);
+			const float clearance = unit_clearance_at(i);
 			if (dx < b.hu + clearance && dz < b.hv + clearance) unit_inside = true;
 			if (!ally_near && b.team < MAX_PLAYERS && units_.team[i] < MAX_PLAYERS && is_ally(b.team, units_.team[i])
 			    && units_.action_state[i] != ACTION_DYING)
@@ -22963,10 +22963,32 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 // Animals walk on land (or swim, for SeaCreatures) and stay inside the map.
 bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 	if (x < -map_half_ + 2.0f || x > map_half_ - 2.0f || z < -map_half_ + 2.0f || z > map_half_ - 2.0f) return false;
-	if (nav_grid_.res <= 0) return true;
-	auto [cx, cy] = nav_grid_.world_to_cell(x, z);
-	const bool naval = fauna_type_info(fauna_.fauna_type[f]).is_naval();
-	return nav_grid_.is_passable_for(cx, cy, naval ? PASS_SHIP : PASS_INFANTRY);
+	const FaunaTypeInfo &info = fauna_type_info(fauna_.fauna_type[f]);
+	if (nav_grid_.res > 0) {
+		auto [cx, cy] = nav_grid_.world_to_cell(x, z);
+		if (!nav_grid_.is_passable_for(cx, cy, info.is_naval() ? PASS_SHIP : PASS_INFANTRY)) return false;
+	}
+	if (info.is_naval()) return true;
+	// CheckMovement's TestLine against structures, each grown by the animal's passability class
+	// Clearance ("default", or "large" for bulls and adult elephants; pathfinder.xml): a step that
+	// comes closer to a structure than that is refused. A step away, or along it, is not, so an
+	// animal that finds itself too close (a structure built beside it) walks out.
+	// separation() keeps the list of standing structures for this tick.
+	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
+	const float ox = fauna_.pos_x[f], oz = fauna_.pos_z[f];
+	auto gap = [](const SteerObstacle &b, float px, float pz) {
+		const nav::Vec2 l = nav::footprint_local(b, px, pz);
+		return std::max(std::fabs(l.x) - b.hu, std::fabs(l.y) - b.hv);
+	};
+	auto enters = [&](const SteerObstacle &b) {
+		const float g = gap(b, x, z);
+		return g < c && g < gap(b, ox, oz);
+	};
+	bool hit = false;
+	if (!sep_grid_.for_each_near(x, z, c, [&](uint32_t k) { return hit = enters(sep_obstacles_[k]); }))
+		for (const SteerObstacle &b : sep_obstacles_)
+			if (enters(b)) return false;
+	return !hit;
 }
 
 bool Simulation::fauna_threat_pos(uint32_t id, float &x, float &z) const {

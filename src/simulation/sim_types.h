@@ -836,18 +836,10 @@ inline bool unit_is_ship(uint8_t type) {
 	return type == UNIT_TRIREME || type == UNIT_FISHING_BOAT || type == UNIT_MERCHANT_SHIP;
 }
 
-// How close a unit's centre comes to a building: its 0 A.D. passability class Clearance
-// (simulation/data/pathfinder.xml) in RTS0 units, "default" 0.8 m and "large" 3 m, the class of
-// siege engines and elephants (template_unit_siege, template_unit_champion_elephant,
-// template_unit_support_elephant, template_unit_hero_elephant_melee). Ships keep their hull
-// radius: docks are the only buildings they meet. Between units RTS0 keeps unit_collision_radius.
-inline float unit_building_clearance(uint8_t type) {
-	switch (type) {
-		case UNIT_CATAPULT: case UNIT_SIEGE_RAM: case UNIT_BOLT_SHOOTER:
-		case UNIT_ELEPHANT: case UNIT_WORKER_ELEPHANT: return 3.0f / 4.0f;
-		default: return unit_is_ship(type) ? unit_collision_radius(type) : 0.8f / 4.0f;
-	}
-}
+// 0 A.D. passability class Clearance (simulation/data/pathfinder.xml) in RTS0 units: how close
+// a land unit's or animal's centre comes to a structure. "default" 0.8 m, "large" 3 m.
+inline constexpr float CLEARANCE_DEFAULT = 0.8f / 4.0f;
+inline constexpr float CLEARANCE_LARGE = 3.0f / 4.0f;
 
 inline bool unit_is_siege_engine(uint8_t type) {
 	return type == UNIT_SIEGE_RAM || type == UNIT_CATAPULT || type == UNIT_BOLT_SHOOTER;
@@ -1834,6 +1826,26 @@ inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
 inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & TC_HEALER) != 0;
+}
+
+// 0 A.D. UnitMotion/PassabilityClass "large": template_unit_siege, every elephant
+// (template_unit_elephant and the champion, hero and support elephants), chariots
+// (mixins/chariot: the champion and hero chariots) and catafalques (template_unit_catafalque).
+// Among 0 A.D.'s unit templates these are exactly the ones whose classes hold Siege, Elephant or
+// Chariot, plus the catafalques, so the roster row's classes decide it (a hero on an elephant or
+// a chariot is large, one on foot or horseback is not).
+inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_CATAFALQUE) return true;
+	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
+}
+
+// How close a unit's centre comes to a building: its passability class Clearance. Ships keep
+// their hull radius: docks are the only buildings they meet. Between units RTS0 keeps
+// unit_collision_radius.
+inline float unit_building_clearance(uint16_t tmpl, uint8_t type) {
+	if (unit_is_ship(type)) return unit_collision_radius(type);
+	return unit_is_large(tmpl, type) ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
 }
 
 // 0 A.D. ResourceGatherer by template: citizen infantry (template_unit_infantry), support
