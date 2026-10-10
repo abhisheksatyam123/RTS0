@@ -1953,6 +1953,25 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 }
 
 bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float cost_override) {
+	float c[RES_COUNT];
+	structure_cost(player, b_type, cost_override, c);
+	return players_[player].pay(c[RES_FOOD], c[RES_WOOD], c[RES_GOLD], c[RES_STONE]);
+}
+
+// Foundation.js OnOwnershipChanged: a foundation that is destroyed or deleted gives its
+// owner back ceil(cost x (1 - maxProgress)) of each resource. RTS0 keeps no cost per
+// foundation, so the cost is today's (techs researched since placing count).
+void Simulation::refund_foundation(const Building &b) {
+	if (b.wrecked || b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
+	const float piece = wallset_piece_value(b.type, b.half_size, 1);
+	float c[RES_COUNT];
+	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	const float left = 1.0f - std::max(0.0f, b.build_progress);
+	players_[b.team].refund(std::ceil(c[RES_FOOD] * left), std::ceil(c[RES_WOOD] * left),
+		std::ceil(c[RES_GOLD] * left), std::ceil(c[RES_STONE] * left));
+}
+
+void Simulation::structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const {
 	const BuildingTypeInfo &binfo = building_type_info(b_type);
 	// 0 A.D. civ structure cost bonuses (e.g. Iberian walls, Han stone discount).
 	const Civilization civ = civ_of(player);
@@ -1972,7 +1991,9 @@ bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float cost_ov
 	const float stone = base_stone * civ_bonus_mult(civ, CIV_BONUS_BUILDING_STONE_COST, b_type) * team(RES_STONE);
 	const float food = binfo.food_cost * team(RES_FOOD);
 	const float gold = binfo.gold_cost * team(RES_GOLD);
-	return players_[player].pay(std::round(food), std::round(wood), std::round(gold), std::round(stone));
+	for (int r = 0; r < RES_COUNT; ++r) out[r] = 0.0f;
+	out[RES_FOOD] = std::round(food); out[RES_WOOD] = std::round(wood);
+	out[RES_GOLD] = std::round(gold); out[RES_STONE] = std::round(stone);
 }
 
 size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders,
@@ -3437,7 +3458,7 @@ void Simulation::credit_trade(uint8_t player_id, uint8_t res, int amount) {
 		else if (res == RES_STONE) record_.total_stone_gathered += amount;
 		else record_.total_food_gathered += amount;
 	} else {
-		ps.res[res] = std::min(9999.0f, ps.res[res] + (float)amount);
+		ps.res[res] += (float)amount; // Player.js AddResource: no cap
 	}
 	ps.gathered_window[res] += (float)amount;
 }
@@ -3848,6 +3869,8 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		if (!unit_can_build(units_.unit_type[uidx], units_.tmpl[uidx])) continue;
+		// Builder.js CanRepair: only the builder's own or allied foundations and structures.
+		if (b.team != units_.team[uidx] && !is_ally(units_.team[uidx], b.team)) continue;
 
 		// 0 A.D. UnitAI: workers sent to their own finished, undamaged field farm it.
 		if (b.type == BLD_FIELD && b.team == units_.team[uidx] && b.build_progress >= 1.0f && b.hp >= b.max_hp) {
@@ -3909,8 +3932,12 @@ static TechSet shift_techs_before_v16(const TechSet &old) {
 float Simulation::pack_time_s(size_t unit_idx) const {
 	// 0 A.D. Military Engineers (siege_pack_unpack.json): Pack/Time x0.6 for Siege.
 	const uint8_t team = units_.team[unit_idx], t = units_.unit_type[unit_idx];
-	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return PACK_TIME_S;
-	return PACK_TIME_S * tech_mods_[team].pack_time[t];
+	// rome/siege_scorpio_packed and _unpacked override Pack/Time to 5000 ms.
+	const uint16_t tmpl = units_.tmpl[unit_idx];
+	const float base = tmpl < CIV_UNIT_TEMPLATE_COUNT && std::strcmp(civ_unit_template(tmpl).id, "rome/siege_scorpio_packed") == 0
+		? PACK_TIME_S * 0.5f : PACK_TIME_S;
+	if (team >= MAX_PLAYERS || t >= UNIT_TYPE_COUNT) return base;
+	return base * tech_mods_[team].pack_time[t];
 }
 
 // ---------------------------------------------------------------------------
@@ -5254,7 +5281,7 @@ void Simulation::deposit_carry(size_t i) {
 		stat_gathered(units_.team[i], rt, amt, vegetarian);
 		PlayerState &ps = player(units_.team[i]);
 		if (units_.team[i] == 0) {
-			// Player 0 is uncapped and feeds the HUD rate window and match record.
+			// Player 0 also feeds the HUD rate window and match record.
 			ps.res[rt] += (float)amt;
 			ps.gathered_window[rt] += (float)amt;
 			if (rt == RES_WOOD) record_.total_wood_gathered += amt;
@@ -5262,7 +5289,7 @@ void Simulation::deposit_carry(size_t i) {
 			else if (rt == RES_STONE) record_.total_stone_gathered += amt;
 			else record_.total_food_gathered += amt;
 		} else {
-			ps.res[rt] = std::min(9999.0f, ps.res[rt] + (float)amt);
+			ps.res[rt] += (float)amt; // Player.js AddResource: no cap
 			ps.gathered_window[rt] += (float)amt;
 		}
 	}
@@ -6065,7 +6092,8 @@ void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float dama
 	if (a < 0 || !units_.alive[a]) return;
 	float lost = std::min(damage, std::max(0.0f, units_.hp[victim]));
 	if (!(lost > 0.0f) || !(units_.max_hp[victim] > 0.0f)) return;
-	float xp = unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]);
+	// Loot.js GetXp floors the modified value.
+	float xp = std::floor(unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]));
 	gain_xp((size_t)a, xp * lost / units_.max_hp[victim]);
 }
 
@@ -6093,10 +6121,11 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 	bool infantry = false;
 	if (looter_id != 0 && !looter_present(looter_id, &infantry)) return;
 	float res[RES_COUNT] = {};
-	res[RES_FOOD] = loot.food * mult;
-	res[RES_WOOD] = loot.wood * mult;
-	res[RES_STONE] = loot.stone * mult;
-	res[RES_GOLD] = loot.metal * mult;
+	// Loot.js GetResources floors each modified amount.
+	res[RES_FOOD] = std::floor(loot.food * mult);
+	res[RES_WOOD] = std::floor(loot.wood * mult);
+	res[RES_STONE] = std::floor(loot.stone * mult);
+	res[RES_GOLD] = std::floor(loot.metal * mult);
 	if (infantry && civ_of(looter_player) == CIV_BRITONS)
 		for (float &r : res) r += 1.0f;
 	for (int r = 0; r < RES_COUNT; ++r) res[r] += tech_mods(looter_player).loot_add[r]; // Looter/Resource modifiers
@@ -6144,6 +6173,7 @@ void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t 
 
 void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 	if (b.wrecked) return;
+	refund_foundation(b);
 	stat_building_lost(b, killer);
 	b.wrecked = true;
 	b.hp = 0.0f;
@@ -7592,12 +7622,12 @@ void Simulation::tick_gather(float dt) {
 		uint8_t uteam = units_.team[i];
 
 		// 1. Returning to dropsite
-		// Gathering or building workers with a full load return it (Petra's builders rely on
-		// this, as 0 A.D. builders drop carried resources at a dropsite). An idle full worker
-		// stays put, as in UnitAI IDLE (Petra sends it with ReturnResource); a full worker
-		// the player walks elsewhere or sends to fight keeps its order.
-		const uint8_t gst = units_.action_state[i];
-		if (((gst == ACTION_GATHER || gst == ACTION_BUILD) &&
+		// Gathering workers with a full load return it. Builders keep theirs (UnitAI REPAIR
+		// has no ReturnResource; ConstructionFinished drops it at a finished dropsite that
+		// takes it). An idle full worker stays put, as in UnitAI IDLE (Petra sends it with
+		// ReturnResource); a full worker the player walks elsewhere or sends to fight keeps
+		// its order.
+		if ((units_.action_state[i] == ACTION_GATHER &&
 					units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
@@ -7784,8 +7814,11 @@ void Simulation::tick_gather(float dt) {
 				const Civilization civ = civ_of(uteam);
 				if (!ruins) {
 					rate *= unit_tech_mods(uteam, units_.unit_type[i], units_.tmpl[i]).gather[kind];
-					if ((rt == RES_GOLD || rt == RES_STONE) && civ_info(civ).metal_gather_mult > 1.0f)
-						rate *= civ_info(civ).metal_gather_mult;
+					// Athenian Silver Owls: phase_town_athen and phase_city_athen each give Workers
+					// ResourceGatherer/Rates/metal.ore x1.1.
+					if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
+							(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
+						for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
 				}
 				// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
 				// pyramid, catafalques, Han ministers): the strongest one in reach.
@@ -7818,12 +7851,22 @@ void Simulation::tick_gather(float dt) {
 		}
 	}
 
-	// Fish nobody is fishing regrow 1 food every 2 s, up to their supply (ResourceSupply Change/Spawn).
+	// Fish nobody is fishing regrow 1 food every 2 s, up to their supply (ResourceSupply Change/Spawn,
+	// State notGathered). Only boats at the fish count (activeGatherers), not those on their way.
 	const uint64_t regrow_ticks = (uint64_t)std::lround(FISH_REGROW_INTERVAL_S / FIXED_STEP);
 	if (ticks_ % regrow_ticks == 0) {
+		std::vector<uint32_t> fished;
+		for (size_t i = 0; i < n; ++i) {
+			if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.action_state[i] != ACTION_GATHER) continue;
+			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+			if (rit == res_id_to_idx_.end()) continue;
+			const float dx = units_.pos_x[i] - resources_.x[rit->second], dz = units_.pos_z[i] - resources_.z[rit->second];
+			if (dx * dx + dz * dz < FISH_GATHER_REACH * FISH_GATHER_REACH) fished.push_back(units_.target_resource_id[i]);
+		}
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
-			if (resources_.amount[r] >= FISH_FOOD_SUPPLY || fish_gatherers_.count(resources_.id[r])) continue;
+			if (resources_.amount[r] >= FISH_FOOD_SUPPLY ||
+					std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) continue;
 			resources_.amount[r] += 1;
 		}
 	}
@@ -7857,20 +7900,21 @@ float Simulation::foundation_build_multiplier(int builders) {
 
 // Builder.js GetRate: 1 for citizens; worker elephants build twice as fast.
 float Simulation::builder_rate(size_t unit_idx) const {
-	return units_.unit_type[unit_idx] == UNIT_WORKER_ELEPHANT ? 2.0f : 1.0f;
+	(void)unit_idx; // template_unit_support_elephant inherits Builder/Rate 1.0 like every builder.
+	return 1.0f;
 }
 
-// Cost.js GetBuildTime for the builder's player: the template time after
+// Cost.js GetBuildTime on the foundation, so for its owner: the template time after
 // technologies, civ and team bonuses (Celtic Wooden Construction, ...) and the
-// AI difficulty multiplier.
-float Simulation::structure_build_time(const Building &b, uint8_t builder_team) const {
+// AI difficulty multiplier. An allied builder works at the owner's rate.
+float Simulation::structure_build_time(const Building &b) const {
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
 	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
 	const float piece = wallset_piece_value(type, b.half_size, 2);
 	const float base = piece > 0.0f ? piece : building_type_info(type).build_time;
 	float t = base * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
-	t *= civ_bonus_mult(civ_of(builder_team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
-	t *= team_bonus_mult(builder_team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
+	t *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
+	t *= team_bonus_mult(b.team, TEAM_BONUS_BUILDING_BUILD_TIME, -1, CIV_UNIT_TEMPLATE_NONE, b.type);
 	return std::max(1.0f, t);
 }
 
@@ -7927,7 +7971,7 @@ void Simulation::tick_construction(float dt) {
 			// (BuildTimeModifier 0.7). Progress is the best health fraction reached, so
 			// damage to a foundation has to be built back.
 			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
-			const float hp_rate = b.max_hp / structure_build_time(b, units_.team[i]);
+			const float hp_rate = b.max_hp / structure_build_time(b);
 			const float work = foundation_build_multiplier(builders_per_bld[b.id]) * builder_rate(i);
 			b.hp = std::min(b.max_hp, b.hp + work * hp_rate * dt);
 			b.build_progress = std::min(1.0f, std::max(b.build_progress, b.hp / b.max_hp));
@@ -8046,8 +8090,11 @@ void Simulation::tick_repair(float dt) {
 		if (outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i],
 				unit_collision_radius(units_.unit_type[i]))) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
-			// GetRepairRate = MaxHitpoints / (RepairTimeRatio 2.0 x BuildTime).
-			const float repair_rate = b.max_hp / (REPAIR_TIME_RATIO * structure_build_time(b, units_.team[i]));
+			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
+			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
+			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER;
+			const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
+			const float repair_rate = b.max_hp / (ratio * structure_build_time(b));
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
 			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
 			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);
@@ -8995,14 +9042,23 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 	return c;
 }
 
+// Identity class Healer: support healers and the hero healers (template_unit_hero_healer:
+// Hippocrates, Chanakya) that heal with Range 20 and Health 6 instead of 12 and 5.
+bool Simulation::unit_heals(size_t i) const {
+	return unit_is_healer(units_.tmpl[i], units_.unit_type[i]);
+}
+
+static bool hero_healer(uint8_t type) { return type == UNIT_HERO; }
+
 float Simulation::healer_range_of(size_t h) const {
 	float range = healer_range(units_.team[h]);
+	if (hero_healer(units_.unit_type[h])) range += (HERO_HEAL_RANGE - 12.0f) * COMBAT_DISTANCE_SCALE;
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) range += rank_bonus(r).heal_range_add * COMBAT_DISTANCE_SCALE;
 	return range;
 }
 
 float Simulation::heal_amount_of(size_t h) const {
-	float hp = HEAL_HP;
+	float hp = hero_healer(units_.unit_type[h]) ? HERO_HEAL_HP : HEAL_HP;
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) hp += rank_bonus(r).heal_add;
 	// Heal/Health auras (Hippocrates' Hippocratic Oath: allied healers +1).
 	if (aura_mgr_.has(AURA_HEAL_AMOUNT))
@@ -10746,8 +10802,11 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 // same type nearby (GATHER "ResourceExhausted"); then the next queued order runs.
 // UnitAI PATROL: on to the other end (the queue's next order goes first).
 void Simulation::patrol_next_leg(size_t i) {
+	// PATROLLING MovementUpdate: the patrol goes back to the end of the queue, so
+	// queued patrol points are walked round in a loop.
 	auto q = order_queues_.find(units_.id[i]);
 	if (q != order_queues_.end() && !q->second.empty()) {
+		if (q->second.size() < 64) q->second.push_back(current_order(i));
 		finish_order(i);
 		return;
 	}
@@ -11264,7 +11323,7 @@ void Simulation::tick_unit_ai(float dt) {
 			}
 			// GUARDING Timer / GuardedAttacked: a healer heals the unit it guards when it's
 			// hurt (PushOrderFront Heal), then guards again.
-			if (g >= 0 && units_.unit_type[i] == UNIT_HEALER && can_heal(i, g)) {
+			if (g >= 0 && unit_heals(i) && can_heal(i, g)) {
 				auto &q = order_queues_[units_.id[i]];
 				q.insert(q.begin(), current_order(i));
 				start_heal(i, units_.id[g], 0);
@@ -11301,7 +11360,7 @@ void Simulation::tick_unit_ai(float dt) {
 					units_.action_state[i] = ACTION_IDLE;
 					units_.has_order[i] = 0;
 				}
-			} else if (now == ACTION_IDLE && units_.unit_type[i] == UNIT_HEALER && (i + ticks_) % 4 == 0) {
+			} else if (now == ACTION_IDLE && unit_heals(i) && (i + ticks_) % 4 == 0) {
 				// FORMATIONMEMBER.IDLE is INDIVIDUAL.IDLE: a healer heals whoever is hurt nearby.
 				const uint32_t t = find_heal_target(i);
 				if (t != 0) start_heal(i, t, 0);
@@ -11373,7 +11432,7 @@ void Simulation::tick_unit_ai(float dt) {
 		if (now == ACTION_IDLE) {
 			if (interrupted) resume_order(i);
 			else if (units_.order_kind[i] != ORDER_NONE) finish_order(i);
-			else if (units_.unit_type[i] == UNIT_HEALER && (i + ticks_) % 4 == 0) {
+			else if (unit_heals(i) && (i + ticks_) % 4 == 0) {
 				// IDLE LosHealRangeUpdate -> RespondToHealableEntities.
 				const uint32_t t = find_heal_target(i);
 				if (t != 0) start_heal(i, t, 0);
@@ -11402,6 +11461,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 }
 
 void Simulation::destroy_building(Building &b) {
+	refund_foundation(b);
 	eject_or_kill(b);
 	b.garrisoned_units.clear();
 	cancel_upgrade(b, b.team);
@@ -11835,7 +11895,7 @@ void Simulation::order_heal(const uint32_t *unit_ids_in, size_t count_in, uint32
 	if (!queued && !formations_.empty()) now = formation_take_task(now, FTASK_HEAL, target_unit_id);
 	for (uint32_t uid : now) {
 		const int32_t h = lookup_unit(uid);
-		if (h < 0 || !units_.alive[h] || units_.unit_type[h] != UNIT_HEALER) continue;
+		if (h < 0 || !units_.alive[h] || !unit_heals((size_t)h)) continue;
 		if (!can_heal((size_t)h, t)) continue;
 		start_heal((size_t)h, target_unit_id, ORDER_FLAG_FORCE);
 	}
@@ -11880,10 +11940,10 @@ void Simulation::tick_heal(size_t h) {
 	units_.attack_timer[h] = HEAL_INTERVAL_S * std::max(0.1f, tech_mods(units_.team[h]).heal_interval[UNIT_HEALER]);
 	const float before = units_.hp[t];
 	units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + heal_amount_of(h));
-	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp.
+	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp (GetXp, floored).
 	if (units_.max_hp[t] > 0.0f)
 		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] *
-				unit_loot(units_.tmpl[t], units_.unit_type[t]).xp * loot_rank_multiplier(units_.rank[t]));
+				std::floor(unit_loot(units_.tmpl[t], units_.unit_type[t]).xp * loot_rank_multiplier(units_.rank[t])));
 }
 
 // UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
@@ -20840,10 +20900,7 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
 		if (b != FAUNA_ATTACK) {
-			fauna_.behavior[f] = FAUNA_ATTACK;
-			fauna_.target_unit_id[f] = attacker_id;
-			fauna_.home_x[f] = fauna_.pos_x[f];
-			fauna_.home_z[f] = fauna_.pos_z[f];
+			fauna_start_attack(f, attacker_id);
 		}
 		return;
 	}
@@ -20863,7 +20920,18 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	fauna_.flee_distance[f] = (a >= 0 ? dist_to(a) : 0.0f) + info.flee_distance;
 }
 
-// An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Armor).
+// UnitAI COMBAT for an animal: it goes for `target` from where it stands, and its first bite
+// waits Attack/Melee PrepareTime (or what is left of the last RepeatTime, if longer).
+void Simulation::fauna_start_attack(size_t f, uint32_t target) {
+	fauna_.behavior[f] = FAUNA_ATTACK;
+	fauna_.target_unit_id[f] = target;
+	fauna_.home_x[f] = fauna_.pos_x[f];
+	fauna_.home_z[f] = fauna_.pos_z[f];
+	fauna_.attack_timer[f] = std::max(fauna_.attack_timer[f], fauna_type_info(fauna_.fauna_type[f]).attack_prepare);
+}
+
+// An animal's Attack/Melee lands on a unit: 0 A.D. Attack.js damage, sum(Dmg * 0.9^Resistance),
+// against the unit's full resistance (template, techs, rank, auras, a wall turret).
 void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	float res[3]; // the unit's whole Resistance: template, techs, rank, armour auras, wall turret
@@ -21192,6 +21260,8 @@ void Simulation::tick_fauna(float dt) {
 			const float dx = units_.pos_x[t] - fx, dz = units_.pos_z[t] - fz;
 			const float len = std::sqrt(dx * dx + dz * dz);
 			if (len > info.attack_range + 0.6f) {
+				// Out of reach: the next bite comes PrepareTime after it gets there (Attack.js).
+				fauna_.attack_timer[i] = std::max(fauna_.attack_timer[i], info.attack_prepare);
 				const float sp = info.speed * info.run_mult;
 				// Straight at the target; when a pond or cliff is in the way, 45 or 90 degrees
 				// to either side (animals have no long-range path here; polar_sea_triggers.js
@@ -21269,10 +21339,7 @@ void Simulation::tick_fauna(float dt) {
 				const float q = info.stance == FAUNA_STANCE_DEFENSIVE ? std::min(info.attack_range + info.vision * 0.5f, info.vision) : info.vision;
 				const int32_t u = nearest_foe(fx, fz, q, true);
 				if (u >= 0) {
-					fauna_.behavior[i] = FAUNA_ATTACK;
-					fauna_.target_unit_id[i] = units_.id[u];
-					fauna_.home_x[i] = fx;
-					fauna_.home_z[i] = fz;
+					fauna_start_attack(i, units_.id[u]);
 					continue;
 				}
 			}
@@ -22062,10 +22129,7 @@ void Simulation::trigger_polar_sea_wave() {
 		if (n == 0) continue;
 		for (uint32_t id : pack) {
 			const size_t f = fauna_id_to_idx_[id];
-			fauna_.behavior[f] = FAUNA_ATTACK;
-			fauna_.target_unit_id[f] = best[0];
-			fauna_.home_x[f] = fauna_.pos_x[f];
-			fauna_.home_z[f] = fauna_.pos_z[f];
+			fauna_start_attack(f, best[0]);
 			TriggerAttackOrder o;
 			o.fauna_id = id;
 			for (uint32_t j = 0; j < n; ++j) o.targets[j] = best[j];
@@ -22111,10 +22175,7 @@ void Simulation::tick_trigger_attack_orders() {
 			orders.erase(orders.begin() + (std::ptrdiff_t)k);
 			continue;
 		}
-		fauna_.behavior[f] = FAUNA_ATTACK;
-		fauna_.target_unit_id[f] = o.targets[0];
-		fauna_.home_x[f] = fauna_.pos_x[f];
-		fauna_.home_z[f] = fauna_.pos_z[f];
+		fauna_start_attack(f, o.targets[0]);
 		++k;
 	}
 }

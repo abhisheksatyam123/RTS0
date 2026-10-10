@@ -87,8 +87,10 @@ public:
 			for (int s = 0; s < n_units; ++s) {
 				for (size_t i = 0; i < uv.count; ++i) {
 					if (uv.id[i] != (uint32_t)unit_ids[s] || !uv.alive[i]) continue;
-					if (show_heal && uv.unit_type[i] == rtso::UNIT_HEALER)
-						ring(sim, uv.pos_x[i], uv.pos_z[i], sim->healer_range(uv.team[i]), Color(0.3f, 1.0f, 0.4f, 0.6f));
+					if (show_heal && rtso::unit_is_healer(uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uv.unit_type[i])) {
+						const float hero = uv.unit_type[i] == rtso::UNIT_HERO ? (rtso::HERO_HEAL_RANGE - 12.0f) * rtso::COMBAT_DISTANCE_SCALE : 0.0f;
+						ring(sim, uv.pos_x[i], uv.pos_z[i], sim->healer_range(uv.team[i]) + hero, Color(0.3f, 1.0f, 0.4f, 0.6f));
+					}
 					if (show_auras && uv.tmpl && uv.tmpl[i] != rtso::CIV_UNIT_TEMPLATE_NONE) {
 						for (int16_t a : rtso::civ_unit_template(uv.tmpl[i]).auras) {
 							if (a < 0) continue;
