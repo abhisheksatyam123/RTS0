@@ -26,11 +26,13 @@
 //     map JSON tile encoding decodes; bad tiles are refused.
 // 10b. Random maps plant their biome's rmbiome trees and fruit (FloraKind), forests
 //     and stragglers alike, and the map JSON plant names resolve.
+// 10c. Maps from 0 A.D. scripts with their own terrains paint and plant only those
+//     (script_terrains.h), unless game setup overrides the biome.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
 #include "network/net_types.h"
-#include "simulation/terrain_biomes.h"
+#include "simulation/script_terrains.h"
 
 #include <algorithm>
 #include <cmath>
@@ -481,6 +483,40 @@ int main() {
 		const auto av = again.resources();
 		CHECK(av.count == rv.count && std::equal(rv.flora, rv.flora + rv.count, av.flora), "%s: flora differs for one seed", f->biome);
 	}
+	// 10c. Per-script terrains and plants.
+	int scripts = 0;
+	for (int type = 0; type < MAP_TYPE_COUNT; ++type) {
+		const ScriptTerrains *st = script_terrains(map_type_info((uint8_t)type).id);
+		if (!st) continue;
+		++scripts;
+		Simulation sim;
+		sim.generate_random_map((MapType)type, 5, 2, 64.0f);
+		const TerrainBiome &b = st->terrain;
+		std::set<std::string> own;
+		auto add = [&](const char *const *list, int n) { for (int k = 0; k < n; ++k) if (list[k]) own.insert(list[k]); };
+		add(b.main, 4); add(b.forest, 2); add(b.tier, 4); add(b.cliff, 2); add(b.hill, 2); add(b.dirt, 2);
+		for (const char *n : {b.road, b.road_wild, b.shore_blend, b.shore, b.water})
+			if (n) own.insert(n);
+		int foreign = 0;
+		for (const auto &n : sim.terrain_tiles().names) foreign += !own.count(n);
+		CHECK(foreign == 0, "%s paints %d terrains outside its script's set", st->map_id, foreign);
+		bool allowed[FLORA_COUNT] = {};
+		for (const auto &o : st->flora.tree12) { allowed[o[0]] = allowed[o[1]] = true; }
+		for (const auto &o : st->flora.tree45) { allowed[o[0]] = allowed[o[1]] = true; }
+		for (uint8_t k : st->flora.tree3) allowed[k] = true;
+		allowed[FLORA_DEFAULT] = true; // an empty set leaves the viewer's pick
+		const auto rv = sim.resources();
+		int odd = 0;
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd += !allowed[rv.flora[i]];
+		CHECK(odd == 0, "%s plants %d trees outside its script's set", st->map_id, odd);
+		Simulation chosen;
+		chosen.set_biome_override(BIOME_SAVANNA);
+		chosen.generate_random_map((MapType)type, 5, 2, 64.0f);
+		CHECK(std::count(chosen.terrain_tiles().names.begin(), chosen.terrain_tiles().names.end(), std::string(terrain_biome("savanna").main[0])) == 1,
+		      "%s with the savanna biome chosen paints savanna", st->map_id);
+	}
+	CHECK(scripts >= 30, "%d maps have their 0 A.D. script's own terrains", scripts);
 	{
 		Simulation sim;
 		sim.set_biome_override(BIOME_TEMPERATE);

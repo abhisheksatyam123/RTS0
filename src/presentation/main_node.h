@@ -140,6 +140,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 		float flare_time = 6.0f;
 		float drag_delta = 4.0f;
 		bool attack_notice = true;
+		bool tribute_notice = true;
+		bool barter_notice = true;
+		uint8_t phase_notice = 1; // gui.session.notifications.phase: 0 none, 1 completed, 2 all
 	} user_opts_;
 	void refresh_user_options();
 	RtsoSelectionGrid selection_grid_;
@@ -395,6 +398,7 @@ public:
 	Dictionary debug_trade_route_clicks();
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
+	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
@@ -437,6 +441,7 @@ private:
 	void update_hud();
 	void update_inspector();
 	void update_command_panel();
+	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
@@ -456,6 +461,10 @@ private:
 	void find_idle_unit(IdleKind kind);
 	bool over_own_rally_structure(const Vector3 &at) const;
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
+	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
+	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
+	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
+	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
 	void notify_attack(Vector3 pos, uint8_t attacker, bool structure);
