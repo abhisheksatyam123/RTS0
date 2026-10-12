@@ -13,6 +13,7 @@
 #include "sim_types.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
+#include "tutorial_data.h"
 #include "turret_data.h"
 #include <cstdint>
 #include <vector>
@@ -863,6 +864,20 @@ public:
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
+	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
+	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
+	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
+	// count a constructed BuildingType.
+	void note_player_command(uint8_t player, uint16_t kind, uint32_t target, uint32_t other, uint8_t hunt, uint16_t count);
+	// The running tutorial (maps/scripts/Tutorial.js): which one (TutorialId), its current
+	// goal (tutorial_goal(), the last one when finished), whether the goal waits for the
+	// Ready button (NET_CMD_TUTORIAL_READY) and the WarningMessage shown (TutorialWarning).
+	uint8_t tutorial_id() const { return (uint8_t)triggers_.vars[7]; }
+	int tutorial_goal_index() const { return triggers_.vars[0]; }
+	bool tutorial_ready_button() const { return triggers_.vars[1] != 0; }
+	uint8_t tutorial_warning() const { return (uint8_t)triggers_.vars[6]; }
+	// The player the tutorial teaches (playerID 1) and its enemy (2).
+	static constexpr uint8_t TUTORIAL_PLAYER = 0, TUTORIAL_ENEMY = 1;
 	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
 	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
 	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
@@ -2079,6 +2094,17 @@ private:
 	void trigger_survival_wave();
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
+	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
+	void tutorial_next_goal();
+	void tutorial_event(const TriggerEventData &data);
+	bool tutorial_goal_done(int goal) const;
+	void tutorial_goal_init(int goal);
+	bool tutorial_goal_listens(int goal) const;
+	void tutorial_reset_queue(uint32_t building_id);
+	void tutorial_launch_attack();
+	void tutorial_remove_champions();
+	bool tech_dealt_with(uint8_t player, uint8_t tech) const; // TriggerHelper.HasDealtWithTech
+	uint8_t tutorial_resource_kind(uint32_t id, bool animal) const;
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
