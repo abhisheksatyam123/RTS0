@@ -276,6 +276,20 @@ int main() {
 		CHECK(civ_unit_template(cav).trainers == bld_bit(BLD_STABLE));
 		CHECK(civ_unit_template(ram).trainers == bld_bit(BLD_ARSENAL));
 		CHECK(civ_unit_template(merc).trainers == bld_bit(BLD_EMBASSY));
+		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
+		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
+		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));
+		CHECK(civ_unit_template(roster_id("cart/infantry_slinger_iber_b")).trainers == bld_bit(BLD_EMBASSY_IBERIAN));
+		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_iber_b")).trainers == bld_bit(BLD_EMBASSY_IBERIAN));
+		CHECK(civ_unit_template(roster_id("cart/infantry_swordsman_ital_b")).trainers == bld_bit(BLD_EMBASSY_ITALIC));
+		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_gaul_b")).trainers == bld_bit(BLD_EMBASSY));
+		CHECK(std::strcmp(building_type_info(BLD_EMBASSY).name, "Celtic Embassy") == 0 &&
+			building_type_info(BLD_EMBASSY).wood_cost == 200 && building_type_info(BLD_EMBASSY).max_hp == 1200.0f);
+		CHECK(building_type_info(BLD_EMBASSY_IBERIAN).stone_cost == 200 && building_type_info(BLD_EMBASSY_IBERIAN).wood_cost == 0);
+		CHECK(building_type_info(BLD_EMBASSY_ITALIC).gold_cost == 200 && building_type_info(BLD_EMBASSY_ITALIC).max_hp == 1500.0f);
+		CHECK(building_required_phase(BLD_EMBASSY_IBERIAN) == 2 && building_phase_class(BLD_EMBASSY_ITALIC) == 2);
+		CHECK(building_type_info(BLD_EMBASSY_ITALIC).garrison_cap == 6 &&
+			garrison_list_matches(structure_garrison_list(BLD_EMBASSY_ITALIC, CIV_CARTHAGINIANS), TC_CAVALRY));
 		static Simulation b;
 		b.set_sim_seed(9);
 		b.set_team_civ(0, CIV_ATHENIANS);

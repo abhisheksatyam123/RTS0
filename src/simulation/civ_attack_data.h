@@ -479,7 +479,7 @@ inline const CombatProfile *combat_class_table() {
 inline constexpr uint8_t COMBAT_CLASS_ROWS = 25; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
-inline constexpr uint8_t COMBAT_BUILDING_ROWS = 61;
+inline constexpr uint8_t COMBAT_BUILDING_ROWS = 63;
 inline const CombatProfile *combat_building_table() {
 	static const CombatProfile kTable[COMBAT_BUILDING_ROWS + 1] = {
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 25.0f, 35.0f, 3.0f, 18.054f, 0, 0.0f, 0.0f, 1, 1.2f, 100.0f, 50.0f}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -543,6 +543,8 @@ inline const CombatProfile *combat_building_table() {
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 25.0f, 35.0f, 3.0f, 21.887f, 0, 0.0f, 0.0f, 1, 1.2f, 100.0f, 50.0f}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.5f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 25.0f, 35.0f, 3.0f, 5.781f, 0, 0.0f, 0.0f, 1, 1.2f, 100.0f, 50.0f}, // BLD_TOWER_GREAT: structures/han/defense_tower_great
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 4.0f, 25.0f, 2.0f, 3.785f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // BLD_PALISADE_GATE: structures/palisades_gate
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 9.027f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian
+		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 20.0f, 30.0f, 3.0f, 8.009f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic
 		{{0x0000000000000100ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 1.0f, 10.0f, 1.0f, 0.0f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // default: template_structure
 	};
 	return kTable;
