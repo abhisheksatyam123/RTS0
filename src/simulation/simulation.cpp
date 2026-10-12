@@ -8717,10 +8717,14 @@ float Simulation::foundation_build_multiplier(int builders) {
 	return builders < 2 ? 1.0f : std::pow((float)builders, 0.7f) / (float)builders;
 }
 
-// Builder.js GetRate: 1 for citizens; worker elephants build twice as fast.
+// Builder.js GetRate: Builder/Rate 1.0 for every builder RTS0 trains (only 0 A.D.'s
+// slave has 0.5), after the range auras on it: Xerxes' Administrator x1.15, Ptolemy I's
+// Patron of Construction x1.1 and x1.02 for each Han minister within 40 m.
 float Simulation::builder_rate(size_t unit_idx) const {
-	(void)unit_idx; // template_unit_support_elephant inherits Builder/Rate 1.0 like every builder.
-	return 1.0f;
+	if (!aura_mgr_.has(AURA_BUILD)) return 1.0f;
+	const float m = aura_mgr_.query_modifier(units_.pos_x[unit_idx], units_.pos_z[unit_idx], units_.team[unit_idx],
+		AURA_BUILD, units_.tmpl[unit_idx], &unit_combat_at(unit_idx).classes);
+	return m > 0.0f ? m : 1.0f;
 }
 
 // Cost.js GetBuildTime on the foundation, so for its owner: the template time after
@@ -23374,6 +23378,10 @@ void Simulation::rebuild_auras() {
 					if (std::strcmp(aura.id, no_loot_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							0.0f, aura_affected_players(team, no_loot_range_auras()[k].players), x, z, a);
+				// Range auras on Builder/Rate (Xerxes, Ptolemy I, the Han minister).
+				if (const int row = builder_rate_aura_index(a); row >= 0)
+					aura_mgr_.register_source(id, AURA_BUILD, aura.radius * COMBAT_DISTANCE_SCALE,
+						builder_rate_range_auras()[row].multiply, aura_affected_players(team, aura.players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
 				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
