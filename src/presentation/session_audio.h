@@ -42,7 +42,7 @@ inline const char *kAudioRoot = "res://assets/audio/";
 
 // Every .ogg in assets/audio/<dir>/ whose name starts with prefix (a sound group).
 inline const std::vector<godot::String> &sound_group(const char *dir, const char *prefix) {
-	static std::unordered_map<std::string, std::vector<godot::String>> cache;
+	static auto &cache = *new std::unordered_map<std::string, std::vector<godot::String>>(); // leaked: no Godot dtor after exit
 	const std::string key = std::string(dir) + "|" + prefix;
 	auto it = cache.find(key);
 	if (it != cache.end()) return it->second;

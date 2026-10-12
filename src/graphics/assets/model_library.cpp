@@ -38,7 +38,7 @@ using namespace godot;
 namespace rtso {
 
 HashMap<String, ModelLibrary::Entry> &ModelLibrary::cache() {
-	static HashMap<String, Entry> c;
+	static auto &c = *new HashMap<String, Entry>(); // leaked: no Godot dtor after the engine exits
 	return c;
 }
 
@@ -131,7 +131,7 @@ struct PlayerMask {
 	Color tint;
 };
 HashMap<String, PlayerMask> &player_masks() {
-	static HashMap<String, PlayerMask> m;
+	static auto &m = *new HashMap<String, PlayerMask>();
 	static bool loaded = false;
 	if (!loaded) {
 		loaded = true;
@@ -154,7 +154,7 @@ HashMap<String, PlayerMask> &player_masks() {
 // tools/extract_normal_maps.py: data/normal_maps.json maps the same image
 // keys to 0 A.D.'s normTex for that skin (green flipped to OpenGL).
 HashMap<String, String> &normal_maps() {
-	static HashMap<String, String> m;
+	static auto &m = *new HashMap<String, String>();
 	static bool loaded = false;
 	if (!loaded) {
 		loaded = true;
@@ -177,11 +177,11 @@ Ref<Texture2D> normal_map_for(const Ref<Texture2D> &albedo) {
 	return ResourceLoader::get_singleton()->load(*path);
 }
 Ref<Shader> &player_color_shader() {
-	static Ref<Shader> sh;
+	static Ref<Shader> &sh = *new Ref<Shader>();
 	return sh;
 }
 HashMap<uint64_t, Ref<ShaderMaterial>> &player_color_mats() {
-	static HashMap<uint64_t, Ref<ShaderMaterial>> m;
+	static auto &m = *new HashMap<uint64_t, Ref<ShaderMaterial>>();
 	return m;
 }
 
@@ -222,7 +222,7 @@ Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 // tools/extract_0ad_structures.py: civs whose 0 A.D. structure actor is the
 // same share one GLB, named in data/building_models.json.
 String ModelLibrary::building_glb_id(const String &id) {
-	static HashMap<String, String> aliases;
+	static auto &aliases = *new HashMap<String, String>();
 	static bool loaded = false;
 	if (!loaded) {
 		loaded = true;
