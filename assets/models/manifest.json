@@ -22151,11 +22151,11 @@
    "bones": 49,
    "file": "models/units/han_cavalry_archer.glb",
    "origin": "ground-center",
-   "parts": 21,
+   "parts": 13,
    "size_meters": [
-    0.898,
+    0.724,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22172,6 +22172,8 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/cavalry_archer_b_m.xml",
     "actor:art/actors/units/han/cavalry_archer_b_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_bandana.dae",
@@ -22219,9 +22221,9 @@
    "origin": "ground-center",
    "parts": 19,
    "size_meters": [
-    0.755,
+    0.742,
     2.2,
-    1.86
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22239,6 +22241,8 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/cavalry_crossbowman_c_m.xml",
     "actor:art/actors/units/han/cavalry_crossbowman_c_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/crossbowman/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_cavalry_swordsman_helmet.dae",
@@ -22288,9 +22292,9 @@
    "origin": "ground-center",
    "parts": 12,
    "size_meters": [
-    0.536,
+    0.787,
     2.2,
-    2.702
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22306,6 +22310,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_d.xml",
     "actor:art/actors/units/han/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/han/cavalry_spearman_c_r.xml",
+    "anim:biped/rider/cavalry/spearman/death_2h_02.dae",
+    "anim:biped/rider/cavalry/spearman/idle_relax_2h_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_heavy_cavalry_helmet.dae",
@@ -22415,11 +22421,11 @@
    "bones": 49,
    "file": "models/units/han_cavalry_swordsman.glb",
    "origin": "ground-center",
-   "parts": 19,
+   "parts": 12,
    "size_meters": [
-    1.017,
+    0.724,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22435,6 +22441,8 @@
     "actor:art/actors/props/units/weapons/sword/han_curved_dao.xml",
     "actor:art/actors/units/han/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/han/cavalry_swordsman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_bandana.dae",
@@ -23115,9 +23123,9 @@
    "origin": "ground-center",
    "parts": 13,
    "size_meters": [
-    0.637,
+    0.742,
     2.2,
-    2.308
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -23134,6 +23142,8 @@
     "actor:art/actors/props/units/weapons/sword/han_sword_han_xin.xml",
     "actor:art/actors/units/han/hero_cavalry_spearman_han_xin_m.xml",
     "actor:art/actors/units/han/hero_cavalry_spearman_han_xin_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_ready_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
@@ -23182,9 +23192,9 @@
    "origin": "ground-center",
    "parts": 11,
    "size_meters": [
-    0.531,
+    0.742,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -23199,6 +23209,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_c.xml",
     "actor:art/actors/units/han/hero_cavalry_swordsman_liu_bang_m.xml",
     "actor:art/actors/units/han/hero_cavalry_swordsman_liu_bang_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_ready_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
@@ -23243,9 +23255,9 @@
    "origin": "ground-center",
    "parts": 21,
    "size_meters": [
-    0.758,
+    0.742,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -23265,6 +23277,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_d.xml",
     "actor:art/actors/units/han/hero_cavalry_crossbowman_wei_qing_m.xml",
     "actor:art/actors/units/han/hero_cavalry_crossbowman_wei_qing_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/crossbowman/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
@@ -27111,11 +27125,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_jav_a.glb",
    "origin": "ground-center",
-   "parts": 29,
+   "parts": 18,
    "size_meters": [
-    0.991,
+    0.746,
     2.2,
-    1.916
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27134,6 +27148,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_a_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_a_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -27181,11 +27197,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_jav_b.glb",
    "origin": "ground-center",
-   "parts": 26,
+   "parts": 16,
    "size_meters": [
-    0.91,
+    0.7,
     2.2,
-    1.916
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27202,6 +27218,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_b_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_b_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -27245,11 +27263,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_jav_e.glb",
    "origin": "ground-center",
-   "parts": 33,
+   "parts": 20,
    "size_meters": [
-    0.979,
+    0.746,
     2.2,
-    1.893
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27269,6 +27287,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_e_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_e_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -27318,11 +27338,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_spear_a.glb",
    "origin": "ground-center",
-   "parts": 19,
+   "parts": 13,
    "size_meters": [
-    0.999,
+    0.746,
     2.2,
-    2.04
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27339,6 +27359,8 @@
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_a_m.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_a_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_kush.dae",
@@ -27383,11 +27405,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_spear_e.glb",
    "origin": "ground-center",
-   "parts": 27,
+   "parts": 17,
    "size_meters": [
-    0.987,
+    0.746,
     2.2,
-    2.016
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27406,6 +27428,8 @@
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_e_m.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_e_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -27987,9 +28011,9 @@
    "origin": "ground-center",
    "parts": 16,
    "size_meters": [
-    0.608,
+    0.64,
     2.2,
-    1.964
+    2.401
    ],
    "skeleton": "horse",
    "sources": [
@@ -28009,6 +28033,8 @@
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_harsiotef_m.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_harsiotef_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry_crown.dae",
@@ -28061,9 +28087,9 @@
    "origin": "ground-center",
    "parts": 16,
    "size_meters": [
-    0.608,
+    0.64,
     2.2,
-    1.964
+    2.401
    ],
    "skeleton": "horse",
    "sources": [
@@ -28083,6 +28109,8 @@
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_nastasen_m.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_nastasen_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry_crown.dae",
@@ -28210,8 +28238,8 @@
    "origin": "ground-center",
    "parts": 15,
    "size_meters": [
-    1.411,
-    4.124,
+    1.425,
+    3.64,
     3.4
    ],
    "skeleton": "elephant",
@@ -32579,11 +32607,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_jav_a.glb",
    "origin": "ground-center",
-   "parts": 25,
+   "parts": 15,
    "size_meters": [
-    0.952,
+    0.733,
     2.2,
-    1.87
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32599,6 +32627,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_a_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_a_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
@@ -32640,11 +32670,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_jav_b.glb",
    "origin": "ground-center",
-   "parts": 25,
+   "parts": 15,
    "size_meters": [
-    0.952,
+    0.733,
     2.2,
-    1.87
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32660,6 +32690,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_b_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_b_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
@@ -32701,11 +32733,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_jav_e.glb",
    "origin": "ground-center",
-   "parts": 25,
+   "parts": 15,
    "size_meters": [
-    0.952,
+    0.733,
     2.2,
-    1.87
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32721,6 +32753,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_e_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_e_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
@@ -32762,11 +32796,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_sword_a.glb",
    "origin": "ground-center",
-   "parts": 17,
+   "parts": 11,
    "size_meters": [
-    1.014,
+    0.733,
     2.2,
-    1.875
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32781,6 +32815,8 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_a_m.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_a_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
@@ -32822,11 +32858,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_sword_e.glb",
    "origin": "ground-center",
-   "parts": 17,
+   "parts": 11,
    "size_meters": [
-    1.014,
+    0.733,
     2.2,
-    1.875
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32841,6 +32877,8 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_e_m.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_e_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
@@ -33193,7 +33231,7 @@
    "parts": 23,
    "size_meters": [
     1.341,
-    3.834,
+    2.566,
     3.2
    ],
    "skeleton": "elephant",
@@ -33251,7 +33289,7 @@
    "parts": 17,
    "size_meters": [
     1.341,
-    3.817,
+    2.566,
     3.2
    ],
    "skeleton": "elephant",
@@ -34111,7 +34149,7 @@
    "parts": 10,
    "size_meters": [
     1.608,
-    4.278,
+    4.247,
     3.6
    ],
    "skeleton": "elephant",
