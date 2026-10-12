@@ -948,7 +948,14 @@ static void test_civ_structures() {
 		// An economy that fills the population cap before the unlock finishes has no room
 		// left to train champions in (nothing of Petra's dies once the idle player is gone).
 		const bool unlocked = s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_INFANTRY) || s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_CAVALRY);
-		const bool capped = s->pop_current(1) >= s->pop_cap();
+		// Capped as petra_pop_room sees it: no room left once the batches already queued start
+		// (199 of 200 with one more cavalryman queued at a stable is as full as 200).
+		int room = s->pop_max(1) - s->pop_current(1);
+		for (const auto &b : s->buildings())
+			if (b.team == 1)
+				for (const auto &o : b.queue)
+					if (!o.started) room -= s->order_pop(o, 1);
+		const bool capped = room <= 0;
 		std::printf("  %s by 40 min: camp %s, temple %s, champions %s (unlocked %s, population at its cap %s)\n",
 		            civ_info((Civilization)civ).name, camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no",
 		            unlocked ? "yes" : "no", capped ? "yes" : "no");
@@ -2146,16 +2153,24 @@ static void test_dropsites() {
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	s->set_victory_condition(VICTORY_ENDLESS);
-	run_for(*s, 20.0f);
-	s->set_player_resources(1, 5000, 5000, 5000, 5000);
-	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
-	s->petra_pid_ = 1;
 	auto count = [&](uint8_t type, bool foundations_only) {
 		int n = 0;
 		for (const auto &b : s->buildings_)
 			n += b.team == 1 && b.type == type && b.hp > 0.0f && (!foundations_only || b.build_progress < 1.0f);
 		return n;
 	};
+	// The opening storehouse (buildFirstBase) goes up first: its foundation would reset the counts.
+	run_for(*s, 20.0f);
+	for (int k = 0; k < 40 && count(BLD_STOREHOUSE, true) > 0; ++k) run_for(*s, 5.0f);
+	CHECK(count(BLD_STOREHOUSE, true) == 0, "the opening storehouse is finished");
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_STOREHOUSE)
+			for (const auto &o : s->buildings_)
+				if (o.team == 1 && is_civic_centre(o.type))
+					CHECK(std::hypot(o.x - b.x, o.z - b.z) >= 15.0f, "the opening storehouse stands by wood, 15 tiles from the civic centre");
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->petra_pid_ = 1;
 	const int stores = count(BLD_STOREHOUSE, false);
 	auto &dc = s->petra_dropsite_check_;
 	dc = PetraDropsiteCheck{};

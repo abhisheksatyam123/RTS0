@@ -88,13 +88,15 @@ int main() {
 	}
 
 	// 2. Several ranks in one go (Promotion.js IncreaseXp loop), and ranged units: no melee
-	//    bonus or armour, spread is spread_rank_multiplier at the shot. Cavalry need 150.
+	//    bonus or armour, spread is spread_rank_multiplier at the shot. Cavalry need 150,
+	//    and ranged soldiers 25% more (auto-researched soldier_ranged_experience).
 	{
 		fresh(s, CIV_ATHENIANS);
-		const uint16_t arch = tmpl_of("athen/infantry_archer_b");
+		const uint16_t arch = tmpl_of("spart/infantry_javelineer_b");
 		const size_t a = idx(s, s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER, 0.0f, arch));
 		const float dmg0 = s.units_.attack_damage[a];
-		s.gain_xp(a, 250.0f);
+		CHECK(near(s.promotion_required_xp(a), 125.0f));
+		s.gain_xp(a, 300.0f);
 		s.promote_if_due(a);
 		CHECK(s.units_.rank[a] == 3);
 		CHECK(s.units_.xp[a] == 50);
@@ -103,7 +105,17 @@ int main() {
 
 		const uint16_t cav = tmpl_of("athen/cavalry_javelineer_b");
 		const size_t c = idx(s, s.spawn_unit(4.0f, 0.0f, 0, UNIT_CAVALRY, 0.0f, cav));
-		CHECK(near(s.promotion_required_xp(c), 150.0f));
+		CHECK(near(s.promotion_required_xp(c), 187.5f));
+		const size_t sp = idx(s, s.spawn_unit(6.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("athen/infantry_spearman_b")));
+		CHECK(near(s.promotion_required_xp(sp), 100.0f));
+
+		// Mercenaries start Advanced (auto-researched upgrade_rank_advanced_mercenary: RequiredXp 0
+		// at Basic), with Advanced health but no xp, and need the usual xp for Elite.
+		const size_t m = idx(s, s.spawn_unit(10.0f, 0.0f, 0, UNIT_ARCHER, 0.0f, tmpl_of("athen/infantry_archer_b")));
+		std::printf("  mercenary archer: rank %d, hp %.0f/%.0f, xp %d, needs %.1f\n", s.units_.rank[m], s.units_.hp[m],
+				s.units_.max_hp[m], s.units_.xp[m], s.promotion_required_xp(m));
+		CHECK(s.units_.rank[m] == 2 && s.units_.xp[m] == 0 && s.units_.hp[m] == s.units_.max_hp[m]);
+		CHECK(near(s.promotion_required_xp(m), 125.0f));
 
 		// Women, heroes and champions have no Promotion.
 		const size_t w = idx(s, s.spawn_unit(8.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN));
@@ -168,7 +180,7 @@ int main() {
 		const size_t j = idx(s, s.spawn_unit(2.0f, 0.0f, 0, UNIT_ARCHER, 0.0f, tmpl_of("spart/infantry_javelineer_b")));
 		s.complete_research(0, TECH_HOPLITE_TRADITION);
 		CHECK(near(s.promotion_required_xp(i), 50.0f));
-		CHECK(near(s.promotion_required_xp(j), 100.0f));
+		CHECK(near(s.promotion_required_xp(j), 125.0f)); // ranged: soldier_ranged_experience only
 	}
 
 	// 5b. The Roman centurion's Combat Leadership (centurion_1): soldiers within 30 m need
