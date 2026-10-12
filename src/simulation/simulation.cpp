@@ -1093,8 +1093,8 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 		current_map_biome_ = kBiomeNames[biome_override_];
 	}
 	// 0 A.D. per-tile terrain textures from the final biome.
-	RmsGenerator::paint_terrain(*this, seed);
-	RmsGenerator::plant_flora(*this, seed);
+	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
+	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
 	rebuild_nav_grid();
@@ -2294,7 +2294,7 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	if (b.team != player_id) return false;
 	if (b.type == BLD_CORRAL || u_type == UNIT_TYPE_NONE) {
 		if (b.build_progress < 1.0f || b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
-		return cmd_breed_livestock(player_id, building_id);
+		return cmd_breed_livestock(player_id, building_id, FAUNA_SHEEP_TRAINABLE, count);
 	}
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
@@ -2446,6 +2446,7 @@ bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_
 	// ProductionQueue.js RemoveItem: Trainer/Researcher refund what the item cost.
 	const ProductionOrder &item = b.queue[queue_idx];
 	if (item.is_tech() || item.paid[RES_FOOD] + item.paid[RES_WOOD] + item.paid[RES_GOLD] + item.paid[RES_STONE] > 0.0f) {
+		if (item.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, player_id, item.tech);
 		ps.refund(item.paid[RES_FOOD], item.paid[RES_WOOD], item.paid[RES_GOLD], item.paid[RES_STONE]);
 		b.queue.erase(b.queue.begin() + queue_idx);
 		return true;
@@ -2489,6 +2490,9 @@ bool Simulation::cmd_tribute(uint8_t from, uint8_t to, const int amounts[RES_COU
 		stats_[to].tributes_received += (uint32_t)amounts[r];
 		note_tribute(from, to, (uint8_t)r, amounts[r]); // Petra's TributeExchanged event
 	}
+	SessionNotice n{SessionNotice::TRIBUTE, from, to, 0, {}};
+	for (int r = 0; r < RES_COUNT; ++r) n.amounts[r] = amounts[r];
+	note_session(n);
 	return true;
 }
 
@@ -2645,6 +2649,7 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
 		* tech_mods(player_id).bld_research_time[b.type] * ai_time_mult(player_id);
 	b.queue.push_back(order);
+	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	return true;
 }
 
@@ -3148,6 +3153,7 @@ void Simulation::apply_tech_mods_to_unit(size_t idx) {
 void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 	if (player_id >= MAX_PLAYERS) return;
 	PlayerState &ps = players_[player_id];
+	if (!ps.techs.has(tech_id)) note_phase(SessionNotice::PHASE_COMPLETED, player_id, tech_id);
 	ps.techs.set(tech_id);
 	if (tech_id == TECH_PHASE_TOWN) ps.phase = std::max<uint8_t>(ps.phase, 2);
 	else if (tech_id == TECH_PHASE_CITY) ps.phase = 3;
@@ -3235,6 +3241,7 @@ bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType b
 	ps.res[buy] += (float)received;
 	stats_[player_id].resources_sold[sell] += (uint32_t)amount;
 	stats_[player_id].resources_bought[buy] += (uint32_t)received;
+	note_session({SessionNotice::BARTER, player_id, (uint8_t)sell, (uint8_t)buy, {amount, received}});
 
 	// Each deal of 100 moves the sold resource's price down and the bought one's up by 2%.
 	const float difference = BARTER_DIFFERENCE_PER_DEAL * (float)amount / (float)BARTER_DEAL_AMOUNT;
@@ -3272,6 +3279,8 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 			}
 		players_[player_id].team = player_id;
 	}
+	if (diplomacy_[player_id][target] != stance)
+		note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}}); // Commands.js "diplomacy" notification
 	set_diplomacy(player_id, target, stance);
 	return true;
 }
@@ -5941,22 +5950,28 @@ float Simulation::livestock_train_time(uint8_t player_id, uint8_t ftype) const {
 	return t;
 }
 
-bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, uint8_t ftype) {
+// Trainer.js at a corral: a batch of `count` animals costs count times one and takes
+// BuildTime x count^BatchTimeModifier (0.7 at every civ's corral).
+bool Simulation::cmd_breed_livestock(uint8_t player_id, uint32_t building_id, uint8_t ftype, int count) {
 	auto bit = building_id_to_idx_.find(building_id);
 	if (bit == building_id_to_idx_.end()) return false;
 	Building &b = buildings_[bit->second];
 	if (b.team != player_id || b.build_progress < 1.0f || b.type != BLD_CORRAL) return false;
 	if (b.queue.size() >= PRODUCTION_QUEUE_MAX) return false;
-	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE)) return false; // Animal 50
+	count = std::clamp(count, 1, 255);
+	if (!entity_limit_allows_unit(player_id, UNIT_TYPE_NONE, CIV_UNIT_TEMPLATE_NONE, count)) return false; // Animal 50
 	const uint8_t animal = corral_animal_for(civ_of(b.team), ftype);
 	const FaunaTrainCost &c = fauna_train_cost(animal);
-	if (!player(b.team).pay((float)c.res[0], (float)c.res[1], (float)c.res[3], (float)c.res[2])) return false;
-	ProductionOrder o{(uint8_t)UNIT_TYPE_NONE, 0.0f, livestock_train_time(player_id, animal)};
+	const float n = (float)count;
+	if (!player(b.team).pay(n * c.res[0], n * c.res[1], n * c.res[3], n * c.res[2])) return false;
+	ProductionOrder o{(uint8_t)UNIT_TYPE_NONE, 0.0f,
+		livestock_train_time(player_id, animal) * batch_time_multiplier(player_id, b.type, count)};
 	o.tmpl = animal;
-	o.paid[RES_FOOD] = (float)c.res[0];
-	o.paid[RES_WOOD] = (float)c.res[1];
-	o.paid[RES_STONE] = (float)c.res[2];
-	o.paid[RES_GOLD] = (float)c.res[3];
+	o.count = (uint8_t)count;
+	o.paid[RES_FOOD] = n * c.res[0];
+	o.paid[RES_WOOD] = n * c.res[1];
+	o.paid[RES_STONE] = n * c.res[2];
+	o.paid[RES_GOLD] = n * c.res[3];
 	b.queue.push_back(o);
 	return true;
 }
@@ -6278,8 +6293,15 @@ void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t 
 	}
 }
 
+void Simulation::note_phases_aborted(const Building &b) {
+	if (b.team >= MAX_PLAYERS) return;
+	for (const ProductionOrder &o : b.queue)
+		if (o.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, b.team, o.tech);
+}
+
 void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 	if (b.wrecked) return;
+	note_phases_aborted(b);
 	refund_foundation(b);
 	stat_building_lost(b, killer);
 	b.wrecked = true;
@@ -6698,6 +6720,22 @@ float Simulation::unit_walk_speed(size_t i) const {
 	return spd;
 }
 
+// CCmpUnitMotion::PerformMove: pushing pressure (separation) slows a unit down, not at all up to
+// 10, to the floor at 175, so crowds move slower. The floor is 1.5 m/s at the rosters' speed scale,
+// or the unit's own walk speed if that is slower.
+float Simulation::unit_move_speed(size_t i) const {
+	float spd = unit_walk_speed(i);
+	const int pressure = units_.motion[i].pressure;
+	if (pressure) {
+		constexpr int MIN_THRESHOLD = 10, MAX_SLOWDOWN = 255 - MIN_THRESHOLD - 80;
+		constexpr float FLOOR_SPEED = 1.5f * FORMATION_METRE;
+		const int slowdown = MAX_SLOWDOWN - std::min(MAX_SLOWDOWN, std::max(0, pressure - MIN_THRESHOLD));
+		spd *= (float)slowdown / (float)MAX_SLOWDOWN;
+		spd = std::max(std::min(units_.speed[i], FLOOR_SPEED), spd);
+	}
+	return spd;
+}
+
 void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	steps = MoveSteps{};
 	const size_t n = units_.count;
@@ -7004,7 +7042,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			const float sdx = aim_x - px[i], sdz = aim_z - pz[i];
 			const float sl = std::sqrt(sdx * sdx + sdz * sdz);
 			if (sl > 1e-6f) {
-				const float step = unit_walk_speed(i) * dt / sl;
+				const float step = unit_move_speed(i) * dt / sl;
 				want_x[i] = sdx * step;
 				want_z[i] = sdz * step;
 				blocked[i] = 1;
@@ -7141,7 +7179,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		const float spd = unit_walk_speed(i);
+		const float spd = unit_move_speed(i);
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * spd * dt;
 		float move_dz = uz * spd * dt;
@@ -7423,7 +7461,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			return;
 		}
 		if (!obstructed && w.x == next.x && w.y == next.y) return; // the way on from the corner is clear
-		const float reach = unit_walk_speed(i) * dt;
+		const float reach = unit_move_speed(i) * dt;
 		// A first waypoint within this tick's step is reached now and the unit keeps the second, as
 		// 0 A.D. follows the whole short path: heading straight for the aim from that corner would
 		// walk it back into the obstruction it is going round.
@@ -7498,7 +7536,9 @@ bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 // average of where each unit stood before and after move_units, and a unit's total push under
 // MinimalForce per 200 ms turn is dropped, so idle crowds settle instead of drifting for good.
 // 0 A.D.'s lengths are in metres; RTS0's are at PUSH_SCALE (sim_types.h), and its pushes are made
-// every tick, a quarter of a turn. Pushing pressure is not ported yet: units aren't slowed in crowds.
+// every tick, a quarter of a turn. Pushing pressure (MotionTurn::pressure) builds up once per turn
+// with each pair that pushes, more the more they overlap, and decays by PressureDecay each turn; it
+// dampens a unit's pushes and slows its walk (unit_move_speed).
 namespace {
 constexpr float PUSH_RADIUS = 1.4f;                       // <Radius>
 constexpr float PUSH_STATIC_EXT = 0.5f * PUSH_SCALE;      // <StaticExtension>
@@ -7513,11 +7553,28 @@ constexpr float PUSH_MAX_MULTIPLIER = 4.0f;               // MAX_PUSHING_MULTIPL
 constexpr float PUSH_NUDGE_THRESHOLD = -0.1f * PUSH_SCALE * PUSH_SCALE; // PERPENDICULAR_NUDGE_THRESHOLD (m^2)
 constexpr float PUSH_EPSILON = 10.0f / 65536.0f * PUSH_SCALE; // fixed::Epsilon() * 10
 constexpr float PUSH_TURN = 0.2f;                         // 0 A.D. turn length, s
+constexpr int PUSH_MAX_PRESSURE = 255;                    // CCmpUnitMotionManager::MAX_PRESSURE
+constexpr int PUSH_MAX_DAMPING_PRESSURE = 160;            // MAX_PUSH_DAMPING_PRESSURE
+constexpr int PUSH_MIN_PRESSURE_IF_OBSTRUCTED = 80;       // MIN_PRESSURE_IF_OBSTRUCTED
+constexpr float PUSH_PRESSURE_STATIC = 2.0f;              // PRESSURE_STATIC_FACTOR
+constexpr float PUSH_PRESSURE_DISTANCE = 5.0f;            // PRESSURE_DISTANCE_FACTOR
+constexpr float PUSH_PRESSURE_STRENGTH = 0.5f;            // <PressureStrength>
+constexpr uint32_t PUSH_PRESSURE_DECAY = (6u << 16) / 10; // <PressureDecay> 0.6, as CFixed::FromString reads it
+// 0 A.D. marks a unit pushed back to under 1/2 m^2 of its move obstructed: 15% of an infantryman's
+// 1.8 m step, the share motion_feedback also uses, as RTS0 walks and pushes at different scales.
+constexpr float PUSH_OBSTRUCTED_PROGRESS = 0.15f;
 } // namespace
 
 void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	const size_t n = units_.count;
-	if (n < 2) return;
+	// Pressure changes on the last tick of each turn, as MoveSubset decays it after the turn's moves
+	// and Push adds to it.
+	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(PUSH_TURN / dt));
+	const bool turn_ends = (ticks_ + 1) % per_turn == 0;
+	if (n < 2) {
+		if (n == 1 && turn_ends) units_.motion[0].pressure = (uint8_t)((PUSH_PRESSURE_DECAY * units_.motion[0].pressure) >> 16);
+		return;
+	}
 	float *px = units_.pos_x;
 	float *pz = units_.pos_z;
 	const bool have_steps = steps.count == n && steps.from_x && steps.from_z && steps.moving;
@@ -7592,6 +7649,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// in the order a, b of their ids).
 		float ax = 0.0f;
 		float az = 0.0f;
+		int added_pressure = 0;
 		bool body_overlap = false; // an idle unit whose body overlaps another idle unit's
 		grid.visit_radius_within(pxi, pzi, reach + 0.5f, reach + 0.5f, [&](int32_t j) {
 			if ((size_t)j == i) return;
@@ -7642,10 +7700,18 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			} else {
 				olen = std::sqrt(h2);
 				if (olen <= PUSH_EPSILON) {
-					// On top of each other: an arbitrary direction, by a's id.
-					const bool dir = (i_is_a ? idi : b.id) % 2;
-					ox = dir ? 1.0f : 0.0f;
-					oz = dir ? 0.0f : 1.0f;
+					// On top of each other: an arbitrary direction. 0 A.D. picks one of the two
+					// axes by a's id; RTS0, which can put many units on one point (a ship's unload
+					// point), picks one of eight by both ids, so a stack spreads over the ground
+					// instead of settling in a line along one axis.
+					constexpr float D = 0.70710678f;
+					static constexpr float DIRS[8][2] = {{0.0f, 1.0f}, {1.0f, 0.0f}, {D, D}, {D, -D},
+							{0.38268343f, 0.92387953f}, {0.92387953f, 0.38268343f}, {0.92387953f, -0.38268343f},
+							{0.38268343f, -0.92387953f}};
+					const uint32_t lo = std::min(idi, b.id), hi = std::max(idi, b.id);
+					const uint32_t dir = (lo * 2654435761u + hi * 40503u) >> 29;
+					ox = DIRS[dir][0];
+					oz = DIRS[dir][1];
 					olen = PUSH_EPSILON;
 				} else {
 					ox /= olen;
@@ -7658,14 +7724,32 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			const float k = std::min(b.w / wi * tf, max_k) * factor * sign;
 			ax += ox * k;
 			az += oz * k;
+			// A constant share makes crowds slower in general; units that overlap a lot add most.
+			if (turn_ends)
+				added_pressure += std::max(0, (int)((PUSH_PRESSURE_STATIC + (factor - 2.0f / 3.0f) * PUSH_PRESSURE_DISTANCE) *
+						PUSH_PRESSURE_STRENGTH));
 		});
 		ax *= PUSH_SCALE;
 		az *= PUSH_SCALE;
+		uint8_t &pressure = units_.motion[i].pressure;
+		if (turn_ends)
+			pressure = (uint8_t)std::min(PUSH_MAX_PRESSURE, (int)((PUSH_PRESSURE_DECAY * pressure) >> 16) + added_pressure);
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
 		// one another (a ship's passengers come ashore on one point, ship_unload_point, where 0 A.D.
 		// picks a free spot for each): an idle unit whose body overlaps another idle unit's is
 		// always pushed.
-		if (!body_overlap && ax * ax + az * az <= min_push * min_push) ax = az = 0.0f;
+		if (!body_overlap && ax * ax + az * az <= min_push * min_push) {
+			ax = az = 0.0f;
+		} else {
+			// A unit pushed back from where it walks is under pressure of at least 80.
+			const float mx = pxi - ix, mz = pzi - iz, mm = mx * mx + mz * mz;
+			if (turn_ends && mm > 0.0f && mx * (mx + ax) + mz * (mz + az) < PUSH_OBSTRUCTED_PROGRESS * mm && pressure > 30)
+				pressure = (uint8_t)std::max<int>(PUSH_MIN_PRESSURE_IF_OBSTRUCTED, pressure);
+			// Pressure dampens the push, though never fully, so crowded units still part.
+			const float damp = (float)(PUSH_MAX_PRESSURE - std::min<int>(PUSH_MAX_DAMPING_PRESSURE, pressure)) / PUSH_MAX_PRESSURE;
+			ax *= damp;
+			az *= damp;
+		}
 		fx[i] = ax;
 		fz[i] = az;
 		ax = az = 0.0f;
@@ -7777,11 +7861,10 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 // (MotionTurn) and are judged when it ends. A unit is obstructed when it makes almost no headway
 // on the steps it tried: CCmpUnitMotionManager marks a unit obstructed when pushing leaves it
 // under 1/2 m² of progress in a turn, against an infantryman's 1.8 m step (9 m/s), so 15% of its
-// own steps. RTS0 has no pushing pressure, so units and buildings pushing it back both count, as
-// a building failing CheckMovement does in 0 A.D. m_FailedMovements counts obstructed turns (only
-// the first two while the unit still moves at all) and resets once it walks freely, at half its
-// steps or more: pushing pressure decays over several turns in 0 A.D., so one lucky turn in a
-// jostling crowd doesn't clear it there either. 0 A.D. stops a unit at a building, where RTS0's
+// own steps. Units and buildings pushing it back both count, as a building failing CheckMovement
+// does in 0 A.D. m_FailedMovements counts obstructed turns (only the first two while the unit
+// still moves at all) and resets once it walks freely, at half its steps or more: pushing
+// pressure decays over several turns, so one lucky turn in a jostling crowd doesn't clear it. 0 A.D. stops a unit at a building, where RTS0's
 // separation nudges it back out every tick, so a turn counts as a move only when the unit ends it
 // at least 15% of its steps away from where it began.
 // From two turns, a walk, attack-move or patrol leg within 12 m (UnitAI DefaultRelaxedMaxRange)
@@ -7797,7 +7880,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 	for (size_t i = 0; i < n; ++i) {
 		MotionTurn &m = units_.motion[i];
 		if (!units_.alive[i] || !units_.has_order[i]) {
-			m = MotionTurn{};
+			m = MotionTurn{.pressure = m.pressure};
 			continue;
 		}
 		// COMBAT.APPROACHING / CHASING Timer, every second: ShouldAbandonChase drops a unit target
@@ -7806,7 +7889,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 				units_.target_unit_id[i] != 0 && (formations_.empty() || formation_group_[i] == 0)) {
 			const int32_t t = lookup_unit(units_.target_unit_id[i]);
 			if (t >= 0 && attack_target_hidden(i, (size_t)t)) {
-				m = MotionTurn{};
+				m = MotionTurn{.pressure = m.pressure};
 				abandon_chase(i);
 				continue;
 			}
@@ -8712,8 +8795,7 @@ void Simulation::tick_production(float dt) {
 		if (b.autoqueue && bteam < MAX_PLAYERS && !stuck) {
 			bool again;
 			if (animal) {
-				again = true;
-				for (int n = 0; n < done.count && again; ++n) again = cmd_breed_livestock(bteam, b.id, done.tmpl);
+				again = cmd_breed_livestock(bteam, b.id, (uint8_t)done.tmpl, done.count);
 			} else {
 				again = done.tmpl < CIV_UNIT_TEMPLATE_COUNT
 					? cmd_train_template_at(bteam, b.id, done.tmpl, false, done.count)
@@ -11093,7 +11175,7 @@ void Simulation::order_guard(const uint32_t *unit_ids_in, size_t count_in, uint3
 // ---------------------------------------------------------------------------
 
 void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t target, float x, float z) {
-	units_.motion[i] = MotionTurn{}; // UnitMotion MoveTo: a new move starts unobstructed
+	units_.motion[i] = MotionTurn{.pressure = units_.motion[i].pressure}; // UnitMotion MoveTo: a new move starts unobstructed
 	units_.order_kind[i] = kind;
 	units_.order_flags[i] = flags;
 	units_.order_target[i] = target;
@@ -12022,6 +12104,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 }
 
 void Simulation::destroy_building(Building &b) {
+	if (!b.wrecked) note_phases_aborted(b);
 	refund_foundation(b);
 	eject_or_kill(b);
 	b.garrisoned_units.clear();
