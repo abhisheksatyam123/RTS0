@@ -12289,7 +12289,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		const Building &b = buildings_[it->second];
 		bool trains = false;
 		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT && !trains; ++t)
-			trains = (civ_unit_template(t).trainers >> b.type) & 1;
+			trains = civ_unit_template(t).trainers.test(b.type);
 		if (!trains || b.wrecked || b.build_progress < 1.0f) return false;
 		const int n = std::min(parameter, pop_max(player) - pop_current(player));
 		const float sx = b.x + (b.footprint + 0.6f) * GRID, sz = b.z;
@@ -13262,7 +13262,7 @@ void Simulation::petra_manage_military_production(float dt) {
 	// fortress, civ structures such as the gymnasium, and the Town Center and
 	// temple for heroes).
 	const uint8_t ai_civ = petra_ps().civ;
-	uint64_t trainer_types = 0;
+	BldMask trainer_types;
 	for (uint16_t k : civ_roster_ids(ai_civ))
 		trainer_types |= civ_unit_template(k).trainers;
 	std::vector<uint32_t> trainers;
