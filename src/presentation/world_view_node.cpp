@@ -1,6 +1,7 @@
 #include "world_view_node.h"
 #include "display_colors.h"
 #include "territory_boundary.h"
+#include "terrain_blend.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -2154,6 +2155,31 @@ Ref<Image> terrain_layer_image(const String &name) {
 	return img;
 }
 
+// 0 A.D.'s standard terrain alpha maps (art/textures/terrain/alphamaps/standard),
+// in terrain_blend::ALPHA_MAP_NAMES order, as one array; null if any is missing.
+Ref<Texture2DArray> terrain_alpha_maps() {
+	TypedArray<Image> maps;
+	for (const char *name : rtso::terrain_blend::ALPHA_MAP_NAMES) {
+		const String path = String("res://assets/textures/terrain/alphamaps/standard/") + name + ".png";
+		Ref<Image> img;
+		if (ResourceLoader::get_singleton()->exists(path)) {
+			Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
+			if (tex.is_valid()) img = tex->get_image();
+		}
+		if (img.is_null() || img->is_empty()) img = Image::load_from_file(ProjectSettings::get_singleton()->globalize_path(path));
+		if (img.is_null() || img->is_empty()) return Ref<Texture2DArray>();
+		img = img->duplicate();
+		if (img->is_compressed()) img->decompress();
+		img->clear_mipmaps();
+		img->convert(Image::FORMAT_L8);
+		if (img->get_width() != 64 || img->get_height() != 64) img->resize(64, 64, Image::INTERPOLATE_BILINEAR);
+		maps.push_back(img);
+	}
+	Ref<Texture2DArray> arr;
+	arr.instantiate();
+	return arr->create_from_images(maps) == OK ? arr : Ref<Texture2DArray>();
+}
+
 // Hands the shader the sim's per-tile terrain (0 A.D. CTerrain tiles): a texture
 // array of the map's terrains and an R8 texture of each tile's layer.
 // tile_res 0 keeps the biome painting.
@@ -2176,8 +2202,15 @@ void apply_terrain_tiles(const Ref<ShaderMaterial> &mat, const rtso::Simulation 
 	bytes.resize((int64_t)tt.tiles.size());
 	std::memcpy(bytes.ptrw(), tt.tiles.data(), tt.tiles.size());
 	Ref<Image> idx = Image::create_from_data(tt.res, tt.res, false, Image::FORMAT_R8, bytes);
+	const std::vector<uint8_t> blends = rtso::terrain_blend::build(tt.res, tt.tiles.data());
+	PackedByteArray blend_bytes;
+	blend_bytes.resize((int64_t)blends.size());
+	std::memcpy(blend_bytes.ptrw(), blends.data(), blends.size());
+	Ref<Image> blend_img = Image::create_from_data(tt.res * rtso::terrain_blend::MAX_BLENDS, tt.res, false, Image::FORMAT_RGBA8, blend_bytes);
 	mat->set_shader_parameter("tile_layers", arr);
 	mat->set_shader_parameter("tile_index", ImageTexture::create_from_image(idx));
+	mat->set_shader_parameter("tile_blends", ImageTexture::create_from_image(blend_img));
+	mat->set_shader_parameter("alpha_maps", terrain_alpha_maps());
 	mat->set_shader_parameter("tile_res", (float)tt.res);
 	mat->set_shader_parameter("tile_half", sim->map_half());
 }
