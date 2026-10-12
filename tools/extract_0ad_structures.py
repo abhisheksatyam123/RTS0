@@ -115,12 +115,19 @@ UNIQUE_STAND_IN = {
 UNIQUE_FIT = {"pillar": ("width", 1.4), "monument": ("width", 1.6)}
 
 # Generic models with no GLB yet: model id -> template under structures/.
-GENERIC = {"palisade": "palisades_long"}
+GENERIC = {"palisade": "palisades_long",
+           # Palisade WallSet pieces (WALLSET_PALISADE), drawn by Building::half_size.
+           "palisade_short": "palisades_short", "palisade_medium": "palisades_medium",
+           "palisade_long": "palisades_long", "palisade_tower": "palisades_tower",
+           "palisade_gate": "palisades_gate"}
 # Fit for ids extract_0ad_assets.py never sized (width in model units).
 EXTRA_FIT = {"palisade": ("width", 3.0),
              # 1 RTS0 unit = 4 m: WallSet segments keep 0 A.D.'s 12, 24 and 36 m.
              "wall_short": ("scale", 0.25), "wall_medium": ("scale", 0.25), "wall_long": ("scale", 0.25),
-             "wall_gate": ("scale", 0.25)}
+             "wall_gate": ("scale", 0.25),
+             "palisade_short": ("scale", 0.25), "palisade_medium": ("scale", 0.25),
+             "palisade_long": ("scale", 0.25), "palisade_tower": ("scale", 0.25),
+             "palisade_gate": ("scale", 0.25)}
 
 
 def template_actor(tdir, name):
