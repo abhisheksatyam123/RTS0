@@ -1715,6 +1715,14 @@ inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
 }
 
+// The roster row of a 0 A.D. template path ("athen/infantry_javelineer_b"), or
+// CIV_UNIT_TEMPLATE_NONE.
+inline uint16_t civ_unit_template_by_id(const char *id) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
 // Cost/Population of a unit (heroes, dogs and catafalques 0, siege and warships 2-4);
 // units without a roster template fall back to their UnitType row.
 inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {

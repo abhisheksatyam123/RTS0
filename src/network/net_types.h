@@ -191,6 +191,9 @@ enum class NetCommandType : uint8_t {
 	NET_CMD_AUTOQUEUE = 44,
 	// 0 A.D. "set-dropsite-sharing" on structure target_id: param 1 shares, 0 stops.
 	NET_CMD_SET_DROPSITE_SHARING = 45,
+	// 0 A.D. "dialog-answer" {"tutorial": "ready"}: the tutorial panel's Ready button
+	// (maps/scripts/Tutorial.js). The sim only passes it to the map's triggers.
+	NET_CMD_TUTORIAL_READY = 47,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
