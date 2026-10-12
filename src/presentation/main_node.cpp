@@ -5377,9 +5377,18 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	view->rebuild_terrain(sim);
 	if (cam_rig) {
 		cam_rig->set_map_bounds_half(sim->map_half());
-		// Find Player 1 start position
+		// 0 A.D. opens on the player's civic centre (session.js initGUIObjects
+		// jumps to it); scenarios without one fall back to Player 1's start.
+		bool framed = false;
+		for (const auto &b : sim->buildings()) {
+			if (b.team == local_player() && rtso::is_civic_centre(b.type) && !b.wrecked) {
+				cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+				framed = true;
+				break;
+			}
+		}
 		Array players_arr = d.get("players", Array());
-		if (!players_arr.is_empty()) {
+		if (!framed && !players_arr.is_empty()) {
 			Dictionary p1 = players_arr[0];
 			float start_x = (float)p1.get("start_x", 0.0);
 			float start_z = (float)p1.get("start_z", 0.0);

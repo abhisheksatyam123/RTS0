@@ -1780,8 +1780,10 @@ def decode_dds(data):
     elif fourcc in (b"DXT5", b"DXT4"):
         bpp, decode = 16, _decode_dxt5
     elif fourcc in (b"\x00\x00\x00\x00", b"RXGB"):
-        # uncompressed: assume A8R8G8B8
-        img = Image.frombytes("RGBA", (width, height), data[off:off + width * height * 4], "raw", "BGRA")
+        # uncompressed 32-bit: A8R8G8B8 unless the red mask says A8B8G8R8
+        rmask = struct.unpack_from("<I", data, 92)[0]
+        raw = "RGBA" if rmask == 0xFF else "BGRA"
+        img = Image.frombytes("RGBA", (width, height), data[off:off + width * height * 4], "raw", raw)
         return img
     else:
         raise ValueError(f"unsupported DDS fourcc {fourcc}")

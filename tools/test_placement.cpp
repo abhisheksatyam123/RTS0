@@ -202,6 +202,17 @@ int main() {
 	// Outposts and palisades also go in neutral territory.
 	CHECK(at(s, 0, 30.0f, 50.0f, BLD_OUTPOST) == Simulation::PLACE_OK);
 	CHECK(at(s, 0, 30.0f, 50.0f, BLD_PALISADE) == Simulation::PLACE_OK);
+	// Stone walls only in own territory until Athenian Long Walls (own neutral, long_walls.json).
+	CHECK(at(s, 0, 30.0f, 50.0f, BLD_WALL_TOWER) == Simulation::PLACE_TERRITORY);
+	CHECK(at(s, 0, 30.0f, 50.0f, BLD_WALL_SEGMENT) == Simulation::PLACE_TERRITORY);
+	const TechSet techs0 = s.players_[0].techs;
+	s.players_[0].techs.set(TECH_LONG_WALLS);
+	CHECK(at(s, 0, 30.0f, 50.0f, BLD_WALL_TOWER) == Simulation::PLACE_OK);
+	CHECK(at(s, 0, 30.0f, 50.0f, BLD_WALL_SEGMENT) == Simulation::PLACE_OK);
+	CHECK(at(s, 0, 40.0f, -50.0f, BLD_WALL_TOWER) == Simulation::PLACE_TERRITORY); // never enemy ground
+	CHECK(at(s, 0, 30.0f, 50.0f, BLD_HOUSE) == Simulation::PLACE_TERRITORY);       // walls only
+	CHECK(tech_info(TECH_LONG_WALLS).researcher == BLD_PRYTANEION && tech_info(TECH_LONG_WALLS).stone_cost == 400);
+	s.players_[0].techs = techs0;
 
 	// Terrain: no land building on water, even in own territory.
 	CHECK(at(s, 0, -40.0f, 10.0f, BLD_HOUSE) == Simulation::PLACE_TERRAIN);
