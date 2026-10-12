@@ -148,6 +148,7 @@ Animations (363 unit GLBs):
 Textures:
 - **Player colour: done (player colour PR).** `extract_0ad_assets.py` bakes a fixed tint into each skin where the `player_trans` alpha is below 250. `tools/extract_player_masks.py` recovers 0 A.D.'s mask for 1424 GLB images (328 unit and 338 building models) and `shaders/player_color.gdshader` swaps the baked tint for the owner's colour. Not coloured: fauna, rubble and foundations, plus 12 unit models (Gaul and Briton citizens and archers, catapults, the bolt shooter) and 10 structures (Gaul walls and towers, the sentry and defense towers, pyramids, siege wall, rowboat) whose skins on 0 A.D.'s current master have no mask or no longer match the extracted ones.
 - **Normal maps: done (normal maps PR).** `tools/extract_normal_maps.py` pairs each skin with the `normTex` its 0 A.D. actor names when the actor's material is `*_norm*` or `*_parallax*`, and writes 268 maps (`assets/textures/normal_maps/`, 42 MB) for 2432 GLB images (1155 building, 1277 unit; unit bodies use 0 A.D.'s flat `default_norm`, so mostly shields, helmets and props). 175 images matched no skin and stay flat. No specular or parallax maps.
+- **Sky boxes: done (sky box PR).** `tools/extract_sky_boxes.py` writes all 20 of 0 A.D.'s sky sets (`assets/textures/skies/`, 22 MB, five 512x512 faces each). Maps naming `default`, which has no folder in 0 A.D., take cirrus, cumulus or sunny by map id.
 
 ## Open todos (moved here from ASSET_MAPPING.md, checked 2026-10-08)
 
