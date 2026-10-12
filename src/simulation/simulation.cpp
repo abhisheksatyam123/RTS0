@@ -5232,10 +5232,34 @@ bool Simulation::nearest_water_for_ship(size_t ship, float x, float z, float &ou
 }
 
 // PickSpawnPoint for a ship: the nearest dry ground within loading reach of its
-// hull, scanned in a fixed order so every peer picks the same spot.
-bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z) const {
+// hull, scanned in a fixed order so every peer picks the same spot. For a passenger it is
+// the nearest such spot where its body overlaps no unit standing ashore and no passenger
+// already set down (`taken`), as Footprint.PickSpawnPoint skips obstructed points; when the
+// shore is full it shares the nearest dry spot and pushing parts them.
+bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger,
+		std::vector<SpawnSpot> *taken) const {
 	const float sx = units_.pos_x[ship], sz = units_.pos_z[ship];
 	const float reach = SHIP_LOADING_RANGE + unit_collision_radius(units_.unit_type[ship]) + 0.5f;
+	const bool spread = passenger < units_.count;
+	const float pr = spread ? unit_collision_radius(units_.unit_type[passenger]) : 0.0f;
+	std::vector<SpawnSpot> ashore;
+	if (spread) {
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (i == passenger || !units_.alive[i] || unit_is_ship(units_.unit_type[i]) ||
+					units_.action_state[i] == ACTION_GARRISONED) continue;
+			const float ur = unit_collision_radius(units_.unit_type[i]);
+			const float dx = units_.pos_x[i] - sx, dz = units_.pos_z[i] - sz, lim = reach + pr + ur;
+			if (dx * dx + dz * dz <= lim * lim) ashore.push_back({units_.pos_x[i], units_.pos_z[i], ur});
+		}
+		if (taken) ashore.insert(ashore.end(), taken->begin(), taken->end());
+	}
+	auto occupied = [&](float cx, float cz) {
+		return std::any_of(ashore.begin(), ashore.end(), [&](const SpawnSpot &o) {
+			const float d = pr + o.r;
+			return (o.x - cx) * (o.x - cx) + (o.z - cz) * (o.z - cz) < d * d; });
+	};
+	bool dry = false;
+	float first_x = 0.0f, first_z = 0.0f;
 	// Another ship's hull obstructs the spot (a passenger set down there is pushed off
 	// it, into the water).
 	struct Hull { float x, z, r2; };
@@ -5259,12 +5283,19 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z) cons
 			if (std::any_of(hulls.begin(), hulls.end(), [&](const Hull &h) {
 				    return (h.x - cx) * (h.x - cx) + (h.z - cz) * (h.z - cz) < h.r2; }))
 				continue;
+			if (!dry) { dry = true; first_x = cx; first_z = cz; }
+			if (spread && occupied(cx, cz)) continue;
 			out_x = cx;
 			out_z = cz;
+			if (taken) taken->push_back({cx, cz, pr});
 			return true;
 		}
 	}
-	return false;
+	if (!dry) return false;
+	out_x = first_x;
+	out_z = first_z;
+	if (taken) taken->push_back({first_x, first_z, pr});
+	return true;
 }
 
 bool Simulation::is_transport(uint32_t unit_id) const {
@@ -5390,15 +5421,14 @@ void Simulation::unload_sunk_ship(size_t ship) {
 	float lx = 0.0f, lz = 0.0f;
 	const bool shore = ship_unload_point(ship, lx, lz);
 	const uint64_t ejected = TC_FEMALECITIZEN | TC_INFANTRY | TC_HEALER | TC_DOG;
-	const float step = 6.2831853f / (float)std::max<size_t>(1, pit->second.size());
-	int k = 0;
+	std::vector<SpawnSpot> taken;
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
 		if (shore && (unit_tech_classes(units_.unit_type[p]) & ejected)) {
-			const float a = step * (float)k++;
-			units_.pos_x[p] = lx + std::cos(a) * 0.6f;
-			units_.pos_z[p] = lz + std::sin(a) * 0.6f;
+			ship_unload_point(ship, lx, lz, (size_t)p, &taken);
+			units_.pos_x[p] = lx;
+			units_.pos_z[p] = lz;
 			units_.alive[p] = 1;
 			units_.action_state[p] = ACTION_IDLE;
 			units_.has_order[p] = 0;
@@ -6270,14 +6300,18 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 		land_z = target_z;
 	}
 
+	const bool ship = unit_is_ship(units_.unit_type[tidx]);
+	std::vector<SpawnSpot> taken;
 	float angle_step = 6.2831853f / std::max(1, (int)passengers.size());
 	int k = 0;
 	for (uint32_t uid : passengers) {
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0) {
 			float a = angle_step * k++;
-			units_.pos_x[idx] = land_x + cosf(a) * 1.5f;
-			units_.pos_z[idx] = land_z + sinf(a) * 1.5f;
+			float px = land_x + cosf(a) * 1.5f, pz = land_z + sinf(a) * 1.5f;
+			if (ship) ship_unload_point((size_t)tidx, px, pz, (size_t)idx, &taken); // a spot each
+			units_.pos_x[idx] = px;
+			units_.pos_z[idx] = pz;
 			units_.alive[idx] = 1;
 			units_.action_state[idx] = ACTION_IDLE;
 			units_.has_order[idx] = 0;
@@ -6308,7 +6342,7 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 			float land_x = tx + 2.0f;
 			float land_z = tz;
 			if (unit_is_ship(units_.unit_type[tidx])) {
-				if (!ship_unload_point((size_t)tidx, land_x, land_z)) return; // no shore in reach: stays aboard
+				if (!ship_unload_point((size_t)tidx, land_x, land_z, (size_t)idx)) return; // no shore in reach: stays aboard
 			} else
 			for (float r = 1.0f; r <= 6.0f; r += 1.5f) {
 				for (int a = 0; a < 8; ++a) {
@@ -7938,9 +7972,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		if (turn_ends)
 			pressure = (uint8_t)std::min(PUSH_MAX_PRESSURE, (int)((PUSH_PRESSURE_DECAY * pressure) >> 16) + added_pressure);
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
-		// one another (a ship's passengers come ashore on one point, ship_unload_point, where 0 A.D.
-		// picks a free spot for each): an idle unit whose body overlaps another idle unit's is
-		// always pushed.
+		// one another (passengers set down on a crowded shore, where ship_unload_point finds no free
+		// spot): an idle unit whose body overlaps another idle unit's is always pushed.
 		if (!body_overlap && ax * ax + az * az <= min_push * min_push) {
 			ax = az = 0.0f;
 		} else {
