@@ -69,6 +69,8 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_SURVIVAL_WAVE = 15,             // StartAnEnemyWave
 	TRIGGER_ACTION_SURVIVAL_TREASURES = 16,        // PlaceTreasures
 	TRIGGER_ACTION_SURVIVAL_OWNERSHIP = 17,        // OnOwnershipChanged
+	// maps/scripts/Tutorial.js with maps/tutorials/*.js (TriggerState::vars[7] names which)
+	TRIGGER_ACTION_TUTORIAL = 18,                  // InitTutorial, then every event the goals listen on
 	TRIGGER_ACTION_COUNT
 };
 
@@ -82,6 +84,20 @@ struct TriggerEventData {
 	uint8_t to = 0xFF;
 	uint16_t value = 0;    // template, tech or command type
 	uint16_t count = 0;    // batch size
+	uint8_t event = 0xFF;  // the TriggerEvent being run (set by Simulation::trigger_event)
+};
+
+// OnPlayerCommand: the Commands.js command types the ported scripts look at (value).
+// entity is the command's target, other a second target.
+enum TriggerCommand : uint16_t {
+	TRIGGER_CMD_NONE = 0,
+	TRIGGER_CMD_GATHER,          // "gather" on a resource (entity); a hunt names the animal (from = 1)
+	TRIGGER_CMD_CONSTRUCT,       // "construct": entity = the new foundation, count = its BuildingType
+	TRIGGER_CMD_REPAIR,          // "repair": units sent to build the structure entity
+	TRIGGER_CMD_SET_RALLY,       // "set-rallypoint": entity = resource, other = structure (0 if none)
+	TRIGGER_CMD_UNSET_RALLY,     // "unset-rallypoint"
+	TRIGGER_CMD_DIALOG_READY,    // "dialog-answer" {"tutorial": "ready"}: a tutorial's Ready button
+	TRIGGER_CMD_OTHER,           // anything else
 };
 
 // Timer.js timer: fires at time_ms, then every repeat_ms when repeat_ms > 0.
