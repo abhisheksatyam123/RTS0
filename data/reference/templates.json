@@ -2325,7 +2325,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/infantry_javelineer_iber_b": {
@@ -2369,7 +2371,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/infantry_slinger_iber_b": {
@@ -2413,7 +2417,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/infantry_spearman_b": {
@@ -2456,7 +2462,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/infantry_swordsman_gaul_b": {
@@ -2500,7 +2508,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/infantry_swordsman_ital_b": {
@@ -2544,7 +2554,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/ship_arrow": {
@@ -2695,7 +2707,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/support_female_citizen_house": {
@@ -2735,7 +2749,9 @@
     23,
     25,
     52,
-    57
+    57,
+    61,
+    62
    ]
   },
   "cart/support_healer_b": {
@@ -9316,15 +9332,15 @@
    },
    "25": {
     "generic_name": "Embassy",
-    "specific_name": "",
-    "tooltip": "Train Mercenaries.",
+    "specific_name": "Celtic Embassy",
+    "tooltip": "Train Celtic Mercenaries.",
     "history": "",
     "classes": [
      "Military",
      "Town",
      "Embassy"
     ],
-    "template": "structures/cart/embassy"
+    "template": "structures/cart/embassy_celtic"
    },
    "52": {
     "generic_name": "Naval Shipyard",
@@ -9361,6 +9377,30 @@
      "Gate"
     ],
     "template": "structures/palisades_gate"
+   },
+   "61": {
+    "generic_name": "Embassy",
+    "specific_name": "Iberian Embassy",
+    "tooltip": "Train Iberian Mercenaries.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Town",
+     "Embassy"
+    ],
+    "template": "structures/cart/embassy_iberian"
+   },
+   "62": {
+    "generic_name": "Embassy",
+    "specific_name": "Italic Embassy",
+    "tooltip": "Train Italic Mercenaries.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Town",
+     "Embassy"
+    ],
+    "template": "structures/cart/embassy_italic"
    }
   },
   "mace": {
