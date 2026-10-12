@@ -2044,7 +2044,8 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const WallSetInfo &ws = wallset_info(kind);
 	const Civilization civ = civ_of(player);
 	for (uint8_t t : {ws.segment, ws.tower})
-		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase) return 0;
+		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase ||
+				triggers_.building_disabled(player, t)) return 0;
 	rebuild_territory();
 	uint32_t start_tower = 0, end_tower = 0;
 	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower, kind);
@@ -22625,6 +22626,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"polar_sea_triggers", TRIGGER_ACTION_POLAR_SEA_INIT, TUTORIAL_NONE},
 		{"treasure_islands", TRIGGER_ACTION_TREASURE_ISLANDS_INIT, TUTORIAL_NONE},
 		{"survivalofthefittest_triggers", TRIGGER_ACTION_SURVIVAL_INIT, TUTORIAL_NONE},
+		{"death_canyon_invasion_force_triggers", TRIGGER_ACTION_DEATH_CANYON_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -22797,6 +22799,12 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_TUTORIAL:
 			tutorial_event(data);
+			break;
+		case TRIGGER_ACTION_DEATH_CANYON_INIT:
+			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
+			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
+			static_assert(BLD_TYPE_COUNT <= 64, "disabled_buildings is a 64-bit mask");
+			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = ~0ull;
 			break;
 		default:
 			break;

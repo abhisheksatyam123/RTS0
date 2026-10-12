@@ -71,6 +71,8 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_SURVIVAL_OWNERSHIP = 17,        // OnOwnershipChanged
 	// maps/scripts/Tutorial.js with maps/tutorials/*.js (TriggerState::vars[7] names which)
 	TRIGGER_ACTION_TUTORIAL = 18,                  // InitTutorial, then every event the goals listen on
+	// scenarios/death_canyon_invasion_force_triggers.js
+	TRIGGER_ACTION_DEATH_CANYON_INIT = 19,         // DisableBuilding
 	TRIGGER_ACTION_COUNT
 };
 

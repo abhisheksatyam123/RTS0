@@ -545,6 +545,26 @@ static void check_tutorials() {
 	if (failures == before) std::printf("tutorials: Ready, gather, training and rally goals advance; state survives a save: ok\n");
 }
 
+static void check_death_canyon() {
+	const int before = failures;
+	static Simulation s;
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	CHECK(s.register_trigger_script("death_canyon_invasion_force_triggers"), "death_canyon_invasion_force_triggers not registered");
+	run_to(s, 0.5f);
+	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
+		CHECK(s.building_disabled_by_trigger(1, t) && s.building_disabled_by_trigger(3, t), "Invasion Force may build type %d", t);
+		CHECK(!s.building_disabled_by_trigger(0, t) && !s.building_disabled_by_trigger(2, t), "a base player may not build type %d", t);
+	}
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	float x = 0.0f, z = 0.0f;
+	for (size_t i = 0; i < s.units_.count; ++i)
+		if (s.units_.alive[i] && s.units_.team[i] == 1) { x = s.units_.pos_x[i]; z = s.units_.pos_z[i]; break; }
+	CHECK(s.cmd_build_wall(1, x + 4.0f, z + 4.0f, x + 12.0f, z + 4.0f, nullptr, 0, false, 0) == 0, "the Invasion Force laid a wall");
+	if (failures == before) std::printf("Death Canyon - Invasion Force: the invasion forces build nothing: ok\n");
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -561,6 +581,7 @@ int main() {
 	check_save_load(tm, MAP_EXTINCT_VOLCANO, 90.0f, 200.0f, Simulation::WATER_LEVEL_RISING, 2, "Extinct Volcano before and during the rise");
 	check_identical_saves();
 	check_tutorials();
+	check_death_canyon();
 	std::printf("RESULT: %s (%d failed checks)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
 }
