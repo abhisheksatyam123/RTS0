@@ -12,6 +12,7 @@ extends Control
 ## [min, max] for slider and number, [[label, value], ...] for dropdowns.
 const SCHEMA := [
 	["General", [
+		["dropdown", "locale", "Language", "Choose the language of the game.", "locales"],
 		["boolean", "pauseonfocusloss", "Background pause", "Pause single-player games when window loses focus."],
 		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
 		["boolean", "overlay.realtime", "Real time overlay", "Show current system time in top right corner."],
@@ -220,6 +221,8 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 			sb.value_changed.connect(func(x): _changed(key, str(int(x))))
 			c = sb
 		"dropdown":
+			if extra is String and extra == "locales":
+				extra = _locale_items()
 			var ob = RtsoSafeSelect.new()
 			ob.custom_minimum_size = Vector2(300, 30)
 			for item in extra:
@@ -243,6 +246,14 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 	c.mouse_entered.connect(func(): _description.text = opt[3])
 	grid.add_child(c)
 	_controls[key] = [type, c, extra]
+
+## locale: "" follows the system language, then one entry per translation,
+## each in its own language (0 A.D. gui/locale).
+static func _locale_items() -> Array:
+	var items := [["System language", ""]]
+	for l in UserSettings.available_locales():
+		items.append([UserSettings.LANGUAGE_NAMES.get(l, l), l])
+	return items
 
 ## A colour option edited: a valid "R G B" updates the swatch and the setting.
 func _color_edited(key: String, t: String, sw: ColorRect) -> void:
