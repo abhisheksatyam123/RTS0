@@ -2099,6 +2099,15 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
 	if (b_type != BLD_DOCK && b_type != BLD_SUPER_DOCK) buildings_[building_id_to_idx_[bid]].set_rot(unpack_angle(pack_angle(angle)));
 	if (player == 0) record_.buildings_constructed++;
+	if (!triggers_.triggers.empty()) {
+		// The new foundation entity: OnOwnershipChanged from INVALID_PLAYER to its owner.
+		TriggerEventData ev;
+		ev.entity = bid;
+		ev.player = player;
+		ev.to = player;
+		ev.count = b_type;
+		trigger_event(TRIGGER_ON_OWNERSHIP_CHANGED, ev);
+	}
 	return bid;
 }
 
@@ -2398,6 +2407,14 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 		* unit_tech_mods(player_id, t.unit_type, tmpl).train_time * ai_time_mult(player_id) * promotion_train_time_mult(tmpl)
 		* batch_time_multiplier(player_id, b.type, count);
 	b.queue.push_back(order);
+	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnTrainingQueued
+		TriggerEventData ev;
+		ev.entity = building_id;
+		ev.player = player_id;
+		ev.value = tmpl;
+		ev.count = (uint16_t)count;
+		trigger_event(TRIGGER_ON_TRAINING_QUEUED, ev);
+	}
 	return true;
 }
 
@@ -2656,6 +2673,13 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 		* tech_mods(player_id).bld_research_time[b.type] * ai_time_mult(player_id);
 	b.queue.push_back(order);
 	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
+	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
+		TriggerEventData ev;
+		ev.entity = building_id;
+		ev.player = player_id;
+		ev.value = tech_id;
+		trigger_event(TRIGGER_ON_RESEARCH_QUEUED, ev);
+	}
 	return true;
 }
 
@@ -3166,6 +3190,12 @@ void Simulation::complete_research(uint8_t player_id, uint8_t tech_id) {
 	if (tech_id == TECH_PHASE_TOWN) ps.phase = std::max<uint8_t>(ps.phase, 2);
 	else if (tech_id == TECH_PHASE_CITY) ps.phase = 3;
 	refresh_tech_mods(player_id);
+	if (!triggers_.triggers.empty()) { // TechnologyManager.ResearchTechnology: OnResearchFinished
+		TriggerEventData ev;
+		ev.player = player_id;
+		ev.value = tech_id;
+		trigger_event(TRIGGER_ON_RESEARCH_FINISHED, ev);
+	}
 }
 
 void Simulation::refresh_tech_mods(uint8_t player_id) {
@@ -8573,6 +8603,13 @@ void Simulation::tick_construction(float dt) {
 				if (is_territory_root(b.type)) {
 					rebuild_territory();
 				}
+				if (!triggers_.triggers.empty()) { // Foundation.js: OnStructureBuilt
+					TriggerEventData ev;
+					ev.entity = b.id;
+					ev.player = b.team;
+					ev.value = b.type;
+					trigger_event(TRIGGER_ON_STRUCTURE_BUILT, ev);
+				}
 			}
 		}
 	}
@@ -8799,6 +8836,14 @@ void Simulation::tick_production(float dt) {
 				army.insert(std::upper_bound(army.begin(), army.end(), uid), uid);
 			}
 			if (b.has_rally_point) apply_rally_point(uid, b);
+		}
+		if (!animal && !stuck && !triggers_.triggers.empty()) { // Trainer.js SpawnUnits: OnTrainingFinished
+			TriggerEventData ev;
+			ev.entity = b.id;
+			ev.player = bteam;
+			ev.value = done.tmpl;
+			ev.count = done.count;
+			trigger_event(TRIGGER_ON_TRAINING_FINISHED, ev);
 		}
 		// Autoqueue: the same batch goes on the queue again, paid again; when it can't be,
 		// autoqueuing turns off ("Could not auto-queue unit, de-activating.").
@@ -22612,10 +22657,24 @@ void Simulation::trigger_event(uint8_t event, const TriggerEventData &data) {
 	// registration order. An action may register more triggers; those wait
 	// for the next event.
 	const size_t n = triggers_.triggers.size();
+	TriggerEventData ev = data;
+	ev.event = event;
 	for (size_t i = 0; i < n && i < triggers_.triggers.size(); ++i) {
 		const TriggerRegistration r = triggers_.triggers[i];
-		if (r.event == event && r.enabled) run_trigger_action(r.action, 0.0f, data);
+		if (r.event == event && r.enabled) run_trigger_action(r.action, 0.0f, ev);
 	}
+}
+
+void Simulation::note_player_command(uint8_t player, uint16_t kind, uint32_t target, uint32_t other, uint8_t hunt, uint16_t count) {
+	if (triggers_.triggers.empty()) return;
+	TriggerEventData ev;
+	ev.player = player;
+	ev.value = kind;
+	ev.entity = target;
+	ev.other = other;
+	ev.from = hunt;
+	ev.count = count;
+	trigger_event(TRIGGER_ON_PLAYER_COMMAND, ev);
 }
 
 std::vector<const TimeNotification *> Simulation::time_notifications_for(uint8_t player) const {
@@ -22670,15 +22729,19 @@ void Simulation::register_map_triggers(MapType type) {
 
 bool Simulation::register_trigger_script(const std::string &name) {
 	// Each script's top level runs from OnInitGame so it sees the final Game Setup.
-	static const struct { const char *name; uint16_t init; } kScripts[] = {
-		{"flood_triggers", TRIGGER_ACTION_FLOOD_INIT},
-		{"extinct_volcano_triggers", TRIGGER_ACTION_VOLCANO_INIT},
-		{"polar_sea_triggers", TRIGGER_ACTION_POLAR_SEA_INIT},
-		{"treasure_islands", TRIGGER_ACTION_TREASURE_ISLANDS_INIT},
-		{"survivalofthefittest_triggers", TRIGGER_ACTION_SURVIVAL_INIT},
+	static const struct { const char *name; uint16_t init; uint8_t tutorial; } kScripts[] = {
+		{"flood_triggers", TRIGGER_ACTION_FLOOD_INIT, TUTORIAL_NONE},
+		{"extinct_volcano_triggers", TRIGGER_ACTION_VOLCANO_INIT, TUTORIAL_NONE},
+		{"polar_sea_triggers", TRIGGER_ACTION_POLAR_SEA_INIT, TUTORIAL_NONE},
+		{"treasure_islands", TRIGGER_ACTION_TREASURE_ISLANDS_INIT, TUTORIAL_NONE},
+		{"survivalofthefittest_triggers", TRIGGER_ACTION_SURVIVAL_INIT, TUTORIAL_NONE},
+		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
+		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
+		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
 	};
 	for (const auto &k : kScripts)
 		if (name == k.name) {
+			if (k.tutorial != TUTORIAL_NONE) triggers_.vars[7] = k.tutorial;
 			triggers_.register_trigger(TRIGGER_ON_INIT_GAME, k.init, true);
 			return true;
 		}
@@ -22841,6 +22904,9 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_SURVIVAL_OWNERSHIP:
 			trigger_survival_ownership(data);
+			break;
+		case TRIGGER_ACTION_TUTORIAL:
+			tutorial_event(data);
 			break;
 		default:
 			break;
@@ -23181,6 +23247,445 @@ void Simulation::trigger_survival_ownership(const TriggerEventData &data) {
 			units_.action_state[u] = ACTION_DYING;
 			units_.has_order[u] = 0;
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tutorials: maps/scripts/Tutorial.js (InitTutorial, NextGoal, the Ready button and
+// WarningMessage) running the goals of maps/tutorials/introductory_tutorial.js and
+// starting_economy_walkthrough.js. The goals' texts are in tutorial_data.h; the
+// session UI shows the current goal (tutorial_goal_index) and its warning.
+namespace {
+// TriggerState::vars of a tutorial (cmpTrigger.<name> in the scripts).
+enum : int {
+	kTutGoal = 0,         // the current goal (this.index - 1)
+	kTutReady = 1,        // the goal shows the Ready button
+	kTutTrainingDone = 2, // this.trainingDone
+	kTutFlagA = 3,        // farmStarted, rallyPointSet, marketStarted, stone
+	kTutFlagB = 4,        // trainingStarted, templeStarted, metal
+	kTutCount = 5,        // ramCount, femaleCount, houseCount
+	kTutWarning = 6,      // the WarningMessage shown (TutorialWarning)
+	kTutId = 7,           // TutorialId
+};
+// TriggerWatch roles.
+constexpr uint8_t kTutAttacker = 1;    // LaunchAttack's attackers (IsAttackRepelled)
+constexpr uint8_t kTutHouse = 2;       // houseGoal: a House foundation not built yet
+constexpr uint8_t kTutEnemyCentre = 3; // the enemy's Civic Centres
+// TriggerHelper.GetResourceType(target).specific / generic.
+enum : uint8_t { TUT_RES_NONE, TUT_RES_FRUIT, TUT_RES_TREE, TUT_RES_MEAT, TUT_RES_GRAIN, TUT_RES_STONE, TUT_RES_METAL };
+} // namespace
+
+uint8_t Simulation::tutorial_resource_kind(uint32_t id, bool animal) const {
+	if (animal) return TUT_RES_MEAT; // a hunt or a herd's animal
+	auto it = res_id_to_idx_.find(id);
+	if (it == res_id_to_idx_.end()) return TUT_RES_NONE;
+	switch (resources_.type[it->second]) {
+		case RES_WOOD: return TUT_RES_TREE;
+		case RES_STONE: return TUT_RES_STONE;
+		case RES_GOLD: return TUT_RES_METAL;
+		default: break;
+	}
+	switch (resources_.subtype[it->second]) {
+		case RES_SUB_NONE: return TUT_RES_FRUIT;
+		case RES_SUB_MEAT: return TUT_RES_MEAT;
+		case RES_SUB_GRAIN: return TUT_RES_GRAIN;
+		default: return TUT_RES_NONE;
+	}
+}
+
+bool Simulation::tech_dealt_with(uint8_t player, uint8_t tech) const {
+	// TriggerHelper.HasDealtWithTech: researched, or queued at one of the player's structures.
+	if (player >= MAX_PLAYERS) return false;
+	if (players_[player].has_tech(tech)) return true;
+	for (const Building &b : buildings_)
+		if (b.team == player)
+			for (const ProductionOrder &o : b.queue)
+				if (o.is_tech() && o.tech == tech) return true;
+	return false;
+}
+
+void Simulation::tutorial_reset_queue(uint32_t building_id) {
+	// ProductionQueue.ResetQueue: every item is removed and refunded.
+	auto it = building_id_to_idx_.find(building_id);
+	if (it == building_id_to_idx_.end()) return;
+	const uint8_t team = buildings_[it->second].team;
+	while (!buildings_[it->second].queue.empty())
+		if (!cmd_cancel_train(team, building_id, buildings_[it->second].queue.size() - 1)) break;
+}
+
+void Simulation::tutorial_launch_attack() {
+	// introductory_tutorial.js LaunchAttack: the enemy's citizen soldiers attack-walk to
+	// the player's first Tower, else its Civic Centre, attacking units only, no capture.
+	const Building *target = nullptr;
+	for (const Building &b : buildings_)
+		if (b.team == TUTORIAL_PLAYER && b.hp > 0.0f && !b.wrecked && (building_tech_classes(b.type) & TC_TOWER)) { target = &b; break; }
+	if (!target)
+		for (const Building &b : buildings_)
+			if (b.team == TUTORIAL_PLAYER && b.hp > 0.0f && !b.wrecked && is_civic_centre(b.type)) { target = &b; break; }
+	if (!target) return;
+	std::vector<uint32_t> attackers;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != TUTORIAL_ENEMY) continue;
+		const uint16_t t = units_.tmpl[i];
+		const uint64_t c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+		if (!(c & TC_CITIZENSOLDIER)) continue;
+		attackers.push_back(units_.id[i]);
+		TriggerWatch w;
+		w.id = units_.id[i];
+		w.owner = TUTORIAL_ENEMY;
+		w.role = kTutAttacker;
+		w.player = TUTORIAL_ENEMY;
+		triggers_.watched.push_back(w);
+	}
+	const float x = target->x, z = target->z;
+	if (!attackers.empty()) order_attack_move(attackers.data(), attackers.size(), x, z, false, true, false);
+}
+
+void Simulation::tutorial_remove_champions() {
+	// introductory_tutorial.js RemoveChampions: all but six of the enemy's champions die.
+	int keep = 6;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != TUTORIAL_ENEMY) continue;
+		const uint16_t t = units_.tmpl[i];
+		const uint64_t c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+		if (!(c & TC_CHAMPION) || --keep >= 0) continue;
+		units_.hp[i] = 0.0f; // Health.Kill
+		units_.alive[i] = 0;
+		units_.action_state[i] = ACTION_DYING;
+		units_.has_order[i] = 0;
+		record_unit_death(i, 0xFF);
+		stat_unit_lost(i, 0xFF);
+	}
+}
+
+bool Simulation::tutorial_goal_listens(int g) const {
+	// Whether the goal has trigger functions; one without them shows the Ready button.
+	if (tutorial_id() == TUTORIAL_INTRODUCTORY) return g != 0 && g != 26;
+	switch (g) {
+		case 0: case 1: case 2: case 3: case 4: case 16: case 29: case 31: return false;
+		default: return true;
+	}
+}
+
+void Simulation::tutorial_goal_init(int g) {
+	// Each goal's Init.
+	int32_t *v = triggers_.vars;
+	if (tutorial_id() == TUTORIAL_INTRODUCTORY) {
+		switch (g) {
+			case 6: v[kTutTrainingDone] = 0; break;
+			case 9: v[kTutFlagA] = 0; break;
+			case 11: case 16: case 21: v[kTutFlagA] = 0; v[kTutFlagB] = 0; break;
+			case 24: v[kTutCount] = 0; break;
+			case 26: set_player_won(TUTORIAL_PLAYER); break; // MarkPlayerAndAlliesAsWon(1)
+			default: break;
+		}
+		return;
+	}
+	switch (g) {
+		case 13: v[kTutTrainingDone] = 0; break;
+		case 17: // houseGoal = new Set()
+			v[kTutCount] = 0;
+			triggers_.watched.erase(std::remove_if(triggers_.watched.begin(), triggers_.watched.end(),
+					[](const TriggerWatch &w) { return w.role == kTutHouse; }), triggers_.watched.end());
+			break;
+		case 24: v[kTutCount] = 0; break;
+		case 30: v[kTutFlagA] = 0; v[kTutFlagB] = 0; break;
+		default: break;
+	}
+}
+
+bool Simulation::tutorial_goal_done(int g) const {
+	// Each goal's IsDone (false for the goals without one).
+	const int32_t *v = triggers_.vars;
+	const uint8_t p = TUTORIAL_PLAYER;
+	if (tutorial_id() == TUTORIAL_INTRODUCTORY) {
+		switch (g) {
+			case 9: return v[kTutFlagA] && v[kTutTrainingDone];
+			case 11: case 16: case 21: return v[kTutFlagA] && v[kTutFlagB];
+			case 13: return tech_dealt_with(p, TECH_PHASE_TOWN);
+			case 14: return players_[p].has_tech(TECH_PHASE_TOWN);
+			case 22: case 23: return tech_dealt_with(p, TECH_PHASE_CITY);
+			case 24: return v[kTutCount] > 1;
+			default: return false;
+		}
+	}
+	switch (g) {
+		case 15: return v[kTutTrainingDone] != 0;
+		case 17: return v[kTutCount] > 1;
+		case 20:
+			for (const TriggerWatch &w : triggers_.watched)
+				if (w.role == kTutHouse) return false;
+			return true;
+		case 25: return tech_dealt_with(p, TECH_GATHER_WICKER_BASKETS) || tech_dealt_with(p, TECH_FARMING_1);
+		case 28: return tech_dealt_with(p, TECH_PHASE_TOWN);
+		case 30: return v[kTutFlagA] && v[kTutFlagB] && tech_dealt_with(p, TECH_PHASE_TOWN);
+		default: return false;
+	}
+}
+
+void Simulation::tutorial_next_goal() {
+	// Tutorial.js NextGoal: run the next goal's Init; a goal with nothing for the player
+	// to do (no trigger functions, or IsDone already) or with "delay": -1 waits for Ready.
+	const uint8_t id = tutorial_id();
+	const int g = triggers_.vars[kTutGoal] + 1;
+	if (g >= tutorial_goal_count(id)) return;
+	triggers_.vars[kTutGoal] = g;
+	triggers_.vars[kTutWarning] = TUTORIAL_WARN_NONE; // GoalMessage replaces the warning
+	tutorial_goal_init(g);
+	const bool ready_delay = id == TUTORIAL_ECONOMY && g == 18; // "delay": -1
+	triggers_.vars[kTutReady] = (ready_delay || !tutorial_goal_listens(g) || tutorial_goal_done(g)) ? 1 : 0;
+}
+
+void Simulation::tutorial_event(const TriggerEventData &d) {
+	const uint8_t id = tutorial_id();
+	if (id == TUTORIAL_NONE) return;
+	int32_t *v = triggers_.vars;
+	if (d.event == TRIGGER_ON_INIT_GAME) {
+		// InitTutorial. The tutorial maps have no victory conditions ("VictoryConditions": []).
+		victory_condition_ = VICTORY_ENDLESS;
+		for (uint8_t e : {TRIGGER_ON_PLAYER_COMMAND, TRIGGER_ON_TRAINING_QUEUED, TRIGGER_ON_TRAINING_FINISHED,
+				TRIGGER_ON_RESEARCH_QUEUED, TRIGGER_ON_RESEARCH_FINISHED, TRIGGER_ON_STRUCTURE_BUILT,
+				TRIGGER_ON_OWNERSHIP_CHANGED})
+			triggers_.register_trigger(e, TRIGGER_ACTION_TUTORIAL, true);
+		// The enemy has no AI ("AI": "" in the map's PlayerData): it only fights when the
+		// script sends it. A seat Game Setup gave Petra is taken back.
+		if (id == TUTORIAL_INTRODUCTORY && players_[TUTORIAL_ENEMY].active) players_[TUTORIAL_ENEMY].is_ai = 0;
+		if (id == TUTORIAL_INTRODUCTORY)
+			for (const Building &b : buildings_)
+				if (b.team == TUTORIAL_ENEMY && is_civic_centre(b.type) && b.hp > 0.0f) {
+					TriggerWatch w;
+					w.id = b.id;
+					w.owner = TUTORIAL_ENEMY;
+					w.building = 1;
+					w.role = kTutEnemyCentre;
+					w.player = TUTORIAL_ENEMY;
+					triggers_.watched.push_back(w);
+				}
+		v[kTutGoal] = -1;
+		tutorial_next_goal();
+		return;
+	}
+	// The scripts listen to every player; only the tutorial's own player gives orders.
+	if (d.event != TRIGGER_ON_OWNERSHIP_CHANGED && d.player != TUTORIAL_PLAYER) return;
+	const int g = v[kTutGoal];
+	if (d.event == TRIGGER_ON_PLAYER_COMMAND && v[kTutReady]) {
+		// The Ready button's OnPlayerCommand replaces the goal's own.
+		if (d.value == TRIGGER_CMD_DIALOG_READY) tutorial_next_goal();
+		return;
+	}
+	if (d.event == TRIGGER_ON_STRUCTURE_BUILT) {
+		// 0 A.D. replaces a finished foundation by the structure: the foundation's
+		// OnOwnershipChanged to INVALID_PLAYER (houseGoal forgets the house, built).
+		auto &w = triggers_.watched;
+		const auto it = std::find_if(w.begin(), w.end(), [&](const TriggerWatch &x) { return x.role == kTutHouse && x.id == d.entity; });
+		if (it != w.end()) {
+			w.erase(it);
+			if (id == TUTORIAL_ECONOMY && g == 20 && tutorial_goal_done(g)) {
+				tutorial_next_goal();
+				return;
+			}
+		}
+	}
+
+	auto bld_classes = [&](uint32_t bid) -> uint64_t {
+		auto it = building_id_to_idx_.find(bid);
+		return it == building_id_to_idx_.end() ? 0 : building_tech_classes(buildings_[it->second].type);
+	};
+	auto command = [&](uint16_t kind) { return d.event == TRIGGER_ON_PLAYER_COMMAND && d.value == kind; };
+	auto gather = [&](uint8_t res) { return command(TRIGGER_CMD_GATHER) && tutorial_resource_kind(d.entity, d.from == 1) == res; };
+	auto repair = [&](uint64_t cls) { return command(TRIGGER_CMD_REPAIR) && (bld_classes(d.entity) & cls); };
+	auto construct = [&](uint8_t type) { return command(TRIGGER_CMD_CONSTRUCT) && d.count == type; };
+	auto rally_gather = [&](uint8_t res) { return command(TRIGGER_CMD_SET_RALLY) && d.entity && tutorial_resource_kind(d.entity, false) == res; };
+	auto queued_at = [&](uint64_t cls) { return d.event == TRIGGER_ON_RESEARCH_QUEUED && (bld_classes(d.entity) & cls); };
+	auto event = [&](uint8_t e) { return d.event == e; };
+	auto done_next = [&]() { if (tutorial_goal_done(g)) tutorial_next_goal(); };
+	// OnTrainingQueued of a goal asking for `tmpl` in a batch (or one at a time): anything
+	// else is taken off the queue with a warning. True when the order was the right one.
+	auto training = [&](const char *tmpl, bool batch, uint8_t warn_count, uint8_t warn_unit) {
+		if (!event(TRIGGER_ON_TRAINING_QUEUED)) return false;
+		const bool right_count = batch ? d.count != 1 : d.count == 1;
+		if (d.value != civ_unit_template_by_id(tmpl) || !right_count) {
+			tutorial_reset_queue(d.entity);
+			v[kTutWarning] = !right_count ? warn_count : warn_unit;
+			return false;
+		}
+		return true;
+	};
+
+	if (id == TUTORIAL_INTRODUCTORY) {
+		switch (g) {
+			case 1: if (gather(TUT_RES_FRUIT)) tutorial_next_goal(); break;
+			case 2: if (gather(TUT_RES_TREE)) tutorial_next_goal(); break;
+			case 3:
+				if (training("spart/infantry_spearman_b", true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_HOPLITE)) tutorial_next_goal();
+				break;
+			case 4: case 10: if (repair(TC_HOUSE)) tutorial_next_goal(); break;
+			case 5: if (repair(TC_STOREHOUSE)) tutorial_next_goal(); break;
+			case 6:
+				if (training("spart/infantry_javelineer_b", true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_SKIRMISHER)) tutorial_next_goal();
+				break;
+			case 7:
+				if (repair(TC_FARMSTEAD)) tutorial_next_goal();
+				else if (event(TRIGGER_ON_TRAINING_FINISHED)) v[kTutTrainingDone] = 1;
+				break;
+			case 8:
+				if (event(TRIGGER_ON_TRAINING_FINISHED)) v[kTutTrainingDone] = 1;
+				else if (event(TRIGGER_ON_STRUCTURE_BUILT) && (bld_classes(d.entity) & TC_FARMSTEAD)) tutorial_next_goal();
+				break;
+			case 9:
+				if (event(TRIGGER_ON_PLAYER_COMMAND)) {
+					if (repair(TC_FIELD)) v[kTutFlagA] = 1;
+					done_next();
+				} else if (event(TRIGGER_ON_TRAINING_FINISHED)) {
+					v[kTutTrainingDone] = 1;
+					done_next();
+				}
+				break;
+			case 11:
+				if (event(TRIGGER_ON_TRAINING_QUEUED)) {
+					if (!training("spart/infantry_spearman_b", true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_HOPLITE)) break;
+					v[kTutFlagB] = 1;
+					done_next();
+				} else if (event(TRIGGER_ON_PLAYER_COMMAND)) {
+					if (!rally_gather(TUT_RES_TREE)) {
+						v[kTutWarning] = TUTORIAL_WARN_RALLY_TREE_INTRO;
+						break;
+					}
+					v[kTutFlagA] = 1;
+					done_next();
+				}
+				break;
+			case 12: if (repair(TC_BARRACKS)) tutorial_next_goal(); break;
+			case 13: case 22: if (queued_at(TC_CIVCENTRE)) tutorial_next_goal(); break;
+			case 14: if (event(TRIGGER_ON_RESEARCH_FINISHED) && d.value == TECH_PHASE_TOWN) tutorial_next_goal(); break;
+			case 15: if (repair(TC_OUTPOST)) tutorial_next_goal(); break;
+			case 16:
+				if (event(TRIGGER_ON_TRAINING_QUEUED)) {
+					if (!training("spart/support_female_citizen", true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_FEMALE)) break;
+					v[kTutFlagB] = 1;
+					done_next();
+				} else if (rally_gather(TUT_RES_GRAIN) || (command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD))) {
+					v[kTutFlagA] = 1;
+					done_next();
+				}
+				break;
+			case 17: if (repair(TC_TOWER)) tutorial_next_goal(); break;
+			case 18: if (queued_at(TC_FORGE)) tutorial_next_goal(); break;
+			case 19:
+				if (event(TRIGGER_ON_RESEARCH_FINISHED)) {
+					tutorial_launch_attack();
+					tutorial_next_goal();
+				}
+				break;
+			case 20:
+				if (event(TRIGGER_ON_OWNERSHIP_CHANGED) && d.to == 0xFF) {
+					bool left = false; // IsAttackRepelled: no attacker alive
+					for (const TriggerWatch &w : triggers_.watched) left |= w.role == kTutAttacker && w.owner != 0xFF;
+					if (!left) tutorial_next_goal();
+				}
+				break;
+			case 21:
+				if (command(TRIGGER_CMD_REPAIR)) {
+					const uint64_t c = bld_classes(d.entity);
+					if (c & TC_MARKET) v[kTutFlagA] = 1;
+					if (c & TC_TEMPLE) v[kTutFlagB] = 1;
+					done_next();
+				}
+				break;
+			case 23: if (event(TRIGGER_ON_RESEARCH_FINISHED) && d.value == TECH_PHASE_CITY) tutorial_next_goal(); break;
+			case 24:
+				if (event(TRIGGER_ON_TRAINING_QUEUED)) {
+					if (d.value == civ_unit_template_by_id("spart/siege_ram")) v[kTutCount] += d.count;
+					if (tutorial_goal_done(g)) {
+						tutorial_remove_champions();
+						tutorial_next_goal();
+					}
+				}
+				break;
+			case 25:
+				if (event(TRIGGER_ON_OWNERSHIP_CHANGED) && d.from == TUTORIAL_ENEMY && d.value == kTutEnemyCentre) tutorial_next_goal();
+				break;
+			default: break;
+		}
+		return;
+	}
+
+	// starting_economy_walkthrough.js
+	switch (g) {
+		case 5: if (gather(TUT_RES_FRUIT)) tutorial_next_goal(); break;
+		case 6: if (gather(TUT_RES_TREE)) tutorial_next_goal(); break;
+		case 7: case 22: if (gather(TUT_RES_MEAT)) tutorial_next_goal(); break;
+		case 8:
+			if (!event(TRIGGER_ON_PLAYER_COMMAND)) break;
+			if (!rally_gather(TUT_RES_TREE)) {
+				v[kTutWarning] = TUTORIAL_WARN_RALLY_TREE;
+				break;
+			}
+			tutorial_next_goal();
+			break;
+		case 9:
+			if (training("athen/infantry_spearman_b", true, TUTORIAL_WARN_HOLD_SHIFT, TUTORIAL_WARN_SHIFT_HOPLITE)) tutorial_next_goal();
+			break;
+		case 10: case 15: if (event(TRIGGER_ON_TRAINING_FINISHED)) tutorial_next_goal(); break;
+		case 11: if (construct(BLD_STOREHOUSE)) tutorial_next_goal(); break;
+		case 12:
+			// A finished dropsite that takes wood (ResourceDropsite.AcceptsType("wood")).
+			if (event(TRIGGER_ON_STRUCTURE_BUILT) && d.value != BLD_FARMSTEAD && is_dropsite_type((uint8_t)d.value)) tutorial_next_goal();
+			break;
+		case 13:
+			if (training("athen/support_female_citizen", true, TUTORIAL_WARN_HOLD_SHIFT_FEMALE, TUTORIAL_WARN_SHIFT_FEMALE)) tutorial_next_goal();
+			break;
+		case 14:
+			if (command(TRIGGER_CMD_UNSET_RALLY)) tutorial_next_goal();
+			else if (event(TRIGGER_ON_TRAINING_FINISHED)) v[kTutTrainingDone] = 1;
+			break;
+		case 17:
+			// houseGoal: each new House foundation counts; one destroyed before it is built
+			// no longer does (tick_trigger_watches reports it gone).
+			if (!event(TRIGGER_ON_OWNERSHIP_CHANGED)) break;
+			if (d.from == 0xFF && d.to == TUTORIAL_PLAYER && (building_tech_classes((uint8_t)d.count) & TC_HOUSE)) {
+				TriggerWatch w;
+				w.id = d.entity;
+				w.owner = TUTORIAL_PLAYER;
+				w.building = 1;
+				w.role = kTutHouse;
+				w.player = TUTORIAL_PLAYER;
+				triggers_.watched.push_back(w);
+				++v[kTutCount];
+				done_next();
+			} else if (d.value == kTutHouse && d.to == 0xFF) {
+				--v[kTutCount];
+			}
+			break;
+		case 19: if (construct(BLD_FARMSTEAD)) tutorial_next_goal(); break;
+		case 20: if (event(TRIGGER_ON_OWNERSHIP_CHANGED) && d.value == kTutHouse) done_next(); break;
+		case 21: if (construct(BLD_FIELD)) tutorial_next_goal(); break;
+		case 23:
+			if (!event(TRIGGER_ON_PLAYER_COMMAND)) break;
+			if (!rally_gather(TUT_RES_GRAIN) && !(command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD))) {
+				v[kTutWarning] = TUTORIAL_WARN_RALLY_FIELD;
+				break;
+			}
+			tutorial_next_goal();
+			break;
+		case 24:
+			if (training("athen/support_female_citizen", false, TUTORIAL_WARN_NO_SHIFT, TUTORIAL_WARN_CLICK_FEMALE_ECO) && ++v[kTutCount] == 3)
+				tutorial_next_goal();
+			break;
+		case 25: if (queued_at(TC_FARMSTEAD)) tutorial_next_goal(); break;
+		case 26: if (construct(BLD_BARRACKS)) tutorial_next_goal(); break;
+		case 27: if (event(TRIGGER_ON_STRUCTURE_BUILT) && (bld_classes(d.entity) & TC_BARRACKS)) tutorial_next_goal(); break;
+		case 28: if (queued_at(TC_CIVCENTRE)) tutorial_next_goal(); break;
+		case 30:
+			if (event(TRIGGER_ON_PLAYER_COMMAND)) {
+				if (gather(TUT_RES_STONE)) v[kTutFlagA] = 1;
+				else if (gather(TUT_RES_METAL)) v[kTutFlagB] = 1;
+				done_next();
+			} else if (event(TRIGGER_ON_RESEARCH_FINISHED)) {
+				done_next();
+			}
+			break;
+		default: break;
 	}
 }
 
