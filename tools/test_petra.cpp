@@ -948,7 +948,14 @@ static void test_civ_structures() {
 		// An economy that fills the population cap before the unlock finishes has no room
 		// left to train champions in (nothing of Petra's dies once the idle player is gone).
 		const bool unlocked = s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_INFANTRY) || s->players_[1].has_tech(TECH_UNLOCK_CHAMPION_CAVALRY);
-		const bool capped = s->pop_current(1) >= s->pop_cap();
+		// Capped as petra_pop_room sees it: no room left once the batches already queued start
+		// (199 of 200 with one more cavalryman queued at a stable is as full as 200).
+		int room = s->pop_max(1) - s->pop_current(1);
+		for (const auto &b : s->buildings())
+			if (b.team == 1)
+				for (const auto &o : b.queue)
+					if (!o.started) room -= s->order_pop(o, 1);
+		const bool capped = room <= 0;
 		std::printf("  %s by 40 min: camp %s, temple %s, champions %s (unlocked %s, population at its cap %s)\n",
 		            civ_info((Civilization)civ).name, camp ? "yes" : "no", temple ? "yes" : "no", champion ? "yes" : "no",
 		            unlocked ? "yes" : "no", capped ? "yes" : "no");
