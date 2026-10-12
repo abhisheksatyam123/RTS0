@@ -138,6 +138,8 @@ void RtsoMain::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
+	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
+	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -1111,6 +1113,7 @@ void RtsoMain::_ready() {
 	if (!start_pending_replay() && !load_pending_save()) {
 		apply_match_settings();
 		begin_match_recording(nullptr);
+		call_deferred("_start_menu_net");
 	}
 }
 
@@ -5448,6 +5451,42 @@ void RtsoMain::_on_lobby_observe_toggled(bool on) {
 	if (net_lockstep() && !net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin(on);
 }
 
+void RtsoMain::_start_menu_net() {
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (!ms) return;
+	const String mode = ms->get("net_mode");
+	if (mode != "host" && mode != "join") return;
+	ms->set("net_mode", ""); // once: a later match starts offline unless the lobby says otherwise
+	const String lobby = ms->get("net_lobby");
+	if (lobby.contains(":")) {
+		lobby_http_host_ = lobby.get_slice(":", 0).utf8().get_data();
+		lobby_http_port_ = (uint16_t)lobby.get_slice(":", 1).to_int();
+	}
+	if (lobby_name) lobby_name->set_text(ms->get("net_player_name"));
+	if (lobby_host && mode == "join") lobby_host->set_text(ms->get("net_ip"));
+	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
+	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
+	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
+	if (lobby_panel) lobby_panel->set_visible(true);
+	if (mode == "host") _on_lobby_host_pressed();
+	else _on_lobby_join_pressed();
+}
+
+Dictionary RtsoMain::get_lobby_state() const {
+	Dictionary d;
+	const bool hosting = net_host_.isHost();
+	int players = 0;
+	if (hosting) {
+		players = 1;
+		for (const auto &p : net_host_.getPeers())
+			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
+	}
+	d["hosting"] = hosting;
+	d["players"] = players;
+	d["started"] = net_game_started_;
+	return d;
+}
+
 void RtsoMain::_on_lobby_refresh_pressed() {
 	refresh_lobby_rooms();
 }
@@ -5480,7 +5519,8 @@ void RtsoMain::_on_lobby_host_pressed() {
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
 	std::ostringstream js;
-	js << "{\"id\":\"room-" << cfg.port << "\",\"host_ip\":\"127.0.0.1\",\"host_port\":"
+	// No host_ip: the lobby records the address this request comes from.
+	js << "{\"id\":\"room-" << cfg.port << "\",\"host_port\":"
 	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
 	   << ",\"map_id\":\"default\"}";
 	std::string body;

@@ -321,6 +321,11 @@ public:
 	void apply_game_setup(const rtso::GameSetupParams &setup);
 	void _on_lobby_refresh_pressed();
 	void _on_lobby_observe_toggled(bool on);
+	// The menu lobby (scenes/menu/lobby.gd) hands over a host or join through
+	// MatchSettings net_*; this starts it once the match scene is up.
+	void _start_menu_net();
+	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
+	Dictionary get_lobby_state() const;
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
