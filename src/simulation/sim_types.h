@@ -371,7 +371,7 @@ enum BuildingType : uint8_t {
 	BLD_WALL_TOWER = 22,      // defensive_wall_tower
 	BLD_ELEPHANT_STABLE = 23, // military_elephant_stable
 	BLD_THEATER = 24,         // special_theater
-	BLD_EMBASSY = 25,         // military_embassy
+	BLD_EMBASSY = 25,         // cart/embassy_celtic (template_structure_military_embassy)
 	// 0 A.D. civ-specific structures (area D, generated rows in civ_building_data.h).
 	// Only the civs in civ_building_civ_mask() may build them.
 	BLD_GYMNASIUM = 26,       // athen/gymnasium
@@ -410,7 +410,9 @@ enum BuildingType : uint8_t {
 	BLD_IMPERIAL_COURT = 58,  // han/civil_centre_court (a Civic Center: is_civic_centre)
 	BLD_TOWER_GREAT = 59,     // han/defense_tower_great (a defense tower: is_defense_tower)
 	BLD_PALISADE_GATE = 60,   // palisades_gate
-	BLD_TYPE_COUNT = 61
+	BLD_EMBASSY_IBERIAN = 61, // cart/embassy_iberian (BLD_EMBASSY is the Celtic one)
+	BLD_EMBASSY_ITALIC = 62,  // cart/embassy_italic
+	BLD_TYPE_COUNT = 63
 };
 
 #include "civ_building_data.h"
@@ -422,7 +424,8 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : type == BLD_IMPERIAL_COURT ? (uint8_t)BLD_TOWN_CENTER
-	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER : type;
+	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER
+	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
 
 // 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
@@ -968,7 +971,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f}, // cart/embassy_celtic
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -1534,7 +1537,9 @@ enum CivBonusStat : uint8_t {
 	CIV_BONUS_BUILDING_WOOD_COST = 3,
 	CIV_BONUS_BUILDING_STONE_COST = 4,
 	CIV_BONUS_BUILDING_CAPTURE_POINTS = 5,
-	CIV_BONUS_POP_CAP = 6
+	CIV_BONUS_POP_CAP = 6,
+	CIV_BONUS_BUILDING_LOOT_WOOD = 7,     // Loot/wood (Ptolemaic houses and economic structures, Seleucid fields)
+	CIV_BONUS_BUILDING_RESEARCH_TIME = 8 // Researcher/TechCostMultiplier/time (Macedonian storehouse: 0)
 };
 
 // An auto-researched 0 A.D. civ bonus acting on buildings or the player.
@@ -2052,7 +2057,7 @@ inline LootInfo building_loot(uint8_t type) {
 		{0, 0, 0, 10, 0},      // WALL_TOWER: defensive_wall_tower
 		{0, 0, 40, 40, 0},     // ELEPHANT_STABLE: military_elephant_stable
 		{0, 0, 40, 120, 40},   // THEATER: special_theater
-		{0, 0, 0, 0, 0},       // EMBASSY: military_embassy
+		{0, 0, 40, 0, 0},      // EMBASSY: cart/embassy_celtic
 		RTSO_CIV_BUILDING_LOOT_ROWS
 	};
 	static_assert(sizeof(table) / sizeof(table[0]) == BLD_TYPE_COUNT, "one loot row per BuildingType");

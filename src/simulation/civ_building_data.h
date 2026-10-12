@@ -44,6 +44,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Imperial Court", "imperial_court", "imperial_court", 4500.0f, 2, 0, 300, 250, 300, 30, 30, 125.0f, 3750.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/civil_centre_court */ \
 		{"Great Tower", "tower_great", "tower_great", 2000.0f, 1, 0, 100, 0, 100, 0, 10, 37.5f, 1000.0f, 0.5f, 1.0f, 20.0f}, /* structures/han/defense_tower_great */ \
 		{"Palisade Gate", "palisade", "palisade", 500.0f, 1, 0, 10, 0, 0, 0, 0, 2.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/palisades_gate */ \
+		{"Iberian Embassy", "embassy", "embassy", 2000.0f, 2, 0, 0, 0, 200, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
+		{"Italic Embassy", "embassy", "embassy", 1500.0f, 1, 0, 0, 200, 0, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -83,6 +85,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 60, 60, 50}, /* structures/han/civil_centre_court */ \
 		{0, 0, 20, 20, 0}, /* structures/han/defense_tower_great */ \
 		{0, 0, 2, 0, 0}, /* structures/palisades_gate */ \
+		{0, 0, 0, 40, 0}, /* structures/cart/embassy_iberian */ \
+		{0, 0, 0, 0, 40}, /* structures/cart/embassy_italic */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -131,6 +135,8 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_IMPERIAL_COURT: return 0x2000; // han
 		case BLD_TOWER_GREAT: return 0x2000; // han
 		case BLD_PALISADE_GATE: return 0x3fff; // athen spart pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_EMBASSY_IBERIAN: return 0x0010; // cart
+		case BLD_EMBASSY_ITALIC: return 0x0010; // cart
 		default: return 0xFFFF;
 	}
 }
@@ -173,6 +179,8 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_IMPERIAL_COURT: return 3;
 		case BLD_TOWER_GREAT: return 2;
 		case BLD_PALISADE_GATE: return 1;
+		case BLD_EMBASSY_IBERIAN: return 2;
+		case BLD_EMBASSY_ITALIC: return 2;
 		default: return 0;
 	}
 }
