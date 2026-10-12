@@ -19857,7 +19857,7 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&uid, sizeof(uid));
 		out.write((const char *)&leg, sizeof(leg));
 	}
-	// v56: each trader's goods amounts, by unit id.
+	// v59: each trader's goods amounts, by unit id.
 	std::vector<std::pair<uint32_t, TradeGain>> goods(trader_goods_.begin(), trader_goods_.end());
 	std::sort(goods.begin(), goods.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
 	const uint32_t num_goods = (uint32_t)goods.size();
