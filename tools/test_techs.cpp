@@ -561,6 +561,26 @@ int main() {
 		            v.unit_vision_at(ship), outpost_vis, v.building_vision_range(building(outpost)), tower_vis, v.building_vision_range(building(tower)));
 	}
 
+	// Resource-Rich Economy (civbonuses/mace_storehouse.json): Macedonian storehouse techs
+	// research instantly (TechCostMultiplier/time 0); other civs and buildings take the usual time.
+	{
+		static Simulation a, m;
+		fresh(a);
+		const uint32_t sh_a = a.spawn_building_world(20.0f, -20.0f, BLD_STOREHOUSE, 0, 1.0f);
+		CHECK(a.cmd_research(0, sh_a, TECH_WOODCUTTING_1));
+		CHECK(queued_duration(a, sh_a) > 0.0f); // Athenians
+		m.set_player_civ(CIV_MACEDONIANS); // civs are set before the match starts
+		fresh(m);
+		const uint32_t sh = m.spawn_building_world(20.0f, -20.0f, BLD_STOREHOUSE, 0, 1.0f);
+		CHECK(m.cmd_research(0, sh, TECH_WOODCUTTING_1));
+		CHECK(queued_duration(m, sh) == 0.0f);
+		run(m, 0.2f);
+		CHECK(m.players_[0].techs.has(TECH_WOODCUTTING_1));
+		CHECK(civ_bonus_mult(CIV_MACEDONIANS, CIV_BONUS_BUILDING_RESEARCH_TIME, BLD_TOWN_CENTER) == 1.0f);
+		std::printf("Resource-Rich Economy: storehouse tech %.0f s for Athenians, instant for Macedonians\n",
+				tech_info(TECH_WOODCUTTING_1).research_time);
+	}
+
 	// Glorious Expansion (wonder_population_cap): each finished Wonder raises the player's
 	// maximum population by 20%, stacking, once the technology is researched.
 	{
