@@ -967,6 +967,9 @@ public:
 		int market2 = 0; // the arrival market's international bonus (paid to the starting market's owner)
 	};
 	// `trader_type` UNIT_MERCHANT_SHIP takes the civ's merchant ship bonus instead of the land trader's.
+	static constexpr double MERCHANT_SHIP_GARRISON_GAIN = 0.2; // template_unit_ship_merchant Trader/GarrisonGainMultiplier
+	// The gain with a merchant ship's garrisoned traders' bonus (Trader.js CalculateGain).
+	TradeGain garrisoned_trade_gain(size_t trader_idx, TradeGain g) const;
 	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
 			uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }

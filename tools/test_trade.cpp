@@ -376,6 +376,32 @@ static void test_trader_goods() {
 	std::remove(path);
 }
 
+// Trader.js CalculateGain: each trader aboard a merchant ship adds 20% to all three amounts.
+static void test_garrisoned_trader_gain() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t ship = s.spawn_unit(0.0f, 0.0f, 0, UNIT_MERCHANT_SHIP);
+	const uint32_t land = s.spawn_unit(4.0f, 0.0f, 0, UNIT_TRADER);
+	const uint32_t t1 = s.spawn_unit(6.0f, 0.0f, 0, UNIT_TRADER);
+	const uint32_t t2 = s.spawn_unit(8.0f, 0.0f, 0, UNIT_TRADER);
+	const uint32_t woman = s.spawn_unit(10.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+	const size_t si = (size_t)s.lookup_unit(ship);
+	Simulation::TradeGain g;
+	g.trader = 100; g.market1 = 21; g.market2 = 7;
+	auto same = [](const Simulation::TradeGain &a, int t, int m1, int m2) {
+		return a.trader == t && a.market1 == m1 && a.market2 == m2;
+	};
+	CHECK(same(s.garrisoned_trade_gain(si, g), 100, 21, 7)); // nobody aboard
+	s.transport_passengers_[ship] = {woman};
+	CHECK(same(s.garrisoned_trade_gain(si, g), 100, 21, 7)); // only traders count
+	s.transport_passengers_[ship] = {woman, t1, t2};
+	// x1.4, each rounded: 140, 29.4 -> 29, 9.8 -> 10.
+	CHECK(same(s.garrisoned_trade_gain(si, g), 140, 29, 10));
+	s.transport_passengers_[land] = {t1};
+	CHECK(same(s.garrisoned_trade_gain((size_t)s.lookup_unit(land), g), 100, 21, 7)); // land traders have no bonus
+	s.transport_passengers_.clear();
+}
+
 int main() {
 	test_tribute();
 	test_trading_goods();
@@ -383,6 +409,7 @@ int main() {
 	test_trade_gain();
 	test_trader_route();
 	test_trader_goods();
+	test_garrisoned_trader_gain();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

@@ -3303,6 +3303,26 @@ static constexpr double TRADER_GAIN_MULTIPLIER = 0.75;
 // template_structure_economic_market.xml Market/InternationalBonus.
 static constexpr double MARKET_INTERNATIONAL_BONUS = 0.2;
 
+// Trader.js CalculateGain: a merchant ship (GarrisonGainMultiplier 0.2) gains 20% more on each
+// of the three amounts for every trader aboard, rounded (Math.round).
+Simulation::TradeGain Simulation::garrisoned_trade_gain(size_t trader_idx, TradeGain g) const {
+	if (units_.unit_type[trader_idx] != UNIT_MERCHANT_SHIP) return g;
+	auto pit = transport_passengers_.find(units_.id[trader_idx]);
+	if (pit == transport_passengers_.end()) return g;
+	int traders = 0;
+	for (uint32_t puid : pit->second) {
+		const int32_t p = lookup_unit(puid);
+		if (p >= 0 && units_.alive[p] && units_.unit_type[p] == UNIT_TRADER) ++traders;
+	}
+	if (traders == 0) return g;
+	const double mult = 1.0 + MERCHANT_SHIP_GARRISON_GAIN * traders;
+	auto scale = [mult](int v) { return (int)std::floor(mult * v + 0.5); };
+	g.trader = scale(g.trader);
+	g.market1 = scale(g.market1);
+	g.market2 = scale(g.market2);
+	return g;
+}
+
 Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
 		uint8_t trader_type) const {
 	// 0 A.D. Market.js CalculateTraderGain: the trader's owner gets
@@ -6838,7 +6858,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// Load the next goods (Player.js GetNextTradingGoods) and their gain to the next market
 		// (CalculateGain, with the techs and owners of now), and head back. A killer loots all
 		// three gains (Looter.js calculateCarriedResources).
-		const TradeGain g = calculate_trade_gain(dest, origin, owner, ttype);
+		const TradeGain g = garrisoned_trade_gain(ti, calculate_trade_gain(dest, origin, owner, ttype));
 		trader_goods_[uid] = g;
 		units_.res_type_carried[ti] = next_trading_goods(owner);
 		units_.carry[ti] = g.trader + g.market1 + g.market2;
