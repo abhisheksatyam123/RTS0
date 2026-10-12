@@ -932,6 +932,9 @@ uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type,
 	bind_unit_index(uid, idx);
 	if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
 	if (idx < unit_paths_.size()) unit_paths_[idx].clear();
+	// Promotion.OnValueModification when the unit gets its owner: IncreaseXp(0), so a
+	// RequiredXp of 0 promotes at once (mercenaries start Advanced, upgrade_rank_advanced_mercenary).
+	promote_if_due(idx);
 	return uid;
 }
 
@@ -1659,7 +1662,10 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const std::vector<std::pair<int, int>> &cells, float x0, float z0, float x1, float z1, float cxw, float czw,
 		const Building *rect, const std::vector<std::pair<int, int>> *ignore_cells) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
-	const BuildRestriction rule = build_restriction(b_type);
+	BuildRestriction rule = build_restriction(b_type);
+	// Athenian Long Walls: Wall BuildRestrictions/Territory "own neutral" (stone walls, their
+	// gates and towers; palisades are own neutral already).
+	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
 	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
 	// (trees, mines, bushes; a field's grain and carcasses don't block). check_placement has
 	// tested a square's map edge and buildings with can_place.
@@ -9606,7 +9612,8 @@ float Simulation::promotion_required_xp(size_t i) const {
 	if (team < MAX_PLAYERS) {
 		const uint64_t cls = unit_classes(units_.tmpl[i], units_.unit_type[i]);
 		for (const PromotionXpTech &t : PROMOTION_XP_TECHS)
-			if (players_[team].has_tech(t.tech) && (cls & t.need) == t.need && !(cls & t.forbid))
+			if ((t.tech == TECH_NONE || players_[team].has_tech(t.tech)) && (!t.rank || t.rank == units_.rank[i]) &&
+					(cls & t.need) == t.need && !(cls & t.forbid))
 				xp = t.replace_zero ? 0.0f : xp * t.multiply;
 		xp *= unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).required_xp; // global RequiredXp auras
 		const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
