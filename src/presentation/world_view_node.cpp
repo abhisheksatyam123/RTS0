@@ -1,4 +1,5 @@
 #include "world_view_node.h"
+#include "display_colors.h"
 #include "territory_boundary.h"
 #include "terrain_blend.h"
 #include "../graphics/assets/packed_siege_models.h"
@@ -593,9 +594,10 @@ void RtsoWorldView::update_damage_fx(BuildingVis &v, uint8_t level, float half_s
 	if (v.fx_flame) v.fx_flame->set_emitting(level >= 2);
 }
 
-// The player's Game Setup colour (0 A.D. PlayerColor, rtso::PLAYER_COLORS).
+// The player's Game Setup colour (0 A.D. PlayerColor, rtso::PLAYER_COLORS), or
+// its diplomacy colour while those are on (display_colors.h).
 static Color player_display_color(const rtso::Simulation *sim, uint8_t pid) {
-	const uint32_t rgb = sim->player_color(pid);
+	const uint32_t rgb = rtso::display_colors::rgb(*sim, pid);
 	return Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 1.0f);
 }
 
@@ -827,7 +829,9 @@ void RtsoWorldView::update_garrison_flag(BuildingVis &v, const String &model_id,
 void RtsoWorldView::update_territory_borders(const rtso::Simulation *sim) {
 	const auto &grid = sim->territory_grid();
 	if (grid.w <= 0 || grid.h <= 0) return;
-	if (grid.data == border_grid_cache_ && border_half_ == sim->map_half()) return;
+	const uint64_t colors = rtso::display_colors::key(*sim);
+	if (grid.data == border_grid_cache_ && border_half_ == sim->map_half() && border_colors_ == colors) return;
+	border_colors_ = colors;
 	border_grid_cache_ = grid.data;
 	border_half_ = sim->map_half();
 
