@@ -7,7 +7,8 @@ Reads, under binaries/data/mods/public/simulation:
     unit: Roman soldiers -> Marian Legionary, Athenian Elite Hoplite -> City Guard)
   * data/technologies/unit_advanced.json and unit_elite.json (the rank bonuses)
   * data/technologies/*.json that modify Promotion/RequiredXp (Hoplite Tradition,
-    Marian Reforms, ...), for the ones RTS0's tech tree has
+    Marian Reforms, ...), for the ones RTS0's tech tree has, and the auto-researched
+    ones every player has (soldier_ranged_experience, upgrade_rank_advanced_mercenary)
 
 Template inheritance is resolved by extract_0ad_rosters.TemplateLoader.
 
@@ -122,26 +123,32 @@ def rank_bonus(sim_root, tech):
 
 
 def xp_tech_rows(sim_root):
-    """Technologies RTS0 has that modify Promotion/RequiredXp: (TECH_*, multiply, replace, need, forbid)."""
+    """Technologies that modify Promotion/RequiredXp: (TECH_*, multiply, replace, need, forbid, rank).
+
+    Auto-researched ones (every player has them) get TECH_NONE. A rank class in
+    `affects` (Basic, Advanced, Elite) becomes `rank`; 0 matches every rank.
+    """
     enums = tech_enums()
     rows = []
     for path in sorted(glob.glob(os.path.join(sim_root, "data", "technologies", "**", "*.json"), recursive=True)):
         name = os.path.splitext(os.path.relpath(path, os.path.join(sim_root, "data", "technologies")))[0]
-        if name not in enums:
-            continue
         with open(path) as fh:
             tech = json.load(fh)
+        if name not in enums and not tech.get("autoResearch"):
+            continue
         for m in tech.get("modifications", []):
             if m["value"] != "Promotion/RequiredXp":
                 continue
             for aff in m.get("affects") or tech.get("affects") or [""]:
                 toks = aff.split()
-                need = [t for t in toks if not t.startswith("!")]
+                rank = sum(RANKS[t] for t in toks if t in RANKS)
+                need = [t for t in toks if not t.startswith("!") and t not in RANKS]
                 forbid = [t[1:] for t in toks if t.startswith("!")]
                 nbits = tech_class_bits(need)
                 if any(not tech_class_bits([c]) for c in need):
                     continue  # a class no RTS0 unit has: matches nothing
-                rows.append((enums[name], m.get("multiply", 1.0), "replace" in m, nbits, tech_class_bits(forbid)))
+                rows.append((enums.get(name, "TECH_NONE"), m.get("multiply", 1.0), "replace" in m, nbits,
+                             tech_class_bits(forbid), rank))
     return rows
 
 
@@ -214,18 +221,20 @@ def emit(rows, starts, dropped, advanced, elite, xp_techs):
         w(f"inline constexpr RankBonus {name} = {{{', '.join(f(b[k]) for k in keys)}}};")
     w("")
     w("// Technologies that change Promotion/RequiredXp for units with every `need` class and")
-    w("// no `forbid` class (TechClass bits): multiply, or replace with 0.")
+    w("// no `forbid` class (TechClass bits), at `rank` (0 any): multiply, or replace with 0.")
+    w("// TECH_NONE rows are auto-researched: every player has them.")
     w("struct PromotionXpTech {")
     w("\tuint8_t tech;")
     w("\tfloat multiply;")
     w("\tbool replace_zero;")
     w("\tuint64_t need;")
     w("\tuint64_t forbid;")
+    w("\tuint8_t rank;")
     w("};")
     w("")
     w("inline constexpr PromotionXpTech PROMOTION_XP_TECHS[] = {")
-    for tech, mul, rep, need, forbid in xp_techs:
-        w(f"\t{{{tech}, {f(mul)}, {'true' if rep else 'false'}, 0x{need:x}ull, 0x{forbid:x}ull}},")
+    for tech, mul, rep, need, forbid, rank in xp_techs:
+        w(f"\t{{{tech}, {f(mul)}, {'true' if rep else 'false'}, 0x{need:x}ull, 0x{forbid:x}ull, {rank}}},")
     w("};")
     w("")
     w("} // namespace rtso")

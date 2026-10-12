@@ -932,6 +932,9 @@ uint32_t Simulation::spawn_unit(float x, float z, uint8_t team, UnitType u_type,
 	bind_unit_index(uid, idx);
 	if (unit_paths_.size() < UNIT_CAP) unit_paths_.resize(UNIT_CAP);
 	if (idx < unit_paths_.size()) unit_paths_[idx].clear();
+	// Promotion.OnValueModification when the unit gets its owner: IncreaseXp(0), so a
+	// RequiredXp of 0 promotes at once (mercenaries start Advanced, upgrade_rank_advanced_mercenary).
+	promote_if_due(idx);
 	return uid;
 }
 
@@ -1659,7 +1662,10 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const std::vector<std::pair<int, int>> &cells, float x0, float z0, float x1, float z1, float cxw, float czw,
 		const Building *rect, const std::vector<std::pair<int, int>> *ignore_cells) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
-	const BuildRestriction rule = build_restriction(b_type);
+	BuildRestriction rule = build_restriction(b_type);
+	// Athenian Long Walls: Wall BuildRestrictions/Territory "own neutral" (stone walls, their
+	// gates and towers; palisades are own neutral already).
+	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
 	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
 	// (trees, mines, bushes; a field's grain and carcasses don't block). check_placement has
 	// tested a square's map edge and buildings with can_place.
@@ -9606,7 +9612,8 @@ float Simulation::promotion_required_xp(size_t i) const {
 	if (team < MAX_PLAYERS) {
 		const uint64_t cls = unit_classes(units_.tmpl[i], units_.unit_type[i]);
 		for (const PromotionXpTech &t : PROMOTION_XP_TECHS)
-			if (players_[team].has_tech(t.tech) && (cls & t.need) == t.need && !(cls & t.forbid))
+			if ((t.tech == TECH_NONE || players_[team].has_tech(t.tech)) && (!t.rank || t.rank == units_.rank[i]) &&
+					(cls & t.need) == t.need && !(cls & t.forbid))
 				xp = t.replace_zero ? 0.0f : xp * t.multiply;
 		xp *= unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).required_xp; // global RequiredXp auras
 		const float near = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], team, AURA_REQUIRED_XP,
@@ -15854,7 +15861,8 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 // in our territory and out of danger, the most of `res` (twice) and of the other resources a
 // storehouse takes within 14 tiles, nothing within 15 tiles of a dropsite for `res` and a share
 // of it up to 20 tiles (60 m and 80 m in 0 A.D.).
-uint32_t Simulation::petra_place_dropsite(uint8_t res) {
+uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *no_site) {
+	if (no_site) *no_site = false;
 	if (!civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) return 0;
 	std::vector<std::pair<float, float>> drops;
 	for (const Building &b : buildings_)
@@ -15883,8 +15891,11 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res) {
 		total *= factor;
 		if (total > best) { best = total; best_x = rx; best_z = rz; }
 	}
-	// quality > 50 on 0 A.D.'s resource maps: about ten trees' worth of the resource.
-	if (best < 6000.0f) return 0;
+	// min_quality 6000 is quality 50 on 0 A.D.'s resource maps: about ten trees' worth.
+	if (best < min_quality) {
+		if (no_site) *no_site = true;
+		return 0;
+	}
 	const uint32_t bid = petra_place_building(BLD_STOREHOUSE, best_x, best_z, 2, 6, PETRA_QUEUE_VILLAGER);
 	if (bid) {
 		auto idle = get_idle_workers(petra_pid_);
@@ -17646,8 +17657,13 @@ void Simulation::petra_manage_opening(float dt) {
 	uint8_t queue = PETRA_QUEUE_VILLAGER;
 	int have_needed = 0;
 	if (petra_opening_step_ == 0) {
-		want = BLD_STOREHOUSE;
-		have_needed = 1;
+		// buildFirstBase: the first wood dropsite goes where findBestDropsiteAndLocation puts
+		// it, if that spot's quality passes 40 (4800 here); with no such spot there is none.
+		bool no_site = false;
+		if (count_ai(BLD_STOREHOUSE) > 0 || !civ_can_build(petra_ps().civ, BLD_STOREHOUSE) ||
+		    petra_place_dropsite(RES_WOOD, 4800.0f, &no_site) || no_site)
+			petra_opening_step_++;
+		return;
 	} else if (petra_opening_step_ == 1 || petra_opening_step_ == 2) {
 		want = BLD_HOUSE;
 		have_needed = petra_opening_step_;

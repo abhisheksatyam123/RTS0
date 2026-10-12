@@ -138,7 +138,8 @@ enum TechnologyId : uint8_t {
 	TECH_REFORMED_ARMY_SELE = 129, // reformed_army_sele
 	TECH_TRADITIONAL_ARMY_SELE = 130, // traditional_army_sele
 	TECH_WONDER_POPULATION_CAP = 131, // wonder_population_cap
-	TECH_COUNT = 132
+	TECH_LONG_WALLS = 132, // long_walls
+	TECH_COUNT = 133
 };
 
 enum TechClass : uint64_t {
@@ -618,6 +619,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Reform Army", "Unlock the Champion Infantry Swordsman.", 0, 0, 0, 0, 0.0f, 3, BLD_BARRACKS, TECH_NONE, 0x1000, 182, 0, "reformed_army_sele"},
 		{"Traditional Army", "Unlock the Champion Infantry Pikeman.", 0, 0, 0, 0, 0.0f, 3, BLD_BARRACKS, TECH_NONE, 0x1000, 182, 0, "traditional_army_sele"},
 		{"Glorious Expansion", "Enable the “Glorious Expansion” aura: +20% maximum population limit per Wonder owned.", 2000, 3000, 500, 500, 120.0f, 3, BLD_WONDER, TECH_NONE, 0x3fff, 182, 0, "wonder_population_cap"},
+		{"Athenian Long Walls", "Build Walls in own or neutral territory.", 0, 0, 0, 400, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 182, 0, "long_walls"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
