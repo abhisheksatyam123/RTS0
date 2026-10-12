@@ -812,6 +812,11 @@ public:
 	struct SpawnSpot { float x, z, r; };
 	bool ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger = SIZE_MAX,
 			std::vector<SpawnSpot> *taken = nullptr) const;
+	// PickSpawnPoint for one passenger of `type` leaving a siege tower or ram: the spots round the
+	// engine's square footprint, its front toward (toward_x, toward_z), dry ground only. skip_uid is
+	// the passenger itself. With no spot the caller keeps it aboard or, forced, puts it at the centre.
+	bool siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_uid, float toward_x, float toward_z,
+			float &out_x, float &out_z) const;
 	bool nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const;
 	void unload_sunk_ship(size_t ship);
 
@@ -1063,7 +1068,8 @@ public:
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
 	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
-	// footprint, the front (or the side facing the rally point) first; skip_uid is ignored.
+	// footprint, the front (or the side facing the rally point) first; skip_uid is the unit left out
+	// of the overlap check (the one being placed).
 	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false);
@@ -1898,6 +1904,12 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
+	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
+	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
+	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
+			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+			float &out_x, float &out_z) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;

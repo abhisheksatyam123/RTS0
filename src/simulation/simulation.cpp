@@ -3827,26 +3827,40 @@ bool Simulation::nearest_ship_cell(const Building &b, float &out_x, float &out_z
 	return true;
 }
 
-// CCmpFootprint::PickSpawnPoint. Spawn points sit in rows a gap apart (three unit radii) around
-// the footprint, the first row half a gap out, as far as MaxSpawnDistance (7 m, x0.28). Each row
-// is walked from the point nearest the rally point (the building's front without one),
-// alternating either way round; the first point whose navcell the unit's passability allows and
-// where no other unit stands wins (CheckUnitPlacement). A round footprint
-// (building_footprint_round) has rings of 6 * (dist + row) points instead of the square's rows.
+// CCmpFootprint::PickSpawnPoint for a building: its footprint, turned with its rotation, or the
+// circle of a round footprint (building_footprint_round).
 bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const {
-	float rad = unit_collision_radius(type);
-	if (rad <= 0.0f) rad = 0.25f;
-	const float gap = rad * 3.0f;
-	static constexpr float MAX_SPAWN_DISTANCE = 7.0f * 0.28f; // Footprint MaxSpawnDistance default
-	const int rows = std::max(1, (int)std::ceil(MAX_SPAWN_DISTANCE / gap));
 	// u is the front (Position rotation: 0 faces +z), v its perpendicular (CFixedVector2D::Perpendicular).
 	const float fux = std::sin(b.rot), fuz = std::cos(b.rot), fvx = fuz, fvz = -fux;
 	const nav::Vec2 bu = nav::footprint_u(b), bv = nav::footprint_v(b);
 	const float along_u = std::fabs(fux * bu.x + fuz * bu.y) * b.hu + std::fabs(fux * bv.x + fuz * bv.y) * b.hv;
 	const float along_v = std::fabs(fvx * bu.x + fvz * bu.y) * b.hu + std::fabs(fvx * bv.x + fvz * bv.y) * b.hv;
 	const bool circle = b.team < MAX_PLAYERS && building_footprint_round(players_[b.team].civ, b.type);
+	return pick_spawn_point_box(b.x, b.z, b.rot, along_u, along_v, circle ? std::max(b.hu, b.hv) : 0.0f,
+			b.has_rally_point, b.rally_x, b.rally_z, type, skip_uid, false, out_x, out_z);
+}
+
+// The search of CCmpFootprint::PickSpawnPoint round a footprint centred on (cx, cz) and turned by
+// rot: a square with half extents along_u (the front) and along_v, or a circle of radius circle_r
+// when that is above 0. Spawn points sit in rows a gap apart (three unit radii) around the
+// footprint, the first row half a gap out, as far as MaxSpawnDistance (7 m, x0.28); a circle has
+// rings of 6 * (dist + row) points instead of the square's rows. Each row is walked from the point
+// nearest the rally point (the front without one), alternating either way round; the first point
+// whose navcell the unit's passability allows and where no other unit stands wins
+// (CheckUnitPlacement). dry_ground also rejects points under the water line (the siege landing rule).
+bool Simulation::pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
+		bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+		float &out_x, float &out_z) const {
+	float rad = unit_collision_radius(type);
+	if (rad <= 0.0f) rad = 0.25f;
+	const float gap = rad * 3.0f;
+	static constexpr float MAX_SPAWN_DISTANCE = 7.0f * 0.28f; // Footprint MaxSpawnDistance default
+	const int rows = std::max(1, (int)std::ceil(MAX_SPAWN_DISTANCE / gap));
+	// u is the front (Position rotation: 0 faces +z), v its perpendicular (CFixedVector2D::Perpendicular).
+	const float fux = std::sin(rot), fuz = std::cos(rot), fvx = fuz, fvz = -fux;
+	const bool circle = circle_r > 0.0f;
 	// A circle's half size is its radius plus half a gap on both axes (CIRCLE: m_Size0 + gap / 2).
-	const float hx = circle ? std::max(b.hu, b.hv) + gap * 0.5f : along_u + gap * 0.5f;
+	const float hx = circle ? circle_r + gap * 0.5f : along_u + gap * 0.5f;
 	const float hy = circle ? hx : along_v + gap * 0.5f;
 	int dist_x = std::max(1, (int)std::floor(hx / gap));
 	int dist_y = std::max(1, (int)std::floor(hy / gap));
@@ -3873,14 +3887,14 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	};
 	int offset[8] = {0};
 	const int nrows = std::min(rows, 8);
-	if (b.has_rally_point && circle) {
+	if (has_rally && circle) {
 		// 6 * (dist_x + r) points in row r: the rally point's angle from the front as a share of them.
 		constexpr float PI = 3.14159265359f;
-		const float angle = std::atan2(b.rally_x - b.x, b.rally_z - b.z) - b.rot;
+		const float angle = std::atan2(rally_x - cx, rally_z - cz) - rot;
 		for (int r = 0; r < nrows; ++r) offset[r] = (int)std::floor(angle * 3.0f * (float)(dist_x + r) / PI + 0.5f); // ToInt_RoundToNearest
-	} else if (b.has_rally_point) {
+	} else if (has_rally) {
 		// Geometry::NearestPointOnSquare, in the (u, v) frame.
-		const float rx = b.rally_x - b.x, rz = b.rally_z - b.z;
+		const float rx = rally_x - cx, rz = rally_z - cz;
 		const float du = rx * fux + rz * fuz, dv = rx * fvx + rz * fvz;
 		float pu, pv;
 		if (std::fabs(du) < hx && std::fabs(dv) < hy) {
@@ -3899,9 +3913,10 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	const uint8_t pass = unit_is_ship(type) ? PASS_SHIP : PASS_INFANTRY;
 	auto free_at = [&](float px, float pz) {
 		if (std::fabs(px) >= map_half_ - rad || std::fabs(pz) >= map_half_ - rad) return false;
+		if (dry_ground && get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) return false;
 		if (!nav_grid_.cells.blank()) {
-			const auto [cx, cy] = nav_grid_.world_to_cell(px, pz);
-			if (!nav_grid_.is_passable_for(cx, cy, pass)) return false;
+			const auto [gx, gy] = nav_grid_.world_to_cell(px, pz);
+			if (!nav_grid_.is_passable_for(gx, gy, pass)) return false;
 		}
 		for (size_t j = 0; j < units_.count; ++j) {
 			if (!units_.alive[j] || units_.id[j] == skip_uid) continue;
@@ -3914,16 +3929,16 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 		for (int r = 0; r < nrows; ++r) {
 			if (circle) {
 				// The front turned by 2 pi / 6 (dist_x + r) per point (u.Rotate).
-				const float a = b.rot + 3.14159265359f * (float)(offset[r] + k) / (float)(3 * (dist_x + r));
+				const float a = rot + 3.14159265359f * (float)(offset[r] + k) / (float)(3 * (dist_x + r));
 				const float dist = hx + gap * (float)r;
-				const float wx = b.x + std::sin(a) * dist, wz = b.z + std::cos(a) * dist;
+				const float wx = cx + std::sin(a) * dist, wz = cz + std::cos(a) * dist;
 				if (free_at(wx, wz)) { out_x = wx; out_z = wz; return true; }
 				continue;
 			}
 			const auto [px, py] = perimeter_coordinates(dist_x + r, dist_y + r, offset[r] + k);
 			const float lu = (hx + gap * r) * (float)px / (float)(dist_x + r);
 			const float lv = (hy + gap * r) * (float)py / (float)(dist_y + r);
-			const float wx = b.x + fux * lu + fvx * lv, wz = b.z + fuz * lu + fvz * lv;
+			const float wx = cx + fux * lu + fvx * lv, wz = cz + fuz * lu + fvz * lv;
 			if (free_at(wx, wz)) { out_x = wx; out_z = wz; return true; }
 		}
 	return false;
@@ -5650,6 +5665,31 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 	return true;
 }
 
+// PickSpawnPoint for one passenger of `type` leaving a siege tower or a ram. 0 A.D. gives the
+// engine a Footprint Square (template_unit_siege_tower.xml 12 x 12 m, template_unit_siege_ram.xml
+// 8 m wide and 12 m deep; neither sets MaxSpawnDistance, so the 7 m default applies). Garrisonable.js
+// UnGarrison asks it for each passenger in turn, through helpers/Position.js GetSpawnPosition. A
+// world unit is 4 m, so the half extents are 1.5 (half the depth, and half the tower's width) and 1.0
+// (half the ram's width). RTS0 units store no facing, so the footprint's front (its depth axis, u)
+// points from the engine toward (toward_x, toward_z), and the search starts on that side. An engine
+// with no separate target (toward within 1e-3 of its centre) faces +z, with no rally point. The
+// landing is on dry ground only, as before (the ship landing rule). No alive unit may stand within
+// the two collision radii of the spot, except skip_uid (the passenger itself), so each passenger set
+// down earlier blocks the next.
+bool Simulation::siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_uid, float toward_x, float toward_z,
+		float &out_x, float &out_z) const {
+	const float cx = units_.pos_x[holder], cz = units_.pos_z[holder];
+	const float width_m = is_siege_tower_at(holder) ? 12.0f : 8.0f;
+	const float half_w = width_m * 0.5f * 0.25f, half_d = 12.0f * 0.5f * 0.25f; // metres to world units
+	const float dx = toward_x - cx, dz = toward_z - cz;
+	const float len = std::hypot(dx, dz);
+	if (!(len >= 1e-3f))
+		return pick_spawn_point_box(cx, cz, 0.0f, half_d, half_w, 0.0f, false, 0.0f, 0.0f,
+			type, skip_uid, true, out_x, out_z);
+	return pick_spawn_point_box(cx, cz, std::atan2(dx, dz), half_d, half_w, 0.0f, true, toward_x, toward_z,
+			type, skip_uid, true, out_x, out_z);
+}
+
 bool Simulation::is_transport(uint32_t unit_id) const {
 	int32_t idx = lookup_unit(unit_id);
 	if (idx < 0 || !units_.alive[idx]) return false;
@@ -5772,14 +5812,19 @@ void Simulation::tick_siege_garrisons() {
 		auto pit = transport_passengers_.find(units_.id[i]);
 		if (pit == transport_passengers_.end() || pit->second.empty()) continue;
 		const float cx = units_.pos_x[i], cz = units_.pos_z[i];
-		const float step = 6.2831853f / (float)pit->second.size();
-		int k = 0;
+		// Each passenger in order takes its own free spot round the engine (siege_spawn_point, its
+		// front toward the engine's own position). With none it lands on the engine's centre, as a
+		// forced eject does in GetSpawnPosition.
 		for (uint32_t puid : pit->second) {
 			int32_t p = lookup_unit(puid);
 			if (p < 0) continue;
-			const float a = step * (float)k++;
-			units_.pos_x[p] = std::clamp(cx + cosf(a) * 2.0f, -map_half_ + 1.0f, map_half_ - 1.0f);
-			units_.pos_z[p] = std::clamp(cz + sinf(a) * 2.0f, -map_half_ + 1.0f, map_half_ - 1.0f);
+			float ex = cx, ez = cz;
+			if (!siege_spawn_point(i, units_.unit_type[p], puid, cx, cz, ex, ez)) {
+				ex = std::clamp(cx, -map_half_ + 1.0f, map_half_ - 1.0f);
+				ez = std::clamp(cz, -map_half_ + 1.0f, map_half_ - 1.0f);
+			}
+			units_.pos_x[p] = ex;
+			units_.pos_z[p] = ez;
 			units_.alive[p] = 1;
 			units_.action_state[p] = ACTION_IDLE;
 			units_.has_order[p] = 0;
@@ -6661,73 +6706,37 @@ void Simulation::order_disembark(uint32_t transport_id, float target_x, float ta
 		return;
 	}
 
-	float land_x = target_x;
-	float land_z = target_z;
-	bool found_land = false;
-	// A ship unloads onto dry ground beside its hull (PickSpawnPoint); with no
-	// shore in reach the passengers stay aboard, as in 0 A.D.
-	if (unit_is_ship(units_.unit_type[tidx])) {
-		if (!ship_unload_point((size_t)tidx, land_x, land_z)) return;
-		found_land = true;
-	}
-
-	for (float r = 0.0f; r <= 8.0f && !found_land; r += 1.5f) {
-		for (int a = 0; a < 8; ++a) {
-			float ang = a * 0.785398f;
-			float cx = target_x + cosf(ang) * r;
-			float cz = target_z + sinf(ang) * r;
-			if (std::abs(cx) >= map_half_ - 2.0f || std::abs(cz) >= map_half_ - 2.0f) continue;
-			if (get_terrain_height(cx, cz) >= terrain_water_height_ + 0.15f) {
-				land_x = cx;
-				land_z = cz;
-				found_land = true;
-				break;
-			}
-		}
-	}
-
-	if (!found_land) {
-		for (float r = 1.0f; r <= 8.0f && !found_land; r += 1.5f) {
-			for (int a = 0; a < 8; ++a) {
-				float ang = a * 0.785398f;
-				float cx = tx + cosf(ang) * r;
-				float cz = tz + sinf(ang) * r;
-				if (std::abs(cx) >= map_half_ - 2.0f || std::abs(cz) >= map_half_ - 2.0f) continue;
-				if (get_terrain_height(cx, cz) >= terrain_water_height_ + 0.15f) {
-					land_x = cx;
-					land_z = cz;
-					found_land = true;
-					break;
-				}
-			}
-		}
-	}
-
-	if (!found_land) {
-		land_x = target_x;
-		land_z = target_z;
-	}
-
+	// Each passenger in turn steps down onto its own free spot, as GarrisonHolder.Unload asks
+	// Footprint.PickSpawnPoint for each: beside a ship's hull (ship_unload_point, with the passengers
+	// already set down in `taken`), or round a siege tower's or ram's footprint (siege_spawn_point,
+	// its front toward the target). A ship with no shore in reach keeps everyone aboard, and a
+	// passenger with no spot stays aboard, as in 0 A.D.
 	const bool ship = unit_is_ship(units_.unit_type[tidx]);
-	std::vector<SpawnSpot> taken;
-	float angle_step = 6.2831853f / std::max(1, (int)passengers.size());
-	int k = 0;
-	for (uint32_t uid : passengers) {
-		int32_t idx = lookup_unit(uid);
-		if (idx >= 0) {
-			float a = angle_step * k++;
-			float px = land_x + cosf(a) * 1.5f, pz = land_z + sinf(a) * 1.5f;
-			if (ship) ship_unload_point((size_t)tidx, px, pz, (size_t)idx, &taken); // a spot each
-			units_.pos_x[idx] = px;
-			units_.pos_z[idx] = pz;
-			units_.alive[idx] = 1;
-			units_.action_state[idx] = ACTION_IDLE;
-			units_.has_order[idx] = 0;
-			units_.vel_x[idx] = 0.0f;
-			units_.vel_z[idx] = 0.0f;
-		}
+	if (ship) {
+		float shore_x = 0.0f, shore_z = 0.0f;
+		if (!ship_unload_point((size_t)tidx, shore_x, shore_z)) return;
 	}
-	passengers.clear();
+	std::vector<SpawnSpot> taken;
+	std::vector<uint32_t> stay;
+	for (uint32_t uid : passengers) {
+		const int32_t idx = lookup_unit(uid);
+		if (idx < 0) continue;
+		float x = 0.0f, z = 0.0f;
+		const bool spot = ship ? ship_unload_point((size_t)tidx, x, z, (size_t)idx, &taken)
+		                       : siege_spawn_point((size_t)tidx, units_.unit_type[idx], uid, target_x, target_z, x, z);
+		if (!spot) {
+			stay.push_back(uid);
+			continue;
+		}
+		units_.pos_x[idx] = x;
+		units_.pos_z[idx] = z;
+		units_.alive[idx] = 1;
+		units_.action_state[idx] = ACTION_IDLE;
+		units_.has_order[idx] = 0;
+		units_.vel_x[idx] = 0.0f;
+		units_.vel_z[idx] = 0.0f;
+	}
+	passengers.swap(stay);
 }
 
 void Simulation::order_disembark_all(uint32_t transport_id) {
@@ -6747,20 +6756,14 @@ void Simulation::order_disembark_single(uint32_t transport_id, uint32_t unit_id)
 		if (idx >= 0) {
 			float tx = units_.pos_x[tidx];
 			float tz = units_.pos_z[tidx];
-			float land_x = tx + 2.0f;
-			float land_z = tz;
+			float land_x = 0.0f, land_z = 0.0f;
 			if (unit_is_ship(units_.unit_type[tidx])) {
-				if (!ship_unload_point((size_t)tidx, land_x, land_z, (size_t)idx)) return; // no shore in reach: stays aboard
-			} else
-			for (float r = 1.0f; r <= 6.0f; r += 1.5f) {
-				for (int a = 0; a < 8; ++a) {
-					float ang = a * 0.785398f;
-					float cx = tx + cosf(ang) * r;
-					float cz = tz + sinf(ang) * r;
-					if (get_terrain_height(cx, cz) >= terrain_water_height_ + 0.15f) {
-						land_x = cx; land_z = cz; break;
-					}
-				}
+				// Its own spot beside the hull; with no shore in reach it stays aboard.
+				if (!ship_unload_point((size_t)tidx, land_x, land_z, (size_t)idx)) return;
+			} else {
+				// Its own free spot round the engine (siege_spawn_point, its front toward the engine's own
+				// position); with no spot, it stays aboard.
+				if (!siege_spawn_point((size_t)tidx, units_.unit_type[idx], unit_id, tx, tz, land_x, land_z)) return;
 			}
 			units_.pos_x[idx] = land_x;
 			units_.pos_z[idx] = land_z;
