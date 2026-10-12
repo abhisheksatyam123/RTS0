@@ -56,8 +56,7 @@ GENERIC_STEMS = {
     "BLD_WALL_TOWER": (["wall_tower"], "template_structure_defensive_wall_tower"),
     "BLD_ELEPHANT_STABLE": (["elephant_stable"], "template_structure_military_elephant_stable"),
     "BLD_THEATER": (["theater"], "template_structure_special_theater"),
-    "BLD_EMBASSY": (["embassy", "embassy_celtic", "embassy_iberian", "embassy_italic"],
-                    "template_structure_military_embassy"),
+    "BLD_EMBASSY": (["embassy_celtic"], "template_structure_military_embassy"),  # Iberian, Italic: own types
 }
 # A wall set builds its segments, towers and gates (0 A.D. WallSet).
 WALLSETS = {

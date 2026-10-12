@@ -371,7 +371,7 @@ enum BuildingType : uint8_t {
 	BLD_WALL_TOWER = 22,      // defensive_wall_tower
 	BLD_ELEPHANT_STABLE = 23, // military_elephant_stable
 	BLD_THEATER = 24,         // special_theater
-	BLD_EMBASSY = 25,         // military_embassy
+	BLD_EMBASSY = 25,         // cart/embassy_celtic (template_structure_military_embassy)
 	// 0 A.D. civ-specific structures (area D, generated rows in civ_building_data.h).
 	// Only the civs in civ_building_civ_mask() may build them.
 	BLD_GYMNASIUM = 26,       // athen/gymnasium
@@ -410,7 +410,9 @@ enum BuildingType : uint8_t {
 	BLD_IMPERIAL_COURT = 58,  // han/civil_centre_court (a Civic Center: is_civic_centre)
 	BLD_TOWER_GREAT = 59,     // han/defense_tower_great (a defense tower: is_defense_tower)
 	BLD_PALISADE_GATE = 60,   // palisades_gate
-	BLD_TYPE_COUNT = 61
+	BLD_EMBASSY_IBERIAN = 61, // cart/embassy_iberian (BLD_EMBASSY is the Celtic one)
+	BLD_EMBASSY_ITALIC = 62,  // cart/embassy_italic
+	BLD_TYPE_COUNT = 63
 };
 
 #include "civ_building_data.h"
@@ -422,7 +424,8 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : type == BLD_IMPERIAL_COURT ? (uint8_t)BLD_TOWN_CENTER
-	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER : type;
+	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER
+	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
 
 // 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
@@ -501,6 +504,11 @@ constexpr int32_t FISH_FOOD_SUPPLY = 1000;
 constexpr int FISH_MAX_GATHERERS = 4;
 constexpr float FISH_REGROW_INTERVAL_S = 2.0f;
 constexpr float FRUIT_REGROW_INTERVAL_S = 6.0f; // template_gaia_fruit Regrowth Interval 6000
+// The ResourceSupply Change interval a supply runs (fruit Regrowth, fish Spawn), -1 for none.
+inline float regrow_interval(uint8_t type, uint8_t subtype) {
+	if (type != RES_FOOD) return -1.0f;
+	return subtype == RES_SUB_FISH ? FISH_REGROW_INTERVAL_S : subtype == RES_SUB_NONE ? FRUIT_REGROW_INTERVAL_S : -1.0f;
+}
 // Fish footprint radius (10 m) plus a fishing boat's ResourceGatherer MaxDistance (6 m), in tiles.
 constexpr float FISH_GATHER_REACH = 4.0f;
 
@@ -553,6 +561,16 @@ enum UnitOrderFlag : uint8_t {
 enum : uint8_t {
 	ORDER_FLAG_SUB_SHIFT = 5,
 	ORDER_FLAG_SUB_MASK = 0xE0
+};
+// An attack-move keeps the structures it walks past in bits 5-7 (attackMove targetClasses
+// "avoid", as Petra's attackPlan.js passes them): which defences, and economic structures.
+enum : uint8_t {
+	ORDER_AVOID_SHIFT = 5,
+	ORDER_AVOID_MASK = 0x60,
+	ORDER_AVOID_WALLS_FORTRESS = 1, // Palisade, Wall, Fortress
+	ORDER_AVOID_WALLS_TOWERS = 2,   // Palisade, Wall, Tower, Fortress
+	ORDER_AVOID_WALLS = 3,          // Palisade, Wall
+	ORDER_AVOID_ECONOMY = 0x80      // House, Storehouse, Farmstead, Field, Forge
 };
 
 // One order: the unit's current one (in the SoA) or a Shift-queued one. No padding.
@@ -953,7 +971,7 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
 		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Embassy", "embassy", "embassy", 2000.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f}, // cart/embassy_celtic
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -1378,6 +1396,18 @@ inline uint64_t building_tech_classes(uint8_t type) {
 	}
 }
 
+// Whether an attack-move with these avoid bits skips a structure of `type`.
+inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
+	const uint64_t c = building_tech_classes(type);
+	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
+	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
+		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS_TOWERS: return (c & (TC_WALL | TC_TOWER | TC_FORTRESS)) != 0;
+		case ORDER_AVOID_WALLS: return (c & TC_WALL) != 0;
+		default: return false;
+	}
+}
+
 // 0 A.D. GarrisonHolder/Max where a civ's own template differs from the
 // building_type_info row (template_structure_*.xml): the small house
 // (template_structure_civic_house, 3) for Britons, Gauls, Iberians, Mauryas and
@@ -1474,14 +1504,15 @@ struct ShortPathMemo {
 static_assert(sizeof(ShortPathMemo) == 20, "ShortPathMemo is saved raw");
 
 // CCmpUnitMotion's m_FailedMovements and the move of the 0 A.D. turn under way (200 ms, four RTS0
-// ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move.
+// ticks), which motion_feedback() judges when the turn ends, as UnitMotion judges each turn's Move,
+// and CCmpUnitMotionManager's pushing pressure. Saves before pressure held 0 in its byte.
 struct MotionTurn {
 	float from_x = 0.0f, from_z = 0.0f; // where the unit stood before its first step this turn
 	float want_x = 0.0f, want_z = 0.0f; // the steps it tried this turn, summed
 	uint8_t failed = 0;  // m_FailedMovements: obstructed turns in a row
 	uint8_t stepped = 0; // it tried a step this turn
 	uint8_t blocked = 0; // a closed gate stopped one of this turn's steps
-	uint8_t pad = 0;
+	uint8_t pressure = 0; // MotionState::pushingPressure (0-255): how pushed the unit is; kept when a turn resets
 };
 static_assert(sizeof(MotionTurn) == 20, "MotionTurn is saved raw");
 
@@ -1505,7 +1536,9 @@ enum CivBonusStat : uint8_t {
 	CIV_BONUS_BUILDING_WOOD_COST = 3,
 	CIV_BONUS_BUILDING_STONE_COST = 4,
 	CIV_BONUS_BUILDING_CAPTURE_POINTS = 5,
-	CIV_BONUS_POP_CAP = 6
+	CIV_BONUS_POP_CAP = 6,
+	CIV_BONUS_BUILDING_LOOT_WOOD = 7,     // Loot/wood (Ptolemaic houses and economic structures, Seleucid fields)
+	CIV_BONUS_BUILDING_RESEARCH_TIME = 8 // Researcher/TechCostMultiplier/time (Macedonian storehouse: 0)
 };
 
 // An auto-researched 0 A.D. civ bonus acting on buildings or the player.
@@ -2023,7 +2056,7 @@ inline LootInfo building_loot(uint8_t type) {
 		{0, 0, 0, 10, 0},      // WALL_TOWER: defensive_wall_tower
 		{0, 0, 40, 40, 0},     // ELEPHANT_STABLE: military_elephant_stable
 		{0, 0, 40, 120, 40},   // THEATER: special_theater
-		{0, 0, 0, 0, 0},       // EMBASSY: military_embassy
+		{0, 0, 40, 0, 0},      // EMBASSY: cart/embassy_celtic
 		RTSO_CIV_BUILDING_LOOT_ROWS
 	};
 	static_assert(sizeof(table) / sizeof(table[0]) == BLD_TYPE_COUNT, "one loot row per BuildingType");

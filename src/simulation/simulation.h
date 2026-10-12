@@ -160,10 +160,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 56; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 59; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
-	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 56; // each trader's goods amounts
+	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -341,6 +341,8 @@ public:
 	const UnitTypeInfo &unit_info_at(size_t i) const { return civ_template_unit_info(units_.tmpl[i], units_.unit_type[i]); }
 	// Walk speed of the unit at SoA index i: its speed with technologies times any speed aura it stands in.
 	float unit_walk_speed(size_t i) const;
+	// The speed it moves at now: its walk speed, slowed by the pushing pressure it is under.
+	float unit_move_speed(size_t i) const;
 	float unit_run_multiplier(size_t i) const;
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
@@ -383,6 +385,23 @@ public:
 	std::vector<AttackedEvent> take_attacked_events() {
 		std::vector<AttackedEvent> out;
 		out.swap(attacked_events_);
+		return out;
+	}
+	// 0 A.D. session chat notifications (gui/session/messages.js "tribute",
+	// "barter" and "phase"): presentation only like AttackedEvent, never saved,
+	// hashed or read by the simulation, at most kMaxSessionNotices between reads.
+	struct SessionNotice {
+		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5 };
+		uint8_t kind;
+		uint8_t player; // who tributed, bartered, advances or changed its stance
+		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
+		uint8_t tech;   // PHASE_*: the phase technology; BARTER: the resource bought; DIPLOMACY: the stance
+		int32_t amounts[RES_COUNT]; // TRIBUTE: per resource; BARTER: [0] sold, [1] bought
+	};
+	static constexpr size_t kMaxSessionNotices = 256;
+	std::vector<SessionNotice> take_session_notices() {
+		std::vector<SessionNotice> out;
+		out.swap(session_notices_);
 		return out;
 	}
 	double battle_damage_dealt(uint8_t player) const { return player < MAX_PLAYERS ? battle_damage_[player] : 0.0; } // 0 when not on a turret
@@ -543,8 +562,9 @@ public:
 			bool queued = false, bool allow_capture = false);
 	// Attack-move (UnitAI WalkAndFight): fight units, then structures unless units_only,
 	// on the way, and carry on to (tx, tz) afterwards.
+	// `avoid` holds ORDER_AVOID_* bits: structures the walk does not stop for.
 	void order_attack_move(const uint32_t *unit_ids, size_t count, float tx, float tz,
-			bool queued = false, bool units_only = false, bool allow_capture = false);
+			bool queued = false, bool units_only = false, bool allow_capture = false, uint8_t avoid = 0);
 	void order_patrol(const uint32_t *unit_ids, size_t count, float tx, float tz, bool queued = false);
 	void order_build_or_repair(const uint32_t *unit_ids, size_t count, uint32_t building_id, bool queued = false, bool force = true);
 	// 0 A.D. "delete-entities": kills the player's own units and destroys its own
@@ -701,7 +721,7 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE);
+	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE, int count = 1);
 	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
 	float livestock_train_time(uint8_t player, uint8_t ftype) const;
 
@@ -1204,6 +1224,10 @@ public:
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;
+	void petra_build_defenses();
+	void petra_check_resource_levels(int32_t turn);
+	uint32_t petra_place_dropsite(uint8_t res);
+	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
 	bool can_train_at(uint8_t player_id, uint8_t unit_type, uint8_t bld_type,
@@ -1844,6 +1868,12 @@ private:
 			bool target_is_building, float damage);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<SessionNotice> session_notices_;
+	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
+	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
+		if (tech == TECH_PHASE_TOWN || tech == TECH_PHASE_CITY) note_session({kind, player, 0, tech, {}});
+	}
+	void note_phases_aborted(const Building &b); // a lost or captured structure's queued phases
 	bool looter_present(uint32_t looter_id, bool *infantry) const;
 	void collect_loot(uint32_t looter_id, uint8_t looter_player, LootInfo loot, float mult, uint8_t carried_type, int32_t carried);
 	void collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim);
@@ -2115,6 +2145,8 @@ private:
 	PetraConfig petra_config_;
 	PetraDefenseArmy petra_defense_army_;
 	PetraEmergency petra_emergency_;
+	PetraDefenseBuild petra_defense_build_;
+	PetraDropsiteCheck petra_dropsite_check_;
 	PetraQueueManager petra_queues_;
 	std::vector<PetraTransportPlan> petra_transports_; // under way (BOARDING to UNLOADING), one per owner
 	const PetraTransportPlan *petra_transport_for(uint8_t owner) const;
@@ -2137,7 +2169,9 @@ private:
 	float petra_diplo_timer_ = 0.0f;
 	float ai_wonder_victory_timer_ = 0.0f;
 	bool pick_petra_safe_staging(float base_x, float base_z, float target_x, float target_z, float &out_sx, float &out_sz) const;
-	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0) const;
+	uint32_t find_petra_attack_target(float &out_tx, float &out_tz, uint16_t same_land = 0, const AttackPlan *plan = nullptr) const;
+	uint8_t petra_enemy_player(uint8_t kind) const;
+	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
 	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
 	void petra_set_rushes();
@@ -2145,8 +2179,11 @@ private:
 	bool petra_raid_target_ok(uint32_t bld_id) const;
 	bool petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const;
 	void petra_check_captures(const std::vector<uint32_t> &squad, float tx, float tz);
-	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz);
+	void petra_answer_attackers(const std::vector<uint32_t> &squad, float tx, float tz, uint8_t avoid = 0);
+	uint8_t petra_attack_avoid(const AttackPlan &plan, bool siege) const;
 	bool petra_unit_reserved(uint32_t uid) const;
+	bool petra_mustering(uint32_t uid) const;
+	void petra_leave_mustering(uint32_t uid);
 
 	std::vector<PetraBase> petra_bases_;
 	// Foundations whose build progress has stalled; builders that could not
@@ -2352,7 +2389,7 @@ private:
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
 	X(petra_scout_timer_) X(petra_scout_unit_id_) X(petra_scout_angle_) X(petra_scout_radius_) \
 	X(petra_fleets_) X(petra_diplo_) X(petra_attack_mgr_) X(petra_config_) \
-	X(petra_sent_diplo_) X(petra_started_attacks_)
+	X(petra_sent_diplo_) X(petra_started_attacks_) X(petra_defense_build_) X(petra_dropsite_check_)
 	struct PetraSlot {
 		bool initialized = false;
 #define RTSO_PETRA_SLOT_DECL(m) decltype(Simulation::m) m{};
