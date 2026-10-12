@@ -34,9 +34,10 @@ import zipfile
 
 # VisionSharing bribes (unlock_spies, spy_counter): no TechEffect rows, the simulation reads them.
 SPY_TECHS = ("unlock_spies", "spy_counter")
-# Read by name: Cartography (Simulation::shares_los, Player/sharedLos) and Glorious Expansion
-# (Simulation::pop_limit, the wonder's Player/MaxPopulation aura).
-NAMED_TECHS = SPY_TECHS + ("unlock_shared_los", "wonder_population_cap")
+# Read by name: Cartography (Simulation::shares_los, Player/sharedLos), Glorious Expansion
+# (Simulation::pop_limit, the wonder's Player/MaxPopulation aura) and Athenian Long Walls
+# (build_restriction, Wall BuildRestrictions/Territory "own neutral").
+NAMED_TECHS = SPY_TECHS + ("unlock_shared_los", "wonder_population_cap", "long_walls")
 
 # RTS0 civ id order (sim_types.h Civilization) by 0 A.D. civ code.
 CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
