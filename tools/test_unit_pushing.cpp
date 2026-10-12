@@ -8,12 +8,15 @@
 //
 //  1. A walker crosses a block of idle spearmen: it paths round them, and none of them is pushed.
 //  2. Spearmen that appear one by one on the same spot (as a ship's passengers come ashore) spread out.
-//  3. A group walks in a crowd without overlapping and ends spread round its point.
+//  3. A group walks in a crowd without overlapping and ends spread round its point (a second after
+//     it arrives: pushing pressure dampens the pushes of a crowd that has just come together).
 //  4. Two groups walking through each other both arrive.
 //  5. The heavier unit pushes harder: a ram and a spearman standing on each other part mostly by
 //     the spearman moving (UnitMotion Weight 50 against 10).
 //  6. A walker that runs into a pocket of idle spearmen open towards it gets out and round them:
 //     from each corner of its short path it searches on instead of heading back into the pocket.
+//  7. Pushing pressure: crowds build it up, it slows a walker down to the floor speed, and it decays
+//     once the unit walks alone.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -123,10 +126,11 @@ int main() {
 			}
 			if (all_done(*s, ids)) done = t;
 		}
+		for (int t = 0; t < 20; ++t) s->tick(DT);
 		float min_pair, mean_nn, far = 0.0f;
 		spacing(*s, ids, min_pair, mean_nn);
 		for (uint32_t id : ids) far = std::max(far, std::hypot(s->units_.pos_x[idx(*s, id)] - 20.0f, s->units_.pos_z[idx(*s, id)]));
-		std::printf("  30 walking 40 units: done after %d ticks, %.2f apart at least on the way, %.2f at the end, %.2f from the point at most\n",
+		std::printf("  30 walking 40 units: done after %d ticks, %.2f apart at least on the way, %.2f a second later, %.2f from the point at most\n",
 		            done, walking_min, min_pair, far);
 		CHECK(done > 0 && done <= 300, "a group walk ends");
 		CHECK(walking_min >= 2.0f * unit_collision_radius(UNIT_SWORDSMAN), "walkers don't overlap on the way");
@@ -140,16 +144,19 @@ int main() {
 		for (int k = 0; k < 16; ++k) g2.push_back(s->spawn_unit(11.0f + 1.4f * (k % 4), -2.1f + 1.4f * (k / 4), 0, UNIT_ARCHER, 150.0f));
 		s->order_walk(g1.data(), g1.size(), 15.0f, 0.0f);
 		s->order_walk(g2.data(), g2.size(), -15.0f, 0.0f);
-		int done = -1;
+		int done = -1, pressure = 0;
 		for (int t = 1; t <= 800 && done < 0; ++t) {
 			s->tick(DT);
+			for (uint32_t id : g1) pressure = std::max<int>(pressure, s->units_.motion[idx(*s, id)].pressure);
 			if (all_done(*s, g1) && all_done(*s, g2)) done = t;
 		}
 		float far1 = 0.0f, far2 = 0.0f;
 		for (uint32_t id : g1) far1 = std::max(far1, std::hypot(s->units_.pos_x[idx(*s, id)] - 15.0f, s->units_.pos_z[idx(*s, id)]));
 		for (uint32_t id : g2) far2 = std::max(far2, std::hypot(s->units_.pos_x[idx(*s, id)] + 15.0f, s->units_.pos_z[idx(*s, id)]));
-		std::printf("  two groups crossing: done after %d ticks, %.2f and %.2f from their points at most\n", done, far1, far2);
+		std::printf("  two groups crossing: done after %d ticks, %.2f and %.2f from their points at most, pressure up to %d\n",
+		            done, far1, far2, pressure);
 		CHECK(done > 0 && done <= 320 && far1 < 6.0f && far2 < 6.0f, "two groups walk through each other");
+		CHECK(pressure > 10, "and the crowd's pushing pressure slows them");
 	}
 	{
 		auto s = std::make_unique<Simulation>();
@@ -189,6 +196,28 @@ int main() {
 		            arrived, s->units_.pos_x[wi], s->units_.pos_z[wi], closest);
 		CHECK(arrived > 0 && std::hypot(s->units_.pos_x[wi] - 12.0f, s->units_.pos_z[wi]) < 1.0f, "a walker gets out of a pocket of idle units to its point");
 		CHECK(closest >= 2.0f * unit_collision_radius(UNIT_SPEARMAN), "and never walks through one");
+	}
+	{
+		// A lone walker under pressure 200 walks at the floor speed (1.5 m/s at the rosters' scale);
+		// with nobody pushing it the pressure decays by 0.6 a turn and it walks at full speed again.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		const uint32_t w = s->spawn_unit(-10.0f, 0.0f, 0, UNIT_SWORDSMAN, 150.0f);
+		s->order_walk(&w, 1, 30.0f, 0.0f);
+		const int wi = idx(*s, w);
+		s->units_.motion[wi].pressure = 200;
+		const float speed = s->unit_walk_speed(wi), x0 = s->units_.pos_x[wi];
+		s->tick(DT);
+		const float slow = (s->units_.pos_x[wi] - x0) / DT;
+		for (int t = 0; t < 60; ++t) s->tick(DT);
+		const float x1 = s->units_.pos_x[wi];
+		s->tick(DT);
+		const float fast = (s->units_.pos_x[wi] - x1) / DT;
+		std::printf("  lone walker under pressure 200: %.2f a second (walk speed %.2f), pressure %d after 3 s, then %.2f a second\n",
+		            slow, speed, (int)s->units_.motion[wi].pressure, fast);
+		CHECK(std::fabs(slow - 1.5f * FORMATION_METRE) < 0.01f, "pressure slows a walker to the floor speed");
+		CHECK(s->units_.motion[wi].pressure == 0, "and decays when nobody pushes it");
+		CHECK(std::fabs(fast - speed) < 0.01f, "after which it walks at full speed");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

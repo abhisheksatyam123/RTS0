@@ -263,6 +263,19 @@ static void test_structures() {
 	s.collect_building_loot(sw, 0, fake);
 	b = res_of(s, 0);
 	check(gained(a, b, 0, 0, 0, 0), "an unknown building type pays nothing");
+	// Sun-dried Mud Bricks (civbonuses/ptol_structures.json): Ptolemaic houses yield Loot/wood x0.6.
+	uint32_t ph = s.spawn_building_world(-20.0f, 20.0f, BLD_HOUSE, 1, 1.0f);
+	const Simulation::Building *php = nullptr;
+	for (const auto &bb : s.buildings_) if (bb.id == ph) php = &bb;
+	a = res_of(s, 0);
+	s.collect_building_loot(sw, 0, *php);
+	b = res_of(s, 0);
+	check(gained(a, b, 0, 15, 0, 0), "an Athenian house pays wood 15");
+	s.set_team_civ(1, CIV_PTOLEMIES);
+	a = res_of(s, 0);
+	s.collect_building_loot(sw, 0, *php);
+	b = res_of(s, 0);
+	check(gained(a, b, 0, 9, 0, 0), "a Ptolemaic house pays wood 9 (x0.6)");
 }
 
 static void test_status_death() {

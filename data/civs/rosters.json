@@ -6422,10 +6422,9 @@
    "specific_name": "Ḥayyāl Romaḥ Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_EMBASSY"
+    "BLD_EMBASSY_ITALIC"
    ],
    "trained_at_0ad": [
-    "embassy",
     "embassy_italic"
    ],
    "flags": [
@@ -6483,7 +6482,6 @@
     "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
-    "embassy",
     "embassy_celtic"
    ],
    "flags": [
@@ -6538,10 +6536,9 @@
    "specific_name": "Ḥayyāl Ḥerev Raḫūv",
    "phase": 2,
    "trainers": [
-    "BLD_EMBASSY"
+    "BLD_EMBASSY_IBERIAN"
    ],
    "trained_at_0ad": [
-    "embassy",
     "embassy_iberian"
    ],
    "flags": [
@@ -6979,10 +6976,9 @@
    "specific_name": "Sǝḫīr Kidōn",
    "phase": 2,
    "trainers": [
-    "BLD_EMBASSY"
+    "BLD_EMBASSY_IBERIAN"
    ],
    "trained_at_0ad": [
-    "embassy",
     "embassy_iberian"
    ],
    "flags": [
@@ -7039,10 +7035,9 @@
    "specific_name": "Qallāʿ Ibušimi",
    "phase": 2,
    "trainers": [
-    "BLD_EMBASSY"
+    "BLD_EMBASSY_IBERIAN"
    ],
    "trained_at_0ad": [
-    "embassy",
     "embassy_iberian"
    ],
    "flags": [
@@ -7161,7 +7156,6 @@
     "BLD_EMBASSY"
    ],
    "trained_at_0ad": [
-    "embassy",
     "embassy_celtic"
    ],
    "flags": [
@@ -7217,10 +7211,9 @@
    "specific_name": "Seḫīr Romaḥ",
    "phase": 2,
    "trainers": [
-    "BLD_EMBASSY"
+    "BLD_EMBASSY_ITALIC"
    ],
    "trained_at_0ad": [
-    "embassy",
     "embassy_italic"
    ],
    "flags": [
@@ -17652,7 +17645,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_TRADITIONAL_ARMY_SELE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -17706,7 +17699,7 @@
    "flags": [
     "ROSTER_CHAMPION"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_REFORMED_ARMY_SELE",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
