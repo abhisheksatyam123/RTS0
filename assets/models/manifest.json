@@ -18443,7 +18443,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 32,
    "file": "models/units/fauna_arctic_wolf.glb",
@@ -18460,7 +18462,9 @@
     "actor:art/actors/fauna/arctic_wolf.xml",
     "anim:quadraped/wolf_attack_01.dae",
     "anim:quadraped/wolf_death_01.dae",
+    "anim:quadraped/wolf_death_02.dae",
     "anim:quadraped/wolf_idle_01.dae",
+    "anim:quadraped/wolf_idle_02.dae",
     "anim:quadraped/wolf_run.dae",
     "anim:quadraped/wolf_walk.dae",
     "mesh:skeletal/wolf.dae",
@@ -18475,7 +18479,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 75,
    "file": "models/units/fauna_bear_black.glb",
@@ -18493,6 +18498,7 @@
     "anim:quadraped/bear_attack_01.dae",
     "anim:quadraped/bear_death_01.dae",
     "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_idle_02.dae",
     "anim:quadraped/bear_run.dae",
     "anim:quadraped/bear_walk.dae",
     "mesh:skeletal/bear.dae",
@@ -18507,7 +18513,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 75,
    "file": "models/units/fauna_bear_white.glb",
@@ -18525,6 +18532,7 @@
     "anim:quadraped/bear_attack_01.dae",
     "anim:quadraped/bear_death_01.dae",
     "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_idle_02.dae",
     "anim:quadraped/bear_run.dae",
     "anim:quadraped/bear_walk.dae",
     "mesh:skeletal/bear_polar.dae",
@@ -18539,7 +18547,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_bull.glb",
@@ -18556,7 +18566,9 @@
     "actor:art/actors/fauna/bull.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/bull_a.dae",
@@ -18571,7 +18583,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 90,
    "file": "models/units/fauna_camel.glb",
@@ -18590,6 +18603,7 @@
     "anim:quadraped/camel_attack_melee_01.dae",
     "anim:quadraped/camel_death.dae",
     "anim:quadraped/camel_idle_01.dae",
+    "anim:quadraped/camel_idle_02.dae",
     "anim:quadraped/camel_trot.dae",
     "anim:quadraped/camel_walk.dae",
     "mesh:props/camel_teeths.dae",
@@ -18605,7 +18619,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 72,
    "file": "models/units/fauna_elephant_african_baby.glb",
@@ -18622,6 +18637,7 @@
     "actor:art/actors/fauna/elephant_african_baby.xml",
     "anim:quadraped/elephant_infant_death.dae",
     "anim:quadraped/elephant_infant_idle_01.dae",
+    "anim:quadraped/elephant_infant_idle_03.dae",
     "anim:quadraped/elephant_infant_run.dae",
     "anim:quadraped/elephant_infant_walk.dae",
     "mesh:skeletal/elephant_african_baby.dae",
@@ -18636,7 +18652,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 73,
    "file": "models/units/fauna_elephant_asian.glb",
@@ -18654,6 +18671,7 @@
     "anim:quadraped/elephant_asian_attack_melee_01.dae",
     "anim:quadraped/elephant_asian_death.dae",
     "anim:quadraped/elephant_asian_idle_01.dae",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "anim:quadraped/elephant_asian_run.dae",
     "anim:quadraped/elephant_asian_walk.dae",
     "mesh:skeletal/elephant_asian_male.dae",
@@ -18697,7 +18715,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 31,
    "file": "models/units/fauna_giraffe_baby.glb",
@@ -18714,6 +18733,7 @@
     "actor:art/actors/fauna/giraffe_baby.xml",
     "anim:quadraped/giraffe_infant_death.dae",
     "anim:quadraped/giraffe_infant_idle_01.dae",
+    "anim:quadraped/giraffe_infant_idle_02.dae",
     "anim:quadraped/giraffe_infant_run.dae",
     "anim:quadraped/giraffe_infant_walk.dae",
     "mesh:skeletal/giraffe_infant.dae",
@@ -18728,7 +18748,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 64,
    "file": "models/units/fauna_hippopotamus.glb",
@@ -18746,6 +18767,7 @@
     "anim:quadraped/hippopotamus_attack.dae",
     "anim:quadraped/hippopotamus_death.dae",
     "anim:quadraped/hippopotamus_idle_01.dae",
+    "anim:quadraped/hippopotamus_idle_02.dae",
     "anim:quadraped/hippopotamus_trot.dae",
     "anim:quadraped/hippopotamus_walk.dae",
     "mesh:skeletal/fauna_hippopotamus.dae",
@@ -18759,7 +18781,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse.glb",
@@ -18777,8 +18801,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -18794,7 +18820,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 95,
    "file": "models/units/fauna_horse_breed.glb",
@@ -18814,6 +18841,7 @@
     "anim:quadraped/horse_breed_death.dae",
     "anim:quadraped/horse_breed_gallop.dae",
     "anim:quadraped/horse_breed_idle_01.dae",
+    "anim:quadraped/horse_breed_idle_02.dae",
     "anim:quadraped/horse_breed_walk.dae",
     "mesh:props/horse/hair_mane_01_breed.dae",
     "mesh:props/horse/hair_tail_01_breed.dae",
@@ -18829,7 +18857,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse_lusitano.glb",
@@ -18847,8 +18877,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_gray_black.xml",
     "actor:art/actors/props/horse/horse_hair_tail_gray_black.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -18864,7 +18896,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse_marwari.glb",
@@ -18882,8 +18916,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -18899,7 +18935,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse_persian.glb",
@@ -18917,8 +18955,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -18985,7 +19025,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 26,
    "file": "models/units/fauna_pig_flaming.glb",
@@ -19003,6 +19044,7 @@
     "anim:quadraped/animal_pig_attack_01.dae",
     "anim:quadraped/animal_pig_death_01.dae",
     "anim:quadraped/animal_pig_idle_01.dae",
+    "anim:quadraped/animal_pig_idle_03.dae",
     "anim:quadraped/animal_pig_run_01.dae",
     "anim:quadraped/animal_pig_walk_01.dae",
     "mesh:skeletal/pig.dae",
@@ -19016,7 +19058,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Idle2"
    ],
    "bones": 26,
    "file": "models/units/fauna_piglet.glb",
@@ -19033,6 +19076,7 @@
     "actor:art/actors/fauna/piglet.xml",
     "anim:quadraped/animal_piglet_attack_01.dae",
     "anim:quadraped/animal_piglet_idle_01.dae",
+    "anim:quadraped/animal_piglet_idle_02.dae",
     "anim:quadraped/animal_piglet_run_01.dae",
     "anim:quadraped/animal_piglet_walk_01.dae",
     "mesh:skeletal/animal_piglet.dae",
@@ -19046,7 +19090,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 95,
    "file": "models/units/fauna_pony.glb",
@@ -19063,9 +19109,11 @@
     "actor:art/actors/fauna/pony.xml",
     "actor:art/actors/props/horse/fauna/pony_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/fauna/pony_hair_tail_black_brown.xml",
+    "anim:quadraped/pony_death.dae",
     "anim:quadraped/pony_death_a.dae",
     "anim:quadraped/pony_gallop.dae",
     "anim:quadraped/pony_idle_a.dae",
+    "anim:quadraped/pony_idle_c.dae",
     "anim:quadraped/pony_walk.dae",
     "mesh:props/horse/pony_hair_mane_01.dae",
     "mesh:props/horse/pony_hair_tail_01.dae",
@@ -19082,7 +19130,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 24,
    "file": "models/units/fauna_rhino.glb",
@@ -19100,6 +19149,7 @@
     "anim:quadraped/rhino_attack.dae",
     "anim:quadraped/rhino_death.dae",
     "anim:quadraped/rhino_idle.dae",
+    "anim:quadraped/rhino_idle2.dae",
     "anim:quadraped/rhino_run.dae",
     "anim:quadraped/rhino_walk.dae",
     "mesh:skeletal/rhino.dae",
@@ -19114,7 +19164,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_sanga_cattle.glb",
@@ -19131,7 +19183,9 @@
     "actor:art/actors/fauna/sanga_cattle.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/sanga_cattle_a.dae",
@@ -19174,7 +19228,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 34,
    "file": "models/units/fauna_tiger.glb",
@@ -19192,6 +19247,7 @@
     "anim:quadraped/feline_attack.dae",
     "anim:quadraped/feline_death.dae",
     "anim:quadraped/feline_idle_01.dae",
+    "anim:quadraped/feline_idle_02.dae",
     "anim:quadraped/feline_run.dae",
     "anim:quadraped/feline_walk.dae",
     "mesh:skeletal/tiger.dae",
@@ -19244,7 +19300,8 @@
   "fauna_whale_fin": {
    "animated": true,
    "animations": [
-    "Idle"
+    "Idle",
+    "Idle2"
    ],
    "bones": 8,
    "file": "models/units/fauna_whale_fin.glb",
@@ -19260,6 +19317,7 @@
    "sources": [
     "actor:art/actors/fauna/whale_fin.xml",
     "anim:other/whale_fin_idle_a.dae",
+    "anim:other/whale_fin_idle_b.dae",
     "mesh:skeletal/whale_fin.dae",
     "skin:skeletal/animal_whale_fin.png"
    ],
@@ -19272,7 +19330,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_wildebeest.glb",
@@ -19289,7 +19349,9 @@
     "actor:art/actors/fauna/wildebeest.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/wildebeest_adult.dae",
@@ -19304,7 +19366,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_zebu_wild.glb",
@@ -19321,7 +19385,9 @@
     "actor:art/actors/fauna/zebu_wild.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/zebu.dae",
