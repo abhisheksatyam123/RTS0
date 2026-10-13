@@ -1418,6 +1418,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 				sim.order_herd(ids, n, c.target_id);
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
 				sim.order_collect_treasure(ids, n, c.target_id, queued);
+			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == NET_HUNT_SCENERY_NO_CAPTURE)
+				sim.order_attack_scenery(ids, n, c.target_id, false);
 			else
 				sim.order_hunt(ids, n, c.target_id);
 		} else if (c.cmd_type == 18) { // Board

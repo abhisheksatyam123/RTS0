@@ -756,10 +756,28 @@ static void test_capture_rules() {
 		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
 		root_origin(s);
 		const float cp = bld(s, house)->capture_points_by_team[1];
-		uint32_t w = s.spawn_unit(-5, 0, 0, UNIT_FEMALE_CITIZEN);
+		// A woman: the civilian 0.28 trains in her place (also UNIT_FEMALE_CITIZEN) captures at 1.
+		uint32_t w = s.spawn_unit(-5, 0, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_unit_template_by_id("athen/support_female_citizen"));
 		s.order_attack_building(&w, 1, house, false, true);
 		run(s, 10.0f);
 		check(bld(s, house)->capture_points_by_team[1] >= cp - 0.01f, "women have no capture attack");
+	}
+	{
+		// 0.28 Attack/Capture/Capture per template and Capturable/RegenRate per structure.
+		auto cap = [](const char *id) {
+			const uint16_t t = civ_unit_template_by_id(id);
+			return unit_capture_attack(t, civ_unit_template(t).unit_type);
+		};
+		check(cap("athen/support_civilian") == 1.0f && cap("athen/infantry_spearman_b") == 2.5f, "civilians 1, infantry 2.5");
+		check(cap("athen/cavalry_javelineer_b") == 1.75f && cap("cart/champion_cavalry") == 3.5f, "cavalry 1.75, champion cavalry 3.5");
+		check(cap("cart/champion_elephant") == 0.0f && cap("cart/hero_hannibal") == 0.0f && cap("brit/war_dog") == 0.0f,
+		      "war elephants, hero elephants and dogs don't capture");
+		check(cap("han/support_minister") == 4.0f, "the Han minister captures at 4");
+		check(building_type_info(BLD_TOWN_CENTER).capture_regen_rate == 30.0f && building_type_info(BLD_FORTRESS).capture_regen_rate == 45.0f &&
+		      building_type_info(BLD_TEMPLE).capture_regen_rate == 15.0f && building_type_info(BLD_TOWER).capture_regen_rate == 10.0f &&
+		      building_type_info(BLD_BARRACKS).capture_regen_rate == 10.0f && building_type_info(BLD_HOUSE).capture_regen_rate == 5.0f,
+		      "structures regain 5 a second, military and towers 10, temples 15, civic centres 30, fortresses 45");
+		check(building_type_info(BLD_DOCK).territory_decay_rate == 0.0f, "docks don't decay");
 	}
 }
 
@@ -2324,6 +2342,86 @@ static void test_range_check_between_hits() {
 	check(hit2 && !spared2, "one that stays in reach takes the next hit");
 }
 
+static const Simulation::Scenery *scenery_of(const Simulation &s, uint32_t id) {
+	const int32_t k = s.scenery_index(id);
+	return k >= 0 ? &s.scenery()[k] : nullptr;
+}
+
+// Capturable.js TimerTick counts simulation ticks: step at the game's own FIXED_STEP.
+static void run_fixed(Simulation &s, float seconds) {
+	for (int i = 0, n = (int)std::lround(seconds / Simulation::FIXED_STEP); i < n; ++i) s.tick(Simulation::FIXED_STEP);
+}
+template <class F> static bool run_until_fixed(Simulation &s, float seconds, F &&done) {
+	for (int i = 0, n = (int)std::lround(seconds / Simulation::FIXED_STEP); i < n; ++i) {
+		s.tick(Simulation::FIXED_STEP);
+		if (done()) return true;
+	}
+	return done();
+}
+
+static void test_scenery_capture() {
+	std::printf("62. Capturable scenery is captured, decays and regenerates (Capturable.js, TerritoryDecay.js)\n");
+	const uint8_t fence = scenery_type_by_name("fence_long"), column = scenery_type_by_name("column_doric");
+	{
+		// Gaia's fence in a player's territory decays to that player.
+		Simulation s;
+		setup(s);
+		const uint32_t f = s.spawn_scenery(-46, -56, fence, 0.0f, 1.0f);
+		check(scenery_of(s, f)->owner == GAIA_PLAYER && scenery_of(s, f)->cp[MAX_PLAYERS] == 100.0f, "a fence starts Gaia's, 100 points");
+		const bool decayed = run_until_fixed(s, 15.0f, [&] { return scenery_of(s, f)->owner == 0; });
+		check(decayed, "in player 0's land it turns player 0's");
+	}
+	{
+		// On neutral land: capturers take it, then it decays back to Gaia.
+		Simulation s;
+		setup(s);
+		const uint32_t f = s.spawn_scenery(0, 0, fence, 0.0f, 1.0f);
+		uint32_t one = s.spawn_unit(-3, 0, 1, UNIT_SPEARMAN);
+		s.order_attack_scenery(&one, 1, f);
+		run_fixed(s, 20.0f);
+		check(scenery_of(s, f)->owner == GAIA_PLAYER && scenery_of(s, f)->cp[MAX_PLAYERS] >= 97.4f,
+				"one spearman (2.5 a second) can't beat Gaia's regeneration (5)");
+		const float hp0 = scenery_of(s, f)->hp;
+		check(hp0 == scenery_type_info(fence).max_hp, "and capturing does no damage");
+		uint32_t many[6];
+		for (int k = 0; k < 6; ++k) many[k] = s.spawn_unit(-3.0f, -3.0f + 1.2f * k, 1, UNIT_SPEARMAN);
+		s.order_attack_scenery(many, 6, f);
+		const bool taken = run_until_fixed(s, 30.0f, [&] { return scenery_of(s, f)->owner == 1; });
+		check(taken, "six take it for player 1");
+		run_fixed(s, 2.0f);
+		check(act_of(s, many[0]) != ACTION_ATTACK, "and stop once it is theirs");
+		const bool back = run_until_fixed(s, 30.0f, [&] { return scenery_of(s, f)->owner == GAIA_PLAYER; });
+		check(back, "out of player 1's territory it decays back to Gaia");
+	}
+	{
+		// Ctrl attacks instead; a column is never Capturable.
+		Simulation s;
+		setup(s);
+		const uint32_t f = s.spawn_scenery(0, 0, fence, 0.0f, 1.0f);
+		const uint32_t c = s.spawn_scenery(0, 10, column, 0.0f, 1.0f);
+		uint32_t a = s.spawn_unit(-3, 0, 1, UNIT_SWORDSMAN), b = s.spawn_unit(-3, 10, 1, UNIT_SWORDSMAN);
+		s.order_attack_scenery(&a, 1, f, false);
+		s.order_attack_scenery(&b, 1, c);
+		run_fixed(s, 6.0f);
+		check(scenery_of(s, f) == nullptr || scenery_of(s, f)->hp < scenery_type_info(fence).max_hp, "Ctrl: the fence is hacked at");
+		check(scenery_of(s, c) == nullptr || scenery_of(s, c)->hp < scenery_type_info(column).max_hp, "the column is attacked");
+	}
+	{
+		// Save round trip keeps owner and points.
+		Simulation s;
+		setup(s);
+		const uint32_t f = s.spawn_scenery(-46, -56, fence, 0.0f, 1.0f);
+		run_fixed(s, 2.0f);
+		const auto cp = scenery_of(s, f)->cp;
+		const char *path = "/tmp/rts0_test_scenery_capture.sav";
+		check(s.save_state(path), "saved");
+		Simulation t;
+		check(t.load_state(path), "loaded");
+		check(scenery_of(t, f) && scenery_of(t, f)->cp == cp && scenery_of(t, f)->owner == scenery_of(s, f)->owner,
+				"owner and capture points survive a save");
+	}
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2388,6 +2486,7 @@ int main(int argc, char **argv) {
 	test_attack_preference_switch();
 	test_healer_attack_order();
 	test_restricted_attack_order();
+	test_scenery_capture();
 	test_arakamani_temples();
 	test_range_check_between_hits();
 	if (g_failures) {
