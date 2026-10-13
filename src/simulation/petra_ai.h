@@ -226,8 +226,15 @@ enum PetraChatKind : uint8_t {
 	PETRA_CHAT_ALLY_EXPIRED     = 12,
 	PETRA_CHAT_NEUTRAL_EXPIRED  = 13,
 	PETRA_CHAT_TRIBUTE_REQUEST  = 14, // to an ally: "I am in need of <res>"
-	PETRA_CHAT_EMERGENCY_EXIT   = 15  // emergencyManager.js: the emergency is over
+	PETRA_CHAT_EMERGENCY_EXIT   = 15, // emergencyManager.js: the emergency is over
+	// Commands.js "attack-request" notice and chatHelper.js answerRequestAttackMessages.
+	// Their text names players as {P<id>}, which the chat window replaces with names.
+	PETRA_CHAT_ATTACK_REQUESTED = 16, // from the player asking, human or AI
+	PETRA_CHAT_ATTACK_JOIN      = 17,
+	PETRA_CHAT_ATTACK_DECLINE   = 18
 };
+// PetraChatLine::to for a line addressed to the speaker's allies ("/allies").
+static constexpr uint8_t PETRA_CHAT_TO_ALLIES = 0xFE;
 
 // diplomacyManager.js receivedDiplomacyRequests: what one AI decided about a
 // player that changed its stance toward it (one entry per player).
