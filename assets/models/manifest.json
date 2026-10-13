@@ -53902,9 +53902,9 @@
    "origin": "ground-center",
    "parts": 3,
    "size_meters": [
-    1.253,
-    0.932,
-    3.0
+    1.461,
+    1.088,
+    3.5
    ],
    "skeleton": "ballista_frame",
    "sources": [
@@ -53934,9 +53934,9 @@
    "origin": "ground-center",
    "parts": 4,
    "size_meters": [
-    1.253,
-    1.531,
-    3.0
+    1.461,
+    1.786,
+    3.5
    ],
    "skeleton": "ballista_frame",
    "sources": [

@@ -989,10 +989,11 @@ ZIP_STRUCTURES = {
 }
 
 # Units only 0.28 has, drawn by RTS0's generic unit models of the same id
-# (the Germans' supply wagon and the house wagon it promotes to). Ram-sized.
+# (the Germans' supply wagon and the house wagon it promotes to), as long as
+# the template's 14 m obstruction at 1 unit = 4 m.
 ZIP_UNITS = {
-    "wagon":       ("art/actors/structures/germans/wagon.xml",       "width", 3.0, None),
-    "wagon_house": ("art/actors/structures/germans/wagon_house.xml", "width", 3.0, None),
+    "wagon":       ("art/actors/structures/germans/wagon.xml",       "width", 3.5, None),
+    "wagon_house": ("art/actors/structures/germans/wagon_house.xml", "width", 3.5, None),
 }
 
 
