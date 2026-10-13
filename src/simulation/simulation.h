@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 65; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 66; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -1532,6 +1532,12 @@ public:
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
 	const std::vector<PetraTransportPlan> &petra_transport_plans() const { return petra_transports_; }
 	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
+	// Whether `viewer` reads the line: its addressee, the speaker and its allies for "/allies", or anyone.
+	bool petra_chat_reaches(const PetraChatLine &l, uint8_t viewer) const {
+		if (l.to == PETRA_CHAT_EVERYONE) return true;
+		if (l.to == PETRA_CHAT_ALLIES) return viewer < MAX_PLAYERS && (viewer == l.from || is_ally(l.from, viewer));
+		return l.to == viewer;
+	}
 	const std::unordered_map<uint8_t, PetraDiplomacyRequest> &petra_diplomacy_requests() const { return petra_diplomacy_requests_; }
 	void clear_petra_chat() { petra_chat_.clear(); }
 
@@ -2683,7 +2689,11 @@ private:
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
-	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
+	// chatHelper.js: queue a line of `kind` (PetraChatKind) to `to` (a player, PETRA_CHAT_ALLIES or
+	// PETRA_CHAT_EVERYONE) about `player`; sub is the request type or PetraChatStance.
+	void petra_say(uint8_t kind, uint8_t to, uint8_t player = 0xFF, uint8_t sub = 0, int amount = 0, uint8_t res = 0,
+	               float x = 0.0f, float z = 0.0f, uint8_t player2 = 0xFF);
+	uint8_t petra_owner_of(uint32_t id) const; // a building's or unit's owner, 0xFF if gone
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
