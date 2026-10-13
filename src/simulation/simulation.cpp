@@ -25213,24 +25213,18 @@ void Simulation::tick_fauna(float dt) {
 			if (keep) {
 				const float tdx = units_.pos_x[t] - fx, tdz = units_.pos_z[t] - fz;
 				const float td2 = tdx * tdx + tdz * tdz;
-				if (info.stance == FAUNA_STANCE_AGGRESSIVE) {
-					keep = td2 <= info.vision * info.vision; // respondChase, not beyond vision
-				} else if (info.stance != FAUNA_STANCE_VIOLENT) {
-					// respondHoldGround (CheckTargetDistanceFromHeldPosition): the target must stay
-					// within half the vision plus the attack range of the held position.
-					const float hdx = units_.pos_x[t] - fauna_.home_x[i], hdz = units_.pos_z[t] - fauna_.home_z[i];
-					const float leash = info.vision * 0.5f + info.attack_range;
-					keep = hdx * hdx + hdz * hdz < leash * leash;
-				}
+				// ShouldAbandonChase: every stance but violent stops once the target leaves the
+				// animal's vision (CheckTargetIsInVisionRange). An animal has no held position
+				// (UnitAI sets one only on walk orders and stance changes), so a defensive one's
+				// CheckTargetDistanceFromHeldPosition always passes.
+				if (info.stance != FAUNA_STANCE_VIOLENT) keep = td2 < info.vision * info.vision;
 			}
 			if (!keep) {
-				fauna_.behavior[i] = FAUNA_ROAMING;
+				// FinishOrder: back to IDLE where it stands, which lingers first (no walk home).
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
 				fauna_.target_unit_id[i] = 0;
-				const float hdx = fauna_.home_x[i] - fx, hdz = fauna_.home_z[i] - fz;
-				const float hl = std::hypot(hdx, hdz);
-				fauna_.vel_x[i] = hl > 0.5f ? hdx / hl * info.speed : 0.0f;
-				fauna_.vel_z[i] = hl > 0.5f ? hdz / hl * info.speed : 0.0f;
-				fauna_.state_timer[i] = info.speed > 0.0f ? std::min(10.0f, hl / info.speed) : 0.0f;
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
 				continue;
 			}
 			const float dx = units_.pos_x[t] - fx, dz = units_.pos_z[t] - fz;
