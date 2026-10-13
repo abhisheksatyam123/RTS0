@@ -106,6 +106,16 @@ bool AnimationController::load_rig(RigType rig) {
 			load_clip(AnimState::Death, "ram_death");
 			break;
 		}
+		case RigType::Wagon: {
+			// 0AD 0.28: art/actors/structures/germans/wagon.xml (Walk/Run on
+			// wagon_walk, idle, death; no attack clip, so Attack holds the idle).
+			load_clip(AnimState::Idle, "mechanical_wagon_idle");
+			load_clip(AnimState::Walk, "mechanical_wagon_walk");
+			load_clip(AnimState::Run, "mechanical_wagon_walk");
+			load_clip(AnimState::Attack, "mechanical_wagon_idle");
+			load_clip(AnimState::Death, "mechanical_wagon_death");
+			break;
+		}
 	}
 	return !anims.empty();
 }

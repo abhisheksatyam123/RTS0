@@ -771,6 +771,21 @@ CIV_CORE_ACTORS = {
         "fishing_boat": "art/actors/structures/celts/fishing_boat.xml",
         "trireme": "art/actors/structures/celts/warship.xml",
     },
+    # 0.28's 15th civ (germ). Its art first ships in the 0.28 public.zip.
+    "germ": {
+        "villager": "art/actors/units/germans/citizen_male.xml",
+        "female_citizen": "art/actors/units/germans/citizen_female.xml",
+        "swordsman": "art/actors/units/germans/infantry_swordsman_b.xml",
+        "spearman": "art/actors/units/germans/infantry_spearman_b.xml",
+        "archer": "art/actors/units/germans/infantry_slinger_b.xml",
+        "cavalry": "art/actors/units/germans/cavalry_spearman_b_m.xml",
+        "hero": "art/actors/units/germans/hero_infantry_swordsman_teutobod.xml",
+        "healer": "art/actors/units/germans/healer_b.xml",
+        "trader": "art/actors/units/germans/trader.xml",
+        "fishing_boat": "art/actors/structures/germans/fishing_boat.xml",
+        "trireme": "art/actors/structures/germans/ship_arrow.xml",
+        "merchant_ship": "art/actors/structures/germans/ship_karvi.xml",
+    },
     "iber": {
         "villager": "art/actors/units/iberians/citizen_male.xml",
         "female_citizen": "art/actors/units/iberians/female_citizen.xml",
@@ -867,6 +882,7 @@ CIV_ART_FOLDERS = {
     "mace": ["macedonians", "hellenes"],
     "brit": ["britons", "celts"],
     "gaul": ["gauls", "celts"],
+    "germ": ["germans", "celts"],
     "iber": ["iberians"],
     "maur": ["mauryas"],
     "kush": ["kushites"],
@@ -950,6 +966,37 @@ BLD_GLOBAL_FALLBACK = {
 }
 
 
+def _fit_scale(fit, target, dim):
+    """"width" and "height" fit that extent to target; "scale" is a fixed factor
+    (WallSet pieces keep 0 A.D.'s lengths at 1 unit = 4 m)."""
+    if fit == "scale":
+        return target
+    return (target / max(dim[0], dim[2])) if fit == "width" else (target / max(dim[1], 1e-6))
+
+
+# 0.28's Germans: structures extract_0ad_structures.py would convert from
+# Collada, which a release public.zip does not carry (cached .pmd only). The
+# ids follow that tool's s_<folder>_<actor>, mapped in data/building_models.json.
+ZIP_STRUCTURES = {
+    "s_germans_stable":      ("art/actors/structures/germans/stable.xml",   "width", 4.2, None),
+    "s_germans_range":       ("art/actors/structures/germans/range.xml",    "width", 3.8, None),
+    "s_germans_workshop":    ("art/actors/structures/germans/workshop.xml", "width", 5.0, None),
+    "s_germans_forge":       ("art/actors/structures/germans/forge.xml",    "width", 4.2, None),
+    "s_germans_wooden_wall_short":  ("art/actors/structures/germans/wooden_wall_short.xml",  "scale", 0.25, None),
+    "s_germans_wooden_wall_medium": ("art/actors/structures/germans/wooden_wall_medium.xml", "scale", 0.25, None),
+    "s_germans_wooden_wall_long":   ("art/actors/structures/germans/wooden_wall_long.xml",   "scale", 0.25, None),
+    "s_germans_wooden_wall_gate":   ("art/actors/structures/germans/wooden_wall_gate.xml",   "scale", 0.25, None),
+}
+
+# Units only 0.28 has, drawn by RTS0's generic unit models of the same id
+# (the Germans' supply wagon and the house wagon it promotes to), as long as
+# the template's 14 m obstruction at 1 unit = 4 m.
+ZIP_UNITS = {
+    "wagon":       ("art/actors/structures/germans/wagon.xml",       "width", 3.5, None),
+    "wagon_house": ("art/actors/structures/germans/wagon_house.xml", "width", 3.5, None),
+}
+
+
 def _register_civ_unit(assets, names, code, uid, actor, aid=None):
     """Bind one `{code}_{uid}` asset (or `aid`) to a 0 A.D. actor, inheriting rider setup."""
     if uid not in ASSETS:
@@ -1020,6 +1067,10 @@ def register_civ_unit_assets(assets, zf=None):
             got = _register_civ_unit(assets, names, code, uid, actor)
             if got:
                 added.append(got)
+    for aid, row in ZIP_UNITS.items():
+        if row[0] in names:
+            assets[aid] = row
+            added.append(aid)
     _apply_civ_unit_overrides()
     return added
 
@@ -1131,9 +1182,15 @@ def register_civ_building_assets(assets, zf):
                     break
             if actor is None:
                 actor = BLD_GLOBAL_FALLBACK.get(bid) or ASSETS[bid][0]
+            if code == "germ" and bid == "wall_tower":
+                actor = "art/actors/structures/germans/wooden_wall_tower.xml"
             aid = f"{code}_{bid}"
             _path, fit, target, tint = ASSETS[bid]
             assets[aid] = (actor, fit, target, tint)
+            added.append(aid)
+    for aid, row in ZIP_STRUCTURES.items():
+        if row[0] in names:
+            assets[aid] = row
             added.append(aid)
     return added
 
@@ -3468,7 +3525,7 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
     xs = [p[0] for p in all_pos]; ys = [p[1] for p in all_pos]; zs = [p[2] for p in all_pos]
     minx, maxx, miny, maxy, minz, maxz = min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
     dim = (maxx-minx, maxy-miny, maxz-minz)
-    scale = (target / max(dim[0], dim[2])) if fit == "width" else (target / max(dim[1], 1e-6))
+    scale = _fit_scale(fit, target, dim)
     cx, cz = (minx+maxx)/2, (minz+maxz)/2
     # rewrite primitive positions in place
     for pi, prim in enumerate(glb.primitives):
@@ -3782,7 +3839,7 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     xs = [p[0] for p in box]; ys = [p[1] for p in box]; zs = [p[2] for p in box]
     minx, maxx, miny, maxy, minz, maxz = min(xs), max(xs), min(ys), max(ys), min(zs), max(zs)
     dim = (maxx - minx, maxy - miny, maxz - minz)
-    scale = (target / max(dim[0], dim[2])) if fit == "width" else (target / max(dim[1], 1e-6))
+    scale = _fit_scale(fit, target, dim)
     cx, cz = (minx + maxx) / 2, (minz + maxz) / 2
     root_t = (-cx * scale, -miny * scale, -cz * scale)
     root_s = (scale, scale, scale)
@@ -4163,9 +4220,9 @@ def _civ_base_building_id(asset_id):
 
 
 def asset_dir(asset_id):
-    if asset_id in UNIT_IDS or _civ_base_unit_id(asset_id):
+    if asset_id in UNIT_IDS or asset_id in ZIP_UNITS or _civ_base_unit_id(asset_id):
         return "models/units"
-    if asset_id in BUILDING_IDS or _civ_base_building_id(asset_id):
+    if asset_id in BUILDING_IDS or asset_id in ZIP_STRUCTURES or _civ_base_building_id(asset_id):
         return "models/buildings"
     if asset_id in VEGETATION_IDS:
         return "models/vegetation"
