@@ -19335,12 +19335,36 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 
 		case AttackPlan::ABORT: {
 			petra_strike_force_.state = PetraStrikeForce::MUSTER;
+			// attackPlan.js Abort: an army withdraws to the nearest of our bases on its own
+			// land (one it captured on the way included), else home.
+			float home_x = base_x, home_z = base_z;
+			{
+				float ax = 0.0f, az = 0.0f;
+				int n = 0;
+				for (uint32_t uid : squad) {
+					const int32_t k = lookup_unit(uid);
+					if (k >= 0 && units_.alive[k] && !unit_is_ship(units_.unit_type[k])) { ax += units_.pos_x[k]; az += units_.pos_z[k]; ++n; }
+				}
+				if (n > 0) {
+					ax /= (float)n; az /= (float)n;
+					const uint16_t land = petra_land_at(ax, az);
+					float best = 1e30f;
+					for (const PetraBase &pb : petra_bases_) {
+						auto it = building_id_to_idx_.find(pb.anchor_building_id);
+						if (it == building_id_to_idx_.end()) continue;
+						const Building &a = buildings_[it->second];
+						if (a.team != petra_pid_ || a.hp <= 0.0f || a.wrecked || petra_building_land(a, nullptr, land) != land) continue;
+						const float d = (a.x - ax) * (a.x - ax) + (a.z - az) * (a.z - az);
+						if (d < best) { best = d; home_x = a.x; home_z = a.z; }
+					}
+				}
+			}
 			if (!squad.empty()) {
-				petra_go_home(squad, base_x, base_z, PETRA_TRANSPORT_ATTACK, true);
+				petra_go_home(squad, home_x, home_z, PETRA_TRANSPORT_ATTACK, true);
 			}
 			plan.state = AttackPlan::REGROUP;
-			plan.retreat_x = base_x;
-			plan.retreat_z = base_z;
+			plan.retreat_x = home_x;
+			plan.retreat_z = home_z;
 			plan.state_timer = 0.0f;
 			break;
 		}
