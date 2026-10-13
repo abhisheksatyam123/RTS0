@@ -39,6 +39,7 @@
 #define private public
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
+#include "simulation/petra_chat.h"
 #undef private
 #include <algorithm>
 #include <cmath>
@@ -93,7 +94,9 @@ static void test_no_early_rush() {
 	std::printf("  arena: %.0fs in village phase, player units %d -> %d, attack launched: %s, rushes allowed %d\n",
 	            t, start_units, count_units(*s, 0, false), attacked ? "yes" : "no", s->petra_attack_manager().max_rushes);
 	CHECK(!attacked, "no village-phase attack");
-	CHECK(s->petra_attack_manager().max_rushes == 0, "no rushes on a wood-poor base (setRushes)");
+	// setRushes: one rush per 3000 wood above 8500 on the base's own land within 360 m; the
+	// arena's base has room for one at most, and none goes out in the first 300 s.
+	CHECK(s->petra_attack_manager().max_rushes <= 1, "at most one rush on the arena base (setRushes)");
 	CHECK(count_units(*s, 0, false) == start_units, "idle player loses no units");
 	CHECK(!s->is_game_over(), "match still running");
 }
@@ -323,9 +326,11 @@ static void test_ai_slots() {
 	}
 }
 
+// A line `from` said that `to` reads (0xFF: one said to everyone).
 static bool said_to(const Simulation &s, uint8_t from, uint8_t to, uint8_t kind) {
 	for (const auto &l : s.pending_petra_chat())
-		if (l.from == from && l.to == to && l.kind == kind) return true;
+		if (l.from == from && l.kind == kind && (to == 0xFF ? l.to == PETRA_CHAT_EVERYONE : s.petra_chat_reaches(l, to)))
+			return true;
 	return false;
 }
 
@@ -345,34 +350,54 @@ static std::unique_ptr<Simulation> three_player_match(uint32_t seed) {
 }
 
 static void test_diplomacy() {
-	// A human offers an alliance to each AI. Every offer gets an answer, and
-	// paying an asked-for tribute seals it.
+	// A human at war offers an AI an alliance: an enemy can't become an ally at once, so
+	// the AI turns it down and suggests a neutrality pact (diplomacyManager.js checkEvents).
+	{
+		auto s = three_player_match(1);
+		run_for(*s, 20.0f);
+		s->clear_petra_chat();
+		s->cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		run_for(*s, 10.0f);
+		CHECK(said_to(*s, 1, 0, PETRA_CHAT_ANSWER_DECLINE_SUGGEST_NEUTRAL) && !s->is_ally(1, 0),
+		      "an enemy's alliance offer is answered with a neutrality suggestion");
+		for (const auto &l : s->pending_petra_chat())
+			if (l.kind == PETRA_CHAT_ANSWER_DECLINE_SUGGEST_NEUTRAL)
+				std::printf("  to an enemy's alliance offer AI 1 says: \"%s\"\n",
+				            petra_chat_text(l, [](uint8_t p) { return std::string("Player ") + std::to_string(p); }).c_str());
+	}
+	// A human offers each AI a neutrality pact. Every offer gets an answer, and paying an
+	// asked-for tribute seals it.
 	int accepted = 0, declined = 0, paid = 0;
 	for (uint32_t seed = 1; seed <= 6; ++seed) {
 		auto s = three_player_match(seed);
 		run_for(*s, 20.0f);
 		s->clear_petra_chat();
-		s->cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY);
+		s->cmd_set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
 		run_for(*s, 10.0f);
 		const auto &req = s->petra_diplo_.received[0]; // AI 1's state lives in the members
-		if (said_to(*s, 1, 0, PETRA_CHAT_DIPLO_ACCEPT)) {
-			CHECK(s->is_ally(1, 0), "accepted offer makes the AI an ally");
+		const bool neutral = s->get_diplomacy(1, 0) == Simulation::DIPLO_NEUTRAL;
+		if (said_to(*s, 1, 0, PETRA_CHAT_ANSWER_ACCEPT)) {
+			CHECK(neutral && said_to(*s, 1, 0xFF, PETRA_CHAT_NEW_DIPLOMACY), "accepted offer makes the AI neutral, and it says so");
 			++accepted;
-		} else if (said_to(*s, 1, 0, PETRA_CHAT_DIPLO_DECLINE)) {
-			CHECK(!s->is_ally(1, 0), "declined offer leaves the AI hostile");
+		} else if (said_to(*s, 1, 0, PETRA_CHAT_ANSWER_DECLINE)) {
+			CHECK(!neutral, "declined offer leaves the AI hostile");
 			++declined;
-		} else if (said_to(*s, 1, 0, PETRA_CHAT_DIPLO_TRIBUTE)) {
+		} else if (said_to(*s, 1, 0, PETRA_CHAT_ANSWER_ACCEPT_WITH_TRIBUTE)) {
 			CHECK(req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE && req.wanted >= 1000, "asks for at least 1000");
 			s->players_[0].res[req.resource] += (float)req.wanted;
 			CHECK(s->send_tribute(1, req.resource, req.wanted), "human pays the tribute");
 			run_for(*s, 10.0f);
-			CHECK(s->is_ally(1, 0), "paid tribute seals the alliance");
+			CHECK(s->get_diplomacy(1, 0) == Simulation::DIPLO_NEUTRAL, "paid tribute seals the pact");
 			++paid;
 		} else {
-			CHECK(false, "AI answers an alliance offer");
+			CHECK(false, "AI answers a neutrality offer");
 		}
+		// Only the human reads the answer; the other AI doesn't.
+		for (const auto &l : s->pending_petra_chat())
+			if (l.kind >= PETRA_CHAT_ANSWER_DECLINE && l.kind <= PETRA_CHAT_ANSWER_WAITING_FOR_TRIBUTE)
+				CHECK(l.to == 0 && !s->petra_chat_reaches(l, 2), "a diplomacy answer goes to the asker only");
 	}
-	std::printf("  alliance offers over 6 seeds: accepted %d, declined %d, accepted for tribute %d\n",
+	std::printf("  neutrality offers over 6 seeds: accepted %d, declined %d, accepted for tribute %d\n",
 	            accepted, declined, paid);
 
 	// Allies with AI 2, then the human declares war: AI 2 answers in kind.
@@ -475,10 +500,17 @@ static void test_attack_plans() {
 		// Center's territory, so it doesn't decay to Gaia.
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
-		bool rushed = false, rush_at_store = false;
+		bool rushed = false, rush_at_store = false, told_allies = true, named_target = false;
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
+			// chatLaunchAttack: "/allies", naming the player attacked.
+			for (const auto &l : s->pending_petra_chat()) {
+				if (l.kind != PETRA_CHAT_ATTACK && l.kind != PETRA_CHAT_HUGE_ATTACK) continue;
+				told_allies &= l.to == PETRA_CHAT_ALLIES && !s->petra_chat_reaches(l, 0);
+				named_target |= l.player == 0;
+			}
+			s->clear_petra_chat();
 			for (const auto &plan : s->petra_started_attacks()) {
 				// A rush that musters within reach of its target attacks on the tick it sets out.
 				if (plan.state != Simulation::AttackPlan::WALKING && plan.state != Simulation::AttackPlan::ATTACKED) continue;
@@ -496,6 +528,7 @@ static void test_attack_plans() {
 		            m.launched[PETRA_ATTACK_ATTACK], m.launched[PETRA_ATTACK_HUGE], attack_size, huge_size);
 		CHECK(m.max_rushes == 3, "an aggressive AI on a wood-rich base plans three rushes");
 		CHECK(rushed && rush_at_store, "rushes the undefended storehouse in the village phase");
+		CHECK(told_allies && named_target, "each attack is announced to allies only, naming the player attacked");
 		// A first Attack that razes the idle player leaves nothing for a second one.
 		bool enemy_left = false;
 		for (const auto &b : s->buildings()) enemy_left |= b.team == 0 && b.hp > 0.0f;
@@ -1392,7 +1425,7 @@ static void test_attack_request() {
 	s->tick(Simulation::FIXED_STEP);
 	bool requested_notice = false, join = false, decline = false;
 	for (const auto &line : s->pending_petra_chat()) {
-		requested_notice |= line.kind == PETRA_CHAT_ATTACK_REQUESTED && line.from == 3 && line.to == PETRA_CHAT_TO_ALLIES;
+		requested_notice |= line.kind == PETRA_CHAT_ATTACK_REQUESTED && line.from == 3 && line.to == PETRA_CHAT_ALLIES;
 		join |= line.kind == PETRA_CHAT_ATTACK_JOIN && line.from == 2;
 		decline |= line.kind == PETRA_CHAT_ATTACK_DECLINE && line.from == 1;
 	}
@@ -2722,6 +2755,36 @@ static void test_dropsites() {
 // while more than 300 food is still in reach.
 // config.js setConfig: each AI draws its personality within its behaviour's range from the
 // match seed, Sandbox keeps the middle, and locked teams add 0.3 cooperativeness.
+// chatHelper.js: a line fills in the players, amount and resource it names.
+static void test_chat_text() {
+	PetraChatLine l;
+	l.kind = PETRA_CHAT_ANSWER_ACCEPT_WITH_TRIBUTE;
+	l.sub = 1; // neutral
+	l.player = 3;
+	l.amount = 1200;
+	l.resource = RES_GOLD;
+	auto name = [](uint8_t p) { return std::string("Player ") + std::to_string(p); };
+	bool all_filled = true;
+	for (uint8_t v = 0; v < 2; ++v) {
+		l.variant = v;
+		const std::string t = petra_chat_text(l, name);
+		std::printf("  chat: \"%s\"\n", t.c_str());
+		all_filled &= t.find("%(") == std::string::npos && t.find("Player 3") != std::string::npos &&
+		              t.find("1200 metal") != std::string::npos;
+	}
+	CHECK(all_filled, "a tribute answer names the player, the amount and the resource");
+	// Every kind has lines, and none leaves a placeholder unfilled.
+	for (uint8_t k = 0; k < PETRA_CHAT_KIND_COUNT; ++k)
+		for (uint8_t sub = 0; sub < 3; ++sub) {
+			const PetraChatPool p = petra_chat_pool(k, sub);
+			CHECK(p.count > 0, "every chat kind has lines");
+			for (uint8_t v = 0; v < p.count; ++v) {
+				PetraChatLine c; c.kind = k; c.sub = sub; c.variant = v; c.player = 2; c.player2 = 4;
+				CHECK(petra_chat_text(c, name).find("%(") == std::string::npos, "no placeholder left in a line");
+			}
+		}
+}
+
 static void test_personality_draw() {
 	Simulation s;
 	s.set_sim_seed(4242);
@@ -3116,6 +3179,7 @@ int main() {
 	test_new_cc_defenders();
 	test_temple_wonder_save();
 	test_personality_draw();
+	test_chat_text();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
