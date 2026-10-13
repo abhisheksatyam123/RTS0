@@ -5,9 +5,11 @@
                                                   # libyan_oases_4p), fetched from 0 A.D.'s GitHub
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
+  python3 tools/port_0ad_maps.py --zip-scenarios ZIP [NAME..]  # scenario maps from a 0 A.D. public.zip
   python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
+  python3 tools/port_0ad_maps.py --walls-only   # turn each ported map's walls, palisades and gates into WallSet pieces
   python3 tools/port_0ad_maps.py --supplies-only DIR  # refresh each ported map's resource amounts and
                                                   # gatherer limits from the templates of an unpacked
                                                   # 0 A.D. public.zip at DIR (maps/ and simulation/ under it)
@@ -188,6 +190,13 @@ def _supply(root):
     return (rs.findtext("Type") or "").strip() or None, mx
 
 
+def _wall_length(root):
+    try:
+        return float(root.find("WallPiece").findtext("Length"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
 def _max_gatherers(root):
     try:
         return int(root.find("ResourceSupply").findtext("MaxGatherers"))
@@ -216,12 +225,32 @@ def template_info(source, name):
         mixin = name
     st, mx = _supply(root)
     mg = _max_gatherers(root)
+    wl = _wall_length(root)
     info = {"chain": [mixin] + (base["chain"] if base else []),
+            "wall_length": wl if wl is not None else (base["wall_length"] if base else None),
             "supply_type": st or (base["supply_type"] if base else None),
             "supply_max": mx if mx is not None else (base["supply_max"] if base else None),
             "max_gatherers": mg if mg is not None else (base["max_gatherers"] if base else None)}
     _TEMPLATE_CACHE[name] = info
     return info
+
+
+def wall_piece(source, tpl, wx, wz, angle, scale):
+    """A 0 A.D. WallSet piece (a template with a WallPiece: stone walls, palisades, Roman siege
+    walls) as a structures entry: its piece kind, WallSet, Position angle and WallPiece Length
+    in RTS0 units, laid turned by main_node.cpp like Walls.js laid it; None for anything else."""
+    info = template_info(source, tpl)
+    # Fences have a WallPiece too, but they are scenery (gaia_owned), not defensive structures.
+    if info["wall_length"] is None or not any(c.startswith("template_structure_defensive") for c in info["chain"]):
+        return None
+    names = " ".join(info["chain"]).lower()
+    wallset = "palisade" if "palisade" in names else "siege" if "siege_wall" in names else "stone"
+    piece = "tower" if "tower" in names else "gate" if "gate" in names else "wall"
+    btype = {("stone", "tower"): "wall_tower", ("stone", "gate"): "gate", ("stone", "wall"): "wall_segment",
+             ("palisade", "gate"): "palisade_gate", ("siege", "gate"): "siege_wall_gate",
+             ("siege", "tower"): "siege_wall", ("siege", "wall"): "siege_wall"}.get((wallset, piece), "palisade")
+    return {"type": btype, "x": wx, "z": wz, "wallset": wallset, "piece": piece, "angle": round(angle, 4),
+            "length": round(info["wall_length"] * scale, 3)}
 
 
 # 0 A.D. structure template class -> RTS0 building name (main_node.cpp map_building_type).
@@ -256,6 +285,9 @@ def gaia_owned(source, tpl, wx, wz, angle=0.0, scale=1.0):
     info = template_info(source, tpl)
     chain = info["chain"]
     if tpl.startswith("structures/"):
+        wall = wall_piece(source, tpl, wx, wz, angle, scale)
+        if wall:
+            return "gaia_structures", dict(wall, template=tpl)
         if len(chain) > 1 and chain[1] == "template_structure" and tpl.count("/") == 1:
             # Fences, columns, obelisks, benches (gaia_data.h SceneryTypeInfo). scale: RTS0
             # units per 0 A.D. metre, for the obstruction size.
@@ -458,7 +490,7 @@ def apply_player_data(players, settings):
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
-             supplies_only=False):
+             supplies_only=False, walls_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -654,8 +686,11 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 is_unit = "units/" in ltpl
 
                 # Structures
+                wall = None if is_unit else wall_piece(files, tpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)
                 if is_unit:
                     pass
+                elif wall:
+                    structures.append(dict(wall, player=ply))
                 elif any(k in ltpl for k in ["civil_centre", "town_center", "civic"]):
                     players[ply]["start_x"] = wx
                     players[ply]["start_z"] = wz
@@ -686,6 +721,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     structures.append({"type": "wall_segment", "player": ply, "x": wx, "z": wz})
                 elif "corral" in ltpl:
                     structures.append({"type": "corral", "player": ply, "x": wx, "z": wz})
+                elif ltpl.count("/") == 1 and (gaia_owned(files, ltpl, wx, wz) or ("",))[0] == "scenery":
+                    # A player's obelisk or fence (Saharan Oases' scenario): RTS0 scenery has no owner.
+                    gaia["scenery"].append(gaia_owned(files, ltpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)[1])
                 else:
                     # A civ structure the names above miss (spart/gerousia): RTS0 finds it by template.
                     structures.append({"type": "", "player": ply, "x": wx, "z": wz})
@@ -827,7 +865,34 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 old[key] = [dict(e, x=round(e["x"] * k, 2), z=round(e["z"] * k, 2)) for e in gaia[key]]
             for e in old["scenery"]:
                 e["scale"] = round(e["scale"] * k, 5)
+            for e in old["gaia_structures"]:
+                if "length" in e:
+                    e["length"] = round(e["length"] * k, 3)
             map_data = old
+        elif walls_only:
+            # Keep the existing map; only give its walls, palisades and gates their WallSet piece,
+            # angle and length (wall_piece), matched by position.
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            matched = missed = 0
+            for key, new in (("structures", structures), ("gaia_structures", gaia["gaia_structures"])):
+                walls = [w for w in new if "wallset" in w]
+                for w in walls:
+                    e = next((e for e in old.get(key, []) if abs(e["x"] - w["x"] * k) < 0.05 and abs(e["z"] - w["z"] * k) < 0.05
+                              and "wallset" not in e), None)
+                    if e is None:
+                        missed += 1
+                        continue
+                    e.update(type=w["type"], wallset=w["wallset"], piece=w["piece"], angle=w["angle"],
+                             length=round(w["length"] * k, 3))
+                    matched += 1
+            print(f"  -> {out_path}: {matched} wall pieces turned, {missed} not found")
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            return
         with open(out_path, "w") as f:
             json.dump(map_data, f, indent=2)
         print(f"  -> Generated {out_path}: {len(resources)} resources, {len(fauna)} fauna, {len(structures)} structures, {len(units)} units, {len(gaia['gaia_structures'])} Gaia structures, {len(gaia['gaia_units'])} Gaia units, {len(players)} players (Water={water_height}m).")
@@ -897,6 +962,10 @@ github_scenarios = {
     "siwa_oasis": ("siwa_oasis", "desert"),
     "the_massacre_of_delphi": ("the_massacre_of_delphi", "aegean"),
     "the_persian_gates": ("the_persian_gates", "persia"),
+    # Scenario versions of skirmish maps (fixed civs and per-player resources); the
+    # skirmish keeps the plain id.
+    "sahel": ("sahel_scenario", "savanna"),
+    "saharan_oases": ("saharan_oases_scenario", "desert"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
@@ -933,11 +1002,11 @@ if __name__ == "__main__":
                 port_map(*row, source=src, supplies_only=True)
             except FileNotFoundError:
                 print(f"  !! {row[0]}: no {row[1]} in 0 A.D.")
-    elif len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only"):
+    elif len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only", "--walls-only"):
         # Refresh fauna, treasures and ruins (or only the per-tile terrain, or only the
         # Environment) of every ported map from 0 A.D.'s GitHub.
         only = {"--gaia-only": {"gaia_only": True}, "--terrain-only": {"terrain_only": True},
-                "--environment-only": {"environment_only": True}}[sys.argv[1]]
+                "--environment-only": {"environment_only": True}, "--walls-only": {"walls_only": True}}[sys.argv[1]]
         for mid, xrel, prel, size, bome, hscale in maps_list:
             try:
                 port_map(mid, xrel, prel, size, bome, hscale, source=GithubSource(), **only)
@@ -968,6 +1037,12 @@ if __name__ == "__main__":
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
                      source=GithubSource())
+    elif len(sys.argv) > 2 and sys.argv[1] == "--zip-scenarios":
+        # --zip-scenarios <public.zip> [names]: like --github-scenarios, from a 0 A.D. public.zip.
+        for name in sys.argv[3:] or sorted(github_scenarios):
+            mid, bome = github_scenarios.get(name, (name, "mediterranean"))
+            port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
+                     source=zipfile.ZipFile(sys.argv[2]))
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-tutorials":
         for name in sys.argv[2:] or sorted(github_tutorials):
             mid, bome = github_tutorials.get(name, (name, "mediterranean"))

@@ -4283,10 +4283,14 @@
       "z": -13.05
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -21.93,
-      "z": -22.89
+      "z": -22.89,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 7.125
     },
     {
       "type": "barracks",
@@ -4340,43 +4344,71 @@
       "type": "gate",
       "player": 1,
       "x": -14.97,
-      "z": 3.51
+      "z": 3.51,
+      "wallset": "stone",
+      "piece": "gate",
+      "angle": 2.8394,
+      "length": 9.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -19.97,
-      "z": 2.11
+      "z": 2.11,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.8394,
+      "length": 2.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -9.9,
-      "z": 5.02
+      "z": 5.02,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.8394,
+      "length": 2.0
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -5.08,
-      "z": 6.44
+      "z": 6.44,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.8394,
+      "length": 9.0
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -24.76,
-      "z": 0.51
+      "z": 0.51,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.8394,
+      "length": 9.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -29.67,
-      "z": -0.89
+      "z": -0.89,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.8394,
+      "length": 2.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -0.26,
-      "z": 8.0
+      "z": 8.0,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.8394,
+      "length": 2.0
     },
     {
       "type": "barracks",
