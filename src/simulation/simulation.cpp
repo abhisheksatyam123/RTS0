@@ -1076,7 +1076,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.rally_z = wz + half + 2.0f;
 	b.rally_target_res_id = 0;
 	b.rally_target_bld_id = 0;
-	b.civ = team < MAX_PLAYERS ? (uint8_t)civ_of(team) : (uint8_t)CIV_COUNT;
+	b.civ = team < MAX_PLAYERS ? (uint8_t)civ_of(team) : (uint8_t)CIV_GAIA;
 	b.garrison_cap = structure_garrison_cap(b);
 	b.capture_points = 0.0f;
 	// 0 A.D. Capturable/TerritoryDecay template values.
@@ -1108,8 +1108,8 @@ uint32_t Simulation::spawn_relic(float x, float z, int civ_pick) {
 	// CaptureTheRelic.js gives each relic its own catafalque from a shuffled list
 	// (apply_relic_count passes it); otherwise the id the unit will get picks one, so
 	// every peer and replay places the same one.
-	const uint8_t civ = civ_pick >= 0 ? (uint8_t)(civ_pick % CIV_COUNT)
-	                                  : (uint8_t)(((next_id_ * 2654435761u) >> 16) % CIV_COUNT);
+	const uint8_t civ = civ_pick >= 0 ? playable_civ((uint32_t)civ_pick)
+	                                  : playable_civ((next_id_ * 2654435761u) >> 16);
 	const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(civ));
 	const int32_t i = lookup_unit(id);
 	if (i < 0) return 0;
@@ -1149,6 +1149,19 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
 	triggers_.difficulty = trigger_difficulty_; // Trigger.js SetDifficulty (generate reset the triggers)
+	// Daytime (danubius.js randBool(2/3) for day, polar_sea.js randBool(1/3) for dawn): drawn
+	// from the seed alone, so the map's own random stream and the lockstep hash are untouched.
+	map_daytime_ = 0;
+	if (type == MAP_DANUBIUS || type == MAP_POLAR_SEA) {
+		map_daytime_ = map_daytime_choice_;
+		if (map_daytime_ == 0) {
+			uint64_t z = (uint64_t)seed + 0x9E3779B97F4A7C15ull; // splitmix64
+			z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+			z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+			const bool first = (z ^ (z >> 31)) % 3 < (type == MAP_DANUBIUS ? 2u : 1u);
+			map_daytime_ = first ? 1 : 2;
+		}
+	}
 	if (biome_override_ >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
@@ -3286,6 +3299,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.range_mul[t] = m.vision[t] = m.capture[t] = m.required_xp[t] = m.spread[t] = 1.0f;
 		m.vision_add[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
+		for (int k = 0; k < 3; ++k) { m.atk_mul[t][k] = 1.0f; m.atk_add[t][k] = 0.0f; }
 	}
 	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
@@ -3297,6 +3311,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
 		tm.vision_add = 0.0f;
+		for (int k = 0; k < 3; ++k) { tm.atk_mul[k] = 1.0f; tm.atk_add[k] = 0.0f; }
 	}
 
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
@@ -3329,16 +3344,19 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			auto apply = [&](float &v) {
 				v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 			};
+			// Attack/<type>/Damage/<kind>: GetTechModifiedProperty_numeric, the kind's value x every
+			// multiply + every add.
+			auto apply_damage = [&](float &mul, float &add) {
+				if (e.op == TOP_MUL) mul *= e.value;
+				else if (e.op == TOP_SET) { mul = 0.0f; add = e.value; }
+				else add += e.value;
+			};
 			// Cost/Resources/<res>: TechStat order is food, wood, stone, metal.
 			const int cost_res = e.stat == TSTAT_COST_FOOD ? RES_FOOD : e.stat == TSTAT_COST_WOOD ? RES_WOOD
 				: e.stat == TSTAT_COST_STONE ? RES_STONE : e.stat == TSTAT_COST_METAL ? RES_GOLD : -1;
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				if (!applies(unit_tech_classes(t))) continue;
-				const UnitTypeInfo &ui = unit_type_info(t);
 				bool ranged = unit_has_ranged_attack(t, civ);
-				// The damage type a unit mostly deals decides which Attack/*/Damage/* row scales it.
-				uint8_t main_dmg = (ui.crush_damage > ui.hack_damage && ui.crush_damage > ui.pierce_damage) ? 2
-					: (ui.pierce_damage > ui.hack_damage) ? 1 : 0;
 				switch (e.stat) {
 					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
@@ -3353,10 +3371,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_CARRY_STONE: m.carry[t][RES_STONE] += (int16_t)e.value; break;
 					case TSTAT_CARRY_METAL: m.carry[t][RES_GOLD] += (int16_t)e.value; break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
-						if (!ranged && e.stat - TSTAT_MELEE_HACK == main_dmg) apply(m.attack[t]);
+						if (!ranged) apply_damage(m.atk_mul[t][e.stat - TSTAT_MELEE_HACK], m.atk_add[t][e.stat - TSTAT_MELEE_HACK]);
 						break;
 					case TSTAT_RANGED_HACK: case TSTAT_RANGED_PIERCE: case TSTAT_RANGED_CRUSH:
-						if (ranged && e.stat - TSTAT_RANGED_HACK == main_dmg) apply(m.attack[t]);
+						if (ranged) apply_damage(m.atk_mul[t][e.stat - TSTAT_RANGED_HACK], m.atk_add[t][e.stat - TSTAT_RANGED_HACK]);
 						break;
 					case TSTAT_ARMOR_HACK: case TSTAT_ARMOR_PIERCE: case TSTAT_ARMOR_CRUSH:
 						apply(m.armor[t][e.stat - TSTAT_ARMOR_HACK]); break;
@@ -3379,8 +3397,6 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 				if (!applies(ct.tech_classes)) continue;
 				TechMods::Template &tm = m.tmpl[ti];
 				bool ranged = template_has_ranged_attack(ti, ct.unit_type, ct.civ);
-				uint8_t main_dmg = (ct.crush_damage > ct.hack_damage && ct.crush_damage > ct.pierce_damage) ? 2
-					: (ct.pierce_damage > ct.hack_damage) ? 1 : 0;
 				switch (e.stat) {
 					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
@@ -3391,10 +3407,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_CAPTURE_ATTACK: apply(tm.capture); break;
 					case TSTAT_REQUIRED_XP: apply(tm.required_xp); break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
-						if (!ranged && e.stat - TSTAT_MELEE_HACK == main_dmg) apply(tm.attack);
+						if (!ranged) apply_damage(tm.atk_mul[e.stat - TSTAT_MELEE_HACK], tm.atk_add[e.stat - TSTAT_MELEE_HACK]);
 						break;
 					case TSTAT_RANGED_HACK: case TSTAT_RANGED_PIERCE: case TSTAT_RANGED_CRUSH:
-						if (ranged && e.stat - TSTAT_RANGED_HACK == main_dmg) apply(tm.attack);
+						if (ranged) apply_damage(tm.atk_mul[e.stat - TSTAT_RANGED_HACK], tm.atk_add[e.stat - TSTAT_RANGED_HACK]);
 						break;
 					case TSTAT_ARMOR_HACK: case TSTAT_ARMOR_PIERCE: case TSTAT_ARMOR_CRUSH:
 						apply(tm.armor[e.stat - TSTAT_ARMOR_HACK]); break;
@@ -3491,6 +3507,24 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			apply_mod(e, [&](uint64_t cls) { return relic_modifier_applies(rm, cls); });
 		}
 	}
+	// attack: the damage total after technologies over the template's, which scales attack_damage.
+	auto damage_ratio = [](const float base[3], const float mul[3], const float add[3]) {
+		const float b = base[0] + base[1] + base[2];
+		if (b <= 0.0f) return 1.0f;
+		float v = 0.0f;
+		for (int k = 0; k < 3; ++k) v += base[k] * mul[k] + add[k];
+		return v / b;
+	};
+	for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
+		const UnitTypeInfo &ui = unit_type_info(t);
+		const float base[3] = {ui.hack_damage, ui.pierce_damage, ui.crush_damage};
+		m.attack[t] = damage_ratio(base, m.atk_mul[t], m.atk_add[t]);
+	}
+	for (uint16_t ti = 0; ti < CIV_UNIT_TEMPLATE_COUNT; ++ti) {
+		const CivUnitTemplate &ct = civ_unit_template(ti);
+		const float base[3] = {ct.hack_damage, ct.pierce_damage, ct.crush_damage};
+		m.tmpl[ti].attack = damage_ratio(base, m.tmpl[ti].atk_mul, m.tmpl[ti].atk_add);
+	}
 	// Cheat.js "fastactions" (cheat/fastactions on every Structure and Unit): Cost/BuildTime,
 	// Pack/Time and Researcher/TechCostMultiplier/time x0.01, ResourceGatherer/BaseSpeed x1000.
 	if (cheat_mods_[player_id].fast_actions) {
@@ -3558,11 +3592,11 @@ Simulation::UnitTechMods Simulation::unit_tech_mods(const TechMods &m, uint8_t u
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const TechMods::Template &tm = m.tmpl[tmpl];
 		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.range_mul, tm.vision, tm.vision_add, tm.spread,
-			tm.capture, tm.required_xp, tm.armor, tm.gather};
+			tm.capture, tm.required_xp, tm.armor, tm.gather, tm.atk_mul, tm.atk_add};
 	}
 	const uint8_t t = unit_type < UNIT_TYPE_COUNT ? unit_type : 0;
 	return {m.attack[t], m.health[t], m.speed[t], m.range[t], m.train_time[t], m.range_mul[t], m.vision[t],
-		m.vision_add[t], m.spread[t], m.capture[t], m.required_xp[t], m.armor[t], m.gather[t]};
+		m.vision_add[t], m.spread[t], m.capture[t], m.required_xp[t], m.armor[t], m.gather[t], m.atk_mul[t], m.atk_add[t]};
 }
 
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
@@ -6071,7 +6105,7 @@ bool Simulation::structure_accepts_classes(const Building &b, uint64_t classes) 
 }
 
 void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
-	if (team >= MAX_PLAYERS || civ >= CIV_COUNT) return;
+	if (team >= MAX_PLAYERS || !is_playable_civ(civ)) return;
 	const uint8_t was = (uint8_t)players_[team].civ;
 	players_[team].civ = (Civilization)civ;
 	for (Building &b : buildings_) {
@@ -6267,6 +6301,100 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 	return placed;
 }
 
+bool Simulation::place_map_wall_piece(const WallPiece &p, uint8_t player) {
+	if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return false;
+	if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return false;
+	// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
+	const float c = std::cos(p.rot), sn = -std::sin(p.rot);
+	for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
+		for (size_t i = 0; i < resources_.count; ++i) {
+			if (!resources_.alive[i]) continue;
+			if (resources_.type[i] != RES_WOOD && !(resources_.type[i] == RES_FOOD && resources_.subtype[i] == RES_SUB_NONE))
+				continue;
+			if (std::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
+			resources_.alive[i] = 0;
+			resources_.amount[i] = 0;
+		}
+	spawn_wall_piece(p, player, 1.0f);
+	return true;
+}
+
+size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
+		bool (*skip)(float x, float z, const void *ctx), const void *ctx) {
+	if (n == 0) return 0;
+	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const float tl = ws.tower_length, overlap = ws.min_overlap * tl, quarter = 1.5707963f;
+	// getWallElement: WallPiece Length, Indent and Bend in tiles (RTS0 units). A cornerIn is a
+	// tower of no length turned 45 degrees and set a quarter of its size in; a structure
+	// (structures/{civ}/<name>) has no length and stands 3.5 towers in.
+	struct El { float length, indent, bend; };
+	auto el = [&](const FortressPart &p) -> El {
+		switch (p.element) {
+			case FORT_LONG: case FORT_GATE: return {ws.lengths[0], 0.0f, 0.0f};
+			case FORT_CORNER_IN: return {0.0f, 0.25f * tl, quarter};
+			case FORT_BUILDING: return {0.0f, 3.5f * tl, 0.0f};
+			default: return {tl, 0.0f, 0.0f};
+		}
+	};
+	// getWallAlignment with 0 A.D.'s Vector2D: rotate(a) turns clockwise, perpendicular() a
+	// quarter counter-clockwise; the wall runs along perpendicular(rotate((1, 0), -o)).
+	struct V { float x, z; };
+	auto rot = [](V v, float a) { return V{v.x * std::cos(a) + v.z * std::sin(a), -v.x * std::sin(a) + v.z * std::cos(a)}; };
+	struct Align { V pos; float run; };
+	std::vector<Align> al(n);
+	V pos{0.0f, 0.0f};
+	float o = 0.0f;
+	for (size_t i = 0; i < n; ++i) {
+		const El e = el(wall[i]);
+		const V in = rot({e.indent, 0.0f}, -o);
+		const V run = rot({1.0f, 0.0f}, -o);
+		al[i] = {{pos.x - in.x, pos.z - in.z}, std::atan2(run.x, -run.z)};
+		if (i + 1 == n) break;
+		o += e.bend;
+		float d = 0.5f * (e.length + el(wall[i + 1]).length) - overlap;
+		if (e.bend != 0.0f && e.indent != 0.0f) {
+			d += e.indent * std::sin(e.bend);
+			const V back = rot({e.indent, 0.0f}, -o);
+			pos = {pos.x + back.x, pos.z + back.z};
+		}
+		const V step = rot({d, 0.0f}, -o);
+		pos = {pos.x - step.z, pos.z + step.x};
+	}
+	// getCenterToFirstElement: the outline's centre is the mean of its elements; then turn it so
+	// the first element lies towards `facing`.
+	V mean{0.0f, 0.0f};
+	for (const Align &a : al) mean = {mean.x + a.pos.x / (float)n, mean.z + a.pos.z / (float)n};
+	const float turn = facing - std::atan2(al[0].pos.z - mean.z, al[0].pos.x - mean.x);
+	const float ct = std::cos(turn), st = std::sin(turn);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (size_t i = 0; i < n; ++i) {
+		const float lx = al[i].pos.x - mean.x, lz = al[i].pos.z - mean.z;
+		const float wx = x + lx * ct - lz * st, wz = z + lx * st + lz * ct;
+		if (skip && skip(wx, wz, ctx)) continue;
+		const float run = al[i].run + turn; // world angle the wall runs at here
+		switch (wall[i].element) {
+			case FORT_BUILDING:
+				if (std::fabs(wx) > map_half_ - 1.0f || std::fabs(wz) > map_half_ - 1.0f) break;
+				spawn_building_world(wx, wz, wall[i].building, player, 1.0f);
+				++placed;
+				break;
+			case FORT_LONG: case FORT_GATE:
+				placed += place_map_wall_piece({wall[i].element == FORT_GATE ? (uint8_t)BLD_GATE : ws.segment, wx, wz, -run,
+						0.5f * ws.lengths[0]}, player);
+				break;
+			default:
+				placed += place_map_wall_piece({ws.tower, wx, wz, -(run + (wall[i].element == FORT_CORNER_IN ? 0.5f * quarter : 0.0f)),
+						ws.tower_half}, player);
+				break;
+		}
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
 size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
 		float irregularity, int gate_every, int max_tries) {
 	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
@@ -6317,23 +6445,7 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 	const bool bulk = bulk_spawn_;
 	bulk_spawn_ = true;
 	size_t placed = 0;
-	auto place = [&](const WallPiece &p) {
-		if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return;
-		if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return;
-		// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
-		const float c = std::cos(p.rot), sn = -std::sin(p.rot);
-		for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
-			for (size_t i = 0; i < resources_.count; ++i) {
-				if (!resources_.alive[i]) continue;
-				if (resources_.type[i] != RES_WOOD && !(resources_.type[i] == RES_FOOD && resources_.subtype[i] == RES_SUB_NONE))
-					continue;
-				if (std::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
-				resources_.alive[i] = 0;
-				resources_.amount[i] = 0;
-			}
-		spawn_wall_piece(p, player, 1.0f);
-		++placed;
-	};
+	auto place = [&](const WallPiece &p) { placed += place_map_wall_piece(p, player); };
 	const size_t n = best.size();
 	for (size_t i = 0; i < n; ++i) {
 		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
@@ -9230,6 +9342,11 @@ void Simulation::tick_gather(float dt) {
 						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
 								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
 							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+						// Germanic Bovine Tradition (civbonuses/germ_meat.json): Civilians
+						// ResourceGatherer/Rates/food.meat x2.
+						if (kind == GK_MEAT && civ == CIV_GERMANS &&
+								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_CIVILIAN))
+							rate *= 2.0f;
 					}
 					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
 					// pyramid, catafalques, Han ministers): the strongest one in reach.
@@ -11098,10 +11215,9 @@ float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
 	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
-	const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
-	return (uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
-			uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
-			uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor));
+	float d[3];
+	unit_tech_damage(i, d);
+	return d[0] * powf(0.9f, finfo.hack_armor) + d[1] * powf(0.9f, finfo.pierce_armor) + d[2] * powf(0.9f, finfo.crush_armor);
 }
 
 // Projectile p lands on animal f: what its shooter's attack does to the animal (a
@@ -11316,18 +11432,31 @@ float Simulation::unit_attack_damage(size_t i, size_t t) {
 	return mul * (d[0] * powf(0.9f, target_armor[0]) + d[1] * powf(0.9f, target_armor[1]) + d[2] * powf(0.9f, target_armor[2]));
 }
 
-// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: the
-// template's, scaled by technologies and rank (attack_damage over the template total),
-// times its attack auras (hero bonuses, enemy carnyx and hero penalties).
+// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: each of
+// the template's kinds after its own technology rows (Attack/<type>/Damage/<kind>), scaled
+// by rank (attack_damage over the template total after technologies), times its attack
+// auras (hero bonuses, enemy carnyx and hero penalties).
 void Simulation::unit_attack_effects(size_t i, float out[3]) const {
-	const auto &uinfo = unit_info_at(i);
-	float mul = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
+	unit_tech_damage(i, out);
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	if (aura > 0.0f) mul *= aura; // 0 = none in range
-	out[0] = uinfo.hack_damage * mul;
-	out[1] = uinfo.pierce_damage * mul;
-	out[2] = uinfo.crush_damage * mul;
+	if (aura > 0.0f) // 0 = none in range
+		for (int k = 0; k < 3; ++k) out[k] *= aura;
+}
+
+// Unit i's hack, pierce and crush after technologies and rank, before auras.
+void Simulation::unit_tech_damage(size_t i, float out[3]) const {
+	const auto &uinfo = unit_info_at(i);
+	const float base[3] = {uinfo.hack_damage, uinfo.pierce_damage, uinfo.crush_damage};
+	if (units_.team[i] >= MAX_PLAYERS || units_.unit_type[i] >= UNIT_TYPE_COUNT) {
+		const float r = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
+		for (int k = 0; k < 3; ++k) out[k] = base[k] * r;
+		return;
+	}
+	const UnitTechMods m = unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]);
+	const float total = uinfo.attack_damage * m.attack;
+	const float r = total > 0.0f ? units_.attack_damage[i] / total : 1.0f;
+	for (int k = 0; k < 3; ++k) out[k] = (base[k] * m.atk_mul[k] + m.atk_add[k]) * r;
 }
 
 // The damage unit i's attack deals to structure b: its Damage after technologies, rank
@@ -11744,9 +11873,9 @@ void Simulation::apply_relic_count() {
 		relics_.pop_back();
 	}
 	if (relics_.size() >= want) return;
-	uint8_t civs[CIV_COUNT];
-	for (uint8_t c = 0; c < CIV_COUNT; ++c) civs[c] = c;
-	for (int c = CIV_COUNT - 1; c > 0; --c) std::swap(civs[c], civs[sim_rng_.range_int(0, c)]);
+	uint8_t civs[PLAYABLE_CIV_COUNT];
+	for (uint8_t c = 0; c < PLAYABLE_CIV_COUNT; ++c) civs[c] = playable_civ(c);
+	for (int c = PLAYABLE_CIV_COUNT - 1; c > 0; --c) std::swap(civs[c], civs[sim_rng_.range_int(0, c)]);
 	const std::vector<std::pair<float, float>> points = relic_spawn_points();
 	for (size_t k = 0; relics_.size() < want; ++k) {
 		float x, z;
@@ -11788,7 +11917,7 @@ void Simulation::apply_relic_count() {
 			x = cosf(a) * map_half_ * 0.45f;
 			z = sinf(a) * map_half_ * 0.45f;
 		}
-		spawn_relic(x, z, civs[k % CIV_COUNT]);
+		spawn_relic(x, z, civs[k % PLAYABLE_CIV_COUNT]);
 	}
 }
 
@@ -19034,6 +19163,38 @@ void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float 
 // on one structure. The bombers on a structure are those whose order targets it, so there
 // is no saved list. (Fields are left alone: 0 A.D. shells only enemy-land fields being
 // worked, and RTS0 doesn't track a field's gatherers here.)
+// worker.js moveToGatherer (baseManager.js update, every mobile dropsite): a worker
+// elephant or supply wagon walks to the nearest of our gatherers at work on its land, so
+// they drop off beside their supply. 0 A.D. waits 12 s after a move and 5 s otherwise
+// (nextMoveToGatherer metadata); here every Petra mobile dropsite looks every 5 s.
+void Simulation::petra_move_dropsites_to_gatherers() {
+	std::vector<size_t> drops;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_is_mobile_dropsite(units_.unit_type[i]) &&
+		    units_.action_state[i] != ACTION_GARRISONED && units_.action_state[i] != ACTION_BUILD &&
+		    units_.order_kind[i] != ORDER_BUILD && !petra_passenger(units_.id[i]))
+			drops.push_back(i);
+	if (drops.empty()) return;
+	for (size_t d : drops) {
+		const float px = units_.pos_x[d], pz = units_.pos_z[d];
+		const uint16_t land = petra_land_at(px, pz);
+		float best = 1e30f, bx = 0.0f, bz = 0.0f;
+		for (size_t g = 0; g < units_.count; ++g) {
+			if (!units_.alive[g] || units_.team[g] != petra_pid_ || g == d || unit_is_ship(units_.unit_type[g])) continue;
+			if (units_.action_state[g] != ACTION_GATHER && units_.action_state[g] != ACTION_RETURN_DROPSITE) continue;
+			if (!petra_is_worker(g) || petra_passenger(units_.id[g])) continue;
+			const float dx = units_.pos_x[g] - px, dz = units_.pos_z[g] - pz, dd = dx * dx + dz * dz;
+			if (dd >= best || petra_land_at(units_.pos_x[g], units_.pos_z[g]) != land) continue;
+			best = dd; bx = units_.pos_x[g]; bz = units_.pos_z[g];
+		}
+		// dist > 10 (m^2)
+		if (best < 1e30f && best > 10.0f / 16.0f) {
+			const uint32_t uid = units_.id[d];
+			order_walk(&uid, 1, bx, bz, false);
+		}
+	}
+}
+
 void Simulation::petra_assign_bombers() {
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 	auto bomber = [&](size_t i) {
@@ -22490,6 +22651,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_retake_civic_centres();
 	petra_manage_tactical_attacks(dt);
 	if ((int)(petra_timer_ / 2.5f) != (int)((petra_timer_ - dt) / 2.5f)) petra_assign_bombers();
+	if ((int)(petra_timer_ / 5.0f) != (int)((petra_timer_ - dt) / 5.0f)) petra_move_dropsites_to_gatherers();
 	petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
@@ -23095,7 +23257,7 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_TEMPLATE_CIV) {
 			in.read((char *)&bld.civ, sizeof(bld.civ));
 		} else { // older saves: the owner's civ, and the GarrisonHolder Max of today's templates
-			bld.civ = bld.team < MAX_PLAYERS ? (uint8_t)civ_of(bld.team) : (uint8_t)CIV_COUNT;
+			bld.civ = bld.team < MAX_PLAYERS ? (uint8_t)civ_of(bld.team) : (uint8_t)CIV_GAIA;
 			bld.garrison_cap = structure_garrison_cap(bld);
 		}
 		const auto &bi = building_type_info(bld.type);
@@ -25511,7 +25673,7 @@ void Simulation::tick_relics() {
 		if (!is_relic_unit(r)) {
 			// A save from before relics were catafalques: put one where the relic lay.
 			const uint8_t owner = rel.claimed && rel.owner_team < MAX_PLAYERS ? rel.owner_team : GAIA_PLAYER;
-			rel.civ = (uint8_t)(rel.id % CIV_COUNT);
+			rel.civ = playable_civ(rel.id);
 			rel.id = spawn_unit(rel.x, rel.z, owner, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(rel.civ));
 			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
 			rel.cp.fill(0.0f);
@@ -26446,10 +26608,10 @@ void Simulation::trigger_survival_wave() {
 	// StartAnEnemyWave: champions, siege and now and then a hero of one random civ
 	// (LoadAttackerTemplates), more every minute, spawned as Gaia at each living player's
 	// attacker point and sent to attack-walk to its civic centre. RTS0's roster has no
-	// Gaia civ, so the wave is always one of the 14 civs.
+	// Gaia civ, so the wave is always one of the playable civs.
 	const float minutes = (float)triggers_.time_ms / 60000.0f;
 	const float next_wave = sim_rng_.range_float(0.5f, 1.0f) * kSurvivalMaxWaveTime;
-	const uint8_t civ = (uint8_t)sim_rng_.range_int(0, CIV_COUNT - 1);
+	const uint8_t civ = playable_civ((uint32_t)sim_rng_.range_int(0, PLAYABLE_CIV_COUNT - 1));
 	const int total = (int)std::ceil(std::min(kSurvivalAttackerLimit,
 			kSurvivalInitialAttackers * std::pow(kSurvivalPercentPerMinute, minutes) * next_wave / kSurvivalMaxWaveTime));
 	const float siege_ratio = sim_rng_.range_float(kSurvivalSiegeMin, kSurvivalSiegeMax);

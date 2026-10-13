@@ -612,6 +612,18 @@ private:
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
 	void _on_pause_overlay_pressed();
+	// 0 A.D. NetworkStatusOverlay "disconnected": the host is gone, so the
+	// match stops here; Exit leaves for the summary (endGame(true)).
+	Control *net_status_overlay_ = nullptr;
+	Label *net_status_label_ = nullptr;
+	bool net_disconnected_ = false; // session.js g_Disconnected
+	void update_net_status_overlay();
+	void _on_disconnected_exit_pressed();
+	// 0 A.D. ChatMessageFormatNetwork: join, rejoin, left and kick lines.
+	std::vector<rtso::PlayerAssignmentMsg::Entry> chat_assignments_;
+	uint64_t chat_assignments_seen_ = 0;
+	size_t kicks_chatted_ = 0;
+	void post_network_chat();
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
 	void build_replay_view_picker();
 	void begin_recording_from_save(const String &save_path);

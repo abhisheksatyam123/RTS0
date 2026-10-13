@@ -51,14 +51,20 @@ OUT_HEADER = os.path.join(REPO, "src", "simulation", "civ_roster_data.h")
 OUT_JSON = os.path.join(REPO, "data", "civs", "rosters.json")
 OUT_BUILDINGS = os.path.join(REPO, "src", "simulation", "civ_building_data.h")
 
-# RTS0 Civilization enum order (sim_types.h). Han is appended last so saved
-# games and network messages keep their civ ids.
+# RTS0's playable civs in Civilization enum order (sim_types.h). Han and the Germans
+# are appended so saved games and network messages keep their civ ids; the Germans
+# are 15 because 14 is CIV_GAIA, the civ saved on Gaia's structures (save v62).
 CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
-        "iber", "maur", "kush", "ptol", "sele", "han"]
+        "iber", "maur", "kush", "ptol", "sele", "han", "germ"]
 CIV_ENUM = ["CIV_ATHENIANS", "CIV_SPARTANS", "CIV_PERSIANS", "CIV_ROMANS",
             "CIV_CARTHAGINIANS", "CIV_MACEDONIANS", "CIV_BRITONS", "CIV_GAULS",
             "CIV_IBERIANS", "CIV_MAURYANS", "CIV_KUSHITES", "CIV_PTOLEMIES",
-            "CIV_SELEUCIDS", "CIV_HAN"]
+            "CIV_SELEUCIDS", "CIV_HAN", "CIV_GERMANS"]
+CIV_ENUM_OF = dict(zip(CIVS, CIV_ENUM))
+CIV_GAIA = 14
+CIV_INDEX = {c: (i if i < CIV_GAIA else i + 1) for i, c in enumerate(CIVS)}
+CIV_COUNT = len(CIVS) + 1  # with the CIV_GAIA slot
+CIV_SLOTS = [next((c for c in CIVS if CIV_INDEX[c] == i), None) for i in range(CIV_COUNT)]  # None = CIV_GAIA
 
 # RTS0 UnitType classes with today's sim_types.h stats (unit_type_info):
 # hp, speed, range, damage, cooldown, carry, hack/pierce/crush armour,
@@ -180,7 +186,8 @@ UNIQUE_BUILDINGS = [
     ("BLD_LIBRARY", ["library"], "library", "library"),
     ("BLD_KENNEL", ["kennel"], "kennel", "kennel"),
     ("BLD_ASSEMBLY", ["assembly"], "assembly", "assembly"),
-    ("BLD_MONUMENT", ["monument"], "monument", "monument"),
+    # The Iberian monument; the Germans' Cerannus totem projects the same aura (iber_monument).
+    ("BLD_MONUMENT", ["monument", "totem"], "monument", "monument"),
     ("BLD_PALACE", ["palace"], "palace", "palace"),
     ("BLD_PILLAR", ["pillar_ashoka"], "pillar", "pillar"),
     ("BLD_PYRAMID_LARGE", ["pyramid_large"], "pyramid_large", "pyramid_large"),
@@ -224,6 +231,8 @@ UNIQUE_BUILDINGS = [
     ("BLD_SIEGE_WALL_GATE", ["siege_wall_gate"], "gate", "gate"),
     # The Briton crannog: a Civic Center laid on the shore (is_civic_centre).
     ("BLD_CRANNOG", ["crannog"], "crannog", "crannog"),
+    # The Germans' Great Hall (Town phase): their champions and the ram train there.
+    ("BLD_GREAT_HALL", ["great_hall"], "great_hall", "great_hall"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -277,7 +286,7 @@ def generic_build_masks(sim_root):
                 if not loader.exists(tok):
                     continue
                 for bld in BUILDER_BUILDING.get(structure_kind(tok.rsplit("/", 1)[1]), []):
-                    masks[bld] = masks.get(bld, 0) | (1 << CIVS.index(civ))
+                    masks[bld] = masks.get(bld, 0) | (1 << CIV_INDEX[civ])
     return masks
 
 
@@ -1448,7 +1457,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         a = r["auras"] + [-1, -1, -1]
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
-            CIV_ENUM[CIVS.index(r["civ"])], r["class"], r["phase"], flags, trainers))
+            CIV_ENUM_OF[r["civ"]], r["class"], r["phase"], flags, trainers))
         w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
@@ -1469,7 +1478,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\tstatic const CivPlayerBonus kBonuses[CIV_PLAYER_BONUS_COUNT + 1] = {")
     w("\t\t// civ mask, stat, buildings, multiplier, 0 A.D. bonus id, tooltip")
     for b, stat, mask, mult in prow:
-        civs = " | ".join("civ_bit(%s)" % CIV_ENUM[CIVS.index(c)] for c in b["civs"] if c in CIVS) or "0"
+        civs = " | ".join("civ_bit(%s)" % CIV_ENUM_OF[c] for c in b["civs"] if c in CIVS) or "0"
         if len(b["civs"]) > 1:
             civs = "(uint16_t)(%s)" % civs
         blds = " | ".join("bld_bit(%s)" % x for x in mask) or "BldMask{}"
@@ -1494,7 +1503,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         bitset = "{" + ", ".join("0x%016xull" % b for b in bits) + "}"
         blds = " | ".join("bld_bit(%s)" % x for x in t["buildings"]) or "BldMask{}"
         w("\t\t{%s, %s, %d, %s, %s, %s, %s, %s, %s, %s}," % (
-            CIV_ENUM[CIVS.index(t["civ"])], t["stat"], t["res"], "true" if t["allies_only"] else "false",
+            CIV_ENUM_OF[t["civ"]], t["stat"], t["res"], "true" if t["allies_only"] else "false",
             blds, f(t["value"]), cstr(t["id"]), cstr(t["name"]), cstr(t["description"]), bitset))
     w("\t\t{0, 0, -1, false, {}, 1.0f, \"\", \"\", \"\", {}}, // sentinel")
     w("\t};")
@@ -1504,7 +1513,11 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("// Each civ's 0 A.D. bonuses as one line of text for the civ picker.")
     w("inline const char *civ_bonus_text(uint8_t civ) {")
     w("\tstatic const char *kText[CIV_COUNT] = {")
-    for civ in CIVS:
+    for slot in range(CIV_COUNT):
+        civ = next((c for c in CIVS if CIV_INDEX[c] == slot), None)
+        if civ is None:
+            w("\t\t\"\", // CIV_GAIA")
+            continue
         parts = ["%s: %s" % (b.get("Name", ""), b.get("Description", ""))
                  for b in civ_json[civ].get("CivBonuses", [])]
         named = {b.get("Name") for b in civ_json[civ].get("CivBonuses", [])}
@@ -1528,13 +1541,12 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         # Retired rows (--retire) lose their trainers but stay in their civ's block.
         trainable = PREVIOUS_PROMOTION_ONLY_FIRST
     for i in range(1, trainable):
-        assert CIVS.index(rows[i]["civ"]) >= CIVS.index(rows[i - 1]["civ"]), "civ blocks out of order"
+        assert CIV_INDEX[rows[i]["civ"]] >= CIV_INDEX[rows[i - 1]["civ"]], "civ blocks out of order"
     w("inline constexpr uint16_t CIV_ROSTER_PROMOTION_ONLY_FIRST = %d;" % trainable)
     w("inline const uint16_t *civ_roster_offsets() {")
-    offs = []
-    for i, civ in enumerate(CIVS):
-        first = next(j for j, r in enumerate(rows) if r["civ"] == civ)
-        offs.append(first)
+    # A civ's block starts after every earlier civ's block; CIV_GAIA's, and the block of a
+    # civ whose rows were all appended later (the Germans), are empty.
+    offs = [sum(1 for r in rows[:trainable] if CIV_INDEX[r["civ"]] < slot) for slot in range(CIV_COUNT)]
     offs.append(trainable)
     w("\tstatic const uint16_t kOffsets[CIV_COUNT + 1] = {%s};" % ", ".join(str(o) for o in offs))
     w("\treturn kOffsets;")
@@ -1551,7 +1563,7 @@ def emit_json(rows, auras, civ_json, bonuses):
         j = civ_json[civ]
         civs.append({
             "code": civ,
-            "enum": CIV_ENUM[CIVS.index(civ)],
+            "enum": CIV_ENUM_OF[civ],
             "bonuses": [{"name": b.get("Name", ""), "description": b.get("Description", "")}
                         for b in j.get("CivBonuses", [])],
             "team_bonuses": [{"name": b.get("Name", ""), "description": b.get("Description", "")}
@@ -1591,7 +1603,7 @@ def unique_building_rows(sim_root, generic_masks=None):
         if enum in GENERIC_UNIQUE:
             name = "structures/%s" % stems[0]
             mask = (generic_masks or {}).get(GENERIC_UNIQUE[enum], 0)
-            civs = [c for i, c in enumerate(CIVS) if mask >> i & 1]
+            civs = [c for c in CIVS if mask >> CIV_INDEX[c] & 1]
             t, src = loader.load(name), name
         if t is None:
             raise SystemExit("no 0 A.D. template for %s" % enum)
@@ -1700,15 +1712,15 @@ def emit_buildings(rows, generic_masks, upgrades=()):
     w("// ones, and generic ones only for the civs whose 0 A.D. Builder lists name them.")
     w("inline uint16_t civ_building_civ_mask(uint8_t type) {")
     w("\tswitch (type) {")
-    full = (1 << len(CIVS)) - 1
+    full = sum(1 << CIV_INDEX[c] for c in CIVS)
     for enum in BUILDING_BITS[:BUILDING_BITS.index(rows[0]["enum"])]:
         mask = generic_masks.get(enum, 0)
         if mask != full:
-            w("\t\tcase %s: return 0x%04x; // %s" % (enum, mask, " ".join(c for i, c in enumerate(CIVS) if mask >> i & 1) or "none"))
+            w("\t\tcase %s: return 0x%04x; // %s" % (enum, mask, " ".join(c for c in CIVS if mask >> CIV_INDEX[c] & 1) or "none"))
     for r in rows:
         mask = 0
         for c in r["civs"]:
-            mask |= 1 << CIVS.index(c)
+            mask |= 1 << CIV_INDEX[c]
         w("\t\tcase %s: return 0x%04x; // %s" % (r["enum"], mask, " ".join(r["civs"])))
     w("\t\tdefault: return 0xFFFF;")
     w("\t}")
@@ -1767,7 +1779,7 @@ def emit_buildings(rows, generic_masks, upgrades=()):
     for frm, to, civs, cost, secs, phase, tip in upgrades:
         mask = 0
         for c in civs:
-            mask |= 1 << CIVS.index(c)
+            mask |= 1 << CIV_INDEX[c]
         w("\t\t{%s, 0x%04x, %s, %d, %d, %d, %d, %s, %d, %s}," % (frm, mask, to, cost[0], cost[1], cost[2], cost[3],
                                                              f(secs), phase, cstr(tip)))
     w("\t\t{BLD_TYPE_COUNT, 0, BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr},")

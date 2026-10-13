@@ -1455,11 +1455,11 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_size) {
 	if (type == rtso::BLD_WALL_SEGMENT && half_size >= 1.25f) {
 		const char *len = half_size >= 3.75f ? "wall_long" : half_size >= 2.25f ? "wall_medium" : "wall_short";
-		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_" + len;
+		return String(rtso::civ_art_code(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS)) + "_" + len;
 	}
 	// Only a long segment becomes a gate; it keeps the segment's length.
 	if (type == rtso::BLD_GATE && half_size >= 3.75f)
-		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
+		return String(rtso::civ_art_code(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS)) + "_wall_gate";
 	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
 	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
 	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
@@ -2008,7 +2008,7 @@ bool RtsoWorldView::apply_sky_box(const Ref<Sky> &sky, const std::string &set, c
 // Per-map sun, ambient light, fog, sky and water, from the Environment block
 // of the 0 A.D. random-map biome each RTS0 biome follows
 // (maps/random/rmbiome/generic/*.json, named after each row).
-void RtsoWorldView::apply_biome_environment(const std::string &biome, const std::string &map_id) {
+void RtsoWorldView::apply_biome_environment(const std::string &biome, const std::string &map_id, uint8_t daytime) {
 	struct Rgb { float r, g, b; };
 	struct Env {
 		const char *biome;
@@ -2064,6 +2064,34 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 			own.sky = own_sky.c_str();
 			e = &own;
 		}
+	}
+	// Game Setup Daytime (Simulation::map_daytime): the themes danubius.js and
+	// polar_sea.js set for each option; the sky set comes before apply_sky_box.
+	if (map_id == "random_danubius" && daytime == 1) { // day
+		own = *e;
+		own.sky = "cumulus";
+		own.sun = { 0.9f, 0.8f, 0.5f };
+		own.water_color = { 0.317f, 0.396f, 0.294f };
+		own.water_tint = { 0.439f, 0.403f, 0.262f };
+		e = &own;
+	} else if (map_id == "random_danubius" && daytime == 2) { // night
+		own = *e;
+		own.sky = "dark";
+		own.sun = { 0.4f, 0.9f, 1.2f };
+		own.sun_elevation = 0.13499f;
+		own.sun_rotation = -2.5f;
+		own.ambient = { 0.25f, 0.3f, 0.45f };
+		own.fog = { 0.35f, 0.45f, 0.5f };
+		own.water_color = { 0.074f, 0.101f, 0.090f };
+		own.water_tint = { 0.129f, 0.160f, 0.137f };
+		e = &own;
+	} else if (map_id == "random_polar_sea" && daytime == 1) { // dawn
+		own = *e;
+		own.sky = "sunset 1";
+		own.sun = { 0.8f, 0.7f, 0.6f };
+		own.ambient = { 0.7f, 0.6f, 0.7f };
+		own.sun_elevation = (float)Math_PI * (1.0f / 24.0f + 1.0f / 7.0f) * 0.5f; // randFloat(1/24, 1/7)'s middle
+		e = &own;
 	}
 	auto col = [](const Rgb &c, float k = 1.0f) { return Color(c.r * k, c.g * k, c.b * k, 1.0f); };
 
@@ -2368,7 +2396,7 @@ void RtsoWorldView::rebuild_terrain(const rtso::Simulation *sim) {
 	} else if (water_mesh_node) {
 		water_mesh_node->set_visible(false);
 	}
-	apply_biome_environment(sim->current_map_biome(), sim->current_map_id());
+	apply_biome_environment(sim->current_map_biome(), sim->current_map_id(), sim->map_daytime());
 }
 
 void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedInt32Array &selected_ids) {
