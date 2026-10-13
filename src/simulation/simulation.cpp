@@ -2363,8 +2363,10 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
 	// The civ's unit of this class that this building trains (0 A.D. Trainer
-	// lists), cheapest phase first; else the class's standard unit, except that
-	// heroes and champions only ever come from their own structures.
+	// lists), cheapest phase first; a building whose Trainer lists none of the
+	// class trains nothing for it (Trainer.js only queues entities it lists). RTS0's
+	// own villager, in no Trainer list, trains at a house as women do there
+	// (support_female_citizen_house); can_train_at checks the festival.
 	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
 		const uint8_t civ = civ_of(b.team);
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
@@ -2374,8 +2376,9 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
 		}
 		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
-		else if (civ_unit_template(tmpl).flags & (ROSTER_HERO | ROSTER_CHAMPION)) return false;
-		else return cmd_train_template_at(player_id, building_id, tmpl, false, count);
+		else if ((b.type == BLD_HOUSE || b.type == BLD_APARTMENT) && (unit_tech_classes((uint8_t)u_type) & TC_CIVILIAN))
+			return cmd_train_template_at(player_id, building_id, tmpl, false, count);
+		else return false;
 	}
 	return cmd_train_template(player_id, building_id, tmpl, count);
 }
@@ -3138,9 +3141,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			apply_mod(e, [&](uint64_t cls) { return tech_effect_applies(e, cls); });
 		}
 	}
-	// Global relic auras (Capture the Relic) reaching this player. Same-named auras
-	// don't stack (ModifiersManager keys them by name), so each applies once.
-	const uint32_t mask = relic_aura_mask(player_id);
+	// Global relic and hero auras reaching this player. Same-named auras don't stack
+	// (ModifiersManager keys them by name), so each applies once.
+	const uint64_t mask = relic_aura_mask(player_id);
 	for (uint16_t g = 0; g < RELIC_GLOBAL_AURA_COUNT; ++g) {
 		if (!((mask >> g) & 1u)) continue;
 		const RelicGlobalAura &ga = relic_global_auras()[g];
@@ -3184,20 +3187,41 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	}
 }
 
-uint32_t Simulation::relic_aura_mask(uint8_t player) const {
-	uint32_t mask = 0;
-	if (player >= MAX_PLAYERS) return 0;
-	for (const Relic &rel : relics_) {
-		const int32_t u = lookup_unit(rel.id);
-		if (!is_relic_unit(u) || units_.team[u] >= MAX_PLAYERS || units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+// Bit g of masks[p]: relic_global_auras() row g reaches player p, from an owned relic or a
+// living hero (a global aura reaches its players wherever the source is, garrisoned too).
+void Simulation::global_aura_masks(uint64_t masks[MAX_PLAYERS]) const {
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) masks[p] = 0;
+	for (size_t u = 0; u < units_.count; ++u) {
+		if ((!units_.alive[u] && units_.action_state[u] != ACTION_GARRISONED) || units_.team[u] >= MAX_PLAYERS ||
+				units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
 		for (int16_t a : civ_unit_template(units_.tmpl[u]).auras) {
 			const int g = relic_global_aura_index(a);
 			if (g < 0) continue;
-			if (aura_affected_players(units_.team[u], relic_global_auras()[g].players) & aura_player_bit(player))
-				mask |= 1u << g;
+			const uint16_t reach = aura_affected_players(units_.team[u], relic_global_auras()[g].players);
+			for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+				if (reach & aura_player_bit(p)) masks[p] |= 1ull << g;
 		}
 	}
-	return mask;
+}
+
+uint64_t Simulation::relic_aura_mask(uint8_t player) const {
+	if (player >= MAX_PLAYERS) return 0;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	return masks[player];
+}
+
+// Global auras follow their sources' lives, ownership and diplomacy: a player gaining or
+// losing one has every entity it affects rescaled, as for a technology. Once a second.
+void Simulation::tick_global_auras() {
+	if (ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) != 0) return;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (masks[p] == relic_aura_masks_[p]) continue;
+		relic_aura_masks_[p] = masks[p];
+		refresh_tech_mods(p);
+	}
 }
 
 void Simulation::rebuild_all_tech_mods() {
@@ -4031,7 +4055,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 
 void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued, bool force) {
 	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return;
+	if (bit == building_id_to_idx_.end()) { order_repair_unit(unit_ids_in, count_in, building_id, queued, force); return; }
 	const Building &b = buildings_[bit->second];
 	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = building_id; o.x = b.x; o.z = b.z;
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
@@ -6851,6 +6875,7 @@ void Simulation::tick(float dt) {
 	tick_scenery_attackers();
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	tick_relics();           // Capture the Relic catafalques (Capturable.js)
+	tick_global_auras();     // relics' and heroes' global player modifiers
 	check_victory_conditions(dt);
 	tick_statistics();       // 0 A.D. StatisticsTracker.js: per-player counters and 30 s sequences
 
@@ -8895,6 +8920,29 @@ void Simulation::tick_repair(float dt) {
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
 		}
 	}
+
+	// The same Repair on Repairable units, with the unit's Cost/BuildTime (its training time);
+	// tick_repair_unit stops the repairers once the unit is whole.
+	std::unordered_map<uint32_t, int> repairers_per_unit;
+	auto repairing = [&](size_t i) -> int32_t {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_REPAIR) return -1;
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		return can_repair_unit(i, t) && repair_unit_in_range(i, (size_t)t) ? t : -1;
+	};
+	for (size_t i = 0; i < n; ++i)
+		if (repairing(i) >= 0) repairers_per_unit[units_.target_unit_id[i]]++;
+	for (size_t i = 0; i < n && !repairers_per_unit.empty(); ++i) {
+		const int32_t t = repairing(i);
+		if (t < 0) continue;
+		const uint8_t owner = units_.team[t];
+		const float train = civ_template_unit_info(units_.tmpl[t], units_.unit_type[t]).train_time *
+				(owner < MAX_PLAYERS ? unit_tech_mods(owner, units_.unit_type[t], units_.tmpl[t]).train_time : 1.0f);
+		const float repair_time = unit_repair_time_ratio((size_t)t) * train;
+		const float repair_rate = repair_time > 0.0f ? units_.max_hp[t] / repair_time : 1.0f;
+		const float work = foundation_build_multiplier(repairers_per_unit[units_.id[t]]) * builder_rate(i);
+		enter_repairing(i);
+		units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + work * repair_rate * dt);
+	}
 }
 
 void Simulation::tick_production(float dt) {
@@ -9144,7 +9192,7 @@ void Simulation::tick_combat(float dt) {
 			if (c >= 0 && units_.alive[c] && units_.team[c] == units_.team[i]) return;
 		}
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
-				st == ACTION_FLEE || st == ACTION_GARRISONED)
+				st == ACTION_FLEE || st == ACTION_GARRISONED || st == ACTION_REPAIR)
 			return;
 		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
 			return;
@@ -11648,6 +11696,8 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			return it != res_id_to_idx_.end() && resources_.alive[it->second] && resources_.amount[it->second] > 0;
 		}
 		case ORDER_BUILD: {
+			const int32_t t = lookup_unit(o.target);
+			if (t >= 0) return can_repair_unit(i, t);
 			const Building *b = building(o.target);
 			return b && (b->team == team || is_ally(team, b->team)) && (b->build_progress < 1.0f || b->hp < b->max_hp ||
 					b->type == BLD_FIELD);
@@ -12237,6 +12287,7 @@ void Simulation::tick_unit_ai(float dt) {
 		const uint8_t now = units_.action_state[i];
 		const bool interrupted = (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) != 0;
 		if (now == ACTION_HEAL) { tick_heal(i); continue; }
+		if (now == ACTION_REPAIR) { tick_repair_unit(i); continue; }
 		if (now == ACTION_CHEER) {
 			if (units_.attack_timer[i] <= 0.0f) units_.action_state[i] = ACTION_IDLE;
 			continue;
@@ -12850,6 +12901,90 @@ void Simulation::tick_heal(size_t h) {
 	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp (GetXp, floored).
 	if (units_.max_hp[t] > 0.0f)
 		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] * unit_loot_xp((size_t)t));
+}
+
+// Repairable on units: template_unit_siege and template_unit_ship (RepairTimeRatio 4); fire
+// ships (template_unit_ship_fire) disable it.
+float Simulation::unit_repair_time_ratio(size_t t) const {
+	const uint16_t tmpl = units_.tmpl[t];
+	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(units_.unit_type[t]);
+	if (!(c & (TC_SIEGE | TC_SHIP)) || is_fire_ship(tmpl)) return 0.0f;
+	return UNIT_REPAIR_TIME_RATIO;
+}
+
+bool Simulation::is_repairable_unit(uint32_t unit_id) const {
+	const int32_t t = lookup_unit(unit_id);
+	return t >= 0 && units_.alive[t] && unit_repair_time_ratio((size_t)t) > 0.0f;
+}
+
+// Builder.js CanRepair (a Repairable target of the builder's own or an ally) for a damaged unit
+// (Repairable.Repair does nothing at full health); a garrisoned one is out of reach.
+bool Simulation::can_repair_unit(size_t i, int32_t t) const {
+	if (t < 0 || (size_t)t == i || !units_.alive[t] || units_.hp[t] <= 0.0f || units_.hp[t] >= units_.max_hp[t]) return false;
+	if (units_.action_state[t] == ACTION_GARRISONED || unit_repair_time_ratio((size_t)t) <= 0.0f) return false;
+	if (!unit_can_build(units_.unit_type[i], units_.tmpl[i])) return false;
+	const uint8_t a = units_.team[i], b = units_.team[t];
+	return a == b || is_ally(a, b);
+}
+
+// Builder.js GetRange: 2 m beyond the builder's obstruction, to the target's obstruction.
+bool Simulation::repair_unit_in_range(size_t i, size_t t) const {
+	const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
+	return std::hypot(dx, dz) - unit_collision_radius(units_.unit_type[i]) - unit_collision_radius(units_.unit_type[t]) <= kBuildReach;
+}
+
+void Simulation::order_repair_unit(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued, bool force) {
+	const int32_t t = lookup_unit(target_unit_id);
+	if (t < 0 || !units_.alive[t]) return;
+	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = target_unit_id;
+	o.x = units_.pos_x[t]; o.z = units_.pos_z[t];
+	// Formation controllers repair structures only (FTASK_REPAIR): members go one by one.
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	for (uint32_t uid : now) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !units_.alive[i] || !can_repair_unit((size_t)i, t)) continue;
+		start_repair_unit((size_t)i, target_unit_id, o.flags);
+	}
+}
+
+void Simulation::start_repair_unit(size_t i, uint32_t target, uint8_t flags) {
+	const int32_t t = lookup_unit(target);
+	if (t < 0) return;
+	set_order(i, ORDER_BUILD, flags, target, units_.pos_x[t], units_.pos_z[t]);
+	units_.action_state[i] = ACTION_REPAIR;
+	units_.target_unit_id[i] = target;
+	units_.target_building_id[i] = 0;
+	units_.target_resource_id[i] = 0;
+	units_.target_x[i] = units_.pos_x[t];
+	units_.target_z[i] = units_.pos_z[t];
+	units_.waypoint_count[i] = 0;
+	units_.has_order[i] = 1;
+}
+
+// UnitAI INDIVIDUAL.REPAIR on a unit: follow it until in Builder range, then stand and repair
+// (tick_repair adds the health). A target that is whole, gone or no longer repairable ends the
+// order (ConstructionFinished / TargetInvalidated -> FinishOrder).
+void Simulation::tick_repair_unit(size_t i) {
+	const int32_t t = lookup_unit(units_.target_unit_id[i]);
+	if (!can_repair_unit(i, t)) {
+		units_.target_unit_id[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		auto q = order_queues_.find(units_.id[i]);
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); return; }
+		set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+		return;
+	}
+	units_.order_x[i] = units_.pos_x[t];
+	units_.order_z[i] = units_.pos_z[t];
+	if (!repair_unit_in_range(i, (size_t)t)) { // APPROACHING
+		units_.has_order[i] = 1;
+		units_.target_x[i] = units_.pos_x[t];
+		units_.target_z[i] = units_.pos_z[t];
+		return;
+	}
+	units_.has_order[i] = 0; // REPAIRING
+	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
 // UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
@@ -15222,7 +15357,24 @@ void Simulation::petra_manage_trading(float dt) {
 			if (units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
 			const uint16_t access = ship ? petra_ship_sea(i) : (topo.naval_map ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 1);
 			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
-			if (r && !ship && r->land != access) r = nullptr; // needs a transport (not ported)
+			if (r && !ship && r->land != access) {
+				// updateTrader: a land trader with no route on its own land asks the navalManager
+				// for a ship to the nearer end of the best route (requireTransport).
+				// RTS0's idle traders take any route on their own (order_trade_auto), one they
+				// can't walk here: that counts as idle too.
+				if ((units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_TRADE) && !petra_passenger(uid)) {
+					auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
+					if (ita != building_id_to_idx_.end() && itb != building_id_to_idx_.end()) {
+						const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
+						const float px = units_.pos_x[i], pz = units_.pos_z[i];
+						const Building &end = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz) <=
+						                      (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz) ? s : t;
+						const uint16_t sea = topo.sea_between(access, r->land);
+						if (sea) petra_start_transport({uid}, px, pz, end.x, end.z, sea, PETRA_TRANSPORT_TRADER);
+					}
+				}
+				continue;
+			}
 			auto cur = trader_routes_.find(uid);
 			const bool has_route = cur != trader_routes_.end();
 			const bool idle = units_.action_state[i] == ACTION_IDLE;
@@ -18208,9 +18360,21 @@ void Simulation::petra_manage_opening(float dt) {
 }
 
 void Simulation::apply_petra_config() {
-	petra_config_.recompute();
 	// Until a slot gets its own setting, every AI plays at the shared one.
 	for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+	reroll_petra_personalities();
+}
+
+// Each AI draws its own personality within its behaviour's range (config.js setConfig),
+// from the match seed so every lockstep peer draws the same one.
+void Simulation::reroll_petra_personalities() {
+	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked());
+	for (size_t i = 0; i < petra_slots_.size(); ++i) {
+		// While another AI runs, PETRA_PLAYER's config sits in that AI's slot.
+		const uint8_t owner = (i == petra_pid_ && petra_pid_ != PETRA_PLAYER) ? PETRA_PLAYER : (uint8_t)i;
+		if (i == petra_pid_ && petra_pid_ == PETRA_PLAYER) continue; // lives in petra_config_
+		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked());
+	}
 }
 
 // Where player pid's PetraConfig lives right now: in the members while that
@@ -18247,14 +18411,14 @@ void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.difficulty = petra_clamp_difficulty(d);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.behavior = petra_clamp_behavior(b);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::petra_refresh_queue_accounts(float dt) {
@@ -23021,16 +23185,6 @@ void Simulation::tick_relics() {
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}
-	// Global relic auras follow ownership and diplomacy: a player gaining or losing one
-	// has every entity it affects rescaled, as for a technology.
-	if (pulse) {
-		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			const uint32_t mask = relic_aura_mask(p);
-			if (mask == relic_aura_masks_[p]) continue;
-			relic_aura_masks_[p] = mask;
-			refresh_tech_mods(p);
-		}
-	}
 	// Captors whose relic is now theirs or an ally's stop and take their next order.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.order_kind[i] != ORDER_CAPTURE_RELIC) continue;
@@ -23232,7 +23386,9 @@ void Simulation::rebuild_auras() {
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							0.0f, aura_affected_players(team, no_loot_range_auras()[k].players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
-				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
+				// A relic's global aura is a player modifier (compute_tech_mods); a hero's global
+				// cost and research auras are too, beside its other effects here.
+				if (ut == UNIT_CATAFALQUE && relic_global_aura_index(a) >= 0) continue;
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
 					aura_affected_players(team, aura.players), x, z, a);
 			}

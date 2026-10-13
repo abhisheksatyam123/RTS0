@@ -323,7 +323,7 @@ public:
 	~Simulation();
 
 	void reset();
-	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); }
+	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); reroll_petra_personalities(); }
 	uint32_t sim_seed() const { return sim_seed_; }
 	uint32_t sim_rng_state() const { return sim_rng_.state(); }
 	uint32_t next_id() const { return next_id_; }
@@ -709,6 +709,8 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// Repairable on a unit (siege engines and ships but fire ships): a builder can repair it.
+	bool is_repairable_unit(uint32_t unit_id) const;
 	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
 	// dropsite, drop it, then take the next queued order or idle.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
@@ -817,7 +819,7 @@ public:
 	void set_regicide_garrison(bool on) { set_setup_flag(SETUP_REGICIDE_GARRISON, on); }
 	bool regicide_garrison() const { return setup_flags_ & SETUP_REGICIDE_GARRISON; }
 	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
-	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
+	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); reroll_petra_personalities(); }
 	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
 	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
 	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
@@ -1724,8 +1726,10 @@ private:
 	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
 	void refresh_tech_mods(uint8_t player_id);
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
-	uint32_t relic_aura_mask(uint8_t player) const;
-	std::array<uint32_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
+	uint64_t relic_aura_mask(uint8_t player) const;
+	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;
+	void tick_global_auras();
+	std::array<uint64_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
@@ -1809,6 +1813,7 @@ private:
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
 	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
+	static constexpr float UNIT_REPAIR_TIME_RATIO = 4.0f; // template_unit_siege.xml, template_unit_ship.xml
 	static float foundation_build_multiplier(int builders);
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
@@ -2443,6 +2448,9 @@ private:
 	void petra_manage_emergency(float dt);
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
+	// config.js setConfig personality draw: per-player seed from the match seed, + teamsLocked.
+	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
+	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields();
@@ -2656,6 +2664,13 @@ private:
 	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
 	void start_heal(size_t healer, uint32_t target, uint8_t flags);
 	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
+	// ORDER_BUILD on a Repairable unit (UnitAI Repair with a unit target, Builder.js CanRepair).
+	float unit_repair_time_ratio(size_t t) const; // 0: not Repairable
+	bool can_repair_unit(size_t builder, int32_t target) const;
+	bool repair_unit_in_range(size_t builder, size_t target) const; // Builder.js IsTargetInRange
+	void order_repair_unit(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued, bool force);
+	void start_repair_unit(size_t builder, uint32_t target, uint8_t flags);
+	void tick_repair_unit(size_t builder);                      // UnitAI REPAIR.APPROACHING / REPAIRING
 	bool garrison_in_range(size_t i, const Building &b) const { return garrison_in_range(i, b, units_.pos_x[i], units_.pos_z[i]); }
 	bool garrison_in_range(size_t i, const Building &b, float x, float z) const; // as if unit i stood at (x, z)
 	void garrison_now(size_t i, Building &b);

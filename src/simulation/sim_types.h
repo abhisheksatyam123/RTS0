@@ -340,7 +340,8 @@ enum UnitAction : uint8_t {
 	ACTION_GUARD  = 11,
 	ACTION_FLEE   = 12, // 0 A.D. UnitAI INDIVIDUAL.FLEEING: running from attacked_by
 	ACTION_HEAL   = 13, // UnitAI INDIVIDUAL.HEAL: walking to or healing target_unit_id
-	ACTION_CHEER  = 14  // UnitAI INDIVIDUAL.CHEERING after a kill (attack_timer counts it down)
+	ACTION_CHEER  = 14, // UnitAI INDIVIDUAL.CHEERING after a kill (attack_timer counts it down)
+	ACTION_REPAIR = 15  // UnitAI INDIVIDUAL.REPAIR on a unit (Repairable siege or ship): walking to or repairing target_unit_id
 };
 
 enum BuildingType : uint8_t {
@@ -417,6 +418,8 @@ enum BuildingType : uint8_t {
 
 #include "civ_building_data.h"
 #include "territory_data.h"
+static_assert(TERRITORY_INFLUENCE_ROWS == BLD_TYPE_COUNT,
+	"a new BuildingType needs its TerritoryInfluence row: run tools/extract_0ad_territory.py");
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
@@ -537,7 +540,7 @@ enum UnitOrderKind : uint8_t {
 	ORDER_ATTACK = 4,         // target unit
 	ORDER_ATTACK_BUILDING = 5,// target building (capture or damage)
 	ORDER_GATHER = 6,         // target resource
-	ORDER_BUILD = 7,          // target building (build or repair)
+	ORDER_BUILD = 7,          // target building (build or repair), or a Repairable unit
 	ORDER_GARRISON = 8,       // target building
 	ORDER_GUARD = 9,          // target unit or structure (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
@@ -875,10 +878,12 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 	}
 }
 
-// 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
-// civilian ships are passive, so they flee when attacked; stone and bolt throwers stand ground.
+// 0 A.D. UnitAI/DefaultStance: support units (template_unit_support: civilians and women,
+// healers, traders, ministers) and civilian ships are passive, so they flee when attacked;
+// stone and bolt throwers stand ground.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
+		case UNIT_VILLAGER: // the civ's support worker, 0 A.D. 0.28's support_civilian
 		case UNIT_FISHING_BOAT:
 		case UNIT_MERCHANT_SHIP:
 		case UNIT_TRADER:
@@ -1658,7 +1663,7 @@ inline int relic_global_aura_index(int16_t aura) {
 	}();
 	return aura >= 0 && aura < CIV_HERO_AURA_COUNT ? kIndex[(size_t)aura] : -1;
 }
-static_assert(RELIC_GLOBAL_AURA_COUNT <= 32, "relic aura masks are uint32_t");
+static_assert(RELIC_GLOBAL_AURA_COUNT <= 64, "global aura masks are uint64_t");
 
 // Does an entity with these TechClass bits match relic aura modifier `m`?
 inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {

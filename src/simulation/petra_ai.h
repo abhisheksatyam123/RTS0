@@ -83,7 +83,9 @@ struct PetraConfig {
 	int prio_naval     = 90;
 	static constexpr int PRIO_MINOR_TECH = 250; // config.js priorities.minorTech (prio_tech is majorTech)
 
-	void recompute() {
+	// config.js setConfig. `seed` != 0 draws the personality as 0 A.D. does (randFloat within
+	// the behaviour's range, cooperative anywhere in [0, 1]); 0 keeps each behaviour's middle.
+	void recompute(uint32_t seed = 0, bool teams_locked = false) {
 		switch (behavior) {
 			case PETRA_BEHAVIOR_DEFENSIVE:
 				aggressive = 0.18f; defensive = 0.82f; cooperative = 0.65f; break;
@@ -94,9 +96,29 @@ struct PetraConfig {
 			default:
 				aggressive = 0.50f; defensive = 0.50f; cooperative = 0.50f; break;
 		}
+		if (seed != 0 && difficulty > PETRA_SANDBOX) {
+			uint64_t st = seed;
+			auto rand01 = [&st]() { // splitmix64
+				uint64_t z = (st += 0x9E3779B97F4A7C15ull);
+				z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+				z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+				return (float)((z ^ (z >> 31)) >> 40) / (float)(1u << 24);
+			};
+			// personalityList: random 0..1, defensive 0..0.27, balanced 0.37..0.63, aggressive 0.73..1
+			static const float kMin[4] = { 0.0f, 0.0f, 0.37f, 0.73f }, kMax[4] = { 1.0f, 0.27f, 0.63f, 1.0f };
+			const int b = behavior <= PETRA_BEHAVIOR_AGGRESSIVE ? behavior : PETRA_BEHAVIOR_BALANCED;
+			const float x = rand01() - 0.5f;
+			const float variation = 0.15f * (2.0f * rand01() - 1.0f) * std::sqrt(std::max(0.0f, 0.25f - x * x));
+			const float agg = std::clamp(x + variation, -0.5f, 0.5f) + 0.5f;
+			const float def = std::clamp(-x + variation, -0.5f, 0.5f) + 0.5f;
+			aggressive = kMin[b] + agg * (kMax[b] - kMin[b]);
+			defensive = 1.0f - kMax[b] + def * (kMax[b] - kMin[b]);
+			cooperative = rand01();
+		}
+		if (teams_locked) cooperative = std::min(1.0f, cooperative + 0.30f);
 
 		// difficultyLevel.js scaling (sandbox..veryHard)
-		static const float kPop[6]     = { 0.40f, 0.50f, 0.70f, 1.00f, 1.15f, 1.30f };
+		static const float kPop[6]     = { 0.50f, 0.50f, 0.70f, 1.00f, 1.00f, 1.00f }; // setConfig popScaling
 		// InitGame.js: rate applies to gathering and trading, time to building,
 		// training and technologies.
 		static const float kRate[6]    = { 0.42f, 0.56f, 0.75f, 1.00f, 1.25f, 1.56f };
@@ -184,7 +206,7 @@ struct PetraTransportPlan {
 	uint16_t sea = 0;  // the sea it crosses (0: any, from an older save)
 };
 // navalManager.js runs a transportPlan per ship; each asker here has at most one.
-enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2 };
+enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2, PETRA_TRANSPORT_TRADER = 3 };
 
 enum PetraChatKind : uint8_t {
 	PETRA_CHAT_ATTACK    = 0,
