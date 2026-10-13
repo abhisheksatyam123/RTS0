@@ -93,6 +93,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <tuple>
 #include <utility>
 
 using namespace rtso;
@@ -2158,6 +2159,49 @@ static void test_nastasen_warships() {
 	check(after[RES_WOOD] == before[RES_WOOD], "Nastasen dead: full cost again");
 }
 
+static void test_arakamani_temples() {
+	std::printf("61. Arakamani's Follower of Apedemak: the Kushite temple and Apedemak guard -30%% cost and time\n");
+	auto near1 = [](float a, float b) { return std::fabs(a - b) < 1e-5f; };
+	Simulation s;
+	setup(s);
+	s.set_team_civ(0, CIV_KUSHITES);
+	const uint16_t ape = roster_named("kush/champion_infantry_apedemak"), amun = roster_named("kush/champion_infantry_amun");
+	check(ape != CIV_UNIT_TEMPLATE_NONE && amun != CIV_UNIT_TEMPLATE_NONE, "roster has both temple guards");
+	struct Costs { float temple[RES_COUNT], ape[RES_COUNT], amun[RES_COUNT], temple_time, ape_time, amun_time, amun_temple_time; };
+	auto costs = [&]() {
+		Costs c{};
+		s.structure_cost(0, BLD_TEMPLE, -1.0f, c.temple);
+		s.unit_train_cost(0, ape, civ_template_unit_info(ape, UNIT_SWORDSMAN), c.ape);
+		s.unit_train_cost(0, amun, civ_template_unit_info(amun, UNIT_SWORDSMAN), c.amun);
+		const auto &m = s.tech_mods(0);
+		c.temple_time = m.bld_build_time[BLD_TEMPLE];
+		c.amun_temple_time = m.bld_build_time[BLD_TEMPLE_AMUN];
+		c.ape_time = s.unit_tech_mods(0, UNIT_SWORDSMAN, ape).train_time;
+		c.amun_time = s.unit_tech_mods(0, UNIT_SWORDSMAN, amun).train_time;
+		return c;
+	};
+	const Costs before = costs();
+	const uint32_t ara = s.spawn_unit(-20, -20, 0, UNIT_HERO, 0.0f, roster_named("kush/hero_arakamani"));
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP); // a global-aura pulse
+	const Costs after = costs();
+	bool temple_ok = true, ape_ok = true, amun_ok = true;
+	for (int r = 0; r < RES_COUNT; ++r) {
+		temple_ok = temple_ok && after.temple[r] == std::round(before.temple[r] * 0.7f);
+		ape_ok = ape_ok && after.ape[r] == std::round(before.ape[r] * 0.7f);
+		amun_ok = amun_ok && after.amun[r] == before.amun[r];
+	}
+	check(before.temple[RES_STONE] > 0.0f && temple_ok, "Temple of Apedemak: -30% cost");
+	check(near1(after.temple_time, before.temple_time * 0.7f), "and -30% build time");
+	check(before.ape[RES_FOOD] > 0.0f && ape_ok, "Apedemak guard: -30% cost");
+	check(near1(after.ape_time, before.ape_time * 0.7f), "and -30% training time");
+	check(amun_ok && after.amun_time == before.amun_time && after.amun_temple_time == before.amun_temple_time,
+			"the Amun guard and the Grand Temple of Amun keep theirs");
+	s.units_.hp[idx_of(s, ara)] = 0.0f;
+	s.units_.alive[idx_of(s, ara)] = 0;
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP);
+	check(costs().temple[RES_STONE] == before.temple[RES_STONE], "Arakamani dead: full cost again");
+}
+
 static void test_gather_rate_auras() {
 	std::printf("58. Iron Pelanors: workers near the Spartan catafalque mine metal 15%% faster\n");
 	auto rate = [](bool catafalque, ResourceType res) {
@@ -2197,6 +2241,87 @@ static void test_attack_preference_switch() {
 	check(switched, "and turns on the soldier who walks up after the next hit");
 	const auto [hit2, switched2] = run_case(true);
 	check(hit2 && !switched2, "a house it was ordered to attack keeps it busy");
+}
+
+static void test_healer_attack_order() {
+	std::printf("60. a healer told to attack walks into heal range of the target (0.28 WalkToTargetRange)\n");
+	Simulation s;
+	setup(s);
+	uint32_t h = s.spawn_unit(-20, 0, 0, UNIT_HEALER);
+	const uint32_t e = post(s, 10, 0, UNIT_SPEARMAN, 5000.0f);
+	s.order_attack(&h, 1, e);
+	check(s.unit_order(h).kind == ORDER_WALK && (s.unit_order(h).flags & ORDER_FLAG_FORCE), "it takes a forced walk");
+	const float range = s.healer_range_of(s.lookup_unit(h));
+	run(s, 20.0f);
+	const float d = dist(s, h, 10, 0);
+	check(d <= range && d > 0.5f * range, "and stops in heal range, short of the enemy");
+	// One already in range stays where it is.
+	const float hx = s.units().pos_x[s.lookup_unit(h)];
+	s.order_attack(&h, 1, e);
+	run(s, 2.0f);
+	check(std::fabs(s.units().pos_x[s.lookup_unit(h)] - hx) < 0.5f, "one already in range stays put");
+}
+
+static void test_restricted_attack_order() {
+	std::printf("63. an attack order on a target its RestrictedClasses forbid is a walk (UnitAI.Attack CanAttack)\n");
+	Simulation s;
+	setup(s);
+	uint32_t ram = s.spawn_unit(-20, 0, 0, UNIT_SIEGE_RAM);
+	const uint32_t e = post(s, 10, 0, UNIT_SPEARMAN, 5000.0f);
+	check(!s.unit_can_target(s.lookup_unit(ram), s.lookup_unit(e)), "a ram can't attack a soldier (Field Organic)");
+	s.order_attack(&ram, 1, e);
+	check(s.unit_order(ram).kind == ORDER_WALK && (s.unit_order(ram).flags & ORDER_FLAG_FORCE), "it walks to it instead");
+	const float d0 = dist(s, ram, 10, 0);
+	run(s, 10.0f);
+	check(dist(s, ram, 10, 0) < d0 - 5.0f, "towards the soldier");
+	uint32_t dog = s.spawn_unit(-20, 20, 0, UNIT_WAR_DOG);
+	const uint32_t house = s.spawn_building_world(10, 20, BLD_HOUSE, 1, 1.0f);
+	check(!s.unit_can_target_building(s.lookup_unit(dog), BLD_HOUSE), "a dog can't attack a structure");
+	s.order_attack_building(&dog, 1, house, false, false);
+	check(s.unit_order(dog).kind == ORDER_WALK, "and walks to the house");
+}
+
+static void test_range_check_between_hits() {
+	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
+	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
+	// enough in one tick to take a pair standing in reach out of it.
+	auto step = [](Simulation &s, float seconds) {
+		for (long n = std::lround(seconds / Simulation::FIXED_STEP); n > 0; --n) s.tick(Simulation::FIXED_STEP);
+	};
+	auto step_until = [](Simulation &s, float seconds, auto &&done) {
+		for (long n = std::lround(seconds / Simulation::FIXED_STEP); n > 0; --n) {
+			s.tick(Simulation::FIXED_STEP);
+			if (done()) return true;
+		}
+		return false;
+	};
+	auto run_case = [&](bool leave) {
+		Simulation s;
+		setup(s);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_attack(&w, 1, e);
+		// A hit in reach, so the next swing is under way (attack_timer < 0).
+		float hp0 = hp_of(s, e);
+		const bool hit = step_until(s, 10.0f, [&] {
+			const float hp = hp_of(s, e);
+			if (hp >= hp0) return false;
+			hp0 = hp;
+			return s.units_.attack_timer[idx_of(s, w)] < 0.0f;
+		});
+		if (leave) s.units_.pos_x[idx_of(s, e)] = 8.0f; // out of reach right after the hit
+		const float hp1 = hp_of(s, e);
+		step(s, 0.8f); // the next hit was due one RepeatTime (0.75 s) on, in the fourth turn
+		const bool spared = hp_of(s, e) == hp1;
+		const bool again = step_until(s, 10.0f, [&] { return hp_of(s, e) < hp1; });
+		return std::make_tuple(hit, spared, again);
+	};
+	const auto [hit, spared, again] = run_case(true);
+	check(hit, "a swordsman hits a soldier in reach");
+	check(spared, "the soldier, gone out of reach, takes no hit from the swing under way");
+	check(again, "the swordsman chases and hits it again");
+	const auto [hit2, spared2, again2] = run_case(false);
+	check(hit2 && !spared2, "one that stays in reach takes the next hit");
 }
 
 int main(int argc, char **argv) {
@@ -2261,6 +2386,10 @@ int main(int argc, char **argv) {
 	test_nastasen_warships();
 	test_gather_rate_auras();
 	test_attack_preference_switch();
+	test_healer_attack_order();
+	test_restricted_attack_order();
+	test_arakamani_temples();
+	test_range_check_between_hits();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

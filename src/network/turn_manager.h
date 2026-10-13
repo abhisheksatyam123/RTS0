@@ -104,6 +104,9 @@ public:
 	// Host: whether clients may join a running match as observers (0 A.D.
 	// network.lateobservers, "everyone" by default).
 	void set_allow_late_observers(bool allow) { allow_late_observers_ = allow; }
+	// Host: at most this many observers in a running match (0 A.D.
+	// network.observerlimit, 8); one more is refused with reason 7.
+	void set_observer_limit(int limit) { observer_limit_ = limit < 0 ? 0 : limit; }
 	// This client watches the match without a seat.
 	bool is_observer() const;
 	bool apply_pending_rejoin(Simulation &sim);
@@ -362,6 +365,7 @@ private:
 	std::set<uint32_t> observer_requests_; // host: rejoin requests that asked to observe
 	bool rejoin_observe_ = false;
 	bool allow_late_observers_ = true;
+	int observer_limit_ = 8;
 	// Host: the client list last sent as NMT_PLAYER_ASSIGNMENT, and every
 	// client's name as last seen (a client that left keeps it in the list).
 	std::vector<PlayerAssignmentMsg::Entry> sent_assignment_;

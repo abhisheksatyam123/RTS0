@@ -542,7 +542,7 @@ int main() {
 		CHECK(big > 0, "india: %d trees hold banyan, strangler or teak wood", big);
 	}
 	// 10c. Per-script terrains and plants.
-	int scripts = 0;
+	int scripts = 0, patch_scripts = 0, patch_painted = 0;
 	for (int type = 0; type < MAP_TYPE_COUNT; ++type) {
 		const ScriptTerrains *st = script_terrains(map_type_info((uint8_t)type).id);
 		if (!st) continue;
@@ -558,9 +558,18 @@ int main() {
 		for (const HeightBand &band : st->bands) add(band.terrain, 2);
 		for (const AreaLayers &area : st->areas)
 			for (const auto &layer : area.layer) add(layer, 6);
+		std::set<std::string> unpatched = own;
+		for (const PatchSet &patch : st->patches)
+			for (const auto &layer : patch.layer) add(layer, 8);
 		int foreign = 0;
 		for (const auto &n : sim.terrain_tiles().names) foreign += !own.count(n);
 		CHECK(foreign == 0, "%s paints %d terrains outside its script's set", st->map_id, foreign);
+		if (own.size() > unpatched.size()) {
+			// createLayeredPatches / createPatches: a name only a patch layer gives shows up.
+			patch_scripts++;
+			for (const auto &n : sim.terrain_tiles().names)
+				if (!unpatched.count(n)) { patch_painted++; break; }
+		}
 		bool allowed[FLORA_COUNT] = {};
 		for (const auto &o : st->flora.tree12) { allowed[o[0]] = allowed[o[1]] = true; }
 		for (const auto &o : st->flora.tree45) { allowed[o[0]] = allowed[o[1]] = true; }
@@ -588,6 +597,8 @@ int main() {
 		      "%s with the savanna biome chosen paints savanna", st->map_id);
 	}
 	CHECK(scripts >= 30, "%d maps have their 0 A.D. script's own terrains", scripts);
+	CHECK(patch_scripts > 0 && patch_painted == patch_scripts, "%d of %d scripts with patch-only terrains paint them",
+	      patch_painted, patch_scripts);
 	{
 		// paintTerrainBasedOnHeight bands: Aegean Sea's corals under the sea, Arctic Summer's
 		// polar cliffs from 4 m and snow from 15 m.
@@ -649,6 +660,22 @@ int main() {
 		const auto v2 = sim.resources();
 		for (size_t i = 0; i < v2.count; ++i)
 			if (v2.id[i] == id) CHECK(v2.flora[i] == FLORA_DEFAULT, "an out-of-range FloraKind falls back to the default");
+	}
+	{
+		// 0.28's per-map fish passes (latium.js, gulf_of_bothnia.js, corsica.js).
+		auto fish = [](MapType mt) {
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(mt, 7, 2, 128.0f);
+			const auto rv = s.resources();
+			int n = 0;
+			for (size_t i = 0; i < rv.count; ++i) n += rv.subtype[i] == RES_SUB_FISH;
+			return n;
+		};
+		const int latium = fish(MAP_LATIUM), gulf = fish(MAP_GULF_OF_BOTHNIA), corsica = fish(MAP_CORSICA);
+		CHECK(latium >= 40, "latium: %d fish, 0.28 places scaleByMapSize(45, 65) single fish", latium);
+		CHECK(gulf >= 100, "gulf_of_bothnia: %d fish, 0.28 places 4 * scaleByMapSize(5, 30) groups of 2-3", gulf);
+		CHECK(corsica >= 250, "corsica: %d fish, 0.28 places 50 and 70 groups of 2-3 per player", corsica);
 	}
 	{
 		// "AQAAAQAA" is the (run - 1, name) pairs (1, 0) (0, 1) (0, 0): 0, 0, 1, 0.

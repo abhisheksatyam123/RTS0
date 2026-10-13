@@ -262,6 +262,11 @@ int main() {
 
 	// Docks: on the shoreline, facing the sea.
 	CHECK(at(s, 0, -40.0f, 18.0f, BLD_DOCK) == Simulation::PLACE_OK);
+	// brit/crannog: a Civic Center on the shore, own ally or neutral territory, 200 m from
+	// the player's other Civic Centers.
+	CHECK(at(s, 0, 40.0f, 18.0f, BLD_CRANNOG) == Simulation::PLACE_OK);         // neutral shore
+	CHECK(at(s, 0, 40.0f, 40.0f, BLD_CRANNOG) == Simulation::PLACE_SHORE);      // inland
+	CHECK(at(s, 0, -40.0f, 18.0f, BLD_CRANNOG) == Simulation::PLACE_DISTANCE);  // next to its Civic Center
 	CHECK(at(s, 0, -30.0f, 40.0f, BLD_DOCK) == Simulation::PLACE_SHORE);   // inland
 	CHECK(at(s, 0, -40.0f, 6.0f, BLD_DOCK) == Simulation::PLACE_TERRAIN);  // out at sea
 	// A dock may stand on an ally's shore but not an enemy's.

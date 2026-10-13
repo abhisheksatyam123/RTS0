@@ -9673,7 +9673,8 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	const float water = sim.water_height();
 	const bool has_water = water > -0.5f;
 	const float metre = HEIGHT_PER_METRE;
-	std::vector<float> metres_up(t.tiles.size(), 0.0f);
+	std::vector<float> metres_up(t.tiles.size(), 0.0f), slope_up(t.tiles.size(), 0.0f);
+	const bool own_patches = own && own->patches[0].layer[0][0];
 	// A script paints its own shores (its height bands and areas), with no shore blend to 3 m.
 	const bool own_bands = own && own->bands[0].terrain[0];
 	for (int tz = 0; tz < res; ++tz)
@@ -9702,7 +9703,8 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 				// createPatches over the main terrain: [main, tier1], [tier1, tier2],
 				// [tier2, tier3] clumps, then tier4 and dirt patches.
 				const float n1 = noise(x, z, 9.0f, 7), n2 = noise(x, z, 6.0f, 8), n3 = noise(x, z, 5.0f, 9);
-				if (n1 > 0.78f) v = index_of(b.tier[2] ? b.tier[2] : b.main[0]);
+				if (own_patches) v = pick(b.main, 4, tx, tz, 11);
+				else if (n1 > 0.78f) v = index_of(b.tier[2] ? b.tier[2] : b.main[0]);
 				else if (n1 > 0.70f) v = index_of(b.tier[1] ? b.tier[1] : b.main[0]);
 				else if (n1 > 0.62f) v = index_of(b.tier[0] ? b.tier[0] : b.main[0]);
 				else if (n2 > 0.80f) v = index_of(b.tier[3] ? b.tier[3] : b.main[0]);
@@ -9710,6 +9712,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 				else v = pick(b.main, 4, tx, tz, 11);
 			}
 			// To the millimetre, so land the synth set to a whole metre stays on it.
+			slope_up[j] = slope / metre;
 			metres_up[j] = std::round((h - water) / metre * 1000.0f) / 1000.0f;
 			t.tiles[j] = v;
 		}
@@ -9725,20 +9728,149 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	};
 	if (own) {
 		paint_bands(false);
+		// The script's patches (PatchSet), with rmgen's ChainPlacer on the tile grid.
+		auto paint_patches = [&](auto &paint_layers) {
+			if (!own_patches) return;
+			uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull ^ 0x5041544348ull;
+			auto next = [&]() {
+				state += 0x9E3779B97F4A7C15ull;
+				uint64_t z = state;
+				z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+				z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+				return z ^ (z >> 31);
+			};
+			auto rand_int = [&](int lo, int hi) { return lo + (int)(next() % (uint64_t)(hi - lo + 1)); };
+			const float scale = std::clamp(((float)res - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f);
+			auto sbms = [&](const float *lohi) { return lohi[0] + (lohi[1] - lohi[0]) * scale; };
+			// Chebyshev distances (in tiles) to water, hills, forest floor and civic centres.
+			auto distance_to = [&](auto in_class) {
+				std::vector<uint16_t> d(t.tiles.size(), 0xFFFF);
+				std::vector<uint32_t> q;
+				for (size_t j = 0; j < d.size(); ++j)
+					if (in_class(j)) { d[j] = 0; q.push_back((uint32_t)j); }
+				for (size_t k = 0; k < q.size(); ++k) {
+					const int x = (int)(q[k] % (uint32_t)res), z = (int)(q[k] / (uint32_t)res);
+					for (int dz = -1; dz <= 1; ++dz)
+						for (int dx = -1; dx <= 1; ++dx) {
+							const int nx = x + dx, nz = z + dz;
+							if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
+							const uint32_t n = (uint32_t)(nz * res + nx);
+							if (d[n] != 0xFFFF) continue;
+							d[n] = (uint16_t)(d[q[k]] + 1);
+							q.push_back(n);
+						}
+				}
+				return d;
+			};
+			std::vector<uint8_t> hill(t.tiles.size(), 0), player(t.tiles.size(), 0);
+			for (const MapArea &a : t_map_areas)
+				if (a.kind == AREA_HILL || a.kind == AREA_MOUNTAIN || a.kind == AREA_VOLCANO)
+					for (uint32_t j : a.tiles) hill[j] = 1;
+			for (const auto &bd : sim.buildings())
+				if (is_civic_centre(bd.type)) {
+					const int cx = (int)std::floor((bd.x + half) / cell), cz = (int)std::floor((bd.z + half) / cell);
+					for (int dz = -5; dz <= 5; ++dz)
+						for (int dx = -5; dx <= 5; ++dx)
+							if (dx * dx + dz * dz < 25 && cx + dx >= 0 && cz + dz >= 0 && cx + dx < res && cz + dz < res)
+								player[(size_t)(cz + dz) * (size_t)res + (size_t)(cx + dx)] = 1;
+				}
+			const auto to_water = distance_to([&](size_t j) { return metres_up[j] < 0.0f; });
+			const auto to_hill = distance_to([&](size_t j) { return hill[j] || slope_up[j] >= 1.25f; });
+			const auto to_forest = distance_to([&](size_t j) { return forest[j] != 0; });
+			const auto to_player = distance_to([&](size_t j) { return player[j] != 0; });
+			std::vector<uint8_t> patched(t.tiles.size(), 0), got(t.tiles.size(), 0), near(t.tiles.size(), 0);
+			std::vector<uint32_t> points, touched;
+			std::vector<std::pair<int, int>> edges;
+			for (const PatchSet &ps : own->patches) {
+				if (!ps.layer[0][0]) continue;
+				int layers = 0;
+				while (layers < 4 && ps.layer[layers][0]) ++layers;
+				auto far = [&](const std::vector<uint16_t> &d, int8_t r, size_t j) { return r < 0 || d[j] > (uint16_t)r; };
+				// Tiles within avoid_patch (Chebyshev) of a patch: marked once per patched tile, not per test.
+				const int pr = ps.avoid_patch;
+				std::fill(near.begin(), near.end(), 0);
+				auto mark_near = [&](uint32_t j) {
+					const int x = (int)(j % (uint32_t)res), z = (int)(j / (uint32_t)res);
+					for (int nz = std::max(0, z - pr); nz <= std::min(res - 1, z + pr); ++nz)
+						for (int nx = std::max(0, x - pr); nx <= std::min(res - 1, x + pr); ++nx) near[(size_t)nz * (size_t)res + (size_t)nx] = 1;
+				};
+				if (pr >= 0)
+					for (size_t j = 0; j < patched.size(); ++j)
+						if (patched[j]) mark_near((uint32_t)j);
+				auto near_patch = [&](int x, int z) { return pr >= 0 && near[(size_t)z * (size_t)res + (size_t)x]; };
+				auto borders_free = [&](int x, int z) {
+					auto free_at = [&](int nx, int nz) {
+						return nx >= 0 && nz >= 0 && nx < res && nz < res && !got[(size_t)nz * (size_t)res + (size_t)nx];
+					};
+					return free_at(x - 1, z) || free_at(x + 1, z) || free_at(x, z - 1) || free_at(x, z + 1);
+				};
+				auto allows = [&](int x, int z) {
+					const size_t j = (size_t)z * (size_t)res + (size_t)x;
+					return far(to_water, ps.avoid_water, j) && far(to_hill, ps.avoid_hill, j) && far(to_forest, ps.avoid_forest, j) &&
+					       far(to_player, ps.avoid_player, j) && !near_patch(x, z);
+				};
+				const int count = (int)sbms(ps.count);
+				const int max_r = (int)std::floor(3.0f + 2.0f * scale);
+				for (const auto &size_lohi : ps.size) {
+					if (size_lohi[1] <= 0.0f) continue;
+					const int circles = (int)sbms(size_lohi);
+					// createAreas: `count` areas, giving up after count * 10 failures.
+					for (int placed = 0, failed = 0; placed < count && failed < count * 10;) {
+						const int cx = rand_int(0, res - 1), cz = rand_int(0, res - 1);
+						points.clear();
+						touched.clear();
+						edges.assign(1, {cx, cz});
+						int seen = 0, bad = 0;
+						if (allows(cx, cz))
+							for (int c = 0; c < circles && !edges.empty(); ++c) {
+								// The chain grows from the area's edge tiles: new tiles join the list, and a
+								// listed tile with no free neighbour left is dropped when drawn.
+								std::pair<int, int> at;
+								bool found = false;
+								while (!edges.empty()) {
+									const size_t e = (size_t)rand_int(0, (int)edges.size() - 1);
+									at = edges[e];
+									if (points.empty() || borders_free(at.first, at.second)) { found = true; break; }
+									edges[e] = edges.back();
+									edges.pop_back();
+								}
+								if (!found) break;
+								const int r = rand_int(1, max_r);
+								for (int z = std::max(0, at.second - r); z <= std::min(res - 1, at.second + r); ++z)
+									for (int x = std::max(0, at.first - r); x <= std::min(res - 1, at.first + r); ++x) {
+										if ((x - at.first) * (x - at.first) + (z - at.second) * (z - at.second) >= r * r) continue;
+										++seen;
+										if (!allows(x, z)) { ++bad; continue; }
+										const size_t j = (size_t)z * (size_t)res + (size_t)x;
+										if (got[j] == 0) {
+											points.push_back((uint32_t)j);
+											touched.push_back((uint32_t)j);
+											edges.push_back({x, z});
+										}
+										got[j] = 1;
+									}
+							}
+						for (uint32_t j : touched) got[j] = 0;
+						if (points.empty() || bad > seen / 2) { ++failed; continue; }
+						paint_layers(points, &ps.layer[0][0], 8, layers, ps.width, 30);
+						for (uint32_t j : points) {
+							patched[j] = 1;
+							if (pr >= 0) mark_near(j);
+						}
+						++placed;
+					}
+				}
+			}
+		};
 		// LayeredPainter: 8-neighbour steps in from the area's edge, 1 on the edge.
 		std::vector<uint8_t> in(t.tiles.size(), 0);
 		std::vector<uint16_t> dist(t.tiles.size(), 0);
 		std::vector<uint32_t> queue;
-		for (const MapArea &a : t_map_areas) {
-			const AreaLayers *paint = nullptr;
-			for (const AreaLayers &l : own->areas)
-				if (l.kind == a.kind && l.layer[0][0]) { paint = &l; break; }
-			if (!paint) continue;
-			int layers = 0;
-			while (layers < 6 && paint->layer[layers][0]) ++layers;
-			for (uint32_t j : a.tiles) in[j] = 1;
+		auto paint_layers = [&](const std::vector<uint32_t> &tiles, const char *const *layer, int stride, int layers,
+		                        const uint8_t *widths, uint32_t salt) {
+			for (uint32_t j : tiles) in[j] = 1;
 			queue.clear();
-			for (uint32_t j : a.tiles) {
+			for (uint32_t j : tiles) {
 				const int x = (int)(j % (uint32_t)res), z = (int)(j / (uint32_t)res);
 				bool edge = false;
 				for (int dz = -1; dz <= 1 && !edge; ++dz)
@@ -9762,18 +9894,29 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 						queue.push_back(k);
 					}
 			}
-			for (uint32_t j : a.tiles) {
+			for (uint32_t j : tiles) {
 				// An area with no edge inside the map (it covers it) counts as one wide ring.
 				const int d = dist[j] ? dist[j] : 1;
 				int i = 0, width = 0;
 				for (; i < layers - 1; ++i) {
-					width += paint->width[i];
+					width += widths[i];
 					if (width >= d) break;
 				}
-				if (free_tile(j)) t.tiles[j] = pick(paint->layer[i], 6, (int)(j % (uint32_t)res), (int)(j / (uint32_t)res), 13 + (uint32_t)i);
+				if (free_tile(j))
+					t.tiles[j] = pick(layer + i * stride, stride, (int)(j % (uint32_t)res), (int)(j / (uint32_t)res), salt + (uint32_t)i);
 			}
-			for (uint32_t j : a.tiles) { in[j] = 0; dist[j] = 0; }
+			for (uint32_t j : tiles) { in[j] = 0; dist[j] = 0; }
+		};
+		for (const MapArea &a : t_map_areas) {
+			const AreaLayers *paint = nullptr;
+			for (const AreaLayers &l : own->areas)
+				if (l.kind == a.kind && l.layer[0][0]) { paint = &l; break; }
+			if (!paint) continue;
+			int layers = 0;
+			while (layers < 6 && paint->layer[layers][0]) ++layers;
+			paint_layers(a.tiles, &paint->layer[0][0], 6, layers, paint->width, 13);
 		}
+		paint_patches(paint_layers);
 		paint_bands(true);
 	}
 	// A tile's terrain blends over neighbours of lower priority, which the renderer
@@ -9789,6 +9932,8 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			for (const AreaLayers &l : own->areas)
 				if (l.kind == a.kind)
 					for (const auto &layer : l.layer) order.insert(order.end(), layer, layer + 6);
+		for (const PatchSet &ps : own->patches)
+			for (const auto &layer : ps.layer) order.insert(order.end(), layer, layer + 8);
 		for (const HeightBand &band : own->bands)
 			if (band.late) order.insert(order.end(), band.terrain, band.terrain + 2);
 	}
@@ -9823,28 +9968,73 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	// keeps every other placement on the map unchanged.
 	const float half = hm.map_half;
 	const float size = 2.0f * half;
-	const int groups = (int)std::lround(15.0f + 35.0f * std::clamp((size - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f));
+	auto sbms = [&](float lo, float hi) { return lo + (hi - lo) * std::clamp((size - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f); };
+	// One createObjectGroups / createFood pass: its group count, fish per group,
+	// stayClasses(clWater, water) margin, avoidClasses(clFood, spacing) and,
+	// for Corsica's shore fish, land within shore tiles.
+	struct FishPass {
+		int groups, min_n, max_n;
+		int water;
+		float spacing, spread;
+		int shore;
+	};
+	std::vector<FishPass> passes;
+	const int players = std::max(1, config.num_players);
+	switch (config.map_type) {
+		case MAP_GULF_OF_BOTHNIA:
+			// 0.28 gulf_of_bothnia.js (unfrozen): createFood of 2-3 fish,
+			// 4*scaleByMapSize(fish.min, fish.max) with the winter biome's 5-30,
+			// stayClasses(clWater, 2), avoidClasses(clFood, 12).
+			passes.push_back({(int)std::lround(4.0f * sbms(5.0f, 30.0f)), 2, 3, 2, 12.0f, 2.0f, 0});
+			break;
+		case MAP_LATIUM:
+			// 0.28 latium.js: scaleByMapSize(45, 65) single fish, stayClasses(clWater, 4),
+			// avoidClasses(clFood, 10).
+			passes.push_back({(int)std::lround(sbms(45.0f, 65.0f)), 1, 1, 4, 10.0f, 1.0f, 0});
+			break;
+		case MAP_CORSICA:
+			// 0.28 corsica.js: 50 * numPlayers groups of 2-3 fish in water 3 tiles
+			// from land, 8 apart, then 70 * numPlayers shore fish 6 apart. The
+			// script's clShore is its landing beaches' passages; RTS0 takes water
+			// within 6 tiles of land for it.
+			passes.push_back({50 * players, 2, 3, 3, 8.0f, 2.0f, 0});
+			passes.push_back({70 * players, 2, 3, 3, 6.0f, 2.0f, 6});
+			break;
+		default:
+			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
+			break;
+	}
 	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
-	auto open_water = [&](float x, float z) {
+	auto open_water = [&](float x, float z, int margin) {
 		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
-		for (int dz = -2; dz <= 2; ++dz)
-			for (int dx = -2; dx <= 2; ++dx)
+		for (int dz = -margin; dz <= margin; ++dz)
+			for (int dx = -margin; dx <= margin; ++dx)
 				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h - 0.3f) return false;
 		return true;
 	};
+	auto near_land = [&](float x, float z, int r) {
+		for (int dz = -r; dz <= r; ++dz)
+			for (int dx = -r; dx <= r; ++dx)
+				if (dx * dx + dz * dz <= r * r && hm.sample_world(x + (float)dx, z + (float)dz) >= water_h) return true;
+		return false;
+	};
 	std::vector<std::pair<float, float>> placed;
-	for (int attempt = 0; attempt < groups * 40 && (int)placed.size() < groups; ++attempt) {
-		const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
-		if (!open_water(x, z)) continue;
-		bool crowded = false;
-		for (const auto &p : placed)
-			if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < 20.0f * 20.0f) { crowded = true; break; }
-		if (crowded) continue;
-		placed.push_back({x, z});
-		const int n = rng.range_int(2, 3);
-		for (int k = 0; k < n; ++k) {
-			const float fx = x + rng.range_float(-2.0f, 2.0f), fz = z + rng.range_float(-2.0f, 2.0f);
-			if (open_water(fx, fz)) sim.spawn_resource_world(fx, fz, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	for (const FishPass &f : passes) {
+		const size_t first = placed.size();
+		for (int attempt = 0; attempt < f.groups * 40 && (int)(placed.size() - first) < f.groups; ++attempt) {
+			const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+			if (!open_water(x, z, f.water)) continue;
+			if (f.shore > 0 && !near_land(x, z, f.water + f.shore)) continue;
+			bool crowded = false;
+			for (const auto &p : placed)
+				if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < f.spacing * f.spacing) { crowded = true; break; }
+			if (crowded) continue;
+			placed.push_back({x, z});
+			const int n = f.min_n == f.max_n ? f.min_n : rng.range_int(f.min_n, f.max_n);
+			for (int k = 0; k < n; ++k) {
+				const float fx = x + rng.range_float(-f.spread, f.spread), fz = z + rng.range_float(-f.spread, f.spread);
+				if (open_water(fx, fz, 2)) sim.spawn_resource_world(fx, fz, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+			}
 		}
 	}
 }

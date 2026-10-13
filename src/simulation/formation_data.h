@@ -485,6 +485,8 @@ inline FormationUnitInfo formation_generic_info(uint8_t unit_type) {
 		{0x007afu, 0x00eu}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
 		{0x0078fu, 0x000u}, // UNIT_MINISTER: units/han/support_minister
 		{0x00000u, 0x000u}, // UNIT_CATAFALQUE: template_unit_catafalque
+		{0x00000u, 0x000u}, // UNIT_TYPE_TECH: no template
+		{0x00000u, 0x000u}, // UNIT_WAGON: template_unit_support_wagon
 	};
 	return unit_type < UNIT_TYPE_COUNT ? kGeneric[unit_type] : FormationUnitInfo{0u, 0u};
 }

@@ -97,7 +97,7 @@ UNIT_TYPES = ["UNIT_VILLAGER", "UNIT_SWORDSMAN", "UNIT_ARCHER", "UNIT_SPEARMAN",
               "UNIT_SIEGE_RAM", "UNIT_HEALER", "UNIT_CHARIOT", "UNIT_WAR_DOG", "UNIT_BOLT_SHOOTER",
               "UNIT_FISHING_BOAT", "UNIT_MERCHANT_SHIP", "UNIT_FEMALE_CITIZEN", "UNIT_CARNYX",
               "UNIT_WORKER_ELEPHANT", "UNIT_ARCHER_MAIDEN", "UNIT_CAMEL", "UNIT_SCYTHED_CHARIOT",
-              "UNIT_MINISTER", "UNIT_CATAFALQUE"]
+              "UNIT_MINISTER", "UNIT_CATAFALQUE", "UNIT_TYPE_TECH", "UNIT_WAGON"]
 
 
 # 0 A.D. status effects (data/status_effects): RTS0 models Poisoned and Burning.
@@ -181,8 +181,7 @@ def collect(sim_root):
         units.append((u["id"], row_of(loader.load(name))))
     generic = []
     for cls in UNIT_TYPES:
-        name = ex.GENERIC[cls]
-        generic.append((cls, name, row_of(loader.load(name))))
+        generic.append((cls, ex.GENERIC[cls] or "no template", row_of(ex.generic_template(loader, cls))))
     buildings = []
     for bld, name in BUILDINGS + civ_buildings():
         buildings.append((bld, name, row_of(loader.load(name), structure=True)))

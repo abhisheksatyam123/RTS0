@@ -930,6 +930,11 @@ void NetHost::poll(Arena &arena) {
 	send_client_performance(now);
 }
 
+void NetHost::refusePeer(uint32_t peer_id) {
+	NetPeer *p = isHost() && peer_id != 0 ? getPeer(peer_id) : nullptr;
+	if (p && p->connected && !p->kick_disconnect_ms) p->kick_disconnect_ms = get_now_ms() + 2000;
+}
+
 bool NetHost::kickPeer(uint32_t peer_id, bool ban) {
 	NetPeer *p = isHost() && peer_id != 0 ? getPeer(peer_id) : nullptr;
 	if (!p || !admitted(*p)) return false;

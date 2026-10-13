@@ -156,7 +156,7 @@ func run() -> void:
 	check(b._info_labels.players.text == "Players: 4" and b._players_text.get_parsed_text().contains("Team 1"), "players by team")
 	check(not b._players_text.get_parsed_text().contains("won"), "no outcome without Spoiler")
 	b._spoiler.button_pressed = true
-	check(b._players_text.get_parsed_text().contains("e2eAlpha (Athenians), won"), "Spoiler shows who won")
+	check(b._players_text.get_parsed_text().contains("e2eAlpha (Athenians, won)"), "Spoiler shows who won, as formatPlayerInfo")
 	check(b._btn_summary.visible and b._filename.text.ends_with(NAMES[0]), "Summary and the file path")
 	idx = b._replays.map(func(r): return r.dir.get_file()).find(NAMES[2])
 	b.select_replay(idx)

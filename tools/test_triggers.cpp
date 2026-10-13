@@ -375,7 +375,8 @@ static void check_survival() {
 	for (size_t i = 0; i < res.count; ++i) mines += res.alive[i] && (res.type[i] == RES_GOLD || res.type[i] == RES_STONE);
 	CHECK(mines == 0 && s.fauna().count == 0, "%d mines and %zu animals on Survival", mines, s.fauna().count);
 	CHECK(s.buildings().size() == (size_t)PLAYERS, "%zu structures at the start", s.buildings().size());
-	for (uint8_t b : {BLD_STOREHOUSE, BLD_FARMSTEAD, BLD_FIELD, BLD_CORRAL, BLD_TOWN_CENTER, BLD_DOCK, BLD_WALL_SEGMENT, BLD_PALISADE})
+	for (uint8_t b : {BLD_STOREHOUSE, BLD_FARMSTEAD, BLD_FIELD, BLD_CORRAL, BLD_TOWN_CENTER, BLD_DOCK, BLD_WALL_SEGMENT, BLD_PALISADE,
+			BLD_SUPER_DOCK, BLD_CRANNOG})
 		CHECK(s.building_disabled_by_trigger(0, b) && s.building_disabled_by_trigger(1, b), "structure %d not disabled", b);
 	CHECK(!s.building_disabled_by_trigger(0, BLD_HOUSE) && !s.building_disabled_by_trigger(0, BLD_BARRACKS), "houses or barracks disabled");
 	// The seeker stands in the valley, below her plateau, and takes no damage.
