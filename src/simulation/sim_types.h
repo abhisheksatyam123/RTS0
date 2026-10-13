@@ -1366,6 +1366,7 @@ enum TechStat : uint8_t {
 	TSTAT_GARRISON_ARROWS, // BuildingAI/GarrisonArrowMultiplier
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
 	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
+	TSTAT_TERRITORY_DECAY, // TerritoryDecay/DecayRate (Migratory Resettlement)
 	TSTAT_COUNT
 };
 
