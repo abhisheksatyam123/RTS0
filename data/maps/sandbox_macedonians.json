@@ -19501,16 +19501,24 @@
       "z": 100.05
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -121.73,
-      "z": 100.99
+      "z": 100.99,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 3.0657,
+      "length": 6.0
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -130.46,
-      "z": 43.69
+      "z": 43.69,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 6.0
     },
     {
       "type": "house",
@@ -19609,10 +19617,14 @@
       "z": 83.88
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -72.39,
-      "z": 70.48
+      "z": 70.48,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 6.0
     },
     {
       "type": "tower",
