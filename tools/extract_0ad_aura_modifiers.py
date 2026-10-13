@@ -8,6 +8,9 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
   stay with the AuraManager (civ_roster_data.h).
 - every "range" aura with a Promotion/RequiredXp modification (Han Xin's Northern
   Army, the centurion): its multiplier, registered as an AURA_REQUIRED_XP source.
+- every "range" aura on units with an Attack/Capture/Capture modification (the heroes'
+  capture strength auras, the carnyx): its multiply and add, registered as
+  AURA_CAPTURE_MUL / AURA_CAPTURE_ADD sources.
 
 Usage:
     python3 tools/extract_0ad_aura_modifiers.py --public PATH [--out src/simulation/aura_modifier_data.h]
@@ -189,6 +192,25 @@ def main() -> int:
                 cap_paths[key] = len(cap_auras)
                 cap_auras.append((os.path.basename(key), cap_stats[m["value"]], float(m["multiply"]),
                                   float(j.get("radius", 0)), players, civic_centre))
+    # Range auras on units' Attack/Capture/Capture (multiply and add), anywhere under auras/.
+    capatk_auras: list[tuple[str, float, float, float, int]] = []
+    for rel in sorted(list_files(src, "simulation/data/auras/")):
+        if not rel.endswith(".json"):
+            continue
+        j = json.loads(src.read(rel))
+        if j.get("type") != "range":
+            continue
+        mul, add = 1.0, 0.0
+        for m in j.get("modifications", []):
+            if m["value"] == "Attack/Capture/Capture":
+                mul *= float(m.get("multiply", 1.0))
+                add += float(m.get("add", 0.0))
+        if mul == 1.0 and add == 0.0:
+            continue
+        players = 0
+        for pl in j.get("affectedPlayers") or ["Player"]:
+            players |= PLAYERS.get(pl, 0)
+        capatk_auras.append((os.path.basename(rel)[:-5], mul, add, float(j.get("radius", 0)), players))
     cap_structures: list[tuple[str, int, str]] = []
     import extract_0ad_attack as atk  # noqa: E402
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
@@ -270,6 +292,19 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Range auras on Attack/Capture/Capture of the units they reach (AURA_CAPTURE_MUL and")
+    w("// AURA_CAPTURE_ADD sources): ModifiersManager applies value x multiply + add; radius in")
+    w("// 0 A.D. metres. Which units each reaches is the hero aura's own affects (civ_roster_data.h).")
+    w("struct CaptureAttackRangeAura { const char *id; float multiply; float add; float radius; uint8_t players; };")
+    w(f"constexpr uint16_t CAPTURE_ATTACK_RANGE_AURA_COUNT = {len(capatk_auras)};")
+    w("inline const CaptureAttackRangeAura *capture_attack_range_auras() {")
+    w(f"\tstatic const CaptureAttackRangeAura kAuras[{max(1, len(capatk_auras))}] = {{")
+    for name, mul, add, radius, players in capatk_auras:
+        w(f"\t\t{{\"{name}\", {mul!r}f, {add!r}f, {radius!r}f, {players}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
     w("// Structures projecting a capture range aura: BuildingType, capture_range_auras() index.")
     w("struct CaptureStructureAura { uint8_t building; uint16_t aura; };")
     w(f"constexpr uint16_t CAPTURE_STRUCTURE_AURA_COUNT = {len(cap_structures)};")
@@ -284,7 +319,8 @@ def main() -> int:
     w("#endif // RTSO_AURA_MODIFIER_DATA_H")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
-    print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras")
+    print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras, "
+          f"{len(capatk_auras)} capture attack range auras")
     for s in skipped:
         print("  not modelled: " + s)
     return 0
