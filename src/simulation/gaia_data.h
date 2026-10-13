@@ -93,6 +93,7 @@ enum FaunaFlags : uint8_t {
 	FAUNA_F_TRAINABLE = 4,          // *_trainable: the corral's player-owned copy
 	FAUNA_F_KILL_BEFORE_GATHER = 8, // ResourceSupply/KillBeforeGather
 	FAUNA_F_FISH = 16,              // food.fish (whales) instead of food.meat
+	FAUNA_F_LARGE = 32,             // UnitMotion/PassabilityClass large (bulls, adult elephants)
 };
 
 struct FaunaTypeInfo {
@@ -119,6 +120,7 @@ struct FaunaTypeInfo {
 	float footprint;          // Footprint radius in 0 A.D. metres (a square as the circle of equal area)
 	bool is_domestic() const { return flags & FAUNA_F_DOMESTIC; }
 	bool is_naval() const { return flags & FAUNA_F_NAVAL; }
+	bool is_large() const { return flags & FAUNA_F_LARGE; }
 	float attack_damage() const { return hack_damage + pierce_damage + crush_damage; }
 	// UnitAI.IsDangerousAnimal: an animal whose stance targets visible enemies and that can attack.
 	bool is_dangerous() const {
@@ -137,7 +139,7 @@ inline const FaunaTypeInfo &fauna_type_info(uint8_t ftype) {
 		{"fauna_bear_polar", "Polar Bear", "fauna_bear_white", 50.0f, 2.243f, 1.67f, 300, 8, FAUNA_STANCE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 20.0f, 0.0f, 20.0f, 2.1f, 2.0f, 1.0f, 1.0f, 1.0f, 1.0f, 10.0f, 1.995f},
 		{"fauna_camel", "Dromedary", "fauna_camel", 50.0f, 1.009f, 1.67f, 200, 8, FAUNA_STANCE_SKITTISH, FAUNA_F_KILL_BEFORE_GATHER, 0.0f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 10.0f, 1.995f},
 		{"fauna_camel_trainable", "Dromedary", "fauna_camel", 50.0f, 1.009f, 1.67f, 200, 8, FAUNA_STANCE_PASSIVE, FAUNA_F_TRAINABLE | FAUNA_F_KILL_BEFORE_GATHER, 0.0f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.995f},
-		{"fauna_cattle_bull", "Bull", "fauna_bull", 150.0f, 0.897f, 2.0f, 100, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 1.0f, 5.0f, 2.0f, 1.8f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 30.0f, 1.596f},
+		{"fauna_cattle_bull", "Bull", "fauna_bull", 150.0f, 0.897f, 2.0f, 100, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER | FAUNA_F_LARGE, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 1.0f, 5.0f, 2.0f, 1.8f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 30.0f, 1.596f},
 		{"fauna_cattle_cow", "Cow", "cow", 150.0f, 0.897f, 1.4f, 300, 5, FAUNA_STANCE_PASSIVE, FAUNA_F_DOMESTIC | FAUNA_F_KILL_BEFORE_GATHER, 1.68f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 30.0f, 1.596f},
 		{"fauna_cattle_cow_trainable", "Cow", "cow", 150.0f, 0.897f, 1.4f, 300, 5, FAUNA_STANCE_PASSIVE, FAUNA_F_DOMESTIC | FAUNA_F_TRAINABLE | FAUNA_F_KILL_BEFORE_GATHER, 1.68f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 1.596f},
 		{"fauna_cattle_sanga", "Sanga Cattle", "fauna_sanga_cattle", 150.0f, 0.897f, 1.4f, 300, 5, FAUNA_STANCE_PASSIVE, FAUNA_F_DOMESTIC | FAUNA_F_KILL_BEFORE_GATHER, 1.68f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 30.0f, 1.596f},
@@ -149,11 +151,11 @@ inline const FaunaTypeInfo &fauna_type_info(uint8_t ftype) {
 		{"fauna_dog_mastiff", "Mastiff", "mastiff_gaia", 40.0f, 3.588f, 1.67f, 0, 0, FAUNA_STANCE_AGGRESSIVE, 0, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 7.0f, 2.0f, 0.0f, 1.5f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 8.0f, 1.197f},
 		{"fauna_dog_wolfhound", "Wolfhound", "wolfhound", 40.0f, 3.588f, 1.67f, 0, 0, FAUNA_STANCE_AGGRESSIVE, 0, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 7.0f, 2.0f, 0.0f, 1.5f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 8.0f, 1.197f},
 		{"fauna_donkey", "Donkey", "donkey", 50.0f, 1.794f, 1.67f, 200, 8, FAUNA_STANCE_SKITTISH, FAUNA_F_KILL_BEFORE_GATHER, 0.0f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 10.0f, 1.596f},
-		{"fauna_elephant_african_bush", "African Bush Elephant", "elephant_bush", 300.0f, 1.121f, 1.67f, 800, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 25.0f, 10.0f, 20.0f, 3.6f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 60.0f, 3.989f},
+		{"fauna_elephant_african_bush", "African Bush Elephant", "elephant_bush", 300.0f, 1.121f, 1.67f, 800, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER | FAUNA_F_LARGE, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 25.0f, 10.0f, 20.0f, 3.6f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 60.0f, 3.989f},
 		{"fauna_elephant_african_infant", "African Bush Elephant Calf", "fauna_elephant_african_baby", 50.0f, 2.243f, 1.67f, 100, 8, FAUNA_STANCE_SKITTISH, FAUNA_F_KILL_BEFORE_GATHER, 0.0f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 10.0f, 1.596f},
-		{"fauna_elephant_asian", "Asian Elephant", "fauna_elephant_asian", 250.0f, 1.121f, 1.67f, 650, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 25.0f, 10.0f, 20.0f, 3.0f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 50.0f, 3.192f},
+		{"fauna_elephant_asian", "Asian Elephant", "fauna_elephant_asian", 250.0f, 1.121f, 1.67f, 650, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER | FAUNA_F_LARGE, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 25.0f, 10.0f, 20.0f, 3.0f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 50.0f, 3.192f},
 		{"fauna_elephant_asian_infant", "Asian Elephant Calf", "fauna_elephant_african_baby", 50.0f, 2.243f, 1.67f, 100, 8, FAUNA_STANCE_SKITTISH, FAUNA_F_KILL_BEFORE_GATHER, 0.0f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 10.0f, 1.596f},
-		{"fauna_elephant_north_african", "African Forest Elephant", "elephant_forest", 200.0f, 1.121f, 1.67f, 500, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 25.0f, 10.0f, 20.0f, 2.7f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 40.0f, 2.793f},
+		{"fauna_elephant_north_african", "African Forest Elephant", "elephant_forest", 200.0f, 1.121f, 1.67f, 500, 8, FAUNA_STANCE_PASSIVE_DEFENSIVE, FAUNA_F_KILL_BEFORE_GATHER | FAUNA_F_LARGE, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 25.0f, 10.0f, 20.0f, 2.7f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 40.0f, 2.793f},
 		{"fauna_fox_arctic", "Arctic Fox", "fauna_fox_arctic", 20.0f, 2.243f, 1.67f, 0, 0, FAUNA_STANCE_DEFENSIVE, 0, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 2.5f, 5.0f, 0.0f, 1.2f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 4.0f, 0.798f},
 		{"fauna_fox_red", "Red Fox", "fox", 20.0f, 2.243f, 1.67f, 0, 0, FAUNA_STANCE_DEFENSIVE, 0, 25.2f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 2.5f, 5.0f, 0.0f, 1.2f, 1.0f, 0.5f, 1.0f, 1.0f, 1.0f, 4.0f, 0.798f},
 		{"fauna_gazelle", "Thomson's Gazelle", "gazelle", 25.0f, 1.346f, 1.67f, 100, 8, FAUNA_STANCE_SKITTISH, FAUNA_F_KILL_BEFORE_GATHER, 0.0f, 6.72f, 2.24f, 2.0f, 8.0f, 15.0f, 60.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 5.0f, 1.197f},
