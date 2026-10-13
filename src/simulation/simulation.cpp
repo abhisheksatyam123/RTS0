@@ -9972,6 +9972,7 @@ void Simulation::tick_combat(float dt) {
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
 		const bool in_range = in_parabolic_range(d2, att_y, def_y, units_.attack_range[i]) && d2 >= minr * minr; // Attack.js MinRange
+		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
 		attack_done(i, in_range, units_.attack_cooldown[i]);
@@ -10133,6 +10134,7 @@ void Simulation::tick_combat(float dt) {
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
 		if (is_siege_tower_at(i)) continue; // walks up to it; BuildingAI shoots (3b)
+		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
 		attack_done(i, in_range, units_.attack_cooldown[i]);
@@ -11306,6 +11308,22 @@ bool Simulation::attack_under_way(size_t i) const {
 // out of reach the unit stops attacking (and must wait the rest of RepeatTime anyway).
 void Simulation::attack_done(size_t i, bool in_range, float repeat) {
 	units_.attack_timer[i] = in_range ? -repeat : repeat;
+}
+
+// Attack.js RepeatRangeCheck (0.28): between hits, ceil(RepeatTime / 1 s) range checks
+// per RepeatTime, each half a check interval off the hits, stop an attack whose target
+// has left its range (OutOfRange), so that swing never lands. True when one of those
+// checks fell in the tick that just ran (tick_attack_timer counted it).
+bool Simulation::range_check_due(size_t i, float dt) const {
+	const float tm = units_.attack_timer[i];
+	const float repeat = units_.attack_cooldown[i];
+	if (tm >= 0.0f || repeat <= 0.0f) return false; // no swing under way, or the hit is due
+	const float checks = std::ceil(repeat);
+	const float per = repeat / checks;
+	// The checks fall per / 2 + k * per before the hit (k < checks): count those left
+	// before the tick and after it.
+	auto before = [&](float left) { return std::clamp(std::ceil((left - 0.5f * per) / per), 0.0f, checks); };
+	return before(-tm + dt) > before(-tm);
 }
 
 void Simulation::tick_status_effects(float dt) {
@@ -14068,6 +14086,8 @@ void Simulation::update_petra_bases(float dt) {
 			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
 			// handleNewBase: a further base should end a resource shortage, so stop saving.
 			if (!petra_bases_.empty()) petra_attack_mgr_.save_resources = 0;
+			// The territory grows: there may be room again (resetMissingRoom).
+			petra_attack_mgr_.missing_room = 0;
 			petra_bases_.push_back(new_base);
 		}
 	}
@@ -17640,6 +17660,11 @@ void Simulation::petra_check_base_expansion() {
 		++active;
 	}
 	if (active == 0) return; // petra_build_first_base
+	// Then a new base when more than one kind of structure finds no room (numberMissingRoom).
+	if (std::popcount(petra_attack_mgr_.missing_room) > 1) {
+		petra_build_new_base();
+		return;
+	}
 	// headquarters.js phasing lasts until the phase research starts (ResearchPlan.onStart).
 	const uint8_t next = petra_ps().phase == 2 ? TECH_PHASE_CITY : 0;
 	if (petra_phasing() && !(next && research_check(petra_pid_, next) == TECH_ERR_IN_PROGRESS)) return;
@@ -18320,6 +18345,19 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 			if (b.build_progress >= 1.0f) { best = b.team; break; }
 			if (b.build_progress > progress) { progress = b.build_progress; best = b.team; }
 		}
+		if (best >= 0) return (uint8_t)best;
+	}
+	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics. Gaia's
+	// relics (tryCaptureGaiaRelic) are left to petra_capture_gaia_relics.
+	if (victory_condition_ == VICTORY_RELIC) {
+		int held[MAX_PLAYERS] = {};
+		for (const auto &rel : relics_) {
+			const int32_t r = lookup_unit(rel.id);
+			if (is_relic_unit(r) && units_.team[r] < MAX_PLAYERS) ++held[units_.team[r]];
+		}
+		int best = -1, most = 0;
+		for (int p = 0; p < MAX_PLAYERS; ++p)
+			if (!veto[p] && held[p] > most) { most = held[p]; best = p; }
 		if (best >= 0) return (uint8_t)best;
 	}
 	int entities[MAX_PLAYERS] = {};
@@ -20266,6 +20304,19 @@ static inline bool petra_military_structure(uint8_t t) {
 	}
 }
 
+// buildManager.js counts the templates set unbuildable for want of room; RTS0 keeps a bit per
+// kind of structure Petra places by search (its Map.findPosition users).
+static uint8_t petra_room_bit(uint8_t t) {
+	if (t == BLD_HOUSE || t == BLD_APARTMENT) return 1u << 0;
+	if (t == BLD_FIELD) return 1u << 1;
+	if (t == BLD_CORRAL) return 1u << 2;
+	if (t == BLD_STOREHOUSE || t == BLD_FARMSTEAD) return 1u << 3;
+	if (t == BLD_TOWER || t == BLD_SENTRY_TOWER || t == BLD_TOWER_GREAT || t == BLD_FORTRESS) return 1u << 4;
+	if (petra_military_structure(t)) return 1u << 5;
+	if (t == BLD_MARKET || t == BLD_TEMPLE) return 1u << 6;
+	return 1u << 7;
+}
+
 // Structures that take food (ResourceDropsite food): civic centres, farmsteads, docks, colonies.
 static inline bool petra_food_dropsite(uint8_t t) {
 	return is_civic_centre(t) || t == BLD_FARMSTEAD || t == BLD_DOCK || civ_building_is_dropsite(t);
@@ -20438,11 +20489,13 @@ uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const flo
 	int cx = 0, cz = 0;
 	if (!petra_find_position(btype, base_at, favor_at, military_base, cx, cz)) {
 		petra_place_no_room_ = true;
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
 		return 0;
 	}
 	const BuildingTypeInfo &info = building_type_info(btype);
 	if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
 		return 0;
+	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
 	return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 }
 
@@ -20466,7 +20519,11 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	};
 	auto miss = remember ? std::find_if(petra_place_misses_.begin(), petra_place_misses_.end(), same_search)
 	                     : petra_place_misses_.end();
-	if (miss != petra_place_misses_.end() && miss->sig == sig) { petra_place_no_room_ = true; return 0; }
+	if (miss != petra_place_misses_.end() && miss->sig == sig) {
+		petra_place_no_room_ = true;
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
+		return 0;
+	}
 	for (int r = min_r; r <= max_r; ++r) {
 		for (int dx = -r; dx <= r; ++dx) {
 			for (int dz = -r; dz <= r; ++dz) {
@@ -20478,11 +20535,13 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				                   (float)info.gold_cost, (float)info.stone_cost)) {
 					return 0;
 				}
+				if (remember) petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
 				return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 			}
 		}
 	}
 	if (remember) {
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
 		if (miss != petra_place_misses_.end()) miss->sig = sig;
 		else {
 			if (petra_place_misses_.size() >= 64) petra_place_misses_.erase(petra_place_misses_.begin());
@@ -21921,7 +21980,25 @@ int Simulation::petra_player_entities(uint8_t player) const {
 
 void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 	// diplomacyManager.js changePlayerDiplomacy: the AI only writes its own row.
+	if (stance != DIPLO_ENEMY && player < MAX_PLAYERS && petra_foe(player)) petra_cancel_attacks_against(player);
 	cmd_set_diplomacy(petra_pid_, player, stance);
+}
+
+// attackManager.js cancelAttacksAgainstPlayer: the plan in preparation forgets the
+// player as its target, and every started attack on that player is aborted (its army
+// walks home).
+void Simulation::petra_cancel_attacks_against(uint8_t player) {
+	if (petra_attack_plan_.target_player == player) {
+		petra_attack_plan_.target_player = 0xFF;
+		if (auto it = building_id_to_idx_.find(petra_attack_plan_.target_building_id);
+		    it != building_id_to_idx_.end() && buildings_[it->second].team == player)
+			petra_attack_plan_.target_building_id = 0;
+	}
+	for (AttackPlan &plan : petra_started_attacks_)
+		if (plan.target_player == player && plan.state != AttackPlan::REGROUP && plan.state != AttackPlan::UNEXECUTED) {
+			plan.state = AttackPlan::ABORT;
+			plan.state_timer = 0.0f;
+		}
 }
 
 // diplomacyManager.js sendDiplomacyRequest: ask the player we share the most

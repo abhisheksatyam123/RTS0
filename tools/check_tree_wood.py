@@ -52,7 +52,7 @@ SLOTS = {
     "botswanan_haven": ([["toona", "baobab"]], ["toona", "baobab", "bush_temperate"],
                         [["bush_temperate", "bush_temperate"]]),
     "corsica": ([["aleppo_pine", "cretan_date_palm_tall"]], ["aleppo_pine", "medit_fan_palm"],
-                [["cretan_date_palm_tall", "medit_fan_palm"]]),
+                [["medit_fan_palm", "cypress"]]),
     "cycladic_archipelago": ([["carob", "euro_beech"]], ["cretan_date_palm_short", "cypress"],
                              [["medit_fan_palm", "medit_fan_palm"], ["aleppo_pine", "aleppo_pine"],
                               ["poplar_lombardy", "poplar_lombardy"]]),

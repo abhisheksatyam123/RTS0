@@ -1442,6 +1442,27 @@ static void test_relic_capture() {
 	CHECK(!far.claimed, "and leaves a relic it has never seen");
 }
 
+// attackManager.js getRelicEnemyPlayer: in capture the relic, Petra attacks the enemy
+// holding the most relics rather than its nearest one.
+static void test_relic_enemy_player() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 3, 64.0f);
+	s->set_victory_condition(VICTORY_RELIC);
+	run_for(*s, 1.0f);
+	s->relics_.clear();
+	const uint8_t before = s->petra_enemy_player(PETRA_ATTACK_ATTACK);
+	const uint8_t holder = before == 0 ? 2 : 0;
+	for (int k = 0; k < 2; ++k) {
+		const int32_t r = s->lookup_unit(s->spawn_relic(10.0f + 4.0f * (float)k, 10.0f));
+		if (r >= 0) s->units_.team[r] = holder;
+	}
+	const uint8_t after = s->petra_enemy_player(PETRA_ATTACK_ATTACK);
+	std::printf("  relic enemy: player %d without relics, player %d once player %d holds two\n", before, after, holder);
+	CHECK(after == holder, "Petra targets the enemy holding the most relics (getRelicEnemyPlayer)");
+}
+
 // attackPlan.js moves armies with forced walks: a retreating army ignores what it
 // sees on the way. An unforced walk let an unpacked catapult beside an enemy
 // unpack to fire, then pack for the walk, for ever.
@@ -2197,6 +2218,41 @@ static void test_assign_bombers() {
 	CHECK(shelling, "an idle stone thrower shells an enemy structure within reach (assignBombers)");
 }
 
+// attackManager.js cancelAttacksAgainstPlayer: once Petra makes peace with a player, its
+// attack on that player turns back and the plan in preparation drops it as its target.
+static void test_cancel_attacks_on_peace() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	Simulation::AttackPlan marching;
+	marching.kind = PETRA_ATTACK_ATTACK;
+	marching.state = Simulation::AttackPlan::WALKING;
+	marching.target_player = 0;
+	for (int k = 0; k < 4; ++k) marching.squad.push_back(s->spawn_unit(tx - 10.0f + 2.0f * (float)k, tz - 12.0f, 1, UNIT_SPEARMAN));
+	marching.initial_squad_size = marching.squad.size();
+	for (const auto &b : s->buildings())
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { marching.target_building_id = b.id; marching.target_x = b.x; marching.target_z = b.z; }
+	s->petra_started_attacks_.push_back(marching);
+	s->petra_attack_plan_.target_player = 0;
+	s->petra_change_diplomacy(0, Simulation::DIPLO_NEUTRAL);
+	const bool aborted = !s->petra_started_attacks_.empty() && s->petra_started_attacks_[0].state == Simulation::AttackPlan::ABORT;
+	const bool forgot = s->petra_attack_plan_.target_player == 0xFF;
+	std::printf("  peace with the target: started attack aborted %s, plan in preparation forgets it %s\n",
+		aborted ? "yes" : "no", forgot ? "yes" : "no");
+	CHECK(aborted, "a started attack on a player Petra makes peace with is aborted (cancelAttacksAgainstPlayer)");
+	CHECK(forgot, "the plan in preparation drops that player as its target");
+	// Declaring war does not touch the attacks.
+	s->petra_started_attacks_[0].state = Simulation::AttackPlan::WALKING;
+	s->petra_change_diplomacy(0, Simulation::DIPLO_ENEMY);
+	CHECK(s->petra_started_attacks_[0].state == Simulation::AttackPlan::WALKING, "going to war leaves attacks alone");
+}
+
 // defenseManager.js isDangerous / checkEvents outside our own land: Petra sends
 // defenders to an ally's civic centre under attack, keeps a backup of up to 12
 // far-off units at home, and answers a unit attacked in neutral land.
@@ -2778,6 +2834,43 @@ static void test_temple_wonder_save() {
 // headquarters.js manageCorral: without fields, Petra breeds an animal of a kind while it owns no
 // more of that kind than it has corrals (Gaia's animals don't count), and lays another corral
 // while it has fewer than its phase number and over 30 population per corral.
+// headquarters.js checkBaseExpansion: more than one kind of structure with no room left
+// (buildManager.numberMissingRoom) sends Petra to found a new base, below the population
+// threshold; a structure placed again clears its kind.
+static void test_missing_room_expansion() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 2.0f);
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	for (auto &a : s->petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+	auto bases = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.hp > 0.0f && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY);
+		return n;
+	};
+	const int before = bases();
+	s->petra_attack_mgr_.missing_room = 1u << 0; // houses only
+	s->petra_check_base_expansion();
+	CHECK(bases() == before, "one kind without room: no new base");
+	const uint32_t house = s->petra_place_generic(BLD_HOUSE, Simulation::PETRA_QUEUE_VILLAGER);
+	CHECK(house != 0 && s->petra_attack_mgr_.missing_room == 0, "a house placed clears its kind");
+	s->petra_attack_mgr_.missing_room = (1u << 0) | (1u << 5); // houses and barracks
+	s->petra_check_base_expansion();
+	std::printf("  missing room: %d bases before, %d after\n", before, bases());
+	CHECK(bases() == before + 1, "two kinds without room: a new base");
+	// A search that finds no spot (asked for in a corner no base holds) sets its kind.
+	s->petra_attack_mgr_.missing_room = 0;
+	const float corner[2] = {-60.0f, -60.0f};
+	CHECK(s->petra_place_generic(BLD_WONDER, Simulation::PETRA_QUEUE_TECH, corner) == 0 &&
+	          s->petra_attack_mgr_.missing_room == (1u << 7),
+	      "no room for a wonder sets its kind");
+}
+
 static void test_corral_by_owner() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2855,6 +2948,7 @@ int main() {
 	test_mustering_units_defend();
 	test_attack_request();
 	test_relic_capture();
+	test_relic_enemy_player();
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
 	test_repairs();
@@ -2868,6 +2962,7 @@ int main() {
 	test_defense_switch_to_attack();
 	test_capturing_armies();
 	test_assign_bombers();
+	test_cancel_attacks_on_peace();
 	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
@@ -2880,6 +2975,7 @@ int main() {
 	test_dropsites();
 	test_food_fields();
 	test_corral_by_owner();
+	test_missing_room_expansion();
 	test_emergency_units();
 	test_new_cc_defenders();
 	test_temple_wonder_save();
