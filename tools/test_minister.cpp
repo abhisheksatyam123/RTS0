@@ -57,7 +57,7 @@ int main() {
 	if (mt == CIV_UNIT_TEMPLATE_NONE) return 1;
 	{
 		const CivUnitTemplate &ct = civ_unit_template(mt);
-		CHECK(ct.unit_type == UNIT_MINISTER && ct.civ == CIV_HAN && ct.phase == 2);
+		CHECK(ct.unit_type == UNIT_MINISTER && ct.civ == CIV_HAN && ct.phase == 1); // 0.28: phase_village (the Ministry itself gates it)
 		CHECK(ct.trainers == bld_bit(BLD_MINISTRY));
 		CHECK(ct.food_cost == 100 && ct.gold_cost == 100 && ct.wood_cost == 0 && near(ct.train_time, 15.0f));
 		CHECK(near(ct.hp, 50.0f)); // 0.28 support_minister
