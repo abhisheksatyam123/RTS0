@@ -6,6 +6,7 @@
 //       && /tmp/test_civ_units
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
+#include "simulation/promotion_data.h"
 #include <cstdio>
 #include <cstring>
 
@@ -269,11 +270,19 @@ int main() {
 		CHECK(c.cmd_build(0, px, py, BLD_SYSSITON) != 0);  // Village phase in 0 A.D.
 		const BuildingTypeInfo &sy = building_type_info(BLD_SYSSITON);
 		CHECK(std::strcmp(sy.name, "Military Mess Hall") == 0 && sy.max_hp == 2000.0f && sy.stone_cost == 150 && sy.gold_cost == 150); // 0.28
-		// Spartan champions and heroes train at the Syssiton, as in 0 A.D.
-		int at_syssiton = 0;
-		for (uint16_t i = civ_roster_begin(CIV_SPARTANS); i < civ_roster_end(CIV_SPARTANS); ++i)
-			if (civ_unit_template(i).trainers & bld_bit(BLD_SYSSITON)) ++at_syssiton;
-		CHECK(at_syssiton >= 3);
+		// 0.28: Spartan champions train at the Syssiton, their heroes at the Gerousia.
+		CHECK(civ_unit_template(roster_id("spart/champion_infantry_spear")).trainers == bld_bit(BLD_SYSSITON));
+		for (const char *hero : {"spart/hero_leonidas", "spart/hero_brasidas", "spart/hero_agis"})
+			CHECK(civ_unit_template(roster_id(hero)).trainers == bld_bit(BLD_GEROUSIA));
+		// 0.28's other trainer and phase changes: Marian Legionaries come only by promotion, the
+		// Roman Army Camp trains Antesignani and the onager, Briton boats leave the Civic Center,
+		// the Han minister is a Village phase unit and the bow Immortal trains at the barracks.
+		CHECK(!civ_unit_template(roster_id("rome/infantry_legionary")).trainers);
+		CHECK(civ_unit_template(roster_id("rome/infantry_antesignanus")).trainers == bld_bit(BLD_ARMY_CAMP));
+		CHECK(civ_unit_template(roster_id("rome/siege_onager_packed")).trainers == (bld_bit(BLD_ARSENAL) | bld_bit(BLD_ARMY_CAMP)));
+		CHECK(!(civ_unit_template(roster_id("brit/ship_fishing")).trainers & bld_bit(BLD_TOWN_CENTER)));
+		CHECK(civ_unit_template(roster_id("han/support_minister")).phase == 1);
+		CHECK(civ_unit_template(roster_id("pers/champion_infantry_archer_upgrade")).trainers == bld_bit(BLD_BARRACKS));
 		CHECK(bld_bit(BLD_MINISTRY).test(45));
 		// 0 A.D. Loot of civ-specific structures (Looter.js), metal as gold.
 		CHECK(building_loot(BLD_ARMY_CAMP).wood == 80 && building_loot(BLD_ARMY_CAMP).stone == 30);
@@ -337,23 +346,58 @@ int main() {
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen_house")).trainers);
 		CHECK(std::strcmp(civ_unit_template(roster_id("athen/support_civilian")).name, "Athenian Artisan") == 0);
 		// 0.28's Germans (civ 15, after Gaia's 14): rows appended after the Civilians, the Great
-		// Hall trains the noble cavalry, the Fortress the three heroes; Gallic art meanwhile.
+		// Hall trains the noble cavalry, the Fortress the three heroes; they draw their own models.
 		CHECK(civ_unit_template(roster_id("germ/champion_cavalry")).trainers == bld_bit(BLD_GREAT_HALL));
 		CHECK(civ_can_build(CIV_GERMANS, BLD_GREAT_HALL) && !civ_can_build(CIV_GAULS, BLD_GREAT_HALL));
 		CHECK(civ_can_train(CIV_GERMANS, UNIT_HERO) && civ_unit_template(roster_id("germ/hero_teutobod")).civ == CIV_GERMANS);
 		CHECK(std::strstr(civ_unit_template(civ_default_template(CIV_GERMANS, UNIT_FEMALE_CITIZEN)).id, "germ/support_civilian"));
 		CHECK(civ_unit_template(roster_id("germ/support_civilian")).tech_classes & TC_CIVILIAN); // Bovine Tradition
-		CHECK(std::strcmp(civ_art_code(CIV_GERMANS), "gaul") == 0 && std::strcmp(civ_art_code(CIV_GAULS), "gaul") == 0);
+		CHECK(std::strcmp(civ_unit_model(CIV_GERMANS, UNIT_SPEARMAN), "germ_spearman") == 0);
 		CHECK(tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GERMANS) && !tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GAULS));
 		CHECK(!tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GERMANS) && tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GAULS));
 		CHECK((civ_unit_template(roster_id("athen/support_civilian")).flags & ROSTER_CIVILIAN) &&
 		      !(civ_unit_template(roster_id("athen/support_female_citizen")).flags & ROSTER_CIVILIAN));
+		// Civilians are female or male (Identity/Phenotype "female male"), one per unit id, about half
+		// each; the women's rows and soldiers keep their one phenotype. A male Macedonian Civilian
+		// draws 0.28's Athenian citizen_male (the athen_villager model).
+		{
+			const uint16_t civ_t = roster_id("athen/support_civilian");
+			int male = 0;
+			for (uint32_t id = 1; id <= 1000; ++id) male += civilian_is_male(civ_t, id) ? 1 : 0;
+			CHECK(male > 400 && male < 600);
+			CHECK(civilian_is_male(civ_t, 7) == civilian_is_male(civ_t, 7));
+			bool other = false;
+			for (uint32_t id = 1; id <= 64; ++id)
+				other = other || civilian_is_male(roster_id("athen/support_female_citizen"), id) ||
+					civilian_is_male(roster_id("athen/infantry_spearman_b"), id);
+			CHECK(!other);
+			CHECK(std::strcmp(civ_unit_model(CIV_MACEDONIANS, UNIT_VILLAGER), "athen_villager") == 0);
+			CHECK(std::strcmp(civ_unit_model(CIV_ATHENIANS, UNIT_VILLAGER), "athen_villager") == 0);
+		}
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));
 		CHECK(civ_unit_template(roster_id("cart/infantry_slinger_iber_b")).trainers == bld_bit(BLD_EMBASSY_IBERIAN));
-		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_iber_b")).trainers == bld_bit(BLD_EMBASSY_IBERIAN));
-		CHECK(civ_unit_template(roster_id("cart/infantry_swordsman_ital_b")).trainers == bld_bit(BLD_EMBASSY_ITALIC));
+		CHECK(civ_unit_template(roster_id("cart/infantry_spearman_ital_b")).trainers == bld_bit(BLD_EMBASSY_ITALIC));
+		CHECK(civ_unit_template(roster_id("cart/cavalry_spearman_ital_b")).trainers == bld_bit(BLD_EMBASSY_ITALIC));
+		// 0.28 dropped the Iberian heavy cavalry and the Samnite swordsman: their rows stay for saves.
+		CHECK(!civ_unit_template(roster_id("cart/cavalry_swordsman_iber_b")).trainers);
+		CHECK(!civ_unit_template(roster_id("cart/infantry_swordsman_ital_b")).trainers);
+		// Marian Reforms (0.28): the Forum trains Levy Auxiliary Spearmen once researched, and elite
+		// spearmen and cavalry become conscripts and Auxiliaries (Promotion/Entity).
+		{
+			const CivUnitTemplate &levy = civ_unit_template(roster_id("rome/infantry_spearman_conscript"));
+			CHECK(levy.trainers == bld_bit(BLD_TOWN_CENTER) && levy.unlock_tech == TECH_ROMAN_REFORMS);
+			auto promotes_to = [](const char *from, const char *to) {
+				for (const PromotionStep &s : PROMOTION_STEPS)
+					if (std::strcmp(s.id, from) == 0 && s.target && std::strcmp(s.target, to) == 0) return true;
+				return false;
+			};
+			CHECK(promotes_to("rome/infantry_spearman_b", "rome/infantry_spearman_conscript"));
+			CHECK(promotes_to("rome/cavalry_spearman_b", "rome/cavalry_spearman_auxiliary_b"));
+			CHECK(promotes_to("rome/cavalry_javelineer_b", "rome/cavalry_javelineer_auxiliary_b"));
+			CHECK(promotes_to("rome/champion_infantry_swordsman", "rome/champion_infantry_swordsman_first"));
+		}
 		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_gaul_b")).trainers == bld_bit(BLD_EMBASSY));
 		CHECK(std::strcmp(building_type_info(BLD_EMBASSY).name, "Celtic Embassy") == 0 &&
 			building_type_info(BLD_EMBASSY).wood_cost == 200 && building_type_info(BLD_EMBASSY).max_hp == 1200.0f);

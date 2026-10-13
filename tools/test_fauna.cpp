@@ -245,24 +245,35 @@ int main() {
 		CHECK(d >= 6.0f + di.flee_distance - 0.5f && s.fauna_.behavior[f] != FAUNA_FLEE);
 	}
 
-	// 7c. Hold ground (CheckTargetDistanceFromHeldPosition): a boar drops a target that is
-	// more than vision / 2 + attack range from where it was attacked.
+	// 7c. Chase leash (ShouldAbandonChase): an animal has no held position, so a hold-ground
+	// (passive-defensive) boar keeps after a target well past vision / 2 + attack range of
+	// where it started and drops it only once it is out of the boar's vision; then it lingers
+	// where it stands.
 	{
 		fresh(s);
 		const auto &bi = fauna_type_info(FAUNA_BOAR);
-		const float leash = bi.vision * 0.5f + bi.attack_range;
+		CHECK(bi.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE); // respondHoldGround, like defensive
 		uint32_t boar = s.spawn_fauna(0.0f, 0.0f, FAUNA_BOAR);
 		uint32_t u = s.spawn_unit(1.5f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
 		s.order_set_stance(&u, 1, STANCE_PASSIVE);
 		s.fauna_attacked((size_t)fidx(s, boar), u);
 		run(s, 1.0f);
 		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
-		s.units_.pos_x[uidx(s, u)] = leash + 1.0f; // out of the leash
 		s.cmd_stop(&u, 1);
 		s.units_.speed[uidx(s, u)] = 0.0f;
+		// Past the old held-position leash, inside vision: it keeps chasing.
+		s.units_.pos_x[uidx(s, u)] = s.fauna_.pos_x[fidx(s, boar)] + bi.vision * 0.5f + bi.attack_range + 2.0f;
 		run(s, 0.5f);
-		CHECK(s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK);
-		std::printf("leash: boar leash %.1f, gave up %s\n", leash, s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK ? "yes" : "no");
+		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
+		// Out of its vision: it gives up and stays put.
+		s.units_.pos_x[uidx(s, u)] = s.fauna_.pos_x[fidx(s, boar)] + bi.vision + 2.0f;
+		run(s, 0.2f);
+		const size_t b = fidx(s, boar);
+		const float gx = s.fauna_.pos_x[b];
+		CHECK(s.fauna_.behavior[b] == FAUNA_IDLE_GRAZE);
+		run(s, 0.5f);
+		CHECK(std::fabs(s.fauna_.pos_x[fidx(s, boar)] - gx) < 0.01f);
+		std::printf("leash: boar vision %.1f, gave up at %.1f and lingered\n", bi.vision, bi.vision + 2.0f);
 	}
 
 	// 7b. Attack.js timing and resistance: a wolf's first bite waits its PrepareTime (1 s), and
@@ -651,6 +662,54 @@ int main() {
 		CHECK(ele_x < -1.0f - CLEARANCE_LARGE + 0.01f && ele_x > -1.0f - CLEARANCE_LARGE - 0.2f); // held at its clearance
 		CHECK(deer_gap >= CLEARANCE_DEFAULT - 1e-4f);
 		CHECK(ele_gap >= CLEARANCE_LARGE - 1e-4f);
+	}
+
+	// 15. Owned livestock is a unit its owner orders (0 A.D. UnitAI "walk", "stop",
+	// "garrison"): it walks where it is sent and feeds there, stops on Stop, goes into its
+	// owner's corral, and ignores another player's orders and Gaia's animals ignore all.
+	{
+		fresh(s);
+		uint32_t pen = s.spawn_building_world(40.0f, 40.0f, BLD_CORRAL, 1, 1.0f);
+		const uint32_t ewe = s.spawn_fauna(30.0f, 30.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		const uint32_t ram = s.spawn_fauna(31.0f, 30.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		const uint32_t wild = s.spawn_fauna(32.0f, 30.0f, FAUNA_SHEEP);
+		const uint32_t herd[3] = {ewe, ram, wild};
+		CHECK(s.fauna_selectable_by(1, ewe) && !s.fauna_selectable_by(0, ewe) && !s.fauna_selectable_by(1, wild));
+		s.order_fauna_walk(0, herd, 3, 20.0f, 20.0f); // not player 0's
+		CHECK(s.fauna_.behavior[fidx(s, ewe)] != FAUNA_MOVING);
+		s.order_fauna_walk(1, herd, 3, 20.0f, 30.0f);
+		CHECK(s.fauna_.behavior[fidx(s, ewe)] == FAUNA_MOVING && s.fauna_.behavior[fidx(s, ram)] == FAUNA_MOVING);
+		CHECK(s.fauna_.behavior[fidx(s, wild)] != FAUNA_MOVING);
+		run(s, 12.0f);
+		const float ex = s.fauna_.pos_x[fidx(s, ewe)], ez = s.fauna_.pos_z[fidx(s, ewe)];
+		CHECK(std::hypot(ex - 20.0f, ez - 30.0f) < 2.5f && s.fauna_.behavior[fidx(s, ewe)] != FAUNA_MOVING);
+		CHECK(std::hypot(s.fauna_.pos_x[fidx(s, wild)] - 20.0f, s.fauna_.pos_z[fidx(s, wild)] - 30.0f) > 6.0f);
+		// Vision: player 1 sees round its own ewe, not round Gaia's sheep far from its things.
+		run(s, 0.5f);
+		CHECK(s.los_visible(1, ex, ez) && !s.los_visible(0, ex, ez));
+		{
+			const char *path = "/tmp/rts0_test_fauna_vision.sav";
+			CHECK(s.save_state(path));
+			static Simulation t;
+			CHECK(t.load_state(path));
+			CHECK(t.los_visible(1, ex, ez));
+			CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+			std::remove(path);
+		}
+		// Stop: it feeds where it stands.
+		s.order_fauna_walk(1, &ewe, 1, 0.0f, 30.0f);
+		run(s, 1.0f);
+		s.order_fauna_stop(1, &ewe, 1);
+		CHECK(s.fauna_.behavior[fidx(s, ewe)] == FAUNA_IDLE_GRAZE);
+		const float stop_x = s.fauna_.pos_x[fidx(s, ewe)];
+		run(s, 0.5f);
+		CHECK(std::fabs(s.fauna_.pos_x[fidx(s, ewe)] - stop_x) < 0.5f);
+		// Garrison: into its owner's corral; penned, it is no longer selectable.
+		s.order_fauna_walk(1, herd, 2, 0.0f, 0.0f, pen);
+		run(s, 20.0f);
+		CHECK(s.fauna_.behavior[fidx(s, ewe)] == FAUNA_CORRALLED && s.corral_count(pen) == 2);
+		CHECK(!s.fauna_selectable_by(1, ewe));
+		std::printf("livestock orders: ewe walked to (%.1f, %.1f), both penned\n", ex, ez);
 	}
 
 	if (failures) {

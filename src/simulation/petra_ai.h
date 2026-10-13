@@ -74,14 +74,9 @@ struct PetraConfig {
 	float emergency_struct_factor = 0.60f;
 	float emergency_root_factor   = 0.50f;
 
-	// queueManager.js Config.priorities
-	int prio_emergency = 1000;
-	int prio_villager  = 600;
-	int prio_military  = 600;
-	int prio_tech      = 700;
-	int prio_trade     = 1;
-	int prio_naval     = 90;
-	static constexpr int PRIO_MINOR_TECH = 250; // config.js priorities.minorTech (prio_tech is majorTech)
+	// Saves before v60 held the six coarse queue priorities here; the queues' priorities now
+	// come from Config.priorities (petra_queue_base_priority).
+	int reserved_[6] = {};
 
 	// config.js setConfig. `seed` != 0 draws the personality as 0 A.D. does (randFloat within
 	// the behaviour's range, cooperative anywhere in [0, 1]); 0 keeps each behaviour's middle.
@@ -147,13 +142,6 @@ struct PetraConfig {
 		// aggressive personality goes to the town phase at 50. Below Easy it never cities.
 		pop_phase2 = (d >= PETRA_MEDIUM && aggressive > 0.70f) ? 50 : 150;
 		work_phase3 = d < PETRA_EASY ? 999 : 180;
-		prio_emergency = 1000;
-		prio_villager  = 600;
-		prio_military  = (aggressive > 0.70f) ? 720 : 600;
-		prio_tech      = 700;
-		prio_trade     = 1;
-		prio_naval     = 90;
-		if (defensive > 0.70f) prio_emergency += 200;
 	}
 };
 
@@ -165,23 +153,64 @@ struct PetraQueueAccount {
 	float stone = 0.0f;
 };
 
-// queueManager.js only funds queues that hold a plan, and only up to that
-// plan's cost. A queue "wants" the cost of the item it last failed to pay for;
-// the want lapses after WANT_TTL seconds without a retry and the account's
-// reserve returns to the free pool, so idle queues cannot hoard income.
+// queueManager.js queues, Config.priorities order. RTS0 keeps one upcoming attack plan,
+// so the "plan_<name>" queues an attackPlan.js adds are three fixed ones here.
+enum PetraQueue : uint8_t {
+	PETRA_Q_VILLAGER = 0,
+	PETRA_Q_CITIZEN_SOLDIER,
+	PETRA_Q_TRADER,
+	PETRA_Q_HEALER,
+	PETRA_Q_SHIPS,
+	PETRA_Q_HOUSE,
+	PETRA_Q_DROPSITES,
+	PETRA_Q_FIELD,
+	PETRA_Q_DOCK,
+	PETRA_Q_CORRAL,
+	PETRA_Q_ECONOMIC_BUILDING,
+	PETRA_Q_MILITARY_BUILDING,
+	PETRA_Q_DEFENSE_BUILDING,
+	PETRA_Q_CIVIL_CENTRE,
+	PETRA_Q_MAJOR_TECH,
+	PETRA_Q_MINOR_TECH,
+	PETRA_Q_WONDER,
+	PETRA_Q_EMERGENCY,
+	PETRA_Q_PLAN,        // plan_<name>
+	PETRA_Q_PLAN_CHAMP,  // plan_<name>_champ
+	PETRA_Q_PLAN_SIEGE,  // plan_<name>_siege
+	PETRA_Q_COUNT
+};
+
+// queueManager.js funds the queues that hold a plan, by priority, up to that plan's cost.
+// RTS0's Petra pays where it decides rather than queueing plans: a queue "wants" the cost
+// of the item it last failed to pay for, and the want lapses after WANT_TTL seconds without
+// a retry, when the account's reserve returns to the free pool (queue emptied).
 struct PetraQueueManager {
-	static constexpr int QUEUE_COUNT = 6;
+	static constexpr int QUEUE_COUNT = PETRA_Q_COUNT;
 	static constexpr float WANT_TTL = 5.0f;
 	PetraQueueAccount accounts[QUEUE_COUNT] = {};
 	PetraQueueAccount wants[QUEUE_COUNT] = {};
 	float want_age[QUEUE_COUNT] = {};
+	int16_t priority[QUEUE_COUNT] = {};  // changePriority; 0 = the queue's Config.priorities value
+	uint8_t paused[QUEUE_COUNT] = {};    // checkPausedQueues
+	uint8_t switched[QUEUE_COUNT] = {};  // switchResource: drawn on once until it starts an item
+	uint8_t reset_on_start[QUEUE_COUNT] = {}; // queueToReset: 1 + the queue whose priority resets when this one starts its item
+	uint8_t pad[3] = {};
 	void reset() {
 		for (int i = 0; i < QUEUE_COUNT; ++i) {
 			accounts[i] = PetraQueueAccount{};
 			wants[i] = PetraQueueAccount{};
 			want_age[i] = WANT_TTL + 1.0f;
+			priority[i] = 0;
+			paused[i] = switched[i] = reset_on_start[i] = 0;
 		}
 	}
+};
+static_assert(sizeof(PetraQueueManager) == 864, "no hidden padding: saved raw");
+// The six-queue layout of saves before v60 (emergency, villager, military, tech, trade, naval).
+struct PetraQueueManagerV59 {
+	PetraQueueAccount accounts[6];
+	PetraQueueAccount wants[6];
+	float want_age[6];
 };
 
 // transportPlan.js — land-sea-land boarding FSM
@@ -206,33 +235,38 @@ struct PetraTransportPlan {
 enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2, PETRA_TRANSPORT_TRADER = 3,
                                       PETRA_TRANSPORT_WORKERS = 4 };
 
+// chatHelper.js: what a Petra line says; petra_chat.h holds each kind's lines.
 enum PetraChatKind : uint8_t {
-	PETRA_CHAT_ATTACK    = 0,
-	PETRA_CHAT_TRIBUTE   = 1,
-	PETRA_CHAT_BETRAYAL  = 2,
-	PETRA_CHAT_EMERGENCY = 3,
-	// diplomacyManager.js answers to a player who changed its stance toward us
-	PETRA_CHAT_DIPLO_ACCEPT   = 4,
-	PETRA_CHAT_DIPLO_DECLINE  = 5,
-	PETRA_CHAT_DIPLO_TRIBUTE  = 6, // accept once the player pays a tribute
-	PETRA_CHAT_DIPLO_WARNING  = 7, // the tribute has not arrived yet
-	PETRA_CHAT_DIPLO_LAPSED   = 8,
-	PETRA_CHAT_WAR_DECLARED   = 9, // answering a declaration of war
-	// diplomacyManager.js sendDiplomacyRequest / checkSentDiplomacyRequests, tributes()
-	PETRA_CHAT_ALLY_REQUEST     = 10,
-	PETRA_CHAT_NEUTRAL_REQUEST  = 11,
-	PETRA_CHAT_ALLY_EXPIRED     = 12,
-	PETRA_CHAT_NEUTRAL_EXPIRED  = 13,
-	PETRA_CHAT_TRIBUTE_REQUEST  = 14, // to an ally: "I am in need of <res>"
-	PETRA_CHAT_EMERGENCY_EXIT   = 15, // emergencyManager.js: the emergency is over
-	// Commands.js "attack-request" notice and chatHelper.js answerRequestAttackMessages.
-	// Their text names players as {P<id>}, which the chat window replaces with names.
-	PETRA_CHAT_ATTACK_REQUESTED = 16, // from the player asking, human or AI
-	PETRA_CHAT_ATTACK_JOIN      = 17,
-	PETRA_CHAT_ATTACK_DECLINE   = 18
+	PETRA_CHAT_ATTACK = 0,           // launchAttackMessages.other, player = the target (to allies)
+	PETRA_CHAT_HUGE_ATTACK,          // launchAttackMessages.hugeAttack
+	PETRA_CHAT_ATTACK_JOIN,          // answerRequestAttackMessages.join, player = the target asked for
+	PETRA_CHAT_ATTACK_DECLINE,       // answerRequestAttackMessages.decline
+	PETRA_CHAT_ATTACK_OTHER,         // answerRequestAttackMessages.other, player2 = our own target
+	PETRA_CHAT_TRIBUTE,              // sentTributeMessages, player = who got it (to allies)
+	PETRA_CHAT_TRIBUTE_REQUEST,      // requestTributeMessages, resource (to allies)
+	PETRA_CHAT_TRADE_ROUTE,          // newTradeRouteMessages, player = the route's other owner (to allies)
+	PETRA_CHAT_NEW_DIPLOMACY,        // newDiplomacyMessages[sub: PetraChatStance] (to everyone)
+	// answerDiplomacyRequestMessages[sub: 0 ally, 1 neutral][...], to the player who asked
+	PETRA_CHAT_ANSWER_DECLINE,
+	PETRA_CHAT_ANSWER_DECLINE_SUGGEST_NEUTRAL, // ally only
+	PETRA_CHAT_ANSWER_DECLINE_REPEATED,
+	PETRA_CHAT_ANSWER_ACCEPT,
+	PETRA_CHAT_ANSWER_ACCEPT_WITH_TRIBUTE,     // amount, resource
+	PETRA_CHAT_ANSWER_WAITING_FOR_TRIBUTE,     // amount, resource
+	// sendDiplomacyRequestMessages[sub][...], to the player asked
+	PETRA_CHAT_SEND_REQUEST,
+	PETRA_CHAT_REQUEST_EXPIRED,
+	PETRA_CHAT_EMERGENCY,            // emergencyMessages.enter (to allies)
+	PETRA_CHAT_EMERGENCY_EXIT,       // emergencyMessages.exit
+	// Commands.js "attack-request": from the player asking, human or AI, player = the target (to allies)
+	PETRA_CHAT_ATTACK_REQUESTED,
+	PETRA_CHAT_KIND_COUNT
 };
-// PetraChatLine::to for a line addressed to the speaker's allies ("/allies").
-static constexpr uint8_t PETRA_CHAT_TO_ALLIES = 0xFE;
+enum PetraChatStance : uint8_t { PETRA_STANCE_ALLY = 0, PETRA_STANCE_NEUTRAL = 1, PETRA_STANCE_ENEMY = 2 };
+// PetraChatLine::to besides a player id: "/allies" and the everyone chat.
+static constexpr uint8_t PETRA_CHAT_ALLIES = 0xFE;
+static constexpr uint8_t PETRA_CHAT_EVERYONE = 0xFF;
+
 
 // diplomacyManager.js receivedDiplomacyRequests: what one AI decided about a
 // player that changed its stance toward it (one entry per player).
@@ -241,7 +275,8 @@ struct PetraReceivedRequest {
 		NONE = 0,
 		DECLINED_FOREVER = 1,
 		WAITING_FOR_TRIBUTE = 2,
-		ACCEPTED = 3
+		ACCEPTED = 3,
+		ALLIANCE_BROKEN = 4 // allianceBroken: it left the alliance we accepted
 	} status = NONE;
 	uint8_t type = 0;        // 0 = ally, 1 = neutral
 	uint8_t resource = 0;
@@ -270,8 +305,10 @@ struct PetraSentDiplomacy {
 	float next_tribute_request_all = 240.0f;
 	float next_tribute_request[4] = {};  // per resource
 	uint8_t sent_type[8] = {};        // 0 none, 1 ally, 2 neutral
+	uint8_t warned_trade = 0;         // tradeManager.js warnedAllies: players told of a route with them, by bit
+	uint8_t pad[7] = {};
 };
-static_assert(sizeof(PetraSentDiplomacy) == 64, "PetraSentDiplomacy is saved raw: keep it padding-free");
+static_assert(sizeof(PetraSentDiplomacy) == 72, "PetraSentDiplomacy is saved raw: keep it padding-free");
 
 // chatHelper.js — short English taunts (no i18n)
 struct PetraDiplomacyRequest {
@@ -289,12 +326,18 @@ struct PetraDiplomacyRequest {
 
 struct PetraChatLine {
 	uint8_t kind = PETRA_CHAT_ATTACK;
-	uint8_t from = 1;    // the AI player speaking
-	uint8_t to = 0xFF;   // addressee, 0xFF = everyone
-	float x = 0.0f;
+	uint8_t from = 1;                   // the AI player speaking
+	uint8_t to = PETRA_CHAT_EVERYONE;   // a player ("/msg"), PETRA_CHAT_ALLIES or PETRA_CHAT_EVERYONE
+	uint8_t variant = 0;                // which of the kind's lines (chatHelper.js pickRandom)
+	uint8_t player = 0xFF;              // %(_player_)s
+	uint8_t player2 = 0xFF;             // %(_player_2)s
+	uint8_t sub = 0;                    // request type (0 ally, 1 neutral) or PetraChatStance
+	uint8_t resource = 0;               // %(resource)s / %(_resource_)s, a ResourceType
+	int32_t amount = 0;                 // %(_amount_)s
+	float x = 0.0f;                     // where a ping points (a tribute, an attack)
 	float z = 0.0f;
-	char text[96] = {};
 };
+static_assert(sizeof(PetraChatLine) == 20, "PetraChatLine is saved field by field: list a new one in tick_state_io");
 
 // defenseArmy.js: one group of foes close together and the defenders sent against it.
 // Its position (foePosition) and strengths are computed from the live units when used.

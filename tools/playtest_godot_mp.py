@@ -2,7 +2,9 @@
 """A real two-client multiplayer session: two headless Godot game clients go
 through the menu lobby (tools/lobby_server.py) as players would. One signs in
 and hosts; the other signs in, finds the game in the list and joins it; the
-host presses Start, and both play to a turn whose lockstep hash must match.
+host presses Start, and both play to a turn whose lockstep hash must match. The client freezes
+for a few seconds as the match starts, so the host must show "Waiting for
+players to connect:" with its name.
 Meanwhile the lobby must show the game running with two players and both
 players as in a game, as 0 A.D.'s lobby does.
 
@@ -19,6 +21,7 @@ Needs a Godot 4.3 binary (--godot or $GODOT) and an imported project
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -68,6 +71,17 @@ def play(args, lobby, leave):
     host = client("host", "alice")
     time.sleep(2.0)
     join = client("join", "bob")
+    # Read both outputs as they come, so the host's Start can be seen live.
+    lines = {"host": [], "join": []}
+    def read(role, p):
+        for line in p.stdout:
+            lines[role].append(line.rstrip("\n"))
+    readers = [threading.Thread(target=read, args=(r, p), daemon=True) for r, p in (("host", host), ("join", join))]
+    for t in readers:
+        t.start()
+    # The client freezes for a few seconds as the match starts, as a slow
+    # loader would: the host must show "Waiting for players to connect:" bob.
+    frozen = None
 
     # What the lobby showed while the match ran.
     seen = {"running": False, "two": False, "playing": set()}
@@ -83,15 +97,29 @@ def play(args, lobby, leave):
         if room and room["players"] == 2:
             seen["two"] = True
         seen["playing"] |= {p["name"] for p in players if p["status"] == "playing"}
-        time.sleep(0.5)
-    outs = {}
-    for role, p in (("host", host), ("join", join)):
+        if frozen is None and any("pressing Start" in l for l in lines["host"]):
+            os.kill(join.pid, signal.SIGSTOP)
+            frozen = time.time()
+        elif frozen and time.time() - frozen > 4.0:
+            os.kill(join.pid, signal.SIGCONT)
+            frozen = 0
+        time.sleep(0.25)
+    if frozen:
+        os.kill(join.pid, signal.SIGCONT)
+    for p in procs:
         try:
-            out, _ = p.communicate(timeout=10)
+            p.wait(timeout=10)
         except subprocess.TimeoutExpired:
             p.kill()
-            out, _ = p.communicate()
-        outs[role] = out
+            p.wait()
+    for t in readers:
+        t.join(timeout=5)
+    outs = {role: "\n".join(lines[role]) for role in lines}
+    if os.environ.get("GMP_DEBUG"):
+        for role in lines:
+            for l in lines[role]:
+                if "NetHost" in l or "[gmp]" in l or "TurnManager" in l:
+                    print(f"   {role}| {l}")
 
     def done(role):
         for line in gmp_lines(outs[role]):
@@ -106,9 +134,12 @@ def play(args, lobby, leave):
           and seen["running"] and seen["two"] and seen["playing"] == {"alice", "bob"})
     def said(role, key):
         return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs[role]) if f" {key}=" in l), "")
+    waited = said("host", "waiting")
+    ok = ok and waited == "Waiting for players to connect: bob"
     if leave == "join":
         left = said("host", "chat_left")
-        ok = ok and left.endswith("bob has left the game.")
+        # Once, when bob really leaves: a slow start must not read as a leave.
+        ok = ok and left.endswith("bob has left the game.") and said("host", "chat_left_lines") == "1"
     else:
         status = said("join", "net_status")
         ok = (ok and status.startswith("Connection to the server has been lost. | The host has ended the game.")
@@ -116,6 +147,8 @@ def play(args, lobby, leave):
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)
+    if ok:
+        print(f"[gmp] PASS while the client was frozen at the start, the host showed: {waited}")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")
     elif ok:

@@ -458,6 +458,9 @@ public:
 
 	void toggle_diplomacy();
 	void toggle_objectives();
+	Dictionary get_match_settings_info() const;
+	String match_settings_description() const;
+	String match_settings_player_state() const;
 	void _on_tutorial_ready_pressed();
 	void resign();
 	void _toggle_session_dialog(String name);
@@ -523,7 +526,17 @@ private:
 	bool selection_can_garrison(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
+	// 0 A.D. selects what the player doesn't own too (another player's unit or
+	// structure, an animal, a tree or a mine) to show its details, with no commands
+	// (EntitySelection; the command panels need the player's own entities).
+	enum InspectKind : uint8_t { INSPECT_NONE, INSPECT_UNIT, INSPECT_BUILDING, INSPECT_FAUNA, INSPECT_RESOURCE };
+	uint8_t inspected_kind_ = INSPECT_NONE;
+	uint32_t inspected_id_ = 0;
+	bool inspect_at(const Vector3 &click_pos);
+	bool fill_inspected_details();  // false when the inspected entity is gone or out of sight
+	bool fill_livestock_details();  // the player's own selected livestock
 	void prune_selection();
+	uint32_t own_fauna_at(float x, float z) const;
 	void update_command_panel();
 	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
@@ -609,10 +622,13 @@ private:
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
 	void _on_pause_overlay_pressed();
-	// 0 A.D. NetworkStatusOverlay "disconnected": the host is gone, so the
-	// match stops here; Exit leaves for the summary (endGame(true)).
+	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
+	// players still loading, "Synchronizing gameplay with other players…" while
+	// a rejoin loads, and "disconnected": the host is gone, so the match stops
+	// here. Exit leaves for the summary (endGame(true)).
 	Control *net_status_overlay_ = nullptr;
 	Label *net_status_label_ = nullptr;
+	RichTextLabel *net_loading_clients_ = nullptr; // loadingClientsText
 	bool net_disconnected_ = false; // session.js g_Disconnected
 	void update_net_status_overlay();
 	void _on_disconnected_exit_pressed();

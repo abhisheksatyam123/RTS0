@@ -30,7 +30,7 @@ const CIVS := [
 	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
 	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
 	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
-	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/gauls.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
+	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
 ]
 ## A slot's "civ" is the rtso::Civilization id (14 is Gaia, never listed); this one is "Random".
 const RANDOM_CIV := -1
@@ -173,6 +173,14 @@ const TRIGGER_DIFFICULTIES := [["Very Easy", "Choose this difficulty if you are 
 	["Hard", "Choose this difficulty if you want to be really challenged."],
 	["Very Hard", "Choose this difficulty if you do not mind being swept out."]]
 const TRIGGER_DIFFICULTY_MAPS := ["random_jebel_barkal"]
+# 0 A.D. Daytime (the maps' json settings.Daytime): [name, description] per option;
+# the dropdown adds Random first, which lets the map pick as its script does.
+const DAYTIMES := {
+	"random_danubius": [["Day", "Bright daylight illuminates the scene."],
+		["Night", "Attackers are covered by the darkness of the night."]],
+	"random_polar_sea": [["Dawn", "Scattered sunlight illuminates the scenery in a vivid red tone."],
+		["Daylight", "The scenery is illuminated by direct or indirect sunlight."]],
+}
 
 # 0 A.D. common/settings.js loadMapTypes: [name, title, description]; Skirmish is the default.
 const MAP_TYPES := [["skirmish", "Skirmish", "A map with a predefined landscape and number of players. Freely select the other game settings."],
@@ -220,6 +228,44 @@ const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180
 	Color8(220, 160, 220), Color8(80, 255, 190), Color8(50, 150, 255), Color8(100, 150, 30),
 	Color8(100, 60, 30), Color8(128, 0, 64), Color8(255, 200, 140), Color8(80, 80, 80)]
 const VICTORY_REGICIDE := 6
+# 0.28 settings/victory_conditions/*.json in GUIOrder: [VictoryKind bit (sim_types.h), title,
+# description]. Game Setup combines them; none checked is an endless game.
+const VICTORY_KINDS := [
+	[1, "Conquest", "Defeat opponents by killing all their units and destroying all their structures."],
+	[4, "Conquest Structures", "Defeat opponents by destroying all their structures."],
+	[2, "Conquest Units", "Defeat opponents by killing all their units."],
+	[8, "Conquest Civic Centers", "Defeat opponents by destroying all their fully built civic centers."],
+	[32, "Capture the Relic", "Capture all relics spread across the map and keep them for a certain time to win the game."],
+	[64, "Regicide", "Defeat opponents by killing their hero."],
+	[16, "Wonder", "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured."]]
+const VK_REGICIDE := 64
+# 0.28 victory condition file names (a scenario's settings VictoryConditions) -> VictoryKind bit.
+const VICTORY_NAMES := {"conquest": 1, "conquest_units": 2, "conquest_structures": 4, "conquest_civic_centers": 8,
+	"wonder": 16, "capture_the_relic": 32, "regicide": 64}
+# DisabledWhenChecked: checking a condition unchecks and disables these.
+const VICTORY_EXCLUDES := {1: 2 | 4 | 8, 2: 1, 4: 1 | 8, 8: 1 | 4}
+# victory_mask() of each single code (index == rtso::VictoryCondition); VICTORY_COMBINED | mask otherwise.
+const VICTORY_CODE_MASKS := [1, 1 | 16, 1 | 32, 0, 2, 4, 1 | 64]
+const VICTORY_COMBINED := 0x80
+var _victory_checks := {}
+
+static func victory_mask(code: int) -> int:
+	if code & VICTORY_COMBINED:
+		return code & 0x7F
+	return VICTORY_CODE_MASKS[code] if code >= 0 and code < VICTORY_CODE_MASKS.size() else 1
+
+static func victory_code(mask: int) -> int:
+	var i := VICTORY_CODE_MASKS.find(mask & 0x7F)
+	return i if i >= 0 else VICTORY_COMBINED | (mask & 0x7F)
+
+## "Conquest, Wonder" for a victory code; "Endless" when nothing is checked.
+static func victory_title(code: int) -> String:
+	var mask := victory_mask(code)
+	var names := PackedStringArray()
+	for k in VICTORY_KINDS:
+		if mask & int(k[0]):
+			names.append(k[1])
+	return ", ".join(names) if not names.is_empty() else "Endless"
 const CivAINames = preload("res://scenes/menu/civ_ai_names.gd")
 var _color_icons: Array = []
 
@@ -509,6 +555,19 @@ func _apply_map_locks() -> void:
 	pop.disabled = scen
 	res.disabled = scen
 	cf.disabled = scen
+	# VictoryConditions.onMapChange: a scenario's list replaces the conditions (an empty
+	# one, as the sandboxes have, is an endless game); VictoryConditionCheckbox disables
+	# every box on a scenario.
+	if scen and typeof(s.get("VictoryConditions")) == TYPE_ARRAY:
+		var vmask := 0
+		for n in s["VictoryConditions"]:
+			vmask |= int(VICTORY_NAMES.get(str(n), 0))
+		_set_victory_mask(vmask)
+	else:
+		_set_victory_mask(_victory_mask())
+	if scen:
+		for bit in _victory_checks:
+			_victory_checks[bit].disabled = true
 	if not scen:
 		pop.select(pop.get_selected())  # back from "Per Player"
 		pop.tooltip_text = ""
@@ -572,7 +631,28 @@ func _update_map_options() -> void:
 	var td := id in TRIGGER_DIFFICULTY_MAPS
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.visible = td
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.visible = td
-	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td
+	var dt := DAYTIMES.has(id)
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeLabel.visible = dt
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.visible = dt
+	if dt:
+		_fill_daytimes(id)
+	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td or dt
+
+## The Daytime dropdown for map `id`: Random, then the map's own options.
+func _fill_daytimes(id: String) -> void:
+	var slot := $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot
+	if slot.get_child_count() == 0:
+		return
+	var dsel: RtsoSafeSelect = slot.get_child(0)
+	var keep := maxi(dsel.get_selected(), 0)
+	dsel.clear()
+	dsel.add_item("Random")
+	var tips := PackedStringArray(["Random: Pick one of the daytime options at random."])
+	for d in DAYTIMES[id]:
+		dsel.add_item(d[0])
+		tips.append("%s: %s" % [d[0], d[1]])
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeLabel.tooltip_text = "Select whether the match starts by day or by night.\n" + "\n".join(tips)
+	dsel.select(clampi(keep, 0, dsel.get_item_count() - 1))
 
 func _selected_map() -> Dictionary:
 	if _filtered.is_empty():
@@ -797,10 +877,14 @@ func _clamp_slots_to_map() -> void:
 # ---------------------------------------------------------------- options ---
 
 func _build_options() -> void:
-	var vic := _make_option($VBox/HBox/LeftScroll/Left/VictorySlot)
-	for v in VICTORIES:
-		vic.add_item(v)
-	vic.select(0)
+	for k in VICTORY_KINDS:
+		var cb := CheckBox.new()
+		cb.text = k[1]
+		cb.tooltip_text = k[2]
+		cb.toggled.connect(_on_victory_toggled.bind(int(k[0])))
+		$VBox/HBox/LeftScroll/Left/VictorySlot.add_child(cb)
+		_victory_checks[int(k[0])] = cb
+	_set_victory_mask(1)
 	var msz := _make_option($VBox/HBox/LeftScroll/Left/MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
@@ -853,6 +937,9 @@ func _build_options() -> void:
 		dtips.append("%s: %s" % [d[0], d[1]])
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.tooltip_text = "Select the difficulty of this scenario.\n" + "\n".join(dtips)
 	tdf.select(2)
+	var dsel := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot)
+	dsel.add_item("Random")
+	dsel.select(0)
 	var res := _make_option($VBox/HBox/LeftScroll/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -882,11 +969,36 @@ func _on_reroll_seed() -> void:
 	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value = randi() % 1000000000
 	_update_preview()
 
+## The checked victory conditions as a VictoryKind mask.
+func _victory_mask() -> int:
+	var mask := 0
+	for bit in _victory_checks:
+		if _victory_checks[bit].button_pressed:
+			mask |= int(bit)
+	return mask
+
+## Check exactly `mask`, then disable what the checked ones exclude (VictoryConditions.js).
+func _set_victory_mask(mask: int) -> void:
+	for bit in _victory_checks:
+		_victory_checks[bit].set_pressed_no_signal((mask & int(bit)) != 0)
+	var disabled := 0
+	for bit in VICTORY_EXCLUDES:
+		if mask & int(bit):
+			disabled |= int(VICTORY_EXCLUDES[bit])
+	for bit in _victory_checks:
+		_victory_checks[bit].disabled = (disabled & int(bit)) != 0
+
+func _on_victory_toggled(on: bool, bit: int) -> void:
+	var mask := _victory_mask()
+	if on:
+		mask &= ~int(VICTORY_EXCLUDES.get(bit, 0))
+	_set_victory_mask(mask)
+
 ## The MatchSettings fields game setup restores, also the keys of the persisted file.
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
 	"ceasefire_min", "reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "water_level",
-	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_size", "start_res", "biome", "game_speed",
+	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
@@ -929,7 +1041,7 @@ func page_state() -> Dictionary:
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
 		"team_placement": st["team_placement"], "landscape": st["landscape"],
-		"trigger_difficulty": st["trigger_difficulty"], "map_size": st["map_size"],
+		"trigger_difficulty": st["trigger_difficulty"], "map_daytime": st["map_daytime"], "map_size": st["map_size"],
 		"start_res": st["res"], "biome": st["biome"], "game_speed": st["speed"],
 		"slot_types": rows.map(func(r): return int(r["kind"])), "slot_civs": rows.map(func(r): return int(r["civ"])),
 		"slot_teams": rows.map(func(r): return int(r["team"])), "slot_diffs": rows.map(func(r): return int(r["diff"])),
@@ -951,11 +1063,10 @@ func _restore_settings() -> void:
 	_apply_settings(src)
 
 func _apply_settings(ms: Dictionary) -> void:
-	var vic: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictorySlot.get_child(0)
 	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
 	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
 	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
-	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
+	_set_victory_mask(victory_mask(int(ms.get("victory"))))
 	$VBox/HBox/LeftScroll/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
 	$VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
 	$VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
@@ -994,6 +1105,11 @@ func _apply_settings(ms: Dictionary) -> void:
 			lsc.select(i)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
 	tdf.select(clampi(int(ms.get("trigger_difficulty", 3)) - 1, 0, TRIGGER_DIFFICULTIES.size() - 1))
+	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
+	if dsel.get_item_count() < 3:
+		for i in range(dsel.get_item_count(), 3):
+			dsel.add_item("Option %d" % i)
+	dsel.select(clampi(int(ms.get("map_daytime", 0)), 0, 2))
 	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -1041,7 +1157,7 @@ func _on_back_pressed() -> void:
 func _collect_setup() -> Dictionary:
 	var m := _selected_map()
 	var seed := int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
-	var vic: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictorySlot.get_child(0)
+	var vmask := _victory_mask()
 	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
 	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
 	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
@@ -1056,6 +1172,7 @@ func _collect_setup() -> Dictionary:
 	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
+	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -1094,7 +1211,7 @@ func _collect_setup() -> Dictionary:
 			diff = int(_slot_rows[i]["diff"])
 			beh = int(_slot_rows[i]["beh"])
 			break
-	return {"map": m, "seed": seed, "victory": vic.get_selected(),
+	return {"map": m, "seed": seed, "victory": victory_code(vmask),
 		"waves": $VBox/HBox/LeftScroll/Left/Waves.button_pressed,
 		"lms": $VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed,
 		"pop_cap": int(POP_CAPS[maxi(pop.get_selected(), 0)][0]),
@@ -1110,6 +1227,7 @@ func _collect_setup() -> Dictionary:
 		"landscape": int(LANDSCAPES[maxi(lsc.get_selected(), 0)][1]),
 		# Maps without trigger difficulties play at the default, Medium.
 		"trigger_difficulty": maxi(tdf.get_selected(), 0) + 1 if str(m.get("id", "")) in TRIGGER_DIFFICULTY_MAPS else 3,
+		"map_daytime": maxi(dsel.get_selected(), 0) if DAYTIMES.has(str(m.get("id", ""))) else 0,
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
@@ -1117,7 +1235,7 @@ func _collect_setup() -> Dictionary:
 		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": $VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
-		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
+		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed and (vmask & VK_REGICIDE) != 0,
 		"lock_teams": $VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed,
 		# Cheats.js: always on in single-player, "the choice of that one player".
 		"cheats": true,
@@ -1204,6 +1322,7 @@ func _on_start_pressed() -> void:
 	ms.team_placement = int(st["team_placement"])
 	ms.landscape = int(st["landscape"])
 	ms.trigger_difficulty = int(st.get("trigger_difficulty", 3))
+	ms.map_daytime = int(st.get("map_daytime", 0))
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])

@@ -122,10 +122,11 @@ text = "Reroll"
 
 [node name="VictoryLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
-text = "Victory condition"
+tooltip_text = "Select the victory conditions; with none checked nobody wins."
+mouse_filter = 1
+text = "Victory conditions"
 
-[node name="VictorySlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
-custom_minimum_size = Vector2(0, 32)
+[node name="VictorySlot" type="HFlowContainer" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 
 [node name="Waves" type="CheckBox" parent="VBox/HBox/LeftScroll/Left"]
@@ -272,6 +273,17 @@ text = "Difficulty"
 
 [node name="TriggerDifficultySlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DaytimeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
+layout_mode = 2
+tooltip_text = "Select whether the match starts by day or by night."
+mouse_filter = 1
+text = "Daytime"
+
+[node name="DaytimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
+custom_minimum_size = Vector2(110, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 

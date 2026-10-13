@@ -195,12 +195,13 @@ class RtsoWorldView : public Node3D {
 	void build_ground_paint(const rtso::Simulation *sim);
 	// Per-biome sun, ambient, fog, sky and water (0 A.D. rmbiome Environment).
 	Ref<Environment> env_base_;
-	void apply_biome_environment(const std::string &biome, const std::string &map_id);
+	void apply_biome_environment(const std::string &biome, const std::string &map_id, uint8_t daytime = 0);
 	bool apply_sky_box(const godot::Ref<godot::Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const godot::Color &ground);
 	godot::Ref<godot::Shader> sky_box_shader_;
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;
+	std::vector<MeshInstance3D *> fauna_rings_; // selection rings of the player's own selected livestock
 	Ref<StandardMaterial3D> ring_enemy_mat;
 
 	Ref<BoxMesh> hp_bg_mesh;
@@ -262,22 +263,8 @@ class RtsoWorldView : public Node3D {
 	AudioStreamPlayer3D *spatial_players[SPATIAL_AUDIO_POOL_SIZE] = {nullptr};
 	size_t next_spatial_idx = 0;
 
-	Ref<AudioStream> sfx_bow_shoot[2];
-	Ref<AudioStream> sfx_arrow_fly;
-	Ref<AudioStream> sfx_arrow_hit;
-	Ref<AudioStream> sfx_catapult_blast;
-	Ref<AudioStream> sfx_sword_hit[3];
-	Ref<AudioStream> sfx_spear_hit[2];
-	Ref<AudioStream> sfx_building_collapse;
 	Ref<AudioStream> sfx_building_fire;
 
-	struct PrevProjState {
-		uint32_t id = 0;
-		float target_x = 0.0f, target_y = 0.0f, target_z = 0.0f;
-		float last_progress = 0.0f;
-		bool is_crush = false;
-	};
-	std::unordered_map<uint32_t, PrevProjState> tracked_projectiles;
 
 	struct PrevBuildingState {
 		uint32_t id = 0;
@@ -290,8 +277,6 @@ class RtsoWorldView : public Node3D {
 	};
 	std::unordered_map<uint32_t, PrevBuildingState> tracked_buildings;
 
-	std::unordered_map<uint32_t, float> unit_clash_cooldown;
-	float global_clash_timer = 0.0f;
 
 protected:
 	static void _bind_methods();

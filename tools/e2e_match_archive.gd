@@ -46,6 +46,10 @@ func run() -> void:
 	ms.slot_civs = [0, 1]
 	ms.slot_teams = [1, 2]
 	ms.victory = 3 # endless
+	ms.nomad = true # setup-only settings the replay must bring back
+	ms.slot_diffs = [3, 5]
+	ms.slot_behs = [2, 3]
+	ms.disable_treasures = true
 	ms.replay_dir = ""
 	ms.load_save_path = ""
 
@@ -84,6 +88,11 @@ func run() -> void:
 	check(browser._replays.size() >= 1 and browser._replays[0].dir + "/" == replay_dir, "the replay menu lists it first")
 
 	print("2. watch the replay")
+	# A Game Setup changed since the match must not leak into its replay.
+	ms.nomad = false
+	ms.slot_diffs = [3, 1]
+	ms.slot_behs = [2, 1]
+	ms.disable_treasures = false
 	ms.replay_dir = replay_dir
 	m = await start_scene()
 	check(m.is_replay_playback(), "the match scene plays the replay")
@@ -115,11 +124,13 @@ func run() -> void:
 	await process_frame
 	check(not paused, "Stay goes back to the replay")
 	check(int(st.turns) >= turns_recorded, "the replay holds every recorded turn")
-	check(int(st.view) == -1, "a replay starts in the observer view")
+	check(int(st.view) == -1 and int(st.hud_player) == -1, "a replay starts in the observer view, with no player's counters")
 	m.set_replay_view(1)
-	check(int(m.get_replay_status().view) == 1, "the player view follows player 2")
+	st = m.get_replay_status()
+	check(int(st.view) == 1 and int(st.hud_player) == 1, "the player view follows player 2, counters and time notifications too")
 	m.set_replay_view(-1)
-	check(int(m.get_replay_status().view) == -1, "and goes back to the observer")
+	st = m.get_replay_status()
+	check(int(st.view) == -1 and int(st.hud_player) == -1, "and goes back to the observer, hiding the counters (CounterManager)")
 
 	print("3. load the save from the menu")
 	ms.load_save_path = "user://saves/e2e_test.rts0sav"

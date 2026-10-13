@@ -11,7 +11,8 @@ var player_count: int = 2
 var map_id: String = "random_continental"
 var seed: int = 0
 # Victory: rtso::VictoryCondition id. 0 conquest, 1 wonder, 2 relic, 3 endless,
-# 4 conquest units, 5 conquest structures, 6 regicide.
+# 4 conquest units, 5 conquest structures, 6 regicide; 0x80 | VictoryKind mask for any other
+# combination of Game Setup's victory conditions.
 var victory: int = 0
 # Legacy wave-defense mode (enemy waves every 35s). Off for skirmish.
 var waves_enabled: bool = false
@@ -20,6 +21,9 @@ var last_man_standing: bool = false
 # 0 A.D. population limit per player (0 = unlimited, negative = World Population shared by
 # the players still in the game) and ceasefire length in minutes.
 var pop_cap: int = 300
+# 0 A.D. 0.28 Team Population: a positive pop_cap is each team's limit, shared by its
+# players still in the game (a teamless player keeps all of it).
+var team_pop: bool = false
 var ceasefire_min: int = 0
 # 0 A.D. map visibility: everything visible, or terrain known from the start.
 var reveal_map: bool = false
@@ -57,6 +61,7 @@ var sea_level_rise_min: int = 25
 var team_placement: int = 0
 var landscape: int = 0 # Unknown map Landscape (RmsGenerator::UNKNOWN_LANDSCAPE_*), 0 = random
 var trigger_difficulty: int = 3 # 0 A.D. Trigger Difficulty: 1 Very Easy .. 5 Very Hard, 3 Medium
+var map_daytime: int = 0 # 0 A.D. Daytime: 0 = the map picks, else the option in DAYTIMES (1-based)
 # Random-map width in meters, 0 A.D.'s sizes 128 (Tiny) to 512 (Giant).
 var map_size: int = 128
 # Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.

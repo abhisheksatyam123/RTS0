@@ -927,7 +927,7 @@ def load_team_bonuses(sim_root, rows):
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
 AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
-             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7}
+             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7, "AURA_VISION_ADD": 18}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
@@ -993,6 +993,8 @@ def aura_modifications(a):
             kind, value = "AURA_HEALTH", m["multiply"]
         elif v == "Vision/Range" and "multiply" in m:
             kind, value = "AURA_VISION", m["multiply"]
+        elif v == "Vision/Range" and "add" in m:
+            kind, value = "AURA_VISION_ADD", m["add"]
         elif v.startswith("Resistance/Entity/Damage/") and "add" in m:
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
@@ -1004,17 +1006,17 @@ def aura_modifications(a):
         if kind is None:
             continue
         gain = value - 1.0 if kind in MULTIPLY_AURAS else value
-        if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR",):
+        if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR", "AURA_HEAL", "AURA_HEAL_AMOUNT", "AURA_VISION_ADD"):
             gain = -gain
         out.append((kind, value, gain))
     return out
 
 
 RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
-# --keep-trainers: refresh stats only. Every row civ_roster_data.h has keeps its
-# trainers and phase (also rows the release no longer trains, read from
-# --previous-0ad when the release dropped the template) and new rows are left
-# out, so a release's stat changes land without touching what saves store.
+# --keep-trainers: every row civ_roster_data.h has keeps its id (also rows the release
+# dropped, read from --previous-0ad with their old trainers and phase) and new rows are
+# left out unless --append names them, so a release's changes land without moving the
+# template ids saves store. Rows the release has take its stats, trainers and phase.
 KEEP_TRAINERS = False
 PREVIOUS_SIM_ROOT = None
 # Building types added after the kept layout, with their structures/{civ}/ template and the
@@ -1249,7 +1251,10 @@ def collect(sim_root):
                     "radius": float(a.get("radius", 0)),
                     "affects": a.get("affects", []),
                     "players": a.get("affectedPlayers", ["Player"]),
-                    "modifications": a.get("modifications", []),
+                    # Auras.js: an aura whose requiredTechnology is not researched stays off; 0.28's
+                    # Seeress' Human Sacrifice names "healer_aura", which no technology is.
+                    "modifications": [] if a.get("requiredTechnology") and not os.path.exists(os.path.join(
+                        sim_root, "data", "technologies", a["requiredTechnology"] + ".json")) else a.get("modifications", []),
                 })
                 auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
             if len(hero_auras) > 3:  # three slots: range auras before garrison ones (the minister has four)
@@ -1257,14 +1262,9 @@ def collect(sim_root):
             rid = name.split("units/", 1)[-1]
             phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
             blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
-            if KEEP_TRAINERS and rid in prev_layout:
-                kept = list(prev_layout[rid][0])
-                for b, (tmpl, base) in KEEP_TRAINERS_NEW_BUILDINGS.items():
-                    if b not in kept and (b in blds or (base in kept and
-                                                        loader.exists("structures/%s/%s" % (civ, tmpl)))):
-                        kept.append(b)
-                blds = kept
-                blds, phase = sorted(blds, key=BUILDING_BITS.index), prev_layout[rid][1]
+            # --keep-trainers keeps a row's id; its trainers and phase are the release's while the
+            # release has its template (0.28 trains Spartan heroes at the Gerousia, the Legionary
+            # only by promotion). Saves store template ids, never trainers.
             if KEEP_TRAINERS and any(fnmatch.fnmatchcase(rid, pat) for pat in RETIRE_ROWS):
                 blds = []
             rows.append({
