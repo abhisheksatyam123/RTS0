@@ -16217,7 +16217,7 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_MEAT) continue;
 		auto git = scan.on_carcass.find(resources_.id[r]);
-		consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], 0,
+		consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], resources_.max_gatherers[r],
 		         git == scan.on_carcass.end() ? 0 : git->second, false, -1, false);
 	}
 	return best;
@@ -16321,11 +16321,44 @@ void Simulation::petra_build_first_base() {
 
 // worker.js "hunter" subrole: Petra's citizen cavalry hunt (baseManager.js
 // reassignIdleWorkers gives it to FastMoving units that gather food and can
-// attack animals). An idle hunter looks around itself, then around each base
-// and rides there; one that drifted into enemy territory looks again.
-void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
+// attack animals: citizen horsemen and the Ptolemaic camel archers). An idle
+// hunter looks around itself, then around each base and rides there; one that
+// drifted into enemy territory looks again.
+// worker.js update, a hunter or gatherer approaching an animal: "check that we have not
+// drifted too far when hunting". An animal in enemy territory, or in neutral land with
+// none of our food dropsites within 90000 m² (30000 m² on foot), is given up for
+// another hunt (retryWorking), or the chase is stopped when there is none.
+void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_CAVALRY) continue;
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_ATTACK) continue;
+		const auto fit = fauna_id_to_idx_.find(units_.target_unit_id[i]);
+		if (fit == fauna_id_to_idx_.end()) continue;
+		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls != GATHER_CAVALRY && gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
+		if (petra_unit_reserved(units_.id[i])) continue; // soldiers, the scout: not hunters or gatherers
+		if (fauna_.food_amount[fit->second] <= 0) continue; // only food supplies
+		const float tx = fauna_.pos_x[fit->second], tz = fauna_.pos_z[fit->second];
+		const int terr = territory_owner_at(tx, tz);
+		bool drifted = petra_foe(terr);
+		if (!drifted && terr < 0) {
+			const float d2 = (gcls == GATHER_CAVALRY ? 90000.0f : 30000.0f) / 16.0f;
+			drifted = true;
+			for (const auto &d : scan.food_drops)
+				if ((tx - d.first) * (tx - d.first) + (tz - d.second) * (tz - d.second) < d2) { drifted = false; break; }
+		}
+		if (!drifted) continue;
+		auto it = scan.on_animal.find(units_.target_unit_id[i]);
+		if (it != scan.on_animal.end() && it->second > 0) --it->second;
+		if (petra_start_hunting(i, scan)) continue;
+		cmd_stop(&units_.id[i], 1);
+	}
+}
+
+void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
+	petra_check_hunt_drift(scan);
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		if (unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_CAVALRY) continue;
 		if (carry_cap(i, RES_FOOD) <= 0) continue; // champion cavalry gather nothing
 		const uint32_t uid = units_.id[i];
 		const uint8_t st = units_.action_state[i];
