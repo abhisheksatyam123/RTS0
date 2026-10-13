@@ -2283,7 +2283,19 @@ static void test_restricted_attack_order() {
 
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
-	auto run_case = [](bool leave) {
+	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
+	// enough in one tick to take a pair standing in reach out of it.
+	auto step = [](Simulation &s, float seconds) {
+		for (long n = std::lround(seconds / Simulation::FIXED_STEP); n > 0; --n) s.tick(Simulation::FIXED_STEP);
+	};
+	auto step_until = [](Simulation &s, float seconds, auto &&done) {
+		for (long n = std::lround(seconds / Simulation::FIXED_STEP); n > 0; --n) {
+			s.tick(Simulation::FIXED_STEP);
+			if (done()) return true;
+		}
+		return false;
+	};
+	auto run_case = [&](bool leave) {
 		Simulation s;
 		setup(s);
 		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
@@ -2291,7 +2303,7 @@ static void test_range_check_between_hits() {
 		s.order_attack(&w, 1, e);
 		// A hit in reach, so the next swing is under way (attack_timer < 0).
 		float hp0 = hp_of(s, e);
-		const bool hit = run_until(s, 10.0f, [&] {
+		const bool hit = step_until(s, 10.0f, [&] {
 			const float hp = hp_of(s, e);
 			if (hp >= hp0) return false;
 			hp0 = hp;
@@ -2299,9 +2311,9 @@ static void test_range_check_between_hits() {
 		});
 		if (leave) s.units_.pos_x[idx_of(s, e)] = 8.0f; // out of reach right after the hit
 		const float hp1 = hp_of(s, e);
-		run(s, 0.8f); // the next hit was due one RepeatTime (0.75 s) on, in the fourth turn
+		step(s, 0.8f); // the next hit was due one RepeatTime (0.75 s) on, in the fourth turn
 		const bool spared = hp_of(s, e) == hp1;
-		const bool again = run_until(s, 10.0f, [&] { return hp_of(s, e) < hp1; });
+		const bool again = step_until(s, 10.0f, [&] { return hp_of(s, e) < hp1; });
 		return std::make_tuple(hit, spared, again);
 	};
 	const auto [hit, spared, again] = run_case(true);
