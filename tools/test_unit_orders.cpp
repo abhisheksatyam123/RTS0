@@ -91,6 +91,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 using namespace rtso;
@@ -1813,6 +1814,166 @@ static void test_patrol_loop() {
 	check(order.rfind("ABCABCA", 0) == 0, "after the last point it goes back to the first, not the one before");
 }
 
+static void test_patrol_wait(const char *path) {
+	std::printf("49. a patrolling unit surveys each waypoint for PatrolWaitTime (CHECKINGWAYPOINT)\n");
+	Simulation s;
+	setup(s);
+	uint32_t p = s.spawn_unit(-10, 0, 0, UNIT_SPEARMAN);
+	s.order_patrol(&p, 1, 10, 0);
+	check(run_until(s, 20.0f, [&] { return dist(s, p, 10, 0) < 1.5f; }), "reaches the far end");
+	float px = x_of(s, p), pz = z_of(s, p);
+	int still = 0;
+	for (int k = 0; k < 25; ++k) { // 5 s
+		run(s, DT);
+		const float nx = x_of(s, p), nz = z_of(s, p);
+		if (std::fabs(nx - px) < 1e-4f && std::fabs(nz - pz) < 1e-4f) ++still;
+		else if (still > 0) break;
+		px = nx; pz = nz;
+	}
+	std::printf("  stood still %.1f s at the waypoint\n", still * DT);
+	check(still * DT >= 0.8f && still * DT <= 1.6f, "it waits about a second there");
+	check(run_until(s, 20.0f, [&] { return dist(s, p, -10, 0) < 1.5f; }), "then walks back to the start");
+	// Saved mid-wait, the wait carries on the same way.
+	check(run_until(s, 2.0f, [&] { return s.units_.patrol_wait[idx_of(s, p)] > 0.3f; }), "waits at the start too");
+	check(s.save_state(path), "saved while waiting");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	run(s, 3.0f);
+	run(t, 3.0f);
+	check(std::fabs(x_of(s, p) - x_of(t, p)) < 1e-4f && std::fabs(z_of(s, p) - z_of(t, p)) < 1e-4f,
+			"both copies leave the waypoint together");
+	std::remove(path);
+}
+
+static uint16_t roster_named(const char *suffix) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+		const char *id = civ_unit_template(t).id;
+		const size_t n = std::strlen(id), m = std::strlen(suffix);
+		if (n >= m && std::strcmp(id + n - m, suffix) == 0) return t;
+	}
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+static Simulation::Building *bld_mut(Simulation &s, uint32_t id) {
+	for (Simulation::Building &b : s.buildings_)
+		if (b.id == id) return &b;
+	return nullptr;
+}
+
+static void test_capture_regen() {
+	std::printf("50. capture regen: the phases' GarrisonRegenRate, a garrisoned hero, once a second (Capturable.js)\n");
+	Simulation s;
+	setup(s);
+	const uint32_t bar = s.spawn_building_world(-20, -20, BLD_BARRACKS, 0, 1.0f);
+	Simulation::Building *b = bld_mut(s, bar);
+	const float base = b->capture_garrison_regen_rate;
+	check(std::fabs(s.structure_capture_garrison_regen(*b) - base) < 1e-5f, "GarrisonRegenRate starts at the template's");
+	s.players_[0].techs.set(TECH_PHASE_TOWN);
+	s.refresh_tech_mods(0);
+	check(std::fabs(s.structure_capture_garrison_regen(*b) - (base + 0.5f)) < 1e-5f, "Town Phase adds 0.5");
+	s.players_[0].techs.set(TECH_PHASE_CITY);
+	s.refresh_tech_mods(0);
+	check(std::fabs(s.structure_capture_garrison_regen(*b) - (base + 1.5f)) < 1e-5f, "City Phase adds 1 more");
+	// A garrisoned hero: Inspired Defense, +1 however many are inside.
+	const uint16_t per = roster_named("athen/hero_pericles"), leo = roster_named("spart/hero_leonidas");
+	check(per != CIV_UNIT_TEMPLATE_NONE && leo != CIV_UNIT_TEMPLATE_NONE, "roster has Pericles and Leonidas");
+	uint32_t heroes[2] = {s.spawn_unit(-20, -12, 0, UNIT_HERO, 0.0f, per), s.spawn_unit(-21, -12, 0, UNIT_HERO, 0.0f, leo)};
+	for (uint32_t h : heroes) s.garrison_now((size_t)idx_of(s, h), *bld_mut(s, bar));
+	b = bld_mut(s, bar);
+	check(b->garrisoned_units.size() == 2, "two heroes inside");
+	check(std::fabs(s.structure_capture_garrison_regen(*b) - (base + 2.5f)) < 1e-5f, "a garrisoned hero adds 1, once");
+	// TimerTick: points come back once a second, not a little every tick.
+	b->capture_points_by_team[0] -= 100.0f;
+	b->capture_points_by_team[1] += 100.0f;
+	int steps = 0;
+	float last = b->capture_points_by_team[0];
+	for (int k = 0; k < 40; ++k) { // 2 s
+		s.tick(Simulation::FIXED_STEP);
+		const float now = bld(s, bar)->capture_points_by_team[0];
+		if (now != last) ++steps;
+		last = now;
+	}
+	std::printf("  regained in %d steps over 2 s\n", steps);
+	check(steps == 2, "the garrison regains its points in one step a second");
+}
+
+static void test_capture_auras() {
+	std::printf("51. capture auras: Pericles, Alexander and the Temple of Vesta (Auras.js)\n");
+	Simulation s;
+	setup(s);
+	s.set_team_civ(1, CIV_ROMANS);
+	const uint32_t house = s.spawn_building_world(-30, 10, BLD_HOUSE, 0, 1.0f);
+	const float max0 = bld(s, house)->max_capture_points;
+	const float own0 = bld(s, house)->capture_points_by_team[0];
+	const uint32_t per = s.spawn_unit(-30, 16, 0, UNIT_HERO, 0.0f, roster_named("athen/hero_pericles"));
+	run(s, 1.0f);
+	check(std::fabs(bld(s, house)->max_capture_points - max0 * 1.5f) < 0.01f, "Pericles: own structures within 60 m +50% capture points");
+	check(std::fabs(bld(s, house)->capture_points_by_team[0] - own0 * 1.5f) < 0.01f, "and the owner's points scale with it");
+	const int pi = idx_of(s, per);
+	s.units_.pos_x[pi] = 30.0f; s.units_.pos_z[pi] = 30.0f;
+	run(s, 1.0f);
+	check(std::fabs(bld(s, house)->max_capture_points - max0) < 0.01f, "back to the template's once he leaves");
+	// Alexander halves an enemy Civil Centre's GarrisonRegenRate, not other structures'.
+	Simulation a;
+	setup(a);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : a.buildings()) if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	const uint32_t cc_id = cc->id;
+	const uint32_t bar = a.spawn_building_world(50, 44, BLD_BARRACKS, 1, 1.0f);
+	const float cc_rate = a.structure_capture_garrison_regen(*bld(a, cc_id));
+	const float bar_rate = a.structure_capture_garrison_regen(*bld(a, bar));
+	a.spawn_unit(50, 50, 0, UNIT_HERO, 0.0f, roster_named("mace/hero_alexander_iii"));
+	run(a, 1.0f);
+	check(std::fabs(a.structure_capture_garrison_regen(*bld(a, cc_id)) - cc_rate * 0.5f) < 1e-5f,
+			"Alexander: an enemy Civil Centre's garrison regeneration -50%");
+	check(std::fabs(a.structure_capture_garrison_regen(*bld(a, bar)) - bar_rate) < 1e-5f, "an enemy barracks keeps its own");
+	// Eternal Fire: the Temple of Vesta gives own structures within 75 m +50% capture points.
+	Simulation v;
+	setup(v);
+	v.set_team_civ(0, CIV_ROMANS);
+	const uint32_t h = v.spawn_building_world(-30, 10, BLD_HOUSE, 0, 1.0f);
+	const float hmax = bld(v, h)->max_capture_points;
+	v.spawn_building_world(-30, 25, BLD_TEMPLE_VESTA, 0, 1.0f);
+	run(v, 1.0f);
+	check(std::fabs(bld(v, h)->max_capture_points - hmax * 1.5f) < 0.01f, "Eternal Fire: own structures within 75 m +50% capture points");
+}
+
+static void test_capture_owner_change() {
+	std::printf("52. capture points on defeat, conversion and capture (OnOwnershipChanged, OnGlobalPlayerDefeated)\n");
+	Simulation s;
+	setup(s);
+	s.set_player_active(2, true, false);
+	const uint32_t theirs = s.spawn_building_world(20, 20, BLD_BARRACKS, 1, 1.0f);
+	const uint32_t mine = s.spawn_building_world(-20, -20, BLD_BARRACKS, 0, 1.0f);
+	Simulation::Building *t = bld_mut(s, theirs), *m = bld_mut(s, mine);
+	const float tmax = t->max_capture_points;
+	t->capture_points_by_team[1] -= 100.0f; t->capture_points_by_team[0] += 100.0f;
+	m->capture_points_by_team[0] -= 60.0f; m->capture_points_by_team[1] += 60.0f;
+	s.defeat_player(1);
+	t = bld_mut(s, theirs); m = bld_mut(s, mine);
+	// Gaia has no civ bonus: the maximum drops to the template's and every side's points with it.
+	const float gmax = building_type_info(BLD_BARRACKS).capture_max_points;
+	const float held = t->capture_points_by_team[0];
+	check(t->team == GAIA_PLAYER && std::fabs(held - 100.0f * gmax / tmax) < 0.01f,
+			"a defeated player's structure goes to Gaia and player 0 keeps its points");
+	check(t->capture_points_by_team[1] == 0.0f && std::fabs(t->max_capture_points - gmax) < 0.01f,
+			"the defeated player's points are Gaia's, at Gaia's maximum");
+	check(m->capture_points_by_team[1] == 0.0f, "what the defeated held of player 0's barracks goes to Gaia");
+	// Capture: the new owner's civ bonus sets the maximum (greek_structures +10%).
+	Simulation c;
+	setup(c);
+	c.set_team_civ(0, CIV_ATHENIANS);
+	c.set_team_civ(1, CIV_ROMANS);
+	const uint32_t house = c.spawn_building_world(10, 10, BLD_HOUSE, 1, 1.0f);
+	Simulation::Building *hb = bld_mut(c, house);
+	const float hmax = hb->max_capture_points;
+	hb->capture_points_by_team[1] = 0.0f; // as a capture attack left it
+	hb->capture_points_by_team[0] = hmax;
+	run(c, 1.0f);
+	hb = bld_mut(c, house);
+	check(hb->team == 0, "the house changes hands");
+	check(std::fabs(hb->max_capture_points - hmax * 1.1f) < 0.01f, "and takes its new Athenian owner's +10% capture points");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -1864,6 +2025,10 @@ int main(int argc, char **argv) {
 	test_chase_into_fog();
 	test_hidden_attacker();
 	test_patrol_loop();
+	test_patrol_wait(save.c_str());
+	test_capture_regen();
+	test_capture_auras();
+	test_capture_owner_change();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
