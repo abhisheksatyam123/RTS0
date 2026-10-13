@@ -18,6 +18,8 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
 - every "range" aura with Looter/Resource modifications (Brennus, Nastasen, Viriato):
   its multiply and add per resource, an AURA_LOOTER source; and every one replacing
   its victims' Loot with 0 (Pericles), an AURA_NO_LOOT source.
+- every "range" aura with ResourceGatherer/Rates multipliers (the Spartan catafalque's
+  Iron Pelanors): the multiplier per GatherKind, an AURA_GATHER_RATE source.
 - every "range" or "global" unit aura's AuraManager effects of each kind
   (extract_0ad_rosters.rts0_aura_effects): civ_roster_data.h keeps only one kind per
   unit aura, so the others (Brasidas' ranged damage beside his armour, Boudicca's
@@ -251,6 +253,9 @@ def main() -> int:
     loot_res = ["food", "wood", "stone", "metal"]
     looter_auras: list[tuple[str, list[float], list[float], float, int]] = []
     no_loot_auras: list[tuple[str, float, int]] = []
+    # Range auras on ResourceGatherer/Rates/<type>.<subtype>, per GatherKind (simulation.h).
+    gather_keys = ["food.grain", "food.fruit", "food.meat", "food.fish", "wood.tree", "stone.rock", "metal.ore"]
+    gather_auras: list[tuple[str, list[float], float, int]] = []
     for rel in sorted(list_files(src, "simulation/data/auras/")):
         if not rel.endswith(".json"):
             continue
@@ -263,8 +268,11 @@ def main() -> int:
         name = os.path.basename(rel)[:-5]
         mul, add = [1.0] * 4, [0.0] * 4
         zero = False
+        rates = [1.0] * len(gather_keys)
         for m in j.get("modifications", []):
             v = m["value"]
+            if v.startswith("ResourceGatherer/Rates/") and v.split("/")[-1] in gather_keys and "multiply" in m:
+                rates[gather_keys.index(v.split("/")[-1])] *= float(m["multiply"])
             if v.startswith("Looter/Resource/") and v.split("/")[-1] in loot_res:
                 r = loot_res.index(v.split("/")[-1])
                 mul[r] *= float(m.get("multiply", 1.0))
@@ -275,6 +283,8 @@ def main() -> int:
             looter_auras.append((name, mul, add, float(j.get("radius", 0)), players))
         if zero:
             no_loot_auras.append((name, float(j.get("radius", 0)), players))
+        if rates != [1.0] * len(gather_keys):
+            gather_auras.append((name, rates, float(j.get("radius", 0)), players))
     # Unit auras' AuraManager effects of every kind (the roster keeps the strongest one).
     import extract_0ad_rosters as ros  # noqa: E402
     effect_rows: list[tuple[str, str, float, float]] = []
@@ -403,6 +413,20 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Range auras on ResourceGatherer/Rates of the units they reach (AURA_GATHER_RATE sources,")
+    w("// value = row): a gather rate x multiply per GatherKind (grain, fruit, meat, fish, wood,")
+    w("// stone, metal); radius in 0 A.D. metres.")
+    w("struct GatherRateRangeAura { const char *id; float multiply[7]; float radius; uint8_t players; };")
+    w(f"constexpr uint16_t GATHER_RATE_RANGE_AURA_COUNT = {len(gather_auras)};")
+    w("inline const GatherRateRangeAura *gather_rate_range_auras() {")
+    w(f"\tstatic const GatherRateRangeAura kAuras[{max(1, len(gather_auras))}] = {{")
+    for name, rates, radius, players in gather_auras:
+        rs = ", ".join(f"{x!r}f" for x in rates)
+        w(f"\t\t{{\"{name}\", {{{rs}}}, {radius!r}f, {players}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
     w("// Range auras replacing Loot (xp and resources) with 0 on the entities they reach")
     w("// (AURA_NO_LOOT sources): those give their killer nothing.")
     w("struct NoLootRangeAura { const char *id; float radius; uint8_t players; };")
@@ -468,7 +492,7 @@ def main() -> int:
         f.write("\n".join(lines) + "\n")
     print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras, "
           f"{len(capatk_auras)} capture attack range auras, {len(looter_auras)} looter and "
-          f"{len(no_loot_auras)} no-loot range auras, {len(build_auras)} Builder/Rate range auras, "
+          f"{len(no_loot_auras)} no-loot range auras, {len(gather_auras)} gather-rate range auras, {len(build_auras)} Builder/Rate range auras, "
           f"{len(arrow_auras)} garrison arrow auras")
     for s in skipped:
         print("  not modelled: " + s)

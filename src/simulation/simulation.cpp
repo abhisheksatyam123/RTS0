@@ -1826,6 +1826,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const float ex = c * sc.half_w + sn * sc.half_d, ez = sn * sc.half_w + c * sc.half_d;
 		if (sc.x + ex > x0 && sc.x - ex < x1 && sc.z + ez > z0 && sc.z - ez < z1) return PLACE_OBSTRUCTED;
 	}
+	if (survival_placement_obstructed(x0, z0, x1, z1)) return PLACE_OBSTRUCTED;
 
 	// 2. Terrain passability class: building-land has no water under the
 	// footprint, a wall (default-terrain-only, centre point only) stands where
@@ -8790,6 +8791,11 @@ void Simulation::tick_gather(float dt) {
 					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
 							units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
 						rate /= 1.0f - g;
+					// Auras on ResourceGatherer/Rates/<type> (Iron Pelanors: metal ore), each once.
+					if (aura_mgr_.has(AURA_GATHER_RATE))
+						aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER_RATE, units_.tmpl[i],
+							&unit_combat_at(i).classes, false,
+							[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; });
 					// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
 					for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
 					if (field_efficiency > 0.0f) rate *= field_efficiency;
@@ -24126,6 +24132,11 @@ void Simulation::rebuild_auras() {
 					if (std::strcmp(aura.id, looter_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_LOOTER, looter_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							(float)k, aura_affected_players(team, looter_range_auras()[k].players), x, z, a);
+				// Range auras on ResourceGatherer/Rates (the Spartan catafalque's Iron Pelanors).
+				for (uint16_t k = 0; k < GATHER_RATE_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, gather_rate_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_GATHER_RATE, gather_rate_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
+							(float)k, aura_affected_players(team, gather_rate_range_auras()[k].players), x, z, a);
 				for (uint16_t k = 0; k < NO_LOOT_RANGE_AURA_COUNT; ++k)
 					if (std::strcmp(aura.id, no_loot_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
@@ -24306,6 +24317,22 @@ constexpr uint8_t kTreasureIslandsPlayers = 0x03; // "players": [1, 2]
 // GuiInterface.PushNotification text messages: shown like a time notification of the default length.
 constexpr uint32_t kPushNotificationMs = 10000;
 
+// The 0.28 trigger scripts' "Civilian" class: support_civilian(_house), the worker that replaced
+// the female citizen. Until a roster has those rows its female citizens stand in for them.
+bool trigger_civilian_class(uint64_t c) {
+	return (c & TC_CIVILIAN) && (c & TC_WORKER) && !(c & (TC_TRADER | TC_HEALER));
+}
+// GetTemplateNamesByClasses("Civilian") over roster rows (id, classes): the civilian rows, or the
+// female citizens on rosters without them (0.28's female citizens have no Civilian class).
+std::vector<uint16_t> trigger_civilians(const std::vector<std::pair<uint16_t, uint64_t>> &rows) {
+	std::vector<uint16_t> civ, fem;
+	for (const auto &[id, c] : rows) {
+		if (trigger_civilian_class(c) && !(c & TC_FEMALECITIZEN)) civ.push_back(id);
+		if (c & TC_FEMALECITIZEN) fem.push_back(id);
+	}
+	return civ.empty() ? fem : civ;
+}
+
 // maps/random/survivalofthefittest_triggers.js
 constexpr float kSurvivalTreasureMin = 3.0f, kSurvivalTreasureMax = 5.0f;   // treasureTime
 constexpr float kSurvivalFirstWaveMin = 4.0f, kSurvivalFirstWaveMax = 6.0f; // firstWaveTime
@@ -24327,6 +24354,12 @@ constexpr uint8_t kSurvivalDisabledBuildings[] = {BLD_CORRAL, BLD_FARMSTEAD, BLD
 	BLD_TOWN_CENTER, BLD_MILITARY_COLONY, BLD_WALL_SEGMENT, BLD_WALL_TOWER, BLD_GATE, BLD_PALISADE,
 	BLD_SIEGE_WALL, BLD_DOCK, BLD_LIGHTHOUSE};
 const char *const kSurvivalDisabledUnits[] = {"maur/support_elephant"};
+// survivalofthefittest.js (0.28) "Forbid placing foundations at the center": an
+// obstructors/placement_24x24 (Obstruction/Static 24 m, BlockFoundation only) every 6 m of the
+// map where the ground lies below (heightHill + heightLand) / 2, the low centre and the passages.
+// Heights are 0 A.D.'s metres times rms_generator.cpp's kSurvivalHeight.
+constexpr float kSurvivalObstructorLevel = 0.5f * (30.0f + 3.0f) * 0.35f;
+constexpr float kSurvivalObstructorStep = 6.0f / 4.0f, kSurvivalObstructorHalf = 12.0f / 4.0f;
 
 uint16_t roster_template_named(const char *id) {
 	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
@@ -24674,7 +24707,7 @@ void Simulation::trigger_survival_init() {
 				break;
 			}
 		for (size_t u = 0; u < units_.count; ++u)
-			if (units_.alive[u] && units_.team[u] == p && units_.unit_type[u] == UNIT_FEMALE_CITIZEN) {
+			if (units_.alive[u] && units_.team[u] == p && trigger_civilian_class(unit_tech_classes(units_.unit_type[u]))) {
 				triggers_.watched.push_back({units_.id[u], p, 0, kSurvivalTreasureFemale, p});
 				triggers_.invulnerable.push_back(units_.id[u]);
 				break;
@@ -24690,6 +24723,25 @@ void Simulation::trigger_survival_init() {
 	const uint32_t first_ms = (uint32_t)std::lround(sim_rng_.range_float(kSurvivalFirstWaveMin, kSurvivalFirstWaveMax) * 60000.0f);
 	triggers_.add_notification("The first wave will start in %(time)s!", first_ms);
 	triggers_.set_timeout(first_ms, TRIGGER_ACTION_SURVIVAL_WAVE);
+}
+
+bool Simulation::survival_placement_obstructed(float x0, float z0, float x1, float z1) const {
+	// The map script placed them when its trigger script is registered.
+	bool survival = false;
+	for (const TriggerRegistration &r : triggers_.triggers) survival |= r.action == TRIGGER_ACTION_SURVIVAL_INIT;
+	if (!survival) return false;
+	// Grid points from the map's corner (0 A.D. position 0) whose square overlaps the bounds.
+	const float h = kSurvivalObstructorHalf, st = kSurvivalObstructorStep;
+	const int i0 = std::max(0, (int)std::floor((x0 - h + map_half_) / st)), i1 = (int)std::ceil((x1 + h + map_half_) / st);
+	const int j0 = std::max(0, (int)std::floor((z0 - h + map_half_) / st)), j1 = (int)std::ceil((z1 + h + map_half_) / st);
+	const int last = (int)std::ceil(2.0f * map_half_ / st) - 1;
+	for (int j = j0; j <= std::min(j1, last); ++j)
+		for (int i = i0; i <= std::min(i1, last); ++i) {
+			const float gx = i * st - map_half_, gz = j * st - map_half_;
+			if (gx + h <= x0 || gx - h >= x1 || gz + h <= z0 || gz - h >= z1) continue;
+			if (get_terrain_height(gx, gz) < kSurvivalObstructorLevel) return true;
+		}
+	return false;
 }
 
 void Simulation::trigger_survival_treasures() {
@@ -25244,7 +25296,7 @@ void Simulation::random_template_composition(const std::vector<uint16_t> &names,
 void Simulation::trigger_elephantine_init() {
 	// elephantine_triggers.js InitElephantine: the Gaia soldiers hold a defensive stance, the
 	// towers fill with elite Kushite citizen infantry and the wonder, temples and pyramids
-	// with those and Kushite women and elite priests (SpawnAndGarrisonAtClasses at 100%).
+	// with those and Kushite civilians and elite priests (SpawnAndGarrisonAtClasses at 100%).
 	std::vector<uint32_t> soldiers;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != GAIA_PLAYER) continue;
@@ -25254,8 +25306,9 @@ void Simulation::trigger_elephantine_init() {
 	}
 	if (!soldiers.empty()) order_set_stance(soldiers.data(), soldiers.size(), STANCE_DEFENSIVE);
 	// GetTemplateNamesByClasses("CitizenSoldier+Infantry", "kush", , "Elite", true) and
-	// ("FemaleCitizen Healer", "kush", , "Elite", true): the elite rank of each _b row.
+	// ("Civilian Healer", "kush", , "Elite", true): the elite rank of each _b row.
 	std::vector<uint16_t> infantry, support;
+	std::vector<std::pair<uint16_t, uint64_t>> civilian_rows;
 	for (uint16_t t : civ_roster_ids(CIV_KUSHITES)) {
 		const CivUnitTemplate &u = civ_unit_template(t);
 		if (std::strstr(u.id, "rts0_")) continue;
@@ -25264,12 +25317,13 @@ void Simulation::trigger_elephantine_init() {
 		const bool basic = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0;
 		if ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY) && !std::strstr(u.id, "_merc")) {
 			if (basic) infantry.push_back(t);
-		} else if (c & TC_FEMALECITIZEN) {
-			support.push_back(t);
 		} else if ((c & TC_HEALER) && std::strstr(u.id, "_e")) {
 			support.push_back(t);
 		}
+		civilian_rows.push_back({t, c});
 	}
+	const std::vector<uint16_t> civilians = trigger_civilians(civilian_rows);
+	support.insert(support.begin(), civilians.begin(), civilians.end());
 	std::vector<uint16_t> temple = infantry;
 	temple.insert(temple.end(), support.begin(), support.end());
 	auto elite = [&](uint16_t t) {
@@ -25324,11 +25378,12 @@ enum DanubiusTarget : uint8_t { DANUBIUS_TARGET_SHIP, DANUBIUS_TARGET_DEFENSIVE,
 
 // danubiusAttackerTemplates: TriggerHelper.GetTemplateNamesByClasses over the Gallic roster.
 struct DanubiusTemplates {
-	std::vector<uint16_t> ships, siege, females, healers, champions, champion_infantry, infantry_ranged, citizen_soldiers, heroes;
+	std::vector<uint16_t> ships, siege, civilians, healers, champions, champion_infantry, infantry_ranged, citizen_soldiers, heroes;
 };
 const DanubiusTemplates &danubius_templates() {
 	static const DanubiusTemplates t = [] {
 		DanubiusTemplates d;
+		std::vector<std::pair<uint16_t, uint64_t>> civilian_rows;
 		for (uint16_t id : civ_roster_ids(CIV_GAULS)) {
 			const CivUnitTemplate &u = civ_unit_template(id);
 			if (std::strstr(u.id, "rts0_")) continue;
@@ -25343,15 +25398,16 @@ const DanubiusTemplates &danubius_templates() {
 					if (std::strcmp(u.id, h) == 0) d.heroes.push_back(id);
 				continue;
 			}
-			if (c & TC_WARSHIP) add(d.ships, 3);
+			if (c & TC_ARROWSHIP) add(d.ships, 3); // "Trireme": the arrow ship only since 0.28
 			if (c & TC_SIEGE) add(d.siege, 3);
-			if (c & TC_FEMALECITIZEN) add(d.females, 3);
+			for (int r = 0; r < ranks; ++r) civilian_rows.push_back({(uint16_t)(id | r << kDanubiusRankShift), c});
 			if (c & TC_HEALER) add(d.healers, 3);
 			if (c & TC_CHAMPION) add(d.champions, 3);
 			if ((c & TC_CHAMPION) && (c & TC_INFANTRY)) add(d.champion_infantry, 3);
 			if ((c & TC_INFANTRY) && (c & TC_RANGED)) add(d.infantry_ranged, 3);
 			if (c & TC_CITIZENSOLDIER) add(d.citizen_soldiers, 1); // "Basic"
 		}
+		d.civilians = trigger_civilians(civilian_rows);
 		// The script's own order of the heroes.
 		std::sort(d.heroes.begin(), d.heroes.end(), [](uint16_t a, uint16_t b) {
 			auto at = [](uint16_t t) {
@@ -25495,7 +25551,7 @@ void Simulation::trigger_danubius_init() {
 	if (!people.empty()) order_set_stance(people.data(), people.size(), STANCE_DEFENSIVE);
 	// GarrisonAllGallicBuildings and TurretAllGallicBuildings, full.
 	const DanubiusTemplates &t = danubius_templates();
-	std::vector<uint16_t> house = t.females;
+	std::vector<uint16_t> house = t.civilians;
 	house.insert(house.end(), t.healers.begin(), t.healers.end());
 	std::vector<std::pair<uint32_t, const std::vector<uint16_t> *>> holders;
 	for (const Building &b : buildings_) {
@@ -25525,7 +25581,7 @@ void Simulation::trigger_danubius_init() {
 		const float bx = b.x, bz = b.z, r0 = b.half_size + 1.5f;
 		std::vector<uint32_t> defenders;
 		for (const auto &[templates, n] : {std::pair{&t.citizen_soldiers, 8}, std::pair{&t.champions, 13}, std::pair{&t.healers, 4},
-				std::pair{&t.females, 5}}) {
+				std::pair{&t.civilians, 5}}) {
 			if (templates->empty()) continue;
 			const auto ids = danubius_spawn_counts({{(*templates)[(size_t)sim_rng_.range_int(0, (int)templates->size() - 1)], n}}, bx, bz, r0,
 			                                       defenders.size());
@@ -25720,11 +25776,12 @@ constexpr uint8_t kJebelFormations[] = {FORMATION_LINE, FORMATION_BOX}; // line_
 struct JebelTemplates {
 	std::vector<uint16_t> heroes, champions, elephants, champion_infantry, champion_infantry_melee, champion_infantry_ranged, champion_cavalry,
 		champion_cavalry_melee, citizen_soldiers, citizen_infantry, citizen_infantry_melee, citizen_infantry_ranged, citizen_cavalry,
-		citizen_cavalry_melee, healers, females;
+		citizen_cavalry_melee, healers, civilians;
 };
 const JebelTemplates &jebel_templates() {
 	static const JebelTemplates t = [] {
 		JebelTemplates j;
+		std::vector<std::pair<uint16_t, uint64_t>> civilian_rows;
 		for (uint16_t id : civ_roster_ids(CIV_KUSHITES)) {
 			const CivUnitTemplate &u = civ_unit_template(id);
 			if (std::strstr(u.id, "rts0_")) continue;
@@ -25750,8 +25807,9 @@ const JebelTemplates &jebel_templates() {
 				if (cav && melee) j.citizen_cavalry_melee.push_back(id);
 			}
 			if (c & TC_HEALER) j.healers.push_back(id);
-			if (c & TC_FEMALECITIZEN) j.females.push_back(id);
+			civilian_rows.push_back({id, c});
 		}
+		j.civilians = trigger_civilians(civilian_rows);
 		return j;
 	}();
 	return t;
@@ -25825,7 +25883,7 @@ void Simulation::trigger_jebel_barkal_init() {
 	const int difficulty = triggers_.difficulty;
 	const std::vector<uint16_t> barracks = jebel_join(t.citizen_infantry, t.champion_infantry);
 	const std::vector<uint16_t> stable = jebel_join(t.citizen_cavalry, t.champion_cavalry);
-	const std::vector<uint16_t> house = jebel_join(t.females, t.healers);
+	const std::vector<uint16_t> house = jebel_join(t.civilians, t.healers);
 	const std::vector<uint16_t> &wall = difficulty > 3 ? t.champion_infantry_ranged : t.citizen_infantry_ranged;
 	struct Holder {
 		uint32_t id;
