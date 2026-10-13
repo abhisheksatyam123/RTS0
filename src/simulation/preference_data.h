@@ -19,7 +19,7 @@ struct PrefProfile { uint8_t count; PrefTerm term[4]; }; // terms by index, over
 // A unit's PreferredClasses and its own preference classes as a target.
 struct PrefUnitRow { PrefProfile prefs; uint8_t classes; };
 
-inline constexpr uint16_t PREF_TEMPLATE_COUNT = 395; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t PREF_TEMPLATE_COUNT = 450; // = CIV_UNIT_TEMPLATE_COUNT
 inline const PrefUnitRow *pref_template_table() {
 	static const PrefUnitRow kTable[PREF_TEMPLATE_COUNT] = {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // athen/cavalry_javelineer_b
@@ -417,6 +417,61 @@ inline const PrefUnitRow *pref_template_table() {
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // brit/ship_fire_fire
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // gaul/ship_fire_fire
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // iber/ship_fire_fire
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // athen/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // athen/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // spart/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // spart/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // pers/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // pers/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // rome/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // rome/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // cart/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // cart/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // mace/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // mace/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // brit/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // brit/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // gaul/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // gaul/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // iber/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // iber/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // maur/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // maur/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // kush/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // kush/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // ptol/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // ptol/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // sele/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // sele/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // han/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // han/support_civilian_house
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/cavalry_javelineer_b
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/cavalry_spearman_b
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/champion_cavalry
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/champion_healer
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/champion_infantry_axeman
+		{{1, {{0, 0x00, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/champion_infantry_maceman
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/hero_boiorix
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/hero_lugius
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/hero_teutobod
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/infantry_javelineer_b
+		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/infantry_slinger_b
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/infantry_spearman_b
+		{{1, {{0, 0x08, 0x02}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/infantry_swordsman_b
+		{{2, {{0, 0x02, 0x00}, {1, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // germ/ship_arrow
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // germ/ship_fire
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x0a}, // germ/ship_fishing
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x0a}, // germ/ship_merchant
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // germ/ship_scout
+		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x08}, // germ/siege_ram
+		{{1, {{0, 0x04, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x08}, // germ/siege_ram_covered
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/support_civilian
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/support_civilian_house
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/support_healer_b
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/support_trader
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/rts0_villager
+		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x08}, // germ/catafalque
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // germ/ship_fire_fire
 	};
 	return kTable;
 }
@@ -456,7 +511,7 @@ inline const PrefUnitRow *pref_class_table() {
 	return kTable;
 }
 
-inline constexpr uint8_t PREF_BUILDING_ROWS = 66; // BuildingTypes; one more row for any other structure
+inline constexpr uint8_t PREF_BUILDING_ROWS = 67; // BuildingTypes; one more row for any other structure
 // Each BuildingType's preference classes as a target.
 inline const uint8_t *pref_building_classes() {
 	static const uint8_t kTable[PREF_BUILDING_ROWS + 1] = {
@@ -526,6 +581,7 @@ inline const uint8_t *pref_building_classes() {
 		0x04, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
 		0x04, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
 		0x04, // BLD_CRANNOG: structures/brit/crannog
+		0x04, // BLD_GREAT_HALL: structures/germ/great_hall
 		0x04, // default: template_structure
 	};
 	return kTable;

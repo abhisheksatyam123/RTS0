@@ -12593,6 +12593,11 @@
    "upstream_material": "no_trans_norm_spec.xml"
   },
   "athen_ship_ram": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/units/athen_ship_ram.glb",
    "origin": "ground-center",
    "parts": 112,
@@ -12610,6 +12615,18 @@
     "actor:art/actors/props/structures/hellenes/ship_oar_short_middle_right.xml",
     "actor:art/actors/props/structures/hellenes/trireme_blanket.xml",
     "actor:art/actors/structures/athenians/trireme_ram.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/hele_trireme_blanket.dae",
     "mesh:props/ship_oar_a.dae",
     "mesh:props/ship_oar_b.dae",
@@ -17126,6 +17143,11 @@
    "upstream_material": "player_trans_norm_spec.xml"
   },
   "cart_ship_ram": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/units/cart_ship_ram.glb",
    "origin": "ground-center",
    "parts": 252,
@@ -17143,6 +17165,14 @@
     "actor:art/actors/props/units/shields/kart_leather_large_e.xml",
     "actor:art/actors/props/units/shields/round_noboss_back_wicker.xml",
     "actor:art/actors/structures/carthaginians/trireme_ram.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/kart_ship_standard.dae",
     "mesh:props/shield/round_noboss_b.dae",
     "mesh:props/shield/round_noboss_f.dae",
@@ -24783,6 +24813,11 @@
    "upstream_material": "player_trans_ao_parallax_spec.xml"
   },
   "han_towership": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/buildings/han_towership.glb",
    "origin": "ground-center",
    "parts": 18,
@@ -24796,6 +24831,9 @@
     "actor:art/actors/props/structures/han/ship_oar_short_right.xml",
     "actor:art/actors/props/structures/han/tower_sail.xml",
     "actor:art/actors/structures/han/towership.xml",
+    "anim:other/ship_oar_idle_left.dae",
+    "anim:other/ship_oar_move_left.dae",
+    "anim:other/ship_oar_move_right.dae",
     "mesh:props/han_tower_sail.dae",
     "mesh:props/ship_oar_short.dae",
     "mesh:structural/han_ship_tower.dae",
@@ -31677,6 +31715,11 @@
    "upstream_material": "no_trans_norm_spec.xml"
   },
   "mace_ship_ram": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/units/mace_ship_ram.glb",
    "origin": "ground-center",
    "parts": 110,
@@ -31694,6 +31737,18 @@
     "actor:art/actors/props/structures/hellenes/ship_oar_short_right.xml",
     "actor:art/actors/props/structures/macedonians/trireme_shields.xml",
     "actor:art/actors/structures/macedonians/trireme_ram.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/mace_trireme_shields.dae",
     "mesh:props/ship_oar_b.dae",
     "mesh:structural/mace_ship_trireme.dae",
@@ -37877,6 +37932,11 @@
    "upstream_material": "player_trans_norm_spec.xml"
   },
   "pers_ship_ram": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/units/pers_ship_ram.glb",
    "origin": "ground-center",
    "parts": 237,
@@ -37891,6 +37951,10 @@
     "actor:art/actors/props/units/shields/celt_buckler_c_back.xml",
     "actor:art/actors/props/units/shields/pers_buckler_1.xml",
     "actor:art/actors/structures/persians/trireme_ram.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
     "mesh:props/shield/round_t_b.dae",
     "mesh:props/shield/round_t_f.dae",
     "mesh:props/ship_oar_a.dae",
@@ -42725,6 +42789,11 @@
    "upstream_material": "no_trans_norm_spec.xml"
   },
   "rome_ship_ram": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/units/rome_ship_ram.glb",
    "origin": "ground-center",
    "parts": 257,
@@ -42747,6 +42816,18 @@
     "actor:art/actors/props/units/shields/scutum_rome_isp_02.xml",
     "actor:art/actors/props/units/shields/scutum_rome_isp_09.xml",
     "actor:art/actors/structures/romans/trireme_ram.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/shield/props/scutum_01_b.dae",
     "mesh:props/shield/props/scutum_boss_a.dae",
     "mesh:props/shield/props/scutum_boss_b.dae",
@@ -48702,6 +48783,11 @@
    "upstream_material": "player_trans_parallax_spec.xml"
   },
   "sele_ship_ram": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/units/sele_ship_ram.glb",
    "origin": "ground-center",
    "parts": 110,
@@ -48719,6 +48805,18 @@
     "actor:art/actors/props/structures/hellenes/ship_oar_short_right.xml",
     "actor:art/actors/props/structures/seleucids/trireme_shields.xml",
     "actor:art/actors/structures/seleucids/trireme_ram.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/mace_trireme_shields.dae",
     "mesh:props/ship_oar_b.dae",
     "mesh:structural/mace_ship_trireme.dae",
@@ -51158,6 +51256,11 @@
    "upstream_material": "no_trans_norm_spec.xml"
   },
   "spart_ship_ram": {
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run"
+   ],
    "file": "models/units/spart_ship_ram.glb",
    "origin": "ground-center",
    "parts": 110,
@@ -51175,6 +51278,18 @@
     "actor:art/actors/props/structures/hellenes/ship_oar_short_middle_right.xml",
     "actor:art/actors/props/structures/spartans/trireme_blanket.xml",
     "actor:art/actors/structures/spartans/trireme_ram.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/ship_oar_a.dae",
     "mesh:props/ship_oar_b.dae",
     "mesh:props/spart_trireme_blanket.dae",

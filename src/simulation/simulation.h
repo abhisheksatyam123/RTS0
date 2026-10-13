@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 64; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 65; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -170,6 +170,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
 	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
+	static constexpr uint32_t SAVE_VERSION_STATISTICS_COUNTS = 65; // resource and population counts, livestock, bribes
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -1548,7 +1549,7 @@ public:
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	uint32_t find_nearby_prey(size_t i, float x, float z) const;
+	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -1658,6 +1659,19 @@ public:
 	// `max_tries` tries). Pieces in water or off the map are left out.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
 			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
+	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
+	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
+	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
+	// left) or a structure set into the wall (FORT_BUILDING: 3.5 towers inside the wall line).
+	// The outline is centred on (x, z) and turned so the first element faces the world angle
+	// `facing` from it. Pieces off the map, in water, or where `skip` says are left out.
+	enum FortressElement : uint8_t { FORT_LONG, FORT_GATE, FORT_TOWER, FORT_CORNER_IN, FORT_BUILDING };
+	struct FortressPart {
+		uint8_t element;  // FortressElement
+		uint8_t building; // the BuildingType of a FORT_BUILDING
+	};
+	size_t place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
+			bool (*skip)(float x, float z, const void *ctx) = nullptr, const void *ctx = nullptr);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -2026,6 +2040,7 @@ private:
 	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
 	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
 	uint32_t spawn_carcass(size_t f);
+	void award_fauna_xp(size_t i, size_t f, float damage);
 	bool projectile_lands_in(const Projectile &p, const Building &b) const;
 	int32_t projectile_hit_structure(const Projectile &p) const;
 	void projectile_hits_structure(const Projectile &p, Building &b);
@@ -2185,6 +2200,9 @@ private:
 	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
+	// A map script's built wall piece for `player` (placeGenericFortress, placeCustomFortress): left
+	// out off the map or in water; the trees and bushes under it go (DeleteUponConstruction).
+	bool place_map_wall_piece(const WallPiece &p, uint8_t player);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
@@ -2571,6 +2589,7 @@ private:
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
+	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
 	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
 	// navalManager.requireTransport for a worker: ship it from its land to a supply's on another.
 	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z);

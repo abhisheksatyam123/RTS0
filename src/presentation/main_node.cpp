@@ -88,6 +88,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
 	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
+	ClassDB::bind_method(D_METHOD("close_open_dialogs"), &RtsoMain::close_open_dialogs);
 	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
@@ -265,6 +266,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("Civilization", "PTOLEMIES", rtso::CIV_PTOLEMIES);
 	bind_enum("Civilization", "SELEUCIDS", rtso::CIV_SELEUCIDS);
 	bind_enum("Civilization", "HAN", rtso::CIV_HAN);
+	bind_enum("Civilization", "GERMANS", rtso::CIV_GERMANS);
 }
 
 RtsoMain::RtsoMain() {
@@ -629,6 +631,7 @@ void RtsoMain::_ready() {
 	civ_selector->add_item("Ptolemies", rtso::CIV_PTOLEMIES);
 	civ_selector->add_item("Seleucids", rtso::CIV_SELEUCIDS);
 	civ_selector->add_item("Han Chinese", rtso::CIV_HAN);
+	civ_selector->add_item("Germans", rtso::CIV_GERMANS);
 	civ_selector->connect("item_selected", Callable(this, "_on_civ_selected"));
 	civ_selector->select((int)sim->player_civ());
 	civ_selector->set_visible(false); // set in Game Setup; 0 A.D.'s top panel has no setup controls
@@ -4950,6 +4953,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("summary")) {
+			close_open_dialogs(); // MenuButtons Summary.onPress: closeOpenDialogs first
 			toggle_summary();
 			return;
 		}
@@ -5943,17 +5947,17 @@ void RtsoMain::apply_match_settings() {
 	// Civs before the map: spawn_unit gives each starting unit its owner's
 	// roster template (Simulation::reset keeps civs), as 0 A.D. spawns
 	// StartEntities from the player's own civ.
-	if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
-	if (ai >= 0 && ai < rtso::CIV_COUNT) sim->set_team_civ(1, (uint8_t)ai);
+	if (rtso::is_playable_civ(civ)) sim->set_player_civ((uint8_t)civ);
+	if (rtso::is_playable_civ(ai)) sim->set_team_civ(1, (uint8_t)ai);
 	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_civs.size(); ++t) {
 		const int sc = (int)slot_civs[t];
-		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
+		if (rtso::is_playable_civ(sc)) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
 	}
 	sim->set_nomad((bool)ms->get("nomad")); // random maps only (generate_random_map)
 	if (!load_map_seeded(map_id, seed)) {
 		UtilityFunctions::printerr("[RtsoMain] GameSetup map failed: ", map_id, " - default arena.");
-		if (civ >= 0 && civ < rtso::CIV_COUNT) sim->set_player_civ((uint8_t)civ);
-		if (ai >= 0 && ai < rtso::CIV_COUNT) sim->set_team_civ(1, (uint8_t)ai);
+		if (rtso::is_playable_civ(civ)) sim->set_player_civ((uint8_t)civ);
+		if (rtso::is_playable_civ(ai)) sim->set_team_civ(1, (uint8_t)ai);
 		sim->spawn_initial();
 		return;
 	}
@@ -6014,7 +6018,7 @@ void RtsoMain::apply_match_settings() {
 	// RMS/JSON spawns actually created - Petra only drives team 1).
 	for (int t = 0; t < rtso::MAX_PLAYERS && t < slot_civs.size(); ++t) {
 		int sc = (int)slot_civs[t];
-		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
+		if (rtso::is_playable_civ(sc)) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
 	}
 	apply_map_player_overrides();
 	// Seat the lobby's slots so every AI slot runs its own Petra (as apply_game_setup does).
@@ -6235,7 +6239,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			const uint8_t team = id <= 1 ? 0 : (uint8_t)(id - 1);
 			if (team >= rtso::MAX_PLAYERS) continue;
 			const int c = (int)p.get("civ", -1);
-			if (c >= 0 && c < rtso::CIV_COUNT) map_civ_[team] = (int8_t)c;
+			if (rtso::is_playable_civ(c)) map_civ_[team] = (int8_t)c;
 			if (p.has("resources")) {
 				Dictionary r = p["resources"];
 				const char *keys[4] = {"food", "wood", "stone", "metal"};
@@ -6888,7 +6892,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.slot_count = 0;
 		for (int i = 0; i < 8 && i < civs.size(); ++i) {
 			int c = (int)civs[i];
-			setup.civs[i] = (c >= 0 && c < rtso::CIV_COUNT) ? (uint8_t)c : 0;
+			setup.civs[i] = rtso::is_playable_civ(c) ? (uint8_t)c : 0;
 			int ty = (i < types.size()) ? (int)types[i] : 2;
 			setup.slot_types[i] = (ty == 0) ? 'h' : ((ty == 1) ? 'a' : 'x');
 			int tm = (i < teams.size()) ? (int)teams[i] : 0;
@@ -6958,7 +6962,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_trigger_difficulty(setup.trigger_difficulty);
 	// Civs before the map, so starting units take their owner's roster templates.
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
-		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
+		if (rtso::is_playable_civ(setup.civs[t])) sim->set_team_civ(t, setup.civs[t]);
 	}
 	sim->set_nomad(setup.nomad != 0);
 	if (!load_map_seeded(String(setup.map_id.c_str()), setup.seed)) {
@@ -7000,7 +7004,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	const uint8_t sr = setup.start_res < rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT ? setup.start_res : 1;
 	sim->set_starting_resources_preset(sr);
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
-		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
+		if (rtso::is_playable_civ(setup.civs[t])) sim->set_team_civ(t, setup.civs[t]);
 	}
 	apply_map_player_overrides();
 	// Seat every slot: Petra runs only for 'a' slots, so a second human in
@@ -7129,7 +7133,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 
 void RtsoMain::set_civ(int civ_idx) {
 	if (!sim) return;
-	if (civ_idx < 0 || civ_idx >= rtso::CIV_COUNT) civ_idx = rtso::CIV_ATHENIANS;
+	if (!rtso::is_playable_civ(civ_idx)) civ_idx = rtso::CIV_ATHENIANS;
 	sim->set_player_civ((uint8_t)civ_idx);
 
 	const auto &info = rtso::civ_info(civ_idx);

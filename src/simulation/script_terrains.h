@@ -36,6 +36,7 @@ enum AreaKind : uint8_t {
 	AREA_MARSH,
 	AREA_VOLCANO,
 	AREA_CORAL,    // a ring painted round an island, without elevation
+	AREA_HIGHLANDS, // ngorongoro.js's highlands and eden, which take the highland patches
 };
 
 // rmgen LayeredPainter(terrains, widths): a tile `d` tiles in from the area's
@@ -310,6 +311,33 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"lorraine_plain", {{FLORA_BEECH, FLORA_BEECH}}, {FLORA_OAK, FLORA_BEECH}, {{FLORA_OAK, FLORA_OAK}},
 		  FLORA_BERRY,
 		  {{200, 200}}, {200, 200}, {{200, 200}}}},
+		// lower_nubia.js: tSand everywhere, tPlateau above heightPlateau2 (heightScale(38): the band is its 30.4 m on
+		// a 256-tile map), tCliffUpper on cliffs, tRoad city patches, tWater below the water line. No forest floor,
+		// tiers or hills, so those reuse tSand; mine dirt reuses tPlateau. The Nile palms (oPalms) take the forest
+		// slots (date palms, palm_tropic, medit_fan_palm); tree3 holds the straggler acacias, dead trees and
+		// bush_badlands (one bush to two trees), which plant_flora mixes per tree on this map.
+		{"lower_nubia",
+		 {"lower_nubia", {"desert_sand_dunes_100"}, {"desert_sand_dunes_100"}, {},
+		  {"medit_cliff_italia", "medit_cliff_italia_grass"}, {"desert_sand_dunes_100"}, {"savanna_dirt_a", "savanna_dirt_b"},
+		  "savanna_tile_a", "savanna_tile_a", "desert_sand_wet", "desert_sand_wet", "desert_sand_wet"},
+		 {"lower_nubia", {{FLORA_PALM, FLORA_TROPIC_PALM}}, {FLORA_ACACIA, FLORA_ACACIA, FLORA_DEAD, FLORA_DEAD, FLORA_BUSH},
+		  {{FLORA_FAN_PALM, FLORA_PALM}}, FLORA_BERRY,
+		  {{200, 200}}, {200, 200, 200, 200, 100}, {{200, 200}}},
+		 {{30.4f, 1e9f, {"savanna_dirt_a", "savanna_dirt_b"}}}},
+		// ngorongoro.js: the savanna biome's savanna_grass_01 ground (the RandomMap's terrain), cliff, hill and dirt,
+		// the script's roads and baobabs only (rmgen2 addForests plants no savanna forest, so forest floor reuses the
+		// ground); the lowland patches are the tiers (its tier4 "savanna_forest_floor_a" names no 0 A.D. terrain, so
+		// savanna_forestfloor_a), the highland patches the highlands' and eden's area. No water.
+		{"ngorongoro",
+		 {"ngorongoro", {"savanna_grass_01"}, {"savanna_grass_01"},
+		  {"savanna_dirt_rocks_a", "savanna_grass_a", "savanna_grass_b", "savanna_forestfloor_a"}, {"sahara_rock_01"},
+		  {"sahara_rock_01"}, {"aegean_grass_02"}, "road2", "savanna_riparian_dry", "steppe_grass_04", "steppe_grass_04",
+		  "india_sand_01"},
+		 {"ngorongoro", {{FLORA_BAOBAB, FLORA_BAOBAB}}, {FLORA_BAOBAB}, {{FLORA_BAOBAB, FLORA_BAOBAB}}, FLORA_BERRY,
+		  {{400, 400}}, {400}, {{400, 400}}},
+		 {},
+		 {{AREA_HIGHLANDS, {{"savanna_grass_01", "savanna_grass_01", "savanna_grass_a_wetseason", "savanna_grass_b_wetseason",
+		                     "savanna_shrubs_a_wetseason", "savanna_shrubs_b"}}, {}}}},
 		// northern_lights.js: winter pines only and no fruit bush; no hills or dirt, so hill reuses tSnowE and tCliff,
 		// dirt tForestFloor.
 		{"northern_lights",
@@ -360,6 +388,23 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"rhine_marshlands", {{FLORA_BEECH, FLORA_BEECH}}, {FLORA_OAK, FLORA_BEECH}, {{FLORA_OAK, FLORA_OAK}},
 		  FLORA_BERRY,
 		  {{200, 200}}, {200, 200}, {{200, 200}}}},
+		// river_archipelago.js: toona, palm_tropic and palm_tropical forests on tForestFloor (toona the
+		// tree1/2 forests, the palms the tree4/5 ones and straggler slots); hill reuses tCliff; tiers are
+		// tGrassC, tGrassA, tGrassB and tGrass's tropic_plants_b, dirt tPlants. The shore bands are the
+		// script's height bands (0-1 m, 1-2.8 m). Its grass and dirt patches keep off clPlayerTerritory
+		// (a scaleByMapSize(15, 20) territory round each base), taken as 12 past the civic centre.
+		{"river_archipelago",
+		 {"river_archipelago", {"tropic_grass_c", "tropic_grass_c", "tropic_grass_plants", "tropic_plants"}, {"tropic_grass_plants"},
+		  {"tropic_grass_c", "tropic_plants_c", "tropic_plants_c", "tropic_plants_b"}, {"tropic_cliff_a", "tropic_cliff_a_plants"},
+		  {"tropic_cliff_a", "tropic_cliff_a_plants"}, {"tropic_plants"}, "tropic_citytile_a", "tropic_citytile_plants",
+		  "tropic_beach_dry_plants", "tropic_beach_dry", "tropic_beach_wet"},
+		 {"river_archipelago", {{FLORA_TEAK, FLORA_TEAK}}, {FLORA_TROPIC_PALM}, {{FLORA_TROPIC_PALM, FLORA_TROPIC_PALM}}, FLORA_BERRY,
+		  {{200, 200}}, {200}, {{200, 200}}},
+		 {{0.0f, 1.0f, {"tropic_beach_dry"}}, {1.0f, 2.8f, {"tropic_beach_dry_plants"}}},
+		 {{AREA_HILL, {{"tropic_cliff_a", "tropic_cliff_a", "tropic_cliff_a", "tropic_cliff_a_plants"},
+		               {"tropic_grass_c", "tropic_grass_c", "tropic_grass_c", "tropic_grass_plants", "tropic_plants", "tropic_plants_b"}}, {3}}},
+		 {{{{"tropic_grass_c"}, {"tropic_plants_c"}, {"tropic_plants_c"}}, {2, 1}, {{3.0f, 6.0f}, {5.0f, 10.0f}, {8.0f, 21.0f}}, {20.0f, 80.0f}, 8, 0, 0, 12, 16},
+		  {{{"tropic_plants"}}, {}, {{2.0f, 4.0f}, {3.0f, 7.0f}, {5.0f, 15.0f}}, {20.0f, 80.0f}, 8, 0, 0, 12, 16}}},
 		// saharan_oases.js: date palm forests on tLush; no cliffs or hills, so they reuse tDirtCracks and tSandDunes.
 		{"saharan_oases",
 		 {"saharan_oases", {"desert_sand_dunes_100"}, {"desert_grass_a"},
