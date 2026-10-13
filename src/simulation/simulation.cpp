@@ -14391,6 +14391,9 @@ void Simulation::petra_manage_economy(float dt) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			if (resources_.subtype[r] == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
 			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
+			// worker.js gatherNearestSupply: not in enemy territory.
+			const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
+			if (terr >= 0 && !is_ally(petra_pid_, (uint8_t)terr)) continue;
 			int slots;
 			auto fit = field_bld_by_res_.find(resources_.id[r]);
 			if (fit != field_bld_by_res_.end()) {
