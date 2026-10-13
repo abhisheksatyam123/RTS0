@@ -6,8 +6,8 @@ extends CanvasLayer
 # "Quit and View Summary" leaves the match for the summary page, "Quit" for the
 # main menu (the replay menu after a replay), "Stay" goes back to the game.
 #
-# Not ported: ReturnQuestion's "I resign" (RTS0 has no resign command yet), so
-# an active multiplayer client's "Yes" leaves as "I will return" does.
+# ResignConfirmation (the menu's Resign) and ReturnQuestion (an active
+# multiplayer client leaving) post the resign command (lockstep 49).
 
 signal pressed(index: int)
 
@@ -21,6 +21,9 @@ const TITLE_VICTORY := "VICTORIOUS!"
 const TITLE_DEFEATED := "DEFEATED!"
 const STATE_MESSAGES := {"won": "You have won!", "defeated": "You have been defeated!"} # messages.js g_PlayerStateMessages
 const QUESTION := "Do you want to quit?"
+const CAPTION_RESIGN := "Are you sure you want to resign?"
+const CAPTION_RETURN := "Do you want to resign or will you return soon?"
+const BUTTONS_RETURN := ["I will return", "I resign"]
 
 var title := ""
 var caption := ""
@@ -38,9 +41,26 @@ static func menu(m: Node) -> Node:
 	var observer: bool = g.get("isObserver", false)
 	if networked and not controller and not observer:
 		var q := _open(m, TITLE, CAPTION_CLIENT, ["No", "Yes"])
-		q.pressed.connect(func(i): if i == 1: end_game(m, false))
+		q.pressed.connect(func(i): if i == 1: return_question(m))
 		return q
 	return _quit(m, TITLE, CAPTION_HOST if networked and controller else CAPTION)
+
+## ReturnQuestion: "I will return" leaves; "I resign" resigns (and the player then
+## gets QuitConfirmationDefeat's question).
+static func return_question(m: Node) -> Node:
+	var q := _open(m, TITLE, CAPTION_RETURN, BUTTONS_RETURN)
+	q.pressed.connect(func(i):
+		if i == 0:
+			end_game(m, false)
+		else:
+			m.resign())
+	return q
+
+## ResignConfirmation: the menu's Resign.
+static func resign(m: Node) -> Node:
+	var q := _open(m, TITLE, CAPTION_RESIGN, ["No", "Yes"])
+	q.pressed.connect(func(i): if i == 1: m.resign())
+	return q
 
 ## QuitConfirmationDefeat.confirmExit: the player has won or been defeated. The
 ## host isn't invited to leave while other humans still play (no buttons then).
