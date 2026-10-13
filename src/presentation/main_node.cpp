@@ -2149,7 +2149,10 @@ void RtsoMain::update_cursor() {
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					// A penned animal is garrisoned in its corral: nothing to do with it.
 					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
+					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
+					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
+					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
+					want = herd ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want && scenery_at(at.x, at.z) != 0) want = "action-attack";
@@ -5353,7 +5356,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_fauna_id != 0) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
-				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
+				// 0 A.D.: a right-click on livestock slaughters it, whoever owns it. RTS0 can't select
+				// animals, so Alt+right-click on your own livestock herds it to your corral instead.
+				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED &&
+				               fview.owner[best_f] == local_player() && Input::get_singleton()->is_key_pressed(KEY_ALT) ? 1 : 0;
 				if (turn_cmds())
 					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
 				else if (herd)
