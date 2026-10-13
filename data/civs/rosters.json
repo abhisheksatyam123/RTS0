@@ -45,7 +45,9 @@
     "athen/support_healer_b",
     "athen/support_trader",
     "athen/rts0_villager",
-    "athen/catafalque"
+    "athen/catafalque",
+    "athen/support_civilian",
+    "athen/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -102,7 +104,9 @@
     "spart/support_trader",
     "spart/rts0_villager",
     "spart/champion_infantry_spear_olympian",
-    "spart/catafalque"
+    "spart/catafalque",
+    "spart/support_civilian",
+    "spart/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -162,7 +166,9 @@
     "pers/support_trader",
     "pers/rts0_villager",
     "pers/catafalque",
-    "pers/champion_infantry_archer_upgrade"
+    "pers/champion_infantry_archer_upgrade",
+    "pers/support_civilian",
+    "pers/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -224,7 +230,9 @@
     "rome/rts0_villager",
     "rome/cavalry_auxiliary_b",
     "rome/infantry_antesignanus",
-    "rome/catafalque"
+    "rome/catafalque",
+    "rome/support_civilian",
+    "rome/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -283,7 +291,9 @@
     "cart/support_healer_b",
     "cart/support_trader",
     "cart/rts0_villager",
-    "cart/catafalque"
+    "cart/catafalque",
+    "cart/support_civilian",
+    "cart/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -342,7 +352,9 @@
     "mace/support_trader",
     "mace/rts0_villager",
     "mace/champion_infantry_spearman_02",
-    "mace/catafalque"
+    "mace/catafalque",
+    "mace/support_civilian",
+    "mace/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -391,7 +403,9 @@
     "brit/war_dog",
     "brit/rts0_villager",
     "brit/catafalque",
-    "brit/ship_fire_fire"
+    "brit/ship_fire_fire",
+    "brit/support_civilian",
+    "brit/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -441,7 +455,9 @@
     "gaul/support_trader",
     "gaul/rts0_villager",
     "gaul/catafalque",
-    "gaul/ship_fire_fire"
+    "gaul/ship_fire_fire",
+    "gaul/support_civilian",
+    "gaul/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -494,7 +510,9 @@
     "iber/support_trader",
     "iber/rts0_villager",
     "iber/catafalque",
-    "iber/ship_fire_fire"
+    "iber/ship_fire_fire",
+    "iber/support_civilian",
+    "iber/support_civilian_house"
    ],
    "auto_bonuses": []
   },
@@ -529,7 +547,9 @@
     "maur/support_healer_b",
     "maur/support_trader",
     "maur/rts0_villager",
-    "maur/catafalque"
+    "maur/catafalque",
+    "maur/support_civilian",
+    "maur/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -589,7 +609,9 @@
     "kush/support_healer_e",
     "kush/support_trader",
     "kush/rts0_villager",
-    "kush/catafalque"
+    "kush/catafalque",
+    "kush/support_civilian",
+    "kush/support_civilian_house"
    ],
    "auto_bonuses": []
   },
@@ -638,7 +660,9 @@
     "ptol/support_healer_b",
     "ptol/support_trader",
     "ptol/rts0_villager",
-    "ptol/catafalque"
+    "ptol/catafalque",
+    "ptol/support_civilian",
+    "ptol/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -684,7 +708,9 @@
     "sele/support_healer_b",
     "sele/support_trader",
     "sele/rts0_villager",
-    "sele/catafalque"
+    "sele/catafalque",
+    "sele/support_civilian",
+    "sele/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -728,7 +754,9 @@
     "han/support_trader",
     "han/rts0_villager",
     "han/support_minister",
-    "han/catafalque"
+    "han/catafalque",
+    "han/support_civilian",
+    "han/support_civilian_house"
    ],
    "auto_bonuses": [
     {
@@ -1988,9 +2016,7 @@
    "name": "Athenian Woman",
    "specific_name": "Gýnē Athēnaía",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -2038,9 +2064,7 @@
    "name": "Athenian Woman",
    "specific_name": "Gýnē Athēnaía",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -3115,9 +3139,7 @@
    "name": "Spartan Woman",
    "specific_name": "Spartiâtis",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -3165,9 +3187,7 @@
    "name": "Spartan Woman",
    "specific_name": "Spartiâtis",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -4502,9 +4522,7 @@
    "name": "Mesopotamian Woman",
    "specific_name": "Banu Miyanrudani",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -4552,9 +4570,7 @@
    "name": "Mesopotamian Woman",
    "specific_name": "Banu Miyanrudani",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -6122,9 +6138,7 @@
    "name": "Roman Woman",
    "specific_name": "Rōmāna",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -6172,9 +6186,7 @@
    "name": "Roman Woman",
    "specific_name": "Rōmāna",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -7702,9 +7714,7 @@
    "name": "Carthaginian Woman",
    "specific_name": "Aštāh",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -7752,10 +7762,7 @@
    "name": "Carthaginian Woman",
    "specific_name": "Aštāh",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE",
-    "BLD_APARTMENT"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -9115,9 +9122,7 @@
    "name": "Macedonian Woman",
    "specific_name": "Gýnē Makedonikḗ",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -9165,9 +9170,7 @@
    "name": "Macedonian Woman",
    "specific_name": "Gýnē Makedonikḗ",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -10229,10 +10232,7 @@
    "name": "Celtic Woman",
    "specific_name": "Bena",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_CRANNOG"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -10280,9 +10280,7 @@
    "name": "Celtic Woman",
    "specific_name": "Bena",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -11472,9 +11470,7 @@
    "name": "Celtic Woman",
    "specific_name": "Bena",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -11522,9 +11518,7 @@
    "name": "Celtic Woman",
    "specific_name": "Bena",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -12615,9 +12609,7 @@
    "name": "Iberian Woman",
    "specific_name": "Emazteki",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -12665,9 +12657,7 @@
    "name": "Iberian Woman",
    "specific_name": "Emazteki",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -13918,9 +13908,7 @@
    "name": "Indian Woman",
    "specific_name": "Naari",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -13968,9 +13956,7 @@
    "name": "Indian Woman",
    "specific_name": "Naari",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -15399,9 +15385,7 @@
    "name": "Kushite Woman",
    "specific_name": "Shmt",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -15449,9 +15433,7 @@
    "name": "Kushite Woman",
    "specific_name": "Shmt",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -17032,10 +17014,7 @@
    "name": "Egyptian Woman",
    "specific_name": "Gýnē Aigýptia",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_MILITARY_COLONY"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -17083,9 +17062,7 @@
    "name": "Egyptian Woman",
    "specific_name": "Gýnē Aigýptia",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -18601,10 +18578,7 @@
    "name": "Syrian Woman",
    "specific_name": "Syrías Gýnē",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_MILITARY_COLONY"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -18652,9 +18626,7 @@
    "name": "Syrian Woman",
    "specific_name": "Syrías Gýnē",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -20020,10 +19992,7 @@
    "name": "Female Citizen",
    "specific_name": "Fù Nǚ",
    "phase": 1,
-   "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_IMPERIAL_COURT"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -20071,9 +20040,7 @@
    "name": "Female Citizen",
    "specific_name": "Fù Nǚ",
    "phase": 1,
-   "trainers": [
-    "BLD_HOUSE"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -21301,6 +21268,1448 @@
     "damage": 0.0,
     "range": 20.0,
     "carry": 0
+   }
+  },
+  {
+   "id": "athen/support_civilian",
+   "civ": "athen",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Athenian Artisan",
+   "specific_name": "Thēs",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "athen/support_civilian_house",
+   "civ": "athen",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Athenian Artisan",
+   "specific_name": "Thēs",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "spart/support_civilian",
+   "civ": "spart",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Helot",
+   "specific_name": "Heilōs",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 35.0,
+    "cooldown": 1.0,
+    "hack_dmg": 3.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 3.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "spart/support_civilian_house",
+   "civ": "spart",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Helot",
+   "specific_name": "Heilōs",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 35.0,
+    "cooldown": 1.0,
+    "hack_dmg": 3.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 3.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "pers/support_civilian",
+   "civ": "pers",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Persian Laborer",
+   "specific_name": "Martiyā",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "pers/support_civilian_house",
+   "civ": "pers",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Persian Laborer",
+   "specific_name": "Martiyā",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "apartment_block",
+    "house",
+    "house_a",
+    "house_b",
+    "inn",
+    "warehouse"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "rome/support_civilian",
+   "civ": "rome",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Plebeian",
+   "specific_name": "Plebeius",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "rome/support_civilian_house",
+   "civ": "rome",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Plebeian",
+   "specific_name": "Plebeius",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "cart/support_civilian",
+   "civ": "cart",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Carthaginian Artisan",
+   "specific_name": "Ḥaroš",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "cart/support_civilian_house",
+   "civ": "cart",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Carthaginian Artisan",
+   "specific_name": "Ḥaroš",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE",
+    "BLD_APARTMENT"
+   ],
+   "trained_at_0ad": [
+    "apartment",
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "mace/support_civilian",
+   "civ": "mace",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Macedonian Laborer",
+   "specific_name": "Geōrgos Makedonikos",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "mace/support_civilian_house",
+   "civ": "mace",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Macedonian Laborer",
+   "specific_name": "Geōrgos Makedonikos",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "brit/support_civilian",
+   "civ": "brit",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Briton Countryman",
+   "specific_name": "Ambactos",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER",
+    "BLD_CRANNOG"
+   ],
+   "trained_at_0ad": [
+    "civil_centre",
+    "crannog"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "brit/support_civilian_house",
+   "civ": "brit",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Briton Countryman",
+   "specific_name": "Ambactos",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "gaul/support_civilian",
+   "civ": "gaul",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Gallic Laborer",
+   "specific_name": "Ambactos",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "gaul/support_civilian_house",
+   "civ": "gaul",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Gallic Laborer",
+   "specific_name": "Ambactos",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house",
+    "tavern"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "iber/support_civilian",
+   "civ": "iber",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Iberian Townsperson",
+   "specific_name": "Iltiŕse",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "iber/support_civilian_house",
+   "civ": "iber",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Iberian Townsperson",
+   "specific_name": "Iltiŕse",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "maur/support_civilian",
+   "civ": "maur",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Indian Laborer",
+   "specific_name": "Kammakara",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "maur/support_civilian_house",
+   "civ": "maur",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Indian Laborer",
+   "specific_name": "Kammakara",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "kush/support_civilian",
+   "civ": "kush",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Kushite Laborer",
+   "specific_name": "Sḫtj",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "kush/support_civilian_house",
+   "civ": "kush",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Kushite Laborer",
+   "specific_name": "Sḫtj",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_KUSH",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "ptol/support_civilian",
+   "civ": "ptol",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Egyptian Laborer",
+   "specific_name": "Geōrgos Aigyptios",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "ptol/support_civilian_house",
+   "civ": "ptol",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Egyptian Laborer",
+   "specific_name": "Geōrgos Aigyptios",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "sele/support_civilian",
+   "civ": "sele",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Syrian Laborer",
+   "specific_name": "Geōrgos Syrikos",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER",
+    "BLD_MILITARY_COLONY"
+   ],
+   "trained_at_0ad": [
+    "civil_centre",
+    "military_colony"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "sele/support_civilian_house",
+   "civ": "sele",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Syrian Laborer",
+   "specific_name": "Geōrgos Syrikos",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "han/support_civilian",
+   "civ": "han",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Han Farmer",
+   "specific_name": "Nóng",
+   "phase": 1,
+   "trainers": [
+    "BLD_TOWN_CENTER",
+    "BLD_IMPERIAL_COURT"
+   ],
+   "trained_at_0ad": [
+    "civil_centre",
+    "civil_centre_court"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 8.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
+   }
+  },
+  {
+   "id": "han/support_civilian_house",
+   "civ": "han",
+   "class": "UNIT_FEMALE_CITIZEN",
+   "name": "Han Farmer",
+   "specific_name": "Nóng",
+   "phase": 1,
+   "trainers": [
+    "BLD_HOUSE"
+   ],
+   "trained_at_0ad": [
+    "house"
+   ],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Civilian",
+    "ConquestCritical",
+    "Human",
+    "Organic",
+    "Support",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 25.0,
+    "cooldown": 1.0,
+    "hack_dmg": 2.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 1.0,
+    "food": 50,
+    "wood": 0,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 30.0,
+    "pop": 1,
+    "speed": 3.2039999999999997,
+    "vision": 8.96,
+    "damage": 2.0,
+    "range": 1.7999999999999998,
+    "carry": 25
    }
   }
  ],
