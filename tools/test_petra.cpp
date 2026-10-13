@@ -1348,6 +1348,68 @@ static void test_mustering_units_defend() {
 	CHECK(!w_def, "a soldier of a started attack keeps marching");
 }
 
+// attackManager.js checkEvents AttackRequest: an allied AI with more than 12 soldiers
+// mustering turns its plan on the requested enemy and marches at once; one with too few
+// says its next attack will target that enemy.
+static void test_attack_request() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
+	s->set_player_active(2, true, true);
+	s->set_player_active(3, true, false);
+	for (uint8_t a = 0; a < 4; ++a)
+		for (uint8_t b = 0; b < 4; ++b)
+			if (a != b) s->set_diplomacy(a, b, a == 0 || b == 0 ? Simulation::DIPLO_ENEMY : Simulation::DIPLO_ALLY);
+	run_for(*s, 5.0f);
+	CHECK(s->petra_slots_.size() > 2 && s->petra_slots_[2].initialized, "AI 2 runs its own Petra");
+	if (s->petra_slots_.size() <= 2) return;
+	float bx = 0.0f, bz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 2 && b.type == BLD_TOWN_CENTER) { bx = b.x; bz = b.z; }
+	auto &slot = s->petra_slots_[2];
+	auto &plan = slot.petra_attack_plan_;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.squad.clear();
+	for (int k = 0; k < 14; ++k) plan.squad.push_back(s->spawn_unit(bx + 6.0f + (float)(k % 5), bz + 6.0f + (float)(k / 5), 2, UNIT_SPEARMAN));
+	slot.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
+	slot.petra_attack_mgr_.target_size = 60;
+	slot.petra_attack_mgr_.min_size = 30;
+	s->clear_petra_chat();
+	s->cmd_attack_request(3, 0);
+	s->tick(Simulation::FIXED_STEP);
+	bool requested_notice = false, join = false, decline = false;
+	for (const auto &line : s->pending_petra_chat()) {
+		requested_notice |= line.kind == PETRA_CHAT_ATTACK_REQUESTED && line.from == 3 && line.to == PETRA_CHAT_TO_ALLIES;
+		join |= line.kind == PETRA_CHAT_ATTACK_JOIN && line.from == 2;
+		decline |= line.kind == PETRA_CHAT_ATTACK_DECLINE && line.from == 1;
+	}
+	const auto &prep1 = s->petra_attack_plan();
+	std::printf("  attack request from player 3 against 0: notice %s, AI 2 (14 mustering) joins %s (forced %d, target player %d), AI 1 declines %s (next target %d)\n",
+	            requested_notice ? "yes" : "no", join ? "yes" : "no", (int)slot.petra_attack_plan_.forced,
+	            (int)slot.petra_attack_plan_.target_player, decline ? "yes" : "no", (int)prep1.target_player);
+	CHECK(requested_notice, "the request is announced to the asker's allies");
+	CHECK(join && slot.petra_attack_plan_.forced && slot.petra_attack_plan_.requested && slot.petra_attack_plan_.target_player == 0,
+	      "an AI with more than 12 soldiers mustering joins against the requested enemy");
+	CHECK(decline && prep1.target_player == 0, "an AI with too few soldiers declines and turns its next attack on that enemy");
+	s->clear_petra_chat();
+	bool marched = false;
+	for (float t = 0.0f; t < 10.0f && !marched; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		for (const auto &p : s->petra_slots_[2].petra_started_attacks_)
+			marched |= p.requested && p.state == Simulation::AttackPlan::WALKING;
+	}
+	bool asked_again = false;
+	for (const auto &line : s->pending_petra_chat()) asked_again |= line.kind == PETRA_CHAT_ATTACK_REQUESTED && line.from == 2;
+	std::printf("  AI 2's requested attack marches: %s, asks its allies again: %s\n", marched ? "yes" : "no", asked_again ? "yes" : "no");
+	CHECK(marched, "the requested attack marches at once");
+	CHECK(!asked_again, "a requested attack asks no one to join it");
+}
+
 // victoryManager.js capture_the_relic: Petra goes for a Gaia relic in its
 // territory, not for one it has never seen.
 static void test_relic_capture() {
@@ -1459,7 +1521,8 @@ static void test_placement_miss_memory_exact() {
 
 // headquarters.js findEconomicCCLocation reads resource density, not single
 // nodes: with 0 A.D.'s 200-wood trees and nothing bigger, Petra still finds a
-// site for a second civic centre and lays out storehouses by its forests.
+// site for a second civic centre and lays out storehouses by its forests. The
+// town phase and 80 more units pass checkBaseExpansion's population threshold.
 static void test_expansion_small_nodes() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1472,6 +1535,10 @@ static void test_expansion_small_nodes() {
 		if (r.alive[i] && r.amount[i] > 200) r.amount[i] = 200;
 	s->players_[1].phase = 2;
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	for (const auto &b : std::vector<Simulation::Building>(s->buildings()))
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER)
+			for (int k = 0; k < 80; ++k)
+				s->spawn_unit(b.x - 8.0f + (float)(k % 10) * 0.8f, b.z + 8.0f + (float)(k / 10) * 0.8f, 1, UNIT_VILLAGER);
 	const size_t stores_before = std::count_if(s->buildings().begin(), s->buildings().end(),
 		[](const Simulation::Building &b) { return b.team == 1 && b.type == BLD_STOREHOUSE; });
 	int ccs = 0;
@@ -2377,6 +2444,7 @@ int main() {
 	test_entity_limit_placement();
 	test_army_answers_attackers();
 	test_mustering_units_defend();
+	test_attack_request();
 	test_relic_capture();
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();

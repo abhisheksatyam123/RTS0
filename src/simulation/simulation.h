@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 60; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 61; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
@@ -628,6 +628,9 @@ public:
 	// bribe a random trader or merchant ship of `target` for its vision (500 metal, x1.5
 	// against Counterintelligence; a quarter of that is lost when nothing can be bribed).
 	enum BribeResult : uint8_t { BRIBE_OK, BRIBE_NOT_ALLOWED, BRIBE_NO_UNITS, BRIBE_TOO_EXPENSIVE };
+	// Commands.js "attack-request": `player` asks its allies to attack `target`; their
+	// Petras answer at the end of the AI turn (attackManager.js checkEvents).
+	void cmd_attack_request(uint8_t player, uint8_t target);
 	BribeResult cmd_bribe(uint8_t player, uint8_t target);
 	int bribe_cost(uint8_t player, uint8_t target, bool failed = false) const; // metal
 	bool can_bribe(uint8_t player, uint8_t target) const;
@@ -905,6 +908,10 @@ public:
 	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
 	// structures turn Gaia and it watches the rest of the match.
 	void defeat_player(uint8_t pid);
+	// 0 A.D. "resign" (Commands.js: cmpPlayer.Defeat("%(player)s has resigned.")): the
+	// issuing player is defeated as by conquest. Its units and structures turn Gaia, its
+	// allies play on, and it watches the rest of the match. False when it is already out.
+	bool cmd_resign(uint8_t pid);
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
@@ -1445,6 +1452,9 @@ public:
 		uint32_t retreat_base_id = 0;
 		float retreat_x = 36.0f;
 		float retreat_z = 36.0f;
+		uint8_t target_player = 0xFF; // attackPlan.js targetPlayer (0xFF until a target is chosen)
+		bool forced = false;    // forceStart: march with what it has, take any target
+		bool requested = false; // started at an ally's request: asks no one to join
 	};
 	const AttackPlan &petra_attack_plan() const { return petra_attack_plan_; }
 	const std::vector<AttackPlan> &petra_started_attacks() const { return petra_started_attacks_; }
@@ -1530,6 +1540,9 @@ public:
 	};
 	uint32_t spawn_treasure(float x, float z, uint8_t type);
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
+	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
+	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
+	float treasure_reach(size_t i) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
 	bool is_treasure_id(uint32_t id) const {
 		for (const auto &t : treasures_) if (t.id == id) return true;
@@ -1753,6 +1766,7 @@ private:
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
+			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
@@ -2343,7 +2357,7 @@ private:
 	uint8_t petra_enemy_player(uint8_t kind) const;
 	uint32_t petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const;
 	uint32_t find_petra_raid_target(float &out_tx, float &out_tz) const;
-	uint32_t find_petra_rush_target(float &out_tx, float &out_tz) const;
+	uint32_t find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer = 0xFF) const;
 	void petra_set_rushes();
 	void petra_plan_sizes(uint8_t kind);
 	bool petra_raid_target_ok(uint32_t bld_id) const;
@@ -2517,6 +2531,11 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
+	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)
+	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
+	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
+	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
@@ -2595,6 +2614,9 @@ private:
 	};
 	std::vector<PetraSlot> petra_slots_; // indexed by player id, sized on first use
 	void petra_swap_slot(uint8_t pid);
+	std::vector<std::pair<uint8_t, uint8_t>> petra_attack_requests_; // (source, target), drained each AI turn
+	void petra_process_attack_requests();
+	void petra_answer_attack_request(uint8_t source, uint8_t target);
 	// Saves or loads save_tick_state's fields, every AI's Petra state included (save v15); simulation.cpp.
 	template <class Ar> friend void tick_state_io(Ar &ar, Simulation &s);
 	void petra_reset_ai_state();

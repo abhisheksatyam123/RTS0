@@ -51,6 +51,7 @@ var submenu_data = {
 		"title": "LEARN TO PLAY",
 		"items": [
 			{"label": "Manual", "tooltip": "Open the 0 A.D. Game Manual.", "action": "open_manual"},
+			{"label": "Tutorial", "tooltip": "Start the introductory tutorial.", "action": "start_tutorial"},
 			{"label": "Structure Tree", "tooltip": "Every structure by phase, with the units it trains and the technologies it researches.", "action": "open_tech_tree"},
 			{"label": "Civilization Overview", "tooltip": "Civilization bonuses, specific technologies, structures and heroes, and history.", "action": "open_encyclopedia"},
 			{"label": "Catafalque Overview", "tooltip": "Compare the bonuses of catafalques featured in 0 A.D.", "action": "open_catafalque"},
@@ -239,6 +240,13 @@ func _execute_action(action: String) -> void:
 		"open_manual":
 			_close_submenu()
 			load("res://scenes/reference/manual.gd").open(self)
+		"start_tutorial":
+			# MainMenuItems.js Tutorial: autostart maps/tutorials/introductory_tutorial
+			# as a scenario with cheats on.
+			var ms := get_node_or_null("/root/MatchSettings")
+			var start = load("res://scenes/menu/scenario_start.gd")
+			if ms and start.configure(ms, start.INTRODUCTORY_TUTORIAL):
+				ms.go("res://scenes/main.tscn")
 		"open_catafalque":
 			_close_submenu()
 			load("res://scenes/reference/catafalque_page.gd").open(self)

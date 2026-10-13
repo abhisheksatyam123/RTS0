@@ -1444,11 +1444,15 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			// sim->cmd_barter locally even in lockstep -> resource/price divergence.
 			sim.cmd_barter(pl, (rtso::ResourceType)(int)c.target_x,
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
+		} else if (c.cmd_type == (uint8_t)NetCommandType::NET_CMD_RESIGN) { // Resign (0 A.D. "resign")
+			sim.cmd_resign(pl);
 		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
 			// target_x=resource or tech; acts on the raw selection, whoever owns it.
 			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());
 		} else if (c.cmd_type == 42) { // Bribe (0 A.D. "spy-request") — target_id=player.
 			if (c.target_id < MAX_PLAYERS) sim.cmd_bribe(pl, (uint8_t)c.target_id);
+		} else if (c.cmd_type == 46) { // Attack request (0 A.D. "attack-request") — target_id=enemy player.
+			if (c.target_id < MAX_PLAYERS) sim.cmd_attack_request(pl, (uint8_t)c.target_id);
 		} else if (c.cmd_type == 22) { // Diplomacy stance — target_id=player, param=stance.
 			// 0 A.D. Diplomacy.js / DiplomacyDialog.js parity. Applied at the turn
 			// boundary on EVERY peer (deterministic: diplomacy_state() is mixed into

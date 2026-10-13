@@ -198,6 +198,9 @@ enum class NetCommandType : uint8_t {
 	// in target_x, batch size in target_z (param 0), cancels its queue item target_x (param 1), or
 	// researches technology target_x (param 2; Researcher on a unit: Athenian triremes).
 	NET_CMD_TRAIN_FROM_UNIT = 48,
+	// 0 A.D. "resign" (Commands.js, the menu's Resign and ReturnQuestion's "I resign"):
+	// the issuing player is defeated; see Simulation::cmd_resign. No fields.
+	NET_CMD_RESIGN = 49,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.

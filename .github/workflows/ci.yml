@@ -90,6 +90,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_players
           /tmp/test_players
 
+      - name: Resign tests
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_resign.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_resign
+          /tmp/test_resign
+
       - name: Tribute, barter and trade tests
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_trade.cpp src/simulation/simulation.cpp \
