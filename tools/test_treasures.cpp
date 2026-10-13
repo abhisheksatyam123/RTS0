@@ -231,16 +231,17 @@ int main() {
 		std::printf("scenery: 2 fences block the nav grid and a house foundation\n");
 	}
 
-	// 6c2. Scenery is a template_structure with Health: soldiers ordered at it (the lockstep
-	//     hunt command names it) walk up and strike it; it falls, its owner-less Loot goes to
-	//     the killer's player and its navcells open. An archer shoots it down too.
+	// 6c2. Scenery is a template_structure with Health: soldiers told to attack it (Ctrl; a
+	//     plain order captures Capturable scenery, test_unit_orders 62) walk up and strike it;
+	//     it falls, its owner-less Loot goes to the killer's player and its navcells open. An
+	//     archer shoots it down too.
 	{
 		fresh(s);
 		const uint8_t fence = scenery_type_by_name("fence_long");
 		const uint32_t f0 = s.spawn_scenery(0.0f, 0.0f, fence, 0.0f, 0.25f);
 		const uint32_t sw = s.spawn_unit(6.0f, 0.0f, 0, UNIT_SWORDSMAN);
 		const float wood = s.players_[0].res[RES_WOOD];
-		s.order_hunt(&sw, 1, f0);
+		s.order_attack_scenery(&sw, 1, f0, false);
 		CHECK(s.units_.target_unit_id[s.lookup_unit(sw)] == f0);
 		for (int t = 0; t < 1200 && s.is_scenery_id(f0); ++t) run(s, Simulation::FIXED_STEP);
 		CHECK(!s.is_scenery_id(f0));
@@ -251,7 +252,7 @@ int main() {
 
 		const uint32_t bench = s.spawn_scenery(-10.0f, 10.0f, scenery_type_by_name("bench"), 0.0f, 0.25f);
 		const uint32_t ar = s.spawn_unit(-10.0f, 3.0f, 0, UNIT_ARCHER);
-		s.order_attack_scenery(&ar, 1, bench);
+		s.order_attack_scenery(&ar, 1, bench, false);
 		float closest = 1e9f;
 		for (int t = 0; t < 2400 && s.is_scenery_id(bench); ++t) {
 			const int32_t a = s.lookup_unit(ar);

@@ -94,6 +94,9 @@ Dictionary stats_dict(const rtso::PlayerStatistics &st) {
 	};
 	Dictionary trained = by_class(st.units_trained, true);
 	trained["Domestic"] = (int64_t)st.livestock_bred; // not in the total, as StatisticsTracker.js
+	// The "Unit" class counter (the summary's Total column) also counts livestock: it
+	// is a class in UnitClasses, unlike `total`. Lost and killed units never include it.
+	trained["Unit"] = (int64_t)st.units_trained[rtso::STAT_UNIT_TOTAL] + (int64_t)st.livestock_bred;
 	d["unitsTrained"] = trained;
 	d["unitsLost"] = by_class(st.units_lost, true);
 	d["enemyUnitsKilled"] = by_class(st.enemy_units_killed, true);

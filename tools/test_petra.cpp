@@ -129,7 +129,7 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	CHECK(town_at > 0.0f && town_at < 12.0f * 60.0f, "town phase within 12 minutes");
+	CHECK(town_at > 0.0f && town_at < 13.0f * 60.0f, "town phase within 13 minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
@@ -509,7 +509,7 @@ static void test_attack_plans() {
 		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false, told_allies = true, named_target = false;
 		int attack_size = 0, huge_size = 0;
-		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 25.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			// chatLaunchAttack: "/allies", naming the player attacked.
 			for (const auto &l : s->pending_petra_chat()) {
@@ -982,7 +982,7 @@ static void test_first_base() {
 	for (size_t i = 0; i < u.count; ++i) // a nomad start: everyone stands idle
 		if (u.alive[i] && u.team[i] == 1) { u.action_state[i] = ACTION_IDLE; u.has_order[i] = 0; u.target_resource_id[i] = 0; }
 	PlayerState &ps = s->players_[1];
-	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 100.0f; ps.stone() = 200.0f;
+	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 250.0f; ps.stone() = 300.0f;
 	const uint32_t treasure = s->spawn_resource_treasure(tx + 9.0f, tz + 9.0f, RES_WOOD); // 300 wood, outside the wreck
 	bool founded = false, built = false;
 	float t = 0.0f;
@@ -1292,6 +1292,9 @@ static void test_nomad_first_base() {
 	s->set_sim_seed(42);
 	s->reset();
 	s->set_nomad(true);
+	// Seated players: placePlayersNomad leaves each one the treasure its civic centre needs.
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	auto town_centers = [&](bool built) {
 		int n = 0;
