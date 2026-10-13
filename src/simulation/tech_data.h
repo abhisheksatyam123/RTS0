@@ -143,6 +143,27 @@ enum TechnologyId : uint8_t {
 	TECH_COUNT = 134
 };
 
+// A set of 0 A.D. classes (TechClass bits 0..63 in lo, 64..127 in hi).
+struct TechClasses {
+	uint64_t lo = 0, hi = 0;
+	constexpr TechClasses() = default;
+	constexpr TechClasses(uint64_t l) : lo(l) {}
+	constexpr TechClasses(uint64_t l, uint64_t h) : lo(l), hi(h) {}
+	constexpr bool any() const { return (lo | hi) != 0; }
+	constexpr explicit operator bool() const { return any(); }
+	constexpr bool contains(TechClasses o) const { return (lo & o.lo) == o.lo && (hi & o.hi) == o.hi; }
+	constexpr bool intersects(TechClasses o) const { return ((lo & o.lo) | (hi & o.hi)) != 0; }
+	friend constexpr TechClasses operator|(TechClasses a, TechClasses b) { return {a.lo | b.lo, a.hi | b.hi}; }
+	friend constexpr TechClasses operator&(TechClasses a, TechClasses b) { return {a.lo & b.lo, a.hi & b.hi}; }
+	friend constexpr TechClasses operator~(TechClasses a) { return {~a.lo, ~a.hi}; }
+	friend constexpr bool operator==(TechClasses a, TechClasses b) { return a.lo == b.lo && a.hi == b.hi; }
+	friend constexpr bool operator!=(TechClasses a, TechClasses b) { return !(a == b); }
+	constexpr TechClasses &operator|=(TechClasses o) { lo |= o.lo; hi |= o.hi; return *this; }
+	constexpr TechClasses &operator&=(TechClasses o) { lo &= o.lo; hi &= o.hi; return *this; }
+};
+constexpr TechClasses tc_bit(int i) { return i < 64 ? TechClasses(1ull << i, 0) : TechClasses(0, 1ull << (i - 64)); }
+
+// Bits 0..63; 0 A.D. classes from bit 64 up are TechClasses constants below.
 enum TechClass : uint64_t {
 	TC_UNIT = 1ull << 0,
 	TC_ORGANIC = 1ull << 1,
@@ -211,7 +232,7 @@ enum TechClass : uint64_t {
 };
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
-struct TechClassExpr { uint64_t need; uint64_t forbid; };
+struct TechClassExpr { TechClasses need; TechClasses forbid; };
 
 inline const TechClassExpr *tech_affects_table() {
 	static const TechClassExpr kAffects[] = {

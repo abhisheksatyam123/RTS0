@@ -9,7 +9,7 @@ struct BuildingAIInfo {
 	uint8_t default_arrows; // DefaultArrowCount; 0 with no garrison bonus = never shoots
 	uint8_t max_arrows; // MaxArrowCount, 0 = no limit
 	float garrison_arrow_multiplier; // GarrisonArrowMultiplier
-	uint64_t garrison_arrow_classes; // GarrisonArrowClasses as TechClass bits, any of them
+	TechClasses garrison_arrow_classes; // GarrisonArrowClasses as TechClass bits, any of them
 	float hack, pierce, crush; // Attack/Ranged/Damage
 	float min_range, max_range; // from the structure's edge
 	float origin_y; // Attack/Ranged/Origin/Y: height the parabolic range is measured from

@@ -685,7 +685,7 @@ static void check_elephantine() {
 	int odd = 0;
 	for (uint32_t id : inside) {
 		const int32_t u = s.lookup_unit(id);
-		const uint64_t c = u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).tech_classes : 0;
+		const TechClasses c = u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).tech_classes : 0;
 		odd += !((c & TC_HEALER) || ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY)) || ((c & TC_CIVILIAN) && (c & TC_WORKER)));
 	}
 	CHECK(odd == 0, "%d of %zu garrisoned Kushites neither infantry, civilians nor healers", odd, inside.size());
@@ -769,7 +769,7 @@ static void check_danubius() {
 		if (b.team != GAIA_PLAYER || b.type != BLD_HOUSE) continue;
 		for (uint32_t id : b.garrisoned_units) {
 			const int32_t u = s.lookup_unit(id);
-			const uint64_t c = u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).tech_classes : 0;
+			const TechClasses c = u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).tech_classes : 0;
 			++house_units;
 			house_others += !((c & TC_HEALER) || ((c & TC_CIVILIAN) && (c & TC_WORKER)));
 		}

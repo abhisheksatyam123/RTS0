@@ -634,14 +634,31 @@ _TECH_CLASSES = None
 TECH_CLASS_ALIASES = {"Support": "Civilian"}
 
 
+def _tech_class_table(path):
+    """TC_ name (without TC_) -> bit, from tech_data.h's TechClass enum and its
+    TechClasses constants from bit 64 up."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    table = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\tTC_([A-Z0-9]+) = 1ull << (\d+),", text, re.M)}
+    table.update({m.group(1): int(m.group(2)) for m in re.finditer(
+        r"^inline constexpr TechClasses TC_([A-Z0-9]+) = tc_bit\((\d+)\);", text, re.M)})
+    return table
+
+
+def tech_classes_literal(bits):
+    """A TechClasses initializer for a class mask: a plain 64-bit literal while
+    only bits 0..63 are set."""
+    if bits >> 64:
+        return "TechClasses{0x%xull, 0x%xull}" % (bits & ((1 << 64) - 1), bits >> 64)
+    return "0x%xull" % bits
+
+
 def tech_class_bits(classes):
     """0 A.D. classes as a sim_types.h TechClass mask (bits from tech_data.h)."""
     global _TECH_CLASSES
     if _TECH_CLASSES is None:
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "simulation", "tech_data.h")
-        with open(path, encoding="utf-8") as f:
-            _TECH_CLASSES = {m.group(1): int(m.group(2))
-                             for m in re.finditer(r"^\tTC_([A-Z0-9]+) = 1ull << (\d+),", f.read(), re.M)}
+        _TECH_CLASSES = _tech_class_table(path)
     bits = 0
     for c in list(classes) + [TECH_CLASS_ALIASES[c] for c in classes if c in TECH_CLASS_ALIASES]:
         if c.upper() in _TECH_CLASSES:
@@ -1426,12 +1443,12 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
             CIV_ENUM[CIVS.index(r["civ"])], r["class"], r["phase"], flags, trainers))
-        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull, %s}," % (
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, %s, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
             f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
             s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
-            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_class_bits(r["classes"]),
+            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_classes_literal(tech_class_bits(r["classes"])),
             f(s["vision"])))
     w("\t};")
     w("\treturn kTable;")

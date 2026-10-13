@@ -1944,7 +1944,7 @@ void RtsoMain::cycle_idle_worker() {
 // idle unit of the kind at once.
 void RtsoMain::find_idle_unit(IdleKind kind) {
 	if (!sim) return;
-	uint64_t want = 0;
+	rtso::TechClasses want;
 	switch (kind) {
 		case IDLE_WORKER: want = rtso::TC_FEMALECITIZEN | rtso::TC_TRADER | rtso::TC_FISHINGBOAT | rtso::TC_CITIZEN; break;
 		case IDLE_WARRIOR: want = rtso::TC_MELEE | rtso::TC_RANGED; break;
@@ -4299,7 +4299,7 @@ void RtsoMain::update_command_panel() {
 						if (uview.id[u] != id) continue;
 						const uint8_t ut = uview.unit_type[u];
 						const uint16_t tm = uview.tmpl[u];
-						const uint64_t cls = tm < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tm).tech_classes : rtso::unit_tech_classes(ut);
+						const rtso::TechClasses cls = tm < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tm).tech_classes : rtso::unit_tech_classes(ut);
 						const bool guarding = sim->unit_is_guarding(id);
 						any_guarding = any_guarding || guarding;
 						any_busy = any_busy || (sim->unit_has_order(id) && !guarding); // "stop": not idle, not guarding
@@ -5257,7 +5257,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 						if (cam) {
 							for (size_t i = 0; i < uview.count; ++i) {
 								if (!uview.alive[i] || uview.team[i] != local_player()) continue;
-								const uint64_t cls = rtso::unit_tech_classes(uview.unit_type[i]);
+								const rtso::TechClasses cls = rtso::unit_tech_classes(uview.unit_type[i]);
 								const bool military = (cls & (rtso::TC_MELEE | rtso::TC_RANGED)) != 0;
 								if ((military_only && !military) || (nonmilitary_only && military)) continue;
 								if (idle_only && uview.action_state[i] != rtso::ACTION_IDLE) continue;

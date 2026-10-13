@@ -1375,7 +1375,7 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?
-inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
+inline bool tech_effect_applies(const TechEffect &e, TechClasses classes) {
 	if (e.affects_count == 0) return true;
 	const TechClassExpr *rows = tech_affects_table() + e.affects;
 	for (uint16_t i = 0; i < e.affects_count; ++i)
@@ -1384,9 +1384,9 @@ inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
 }
 
 // 0 A.D. Identity/Classes for RTS0's unit types, as far as technologies need them.
-inline uint64_t unit_tech_classes(uint8_t type) {
-	const uint64_t org = TC_UNIT | TC_ORGANIC;
-	const uint64_t cs = org | TC_SOLDIER | TC_CITIZENSOLDIER | TC_CITIZEN;
+inline TechClasses unit_tech_classes(uint8_t type) {
+	const TechClasses org = TC_UNIT | TC_ORGANIC;
+	const TechClasses cs = org | TC_SOLDIER | TC_CITIZENSOLDIER | TC_CITIZEN;
 	switch (type) {
 		case UNIT_VILLAGER: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN;
 		case UNIT_FEMALE_CITIZEN: return org | TC_WORKER | TC_CITIZEN | TC_CIVILIAN | TC_FEMALECITIZEN;
@@ -1465,8 +1465,8 @@ inline bool siege_garrison_allowed(uint8_t unit_type) {
 	return (unit_tech_classes(unit_type) & (TC_INFANTRY | TC_CIVILIAN)) != 0;
 }
 
-inline uint64_t building_tech_classes(uint8_t type) {
-	uint64_t c = TC_STRUCTURE;
+inline TechClasses building_tech_classes(uint8_t type) {
+	TechClasses c = TC_STRUCTURE;
 	uint8_t phase = building_required_phase(type);
 	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
 	switch (type) {
@@ -1498,7 +1498,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 
 // Whether an attack-move with these avoid bits skips a structure of `type`.
 inline bool attack_move_avoids(uint8_t flags, uint8_t type) {
-	const uint64_t c = building_tech_classes(type);
+	const TechClasses c = building_tech_classes(type);
 	if ((flags & ORDER_AVOID_ECONOMY) && (c & (TC_HOUSE | TC_STOREHOUSE | TC_FARMSTEAD | TC_FIELD | TC_FORGE))) return true;
 	switch ((flags & ORDER_AVOID_MASK) >> ORDER_AVOID_SHIFT) {
 		case ORDER_AVOID_WALLS_FORTRESS: return (c & (TC_WALL | TC_FORTRESS)) != 0;
@@ -1528,9 +1528,9 @@ inline int structure_garrison_max(uint8_t type, uint8_t civ) {
 // the Han lists add Minister (structures/han/*.xml), all but the sentry and wall towers.
 struct GarrisonClassList { uint8_t n; TechClassExpr e[5]; };
 inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
-	constexpr uint64_t SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
+	constexpr TechClasses SUP = TC_CIVILIAN, INF = TC_INFANTRY, CAV = TC_CAVALRY;
 	GarrisonClassList l{};
-	auto add = [&](uint64_t need, uint64_t forbid = 0) { l.e[l.n++] = {need, forbid}; };
+	auto add = [&](TechClasses need, TechClasses forbid = 0) { l.e[l.n++] = {need, forbid}; };
 	switch (building_research_base(type)) { // the court and great tower keep their parent's List
 		case BLD_TOWN_CENTER: case BLD_TEMPLE: case BLD_EMBASSY: case BLD_THEATER: case BLD_GYMNASIUM:
 		case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_SYSSITON: case BLD_TACHARA: case BLD_AMPHITHEATER:
@@ -1557,7 +1557,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 	if (civ == CIV_HAN && type != BLD_SENTRY_TOWER && type != BLD_WALL_TOWER && l.n < 5) add(TC_MINISTER);
 	return l;
 }
-inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) {
+inline bool garrison_list_matches(const GarrisonClassList &l, TechClasses classes) {
 	for (uint8_t k = 0; k < l.n; ++k)
 		if ((classes & l.e[k].need) == l.e[k].need && (classes & l.e[k].forbid) == 0) return true;
 	return false;
@@ -1721,7 +1721,7 @@ struct CivUnitTemplate {
 	int16_t carry_capacity;
 	int16_t auras[3]; // index into civ_hero_aura_table(), -1 = none
 	uint8_t unlock_tech; // TechnologyId from 0 A.D. Identity/Requirements (unlock_champion_*), or TECH_NONE
-	uint64_t tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
+	TechClasses tech_classes; // TechClass bits of 0 A.D. Identity/Classes + VisibleClasses
 	float vision; // 0 A.D. Vision/Range x0.28 (RTS0 units)
 };
 
@@ -1786,7 +1786,7 @@ inline int builder_rate_aura_index(int16_t aura) {
 }
 
 // Does an entity with these TechClass bits match relic aura modifier `m`?
-inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {
+inline bool relic_modifier_applies(const RelicAuraModifier &m, TechClasses classes) {
 	if (m.alt_count == 0) return true;
 	for (uint8_t i = 0; i < m.alt_count; ++i)
 		if ((classes & m.alts[i].need) == m.alts[i].need && (classes & m.alts[i].forbid) == 0) return true;
@@ -1875,7 +1875,7 @@ inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
 
 // Identity class Healer (Heal component): support healers and hero healers.
 inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
-	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & TC_HEALER) != 0;
 }
 
@@ -1888,7 +1888,7 @@ inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 // is not).
 inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
 	if (type == UNIT_CATAFALQUE || type == UNIT_WAGON) return true;
-	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
+	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
 }
 

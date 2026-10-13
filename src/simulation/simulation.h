@@ -725,7 +725,7 @@ public:
 	// (IsOwnedByMutualAllyOfEntity) and the unit matches the holder's List (a TurretHolder:
 	// Turretable). Room is not checked.
 	bool structure_accepts_garrison(const Building &b, size_t unit_idx) const;
-	bool structure_accepts_classes(const Building &b, uint64_t classes) const;
+	bool structure_accepts_classes(const Building &b, TechClasses classes) const;
 	bool can_garrison_in(uint32_t unit_id, uint32_t building_id) const;
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
@@ -2291,7 +2291,7 @@ private:
 	};
 	void balanced_template_composition(const std::vector<TemplateBalance> &groups, int total, std::vector<std::pair<uint16_t, int>> &counts);
 	// maps/random/danubius_triggers.js
-	uint64_t unit_classes_at(size_t i) const; // the unit's 0 A.D. classes (its roster template's, else its class's)
+	TechClasses unit_classes_at(size_t i) const; // the unit's 0 A.D. classes (its roster template's, else its class's)
 	uint32_t danubius_spawn(uint16_t key, float x, float z);
 	bool danubius_is_left(float x, float z) const;
 	void danubius_active_riversides(bool &left, bool &right) const;

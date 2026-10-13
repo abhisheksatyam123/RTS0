@@ -306,8 +306,8 @@ struct PromotionXpTech {
 	uint8_t tech;
 	float multiply;
 	bool replace_zero;
-	uint64_t need;
-	uint64_t forbid;
+	TechClasses need;
+	TechClasses forbid;
 	uint8_t rank;
 };
 
