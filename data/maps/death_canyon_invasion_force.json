@@ -4346,7 +4346,8 @@
       "team": 1,
       "start_x": -19.4,
       "start_z": -94.44,
-      "civ": 8
+      "civ": 8,
+      "pop_limit": 1
     },
     {
       "id": 2,
@@ -4356,7 +4357,8 @@
       "civ": 3,
       "resources": {
         "stone": 2500
-      }
+      },
+      "pop_limit": 1
     }
   ],
   "resources": [

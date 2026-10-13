@@ -556,6 +556,8 @@ int main() {
 		for (const char *n : {b.road, b.road_wild, b.shore_blend, b.shore, b.water})
 			if (n) own.insert(n);
 		for (const HeightBand &band : st->bands) add(band.terrain, 2);
+		for (const AreaLayers &area : st->areas)
+			for (const auto &layer : area.layer) add(layer, 6);
 		int foreign = 0;
 		for (const auto &n : sim.terrain_tiles().names) foreign += !own.count(n);
 		CHECK(foreign == 0, "%s paints %d terrains outside its script's set", st->map_id, foreign);
@@ -612,6 +614,18 @@ int main() {
 		const auto ice = count(MAP_ARCTIC_SUMMER, "polar_ice", 15.0f, 100.0f);
 		CHECK(snow.second > 0 && (snow.first + ice.first) * 10 >= snow.second * 9, "arctic_summer: %d of %d tiles over 15 m are snow",
 		      snow.first + ice.first, snow.second);
+		// Script areas (LayeredPainter): tiles only an area's layers name.
+		auto tiles_named = [](MapType type, const char *name) {
+			Simulation sim;
+			sim.generate_random_map(type, 7, 2, 128.0f);
+			const auto &t = sim.terrain_tiles();
+			int n = 0;
+			for (uint8_t v : t.tiles) n += t.names[v] == name;
+			return n;
+		};
+		CHECK(tiles_named(MAP_CYCLADIC_ARCHIPELAGO, "medit_sea_coral_plants") > 0, "cycladic_archipelago: islands ring with coral");
+		CHECK(tiles_named(MAP_DODECANESE, "LavaTest06") > 0, "dodecanese: the volcano's lava rim");
+		CHECK(tiles_named(MAP_ARCTIC_SUMMER, "polar_ice_cracked") > 0, "arctic_summer: hilltops of cracked ice");
 	}
 	{
 		Simulation sim;

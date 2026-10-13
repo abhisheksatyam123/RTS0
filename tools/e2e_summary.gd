@@ -101,6 +101,10 @@ func run() -> void:
 	check(s.format_value(s.calculate_ratio(3, 0)) == "∞" and s.calculate_ratio(0, 0) == 0 and is_equal_approx(s.calculate_ratio(2, 3), 0.67),
 		"kill / death ratio as counters.js calculateRatio")
 	check(s.calculate_percent(1, 3) == {"percent": 33} and s.format_value({"percent": 33}) == "33%", "percentages are floored")
+	check(s._by({"unitsTrained": {"Civilian": 4}}, "unitsTrained", "Civilian") == 4 and
+		s._by({"unitsTrained": {"FemaleCitizen": 3}}, "unitsTrained", "Civilian") == 3, "Civilian reads FemaleCitizen in replays from before 0.28")
+	var misc: Array = s.score_panels()[5].headings.map(func(h): return h.caption)
+	check(misc.has("Civilianization") and not misc.has("Feminization"), "0.28's Civilianization column: " + str(misc))
 	var res: Dictionary = s.player_value(1, 3, 0)
 	check(res.keys() == ["gathered", "used"] and res.gathered > 0, "resources gathered / used: " + str(res))
 	await shot("score")
