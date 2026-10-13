@@ -867,6 +867,14 @@ public:
 	// the map's triggers (TriggerState::difficulty, saved with them).
 	void set_trigger_difficulty(int d) { trigger_difficulty_ = (uint8_t)((d >= 1 && d <= 5) ? d : 3); }
 	uint8_t trigger_difficulty() const { return trigger_difficulty_; }
+	// 0 A.D. Game Setup Daytime for the maps whose json lists one (danubius.json: day,
+	// night; polar_sea.json: dawn, daylight): 0 lets the map pick as its script does
+	// (Danubius day 2/3 of the time, Polar Sea dawn 1/3), else the option, 1-based.
+	// map_daytime() is the option the last random map used (0: the map has none);
+	// presentation only (the renderer's sky, sun and water).
+	void set_map_daytime_choice(int d) { map_daytime_choice_ = (uint8_t)((d >= 0 && d <= 2) ? d : 0); }
+	uint8_t map_daytime_choice() const { return map_daytime_choice_; }
+	uint8_t map_daytime() const { return map_daytime_; }
 	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
@@ -2272,6 +2280,7 @@ private:
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
+	uint8_t map_daytime_choice_ = 0, map_daytime_ = 0; // setup-time Daytime and the one the map used
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
@@ -2636,6 +2645,8 @@ private:
 	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
 	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
+	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
+	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
