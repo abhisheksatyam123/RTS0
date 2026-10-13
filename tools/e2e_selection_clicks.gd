@@ -1,0 +1,223 @@
+extends SceneTree
+# Selection and minimap clicks as 0 A.D. 0.28 gui/session/input.js and
+# minimap/MiniMap.js handle them:
+#   1. double-click selects the clicked unit's template on screen, triple-click
+#      the same, Ctrl+double-click removes them again;
+#   2. Shift+click only adds (a selected unit stays selected);
+#   3. a right-click while band-boxing cancels the box;
+#   4. Shift+N adds control group N to the selection;
+#   5. a right-click on the minimap walks the selected units there and sets a
+#      selected structure's rally point.
+#
+#   godot --headless --path . --fixed-fps 20 -s tools/e2e_selection_clicks.gd
+# Exit code 0 = pass.
+
+var main
+var failures := 0
+
+func check(cond: bool, what: String) -> void:
+	print("  ok   " if cond else "  FAIL ", what)
+	if not cond:
+		failures += 1
+
+func _initialize() -> void:
+	main = load("res://scenes/main.tscn").instantiate()
+	root.add_child(main)
+	run.call_deferred()
+
+func frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+func key(code: Key, pressed: bool, ctrl := false, shift := false) -> void:
+	var k := InputEventKey.new()
+	k.keycode = code
+	k.physical_keycode = code
+	k.pressed = pressed
+	k.ctrl_pressed = ctrl
+	k.shift_pressed = shift
+	Input.parse_input_event(k)
+
+# Motion goes through Input in window pixels, so the session's mouse position
+# (edge scrolling) follows; buttons go to the viewport in its own pixels, as
+# the headless window is 64 px wide and window pixels land up to 16 px off.
+func move(pos: Vector2, mask := 0) -> void:
+	var mm := InputEventMouseMotion.new()
+	mm.position = root.get_final_transform() * pos
+	mm.global_position = mm.position
+	mm.button_mask = mask
+	Input.parse_input_event(mm)
+
+func button(pos: Vector2, index: MouseButton, pressed: bool, double := false) -> void:
+	move(pos)
+	var mb := InputEventMouseButton.new()
+	mb.button_index = index
+	mb.pressed = pressed
+	mb.double_click = double
+	mb.position = pos
+	mb.global_position = pos
+	root.push_input(mb, true)
+
+func click(pos: Vector2, double := false) -> void:
+	move(pos)
+	await frames(2)
+	button(pos, MOUSE_BUTTON_LEFT, true, double)
+	await frames(1)
+	button(pos, MOUSE_BUTTON_LEFT, false)
+	await frames(2)
+
+func state() -> Dictionary:
+	return main.debug_selection_state()
+
+func selected() -> Array:
+	return Array(state()["selected"])
+
+func window_pos(u: Dictionary) -> Vector2:
+	return u["screen"]
+
+func on_screen(u: Dictionary, vp: Vector2) -> bool:
+	var p: Vector2 = u["screen"]
+	return not u["behind"] and p.x > 8 and p.y > 8 and p.x < vp.x - 8 and p.y < vp.y - 200
+
+func run() -> void:
+	await frames(60)
+	# The mouse rests mid-screen: at the corner it would scroll the camera away.
+	move(Vector2(512, 400))
+	# The camera glides to the Civic Centre; wait until it stops.
+	var r: Dictionary = main.debug_civic_centre_roof()
+	for i in 200:
+		await frames(1)
+		var r2: Dictionary = main.debug_civic_centre_roof()
+		var still: bool = (r2["roof"] as Vector2).distance_to(r["roof"]) < 0.5
+		r = r2
+		if still and i > 10:
+			break
+	# Walk the starting units out in front of the Civic Centre, which hides
+	# the ones behind it from clicks.
+	main.debug_selection_grid(true)
+	var cc: Vector2 = r["centre"]
+	main._on_minimap_order(cc + Vector2(0, 10))
+	await frames(240)
+	main.clear_selection()
+	await frames(2)
+	var st := state()
+	var vp: Vector2 = st["viewport"]
+	# The template with most units on screen, and a unit of another template.
+	var by_tmpl := {}
+	for u in st["units"]:
+		if on_screen(u, vp):
+			by_tmpl.get_or_add(u["tmpl"], []).append(u)
+	var tmpl = null
+	for t in by_tmpl:
+		if tmpl == null or by_tmpl[t].size() > by_tmpl[tmpl].size():
+			tmpl = t
+	check(tmpl != null and by_tmpl[tmpl].size() >= 2, "two or more units of one template on screen")
+	if tmpl == null or by_tmpl[tmpl].size() < 2:
+		print("  CC ", r["centre"], " units ", st["units"].map(func(u): return [u["pos"], u["screen"]]))
+		quit(1)
+		return
+	# Click the units nearest the camera, which nothing stands in front of.
+	by_tmpl[tmpl].sort_custom(func(x, y): return x["screen"].y > y["screen"].y)
+	var other = null
+	for t in by_tmpl:
+		if t != tmpl:
+			other = by_tmpl[t][0]
+	var same: Array = by_tmpl[tmpl].map(func(u): return int(u["id"]))
+	var a: Dictionary = by_tmpl[tmpl][0]
+
+	print("1. Double and triple click")
+	await click(window_pos(a))
+	print("  unit ", a, " at ", window_pos(a), " hovered ", root.gui_get_hovered_control())
+	check(selected() == [int(a["id"])], "a click selects one unit: %s" % str(selected()))
+	button(window_pos(a), MOUSE_BUTTON_LEFT, true)
+	await frames(1)
+	button(window_pos(a), MOUSE_BUTTON_LEFT, false)
+	await frames(1)
+	await click(window_pos(a), true)
+	var s := selected()
+	check(s.size() >= same.size() and same.all(func(i): return s.has(i)), "double-click selects all %d on-screen units of the template (%d)" % [same.size(), s.size()])
+	check(other == null or not s.has(int(other["id"])), "and not another template")
+	await click(window_pos(a))
+	key(KEY_CTRL, true, true)
+	button(window_pos(a), MOUSE_BUTTON_LEFT, true, false)
+	await frames(1)
+	button(window_pos(a), MOUSE_BUTTON_LEFT, false)
+	await frames(1)
+	await click(window_pos(a), true)
+	await click(window_pos(a))  # triple
+	key(KEY_CTRL, false)
+	await frames(2)
+	s = selected()
+	check(not same.any(func(i): return s.has(i)), "Ctrl+double/triple-click removes them: %s" % str(s))
+
+	print("2. Shift+click adds")
+	main.clear_selection()
+	await frames(20)  # past the triple-click window
+	await click(window_pos(a))
+	key(KEY_SHIFT, true, false, true)
+	await click(window_pos(a))
+	var b: Dictionary = by_tmpl[tmpl][1]
+	await frames(12)
+	await click(window_pos(b))
+	key(KEY_SHIFT, false)
+	await frames(2)
+	s = selected()
+	check(s.has(int(a["id"])) and s.has(int(b["id"])), "Shift+click keeps the selected unit and adds another: %s" % str(s))
+
+	print("3. Right-click cancels the band box")
+	main.clear_selection()
+	await frames(2)
+	var p0: Vector2 = window_pos(a) + Vector2(-60, -60)
+	var p1: Vector2 = window_pos(a) + Vector2(60, 60)
+	button(p0, MOUSE_BUTTON_LEFT, true)
+	await frames(2)
+	move(p1, MOUSE_BUTTON_MASK_LEFT)
+	await frames(2)
+	button(p1, MOUSE_BUTTON_RIGHT, true)
+	await frames(1)
+	button(p1, MOUSE_BUTTON_RIGHT, false)
+	await frames(1)
+	button(p1, MOUSE_BUTTON_LEFT, false)
+	await frames(2)
+	check(selected().is_empty(), "the box selected nothing: %s" % str(selected()))
+
+	print("4. Shift+N adds the group")
+	await click(window_pos(a))
+	key(KEY_1, true, true)
+	await frames(1)
+	key(KEY_1, false, true)
+	await frames(12)
+	await click(window_pos(b))
+	check(selected() == [int(b["id"])], "another unit selected")
+	key(KEY_SHIFT, true, false, true)
+	key(KEY_1, true, false, true)
+	await frames(1)
+	key(KEY_1, false, false, true)
+	key(KEY_SHIFT, false)
+	await frames(2)
+	s = selected()
+	check(s.has(int(a["id"])) and s.has(int(b["id"])), "Shift+1 adds group 1 to it: %s" % str(s))
+
+	print("5. Minimap right-click")
+	main.clear_selection()
+	await frames(12)
+	await click(window_pos(a))
+	var from: Vector2 = a["pos"]
+	var target: Vector2 = from + Vector2(20, 0)
+	main._on_minimap_order(target)
+	await frames(80)
+	var now := from
+	for u in state()["units"]:
+		if int(u["id"]) == int(a["id"]):
+			now = u["pos"]
+	check(now.distance_to(target) < from.distance_to(target) - 3.0, "the unit walks to the spot (%.1f -> %.1f from it)" % [from.distance_to(target), now.distance_to(target)])
+	main.select_first_own(true)
+	await frames(2)
+	var spot: Vector2 = from + Vector2(0, 16)
+	main._on_minimap_order(spot)
+	await frames(4)
+	st = state()
+	check(int(st["building"]) != 0 and st.has("rally") and (st["rally"] as Vector2).distance_to(spot) < 0.5, "a selected structure gets its rally point there: %s" % str(st.get("rally")))
+
+	print("FAILURES: ", failures)
+	quit(1 if failures else 0)
