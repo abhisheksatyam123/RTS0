@@ -450,6 +450,9 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // sele/catafalque
 		{0x00000u, 0x000u}, // han/catafalque
 		{0x007cfu, 0x032u}, // pers/champion_infantry_archer_upgrade
+		{0x00000u, 0x008u}, // brit/ship_fire_fire
+		{0x00000u, 0x008u}, // gaul/ship_fire_fire
+		{0x00000u, 0x008u}, // iber/ship_fire_fire
 	};
 	return kRows;
 }

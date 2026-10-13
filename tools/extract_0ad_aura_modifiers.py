@@ -6,6 +6,10 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
   modifiers that Simulation::compute_tech_mods folds in for every player the aura
   reaches while a relic carrying it is owned (Capture the Relic). Their "range" auras
   stay with the AuraManager (civ_roster_data.h).
+- units/heroes/*.json: the Cost/ and Researcher/ modifications of each "global" or
+  "player" hero aura (Pericles' Periclean Building, Themistocles, Agis, Indibil...), the
+  same kind of player modifiers while the hero lives. Their other modifications (speed,
+  armour, vision...) are AuraManager effects in civ_roster_data.h.
 - every "range" aura with a Promotion/RequiredXp modification (Han Xin's Northern
   Army, the centurion): its multiplier, registered as an AURA_REQUIRED_XP source.
 - every "range" aura on units with an Attack/Capture/Capture modification (the heroes'
@@ -14,6 +18,12 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
 - every "range" aura with Looter/Resource modifications (Brennus, Nastasen, Viriato):
   its multiply and add per resource, an AURA_LOOTER source; and every one replacing
   its victims' Loot with 0 (Pericles), an AURA_NO_LOOT source.
+- every "range" or "global" unit aura's AuraManager effects of each kind
+  (extract_0ad_rosters.rts0_aura_effects): civ_roster_data.h keeps only one kind per
+  unit aura, so the others (Brasidas' ranged damage beside his armour, Boudicca's
+  speed beside her attack...) are registered from here.
+- every "range" aura with a Builder/Rate modification (Xerxes, Ptolemy I, the Han
+  minister): its multiplier and whether it stacks, registered as an AURA_BUILD source.
 
 Usage:
     python3 tools/extract_0ad_aura_modifiers.py --public PATH [--out src/simulation/aura_modifier_data.h]
@@ -124,20 +134,26 @@ def main() -> int:
         for suffix in ["", "_1", "_2", "_3"]:
             if src.read(f"{AURA_DIR}/{civ}_catafalque{suffix}.json"):
                 names.append(f"{civ}_catafalque{suffix}")
+    hero_dir = "simulation/data/auras/units/heroes"
+    hero_names = sorted(os.path.basename(r)[:-5] for r in list_files(src, hero_dir + "/") if r.endswith(".json"))
 
     auras: list[str] = []
     mods: list[str] = []
     skipped: list[str] = []
     max_alts = 1
-    for name in names:
-        j = json.loads(src.read(f"{AURA_DIR}/{name}.json"))
+    for name, hero in [(n, False) for n in names] + [(n, True) for n in hero_names]:
+        j = json.loads(src.read(f"{hero_dir if hero else AURA_DIR}/{name}.json"))
         if j.get("type") not in ("global", "player"):
             continue  # range auras: civ_roster_data.h / AuraManager
+        if hero and not any(m["value"].startswith(("Cost/", "Researcher/")) for m in j.get("modifications", [])):
+            continue
         players = 0
         for p in j.get("affectedPlayers") or ["Player"]:
             players |= PLAYERS.get(p, 0)
         begin = len(mods)
         for m in j.get("modifications", []):
+            if hero and not m["value"].startswith(("Cost/", "Researcher/")):
+                continue
             stat = EXTRA_STATS.get(m["value"]) or stat_of(m["value"])
             if not stat:
                 skipped.append(f"{name}: {m['value']}")
@@ -156,10 +172,13 @@ def main() -> int:
                 continue
             max_alts = max(max_alts, len(alts))
             mods.append((stat, op, val, alts, name))
+        if hero and len(mods) == begin:
+            continue  # only classes RTS0 has no TechClass for
         auras.append(f"\t\t{{\"{name}\", {players}, {begin}, {len(mods) - begin}}},")
 
     # Range auras with a RequiredXp multiplier, anywhere under auras/.
     xp_auras: list[tuple[str, float]] = []
+    build_auras: list[tuple[str, float, bool]] = []
     for rel in sorted(list_files(src, "simulation/data/auras/")):
         if not rel.endswith(".json"):
             continue
@@ -169,6 +188,8 @@ def main() -> int:
         for m in j.get("modifications", []):
             if m["value"] == "Promotion/RequiredXp" and "multiply" in m:
                 xp_auras.append((os.path.basename(rel)[:-5], float(m["multiply"])))
+            if m["value"] == "Builder/Rate" and "multiply" in m:
+                build_auras.append((os.path.basename(rel)[:-5], float(m["multiply"]), bool(j.get("stackable"))))
 
     # Range auras on Capturable/CapturePoints or Capturable/GarrisonRegenRate (multiply),
     # anywhere under auras/, and the RTS0 structures that project them (their own Auras).
@@ -242,6 +263,22 @@ def main() -> int:
             looter_auras.append((name, mul, add, float(j.get("radius", 0)), players))
         if zero:
             no_loot_auras.append((name, float(j.get("radius", 0)), players))
+    # Unit auras' AuraManager effects of every kind (the roster keeps the strongest one).
+    import extract_0ad_rosters as ros  # noqa: E402
+    effect_rows: list[tuple[str, str, float, float]] = []
+    for rel in sorted(list_files(src, "simulation/data/auras/units/")):
+        if not rel.endswith(".json"):
+            continue
+        j = json.loads(src.read(rel))
+        if j.get("type") not in ("range", "global"):
+            continue
+        a = {"type": j["type"], "radius": float(j.get("radius", 0)),
+             "players": j.get("affectedPlayers", ["Player"]), "modifications": j.get("modifications", [])}
+        effects = ros.rts0_aura_effects(a)
+        if len(effects) < 2:
+            continue  # one kind: the roster row has it
+        for kind, value, rng in effects:
+            effect_rows.append((os.path.basename(rel)[:-5], kind, float(value), float(rng)))
     cap_structures: list[tuple[str, int, str]] = []
     import extract_0ad_attack as atk  # noqa: E402
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
@@ -264,6 +301,9 @@ def main() -> int:
     w("")
     w(f"constexpr int RELIC_AURA_MAX_ALTS = {max_alts};")
     w("")
+    w("// Global auras whose modifications are player modifiers (Simulation::compute_tech_mods):")
+    w("// Capture the Relic catafalques while a relic is owned, and heroes' cost and research")
+    w("// auras while the hero lives.")
     w("// One modification of a global relic aura: an entity matches when its classes")
     w("// match any alternative (none = every entity of the affected players).")
     w("struct RelicAuraModifier {")
@@ -363,6 +403,19 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Every AuraManager effect of the unit auras with more than one kind (extract_0ad_rosters")
+    w("// rts0_aura_effects): civ_roster_data.h's CivHeroAura keeps one kind, and rebuild_auras")
+    w("// registers the rows of the other kinds from here. range in RTS0 units.")
+    w("struct AuraEffectRow { const char *id; uint8_t kind; float value; float range; };")
+    w(f"constexpr uint16_t AURA_EFFECT_ROW_COUNT = {len(effect_rows)};")
+    w("inline const AuraEffectRow *aura_effect_rows() {")
+    w(f"\tstatic const AuraEffectRow kRows[{max(1, len(effect_rows))}] = {{")
+    for name, kind, value, rng in effect_rows:
+        w(f"\t\t{{\"{name}\", {ros.AURA_KIND[kind]} /* {kind} */, {round(value, 4)!r}f, {round(rng, 4)!r}f}},")
+    w("\t};")
+    w("\treturn kRows;")
+    w("}")
+    w("")
     w("// Structures projecting a capture range aura: BuildingType, capture_range_auras() index.")
     w("struct CaptureStructureAura { uint8_t building; uint16_t aura; };")
     w(f"constexpr uint16_t CAPTURE_STRUCTURE_AURA_COUNT = {len(cap_structures)};")
@@ -374,12 +427,24 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Range auras multiplying Builder/Rate (AURA_BUILD sources). A stackable one")
+    w("// applies once per source (Auras.js \"stackable\"), the others once however many reach.")
+    w("struct BuilderRateRangeAura { const char *id; float multiply; bool stackable; };")
+    w(f"constexpr uint16_t BUILDER_RATE_RANGE_AURA_COUNT = {len(build_auras)};")
+    w("inline const BuilderRateRangeAura *builder_rate_range_auras() {")
+    w(f"\tstatic const BuilderRateRangeAura kAuras[{max(1, len(build_auras))}] = {{")
+    for name, mul, stack in build_auras:
+        w(f"\t\t{{\"{name}\", {mul!r}f, {'true' if stack else 'false'}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
     w("#endif // RTSO_AURA_MODIFIER_DATA_H")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras, "
           f"{len(capatk_auras)} capture attack range auras, {len(looter_auras)} looter and "
-          f"{len(no_loot_auras)} no-loot range auras")
+          f"{len(no_loot_auras)} no-loot range auras, {len(build_auras)} Builder/Rate range auras")
     for s in skipped:
         print("  not modelled: " + s)
     return 0

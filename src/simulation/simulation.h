@@ -324,7 +324,7 @@ public:
 	~Simulation();
 
 	void reset();
-	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); }
+	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); reroll_petra_personalities(); }
 	uint32_t sim_seed() const { return sim_seed_; }
 	uint32_t sim_rng_state() const { return sim_rng_.state(); }
 	uint32_t next_id() const { return next_id_; }
@@ -449,8 +449,11 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
 	}
-	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
-	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
+	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
+	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
+			float rot = DEFAULT_BUILDING_ROT);
+	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
+			float rot = DEFAULT_BUILDING_ROT);
 	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
 	uint32_t spawn_relic(float x, float z, int civ_pick = -1); // civ_pick: which catafalque (-1: from the id)
 	std::vector<std::pair<float, float>> relic_spawn_points() const; // TriggerHelper.GetLandSpawnPoints
@@ -790,7 +793,11 @@ public:
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
 	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
-	bool ship_unload_point(size_t ship, float &out_x, float &out_z) const;
+	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
+	// this unload are in `taken`); without a passenger, the nearest dry ground.
+	struct SpawnSpot { float x, z, r; };
+	bool ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger = SIZE_MAX,
+			std::vector<SpawnSpot> *taken = nullptr) const;
 	bool nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const;
 	void unload_sunk_ship(size_t ship);
 
@@ -808,7 +815,7 @@ public:
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
 	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
 	bool last_man_standing() const { return last_man_standing_; }
-	void set_last_man_standing(bool on) { last_man_standing_ = on; }
+	void set_last_man_standing(bool on) { last_man_standing_ = on; reroll_petra_personalities(); }
 	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
 	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
 	// still in the game (PlayerManager.RedistributeWorldPopulation), so each
@@ -844,7 +851,7 @@ public:
 	void set_regicide_garrison(bool on) { set_setup_flag(SETUP_REGICIDE_GARRISON, on); }
 	bool regicide_garrison() const { return setup_flags_ & SETUP_REGICIDE_GARRISON; }
 	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
-	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
+	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); reroll_petra_personalities(); }
 	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
 	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
 	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
@@ -1065,8 +1072,9 @@ public:
 	bool load_state(const char *filepath);
 
 	bool can_place(int cell_x, int cell_y, int footprint) const;
-	// 0 A.D. BuildRestrictions.js CheckPlacement for `player` placing `b_type` at cell_x/cell_y:
-	// obstruction, terrain (land, shore, land-shore), territory, dock shoreline and distance rules.
+	// 0 A.D. BuildRestrictions.js CheckPlacement for `player` placing `b_type` at cell_x/cell_y, turned
+	// by `angle` (a dock by dock_angle): obstruction, terrain (land, shore, land-shore), territory, dock
+	// shoreline and distance rules.
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
 		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
@@ -1075,7 +1083,8 @@ public:
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
 	};
-	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const;
+	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
+			float angle = DEFAULT_BUILDING_ROT) const;
 
 	// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js "construct-wall").
 	struct WallPiece {
@@ -1107,8 +1116,8 @@ public:
 	// 1/32 world units from -1024, 16 bits each.
 	static uint32_t pack_wall_point(float x, float z);
 	static void unpack_wall_point(uint32_t packed, float &x, float &z);
-	// The GRID cells a building takes in occupied_cells_: its footprint's square of cells, or for
-	// a WallSet piece every cell its turned rectangle overlaps.
+	// The GRID cells a building takes in occupied_cells_: every cell its turned rectangle overlaps
+	// (for an unturned building on the grid, its footprint's square of cells).
 	std::vector<std::pair<int, int>> building_cells(const Building &b) const;
 
 	void tick(float dt);
@@ -1277,6 +1286,7 @@ public:
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
+	int petra_pop_phase2() const; // config.js Economy.popPhase2 after setConfig's population scaling
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;
@@ -1751,8 +1761,10 @@ private:
 	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
 	void refresh_tech_mods(uint8_t player_id);
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
-	uint32_t relic_aura_mask(uint8_t player) const;
-	std::array<uint32_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
+	uint64_t relic_aura_mask(uint8_t player) const;
+	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;
+	void tick_global_auras();
+	std::array<uint64_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
@@ -2069,7 +2081,16 @@ private:
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
-	CellSet occupied_cells_; // every building's footprint cells (can_place)
+	// Every standing building's footprint cells (can_place): FULL where a footprint covers the cell,
+	// PART where one only reaches into it. A wreck no longer obstructs (0 A.D. rubble has no
+	// Obstruction), so wrecking a building marks the set stale, and ensure_occupied_cells rebuilds it.
+	mutable CellSet occupied_cells_;
+	mutable bool occupied_stale_ = false;
+	void ensure_occupied_cells() const;
+	void occupy_cells(const Building &b) const;
+	// Whether the footprint `f` overlaps a standing building's (CheckFoundation's TestStaticShape):
+	// the exact test for a turned footprint where occupied_cells_ marks a cell PART.
+	bool footprint_hits_building(const nav::Footprint &f) const;
 	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
 	// obstruction touches. A cache of resources_, rebuilt when the tick or the
 	// resource count changes; never saved or hashed.
@@ -2475,6 +2496,9 @@ private:
 	void petra_manage_emergency(float dt);
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
+	// config.js setConfig personality draw: per-player seed from the match seed, + teamsLocked.
+	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
+	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields();
@@ -2518,8 +2542,10 @@ private:
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
 	int petra_pop_room() const; // population left after Petra's queued batches
-	float petra_template_strength(const UnitTypeInfo &ui) const;
+	float petra_template_strength(const UnitTypeInfo &ui, float attack_mult = 1.0f) const;
+	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_ring_clear(int cell_x, int cell_y, int footprint) const;
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};

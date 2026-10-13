@@ -195,7 +195,8 @@ static void test_roster_army() {
 		CHECK(hero, "trains a hero in the city phase");
 		CHECK(champion, "trains roster champions in the city phase");
 		CHECK(siege, "trains siege engines");
-		if (civ == CIV_MACEDONIANS) CHECK(tower, "builds a siege tower where the civ has one");
+		// HQ.findBestTrainableUnit leaves siege towers out: Petra does not know how to use them.
+		if (civ == CIV_MACEDONIANS) CHECK(!tower, "trains no siege tower");
 		// Petra picks siege by siegeStrength (attackPlan.js unitStat Siege), so a civ whose rams
 		// outlast the fortresses may never field a catapult: packing is checked across both civs.
 		any_packed_moved |= packed_moved;
@@ -2178,7 +2179,7 @@ static void test_decay_garrison_from_attack() {
 }
 
 // headquarters.js buildDefenses: the first sentry tower waits for fortStartTime + towerLapseTime
-// (180 + 90 s, balanced), the defenseBuilding plan holds one structure until it is paid for, and
+// (180 + 360 s at defensive 0.5), the defenseBuilding plan holds one structure until it is paid for, and
 // the next stone tower waits (1 + 0.1 * towers) * towerLapseTime after the last one was queued.
 static void test_build_defenses() {
 	auto s = std::make_unique<Simulation>();
@@ -2197,19 +2198,21 @@ static void test_build_defenses() {
 	};
 	auto fund = [&] { s->petra_queues_.accounts[Simulation::PETRA_QUEUE_MILITARY] = {5000, 5000, 5000, 5000}; };
 	s->players_[1].phase = 1;
-	at(260.0f);
+	s->petra_config_.defensive = 0.5f; // towerLapseTime 360 x (1.1 - 0.2 x 0.5)
+	s->petra_attack_mgr_.save_resources = 0;
+	at(530.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "no sentry tower before fortStartTime + towerLapseTime");
-	at(280.0f);
+	at(550.0f);
 	s->petra_build_defenses();
-	CHECK(s->petra_defense_build_.pending == BLD_SENTRY_TOWER + 1, "a sentry tower is queued after 270 s");
+	CHECK(s->petra_defense_build_.pending == BLD_SENTRY_TOWER + 1, "a sentry tower is queued after 540 s");
 	const int sentries = count(BLD_SENTRY_TOWER);
 	s->petra_build_defenses();
 	CHECK(count(BLD_SENTRY_TOWER) == sentries, "an unpaid plan waits");
 	fund();
 	s->petra_build_defenses();
 	CHECK(count(BLD_SENTRY_TOWER) == sentries + 1 && s->petra_defense_build_.pending == 0, "the paid plan is placed");
-	at(400.0f);
+	at(1000.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "medium difficulty builds one sentry tower");
 	s->players_[1].phase = 2;
@@ -2218,7 +2221,7 @@ static void test_build_defenses() {
 	fund();
 	s->petra_build_defenses();
 	CHECK(count(BLD_TOWER) == 1, "the stone tower is placed");
-	at(480.0f);
+	at(1300.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
 }
@@ -2277,6 +2280,35 @@ static void test_dropsites() {
 // baseManager.js checkResourceLevels, food branch: the first field once the fruit and grain near
 // the food dropsites is under 600, then provisionFields foundations (2 at Medium), one fewer
 // while more than 300 food is still in reach.
+// config.js setConfig: each AI draws its personality within its behaviour's range from the
+// match seed, Sandbox keeps the middle, and locked teams add 0.3 cooperativeness.
+static void test_personality_draw() {
+	Simulation s;
+	s.set_sim_seed(4242);
+	s.set_petra_behavior(PETRA_BEHAVIOR_AGGRESSIVE);
+	for (uint8_t p = 1; p < 4; ++p) s.set_petra_behavior(p, PETRA_BEHAVIOR_AGGRESSIVE);
+	s.set_petra_behavior(4, PETRA_BEHAVIOR_DEFENSIVE);
+	const float a2 = s.petra_config_for(2).aggressive, a3 = s.petra_config_for(3).aggressive;
+	assert(a2 >= 0.73f && a2 <= 1.0f && a3 >= 0.73f && a3 <= 1.0f);
+	assert(a2 != a3);
+	const PetraConfig &d = s.petra_config_for(4);
+	assert(d.aggressive >= 0.0f && d.aggressive <= 0.27f && d.defensive >= 0.73f);
+	Simulation t;
+	t.set_sim_seed(4242);
+	t.set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
+	assert(t.petra_config_for(2).aggressive == a2); // same seed, same draw on every peer
+	// Allied victory (no Last Man Standing) adds 0.15, locked teams 0.3 instead.
+	t.set_last_man_standing(true);
+	const float coop = t.petra_config_for(2).cooperative;
+	t.set_last_man_standing(false);
+	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.15f)) < 1e-5f);
+	t.set_lock_teams(true);
+	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
+	t.set_petra_difficulty(2, PETRA_SANDBOX);
+	assert(t.petra_config_for(2).aggressive == 0.85f && t.petra_config_for(2).pop_scaling == 0.5f);
+	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
+}
+
 static void test_food_fields() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2366,6 +2398,7 @@ int main() {
 	test_build_defenses();
 	test_dropsites();
 	test_food_fields();
+	test_personality_draw();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

@@ -47,7 +47,7 @@ struct CombatProfile {
 // 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).
 inline constexpr float COMBAT_DISTANCE_SCALE = 0.28f;
 
-inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 392; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 395; // = CIV_UNIT_TEMPLATE_COUNT
 inline const CombatProfile *combat_template_table() {
 	static const CombatProfile kTable[COMBAT_TEMPLATE_COUNT] = {
 		{{0x0000000000000532ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f}, // athen/cavalry_javelineer_b
@@ -442,6 +442,9 @@ inline const CombatProfile *combat_template_table() {
 		{{0x0000000000000400ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 4.37f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f}, // sele/catafalque
 		{{0x0000000000000400ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 4.37f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f}, // han/catafalque
 		{{0x0000000000000530ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 1.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.8f, 100.0f, 50.0f}, // pers/champion_infantry_archer_upgrade
+		{{0x0000000000000440ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 2, {{{0x0000000000000040ull, 0x0000000000000000ull}, 3.0f, 255}, {{0x0000000000000001ull, 0x0000000000000000ull}, 3.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 6.383f, 2, 1.0f, 10.0f, 1, 0.1f, 0.0f, 0.0f}, // brit/ship_fire_fire
+		{{0x0000000000000440ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 2, {{{0x0000000000000040ull, 0x0000000000000000ull}, 3.0f, 255}, {{0x0000000000000001ull, 0x0000000000000000ull}, 3.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 6.383f, 2, 1.0f, 10.0f, 1, 0.1f, 0.0f, 0.0f}, // gaul/ship_fire_fire
+		{{0x0000000000000440ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 2, {{{0x0000000000000040ull, 0x0000000000000000ull}, 3.0f, 255}, {{0x0000000000000001ull, 0x0000000000000000ull}, 3.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 6.383f, 2, 1.0f, 10.0f, 1, 0.1f, 0.0f, 0.0f}, // iber/ship_fire_fire
 	};
 	return kTable;
 }
@@ -480,7 +483,7 @@ inline const CombatProfile *combat_class_table() {
 inline constexpr uint8_t COMBAT_CLASS_ROWS = 25; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
-inline constexpr uint8_t COMBAT_BUILDING_ROWS = 63;
+inline constexpr uint8_t COMBAT_BUILDING_ROWS = 64;
 inline const CombatProfile *combat_building_table() {
 	static const CombatProfile kTable[COMBAT_BUILDING_ROWS + 1] = {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 29.0f, 35.0f, 3.0f, 18.054f, 0, 0.0f, 0.0f, 1, 0.4f, 100.0f, 50.0f}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -546,6 +549,7 @@ inline const CombatProfile *combat_building_table() {
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 9.0f, 25.0f, 2.0f, 3.785f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // BLD_PALISADE_GATE: structures/palisades_gate
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 9.027f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 24.0f, 30.0f, 3.0f, 8.009f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic
+		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 15.0f, 35.0f, 3.0f, 7.674f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
 		{{0x0000000000000200ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 1.0f, 10.0f, 1.0f, 0.0f, 0, 0.0f, 0.0f, 1, 0.0f, 0.0f, 0.0f}, // default: template_structure
 	};
 	return kTable;
