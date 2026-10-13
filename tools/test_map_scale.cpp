@@ -26,7 +26,7 @@
 //     map JSON tile encoding decodes; bad tiles are refused.
 // 10b. Random maps plant their biome's rmbiome trees and fruit (FloraKind), forests
 //     and stragglers alike, and the map JSON plant names resolve. Each tree holds its
-//     template's wood (savanna's baobabs 400, india's banyans 600).
+//     template's wood (savanna's baobabs 600, india's banyans 600).
 // 10c. Maps from 0 A.D. scripts with their own terrains paint and plant only those
 //     (script_terrains.h), with their templates' wood, unless game setup overrides the biome.
 //  Exit: 0 = PASS, 1 = FAIL.
@@ -508,23 +508,32 @@ int main() {
 			if (rv.alive[i] && rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
 		CHECK(odd_wood == 0, "%s: %d trees hold wood no slot's template gives", f->biome, odd_wood);
 	}
-	// 10b'. Savanna: tree1 is gaia/tree/baobab (ResourceSupply/Max 400), tree2 acacia (200) and
+	// 10b'. Savanna: tree1 is gaia/tree/baobab (ResourceSupply/Max 600), tree2 acacia (200) and
 	// tree4/tree5 bush_tropic (50) and bush_temperate (100).
 	{
 		Simulation sim;
 		sim.set_biome_override(BIOME_SAVANNA);
 		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
 		const auto rv = sim.resources();
-		int baobabs = 0, baobab_400 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
+		int baobabs = 0, baobab_600 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
 		for (size_t i = 0; i < rv.count; ++i) {
 			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
-			if (rv.flora[i] == FLORA_BAOBAB) { ++baobabs; baobab_400 += rv.amount[i] == 400; }
+			if (rv.flora[i] == FLORA_BAOBAB) { ++baobabs; baobab_600 += rv.amount[i] == 600; }
 			if (rv.flora[i] == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
 			if (rv.flora[i] == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }
 		}
-		CHECK(baobabs > 0 && baobab_400 == baobabs, "savanna: %d of %d baobabs hold 400 wood", baobab_400, baobabs);
+		CHECK(baobabs > 0 && baobab_600 == baobabs, "savanna: %d of %d baobabs hold 600 wood", baobab_600, baobabs);
 		CHECK(acacias > 0 && acacia_200 == acacias, "savanna: %d of %d acacias hold 200 wood", acacia_200, acacias);
 		CHECK(bushes > 0 && bush_ok == bushes, "savanna: %d of %d bushes hold 50 or 100 wood", bush_ok, bushes);
+		// ResourceSupply/MaxGatherers: baobab 9, the bushes 4 (mixins/bush.xml), acacia 8.
+		int mg_bad = 0;
+		for (size_t i = 0; i < rv.count; ++i) {
+			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
+			const int mg = sim.resource_max_gatherers(rv.id[i]);
+			mg_bad += rv.flora[i] == FLORA_BAOBAB ? mg != 9 : rv.flora[i] == FLORA_BUSH || rv.flora[i] == FLORA_TROPIC_BUSH ? mg != 4
+					: rv.flora[i] == FLORA_ACACIA ? mg != 8 : 0;
+		}
+		CHECK(mg_bad == 0, "savanna: %d trees with the wrong gatherer limit", mg_bad);
 		// set_resource_amount: a tree's amount; a fruit bush's regrowth Max follows it.
 		const uint32_t tree = sim.spawn_resource_world(0.0f, 0.0f, RES_WOOD, TREE_WOOD_SUPPLY);
 		sim.set_resource_amount(tree, 600);
