@@ -18818,6 +18818,38 @@ void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float 
 // on one structure. The bombers on a structure are those whose order targets it, so there
 // is no saved list. (Fields are left alone: 0 A.D. shells only enemy-land fields being
 // worked, and RTS0 doesn't track a field's gatherers here.)
+// worker.js moveToGatherer (baseManager.js update, every mobile dropsite): a worker
+// elephant or supply wagon walks to the nearest of our gatherers at work on its land, so
+// they drop off beside their supply. 0 A.D. waits 12 s after a move and 5 s otherwise
+// (nextMoveToGatherer metadata); here every Petra mobile dropsite looks every 5 s.
+void Simulation::petra_move_dropsites_to_gatherers() {
+	std::vector<size_t> drops;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_is_mobile_dropsite(units_.unit_type[i]) &&
+		    units_.action_state[i] != ACTION_GARRISONED && units_.action_state[i] != ACTION_BUILD &&
+		    units_.order_kind[i] != ORDER_BUILD && !petra_passenger(units_.id[i]))
+			drops.push_back(i);
+	if (drops.empty()) return;
+	for (size_t d : drops) {
+		const float px = units_.pos_x[d], pz = units_.pos_z[d];
+		const uint16_t land = petra_land_at(px, pz);
+		float best = 1e30f, bx = 0.0f, bz = 0.0f;
+		for (size_t g = 0; g < units_.count; ++g) {
+			if (!units_.alive[g] || units_.team[g] != petra_pid_ || g == d || unit_is_ship(units_.unit_type[g])) continue;
+			if (units_.action_state[g] != ACTION_GATHER && units_.action_state[g] != ACTION_RETURN_DROPSITE) continue;
+			if (!petra_is_worker(g) || petra_passenger(units_.id[g])) continue;
+			const float dx = units_.pos_x[g] - px, dz = units_.pos_z[g] - pz, dd = dx * dx + dz * dz;
+			if (dd >= best || petra_land_at(units_.pos_x[g], units_.pos_z[g]) != land) continue;
+			best = dd; bx = units_.pos_x[g]; bz = units_.pos_z[g];
+		}
+		// dist > 10 (m^2)
+		if (best < 1e30f && best > 10.0f / 16.0f) {
+			const uint32_t uid = units_.id[d];
+			order_walk(&uid, 1, bx, bz, false);
+		}
+	}
+}
+
 void Simulation::petra_assign_bombers() {
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 	auto bomber = [&](size_t i) {
@@ -22274,6 +22306,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_retake_civic_centres();
 	petra_manage_tactical_attacks(dt);
 	if ((int)(petra_timer_ / 2.5f) != (int)((petra_timer_ - dt) / 2.5f)) petra_assign_bombers();
+	if ((int)(petra_timer_ / 5.0f) != (int)((petra_timer_ - dt) / 5.0f)) petra_move_dropsites_to_gatherers();
 	petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
