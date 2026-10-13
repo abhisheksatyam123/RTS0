@@ -152,7 +152,8 @@ public:
 	// Gives each tree and fruit bush of a generated map its biome's 0 A.D. plant
 	// (terrain_biomes.h biome_flora): trees in a forest share tree1/tree2 or
 	// tree4/tree5, lone trees take tree1, tree2, tree4 or tree3, bushes the
-	// fruitBush. Only the drawing reads it; hashed from seed like paint_terrain.
+	// fruitBush. A tree also takes its template's wood (BiomeFlora tree*_wood). Hashed
+	// from seed like paint_terrain.
 	static void plant_flora(Simulation &sim, uint32_t seed, uint8_t type);
 
 private:
