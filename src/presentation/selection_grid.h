@@ -86,6 +86,8 @@ public:
 	}
 
 	GridContainer *grid() const { return grid_; }
+	// A right-click on an icon calls owner.method(event, key) (selection_panels.js onPressRight).
+	void set_right_click(const char *method) { right_method_ = method; }
 
 	static String tooltip(const Group &g, const String &tip_suffix) {
 		return group_name(g) + " (" + String::num_int64(g.count) + ")\nHealth: " +
@@ -138,6 +140,7 @@ public:
 			else b->set_text(group_name(g).substr(0, 3));
 			b->set_tooltip_text(tooltip(g, tip_suffix));
 			b->connect("pressed", Callable(owner_, method_).bind(g.key));
+			if (right_method_) b->connect("gui_input", Callable(owner_, right_method_).bind(g.key));
 			if (g.count > 1) {
 				Label *cnt = memnew(Label);
 				cnt->set_text(String::num_int64(g.count));
@@ -169,6 +172,7 @@ private:
 	GridContainer *grid_ = nullptr;
 	Object *owner_ = nullptr;
 	const char *method_ = "";
+	const char *right_method_ = nullptr; // called with (event, key) on a right-click
 	float icon_ = 36.0f;
 	uint64_t sig_ = ~0ull;
 };
