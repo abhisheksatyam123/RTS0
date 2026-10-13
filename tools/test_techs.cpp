@@ -362,7 +362,9 @@ int main() {
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].speed - 1.25f) < 1e-4f);
 		CHECK(s.tech_mods(0).tmpl[arrow].speed == 1.0f);
 		research(TECH_WARSHIP_RAMMING_ATTACK, -30.0f);
-		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].attack - 1.3f) < 1e-4f);
+		// Bronze Ram multiplies Attack/Melee/Damage/Hack only: 320 x1.3 + 50 crush.
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].atk_mul[0] - 1.3f) < 1e-4f && s.tech_mods(0).tmpl[ram].atk_mul[2] == 1.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].attack - (320.0f * 1.3f + 50.0f) / 370.0f) < 1e-4f);
 		CHECK(s.tech_mods(0).tmpl[arrow].attack == 1.0f);
 		research(TECH_WARSHIP_HEALTH, -50.0f); // Undergirding Cables: arrow and ramming ships
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].health - 1.2f) < 1e-4f);
@@ -599,6 +601,38 @@ int main() {
 		CHECK(w.pop_limit(0) == (int)std::lround(base * 1.2f * 1.2f));
 		CHECK(w.pop_limit(1) == base);
 		std::printf("Glorious Expansion: population limit %d -> %d with two Wonders\n", base, w.pop_limit(0));
+	}
+
+	// Attack technologies change each damage kind on its own (Attack/<type>/Damage/<kind>,
+	// GetTechModifiedProperty_numeric: x every multiply, then + every add): Naval Oxybeles
+	// gives Arrow Ships +10 crush on top of their 32 pierce, and Poison Arrows scales each of
+	// a slinger's kinds.
+	{
+		static Simulation n;
+		fresh(n);
+		auto idx = [&](uint32_t id) { auto u = n.units(); for (size_t i = 0; i < u.count; ++i) if (u.id[i] == id) return i; return (size_t)0; };
+		const uint16_t ship_t = civ_unit_template_by_id("athen/ship_arrow");
+		const uint16_t sling_t = civ_unit_template_by_id("athen/infantry_slinger_b");
+		CHECK(ship_t < CIV_UNIT_TEMPLATE_COUNT && sling_t < CIV_UNIT_TEMPLATE_COUNT);
+		const size_t ship = idx(n.spawn_unit(0.0f, 30.0f, 0, (UnitType)civ_unit_template(ship_t).unit_type, 0.0f, ship_t));
+		const size_t sling = idx(n.spawn_unit(4.0f, 30.0f, 0, (UnitType)civ_unit_template(sling_t).unit_type, 0.0f, sling_t));
+		float d[3];
+		n.unit_tech_damage(ship, d);
+		CHECK(d[0] == 0.0f && std::fabs(d[1] - 32.0f) < 1e-3f && d[2] == 0.0f);
+		n.complete_research(0, TECH_WARSHIP_ARROW_ATTACK);
+		n.unit_tech_damage(ship, d);
+		CHECK(d[0] == 0.0f && std::fabs(d[1] - 32.0f) < 1e-3f && std::fabs(d[2] - 10.0f) < 1e-3f);
+		CHECK(std::fabs(n.units_.attack_damage[ship] - 42.0f) < 1e-3f);
+		const float ship_crush = d[2];
+		n.unit_tech_damage(sling, d);
+		const float sling_pierce = d[1], sling_crush = d[2];
+		n.complete_research(0, TECH_POISON_ARROWS);
+		n.unit_tech_damage(sling, d);
+		CHECK(std::fabs(d[1] - sling_pierce * 1.2f) < 1e-3f && std::fabs(d[2] - sling_crush * 1.2f) < 1e-3f);
+		CHECK(std::fabs(n.units_.attack_damage[sling] - (d[0] + d[1] + d[2])) < 1e-3f);
+		n.unit_tech_damage(ship, d);
+		CHECK(std::fabs(d[2] - ship_crush) < 1e-3f); // Poison Arrows is for soldiers
+		std::printf("attack per damage kind: Arrow Ship 0/32/0 -> %.1f/%.1f/%.1f with Naval Oxybeles\n", 0.0f, 32.0f, ship_crush);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

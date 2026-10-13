@@ -1659,6 +1659,19 @@ public:
 	// `max_tries` tries). Pieces in water or off the map are left out.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
 			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
+	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
+	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
+	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
+	// left) or a structure set into the wall (FORT_BUILDING: 3.5 towers inside the wall line).
+	// The outline is centred on (x, z) and turned so the first element faces the world angle
+	// `facing` from it. Pieces off the map, in water, or where `skip` says are left out.
+	enum FortressElement : uint8_t { FORT_LONG, FORT_GATE, FORT_TOWER, FORT_CORNER_IN, FORT_BUILDING };
+	struct FortressPart {
+		uint8_t element;  // FortressElement
+		uint8_t building; // the BuildingType of a FORT_BUILDING
+	};
+	size_t place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
+			bool (*skip)(float x, float z, const void *ctx) = nullptr, const void *ctx = nullptr);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -1765,7 +1778,10 @@ private:
 	struct TechMods {
 		float gather[UNIT_TYPE_COUNT][GK_COUNT];
 		int16_t carry[UNIT_TYPE_COUNT][RES_COUNT];
+		// The unit's damage total after technologies over its template's (attack_damage's scale);
+		// each damage type is its own value, x atk_mul + atk_add (Attack/<type>/Damage/<kind>).
 		float attack[UNIT_TYPE_COUNT];
+		float atk_mul[UNIT_TYPE_COUNT][3], atk_add[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
 		float health[UNIT_TYPE_COUNT];
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
@@ -1814,6 +1830,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
+			float atk_mul[3], atk_add[3];
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
@@ -1834,7 +1851,7 @@ private:
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather, *atk_mul, *atk_add; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
@@ -1904,6 +1921,7 @@ private:
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	void unit_attack_effects(size_t i, float out[3]) const;
+	void unit_tech_damage(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -2187,6 +2205,9 @@ private:
 	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
+	// A map script's built wall piece for `player` (placeGenericFortress, placeCustomFortress): left
+	// out off the map or in water; the trees and bushes under it go (DeleteUponConstruction).
+	bool place_map_wall_piece(const WallPiece &p, uint8_t player);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
@@ -2573,6 +2594,7 @@ private:
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
+	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
 	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
 	// navalManager.requireTransport for a worker: ship it from its land to a supply's on another.
 	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z);

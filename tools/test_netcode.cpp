@@ -591,6 +591,8 @@ struct PeerOpts {
     uint32_t saveload_turn = 0; // both peers save and reload their world here
     uint32_t force_oos = 0;     // the joiner corrupts its world after this turn
     uint32_t quit_turn = 0;     // the joiner leaves the match after this turn
+    uint32_t host_quit_turn = 0;   // host: ends the game after this turn (tells everyone)
+    uint32_t host_vanish_turn = 0; // host: drops off after this turn without a word
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
     bool observe = false;       // this joiner watches a running match without a seat
     std::string name = "peer";  // the name this peer authenticates with
@@ -987,8 +989,15 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         if (!net.clientPerformance().empty()) last_perf = net.clientPerformance();
         float dt = (float)(now - last) * 1e-6f * speed;
         last = now;
-        if (net.kickedSelf()) {
-            std::printf("[net-peer] join: kicked at turn %u\n", tm.current_turn());
+        // 0 A.D. netstatus "disconnected": the link to the host is gone, and why.
+        if (net.kickedSelf() && net.connectionLost()) {
+            std::printf("[net-peer] join: kicked at turn %u reason=%d\n", tm.current_turn(), net.disconnectReason());
+            std::fclose(log);
+            net.stop();
+            return 0;
+        }
+        if (!host && !net.kickedSelf() && net.connectionLost()) {
+            std::printf("[net-peer] join: lost the host at turn %u reason=%d\n", tm.current_turn(), net.disconnectReason());
             std::fclose(log);
             net.stop();
             return 0;
@@ -1017,6 +1026,19 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 save_hash_before = tm.compute_sim_hash(sim);
                 save_ok = sim.save_state(path.c_str()) && sim.load_state(path.c_str());
                 save_hash_after = tm.compute_sim_hash(sim);
+            }
+            // The host leaves: it ends the game for everyone, or just goes silent.
+            if (host && opt.host_quit_turn && f.turn_index == opt.host_quit_turn) {
+                std::fclose(log);
+                net.stop();
+                std::printf("[net-peer] host: ended the game at turn %u\n", f.turn_index);
+                return 0;
+            }
+            if (host && opt.host_vanish_turn && f.turn_index == opt.host_vanish_turn) {
+                std::fclose(log);
+                std::printf("[net-peer] host: vanished at turn %u\n", f.turn_index);
+                std::fflush(stdout);
+                std::_Exit(0); // no disconnect notice: the socket just closes
             }
             // Leave: the joiner drops out (NetHost sends the disconnect).
             if (!host && opt.quit_turn && f.turn_index == opt.quit_turn) {
@@ -1179,6 +1201,8 @@ int main(int argc, char **argv) {
     //   [--force-oos N]     the joiner corrupts its world after turn N
     //   [--oos-dir DIR]     where this peer writes oos_dump.txt/.dat
     //   [--quit-turn N]     the joiner leaves the match after turn N
+    //   [--host-quit-turn N] the host ends the game after turn N
+    //   [--host-vanish-turn N] the host drops off after turn N without telling anyone
     //   [--rejoin 1]        this joiner takes over a dropped seat mid-match
     if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
         netpeer::PeerOpts opt;
@@ -1193,6 +1217,8 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--force-oos") == 0) opt.force_oos = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--oos-dir") == 0) opt.oos_dir = v;
             else if (std::strcmp(k, "--quit-turn") == 0) opt.quit_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--host-quit-turn") == 0) opt.host_quit_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--host-vanish-turn") == 0) opt.host_vanish_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
             else if (std::strcmp(k, "--observe") == 0) opt.observe = opt.rejoin = std::atoi(v) != 0;
             else if (std::strcmp(k, "--name") == 0) opt.name = v;
