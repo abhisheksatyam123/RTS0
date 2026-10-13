@@ -1576,7 +1576,7 @@ namespace {
 // defaults to land placement in own territory; the overrides are
 // civil_centre (own neutral, 200 m from a CivilCentre), dock (shore, own ally
 // neutral), defensive_wall and its gate and tower (land-shore), palisade
-// (land-shore, own neutral), outpost (own neutral, 50 m from an Outpost),
+// (land-shore, own neutral), rome/siege_wall (land-shore, own neutral enemy), outpost (own neutral, 50 m from an Outpost),
 // defensive_tower (60 m from a Tower) and fortress (80 m from a Fortress).
 enum : uint8_t { PLACE_LAND, PLACE_SHORE_TYPE, PLACE_LAND_SHORE };
 enum : uint8_t { TERR_OWN = 1, TERR_ALLY = 2, TERR_NEUTRAL = 4, TERR_ENEMY = 8 };
@@ -1591,6 +1591,9 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
 	case BLD_PALISADE: case BLD_PALISADE_GATE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	// rome/siege_wall_*: own, neutral or enemy territory (to wall in a besieged town).
+	case BLD_SIEGE_WALL:
+		return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL | TERR_ENEMY, DIST_NONE, 0.0f};
 	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
 	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
@@ -1894,7 +1897,7 @@ uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z, uint8_t k
 	uint32_t id = 0;
 	for (const Building &b : buildings_) {
 		if (b.type != ws.tower || b.team != player || b.wrecked || b.hp <= 0.0f) continue;
-		if (ws.tower == ws.segment && !is_palisade_tower(b.type, b.half_size)) continue;
+		if (ws.tower == ws.segment && !is_wallset_tower_piece(b.type, b.half_size)) continue;
 		const float d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
 		if (d2 <= best) {
 			best = d2;
@@ -2004,13 +2007,13 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 		const Building &g = buildings_[it->second];
 		const std::vector<std::pair<int, int>> c = building_cells(g);
 		ignored.insert(ignored.end(), c.begin(), c.end());
-		if (g.type != BLD_WALL_TOWER && !is_palisade_tower(g.type, g.half_size)) continue;
+		if (g.type != BLD_WALL_TOWER && !is_wallset_tower_piece(g.type, g.half_size)) continue;
 		// The segments joined to a tower share its group too (SetControlGroup2), where they reach
 		// into it: their cells around the tower.
 		const float near = g.half_size + GRID;
 		for (const Building &o : buildings_) {
 			if (o.id == g.id || o.team != g.team || !is_wallset_piece(o.type, o.half_size) ||
-					is_palisade_tower(o.type, o.half_size))
+					is_wallset_tower_piece(o.type, o.half_size))
 				continue;
 			const nav::Vec2 gap = nav::footprint_gap(o, g.x, g.z);
 			if (gap.x > g.half_size || gap.y > g.half_size) continue;
@@ -3141,9 +3144,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			apply_mod(e, [&](uint64_t cls) { return tech_effect_applies(e, cls); });
 		}
 	}
-	// Global relic auras (Capture the Relic) reaching this player. Same-named auras
-	// don't stack (ModifiersManager keys them by name), so each applies once.
-	const uint32_t mask = relic_aura_mask(player_id);
+	// Global relic and hero auras reaching this player. Same-named auras don't stack
+	// (ModifiersManager keys them by name), so each applies once.
+	const uint64_t mask = relic_aura_mask(player_id);
 	for (uint16_t g = 0; g < RELIC_GLOBAL_AURA_COUNT; ++g) {
 		if (!((mask >> g) & 1u)) continue;
 		const RelicGlobalAura &ga = relic_global_auras()[g];
@@ -3187,20 +3190,41 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	}
 }
 
-uint32_t Simulation::relic_aura_mask(uint8_t player) const {
-	uint32_t mask = 0;
-	if (player >= MAX_PLAYERS) return 0;
-	for (const Relic &rel : relics_) {
-		const int32_t u = lookup_unit(rel.id);
-		if (!is_relic_unit(u) || units_.team[u] >= MAX_PLAYERS || units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+// Bit g of masks[p]: relic_global_auras() row g reaches player p, from an owned relic or a
+// living hero (a global aura reaches its players wherever the source is, garrisoned too).
+void Simulation::global_aura_masks(uint64_t masks[MAX_PLAYERS]) const {
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) masks[p] = 0;
+	for (size_t u = 0; u < units_.count; ++u) {
+		if ((!units_.alive[u] && units_.action_state[u] != ACTION_GARRISONED) || units_.team[u] >= MAX_PLAYERS ||
+				units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
 		for (int16_t a : civ_unit_template(units_.tmpl[u]).auras) {
 			const int g = relic_global_aura_index(a);
 			if (g < 0) continue;
-			if (aura_affected_players(units_.team[u], relic_global_auras()[g].players) & aura_player_bit(player))
-				mask |= 1u << g;
+			const uint16_t reach = aura_affected_players(units_.team[u], relic_global_auras()[g].players);
+			for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+				if (reach & aura_player_bit(p)) masks[p] |= 1ull << g;
 		}
 	}
-	return mask;
+}
+
+uint64_t Simulation::relic_aura_mask(uint8_t player) const {
+	if (player >= MAX_PLAYERS) return 0;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	return masks[player];
+}
+
+// Global auras follow their sources' lives, ownership and diplomacy: a player gaining or
+// losing one has every entity it affects rescaled, as for a technology. Once a second.
+void Simulation::tick_global_auras() {
+	if (ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) != 0) return;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (masks[p] == relic_aura_masks_[p]) continue;
+		relic_aura_masks_[p] = masks[p];
+		refresh_tech_mods(p);
+	}
 }
 
 void Simulation::rebuild_all_tech_mods() {
@@ -5520,6 +5544,15 @@ bool Simulation::unit_turretable(size_t i) const {
 }
 
 const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
+	if (b.type == BLD_SIEGE_WALL) {
+		// rome/siege_wall_*: the long and medium segments' and the tower's own points
+		// (siege_wall_short has none, and none of them a garrison).
+		static constexpr TurretPointSet NONE{};
+		const WallSetInfo &ws = wallset_info(WALLSET_SIEGE);
+		const int k = is_siege_wall_tower(b.type, b.half_size) ? 2
+				: b.half_size >= 0.5f * ws.lengths[0] - 0.01f ? 0 : b.half_size >= 0.5f * ws.lengths[1] - 0.01f ? 1 : -1;
+		return k < 0 ? &NONE : &TURRET_POINTS_SIEGE_WALL[k];
+	}
 	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
 	if (kind < 0) return nullptr;
 	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
@@ -6854,6 +6887,7 @@ void Simulation::tick(float dt) {
 	tick_scenery_attackers();
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	tick_relics();           // Capture the Relic catafalques (Capturable.js)
+	tick_global_auras();     // relics' and heroes' global player modifiers
 	check_victory_conditions(dt);
 	tick_statistics();       // 0 A.D. StatisticsTracker.js: per-player counters and 30 s sequences
 
@@ -8888,7 +8922,8 @@ void Simulation::tick_repair(float dt) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
 			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
-			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER;
+			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER ||
+					b.type == BLD_SIEGE_WALL; // rome/siege_wall_* too
 			const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
 			const float repair_rate = b.max_hp / (ratio * structure_build_time(b));
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
@@ -12372,7 +12407,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
 	// Attack.js Capture RestrictedClasses "Field Palisade Wall" (gates and wall towers are Wall too).
 	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || is_gate_type(b.type) ||
-			b.type == BLD_WALL_TOWER)
+			b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL)
 		return false;
 	if (b.team < MAX_PLAYERS && (b.team == player || is_ally(player, b.team))) return false; // UnitAI CanAttack: not our own
 	// Capturable.CanCapture: some of the points belong to an enemy of the capturer (or to Gaia).
@@ -23169,16 +23204,6 @@ void Simulation::tick_relics() {
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}
-	// Global relic auras follow ownership and diplomacy: a player gaining or losing one
-	// has every entity it affects rescaled, as for a technology.
-	if (pulse) {
-		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			const uint32_t mask = relic_aura_mask(p);
-			if (mask == relic_aura_masks_[p]) continue;
-			relic_aura_masks_[p] = mask;
-			refresh_tech_mods(p);
-		}
-	}
 	// Captors whose relic is now theirs or an ally's stop and take their next order.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.order_kind[i] != ORDER_CAPTURE_RELIC) continue;
@@ -23380,7 +23405,9 @@ void Simulation::rebuild_auras() {
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							0.0f, aura_affected_players(team, no_loot_range_auras()[k].players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
-				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
+				// A relic's global aura is a player modifier (compute_tech_mods); a hero's global
+				// cost and research auras are too, beside its other effects here.
+				if (ut == UNIT_CATAFALQUE && relic_global_aura_index(a) >= 0) continue;
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
 					aura_affected_players(team, aura.players), x, z, a);
 			}
@@ -23555,11 +23582,11 @@ constexpr uint8_t kSurvivalCivicCentre = 1, kSurvivalTreasureFemale = 2;
 constexpr uint8_t kSurvivalTreasures[] = {TREASURE_FOOD_BARREL, TREASURE_FOOD_BIN, TREASURE_FOOD_CRATE,
 	TREASURE_FOOD_JARS, TREASURE_METAL, TREASURE_STONE, TREASURE_WOOD, TREASURE_WOOD, TREASURE_WOOD};
 // disabledTemplates: economic structures, expansions, walls and shoreline (RTS0 has no
-// rotary mill, Roman siege walls, crannog or super dock; a stone wallset is its segments,
-// towers and gates).
+// rotary mill, crannog or super dock; a stone wallset is its segments, towers and gates, and
+// the Roman siege wallset its BLD_SIEGE_WALL pieces).
 constexpr uint8_t kSurvivalDisabledBuildings[] = {BLD_CORRAL, BLD_FARMSTEAD, BLD_FIELD, BLD_STOREHOUSE,
 	BLD_TOWN_CENTER, BLD_MILITARY_COLONY, BLD_WALL_SEGMENT, BLD_WALL_TOWER, BLD_GATE, BLD_PALISADE,
-	BLD_DOCK, BLD_LIGHTHOUSE};
+	BLD_SIEGE_WALL, BLD_DOCK, BLD_LIGHTHOUSE};
 const char *const kSurvivalDisabledUnits[] = {"maur/support_elephant"};
 
 uint16_t roster_template_named(const char *id) {

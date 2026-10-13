@@ -1726,8 +1726,10 @@ private:
 	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
 	void refresh_tech_mods(uint8_t player_id);
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
-	uint32_t relic_aura_mask(uint8_t player) const;
-	std::array<uint32_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
+	uint64_t relic_aura_mask(uint8_t player) const;
+	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;
+	void tick_global_auras();
+	std::array<uint64_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
