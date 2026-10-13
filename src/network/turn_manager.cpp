@@ -282,6 +282,7 @@ void TurnManager::request_rejoin(bool observe) {
 	rejoin_reject_ = 0;
 	rejoin_world_.clear();
 	rejoin_chunks_.clear();
+	rejoin_early_.clear();
 	rejoin_received_ = 0;
 	rejoin_progress_ms_ = rejoin_now_ms();
 	RejoinMsg req;
@@ -313,19 +314,38 @@ void TurnManager::receive_rejoin(uint32_t author, const RejoinMsg &msg) {
 		rejoin_wanted_ = false;
 	} else if (msg.kind == RejoinMsg::HEADER) {
 		if (msg.total == 0 || msg.total > 256u * 1024u * 1024u) return;
+		// The header of an earlier request, delivered late, would throw away
+		// the transfer that answers the newest one.
+		// (rejoin_header_ outlives a repeated request; every T is >= 1.)
+		if (msg.turn <= rejoin_header_.turn) return;
 		rejoin_header_ = msg;
 		rejoin_have_header_ = true;
 		rejoin_progress_ms_ = rejoin_now_ms();
 		rejoin_world_.assign(msg.total, 0);
 		rejoin_chunks_.clear();
 		rejoin_received_ = 0;
-	} else if (msg.kind == RejoinMsg::CHUNK && rejoin_have_header_ && msg.turn == rejoin_header_.turn) {
-		if (msg.total > rejoin_world_.size() || msg.bytes.size() > rejoin_world_.size() - msg.total) return;
-		if (!rejoin_chunks_.insert(msg.total).second) return; // a resent chunk
-		std::memcpy(rejoin_world_.data() + msg.total, msg.bytes.data(), msg.bytes.size());
-		rejoin_received_ += msg.bytes.size();
-		rejoin_progress_ms_ = rejoin_now_ms();
+		std::vector<RejoinMsg> early;
+		early.swap(rejoin_early_);
+		for (const auto &c : early)
+			if (c.turn == msg.turn) take_rejoin_chunk(c);
+			else if (c.turn > msg.turn) rejoin_early_.push_back(c);
+	} else if (msg.kind == RejoinMsg::CHUNK) {
+		if (rejoin_have_header_ && msg.turn == rejoin_header_.turn) {
+			take_rejoin_chunk(msg);
+		} else if (msg.turn > rejoin_header_.turn &&
+				rejoin_early_.size() < 256u * 1024u) {
+			rejoin_early_.push_back(msg);
+			rejoin_progress_ms_ = rejoin_now_ms();
+		}
 	}
+}
+
+void TurnManager::take_rejoin_chunk(const RejoinMsg &msg) {
+	if (msg.total > rejoin_world_.size() || msg.bytes.size() > rejoin_world_.size() - msg.total) return;
+	if (!rejoin_chunks_.insert(msg.total).second) return; // a resent chunk
+	std::memcpy(rejoin_world_.data() + msg.total, msg.bytes.data(), msg.bytes.size());
+	rejoin_received_ += msg.bytes.size();
+	rejoin_progress_ms_ = rejoin_now_ms();
 }
 
 // Host: the match's clients as 0 A.D.'s NMT_PLAYER_ASSIGNMENT lists them. Sent
@@ -662,6 +682,8 @@ void TurnManager::reset() {
 	client_names_.clear();
 	rejoin_outbox_.clear();
 	rejoin_outbox_next_ = 0;
+	rejoin_header_ = RejoinMsg();
+	rejoin_early_.clear();
 	oos_expected_hash_ = 0;
 	oos_received_hash_ = 0;
 	oos_peers_.clear();
@@ -1396,6 +1418,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 				sim.order_herd(ids, n, c.target_id);
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
 				sim.order_collect_treasure(ids, n, c.target_id, queued);
+			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == NET_HUNT_SCENERY_NO_CAPTURE)
+				sim.order_attack_scenery(ids, n, c.target_id, false);
 			else
 				sim.order_hunt(ids, n, c.target_id);
 		} else if (c.cmd_type == 18) { // Board

@@ -162,7 +162,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 68; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 70; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
+	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -1317,6 +1319,10 @@ public:
 
 	int order_pop(const ProductionOrder &o, uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
+	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
+	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	float structure_build_time_for(uint8_t player, uint8_t type) const;
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
@@ -1604,7 +1610,7 @@ public:
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2) const;
+	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna = 0) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -1655,7 +1661,9 @@ public:
 		float half_w, half_d; // RTS0 units along the rotated x and z axes
 		float hp;
 		uint8_t type;         // SceneryType (scenery_type_info)
-		uint8_t pad[3];
+		uint8_t owner;        // Ownership: a player, or GAIA_PLAYER (0xFE)
+		uint8_t pad[2];
+		std::array<float, MAX_PLAYERS + 1> cp; // Capturable points per player, then Gaia's
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
 	// The scenery_ index of entity `id`, or -1.
@@ -1666,7 +1674,12 @@ public:
 	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
 	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
 	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
-	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	// Capturable scenery (benches, tables, obelisks, wooden fences) is captured instead, as a
+	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
+	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
+	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
 	void tick_scenery_attackers();
 	void destroy_scenery(size_t k, int32_t killer);
@@ -2278,6 +2291,8 @@ private:
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
 	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
+	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
@@ -2862,6 +2877,7 @@ private:
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
+	bool territory_decay_targets(float x, float z, uint8_t team, bool neutral, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: each claiming structure's
 	// TerritoryInfluence in buildings_ order, the grid size and the map extent. Same inputs, same
 	// grids, so the 1 Hz refresh skips.
@@ -2935,7 +2951,7 @@ private:
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
-			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0, uint8_t fauna = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	bool self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);
