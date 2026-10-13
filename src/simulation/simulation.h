@@ -2520,20 +2520,25 @@ private:
 	Grid<uint16_t> territory_region_;
 	std::vector<TerritoryRegion> territory_regions_;
 	bool territory_regions_dirty_ = true;
-	// Off until build placement keeps structures out of neutral land (see territory_decay_targets).
-	static constexpr bool TERRITORY_DECAY_IN_NEUTRAL_LAND = false;
 	void ensure_territory_regions();
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
-	// rebuild_territory()'s inputs the last time it filled the grids: territory roots in buildings_
-	// order, the grid size and the map extent. Same inputs, same grids, so the 1 Hz refresh skips.
+	// rebuild_territory()'s inputs the last time it filled the grids: each claiming structure's
+	// TerritoryInfluence in buildings_ order, the grid size and the map extent. Same inputs, same
+	// grids, so the 1 Hz refresh skips.
 	struct TerritoryRoot {
 		float x, z, radius;
 		uint8_t team;
+		uint16_t weight; // after team: saves before it kept padding (0) here
 		bool operator==(const TerritoryRoot &) const = default;
 	};
 	std::vector<TerritoryRoot> territory_roots_, territory_roots_scratch_;
+	// rebuild_territory_grids() scratch: CalculateCostGrid's tile costs and CalculateTerritories'
+	// per-structure, per-player and best weights, flood queue and the tiles one structure reached.
+	static constexpr uint8_t TERRITORY_IMPASSABLE_COST = 4; // territorymanager.xml ImpassableCost
+	Grid<uint8_t> territory_cost_;
+	std::vector<uint32_t> territory_entity_w_, territory_player_w_, territory_best_w_, territory_open_, territory_touched_;
 	int territory_roots_res_ = 0;
 	float territory_roots_half_ = 0.0f;
 	std::vector<WaypointPath> unit_paths_; // per-unit path (UNIT_CAP), SoA waypoint_cur/count sync
