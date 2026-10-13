@@ -1016,6 +1016,33 @@ inline bool civ_has_big_house(uint8_t civ) {
 	}
 }
 
+// Whether a civ's structure of `type` has a round 0 A.D. Footprint (<Circle>) rather than a square
+// one. 0 A.D.'s obstruction stays square either way, so this only shapes where trained and
+// unloaded units step out (Footprint.PickSpawnPoint). RTS0 draws the circle on the structure's
+// half size (0 A.D.'s radii run 10-20% past half the obstruction, 15 m on the Briton civic
+// centre's 25 m square), as it keeps one footprint per building type. From 0.28's
+// simulation/templates: brit/{civil_centre,house,defense_tower,fortress,wonder}.xml,
+// iber/{defense_tower,wall_tower}.xml, maur/wonder.xml, every civ's theater
+// (template_structure_special_theater.xml) and athen/prytaneion, spart/gerousia, gaul/assembly,
+// ptol/lighthouse, rome/temple_vesta and pers/ice_house.
+inline bool building_footprint_round(uint8_t civ, uint8_t type) {
+	switch (type) {
+		case BLD_THEATER: case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY:
+		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE:
+			return true;
+		case BLD_TOWN_CENTER: case BLD_HOUSE: case BLD_FORTRESS:
+			return civ == CIV_BRITONS;
+		case BLD_TOWER:
+			return civ == CIV_BRITONS || civ == CIV_IBERIANS;
+		case BLD_WALL_TOWER:
+			return civ == CIV_IBERIANS;
+		case BLD_WONDER:
+			return civ == CIV_BRITONS || civ == CIV_MAURYANS;
+		default:
+			return false;
+	}
+}
+
 // building_type_info for a civ: the big house where the civ has one (its time and health
 // scaled from RTS0's house row by 0 A.D.'s big/small ratio). The apartment keeps its row.
 inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {

@@ -3604,11 +3604,12 @@ bool Simulation::nearest_ship_cell(const Building &b, float &out_x, float &out_z
 	return true;
 }
 
-// CCmpFootprint::PickSpawnPoint for a square footprint. Spawn points sit in rows a gap apart
-// (three unit radii) around the footprint, the first row half a gap out, as far as
-// MaxSpawnDistance (7 m, x0.28). Each row is walked from the point nearest the rally point (the
-// building's front without one), alternating either way round; the first point whose navcell the
-// unit's passability allows and where no other unit stands wins (CheckUnitPlacement).
+// CCmpFootprint::PickSpawnPoint. Spawn points sit in rows a gap apart (three unit radii) around
+// the footprint, the first row half a gap out, as far as MaxSpawnDistance (7 m, x0.28). Each row
+// is walked from the point nearest the rally point (the building's front without one),
+// alternating either way round; the first point whose navcell the unit's passability allows and
+// where no other unit stands wins (CheckUnitPlacement). A round footprint
+// (building_footprint_round) has rings of 6 * (dist + row) points instead of the square's rows.
 bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const {
 	float rad = unit_collision_radius(type);
 	if (rad <= 0.0f) rad = 0.25f;
@@ -3620,7 +3621,10 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	const nav::Vec2 bu = nav::footprint_u(b), bv = nav::footprint_v(b);
 	const float along_u = std::fabs(fux * bu.x + fuz * bu.y) * b.hu + std::fabs(fux * bv.x + fuz * bv.y) * b.hv;
 	const float along_v = std::fabs(fvx * bu.x + fvz * bu.y) * b.hu + std::fabs(fvx * bv.x + fvz * bv.y) * b.hv;
-	const float hx = along_u + gap * 0.5f, hy = along_v + gap * 0.5f;
+	const bool circle = b.team < MAX_PLAYERS && building_footprint_round(players_[b.team].civ, b.type);
+	// A circle's half size is its radius plus half a gap on both axes (CIRCLE: m_Size0 + gap / 2).
+	const float hx = circle ? std::max(b.hu, b.hv) + gap * 0.5f : along_u + gap * 0.5f;
+	const float hy = circle ? hx : along_v + gap * 0.5f;
 	int dist_x = std::max(1, (int)std::floor(hx / gap));
 	int dist_y = std::max(1, (int)std::floor(hy / gap));
 	if (rows == 1) { dist_x *= 2; dist_y *= 2; } // more points for large units
@@ -3646,7 +3650,12 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	};
 	int offset[8] = {0};
 	const int nrows = std::min(rows, 8);
-	if (b.has_rally_point) {
+	if (b.has_rally_point && circle) {
+		// 6 * (dist_x + r) points in row r: the rally point's angle from the front as a share of them.
+		constexpr float PI = 3.14159265359f;
+		const float angle = std::atan2(b.rally_x - b.x, b.rally_z - b.z) - b.rot;
+		for (int r = 0; r < nrows; ++r) offset[r] = (int)std::floor(angle * 3.0f * (float)(dist_x + r) / PI + 0.5f); // ToInt_RoundToNearest
+	} else if (b.has_rally_point) {
 		// Geometry::NearestPointOnSquare, in the (u, v) frame.
 		const float rx = b.rally_x - b.x, rz = b.rally_z - b.z;
 		const float du = rx * fux + rz * fuz, dv = rx * fvx + rz * fvz;
@@ -3680,6 +3689,14 @@ bool Simulation::pick_spawn_point(const Building &b, uint8_t type, uint32_t skip
 	};
 	for (int k = 0; k < 2 * (dist_x + dist_y + 2 * nrows); k = k > 0 ? -k : 1 - k)
 		for (int r = 0; r < nrows; ++r) {
+			if (circle) {
+				// The front turned by 2 pi / 6 (dist_x + r) per point (u.Rotate).
+				const float a = b.rot + 3.14159265359f * (float)(offset[r] + k) / (float)(3 * (dist_x + r));
+				const float dist = hx + gap * (float)r;
+				const float wx = b.x + std::sin(a) * dist, wz = b.z + std::cos(a) * dist;
+				if (free_at(wx, wz)) { out_x = wx; out_z = wz; return true; }
+				continue;
+			}
 			const auto [px, py] = perimeter_coordinates(dist_x + r, dist_y + r, offset[r] + k);
 			const float lu = (hx + gap * r) * (float)px / (float)(dist_x + r);
 			const float lv = (hy + gap * r) * (float)py / (float)(dist_y + r);
