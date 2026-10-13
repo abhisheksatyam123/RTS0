@@ -542,7 +542,7 @@ int main() {
 		CHECK(big > 0, "india: %d trees hold banyan, strangler or teak wood", big);
 	}
 	// 10c. Per-script terrains and plants.
-	int scripts = 0;
+	int scripts = 0, patch_scripts = 0, patch_painted = 0;
 	for (int type = 0; type < MAP_TYPE_COUNT; ++type) {
 		const ScriptTerrains *st = script_terrains(map_type_info((uint8_t)type).id);
 		if (!st) continue;
@@ -558,9 +558,18 @@ int main() {
 		for (const HeightBand &band : st->bands) add(band.terrain, 2);
 		for (const AreaLayers &area : st->areas)
 			for (const auto &layer : area.layer) add(layer, 6);
+		std::set<std::string> unpatched = own;
+		for (const PatchSet &patch : st->patches)
+			for (const auto &layer : patch.layer) add(layer, 8);
 		int foreign = 0;
 		for (const auto &n : sim.terrain_tiles().names) foreign += !own.count(n);
 		CHECK(foreign == 0, "%s paints %d terrains outside its script's set", st->map_id, foreign);
+		if (own.size() > unpatched.size()) {
+			// createLayeredPatches / createPatches: a name only a patch layer gives shows up.
+			patch_scripts++;
+			for (const auto &n : sim.terrain_tiles().names)
+				if (!unpatched.count(n)) { patch_painted++; break; }
+		}
 		bool allowed[FLORA_COUNT] = {};
 		for (const auto &o : st->flora.tree12) { allowed[o[0]] = allowed[o[1]] = true; }
 		for (const auto &o : st->flora.tree45) { allowed[o[0]] = allowed[o[1]] = true; }
@@ -588,6 +597,8 @@ int main() {
 		      "%s with the savanna biome chosen paints savanna", st->map_id);
 	}
 	CHECK(scripts >= 30, "%d maps have their 0 A.D. script's own terrains", scripts);
+	CHECK(patch_scripts > 0 && patch_painted == patch_scripts, "%d of %d scripts with patch-only terrains paint them",
+	      patch_painted, patch_scripts);
 	{
 		// paintTerrainBasedOnHeight bands: Aegean Sea's corals under the sea, Arctic Summer's
 		// polar cliffs from 4 m and snow from 15 m.
