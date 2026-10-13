@@ -289,6 +289,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// findIdleUnit cycling (0 A.D. lastIdleUnit / lastIdleClasses, input.js:1645).
 	uint32_t last_idle_unit_ = 0;
 	int last_idle_kind_ = -1;
+	size_t idle_class_index_ = 0; // input.js currIdleClassIndex
 
 	double accumulator = 0.0;
 	rtso::AnimationController anim_ctrl;

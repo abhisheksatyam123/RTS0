@@ -132,14 +132,21 @@ const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
 # 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
 const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
 const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
-# 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js), index ==
-# rtso::TeamPlacement; offered by the maps whose JSON lists TeamPlacements.
-const TEAM_PLACEMENTS := [["Random", "Select a random team placement pattern when starting the game."],
-	["Circle", "Allied players are grouped and placed with opposing players on one circle spanning the map."],
-	["Line", "Allied players are placed in a linear pattern."],
-	["Random Group", "Allied players are grouped, but otherwise placed randomly on the map."],
-	["Stronghold", "Allied players are grouped in one random place of the map."]]
-const TEAM_PLACEMENT_MAPS := ["random_ambush", "random_frontier"]
+# 0 A.D. 0.28 Player Placement (simulation/data/settings/player_placements.json,
+# gamesetup PlayerPlacement.js), index == rtso::TeamPlacement: [0.28 id, name,
+# description]. A random map offers the patterns its JSON lists in
+# PlayerPlacements (data/map_types.json "player_placements"), in that order,
+# after Random.
+const TEAM_PLACEMENTS := [["random", "Random", "Select a random player placement pattern when starting the game."],
+	["circle", "Circle", "Players are placed in a circle spanning the map."],
+	["groupedLines", "Grouped Lines", "Allied players are placed along opposing radial lines."],
+	["randomGroup", "Random Group", "Allied players are grouped, but otherwise placed randomly on the map."],
+	["stronghold", "Stronghold", "Allied players are tightly grouped together."],
+	["river", "River", "Allied players are placed on two parallel lines."]]
+# RTS0's own random maps whose script name matches a 0.28 map's (Archipelago
+# is random_archipelago_0ad): they take none of its settings.
+const OWN_RMS_MAPS := ["random_archipelago"]
+const TEAM_PLACEMENT_TOOLTIP := "Select one of the starting position patterns of this map."
 # 0 A.D. Landscape (unknown.json Landscapes, gamesettings Landscape.js): [name,
 # value, description]; value is RmsGenerator::UNKNOWN_LANDSCAPE_* (3 + landscape).
 const LANDSCAPES := [["Random", 0, "Choose a random landscape."],
@@ -219,6 +226,8 @@ var _color_icons: Array = []
 var _maps: Array = []          # all map dicts
 var _filtered: Array = []      # after filter
 var _sel_map: int = 0
+# The Player Placement picked (rtso::TeamPlacement), kept while maps change.
+var _team_placement := 0
 var _map_type := "skirmish"
 var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
@@ -269,16 +278,65 @@ func _load_maps() -> void:
 		m["keywords"] = t.get("keywords", [])
 		m["settings"] = t.get("settings", {})
 	var random_kw: Dictionary = types.get("random_keywords", {})
+	var placements: Dictionary = types.get("player_placements", {})
 	for r in RMS_MAPS:
 		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
 		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
-			"keywords": random_kw.get(rms_script(r[0]), []), "players": r[3],
+			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS else placement_values(placements.get(rms_script(r[0]), [])),
+			"players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6]})
 
 ## The 0.28 maps/random script an RTS0 random map ports ("random_archipelago_0ad" -> "archipelago").
 static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
+
+## 0.28 PlayerPlacement.render: Random, then the map's patterns; the pick stays
+## when the new map offers it, else Random.
+func _rebuild_team_placement(placements: Array) -> void:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0:
+		return
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	tpl.clear()
+	tpl.add_item(TEAM_PLACEMENTS[0][1], 0)
+	for v in placements:
+		tpl.add_item(TEAM_PLACEMENTS[v][1], v)
+	var i := ([0] + placements).find(_team_placement)
+	tpl.select(maxi(i, 0))
+	_update_team_placement_tooltip()
+
+func _selected_team_placement() -> int:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0 or not slot.visible:
+		return 0
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	return maxi(tpl.get_item_id(tpl.get_selected()), 0) if tpl.get_selected() >= 0 else 0
+
+func _on_team_placement_selected(_index: int) -> void:
+	_team_placement = _selected_team_placement()
+	_update_team_placement_tooltip()
+
+## The selected pattern's description (0.28 shows the hovered one), else the title's.
+func _update_team_placement_tooltip() -> void:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0:
+		return
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	var v := tpl.get_item_id(tpl.get_selected()) if tpl.get_selected() >= 0 else 0
+	tpl.tooltip_text = TEAM_PLACEMENTS[clampi(v, 0, TEAM_PLACEMENTS.size() - 1)][2]
+	var lbl := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel")
+	if lbl:
+		lbl.tooltip_text = TEAM_PLACEMENT_TOOLTIP
+
+## A map's 0.28 PlayerPlacements ids as rtso::TeamPlacement values.
+static func placement_values(ids: Array) -> Array:
+	var out := []
+	for id in ids:
+		var v := TEAM_PLACEMENTS.map(func(p): return p[0]).find(str(id))
+		if v > 0:
+			out.append(v)
+	return out
 
 static func _map_types_data() -> Dictionary:
 	var f := FileAccess.open(MAP_TYPES_FILE, FileAccess.READ)
@@ -549,7 +607,9 @@ func _update_map_options() -> void:
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.visible = id == "random_flood"
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseLabel.visible = id == "random_extinct_volcano"
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.visible = id == "random_extinct_volcano"
-	var tp := id in TEAM_PLACEMENT_MAPS
+	var placements: Array = _selected_map().get("placements", [])
+	var tp := not placements.is_empty()
+	_rebuild_team_placement(placements)
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
 	var ls := id in LANDSCAPE_MAPS
@@ -818,12 +878,8 @@ func _build_options() -> void:
 		sr.add_item("rise at %d min" % t)
 	sr.select(SEA_RISE_TIMES.find(25))
 	var tpl := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot)
-	var tips := PackedStringArray()
-	for p in TEAM_PLACEMENTS:
-		tpl.add_item(p[0])
-		tips.append("%s: %s" % [p[0], p[1]])
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.tooltip_text = "\n".join(tips)
-	tpl.select(0)
+	tpl.item_selected.connect(_on_team_placement_selected)
+	_rebuild_team_placement([])
 	var lsc := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot)
 	var ltips := PackedStringArray()
 	for l in LANDSCAPES:
@@ -970,8 +1026,8 @@ func _apply_settings(ms: Dictionary) -> void:
 	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
 	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
-	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
-	tpl.select(clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1))
+	_team_placement = clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1)
+	_rebuild_team_placement(_selected_map().get("placements", []))
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	lsc.select(0)
 	for i in range(LANDSCAPES.size()):
@@ -1038,7 +1094,6 @@ func _collect_setup() -> Dictionary:
 	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
 	var wl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
 	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
-	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
@@ -1091,7 +1146,7 @@ func _collect_setup() -> Dictionary:
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
 		"water_level": maxi(wl.get_selected(), 0),
 		"sea_level_rise_min": int(SEA_RISE_TIMES[maxi(sr.get_selected(), 0)]),
-		"team_placement": maxi(tpl.get_selected(), 0),
+		"team_placement": _selected_team_placement(),
 		"landscape": int(LANDSCAPES[maxi(lsc.get_selected(), 0)][1]),
 		# Maps without trigger difficulties play at the default, Medium.
 		"trigger_difficulty": maxi(tdf.get_selected(), 0) + 1 if str(m.get("id", "")) in TRIGGER_DIFFICULTY_MAPS else 3,

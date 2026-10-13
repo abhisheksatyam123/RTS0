@@ -1601,7 +1601,8 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 }
 
 // Test hook: the selection, the selected structure's rally point, and every own
-// unit with its template, rank, world position and screen position.
+// unit with its template, rank, idleness, whether it is a female citizen,
+// world position and screen position.
 Dictionary RtsoMain::debug_selection_state() {
 	Dictionary d;
 	if (!sim) return d;
@@ -1619,6 +1620,8 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["tmpl"] = (int64_t)uview.tmpl[i];
 		u["rank"] = (int64_t)uview.rank[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
+		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
+		u["female"] = (rtso::unit_tech_classes(uview.unit_type[i]) & rtso::TC_FEMALECITIZEN) != 0;
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -1939,34 +1942,58 @@ void RtsoMain::cycle_idle_worker() {
 }
 
 // 0 A.D. findIdleUnit (gui/session/input.js:1659) with the class lists from
-// session.js g_WorkerTypes / g_MilitaryTypes and hotkeys/misc.xml: selects the
-// next idle unit of the kind after the last one found and centres the camera
-// on it. selection.add (Shift) appends; selection.offscreen (Alt) selects every
-// idle unit of the kind at once.
+// session.js g_WorkerTypes / g_MilitaryTypes and hotkeys/misc.xml, and
+// GuiInterface FindIdleUnits / IdleUnitFilter: selects the next idle unit after
+// the last one found and centres the camera on it. The class list is walked in
+// order from the class of the last find (all idle female citizens before the
+// traders, and so on), units garrisoned or on a turret don't count, and once a
+// class runs out the next one follows. selection.add (Shift) appends;
+// selection.offscreen (Alt) selects every idle unit of the kind at once.
 void RtsoMain::find_idle_unit(IdleKind kind) {
 	if (!sim) return;
-	uint64_t want = 0;
+	std::vector<uint64_t> classes;
 	switch (kind) {
-		case IDLE_WORKER: want = rtso::TC_FEMALECITIZEN | rtso::TC_TRADER | rtso::TC_FISHINGBOAT | rtso::TC_CITIZEN; break;
-		case IDLE_WARRIOR: want = rtso::TC_MELEE | rtso::TC_RANGED; break;
-		case IDLE_BUILDER: want = rtso::TC_WORKER | rtso::TC_CITIZEN; break;
-		case IDLE_ANY: want = ~0ull; break;
+		case IDLE_WORKER: classes = {rtso::TC_FEMALECITIZEN, rtso::TC_TRADER, rtso::TC_FISHINGBOAT, rtso::TC_CITIZEN}; break;
+		case IDLE_WARRIOR: classes = {rtso::TC_MELEE, rtso::TC_RANGED}; break;
+		case IDLE_BUILDER: classes = {rtso::TC_WORKER | rtso::TC_CITIZEN}; break;
+		case IDLE_ANY: classes = {~0ull}; break;
 	}
+	const size_t n = classes.size();
 	const bool append = rtso::hotkeys::held("selection.add");
 	const bool select_all = rtso::hotkeys::held("selection.offscreen");
-	if (select_all || kind != last_idle_kind_) last_idle_unit_ = 0;
+	if (select_all || kind != last_idle_kind_) {
+		last_idle_unit_ = 0;
+		idle_class_index_ = 0;
+	}
 	last_idle_kind_ = kind;
 
+	// Bucket of each idle unit: the first class it matches, counted from the
+	// current class; current-class units at or before the last find go last.
 	auto uview = sim->units();
+	size_t best = SIZE_MAX, best_bucket = SIZE_MAX, best_index = 0;
 	std::vector<size_t> idle;
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!uview.alive[i] || uview.team[i] != local_player() || uview.action_state[i] != rtso::ACTION_IDLE) continue;
-		if (!(rtso::unit_tech_classes(uview.unit_type[i]) & want)) continue;
+		if (sim->turret_holder_of(uview.id[i])) continue;
 		if (append && selected_ids.has((int32_t)uview.id[i])) continue;
+		const uint64_t tc = rtso::unit_tech_classes(uview.unit_type[i]);
+		size_t bucket = n;
+		for (size_t k = 0; k < n; ++k) {
+			if (tc & classes[(idle_class_index_ + k) % n]) { bucket = k; break; }
+		}
+		if (bucket == n) continue;
 		idle.push_back(i);
+		const size_t index = bucket;
+		if (bucket == 0 && last_idle_unit_ && uview.id[i] <= last_idle_unit_) bucket = n;
+		if (bucket < best_bucket || (bucket == best_bucket && uview.id[i] < uview.id[best])) {
+			best = i;
+			best_bucket = bucket;
+			best_index = index;
+		}
 	}
 	if (idle.empty()) {
 		last_idle_unit_ = 0;
+		idle_class_index_ = 0;
 		session_audio_.play_no_idle_unit();
 		return;
 	}
@@ -1979,20 +2006,10 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 		play_civ_voice("select");
 		return;
 	}
-	// The idle unit with the next id after the previous pick, wrapping around.
-	size_t pick = idle.front(), first = idle.front();
-	bool found = false;
-	for (size_t i : idle) {
-		if (uview.id[i] < uview.id[first]) first = i;
-		if (uview.id[i] > last_idle_unit_ && (!found || uview.id[i] < uview.id[pick])) {
-			pick = i;
-			found = true;
-		}
-	}
-	if (!found) pick = first;
-	last_idle_unit_ = uview.id[pick];
-	selected_ids.push_back((int32_t)uview.id[pick]);
-	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[pick], 0, uview.pos_z[pick]));
+	last_idle_unit_ = uview.id[best];
+	idle_class_index_ = (idle_class_index_ + best_index) % n;
+	selected_ids.push_back((int32_t)uview.id[best]);
+	if (cam_rig) cam_rig->set_target_pos(Vector3(uview.pos_x[best], 0, uview.pos_z[best]));
 	play_civ_voice("select");
 }
 
@@ -2092,7 +2109,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			}
 		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
 			if (user_opts_.phase_notice == 0 || (n.player != me && !observer && !mutual_ally(n.player, me))) continue;
-			const String phase = String(rtso::tech_info(n.tech).name);
+			const String phase = String::utf8(rtso::tech_info(n.tech).name);
 			if (n.kind == N::PHASE_COMPLETED) line = colored_player_name(n.player) + " has reached the " + phase + ".";
 			else if (user_opts_.phase_notice == 2 && n.kind == N::PHASE_STARTED)
 				line = colored_player_name(n.player) + " is advancing to the " + phase + ".";
@@ -3668,7 +3685,7 @@ void RtsoMain::update_inspector() {
 			} else if (const uint8_t rt = rtso::Simulation::researching(*found_b); rt != rtso::TECH_NONE && found_b->queue.front().duration > 0.0f) {
 				const rtso::ProductionOrder &po = found_b->queue.front();
 				set_bar(inspector_xp_bar, inspector_xp_label, po.timer, po.duration,
-						"Researching " + String(rtso::tech_info(rt).name) + " (" +
+						"Researching " + String::utf8(rtso::tech_info(rt).name) + " (" +
 						String::num(po.duration - po.timer, 0) + " s left)");
 			} else {
 				show_bar(inspector_xp_bar, inspector_xp_label, false);
@@ -3963,14 +3980,14 @@ void RtsoMain::update_command_panel() {
 				add_cost(ti.wood_cost, "w");
 				add_cost(ti.gold_cost, "g");
 				add_cost(ti.stone_cost, "s");
-				btn->set_text(String(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+				btn->set_text(String::utf8(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 				if (t == rtso::TECH_PHASE_TOWN || t == rtso::TECH_PHASE_CITY) {
 					btn->set_button_icon(load_tex(t == rtso::TECH_PHASE_TOWN
 							? "res://assets/textures/ui/phases/town.png" : "res://assets/textures/ui/phases/city.png"));
 					btn->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 					btn->add_theme_constant_override("icon_max_width", 20);
 				}
-				String tip = String(ti.desc ? ti.desc : "");
+				String tip = String::utf8(ti.desc ? ti.desc : "");
 				const char *why = nullptr;
 				switch (rc) {
 					case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; break;
@@ -4419,9 +4436,13 @@ void RtsoMain::update_command_panel() {
 			if (!btn->has_theme_font_size_override("font_size")) btn->add_theme_font_size_override("font_size", 11);
 	keep_command_buttons(actions_bar, old_actions);
 	keep_command_buttons(production_bar, old_production);
-	// A structure shows its queue under the buttons; a unit selection has no
-	// queue, so the buttons get that room.
-	const bool queue_shown = selected_building_id != 0;
+	// A structure shows its queue under the buttons while something is queued
+	// (0.28's Queue panel shows only queued items); otherwise the buttons get
+	// that room.
+	bool queue_shown = false;
+	if (selected_building_id != 0)
+		for (const auto &b : sim->buildings())
+			if (b.id == selected_building_id) { queue_shown = !b.queue.empty(); break; }
 	if (queue_bar->is_visible() != queue_shown) queue_bar->set_visible(queue_shown);
 	// A builder's construction grid can outgrow the two rows a unit selection
 	// has: the panel grows upward to show all of it (0.28 shows the whole
@@ -4596,7 +4617,7 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		} else if (!sim->can_train_at(pid, u.unit_type, b->type, i)) {
 			roster_list->set_item_disabled(idx, true);
 			uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, b->type, i);
-			if (gate != rtso::TECH_NONE) tip += String("\nRequires ") + rtso::tech_info(gate).name;
+			if (gate != rtso::TECH_NONE) tip += "\nRequires " + String::utf8(rtso::tech_info(gate).name);
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}
@@ -7071,8 +7092,8 @@ Dictionary RtsoMain::get_tech_tree() const {
 		const auto &ti = rtso::tech_info((uint8_t)t);
 		Dictionary e;
 		e["id"] = t;
-		e["name"] = String(ti.name);
-		e["desc"] = String(ti.desc ? ti.desc : "");
+		e["name"] = String::utf8(ti.name);
+		e["desc"] = String::utf8(ti.desc ? ti.desc : "");
 		e["phase"] = (int)ti.required_phase;
 		e["researcher"] = String(rtso::building_type_info(ti.researcher).name);
 		e["food"] = ti.food_cost;
@@ -7080,7 +7101,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 		e["metal"] = ti.gold_cost;
 		e["stone"] = ti.stone_cost;
 		e["time"] = ti.research_time;
-		e["prerequisite"] = ti.prerequisite ? String(rtso::tech_info(ti.prerequisite).name) : String();
+		e["prerequisite"] = ti.prerequisite ? String::utf8(rtso::tech_info(ti.prerequisite).name) : String();
 		e["researched"] = sim->player(local_player()).has_tech((uint8_t)t);
 		techs.push_back(e);
 	}
