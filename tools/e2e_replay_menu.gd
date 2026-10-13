@@ -137,6 +137,9 @@ func run() -> void:
 	b.select_replay(idx)
 	check(b._info.visible and b._info_labels.name.text == "E2E Continental" and b._info_labels.victory.text == "Wonder"
 		and b._info_labels.type.text == "Random" and b._info_labels.size.text == "Small", "map, type, size and victory")
+	# map_preview is null in an unimported headless project; the menu shows what Game Setup shows.
+	check(b._info_labels.preview.texture == b.SetupPage.map_preview("random_continental")
+		and b._info_labels.preview.visible == (b._info_labels.preview.texture != null), "the map's preview image")
 	check(b._info_labels.players.text == "Players: 4" and b._players_text.get_parsed_text().contains("Team 1"), "players by team")
 	check(not b._players_text.get_parsed_text().contains("won"), "no outcome without Spoiler")
 	b._spoiler.button_pressed = true
