@@ -312,6 +312,10 @@ public:
 	void play_spatial_sound(const Ref<AudioStream> &stream, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 	void play_spatial_sound_path(const String &path, Vector3 pos, float volume_db = 0.0f, float max_dist = 75.0f, float pitch_scale = 1.0f);
 
+	// The building model a structure of this civ, type and (WallSet) half length draws; the
+	// wall placement ghost previews its pieces with it.
+	static String building_visual_id(uint8_t civ, uint8_t type, float half_size);
+
 private:
 	uint8_t local_player_ = 0;
 	bool show_all_status_bars_ = false;
@@ -351,7 +355,6 @@ private:
 	UnitVis &acquire_unit_slot(uint32_t sim_id);
 	BuildingVis &acquire_building_slot(uint32_t sim_id);
 	void attach_unit_model(UnitVis &v, const String &model_name);
-	static String building_visual_id(uint8_t civ, uint8_t type, float half_size);
 	void attach_building_model(BuildingVis &v, const String &model_name);
 	void set_building_site_visible(BuildingVis &v, bool foundation_on, bool scaffold_on, uint8_t btype);
 	static Node *instantiate_building_id(const String &id);

@@ -461,6 +461,36 @@ int main() {
 		CHECK(tw == 0 && lw == 0 && gt == 0);
 	}
 
+	// 12. A wall piece tests its own rectangle against each tree's 1.5 m obstruction (0 A.D.
+	// CheckFoundation), not the 8 m cells it touches: a tree beside the wall leaves it free, one on
+	// it blocks it, and so does a turned wall's segment only where it really crosses the tree.
+	{
+		setup(s, 1000.0f);
+		const float z = 13.0f; // a cell's middle row (cells are 2 units): the tree below shares the wall's cells
+		const uint32_t beside = s.spawn_resource_world(8.0f, z + 0.625f + 0.375f + 0.05f, RES_WOOD, 200);
+		auto p = s.wall_placement(0, -12.0f, z, 12.0f, z);
+		bool all = !p.empty();
+		for (const auto &q : p) all = all && s.check_wall_piece(0, q) == Simulation::PLACE_OK;
+		CHECK(all);
+		const uint32_t on = s.spawn_resource_world(-4.0f, z + 0.3f, RES_WOOD, 200);
+		p = s.wall_placement(0, -12.0f, z, 12.0f, z);
+		int blocked = 0;
+		for (const auto &q : p) blocked += s.check_wall_piece(0, q) != Simulation::PLACE_OK;
+		CHECK(blocked >= 1);
+		CHECK(beside != 0 && on != 0);
+		// A diagonal wall clear of the tree at (-4, z + 0.3), though its bounds hold it.
+		p = s.wall_placement(0, -16.0f, z - 8.0f, -2.0f, z + 6.0f);
+		all = !p.empty();
+		for (const auto &q : p) all = all && s.check_wall_piece(0, q) == Simulation::PLACE_OK;
+		CHECK(all);
+		// A whole wall laid beside a house that shares its cells: every piece goes down, the towers
+		// between segments included (cmd_build_wall tests each against the pieces laid before it).
+		setup(s, 1000.0f);
+		const uint32_t house = s.spawn_building_world(2.0f, z + 0.625f + 1.25f + 0.05f, BLD_HOUSE, 0, 1.0f);
+		const auto plan = s.wall_placement(0, -12.0f, z, 12.0f, z);
+		CHECK(house != 0 && s.cmd_build_wall(0, -12.0f, z, 12.0f, z, nullptr, 0, false) == plan.size());
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
