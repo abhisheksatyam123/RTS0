@@ -800,6 +800,9 @@ public:
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
 	uint8_t team_placement() const { return team_placement_; }
+	// 0 A.D. Landscape for the Unknown map (RmsGenerator::UNKNOWN_LANDSCAPE_*); setup-time only.
+	void set_map_landscape(int l) { map_landscape_ = (uint8_t)((l >= 0 && l < 16) ? l : 0); }
+	uint8_t map_landscape() const { return map_landscape_; }
 	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
@@ -1545,6 +1548,13 @@ public:
 		b.capture_points = 0.0f;
 		b.capture_points_by_team.fill(0.0f);
 	}
+	// A map script's Gaia wall (placeCustomFortress): the `kind` WallSet's pieces from (sx, sz)
+	// to (ex, ez), built and uncapturable, joined to Gaia towers already at the ends. Pieces
+	// that would stand in water are left out.
+	void spawn_gaia_wall(float sx, float sz, float ex, float ez, uint8_t kind);
+	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
+	// where RTS0's own scatter has put wood.
+	void clear_resources_near(float x, float z, float r);
 	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
@@ -2093,6 +2103,7 @@ private:
 	bool reveal_map_ = false;
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
+	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
@@ -2127,6 +2138,28 @@ private:
 	void trigger_volcano_garrison_towers();
 	void trigger_elephantine_init();
 	void random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts);
+	// A TriggerHelper.BalancedTemplateComposition entry: a fixed count or a frequency weight.
+	struct TemplateBalance {
+		std::vector<uint16_t> templates;
+		int count = 0;
+		float frequency = 0.0f;
+	};
+	void balanced_template_composition(const std::vector<TemplateBalance> &groups, int total, std::vector<std::pair<uint16_t, int>> &counts);
+	// maps/random/danubius_triggers.js
+	uint64_t unit_classes_at(size_t i) const; // the unit's 0 A.D. classes (its roster template's, else its class's)
+	uint32_t danubius_spawn(uint16_t key, float x, float z);
+	bool danubius_is_left(float x, float z) const;
+	void danubius_active_riversides(bool &left, bool &right) const;
+	void danubius_composition(float minutes, bool siege, int total, std::vector<std::pair<uint16_t, int>> &counts);
+	std::vector<uint32_t> danubius_spawn_counts(const std::vector<std::pair<uint16_t, int>> &counts, float x, float z, float r0, size_t first = 0);
+	void danubius_attack_and_patrol(const std::vector<uint32_t> &ids, uint8_t target, uint8_t ref, bool attack);
+	void trigger_danubius_init();
+	void trigger_danubius_cc_attackers();
+	void trigger_danubius_ships();
+	void trigger_danubius_fill_ships();
+	void trigger_danubius_unload_order();
+	void trigger_danubius_ship_range();
+	void trigger_danubius_ownership(const TriggerEventData &data);
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
@@ -2393,7 +2426,9 @@ private:
 	void apply_petra_config();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
-	void petra_manage_fields(int target_food);
+	void petra_manage_fields();
+	float petra_gather_rate(size_t i, uint8_t kind) const;
+	uint8_t petra_gather_kind(size_t r) const;
 	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
 	struct PetraHuntScan {
 		std::vector<std::pair<float, float>> food_drops;

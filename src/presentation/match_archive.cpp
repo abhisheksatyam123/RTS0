@@ -271,10 +271,13 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	g["assignedPlayer"] = replay || me >= rtso::MAX_PLAYERS ? -1 : (int)me;
 	g["replayDirectory"] = !replay && !replay_dir_.is_empty() && FileAccess::file_exists(replay_dir_ + String("metadata.json"))
 		? replay_dir_ : String();
-	if (in_game && !replay && me < rtso::MAX_PLAYERS && !sim->is_defeated(me)) {
+	// MenuButtons.js openGameSummary: during the game a player sees itself, and its
+	// mutual allies once it shares their sight (Cartography); observers and players
+	// whose game is over see everyone.
+	if (in_game && !replay && me < rtso::MAX_PLAYERS && !sim->is_defeated(me) && !sim->is_victory_for(me)) {
 		Array shown;
 		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
-			if (p == me || (sim->is_ally(me, p) && sim->is_ally(p, me))) shown.push_back((int)p);
+			if (sim->shares_los(me, p)) shown.push_back((int)p);
 		g["shownPlayers"] = shown;
 	}
 	return g;
