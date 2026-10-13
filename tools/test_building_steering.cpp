@@ -769,7 +769,7 @@ static void large_units_through_gap() {
 	check(unit_building_clearance(foot_hero, UNIT_HERO) == CLEARANCE_DEFAULT, "a hero on foot is large");
 	check(unit_building_clearance(cavalry, UNIT_CAVALRY) == CLEARANCE_DEFAULT, "cavalry is large");
 	for (uint8_t type : {UNIT_CATAPULT, UNIT_SIEGE_RAM, UNIT_BOLT_SHOOTER, UNIT_ELEPHANT, UNIT_WORKER_ELEPHANT,
-			UNIT_CHARIOT, UNIT_SCYTHED_CHARIOT, UNIT_CATAFALQUE})
+			UNIT_CHARIOT, UNIT_SCYTHED_CHARIOT, UNIT_CATAFALQUE, UNIT_WAGON})
 		check(unit_building_clearance(CIV_UNIT_TEMPLATE_NONE, type) == CLEARANCE_LARGE, "a large unit type is not large");
 
 	struct Walker { uint8_t type; uint16_t tmpl; bool large; const char *name; };

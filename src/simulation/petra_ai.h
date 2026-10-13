@@ -36,7 +36,7 @@ enum PetraBehavior : uint8_t {
 
 inline bool petra_is_support_unit(uint8_t t) {
 	return t == UNIT_VILLAGER || t == UNIT_TRADER || t == UNIT_FEMALE_CITIZEN ||
-	       t == UNIT_FISHING_BOAT || t == UNIT_MERCHANT_SHIP || t == UNIT_WORKER_ELEPHANT;
+	       t == UNIT_FISHING_BOAT || t == UNIT_MERCHANT_SHIP || t == UNIT_WORKER_ELEPHANT || t == UNIT_WAGON;
 }
 
 inline bool petra_is_combat_unit(uint8_t t) {
@@ -355,7 +355,10 @@ struct PetraAttackManager {
 	uint8_t attack_number = 0; // Attack/HugeAttack plans so far
 	uint8_t kind = PETRA_ATTACK_ATTACK; // kind of the main plan
 	uint8_t save_resources = 0; // headquarters.js saveResources: little wood at the start
-	uint8_t pad[2] = {};
+	// buildManager.js unbuildables for "room": a bit per kind of structure (petra_room_bit) whose
+	// last search found no spot; cleared when one is placed or a new base widens the territory.
+	uint8_t missing_room = 0;
+	uint8_t pad[1] = {};
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total
