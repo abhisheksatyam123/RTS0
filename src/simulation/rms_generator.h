@@ -275,6 +275,21 @@ private:
 	static void synth_latium(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams,
 	                          uint8_t landscape = 0);
+	// What river_archipelago.js's terrain pass hands its entity pass: the Gaia Mauryans it placed
+	// on the outermost strips before the hills, and the tile classes the later objects keep
+	// away from (per heightmap vertex).
+	struct RiverArchipelagoLayout {
+		struct GaiaUnit {
+			float x, z;
+			uint8_t kind; // 0 spearman, 1 archer, 2 elephant archer
+		};
+		std::vector<GaiaUnit> gaia;
+		std::vector<uint8_t> territory, hill;
+	};
+	static void synth_river_archipelago(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+	                                    const uint8_t *teams, RiverArchipelagoLayout &out);
+	static void place_river_archipelago_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+	                                             RmsRng &rng, const RiverArchipelagoLayout &layout);
 
 	// Fair entity & resource distribution
 	static void distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);

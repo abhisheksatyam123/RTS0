@@ -85,6 +85,7 @@ SLOTS = {
     "polar_sea": ([], [], []),
     "pyrenean_sierra": ([["aleppo_pine", "euro_beech"]], ["aleppo_pine", "euro_beech"], [["aleppo_pine", "euro_beech"]]),
     "rhine_marshlands": ([["euro_beech", "euro_beech"]], ["oak", "euro_beech"], [["oak", "oak"]]),
+    "river_archipelago": ([["toona", "toona"]], ["palm_tropical"], [["palm_tropic", "palm_tropical"]]),
     "saharan_oases": ([["date_palm", "cretan_date_palm_short"]], ["cretan_date_palm_short"],
                       [["cretan_date_palm_short", "date_palm"]]),
     "sahel": ([["baobab", "baobab"]], ["baobab"], [["baobab", "baobab"]]),

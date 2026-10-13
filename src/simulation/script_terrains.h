@@ -360,6 +360,23 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"rhine_marshlands", {{FLORA_BEECH, FLORA_BEECH}}, {FLORA_OAK, FLORA_BEECH}, {{FLORA_OAK, FLORA_OAK}},
 		  FLORA_BERRY,
 		  {{200, 200}}, {200, 200}, {{200, 200}}}},
+		// river_archipelago.js: toona, palm_tropic and palm_tropical forests on tForestFloor (toona the
+		// tree1/2 forests, the palms the tree4/5 ones and straggler slots); hill reuses tCliff; tiers are
+		// tGrassC, tGrassA, tGrassB and tGrass's tropic_plants_b, dirt tPlants. The shore bands are the
+		// script's height bands (0-1 m, 1-2.8 m). Its grass and dirt patches keep off clPlayerTerritory
+		// (a scaleByMapSize(15, 20) territory round each base), taken as 12 past the civic centre.
+		{"river_archipelago",
+		 {"river_archipelago", {"tropic_grass_c", "tropic_grass_c", "tropic_grass_plants", "tropic_plants"}, {"tropic_grass_plants"},
+		  {"tropic_grass_c", "tropic_plants_c", "tropic_plants_c", "tropic_plants_b"}, {"tropic_cliff_a", "tropic_cliff_a_plants"},
+		  {"tropic_cliff_a", "tropic_cliff_a_plants"}, {"tropic_plants"}, "tropic_citytile_a", "tropic_citytile_plants",
+		  "tropic_beach_dry_plants", "tropic_beach_dry", "tropic_beach_wet"},
+		 {"river_archipelago", {{FLORA_TEAK, FLORA_TEAK}}, {FLORA_TROPIC_PALM}, {{FLORA_TROPIC_PALM, FLORA_TROPIC_PALM}}, FLORA_BERRY,
+		  {{200, 200}}, {200}, {{200, 200}}},
+		 {{0.0f, 1.0f, {"tropic_beach_dry"}}, {1.0f, 2.8f, {"tropic_beach_dry_plants"}}},
+		 {{AREA_HILL, {{"tropic_cliff_a", "tropic_cliff_a", "tropic_cliff_a", "tropic_cliff_a_plants"},
+		               {"tropic_grass_c", "tropic_grass_c", "tropic_grass_c", "tropic_grass_plants", "tropic_plants", "tropic_plants_b"}}, {3}}},
+		 {{{{"tropic_grass_c"}, {"tropic_plants_c"}, {"tropic_plants_c"}}, {2, 1}, {{3.0f, 6.0f}, {5.0f, 10.0f}, {8.0f, 21.0f}}, {20.0f, 80.0f}, 8, 0, 0, 12, 16},
+		  {{{"tropic_plants"}}, {}, {{2.0f, 4.0f}, {3.0f, 7.0f}, {5.0f, 15.0f}}, {20.0f, 80.0f}, 8, 0, 0, 12, 16}}},
 		// saharan_oases.js: date palm forests on tLush; no cliffs or hills, so they reuse tDirtCracks and tSandDunes.
 		{"saharan_oases",
 		 {"saharan_oases", {"desert_sand_dunes_100"}, {"desert_grass_a"},
