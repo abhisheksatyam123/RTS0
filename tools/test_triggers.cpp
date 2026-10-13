@@ -26,6 +26,10 @@
 //      attack-walking to its civic centre from 4-6 minutes, and losing the civic centre
 //      defeating its player (the seeker goes, the waves stop coming for it).
 //
+//   9. OnRange (TriggerPoint.js RegisterRangeTrigger): a query per trigger point reports
+//      the counted player's units that come into range and leave it, keeps its
+//      collection through a save, and stops when its trigger is disabled.
+//
 //   g++ -std=c++20 -O2 -Isrc tools/test_triggers.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_triggers && /tmp/test_triggers
@@ -937,6 +941,54 @@ static void check_disabled_buildings_128() {
 	if (failures == before) std::printf("Disabled buildings past id 64 survive a save: ok\n");
 }
 
+static void teleport(Simulation &s, uint32_t id, float x, float z) {
+	const int32_t u = s.lookup_unit(id);
+	if (u >= 0) { s.units_.pos_x[u] = x; s.units_.pos_z[u] = z; }
+}
+
+static void check_on_range() {
+	const int before = failures;
+	static Simulation a, b;
+	a.reset();
+	a.set_victory_condition(VICTORY_ENDLESS);
+	a.triggers_.add_point('A', 0.0f, 0.0f);
+	a.triggers_.add_point('B', 60.0f, 60.0f);
+	// triggers_demo.js: player 1's units (UnitAI) within 40 of the A points.
+	const uint16_t t = a.triggers_.register_range_trigger(TRIGGER_ACTION_TRIGGERS_DEMO_RANGE, 'A', 0.0f, 10.0f, 1u << 0, true, true);
+	CHECK(a.triggers_.range_queries.size() == 1, "one query for the one A point, got %zu", a.triggers_.range_queries.size());
+	const uint32_t u1 = a.spawn_unit(30.0f, 0.0f, 0, UNIT_SPEARMAN);
+	a.spawn_unit(2.0f, 0.0f, 1, UNIT_SPEARMAN); // player 2's: not counted
+	run_to(a, 0.5f);
+	const auto &v = a.triggers_.vars;
+	CHECK(v[0] == 0 && v[1] == 0, "nothing in range yet: %d added, %d removed", v[0], v[1]);
+	teleport(a, u1, 3.0f, 0.0f);
+	run_to(a, 1.0f);
+	CHECK(v[0] == 1 && v[2] == 1, "the unit came into range: %d added, %d in range", v[0], v[2]);
+	const uint32_t u3 = a.spawn_unit(-4.0f, 4.0f, 0, UNIT_SPEARMAN);
+	run_to(a, 1.5f);
+	CHECK(v[0] == 2 && v[2] == 2, "a second unit: %d added, %d in range", v[0], v[2]);
+	const auto &col = a.triggers_.range_queries[0].collection;
+	CHECK(col.size() == 2 && col[0] == u1 && col[1] == u3, "the collection keeps the order they came in");
+	const char *path = "/tmp/rts0_test_triggers_range.sav";
+	CHECK(a.save_state(path), "save");
+	b.reset();
+	CHECK(b.load_state(path), "load");
+	CHECK(b.trigger_hash() == a.trigger_hash(), "trigger state differs after loading");
+	CHECK(b.triggers_.range_queries.size() == 1 && b.triggers_.range_queries[0].collection == col, "the collection survives a save");
+	for (Simulation *s : {&a, &b}) {
+		teleport(*s, u1, 40.0f, 0.0f);
+		run_to(*s, 2.0f);
+	}
+	CHECK(v[1] == 1 && v[2] == 1 && b.triggers_.vars[1] == 1 && b.triggers_.vars[0] == 2,
+	      "only the unit that left fires, before and after loading: %d/%d removed", v[1], b.triggers_.vars[1]);
+	CHECK(b.trigger_hash() == a.trigger_hash(), "loaded copy out of sync after the unit left");
+	a.triggers_.disable_trigger(t);
+	teleport(a, u3, 40.0f, 40.0f);
+	run_to(a, 2.5f);
+	CHECK(v[1] == 1, "a disabled range trigger kept firing");
+	if (failures == before) std::printf("OnRange reports units entering and leaving, through a save, and stops when disabled: ok\n");
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -947,6 +999,7 @@ int main() {
 	check_gallic_fields();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
+	check_on_range();
 	check_flood();
 	check_volcano();
 	check_drowning();
