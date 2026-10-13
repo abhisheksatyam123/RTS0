@@ -1096,9 +1096,11 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
 	cfg.team_placement = team_placement_;
 	cfg.landscape = map_landscape_;
+	cfg.trigger_difficulty = trigger_difficulty_;
 
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
+	triggers_.difficulty = trigger_difficulty_; // Trigger.js SetDifficulty (generate reset the triggers)
 	if (biome_override_ >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
