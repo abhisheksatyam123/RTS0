@@ -298,6 +298,29 @@ static Ref<Texture2D> load_tex(const String &path) {
 	return Ref<Texture2D>();
 }
 
+// A structure's icon: its portrait, else 0 A.D.'s session portrait from
+// art/textures/ui/session/portraits/structures (the template's Identity/Icon,
+// under its 0.28 file name where that differs from RTS0's portrait id).
+static Ref<Texture2D> structure_icon(const char *portrait_id) {
+	Ref<Texture2D> t = load_tex(String("res://assets/textures/ui/portraits/") + portrait_id + ".png");
+	if (t.is_valid()) return t;
+	static const char *const kIcons[][2] = {
+		{"stable", "stable_01"}, {"palisade", "palisade_wall"}, {"forge", "blacksmith"}, {"wall_tower", "tower"},
+		{"arsenal", "siege_workshop"}, {"elephant_stable", "stable_elephant"}, {"embassy", "embassy_celtic"},
+		{"amphitheater", "theater"}, {"library", "library_scroll"}, {"military_colony", "military_settlement"},
+		{"army_camp", "roman_camp"}, {"ice_house", "yakhchal"}, {"ministry", "imperial_ministry"},
+		{"imperial_court", "palace"}, {"tachara", "palace"}, {"pillar", "ashoka_pillar"}, {"prytaneion", "tholos"},
+		{"gerousia", "tholos"}, {"syssiton", "syssition"}, {"pyramid_large", "kush_pyramid_big"},
+		{"pyramid_small", "kush_pyramid_small"}, {"super_dock", "uber_dock"}, {"temple_amun", "temple_epic"},
+		{"temple_mars", "temple_epic"}, {"tower_great", "tower_artillery"}, {"council_chamber", "hall"},
+		{"assembly", "hall"}, {"academy", "library_scroll"},
+	};
+	String file = portrait_id;
+	for (const auto &m : kIcons)
+		if (file == m[0]) { file = m[1]; break; }
+	return load_tex("res://assets/textures/ui/archive/portraits/structures/" + file + ".png");
+}
+
 // Building names in data/maps/*.json "structures" and "gaia_structures" (tools/port_0ad_maps.py).
 // BLD_TYPE_COUNT for a name it doesn't know.
 static uint8_t map_building_type(const String &n) {
@@ -1509,7 +1532,9 @@ Dictionary RtsoMain::debug_command_button(const String &prefix) {
 	d["build_mode"] = build_mode;
 	for (int i = 0; i < production_bar->get_child_count(); ++i) {
 		Button *btn = Object::cast_to<Button>(production_bar->get_child(i));
-		if (!btn || !btn->get_text().begins_with(prefix)) continue;
+		if (!btn) continue;
+		const String label = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
+		if (!label.begins_with(prefix)) continue;
 		d["id"] = (int64_t)btn->get_instance_id();
 		d["rect"] = btn->get_global_rect();
 		d["disabled"] = btn->is_disabled();
@@ -4252,7 +4277,7 @@ void RtsoMain::update_command_panel() {
 					const String label = String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")");
 					bb->set_meta("label", label);
 					String tip = String::utf8(bi.name) + (cost.is_empty() ? String() : "\nCost: " + cost);
-					Ref<Texture2D> b_ico = load_tex(String("res://assets/textures/ui/portraits/") + bi.portrait_id + ".png");
+					Ref<Texture2D> b_ico = structure_icon(bi.portrait_id);
 					if (b_ico.is_valid()) {
 						bb->set_button_icon(b_ico);
 						bb->set_expand_icon(true);
