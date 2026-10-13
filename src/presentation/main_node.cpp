@@ -135,6 +135,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
+	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
@@ -297,6 +298,29 @@ static Ref<Texture2D> load_tex(const String &path) {
 		if (tex.is_valid()) return tex;
 	}
 	return Ref<Texture2D>();
+}
+
+// A structure's icon: its portrait, else 0 A.D.'s session portrait from
+// art/textures/ui/session/portraits/structures (the template's Identity/Icon,
+// under its 0.28 file name where that differs from RTS0's portrait id).
+static Ref<Texture2D> structure_icon(const char *portrait_id) {
+	Ref<Texture2D> t = load_tex(String("res://assets/textures/ui/portraits/") + portrait_id + ".png");
+	if (t.is_valid()) return t;
+	static const char *const kIcons[][2] = {
+		{"stable", "stable_01"}, {"palisade", "palisade_wall"}, {"forge", "blacksmith"}, {"wall_tower", "tower"},
+		{"arsenal", "siege_workshop"}, {"elephant_stable", "stable_elephant"}, {"embassy", "embassy_celtic"},
+		{"amphitheater", "theater"}, {"library", "library_scroll"}, {"military_colony", "military_settlement"},
+		{"army_camp", "roman_camp"}, {"ice_house", "yakhchal"}, {"ministry", "imperial_ministry"},
+		{"imperial_court", "palace"}, {"tachara", "palace"}, {"pillar", "ashoka_pillar"}, {"prytaneion", "tholos"},
+		{"gerousia", "tholos"}, {"syssiton", "syssition"}, {"pyramid_large", "kush_pyramid_big"},
+		{"pyramid_small", "kush_pyramid_small"}, {"super_dock", "uber_dock"}, {"temple_amun", "temple_epic"},
+		{"temple_mars", "temple_epic"}, {"tower_great", "tower_artillery"}, {"council_chamber", "hall"},
+		{"assembly", "hall"}, {"academy", "library_scroll"},
+	};
+	String file = portrait_id;
+	for (const auto &m : kIcons)
+		if (file == m[0]) { file = m[1]; break; }
+	return load_tex("res://assets/textures/ui/archive/portraits/structures/" + file + ".png");
 }
 
 // Building names in data/maps/*.json "structures" and "gaia_structures" (tools/port_0ad_maps.py).
@@ -1510,7 +1534,9 @@ Dictionary RtsoMain::debug_command_button(const String &prefix) {
 	d["build_mode"] = build_mode;
 	for (int i = 0; i < production_bar->get_child_count(); ++i) {
 		Button *btn = Object::cast_to<Button>(production_bar->get_child(i));
-		if (!btn || !btn->get_text().begins_with(prefix)) continue;
+		if (!btn) continue;
+		const String label = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
+		if (!label.begins_with(prefix)) continue;
 		d["id"] = (int64_t)btn->get_instance_id();
 		d["rect"] = btn->get_global_rect();
 		d["disabled"] = btn->is_disabled();
@@ -1611,13 +1637,22 @@ Array RtsoMain::debug_command_row() {
 	for (int i = 0; i < production_bar->get_child_count(); ++i)
 		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) {
 			Dictionary e;
-			e["text"] = btn->get_text();
+			e["text"] = btn->has_meta("label") ? String(btn->get_meta("label")) : btn->get_text();
 			e["tip"] = btn->get_tooltip_text();
 			e["disabled"] = btn->is_disabled();
 			e["id"] = (int64_t)btn->get_instance_id();
 			out.push_back(e);
 		}
 	return out;
+}
+
+// Test hook: destroys the units (Delete's command) without touching the selection,
+// as deaths in battle do.
+void RtsoMain::debug_delete_units(const PackedInt32Array &ids) {
+	if (!sim || ids.is_empty()) return;
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	sim->cmd_delete(local_player(), v.data(), v.size());
 }
 
 // Test hook: which session dialogs are open, the pause overlay's state, and
@@ -2459,13 +2494,20 @@ void RtsoMain::_on_call_to_arms_pressed() {
 void RtsoMain::add_entity_command(const char *name, const char *label, const char *hotkey, const String &tip,
 		const char *icon, bool enabled, int count) {
 	Button *btn = memnew(Button);
-	btn->set_text(count > 0 ? String(label) + " (" + String::num_int64(count) + ")" : String(label));
+	const String text = count > 0 ? String(label) + " (" + String::num_int64(count) + ")" : String(label);
+	btn->set_meta("label", text);
 	const std::string key = (hotkey && *hotkey) ? rtso::hotkeys::table().label(hotkey) : std::string();
 	btn->set_tooltip_text(key.empty() ? tip : "[" + String(key.c_str()) + "] " + tip);
 	Ref<Texture2D> ico = load_tex(String("res://assets/textures/ui/archive/icons/") + icon);
 	if (ico.is_valid()) {
+		// 0.28's command row is icons, with the count (Unload All) on the icon.
 		btn->set_button_icon(ico);
-		btn->add_theme_constant_override("icon_max_width", 20);
+		btn->set_expand_icon(true);
+		btn->set_custom_minimum_size(Vector2(32, 32));
+		btn->set_text(count > 0 ? String::num_int64(count) : String());
+		btn->add_theme_font_size_override("font_size", 10);
+	} else {
+		btn->set_text(text);
 	}
 	btn->set_disabled(!enabled);
 	btn->connect("pressed", Callable(this, "_on_entity_command").bind(String(name)));
@@ -3183,6 +3225,7 @@ void RtsoMain::_process(double delta) {
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
+	prune_selection();
 	update_inspector();
 	update_command_panel();
 	const auto attacks = sim->take_attacked_events();
@@ -3542,6 +3585,22 @@ void RtsoMain::update_hud() {
 // the unit's roster template; carried resources. Several units show the
 // multi-selection icon grid (selection_panels.js "Selection") and a structure
 // with a garrison shows the garrison grid ("Garrison").
+// EntitySelection.update (gui/session/selection.js): units that died leave the
+// selection, so its count and groups follow the battle.
+void RtsoMain::prune_selection() {
+	if (!sim || selected_ids.is_empty()) return;
+	auto uview = sim->units();
+	std::unordered_set<int32_t> wanted(selected_ids.ptr(), selected_ids.ptr() + selected_ids.size());
+	std::unordered_set<int32_t> living;
+	for (size_t i = 0; i < uview.count; ++i)
+		if (uview.alive[i] && wanted.count((int32_t)uview.id[i])) living.insert((int32_t)uview.id[i]);
+	if ((int64_t)living.size() == selected_ids.size()) return;
+	PackedInt32Array kept;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (living.count(selected_ids[s])) kept.push_back(selected_ids[s]);
+	selected_ids = kept;
+}
+
 void RtsoMain::update_inspector() {
 	if (!inspector_panel) return;
 	auto show_bar = [](ProgressBar *bar, Label *lbl, bool v) {
@@ -4088,22 +4147,29 @@ void RtsoMain::update_command_panel() {
 				if (!((available >> f) & 1u)) continue;
 				const rtso::FormationTemplate &ft = rtso::formation_template(f);
 				const bool enabled = f == rtso::FORMATION_NONE || sim->can_move_into_formation(sel_ids, sel_n, f);
+				// The Formation panel's buttons are icons; the name is on the tooltip.
 				Button *fb = memnew(Button);
-				fb->set_custom_minimum_size(Vector2(44, 24));
+				fb->set_custom_minimum_size(Vector2(26, 26));
 				fb->set_clip_text(true);
 				String tip = String::utf8(ft.name);
 				const char *why = enabled ? ft.tooltip : ft.disabled_tooltip;
 				if (why && *why) tip += String("\n") + String::utf8(why);
 				fb->set_tooltip_text(tip);
-				fb->set_text(String::utf8(ft.name));
 				Ref<Texture2D> f_ico = load_tex(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
 				if (f_ico.is_valid()) {
 					fb->set_button_icon(f_ico);
 					fb->set_expand_icon(true);
+					fb->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+				} else {
+					fb->set_text(String::utf8(ft.name));
+					fb->set_custom_minimum_size(Vector2(44, 26));
 				}
 				fb->add_theme_font_size_override("font_size", 8);
 				if ((in_use >> f) & 1u) {
+					// IsFormationSelected: the formation a selected unit is in is lit.
 					fb->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
+					fb->add_theme_color_override("icon_normal_color", Color(1.0f, 0.85f, 0.2f));
+					fb->add_theme_color_override("icon_hover_color", Color(1.0f, 0.9f, 0.4f));
 				}
 				fb->set_disabled(!enabled);
 				fb->connect("pressed", Callable(this, "_on_formation_selected").bind((int)f));
@@ -4320,13 +4386,25 @@ void RtsoMain::update_command_panel() {
 					add_cost(bi.gold_cost, "g");
 					add_cost(bi.stone_cost, "s");
 					uint8_t need = rtso::building_required_phase((uint8_t)bt);
+					// 0.28's Construction panel: an icon grid, name and cost on the tooltip.
 					Button *bb = memnew(Button);
-					bb->set_text(String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+					const String label = String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")");
+					bb->set_meta("label", label);
+					String tip = String::utf8(bi.name) + (cost.is_empty() ? String() : "\nCost: " + cost);
+					Ref<Texture2D> b_ico = structure_icon(bi.portrait_id);
+					if (b_ico.is_valid()) {
+						bb->set_button_icon(b_ico);
+						bb->set_expand_icon(true);
+						bb->set_custom_minimum_size(Vector2(38, 38));
+					} else {
+						bb->set_text(label);
+					}
 					bb->add_theme_font_size_override("font_size", 9);
 					if (need > sim->player_phase(local_player())) {
 						bb->set_disabled(true);
-						bb->set_tooltip_text(String("Requires ") + kPhaseNames[need] + " Phase");
+						tip += String("\nRequires ") + kPhaseNames[need] + " Phase";
 					}
+					bb->set_tooltip_text(tip);
 					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(bt));
 					production_bar->add_child(bb);
 				}
@@ -4343,8 +4421,15 @@ void RtsoMain::update_command_panel() {
 	// queue, so the buttons get that room.
 	const bool queue_shown = selected_building_id != 0;
 	if (queue_bar->is_visible() != queue_shown) queue_bar->set_visible(queue_shown);
-	const Vector2 area(552, queue_shown ? 40 : 96);
+	// A builder's construction grid can outgrow the two rows a unit selection
+	// has: the panel grows upward to show all of it (0.28 shows the whole
+	// Construction panel), up to kMaxGrow, past which it scrolls.
+	constexpr float kMaxGrow = 120.0f;
+	const float h = queue_shown ? 40.0f : std::clamp(production_bar->get_combined_minimum_size().y, 96.0f, 96.0f + kMaxGrow);
+	const Vector2 area(552, h);
 	if (production_scroll->get_size() != area) production_scroll->set_size(area);
+	const float top = -198.0f - (queue_shown ? 0.0f : h - 96.0f);
+	if (command_panel->get_offset(SIDE_TOP) != top) command_panel->set_offset(SIDE_TOP, top);
 }
 
 // Everything that makes a command button look or act differently: its text,
