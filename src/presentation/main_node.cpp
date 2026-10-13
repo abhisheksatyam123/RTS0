@@ -2115,6 +2115,11 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 			{{"icon", ""}, {"attacker", colored_player_name(attacker)}}) + "\n");
 }
 
+// 0 A.D.'s "Requires %(technology)s" line with the requirement's translated name.
+String RtsoMain::requires_text(const String &what) const {
+	return sprintf0(tr("Requires %(technology)s"), {{"technology", tr(what)}});
+}
+
 // colorizePlayernameByID: the name in the player's displayed colour.
 String RtsoMain::colored_player_name(uint8_t pid) const {
 	const uint32_t rgb = sim ? rtso::display_colors::rgb(*sim, pid) : 0xFFFFFFu;
@@ -4143,13 +4148,13 @@ void RtsoMain::update_command_panel() {
 					btn->add_theme_constant_override("icon_max_width", 20);
 				}
 				String tip = String::utf8(ti.desc ? ti.desc : "");
-				const char *why = nullptr;
+				String why;
 				switch (rc) {
 					case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; break;
 					case rtso::Simulation::TECH_ERR_PHASE:
-						why = ti.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
+						why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
 					case rtso::Simulation::TECH_ERR_PREREQUISITE: {
-						tip += String("\nRequires ") + rtso::tech_info(ti.prerequisite).name;
+						tip += "\n" + requires_text(String::utf8(rtso::tech_info(ti.prerequisite).name));
 						btn->set_disabled(true);
 						break;
 					}
@@ -4159,8 +4164,8 @@ void RtsoMain::update_command_panel() {
 					case rtso::Simulation::TECH_ERR_COST: why = "Not enough resources"; break;
 					default: break;
 				}
-				if (why) {
-					tip += String("\n") + why;
+				if (!why.is_empty()) {
+					tip += "\n" + tr(why);
 					if (rc != rtso::Simulation::TECH_ERR_COST) btn->set_disabled(true);
 				}
 				btn->set_tooltip_text(tip);
@@ -4240,18 +4245,18 @@ void RtsoMain::update_command_panel() {
 						add_cost(up.wood_cost, "w");
 						add_cost(up.gold_cost, "g");
 						add_cost(up.stone_cost, "s");
-						btn->set_text(String("Upgrade to ") + rtso::building_type_name(up.to) + (cost.is_empty() ? String() : " (" + cost + ")"));
-						String tip = String(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
-						const char *why = nullptr;
+						btn->set_text(String("Upgrade to ") + String::utf8(rtso::building_type_name(up.to)) + (cost.is_empty() ? String() : " (" + cost + ")"));
+						String tip = String::utf8(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
+						String why;
 						switch (check) {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
-							case rtso::Simulation::UPGRADE_ERR_PHASE: why = up.required_phase >= 3 ? "Requires City Phase" : "Requires Town Phase"; break;
+							case rtso::Simulation::UPGRADE_ERR_PHASE: why = requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
 							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
 							case rtso::Simulation::UPGRADE_ERR_LIMIT: why = "Limit reached"; break;
 							default: break;
 						}
-						if (why) {
-							tip += String("\n") + why;
+						if (!why.is_empty()) {
+							tip += "\n" + tr(why);
 							btn->set_disabled(true);
 						}
 						btn->set_tooltip_text(tip);
@@ -4420,12 +4425,12 @@ void RtsoMain::update_command_panel() {
 				for (int t = 0; t < target_n; ++t) {
 					const uint16_t to = targets[t];
 					const rtso::CivUnitUpgrade *row = nullptr;
-					const char *why = "Already upgrading";
+					String why = "Already upgrading";
 					for (int i = 0; i < selected_ids.size(); ++i) {
 						const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), (uint32_t)selected_ids[i], to);
-						if (c == rtso::Simulation::UPGRADE_OK) { why = nullptr; break; }
+						if (c == rtso::Simulation::UPGRADE_OK) { why = String(); break; }
 						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "Not enough resources";
-						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = "Requires City Phase";
+						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = requires_text("City Phase");
 						else if (c == rtso::Simulation::UPGRADE_ERR_LIMIT) why = "Limit reached";
 					}
 					for (const rtso::CivUnitUpgrade *up = rtso::civ_unit_upgrade_table(); up->from != 0xFFFF && !row; ++up)
@@ -4443,8 +4448,8 @@ void RtsoMain::update_command_panel() {
 					Button *btn = memnew(Button);
 					btn->set_text(String("Upgrade to ") + rtso::civ_unit_template(to).name + (cost.is_empty() ? String() : " (" + cost + ")"));
 					String tip = String(rtso::civ_unit_template(to).specific_name) + "\n" + String::num((double)row->time, 0) + "s";
-					if (why) {
-						tip += String("\n") + why;
+					if (!why.is_empty()) {
+						tip += "\n" + tr(why);
 						btn->set_disabled(true);
 					}
 					btn->set_tooltip_text(tip);
@@ -4576,7 +4581,7 @@ void RtsoMain::update_command_panel() {
 					bb->add_theme_font_size_override("font_size", 9);
 					if (need > sim->player_phase(local_player())) {
 						bb->set_disabled(true);
-						tip += String("\nRequires ") + kPhaseNames[need] + " Phase";
+						tip += "\n" + requires_text(String(kPhaseNames[need]) + " Phase");
 					}
 					bb->set_tooltip_text(tip);
 					bb->connect("pressed", Callable(this, "_on_build_btn_pressed").bind(bt));
@@ -4768,11 +4773,11 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		const int idx = add_roster_item(pid, i, tip);
 		if (u.phase > phase) {
 			roster_list->set_item_disabled(idx, true);
-			tip += u.phase >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase";
+			tip += "\n" + requires_text(u.phase >= 3 ? "City Phase" : "Town Phase");
 		} else if (!sim->can_train_at(pid, u.unit_type, b->type, i)) {
 			roster_list->set_item_disabled(idx, true);
 			uint8_t gate = sim->train_unlock_tech(pid, u.unit_type, b->type, i);
-			if (gate != rtso::TECH_NONE) tip += "\nRequires " + String::utf8(rtso::tech_info(gate).name);
+			if (gate != rtso::TECH_NONE) tip += "\n" + requires_text(String::utf8(rtso::tech_info(gate).name));
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}

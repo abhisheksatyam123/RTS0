@@ -555,6 +555,7 @@ private:
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
 	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
+	String requires_text(const String &what) const;
 	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;

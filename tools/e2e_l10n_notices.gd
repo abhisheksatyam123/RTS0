@@ -5,7 +5,8 @@ extends SceneTree
 # getLocalizedResourceAmounts):
 #   1. in English the lines read as 0.28's;
 #   2. in German the same notices use the German format strings and resource
-#      names.
+#      names;
+#   3. so do the "Requires %(technology)s" lines on the command buttons.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_l10n_notices.gd
 # Exit code 0 = pass.
@@ -67,8 +68,17 @@ func run() -> void:
 	check(want_diplo != "You are now neutral with " and text.contains(want_diplo), "diplomacy in German: " + want_diplo)
 	var wood: String = TranslationServer.translate("Wood")
 	check(wood != "Wood" and text.contains("100 " + wood), "tribute in German with the German resource name: 100 " + wood)
+	print("3. Requirements")
+	main.debug_train_buttons(11)  # a dock: its Town Phase techs
+	await frames(2)
+	var tips: Array = main.debug_command_row().map(func(e): return str(e["tip"]))
+	var req: String = TranslationServer.translate("Requires %(technology)s").get_slice("%(technology)s", 0)
+	check(req != "Requires " and tips.any(func(t): return t.contains(req)), "\"%s...\" on a tech button" % req)
 	TranslationServer.set_locale("en")
 	TranslationServer.remove_translation(de)
+	main.debug_train_buttons(11)
+	tips = main.debug_command_row().map(func(e): return str(e["tip"]))
+	check(tips.any(func(t): return t.contains("Requires Town Phase")), "\"Requires Town Phase\" in English")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
