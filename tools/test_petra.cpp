@@ -2421,6 +2421,34 @@ static void test_concurrent_attacks() {
 	}
 }
 
+// worker.js moveToGatherer: Petra's mobile dropsites (worker elephant, supply wagon) walk
+// to the nearest of its gatherers at work on their land.
+static void test_mobile_dropsite_follows() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 30.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	int gathering = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		gathering += s->units_.alive[i] && s->units_.team[i] == 1 && s->units_.action_state[i] == ACTION_GATHER;
+	const uint32_t wagon = s->spawn_unit(tx + 20.0f, tz + 20.0f, 1, UNIT_WAGON);
+	s->petra_move_dropsites_to_gatherers();
+	const int32_t w = s->lookup_unit(wagon);
+	float best = 1e30f;
+	for (size_t i = 0; i < s->units_.count; ++i) {
+		if (!s->units_.alive[i] || s->units_.team[i] != 1 || (s->units_.action_state[i] != ACTION_GATHER && s->units_.action_state[i] != ACTION_RETURN_DROPSITE)) continue;
+		best = std::min(best, std::hypot(s->units_.pos_x[i] - s->units_.order_x[w], s->units_.pos_z[i] - s->units_.order_z[w]));
+	}
+	const bool walks = w >= 0 && s->units_.order_kind[w] == ORDER_WALK && best < 0.5f;
+	std::printf("  mobile dropsite: %d gatherers at work, the wagon walks to one %s\n", gathering, walks ? "yes" : "no");
+	CHECK(gathering > 0 && walks, "a mobile dropsite walks to the nearest gatherer (moveToGatherer)");
+}
+
 // attackPlan.js Abort: an aborted attack withdraws to the nearest of our bases on its
 // land, a second civic centre near the front included, not to the first one.
 static void test_abort_nearest_base() {
@@ -3042,6 +3070,7 @@ int main() {
 	test_concurrent_attacks();
 	test_fasten_end_game();
 	test_abort_nearest_base();
+	test_mobile_dropsite_follows();
 	test_worker_mix();
 	test_build_defenses();
 	test_dropsites();
