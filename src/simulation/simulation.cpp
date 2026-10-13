@@ -1,6 +1,7 @@
 #include "simulation.h"
 #include "entity_limits_data.h"
 #include "promotion_data.h"
+#include "unit_trainer_data.h"
 #include "rms_generator.h"
 #include "nav/building_steering.h"
 #include "nav/rasterize.h"
@@ -101,6 +102,41 @@ uint64_t garrison_classes(uint16_t tmpl, uint8_t type) {
 	return unit_classes(tmpl, type) | (type == UNIT_VILLAGER ? (uint64_t)TC_CIVILIAN : 0);
 }
 
+// One entry of a unit's Trainer list (unit_trainer_data.h), by roster template.
+struct UnitTrainee {
+	uint16_t tmpl;
+	uint8_t tech;
+	float batch_time_modifier;
+};
+
+const std::vector<UnitTrainee> &unit_trainees(uint16_t trainer) {
+	static const std::vector<std::vector<UnitTrainee>> table = [] {
+		std::vector<std::vector<UnitTrainee>> t(CIV_UNIT_TEMPLATE_COUNT);
+		std::unordered_map<std::string, uint16_t> by_id;
+		for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i) by_id.emplace(civ_unit_template(i).id, i);
+		for (const UnitTrainerRow &r : UNIT_TRAINER_ROWS) {
+			auto from = by_id.find(r.trainer), to = by_id.find(r.trainee);
+			if (from != by_id.end() && to != by_id.end()) t[from->second].push_back({to->second, r.tech, r.batch_time_modifier});
+		}
+		return t;
+	}();
+	static const std::vector<UnitTrainee> none;
+	return trainer < CIV_UNIT_TEMPLATE_COUNT ? table[trainer] : none;
+}
+
+// A roster unit's Researcher/Technologies (unit_trainer_data.h UNIT_RESEARCH_ROWS).
+const std::vector<uint8_t> &unit_research_list(uint16_t tmpl) {
+	static const std::vector<std::vector<uint8_t>> table = [] {
+		std::vector<std::vector<uint8_t>> t(CIV_UNIT_TEMPLATE_COUNT);
+		for (const UnitResearchRow &r : UNIT_RESEARCH_ROWS)
+			for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (std::strcmp(civ_unit_template(i).id, r.researcher) == 0) t[i].push_back(r.tech);
+		return t;
+	}();
+	static const std::vector<uint8_t> none;
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? table[tmpl] : none;
+}
+
 } // namespace
 
 // 0 A.D. BuildingAI.js roundCount: firing rounds per Attack/Ranged/RepeatTime.
@@ -164,6 +200,8 @@ static constexpr uint32_t SAVE_VERSION_PETRA_DEFENSES = 56;
 static constexpr uint32_t SAVE_VERSION_GATHER_TIMERS = 57;
 // Each Petra attack plan's target player and its forced and requested flags.
 static constexpr uint32_t SAVE_VERSION_PETRA_ATTACK_REQUEST = 60;
+// Units' production queues (Trainer on triremes and Cyrus II; save_tick_state).
+static constexpr uint32_t SAVE_VERSION_UNIT_TRAINERS = 64;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -487,6 +525,7 @@ void Simulation::reset() {
 	for (auto &v : match_trained_) v.clear();
 	for (auto &v : petra_army_ids_) v.clear();
 	unit_upgrades_.clear();
+	unit_queues_.clear();
 
 	next_id_ = 1;
 	sim_rng_.set_seed(sim_seed_);
@@ -592,6 +631,8 @@ int Simulation::pop_current(uint8_t player) const {
 	// Player.js TryReservePopulationSlots: a started batch already holds its population.
 	for (const auto &b : buildings_)
 		if (b.team == player && !b.queue.empty() && b.queue.front().started) count += order_pop(b.queue.front(), player);
+	for (const auto &kv : unit_queues_)
+		if (kv.second.player == player && kv.second.orders.front().started) count += order_pop(kv.second.orders.front(), player);
 	return count;
 }
 
@@ -2346,6 +2387,10 @@ int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
 		for (const auto &o : b.queue)
 			if (!o.is_tech() && unit_limit_category(o.unit_type, o.tmpl) == category) n += o.count;
 	}
+	for (const auto &kv : unit_queues_)
+		if (kv.second.player == player_id)
+			for (const auto &o : kv.second.orders)
+				if (unit_limit_category(o.unit_type, o.tmpl) == category) n += o.count;
 	// Upgrade.js ChangeUpgradedEntityCount: a unit upgrading into the category counts now.
 	for (const UnitUpgrade &u : unit_upgrades_) {
 		if (u.player != player_id) continue;
@@ -2408,6 +2453,9 @@ bool Simulation::match_limit_allows(uint8_t player_id, uint16_t tmpl, int count)
 	for (const auto &b : buildings_)
 		if (b.team == player_id)
 			for (const auto &o : b.queue) n += o.tmpl == tmpl;
+	for (const auto &kv : unit_queues_)
+		if (kv.second.player == player_id)
+			for (const auto &o : kv.second.orders) n += o.tmpl == tmpl;
 	return n + count <= HERO_MATCH_LIMIT;
 }
 
@@ -2498,6 +2546,10 @@ bool Simulation::tech_queued(uint8_t player_id, uint8_t tech) const {
 		for (const auto &o : b.queue)
 			if (o.tech == tech) return true;
 	}
+	for (const auto &kv : unit_queues_)
+		if (kv.second.player == player_id)
+			for (const auto &o : kv.second.orders)
+				if (o.tech == tech) return true;
 	return false;
 }
 
@@ -2552,6 +2604,173 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 		trigger_event(TRIGGER_ON_TRAINING_QUEUED, ev);
 	}
 	return true;
+}
+
+bool Simulation::unit_is_trainer(uint16_t tmpl) { return !unit_trainees(tmpl).empty() || !unit_research_list(tmpl).empty(); }
+
+std::vector<uint8_t> Simulation::unit_researchables(uint16_t tmpl) { return unit_research_list(tmpl); }
+
+// Researcher.js QueueTechnology on a unit: paid now, researched when it reaches the front of
+// the unit's queue.
+bool Simulation::cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_t tech) {
+	const int32_t i = lookup_unit(unit_id);
+	if (i < 0 || player >= MAX_PLAYERS || units_.team[i] != player || !(units_.hp[i] > 0.0f)) return false;
+	if (!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) return false;
+	const std::vector<uint8_t> &list = unit_research_list(units_.tmpl[i]);
+	if (std::find(list.begin(), list.end(), tech) == list.end()) return false;
+	auto qit = unit_queues_.find(unit_id);
+	if (qit != unit_queues_.end() && qit->second.orders.size() >= PRODUCTION_QUEUE_MAX) return false;
+	if (research_check(player, tech, 0) != TECH_OK) return false;
+	const TechInfo &tinfo = tech_info(tech);
+	const uint8_t civ = civ_of(player);
+	const uint16_t allies = ally_civ_mask(player);
+	auto team = [&](uint8_t stat, int8_t r) { return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT); };
+	ProductionOrder order;
+	order.unit_type = UNIT_TYPE_COUNT;
+	order.tech = tech;
+	order.timer = 0.0f;
+	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
+	order.paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
+	order.paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
+	order.paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	if (!players_[player].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]))
+		return false;
+	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1) * ai_time_mult(player);
+	UnitQueue &q = unit_queues_[unit_id];
+	q.player = player;
+	q.orders.push_back(order);
+	return true;
+}
+
+std::vector<uint16_t> Simulation::unit_trainables(uint8_t player, uint16_t tmpl, bool all) const {
+	std::vector<uint16_t> out;
+	if (player >= MAX_PLAYERS) return out;
+	const PlayerState &ps = players_[player];
+	for (const UnitTrainee &t : unit_trainees(tmpl)) {
+		const CivUnitTemplate &u = civ_unit_template(t.tmpl);
+		if (u.civ != ps.civ) continue;
+		if (!all && (u.phase > ps.phase || (t.tech != TECH_NONE && !ps.has_tech(t.tech)) || triggers_.template_disabled(t.tmpl) ||
+		             !can_train_at(player, u.unit_type, BLD_TYPE_COUNT, t.tmpl)))
+			continue;
+		out.push_back(t.tmpl);
+	}
+	return out;
+}
+
+// Trainer/BatchTimeModifier of the training unit: count ^ modifier.
+float Simulation::unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const {
+	if (count <= 1) return 1.0f;
+	for (const UnitTrainee &t : unit_trainees(trainer_tmpl))
+		if (t.tmpl == trainee) return std::pow((float)count, std::max(0.0f, t.batch_time_modifier));
+	return (float)count;
+}
+
+// Trainer.js on a unit: the same Item.Queue as a structure's, against the unit's Trainer list.
+bool Simulation::cmd_train_from_unit(uint8_t player, uint32_t unit_id, uint16_t tmpl, int count) {
+	const int32_t i = lookup_unit(unit_id);
+	if (i < 0 || player >= MAX_PLAYERS || units_.team[i] != player || !(units_.hp[i] > 0.0f)) return false;
+	if (!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) return false;
+	if (count < 1 || count > 200 || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return false;
+	auto qit = unit_queues_.find(unit_id);
+	if (qit != unit_queues_.end() && qit->second.orders.size() >= PRODUCTION_QUEUE_MAX) return false;
+	const std::vector<uint16_t> can = unit_trainables(player, units_.tmpl[i]);
+	if (std::find(can.begin(), can.end(), tmpl) == can.end()) return false;
+	const CivUnitTemplate &t = civ_unit_template(tmpl);
+	if (count > 1 && !entity_limit_allows_unit(player, t.unit_type, tmpl, count)) return false;
+
+	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
+	float cost[RES_COUNT];
+	unit_train_cost(player, tmpl, uinfo, cost);
+	for (int r = 0; r < RES_COUNT; ++r) cost[r] = std::floor(cost[r] * (float)count);
+	if (!players_[player].pay(cost[RES_FOOD], cost[RES_WOOD], cost[RES_GOLD], cost[RES_STONE])) return false;
+
+	ProductionOrder order;
+	order.unit_type = t.unit_type;
+	order.tmpl = tmpl;
+	order.count = (uint8_t)count;
+	order.timer = 0.0f;
+	for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = cost[r];
+	order.duration = uinfo.train_time * team_bonus_mult(player, TEAM_BONUS_UNIT_TRAIN_TIME, -1, tmpl)
+		* unit_tech_mods(player, t.unit_type, tmpl).train_time * ai_time_mult(player) * promotion_train_time_mult(tmpl)
+		* unit_trainer_batch_mult(units_.tmpl[i], tmpl, count);
+	UnitQueue &q = unit_queues_[unit_id];
+	q.player = player;
+	q.orders.push_back(order);
+	return true;
+}
+
+bool Simulation::cmd_cancel_unit_train(uint8_t player, uint32_t unit_id, size_t queue_idx) {
+	auto it = unit_queues_.find(unit_id);
+	if (it == unit_queues_.end() || it->second.player != player || queue_idx >= it->second.orders.size()) return false;
+	const ProductionOrder &o = it->second.orders[queue_idx];
+	players_[player].refund(o.paid[RES_FOOD], o.paid[RES_WOOD], o.paid[RES_GOLD], o.paid[RES_STONE]);
+	it->second.orders.erase(it->second.orders.begin() + (std::ptrdiff_t)queue_idx);
+	if (it->second.orders.empty()) unit_queues_.erase(it);
+	return true;
+}
+
+// ProductionQueue.js on a unit: the front batch reserves its population, then counts down;
+// its units step out around the trainer (Footprint.PickSpawnPoint of the unit's own
+// footprint), and those with no free spot wait at the front (a garrisoned trainer has no
+// position, so its batch waits until it comes out). Trainer.js OnOwnershipChanged: a trainer
+// that dies or changes hands refunds the whole queue to the player who paid.
+void Simulation::tick_unit_production(float dt) {
+	for (auto it = unit_queues_.begin(); it != unit_queues_.end();) {
+		UnitQueue &q = it->second;
+		const int32_t i = lookup_unit(it->first);
+		const bool there = i >= 0 && units_.hp[i] > 0.0f && units_.team[i] == q.player &&
+		                   (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED);
+		if (!there) {
+			if (q.player < MAX_PLAYERS)
+				for (const ProductionOrder &o : q.orders)
+					players_[q.player].refund(o.paid[RES_FOOD], o.paid[RES_WOOD], o.paid[RES_GOLD], o.paid[RES_STONE]);
+			it = unit_queues_.erase(it);
+			continue;
+		}
+		ProductionOrder &order = q.orders.front();
+		if (order.is_tech()) {
+			order.timer += dt;
+			if (order.timer < order.duration) { ++it; continue; }
+			const uint8_t tech = order.tech, player = q.player;
+			q.orders.erase(q.orders.begin());
+			if (q.orders.empty()) it = unit_queues_.erase(it);
+			else ++it;
+			complete_research(player, tech);
+			continue;
+		}
+		if (!order.started) {
+			if (pop_current(q.player) + order_pop(order, q.player) > pop_max(q.player)) { ++it; continue; }
+			order.started = true;
+		}
+		order.timer += dt;
+		if (order.timer < order.duration) { ++it; continue; }
+		// A footprint the size of the trainer, at its position.
+		Building at{};
+		at.id = 0;
+		at.x = units_.pos_x[i];
+		at.z = units_.pos_z[i];
+		const float rad = unit_collision_radius(units_.unit_type[i]);
+		at.set_extents(rad, rad);
+		const bool outside = units_.alive[i];
+		int n = 0;
+		for (; n < order.count; ++n) {
+			float sx, sz;
+			if (!outside || !pick_spawn_point(at, order.unit_type, it->first, sx, sz)) break;
+			const uint32_t uid = spawn_unit(sx, sz, q.player, (UnitType)order.unit_type, 0.0f, order.tmpl);
+			if (const int32_t ti = lookup_unit(uid); ti >= 0) stat_unit_trained((size_t)ti);
+			if (civ_unit_template(order.tmpl).flags & ROSTER_HERO) match_trained_[q.player].push_back(order.tmpl);
+		}
+		if (n < order.count) {
+			// Units with no room stay at the front, already paid, and try again next turn.
+			for (int r = 0; r < RES_COUNT; ++r) order.paid[r] = order.paid[r] * (float)(order.count - n) / (float)order.count;
+			order.count = (uint8_t)(order.count - n);
+			++it;
+			continue;
+		}
+		q.orders.erase(q.orders.begin());
+		if (q.orders.empty()) it = unit_queues_.erase(it);
+		else ++it;
+	}
 }
 
 uint16_t Simulation::unit_template(uint32_t unit_id) const {
@@ -7063,6 +7282,7 @@ void Simulation::tick(float dt) {
 	tick_construction(dt);   // 0 A.D. Foundation.js / Builder.js: building construction
 	tick_repair(dt);         // 0 A.D. Repairable.js / Builder.js: repairing damaged completed buildings
 	tick_production(dt);     // 0 A.D. ProductionQueue.js: training batches and technologies
+	if (!unit_queues_.empty()) tick_unit_production(dt); // units that train (triremes, Cyrus II)
 	tick_upgrades(dt);       // 0 A.D. Upgrade.js: structure upgrades (sentry tower -> tower, wall -> gate)
 	if (!unit_upgrades_.empty()) tick_unit_upgrades(dt); // and unit ones (Centurion, Immortal bow)
 	tick_siege_garrisons();  // 0 A.D. GarrisonHolder EjectHealth / OnDestroy for siege towers and rams
@@ -21522,7 +21742,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -22943,6 +23163,32 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (u.to >= CIV_UNIT_TEMPLATE_COUNT || u.player >= MAX_PLAYERS || !(u.time > 0.0f)) ar.ok = false;
 	} else if constexpr (Ar::loading) {
 		s.unit_upgrades_.clear();
+	}
+
+	// 9f. Units' production queues (SAVE_VERSION_UNIT_TRAINERS), by unit id.
+	if (ar.version >= SAVE_VERSION_UNIT_TRAINERS) {
+		std::vector<std::pair<uint32_t, S::UnitQueue>> queues(s.unit_queues_.begin(), s.unit_queues_.end());
+		io_vec(ar, queues, S::UNIT_CAP, [&](std::pair<uint32_t, S::UnitQueue> &kv) {
+			ar.pod(kv.first);
+			ar.pod(kv.second.player);
+			io_vec(ar, kv.second.orders, (uint32_t)PRODUCTION_QUEUE_MAX, [&](ProductionOrder &o) {
+				ar.pod(o.unit_type); ar.pod(o.timer); ar.pod(o.duration); ar.pod(o.tmpl);
+				ar.pod(o.count); ar.pod(o.tech); ar.pod(o.started);
+				for (float &p : o.paid) ar.pod(p);
+				if constexpr (Ar::loading)
+					if (o.is_tech() ? o.tech >= TECH_COUNT
+					                : (o.unit_type >= UNIT_TYPE_COUNT || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT || o.count == 0))
+						ar.ok = false;
+			});
+			if constexpr (Ar::loading)
+				if (kv.second.player >= MAX_PLAYERS || kv.second.orders.empty()) ar.ok = false;
+		});
+		if constexpr (Ar::loading) {
+			s.unit_queues_.clear();
+			for (auto &kv : queues) s.unit_queues_[kv.first] = std::move(kv.second);
+		}
+	} else if constexpr (Ar::loading) {
+		s.unit_queues_.clear();
 	}
 
 	// 9e. Petra's army soldiers (v52). Older saves: every citizen soldier works.
