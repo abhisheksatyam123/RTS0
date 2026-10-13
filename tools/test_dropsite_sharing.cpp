@@ -1,13 +1,16 @@
 // 0 A.D. allied dropsites (ResourceDropsite.js IsShared, Player sharedDropsites from the
 // Diaspora tech unlock_shared_dropsites.json): a gatherer drops at an ally's dropsite only when
 // her player has researched Diaspora (3 Traders needed), the owner shares it (the default), and
-// the two are allies; the owner can stop sharing, and the setting survives save/load.
+// the two are allies; the owner can stop sharing, and the setting survives save/load. Mobile
+// dropsites follow the same rule: an ally's supply wagon (Sharable) takes her load, an ally's
+// worker elephant (not Sharable) never does.
 //   g++ -std=c++20 -O2 -Isrc tools/test_dropsite_sharing.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_dropsite_sharing && /tmp/test_dropsite_sharing
 #define private public
 #include "simulation/simulation.h"
 #undef private
+#include <cmath>
 #include <cstdio>
 
 using namespace rtso;
@@ -86,6 +89,47 @@ int main() {
 	CHECK(s.can_return_resource(woman, ally_store));
 	s.set_player_team(1, 2);
 	CHECK(!s.can_return_resource(woman, ally_store));
+
+	// 6. Mobile dropsites (ResourceDropsite on template_unit_support_wagon and _elephant): a woman
+	// carrying wood heads for the nearest one she may use.
+	static Simulation m;
+	m.set_sim_seed(5);
+	m.reset();
+	for (uint8_t p = 0; p < 3; ++p) m.set_player_active(p, true, false);
+	m.set_player_team(0, 0);
+	m.set_player_team(1, 0);
+	m.set_player_team(2, 1);
+	const uint32_t own_wagon = m.spawn_unit(0.0f, 0.0f, 0, UNIT_WAGON);
+	const uint32_t ally_wagon = m.spawn_unit(40.0f, 0.0f, 1, UNIT_WAGON);
+	const uint32_t ally_elephant = m.spawn_unit(-40.0f, 0.0f, 1, UNIT_WORKER_ELEPHANT);
+	const uint32_t enemy_wagon = m.spawn_unit(0.0f, 40.0f, 2, UNIT_WAGON);
+	// The dropsite a new woman carrying wood at (x, z) heads for (0: none of them).
+	const uint32_t drops[] = {own_wagon, ally_wagon, ally_elephant, enemy_wagon};
+	auto heads_for = [&](float x, float z) -> uint32_t {
+		const int32_t k = m.lookup_unit(m.spawn_unit(x, z, 0, UNIT_FEMALE_CITIZEN));
+		m.units_.res_type_carried[k] = RES_WOOD;
+		m.units_.carry[k] = 10;
+		m.units_.action_state[k] = ACTION_RETURN_DROPSITE;
+		m.tick(Simulation::FIXED_STEP);
+		for (uint32_t d : drops) {
+			const int32_t j = m.lookup_unit(d);
+			if (std::fabs(m.units_.target_x[k] - m.units_.pos_x[j]) < 0.01f &&
+			    std::fabs(m.units_.target_z[k] - m.units_.pos_z[j]) < 0.01f)
+				return d;
+		}
+		return 0;
+	};
+	const int mwood0 = m.player_resource(0, RES_WOOD), mwood1 = m.player_resource(1, RES_WOOD);
+	CHECK(heads_for(0.0f, -4.0f) == own_wagon);
+	CHECK(heads_for(40.0f, -4.0f) == own_wagon); // no Diaspora yet: past the ally's wagon to her own
+	m.player(0).techs.set(TECH_UNLOCK_SHARED_DROPSITES);
+	CHECK(heads_for(40.0f, -8.0f) == ally_wagon);
+	CHECK(heads_for(-40.0f, -4.0f) == own_wagon); // an ally's worker elephant is not Sharable
+	CHECK(heads_for(0.0f, 36.0f) == own_wagon);   // nor is an enemy's wagon
+	run(m, 20.0f);
+	std::printf("  mobile dropsites: five loads of wood dropped at wagons give her player +%d, the ally +%d\n",
+			m.player_resource(0, RES_WOOD) - mwood0, m.player_resource(1, RES_WOOD) - mwood1);
+	CHECK(m.player_resource(0, RES_WOOD) == mwood0 + 50 && m.player_resource(1, RES_WOOD) == mwood1);
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

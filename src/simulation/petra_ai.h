@@ -36,7 +36,7 @@ enum PetraBehavior : uint8_t {
 
 inline bool petra_is_support_unit(uint8_t t) {
 	return t == UNIT_VILLAGER || t == UNIT_TRADER || t == UNIT_FEMALE_CITIZEN ||
-	       t == UNIT_FISHING_BOAT || t == UNIT_MERCHANT_SHIP || t == UNIT_WORKER_ELEPHANT;
+	       t == UNIT_FISHING_BOAT || t == UNIT_MERCHANT_SHIP || t == UNIT_WORKER_ELEPHANT || t == UNIT_WAGON;
 }
 
 inline bool petra_is_combat_unit(uint8_t t) {
