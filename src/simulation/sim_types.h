@@ -1405,13 +1405,36 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
 }
 
-// Can a building of this type research the tech? Its research base's list, less what the
-// form drops (0.28 Researcher "-" tokens): the crannog drops phase_town and
-// hellenistic_metropolis, the Han Imperial Court phase_town, and the military colony
-// (template_structure_civic_civil_centre_military_colony) researches the Civic Center
-// list except the two phases and hellenistic_metropolis.
-inline bool building_researches_tech(uint8_t type, uint8_t tech_id) {
+// Can a building of this type research the tech for a player of this civ? Its research
+// base's list, with 0.28's per-structure Researcher changes ("-" drops a token):
+//  - the crannog drops phase_town and hellenistic_metropolis, the Han Imperial Court
+//    phase_town, and the military colony (template_structure_civic_civil_centre_military_colony)
+//    both phases and hellenistic_metropolis;
+//  - Han: the Civic Center (and court) drop unlock_spies and spy_counter, which the
+//    ministry researches; the forge drops archer_attack_spread, which the barracks and
+//    stable research;
+//  - the Mauryan palace researches unlock_spies and spy_counter too;
+//  - Carthage: the dock drops warship_health, and the super dock (cart/super_dock) researches
+//    it and eight other dock techs.
+inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
 	const uint8_t r = tech_info(tech_id).researcher;
+	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
+	if (civ == CIV_HAN) {
+		if (spies) return type == BLD_MINISTRY;
+		if (tech_id == TECH_ARCHER_ATTACK_SPREAD) return type == BLD_BARRACKS || type == BLD_STABLE;
+	}
+	if (spies && type == BLD_PALACE) return true;
+	if (civ == CIV_CARTHAGINIANS) {
+		if (type == BLD_DOCK && tech_id == TECH_WARSHIP_HEALTH) return false;
+		if (type == BLD_SUPER_DOCK) {
+			switch (tech_id) {
+			case TECH_DOCK_EFFICIENCY: case TECH_SHIP_VISION: case TECH_EXPLORATION:
+			case TECH_WARSHIP_ARROW_ATTACK: case TECH_WARSHIP_RAMMING_ATTACK: case TECH_WARSHIP_FIRESHIP_ATTACK:
+			case TECH_WARSHIP_SIEGE_ATTACK: case TECH_WARSHIP_RANGED_ATTACK: case TECH_WARSHIP_HEALTH: return true;
+			default: break;
+			}
+		}
+	}
 	switch (type) {
 	case BLD_CRANNOG:
 		return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN && tech_id != TECH_HELLENISTIC_METROPOLIS;

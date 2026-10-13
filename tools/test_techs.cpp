@@ -103,17 +103,35 @@ int main() {
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, barracks) == Simulation::TECH_ERR_BUILDING);
 	// 0.28 crannog.xml drops -phase_town_{civ} and -hellenistic_metropolis from the
 	// Civic Center list it otherwise keeps (City Phase stays).
-	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_PHASE_TOWN));
-	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_HELLENISTIC_METROPOLIS));
-	CHECK(building_researches_tech(BLD_CRANNOG, TECH_PHASE_CITY));
-	CHECK(!building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_TOWN)); // civil_centre_court -phase_town_{civ}
-	CHECK(building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_CITY));
+	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_PHASE_TOWN, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_HELLENISTIC_METROPOLIS, CIV_BRITONS));
+	CHECK(building_researches_tech(BLD_CRANNOG, TECH_PHASE_CITY, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_TOWN, CIV_HAN)); // civil_centre_court -phase_town_{civ}
+	CHECK(building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_CITY, CIV_HAN));
 	// The Ptolemaic military colony: the Civic Center list less both phases and the metropolis.
-	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_TOWN));
-	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_CITY));
-	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_HELLENISTIC_METROPOLIS));
-	CHECK(building_researches_tech(BLD_MILITARY_COLONY, TECH_ARCHERY_TRADITION));
-	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_FARMING_1));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_TOWN, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_CITY, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_HELLENISTIC_METROPOLIS, CIV_BRITONS));
+	CHECK(building_researches_tech(BLD_MILITARY_COLONY, TECH_ARCHERY_TRADITION, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_FARMING_1, CIV_BRITONS));
+	// Espionage moved to the Civic Center (template_structure_civic_civil_centre); the Han
+	// research it at the ministry, the Mauryans at the palace too.
+	CHECK(building_researches_tech(BLD_TOWN_CENTER, TECH_UNLOCK_SPIES, CIV_ATHENIANS));
+	CHECK(!building_researches_tech(BLD_MARKET, TECH_UNLOCK_SPIES, CIV_ATHENIANS));
+	CHECK(!building_researches_tech(BLD_TOWN_CENTER, TECH_SPY_COUNTER, CIV_HAN));
+	CHECK(building_researches_tech(BLD_MINISTRY, TECH_SPY_COUNTER, CIV_HAN));
+	CHECK(building_researches_tech(BLD_PALACE, TECH_UNLOCK_SPIES, CIV_MAURYANS));
+	// Han archery training is at the barracks and stable, not the forge.
+	CHECK(!building_researches_tech(BLD_FORGE, TECH_ARCHER_ATTACK_SPREAD, CIV_HAN));
+	CHECK(building_researches_tech(BLD_STABLE, TECH_ARCHER_ATTACK_SPREAD, CIV_HAN));
+	CHECK(building_researches_tech(BLD_FORGE, TECH_ARCHER_ATTACK_SPREAD, CIV_ATHENIANS));
+	// Carthage's dock drops Undergirding Cables; the super dock researches it.
+	CHECK(!building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_CARTHAGINIANS));
+	CHECK(building_researches_tech(BLD_SUPER_DOCK, TECH_WARSHIP_HEALTH, CIV_CARTHAGINIANS));
+	CHECK(building_researches_tech(BLD_SUPER_DOCK, TECH_EXPLORATION, CIV_CARTHAGINIANS));
+	CHECK(building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_ROMANS));
+	CHECK(!tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS)); // cart/dock -ship_movement_speed
+	CHECK(!tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_HAN)); // han/arsenal -siege_bolt_accuracy
 	{
 		Simulation c;
 		fresh(c);

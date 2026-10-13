@@ -4086,7 +4086,7 @@ void RtsoMain::update_command_panel() {
 			// out with the reason research_check() gives.
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (!rtso::building_researches_tech(found_b->type, (uint8_t)t) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (!rtso::building_researches_tech(found_b->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
