@@ -7137,7 +7137,7 @@ void Simulation::gain_xp(size_t idx, float amount) {
 // own entities deal to another player's (not Gaia's, not its own). The total feeds the
 // battle music; it is presentation state, so it is neither saved nor hashed.
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-		bool target_is_building, float damage) {
+		bool target_is_building, float damage, bool melee) {
 	if (!(damage > 0.0f)) return;
 	// The Attacked message for the session's AttackDetection (presentation only).
 	if (attacked_events_.size() < kMaxAttackedEvents) {
@@ -7148,7 +7148,7 @@ void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uin
 		} else if (int32_t u = lookup_unit(target_id); u >= 0) {
 			x = units_.pos_x[u], z = units_.pos_z[u];
 		}
-		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage});
+		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage, (uint8_t)melee});
 	}
 	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
 	battle_damage_[attacker_owner] += damage;
@@ -10269,7 +10269,7 @@ void Simulation::tick_combat(float dt) {
 
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
-			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg);
+			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
 			if (!invulnerable(units_.id[t])) units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
@@ -10410,7 +10410,7 @@ void Simulation::tick_combat(float dt) {
 			           bld_dmg, units_.team[i], b.id, EFFECT_NONE, 2, true, vis, units_.id[i],
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
-			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg);
+			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg, true);
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
 				raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);

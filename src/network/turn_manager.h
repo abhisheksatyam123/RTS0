@@ -111,9 +111,14 @@ public:
 	bool is_observer() const;
 	bool apply_pending_rejoin(Simulation &sim);
 	bool rejoin_requested() const { return rejoin_wanted_; }
+	// Client: the host's NMT_GAME_START seated us, so the request made at
+	// connect is moot and must not be asked again (apply_pending_rejoin).
+	void cancel_rejoin() { rejoin_wanted_ = false; }
 	bool rejoined() const { return rejoined_; }
 	uint32_t rejoin_turn() const { return rejoin_turn_; }
 	uint8_t rejoin_reject_reason() const { return rejoin_reject_; }
+	// Client: the host is sending its world for our rejoin (0 A.D. join_syncing).
+	bool rejoin_syncing() const { return rejoin_have_header_ && !rejoined_; }
 	// 0 A.D. "Waiting for players": the lockstep clients whose batch the next turn
 	// still needs, and how long this peer has been held (0 while turns run).
 	std::vector<uint32_t> waiting_on();

@@ -389,6 +389,13 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	};
 	if (!net_game_started() || current_turn_ == 0) { reject(2); return; }
 	ensure_lockstep_peers();
+	// A player seated at Start that still plays: its request from game setup
+	// came late (a slow load outlasts REJOIN_RETRY_MS, so it asks again). It
+	// is in the match already; serving it would drop it from the lockstep.
+	if (peer_active(client_id) && !lockstep_since_.count(client_id) && !observer_requests_.count(client_id)) {
+		reject(2);
+		return;
+	}
 	// A repeated request (the transfer stalled): start over from this turn.
 	lockstep_peers_.erase(std::remove(lockstep_peers_.begin(), lockstep_peers_.end(), client_id), lockstep_peers_.end());
 	lockstep_since_.erase(client_id);
