@@ -76,6 +76,9 @@ SLOTS = {
                [["medit_fan_palm", "medit_fan_palm"], ["aleppo_pine", "aleppo_pine"],
                 ["poplar_lombardy", "poplar_lombardy"]]),
     "lorraine_plain": ([["euro_beech", "euro_beech"]], ["oak", "euro_beech"], [["oak", "oak"]]),
+    # oPalms by the Nile; the stragglers' acacia, dead and bush_badlands (one bush to two trees).
+    "lower_nubia": ([["date_palm", "palm_tropic"]], ["acacia", "acacia", "dead", "dead", "bush_badlands"],
+                    [["medit_fan_palm", "cretan_date_palm_tall"]]),
     "northern_lights": ([["pine_w", "pine_w"]], ["pine_w"], [["pine_w", "pine_w"]]),
     "oasis_0ad": ([["cretan_date_palm_short", "cretan_date_palm_tall"]], ["cretan_date_palm_short"],
                   [["cretan_date_palm_tall", "cretan_date_palm_short"]]),

@@ -2,12 +2,13 @@
 """Bake the random-map heightmap images into a C++ header.
 
 0 A.D.'s Hellas, Red Sea, Mediterranean, Pompeii, Elephantine, Marmara,
-Bahrain and Ratumacos scripts
+Bahrain, Ratumacos and Lower Nubia scripts
 paint the map from a greyscale PNG (Engine.LoadHeightmapImage). The headless
 simulation has no image decoder, so this script decodes the PNGs in
 assets/maps/heightmaps/ (8-bit or 1-bit grey; 1-bit samples become 0 or
 255), halves them with a 2x2 box filter (512 -> 256, Hellas 720 -> 360; the
-RTS0 grid is at most 257 vertices across) and writes the 8-bit samples to
+RTS0 grid is at most 257 vertices across; Lower Nubia's composite stays full
+size, as its Nile is a pixel wide) and writes the 8-bit samples to
 src/simulation/heightmap_images.h as base64 chunks.
 
 Run from the repo root after changing an image:
@@ -38,6 +39,11 @@ IMAGES = [
     ("pompeii", "assets/maps/heightmaps/pompeii.png", 2),
     ("elephantine", "assets/maps/heightmaps/elephantine.png", 2),
     ("jebel_barkal", "assets/maps/heightmaps/jebel_barkal.png", 2),
+    # lower_nubia.js loads three images and composes them before painting (compose_lower_nubia); kept
+    # full size, as a halved one-pixel Nile would come out shallower than the script's sampling of it.
+    ("lower_nubia", ("assets/maps/heightmaps/lower_nubia_heightmap.png",
+                     "assets/maps/heightmaps/lower_nubia_land_threshold.png",
+                     "assets/maps/heightmaps/lower_nubia_water_threshold.png"), 1),
 ]
 # jebel_barkal.pmp's lowest and highest raw heights, the black and white of jebel_barkal.png.
 PMP_RANGE = (23170, 33144)
@@ -87,6 +93,15 @@ def decode_grey8(path):
     return w, h, rows
 
 
+def compose_lower_nubia(land, land_threshold, water_threshold):
+    """lower_nubia.js "Composing heightmap": the elevation where either threshold image is set, else
+    minHeight (-3 of HeightmapPainter's -3..150, black here). Done at full size, before halving, so the
+    one-pixel Nile keeps its share of the average."""
+    w, h, rows = land
+    lt, wt = land_threshold[2], water_threshold[2]
+    return w, h, [bytearray(rows[y][x] if lt[y][x] or wt[y][x] else 0 for x in range(w)) for y in range(h)]
+
+
 def downscale(w, h, rows, k):
     ow, oh = w // k, h // k
     out = bytearray(ow * oh)
@@ -130,11 +145,18 @@ def main():
         "// elephantine: river outline from OpenStreetMap data (c) OpenStreetMap\n",
         "// contributors, ODbL 1.0.\n",
         "// jebel_barkal: 0 A.D.'s maps/random/jebel_barkal.pmp heights (CC BY-SA 3.0).\n",
+        "// lower_nubia: composed from its heightmap and two threshold images, the water\n",
+        "// one from NASA Blue Marble imagery (Jesse Allen, NASA's Earth Observatory);\n",
+        "// public domain.\n",
         "// Row-major, row 0 = top (north) of the image, base64 of 8-bit samples.\n",
         "#pragma once\n\nnamespace rtso::heightmap_images {\n\n",
     ]
     for sym, rel, k in IMAGES:
-        w, h, rows = decode_grey8(ROOT / rel)
+        if isinstance(rel, tuple):
+            w, h, rows = compose_lower_nubia(*(decode_grey8(ROOT / r) for r in rel))
+            rel = rel[0].replace("_heightmap.png", "_*.png")
+        else:
+            w, h, rows = decode_grey8(ROOT / rel)
         ow, oh, px = downscale(w, h, rows, k)
         b64 = base64.b64encode(bytes(px)).decode()
         chunks = [b64[i:i + CHUNK] for i in range(0, len(b64), CHUNK)]

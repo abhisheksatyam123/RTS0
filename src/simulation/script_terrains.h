@@ -274,6 +274,19 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"lorraine_plain", {{FLORA_BEECH, FLORA_BEECH}}, {FLORA_OAK, FLORA_BEECH}, {{FLORA_OAK, FLORA_OAK}},
 		  FLORA_BERRY,
 		  {{200, 200}}, {200, 200}, {{200, 200}}}},
+		// lower_nubia.js: tSand everywhere, tPlateau above heightPlateau2 (heightScale(38): the band is its 30.4 m on
+		// a 256-tile map), tCliffUpper on cliffs, tRoad city patches, tWater below the water line. No forest floor,
+		// tiers or hills, so those reuse tSand; mine dirt reuses tPlateau. The Nile palms (oPalms) take the forest
+		// slots (date palms, palm_tropic, medit_fan_palm); tree3 holds the straggler acacias, dead trees and
+		// bush_badlands (one bush to two trees), which plant_flora mixes per tree on this map.
+		{"lower_nubia",
+		 {"lower_nubia", {"desert_sand_dunes_100"}, {"desert_sand_dunes_100"}, {},
+		  {"medit_cliff_italia", "medit_cliff_italia_grass"}, {"desert_sand_dunes_100"}, {"savanna_dirt_a", "savanna_dirt_b"},
+		  "savanna_tile_a", "savanna_tile_a", "desert_sand_wet", "desert_sand_wet", "desert_sand_wet"},
+		 {"lower_nubia", {{FLORA_PALM, FLORA_TROPIC_PALM}}, {FLORA_ACACIA, FLORA_ACACIA, FLORA_DEAD, FLORA_DEAD, FLORA_BUSH},
+		  {{FLORA_FAN_PALM, FLORA_PALM}}, FLORA_BERRY,
+		  {{200, 200}}, {200, 200, 200, 200, 100}, {{200, 200}}},
+		 {{30.4f, 1e9f, {"savanna_dirt_a", "savanna_dirt_b"}}}},
 		// northern_lights.js: winter pines only and no fruit bush; no hills or dirt, so hill reuses tSnowE and tCliff,
 		// dirt tForestFloor.
 		{"northern_lights",
