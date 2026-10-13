@@ -37,6 +37,7 @@ struct PendingReliablePacket {
 	uint16_t dest_port = 0;
 	std::vector<uint8_t> packet_data;
 	uint64_t sent_time_ms = 0;
+	uint64_t first_sent_ms = 0;
 	int retry_count = 0;
 };
 
