@@ -45,7 +45,7 @@ const RMS_MAPS := [
 	["random_danubius", "Danubius (RMS)", "Random", 4, 128, "temperate", "Meandering dual-channel river with fords and a central island. Supports 2-4 players."],
 	["random_saharan_oases", "Saharan Oases (RMS)", "Random", 8, 128, "oasis", "Arid dunes, date palm groves, and freshwater oases. Supports 2-8 players."],
 	["random_anatolian_plateau", "Anatolian Plateau (RMS)", "Random", 8, 128, "steppe", "High plateau steppe with canyon ravines and rich minerals. Supports 2-8 players."],
-	["random_jebel_barkal", "Jebel Barkal (RMS)", "Random", 8, 128, "savanna", "Central sandstone mesa with high-ground advantage. Supports 2-8 players."],
+	["random_jebel_barkal", "Jebel Barkal (RMS)", "Random", 8, 128, "savanna", "The Nile and the hill of Jebel Barkal, with the walled Kushite city of Napata that patrols and attacks. Supports 2-8 players."],
 	["random_mainland", "Mainland (RMS)", "Random", 8, 128, "mediterranean", "Open rolling land with no water barriers. Supports 2-8 players."],
 	["random_alpine_lakes", "Alpine Lakes (RMS)", "Random", 8, 128, "alpine", "Ridged mountains cradling cold lakes. Supports 2-8 players."],
 	["random_lake", "Lake (RMS)", "Random", 8, 128, "temperate", "A great central lake ringed by the players. Supports 2-8 players."],

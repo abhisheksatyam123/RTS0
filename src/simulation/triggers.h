@@ -83,6 +83,10 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_DANUBIUS_UNLOAD_ORDER = 25,     // UngarrisonShipsOrder
 	TRIGGER_ACTION_DANUBIUS_SHIP_RANGE = 26,       // CheckShipRange
 	TRIGGER_ACTION_DANUBIUS_OWNERSHIP = 27,        // DanubiusOwnershipChange
+	TRIGGER_ACTION_JEBEL_BARKAL_INIT = 28,         // jebel_barkal_triggers.js JebelBarkal_Init
+	TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL = 29,  // JebelBarkal_SpawnCityPatrolGroups
+	TRIGGER_ACTION_JEBEL_BARKAL_ATTACK = 30,       // JebelBarkal_SpawnAttackerGroups
+	TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP = 31,    // JebelBarkal_OwnershipChange
 	TRIGGER_ACTION_COUNT
 };
 

@@ -546,50 +546,6 @@ void HeightmapGrid::apply_sinusoidal_dunes(float angle_rad, float wavelength, fl
 	}
 }
 
-void HeightmapGrid::raise_sandstone_mesa(float center_wx, float center_wz, float radius_base, float radius_top, float height_gain, float ramp1_angle_rad, float ramp2_angle_rad, float ramp_width_rad) {
-	float step = (map_half * 2.0f) / (float)(res - 1);
-
-	for (int z = 0; z < res; ++z) {
-		float wz = -map_half + z * step;
-		for (int x = 0; x < res; ++x) {
-			float wx = -map_half + x * step;
-			float dx = wx - center_wx;
-			float dz = wz - center_wz;
-			float dist = std::sqrt(dx * dx + dz * dz);
-
-			if (dist > radius_base) continue;
-
-			float angle = std::atan2(dz, dx);
-
-			auto check_ramp = [&](float ramp_angle) {
-				float diff = std::abs(angle - ramp_angle);
-				while (diff > 3.14159265f) diff = std::abs(diff - 6.2831853f);
-				return diff;
-			};
-
-			float diff1 = check_ramp(ramp1_angle_rad);
-			float diff2 = check_ramp(ramp2_angle_rad);
-			float min_ramp_diff = std::min(diff1, diff2);
-
-			if (min_ramp_diff < ramp_width_rad && dist > radius_top * 0.4f) {
-				// Access ramp sector: natural slope up the cliff face
-				float t_dist = (dist - radius_top * 0.4f) / (radius_base - radius_top * 0.4f);
-				float ramp_h = height_gain * (1.0f - t_dist);
-				float lateral_blend = 1.0f - (min_ramp_diff / ramp_width_rad);
-				add(x, z, ramp_h * lateral_blend + height_gain * (1.0f - lateral_blend) * (1.0f - smoothstep(radius_top, radius_base, dist)));
-			} else if (dist <= radius_top) {
-				// Mesa summit plateau
-				add(x, z, height_gain);
-			} else {
-				// Sheer sandstone cliff face
-				float t = smoothstep(radius_top, radius_base, dist);
-				float cliff_drop = std::pow(1.0f - t, 0.7f);
-				add(x, z, height_gain * cliff_drop);
-			}
-		}
-	}
-}
-
 void HeightmapGrid::carve_canyon_network(RmsRng &rng, float border_margin, float canyon_width, float canyon_depth) {
 	(void)rng;
 	float half = map_half;
@@ -1060,58 +1016,6 @@ void RmsGenerator::synth_anatolian_plateau(HeightmapGrid &hm, RmsRng &rng, float
 		float bh = std::max(6.0f, hm.sample_world(sx, sz));
 
 		hm.level_area(sx, sz, 15.0f, 6.0f, bh);
-		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
-	}
-}
-
-void RmsGenerator::synth_jebel_barkal(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	water_h = 0.0f;
-	hm.init(hm.res, hm.map_half, 2.0f); // Savanna base level
-
-	float half = hm.map_half;
-
-	// 1. Savanna Rolling Base Terrain
-	hm.apply_fbm(rng, 3, 0.026f, 0.52f, 2.0f, 2.2f);
-
-	// 2. Flanking Nile River along southern border
-	std::vector<std::pair<float, float>> nile_river = {
-		{-half * 0.95f, -half * 0.72f},
-		{-half * 0.45f, -half * 0.76f},
-		{0.0f,          -half * 0.80f},
-		{half * 0.45f,  -half * 0.74f},
-		{half * 0.95f,  -half * 0.70f}
-	};
-	hm.carve_spline_path(nile_river, 5.0f, 2.5f, water_h);
-
-	// 3. Iconic Central Sandstone Mesa (Jebel Barkal)
-	// Base radius 18m, Summit top radius 11m, Height gain +13.5m, North & South access ramps
-	float ramp1_angle = 3.14159265f * 0.5f;  // North ramp
-	float ramp2_angle = -3.14159265f * 0.5f; // South ramp
-	hm.raise_sandstone_mesa(0.0f, half * 0.06f, 18.0f, 11.0f, 13.5f, ramp1_angle, ramp2_angle, 0.55f);
-
-	// Flat high-ground summit plateau
-	hm.level_area(0.0f, half * 0.06f, 9.0f, 2.5f, 15.5f);
-
-	// 4. Surrounding Savanna Outcrops & Hillocks
-	hm.raise_plateau(-half * 0.48f,  half * 0.42f, 8.0f, 0.0f, 0.5f, 4.0f, 3.0f);
-	hm.raise_plateau( half * 0.48f,  half * 0.42f, 8.0f, 3.14f, 0.5f, 4.0f, 3.0f);
-
-	hm.blur(1, 0.32f);
-	// Re-level summit for clean unit combat
-	hm.level_area(0.0f, half * 0.06f, 8.5f, 2.0f, 15.5f);
-
-	// 5. Surrounding Savanna Player Spawns facing Jebel Barkal
-	spawns.clear();
-	float spawn_r = half * 0.56f;
-	for (int i = 0; i < num_players; ++i) {
-		float angle = (6.2831853f * i) / (float)num_players + 0.40f;
-		float sx = std::cos(angle) * spawn_r;
-		float sz = std::sin(angle) * spawn_r + half * 0.06f;
-		float fx = -std::cos(angle);
-		float fz = -std::sin(angle);
-		float bh = std::max(water_h + 1.2f, hm.sample_world(sx, sz));
-
-		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
 		spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
 	}
 }
@@ -3991,20 +3895,6 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 			float mz = rim_mines[mi].second;
 			sim.spawn_resource_world(mx, mz, mtype, LARGE_MINE_SUPPLY);
 		}
-	} else if (config.map_type == MAP_JEBEL_BARKAL) {
-		// Summit of Jebel Barkal high-ground treasure & quarries
-		float mesa_z = half * 0.06f;
-		sim.spawn_resource_world(-2.5f, mesa_z, RES_GOLD, MINE_SUPPLY);
-		sim.spawn_resource_world( 2.5f, mesa_z, RES_GOLD, MINE_SUPPLY);
-		sim.spawn_resource_world( 0.0f, mesa_z + 2.5f, RES_STONE, MINE_SUPPLY);
-		sim.spawn_resource_world( 0.0f, mesa_z - 2.5f, RES_STONE, MINE_SUPPLY);
-		for (int t = 0; t < 6; ++t) {
-			float a = (6.2831853f * t) / 6.0f;
-			spawn_trees(sim, hm, std::cos(a) * 4.5f, mesa_z + std::sin(a) * 4.5f, water_h + 0.3f);
-		}
-		// Surrounding savanna quarries along base
-		sim.spawn_resource_world(-half * 0.48f,  half * 0.42f, RES_STONE, LARGE_MINE_SUPPLY);
-		sim.spawn_resource_world( half * 0.48f,  half * 0.42f, RES_STONE, LARGE_MINE_SUPPLY);
 	}
 
 	if (config.map_type == MAP_PHOENICIAN_LEVANT || config.map_type == MAP_BAHRAIN) {
@@ -4222,7 +4112,6 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 			sim.spawn_ruins(0.0f, 0.0f, ruins_type_by_name("unfinished_greek_temple"));
 			break;
 		// RTS0 landmark: a rich treasure on the summit of Jebel Barkal.
-		case MAP_JEBEL_BARKAL: sim.spawn_treasure(0.0f, half * 0.06f, TREASURE_METAL_PERSIAN_BIG); break;
 		default: break;
 	}
 }
@@ -7557,6 +7446,930 @@ void RmsGenerator::synth_elephantine(HeightmapGrid &hm, RmsRng &rng, float &wate
 	finish_spawns(hm, spawns, locs, land, 18.0f, water_h);
 }
 
+// =========================================================================
+// maps/random/jebel_barkal.js: the Kushite city of Napata at the foot of
+// Jebel Barkal. rmgen works in tiles from the map's south-west corner with y
+// up the map; RTS0's z runs the other way, so a point (x, y) of the script
+// is (x, -y) here (centred) and its angles are mirrored.
+// =========================================================================
+
+namespace {
+namespace jebel {
+
+// getDifficulty(): RTS0 has no trigger difficulty setting yet, so the map is built at the
+// script's default, Medium (data/settings/trigger_difficulties.json: 3), as TriggerState's.
+constexpr int kDifficulty = 3;
+// jebel_barkal.png (tools/gen_heightmap_images.py) holds the PMP's raw heights 23170..33144 as
+// 0..255: 255 is 797 x 9974 / 65535 m above 0 on a 320 tile map (HeightmapPainter maps
+// 0..0xFFFF to minHeightSource 3..maxHeightSource 800).
+constexpr float kImageSpanMetres = 797.0f * (33144.0f - 23170.0f) / 65535.0f;
+constexpr float kPi = 3.14159265f;
+constexpr float kRiverAngle = 0.05f * kPi;
+constexpr float kPathWidth = 4.0f, kPathWidthCenter = 10.0f, kPathWidthSecondary = 6.0f;
+
+const std::vector<uint8_t> &image() {
+	static const std::vector<uint8_t> img = decode_heightmap_image(heightmap_images::jebel_barkal_b64, heightmap_images::jebel_barkal_size);
+	return img;
+}
+
+// A point in the script's frame, centred on the map.
+struct P {
+	float x, y;
+};
+inline P rot_ccw(P p, float a) { // Vector2D.rotate(-a)
+	const float c = std::cos(a), s = std::sin(a);
+	return {p.x * c - p.y * s, p.x * s + p.y * c};
+}
+inline P polar_p(P c, float r, float a) { return {c.x + r * std::cos(a), c.y + r * std::sin(a)}; } // c + Vector2D(r, 0).rotate(-a)
+inline P round_p(P p, float half) { return {std::round(p.x + half) - half, std::round(p.y + half) - half}; }
+inline P from_world(float x, float z) { return {x, -z}; }
+inline float world_x(P p) { return p.x; }
+inline float world_z(P p) { return -p.y; }
+
+// napata_wall and napata_palisade in tiles: the tower, the segment (both "short" and "medium"
+// are the medium piece) and the gate (kush/wall_*: 8, 24 and 36 m; palisades_*: 3, 9, 14 m).
+struct WallLengths {
+	float tower, segment, gate;
+};
+inline WallLengths wall_lengths(uint8_t kind) {
+	return kind == WALLSET_PALISADE ? WallLengths{0.75f, 2.25f, 3.5f} : WallLengths{2.0f, 6.0f, 9.0f};
+}
+
+inline float footprint_half(uint8_t type) { return (float)building_type_info(type).footprint * Simulation::GRID * 0.5f; }
+
+// Slope in 0 A.D. metres per tile (rmgen getSlope: the steepest step to a neighbour).
+std::vector<float> slopes(const HeightmapGrid &hm) {
+	const int res = hm.res;
+	const float sp = grid_spacing(hm);
+	std::vector<float> s(hm.data.size(), 0.0f);
+	for (int z = 0; z < res; ++z)
+		for (int x = 0; x < res; ++x) {
+			const float h = hm.get(x, z);
+			float m = 0.0f;
+			if (x > 0) m = std::max(m, std::fabs(hm.get(x - 1, z) - h));
+			if (z > 0) m = std::max(m, std::fabs(hm.get(x, z - 1) - h));
+			if (x < res - 1) m = std::max(m, std::fabs(hm.get(x + 1, z) - h));
+			if (z < res - 1) m = std::max(m, std::fabs(hm.get(x, z + 1) - h));
+			s[(size_t)z * (size_t)res + (size_t)x] = m / sp / kMetre;
+		}
+	return s;
+}
+
+} // namespace jebel
+} // namespace
+
+void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams, JebelBarkalLayout &out) {
+	// jebel_barkal.js: the hill from a 0 A.D. terrain file (LoadMapTerrain("jebel_barkal.pmp"),
+	// translated 12 tiles west and scaleByMapSize(12, 25) south), the land below the map
+	// centre's height raised to it (the desert), and along the south edge (paintRiver, turned
+	// riverAngle 0.05 pi, meanderShort 40) the fertile land 0.33 of the map deep 2 m lower and
+	// the Nile 0.1 of the map deep down to -8 m (heights x mapSize / 320 as heightScale).
+	// Irrigation canals cross the fertile land, fords between them; players stand on two arcs
+	// (playerPlacementArcs at 0.38 of the map, riverAngle - pi/2, 0.05 to 0.55 pi); the
+	// pyramids in the north-west; Napata round the hill's foot: a grid of paths on a circle
+	// segment (centre 0.3 of the map north, radius hillRadius + 18 per row) with the temples
+	// on its inner row, a ritual place, districts between the paths, a wall round it from 192
+	// tiles, roads from its gates, and bumps. RTS0 keeps the banks at least at their heights on
+	// a 320 tile map (smaller maps would sink the fertile land under RTS0's shore) and the fords
+	// wadeable. place_jebel_barkal_entities puts up the city and its soldiers.
+	using namespace misc_maps;
+	using namespace jebel;
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const size_t N = hm.data.size();
+	auto sc = [&](float a, float b) { return seas_scale(a, b, half); };
+	const float hs = size / 320.0f, hw = std::max(hs, 1.0f);
+	out = JebelBarkalLayout();
+	const float h_fertile = metres(water_h, 3.0f * hw), h_desert = metres(water_h, 5.0f * hw);
+	const float h_passage = std::max(metres(water_h, -1.5f * hw), wade_height(water_h) + 0.02f);
+	const float h_canal = metres(water_h, -4.0f * hw), h_sea = metres(water_h, -8.0f * hw);
+	const float h_hill = h_desert + 4.0f * hs * kMetre, h_hilltop = h_hill + 90.0f * hs * kMetre;
+	out.height_hill = h_hill;
+	out.height_hilltop = h_hilltop;
+	out.height_archers = (h_hill + h_hilltop) / 2.0f;
+	auto vertex_p = [&](size_t i) {
+		float x, z;
+		seas_world(hm, (int)i, x, z);
+		return from_world(x, z);
+	};
+
+	// The hill, and the flat desert round it.
+	{
+		const auto &img = image();
+		const int n = heightmap_images::jebel_barkal_size;
+		const float to_src = 321.0f / (size + 1.0f), off_y = std::round(sc(-12.0f, -25.0f));
+		auto grey = [&](P p) {
+			const float sx = (p.x + half) * to_src - 12.0f, sy = (p.y + half) * to_src + off_y;
+			if (sx < 0.0f || sy < 0.0f || sx > 320.0f || sy > 320.0f) return 0.0f; // translateHeightmap's default: the lowest
+			return sample_image_bicubic(img, n, (sx - 0.5f) / 2.0f, (320.0f - sy - 0.5f) / 2.0f);
+		};
+		const float centre = grey({0.0f, 0.0f});
+		const float per_grey = kImageSpanMetres / 255.0f * (size + 1.0f) / 321.0f * kMetre;
+		for (size_t i = 0; i < N; ++i) hm.data[i] = h_desert + std::max(0.0f, grey(vertex_p(i)) - centre) * per_grey;
+	}
+
+	// paintRiver along the south edge with both banks meandering alike ("parallel").
+	const P r_start = rot_ccw({-half, -half}, kRiverAngle), r_end = rot_ccw({half, -half}, kRiverAngle);
+	auto river = [&](float width, float fade, float bed, float land, std::vector<uint8_t> *mark) {
+		const double ms = size * 40.0 / sc(35.0f, 160.0f);
+		const double seed = rng.range_float(2.0f, 3.0f);
+		rng.range_float(2.0f, 3.0f); // the other bank's seed and angle, unused when parallel
+		const double ang = rng.range_float(0.0f, 1.0f);
+		rng.range_float(0.0f, 1.0f);
+		const float len = std::hypot(r_start.x - r_end.x, r_start.y - r_end.y);
+		const float ux = (r_start.x - r_end.x) / len, uy = (r_start.y - r_end.y) / len;
+		for (size_t i = 0; i < N; ++i) {
+			const P p = vertex_p(i);
+			const float d = ux * (p.y - r_end.y) - uy * (p.x - r_end.x); // distanceOfPointFromLine
+			const float fx = p.x + uy * d, fy = p.y - ux * d;           // its foot on the line
+			const float along = -(fx - r_start.x) * ux - (fy - r_start.y) * uy;
+			if (along < 0.0f || along > len) continue;
+			const double c = ms * seas_rnd_river(ang + size * (along / len) / 128.0, seed);
+			const double sd1 = c + d - width / 2.0f, sd2 = c + d + width / 2.0f;
+			if (!(sd1 < 0.0 && sd2 > 0.0)) continue;
+			double h = bed;
+			if (sd1 > -fade) h += (land - bed) * (1.0 + sd1 / fade);
+			else if (sd2 < fade) h += (land - bed) * (1.0 - sd2 / fade);
+			hm.data[i] = (float)h;
+			if (mark) (*mark)[i] = 1;
+		}
+	};
+	std::vector<uint8_t> fertile(N, 0);
+	river(0.66f * size, 8.0f, h_fertile, h_desert, &fertile);
+	river(0.2f * size, 4.0f, h_sea, h_fertile, nullptr);
+
+	// sortAllPlayers, partitionPlayers (teams on one side each, filled greedily, the players
+	// without a team alone; one team splits in half) and playerPlacementArcs.
+	std::vector<std::pair<float, float>> locs((size_t)num_players);
+	{
+		const auto ids = sort_all_players(rng, num_players, teams);
+		std::vector<int> team_ids;
+		std::vector<std::vector<int>> groups;
+		for (int id : ids) {
+			const int t = teams ? teams[id] : 0;
+			const auto it = std::find(team_ids.begin(), team_ids.end(), t);
+			if (it == team_ids.end()) {
+				team_ids.push_back(t);
+				groups.push_back({id});
+			} else {
+				groups[(size_t)(it - team_ids.begin())].push_back(id);
+			}
+		}
+		const auto none = std::find(team_ids.begin(), team_ids.end(), 0);
+		if (none != team_ids.end()) {
+			const size_t k = (size_t)(none - team_ids.begin());
+			const std::vector<int> alone = groups[k];
+			groups.erase(groups.begin() + (long)k);
+			for (int id : alone) groups.push_back({id});
+		}
+		if (groups.size() == 1) {
+			const std::vector<int> all = groups[0];
+			const long mid = (long)all.size() / 2;
+			groups = {std::vector<int>(all.begin() + mid, all.end()), std::vector<int>(all.begin(), all.begin() + mid)};
+		}
+		std::stable_sort(groups.begin(), groups.end(), [](const auto &a, const auto &b) { return a.size() > b.size(); });
+		std::vector<int> east, west;
+		for (const auto &g : groups) {
+			auto &side = east.size() > west.size() ? west : east;
+			side.insert(side.end(), g.begin(), g.end());
+		}
+		const float map_angle = kRiverAngle - 0.5f * kPi, r = 0.38f * size;
+		auto arc = [&](const std::vector<int> &side, float a0, float a1) {
+			const int k = (int)side.size() + 2;
+			for (int j = 1; j + 1 < k; ++j) {
+				const P p = round_p(polar_p({0.0f, 0.0f}, r, a0 + (a1 - a0) * (float)j / (float)(k - 1)), half);
+				locs[(size_t)side[(size_t)j - 1]] = {world_x(p), world_z(p)};
+			}
+		};
+		arc(east, map_angle + 0.05f * kPi, map_angle + 0.55f * kPi);
+		arc(west, map_angle - 0.05f * kPi, map_angle - 0.55f * kPi);
+	}
+	const auto to_player = seas_dist_to_players(hm, locs, 5.0f); // addCivicCenterAreaToClass: a disk of 5
+
+	// Water (no longer fertile) and the desert.
+	std::vector<uint8_t> water(N), desert(N);
+	for (size_t i = 0; i < N; ++i) {
+		water[i] = hm.data[i] < water_h;
+		if (water[i]) fertile[i] = 0;
+		desert[i] = hm.data[i] < h_hill && !water[i] && !fertile[i];
+	}
+
+	// Irrigation canals: 30 tries across the river, each kept 2 from the desert, dropped when
+	// within scaleByMapSize(8, 13) of a player or scaleByMapSize(15, 25) of another canal.
+	std::vector<uint8_t> canal(N, 0);
+	std::vector<float> canal_x; // across the river's frame
+	{
+		const auto to_desert = seas_dist_inside(hm, desert);
+		std::vector<std::vector<uint8_t>> areas;
+		for (int k = 0; k < 30; ++k) {
+			const float x = rng.range_float(0.0f, 1.0f) * size - half;
+			const P a = rot_ccw({x, -half}, kRiverAngle), b = rot_ccw({x, half}, kRiverAngle);
+			areas.push_back(seas_path(hm, rng, world_x(a), world_z(a), world_x(b), world_z(b), 3.0f, 0.0f, 10.0f, 0.1f, 0.01f, 1e9f,
+			                          [&](int i) { return to_desert[(size_t)i] > 2.0f; }));
+		}
+		const float player_gap = sc(8.0f, 13.0f), canal_gap = sc(15.0f, 25.0f);
+		for (const auto &m : areas) {
+			std::vector<size_t> pts;
+			for (size_t i = 0; i < N; ++i)
+				if (!m.empty() && m[i]) pts.push_back(i);
+			if (pts.empty()) continue;
+			const auto to_canal = seas_dist_inside(hm, canal);
+			bool ok = true;
+			for (size_t i : pts) ok = ok && to_player[i] > player_gap && to_canal[i] > canal_gap;
+			if (!ok) continue;
+			canal_x.push_back(rot_ccw(vertex_p(pts[(size_t)rng.range_int(0, (int)pts.size() - 1)]), -kRiverAngle).x);
+			// SmoothElevationPainter(ELEVATION_SET, heightIrrigationCanal, 1) where the ground is
+			// between the canal's and the desert's height.
+			std::vector<uint8_t> dig(N, 0);
+			for (size_t i : pts)
+				if (hm.data[i] >= h_canal && hm.data[i] <= h_desert) dig[i] = 1;
+			const auto inside = seas_dist_outside(hm, dig);
+			for (size_t i = 0; i < N; ++i)
+				if (dig[i]) {
+					hm.data[i] += (h_canal - hm.data[i]) * std::clamp(inside[i], 0.0f, 1.0f);
+					canal[i] = 1;
+				}
+		}
+	}
+	// Fords: between each pair of canals a passage parallel to the river, raised to a wadeable
+	// depth where it crosses a canal, each at another distance from the bank.
+	{
+		std::sort(canal_x.begin(), canal_x.end());
+		const float width = 0.33f * size;
+		const auto to_desert = seas_dist_inside(hm, desert);
+		const auto in_fertile = seas_dist_outside(hm, fertile);
+		float prev_y = (float)rng.range_int(0, (int)width);
+		for (size_t i = 0; i < canal_x.size(); ++i) {
+			const float prev = i == 0 ? -half : canal_x[i - 1], next = i + 1 == canal_x.size() ? half : canal_x[i + 1];
+			const float x1 = (canal_x[i] + prev) / 2.0f, x2 = (canal_x[i] + next) / 2.0f;
+			float y = 0.0f;
+			for (int tries = 0; tries < 100; ++tries) {
+				y = std::fmod(prev_y + (float)rng.range_int((int)(0.2f * width), (int)(0.8f * width)), width);
+				const P pos = round_p(rot_ccw({(x1 + x2) / 2.0f, y - half}, kRiverAngle), half);
+				const float h = hm.sample_world(world_x(pos), world_z(pos));
+				const size_t v = (size_t)seas_vertex(hm, world_x(pos), world_z(pos));
+				if (pos.x * pos.x + pos.y * pos.y < half * half && to_desert[v] > 12.0f && h >= h_canal && h <= h_fertile) break;
+			}
+			const P a = rot_ccw({x1, y - half}, kRiverAngle), b = rot_ccw({x2, y - half}, kRiverAngle);
+			const auto m = seas_path(hm, rng, world_x(a), world_z(a), world_x(b), world_z(b), 10.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1e9f,
+			                         [&](int v) { return hm.data[(size_t)v] <= h_passage && in_fertile[(size_t)v] > 2.0f; });
+			if (!seas_any(m)) continue;
+			for (size_t v = 0; v < N; ++v)
+				if (m[v]) hm.data[v] = h_passage;
+			prev_y = y;
+		}
+	}
+
+	// The city grid. layoutKushTemples by map size: Apedemak temples outside (the outer pair
+	// from 320 tiles), temples of Amun from 256 tiles, the Ptolemaic wonder in the middle.
+	const P pyramids = {0.15f * size - half, 0.75f * size - half};
+	out.pyramids[0] = world_x(pyramids);
+	out.pyramids[1] = world_z(pyramids);
+	out.pyramids_r = sc(5.0f, 14.0f);
+	const P grid_centre = round_p(rot_ccw({0.0f, 0.3f * size}, kRiverAngle), half);
+	const float hill_r = sc(40.0f, 120.0f);
+	struct Temple {
+		uint8_t type;
+		float path_offset, min_size;
+	};
+	std::vector<Temple> temples;
+	for (const Temple &t : {Temple{BLD_TEMPLE, 9.0f, 320.0f}, Temple{BLD_TEMPLE, 9.0f, 0.0f}, Temple{BLD_TEMPLE_AMUN, 12.0f, 256.0f},
+	                        Temple{BLD_WONDER, sc(9.0f, 14.0f), 0.0f}, Temple{BLD_TEMPLE_AMUN, 12.0f, 256.0f}, Temple{BLD_TEMPLE, 9.0f, 320.0f},
+	                        Temple{BLD_TEMPLE, 9.0f, 0.0f}})
+		if (size >= t.min_size) temples.push_back(t);
+	const int gx = (int)temples.size(), gy = (int)std::floor(sc(2.0f, 5.0f));
+	const int gxc = gx / 2, gyc = gy / 2;
+	const float max_a = std::min(sc(1.0f / 3.0f, 1.0f), 2.0f / 3.0f) * kPi;
+	const float start_a = -0.5f * kPi - max_a / 2.0f + kRiverAngle;
+	auto grid_r = [&](int y) { return hill_r + 18.0f * (float)y; };
+	std::vector<P> g((size_t)(gx * gy));
+	out.grid_x = gx;
+	out.grid_y = gy;
+	for (int y = 0; y < gy; ++y)
+		for (int x = 0; x < gx; ++x) {
+			const float a = start_a + max_a * (float)x / (float)std::max(1, gx - 1);
+			const P p = round_p(polar_p(grid_centre, grid_r(y), a), half);
+			g[(size_t)(y * gx + x)] = p;
+			out.grid.push_back(world_x(p));
+			out.grid.push_back(world_z(p));
+			out.grid_angle.push_back(a);
+		}
+	auto G = [&](int y, int x) { return g[(size_t)(y * gx + x)]; };
+	out.path.assign(N, 0);
+	out.crossing.assign(N, 0);
+	for (const P &p : g) {
+		mask_disk(hm, out.path, world_x(p), world_z(p), kPathWidth);
+		mask_disk(hm, out.crossing, world_x(p), world_z(p), kPathWidth);
+	}
+	auto path_line = [&](P a, P b, float width) { mask_capsule(hm, out.path, world_x(a), world_z(a), world_x(b), world_z(b), width / 2.0f); };
+	for (int y = 0; y < gy; ++y)
+		for (int x = 1; x < gx; ++x) path_line(G(y, x - 1), G(y, x), y == gyc ? kPathWidthSecondary : kPathWidth);
+	for (int y = 1; y < gy; ++y)
+		for (int x = 0; x < gx; ++x) {
+			const int d = std::abs(x - gxc);
+			path_line(G(y - 1, x), G(y, x), d == 0 ? kPathWidthCenter : d == 1 ? kPathWidthSecondary : kPathWidth);
+		}
+
+	// The temples, pathOffset tiles inward of the inner row, on ground blended towards the
+	// desert's height (ElevationBlendingPainter(heightDesert, 0.8)).
+	std::vector<uint8_t> temple_mask(N, 0);
+	std::vector<P> temple_pos;
+	for (int i = 0; i < gx; ++i) {
+		const float a = out.grid_angle[(size_t)i];
+		const P t = {G(0, i).x - temples[(size_t)i].path_offset * std::cos(a), G(0, i).y - temples[(size_t)i].path_offset * std::sin(a)};
+		temple_pos.push_back(t);
+		out.temples.push_back(temples[(size_t)i].type);
+		out.temple_pos.push_back(world_x(t));
+		out.temple_pos.push_back(world_z(t));
+		const float fh = footprint_half(temples[(size_t)i].type);
+		for (size_t v = 0; v < N; ++v) {
+			float x, z;
+			seas_world(hm, (int)v, x, z);
+			if (std::fabs(x - world_x(t)) <= fh && std::fabs(z - world_z(t)) <= fh) temple_mask[v] = 1;
+		}
+	}
+	for (size_t v = 0; v < N; ++v)
+		if (temple_mask[v]) hm.data[v] += 0.8f * (h_desert - hm.data[v]);
+
+	// The ritual place between the wonder, the temple beside it and their paths, sunk like a path.
+	{
+		const P a = temple_pos[(size_t)(gx / 2 - 1)], b = temple_pos[(size_t)((gx + 1) / 2 - 1)];
+		const P c = G(0, gxc), d = G(0, gxc - 1);
+		const P r = round_p({(a.x + b.x + c.x + d.x) / 4.0f, (a.y + b.y + c.y + d.y) / 4.0f}, half);
+		out.ritual[0] = world_x(r);
+		out.ritual[1] = world_z(r);
+		out.ritual_angle = (out.grid_angle[(size_t)gxc] + out.grid_angle[(size_t)(gxc - 1)]) / 2.0f + kPi / 2.0f;
+		std::vector<uint8_t> m(N, 0);
+		mask_disk(hm, m, world_x(r), world_z(r), sc(4.0f, 6.0f));
+		for (size_t v = 0; v < N; ++v) m[v] = m[v] && hm.data[v] < h_hill; // avoidClasses(clCliff, 1)
+		seas_paint_modify(hm, m, -2.5f * hs * kMetre, 2.0f);
+	}
+	seas_paint_modify(hm, out.path, -2.5f * hs * kMetre, 1.0f);
+
+	// The districts: each cell of the grid off the paths (ConvexPolygonPlacer), numbered from 1.
+	out.city.assign(N, 0);
+	for (int y = 1; y < gy; ++y)
+		for (int x = 1; x < gx; ++x) {
+			const P q[4] = {G(y - 1, x - 1), G(y - 1, x), G(y, x), G(y, x - 1)};
+			const uint8_t id = (uint8_t)((y - 1) * (gx - 1) + x);
+			for (size_t v = 0; v < N; ++v) {
+				if (out.path[v]) continue;
+				const P p = vertex_p(v);
+				int pos = 0, neg = 0;
+				for (int k = 0; k < 4; ++k) {
+					const P e0 = q[k], e1 = q[(k + 1) % 4];
+					const float cr = (e1.x - e0.x) * (p.y - e0.y) - (e1.y - e0.y) * (p.x - e0.x);
+					pos += cr > 0.0f;
+					neg += cr < 0.0f;
+				}
+				if (!pos || !neg) out.city[v] = id;
+			}
+		}
+
+	// The Napata wall (from 192 tiles: a palisade on Easy, the Kushite wall from Medium): a
+	// circular wall in front of the outer row (placeCircularWall, ["tower", "short", "tower",
+	// "gate", "tower", "medium", "tower", "short"]) and linear walls from its ends round the back
+	// of the temples (placeLinearWall, ["tower", "gate", "tower", "short", "tower", "short",
+	// "tower"]) where they keep off the hill and the temples. Each stretch between gates is laid
+	// as segments of at most a medium piece, which spawn_gaia_wall joins with towers.
+	out.wall = size < 192.0f || kDifficulty < 2 ? 0xFF : kDifficulty < 3 ? (uint8_t)WALLSET_PALISADE : (uint8_t)WALLSET_STONE;
+	std::vector<uint8_t> wall_mask(N, 0), gate_mask(N, 0);
+	if (out.wall != 0xFF) {
+		const WallLengths L = wall_lengths(out.wall);
+		const float summand = sc(0.04f, 0.03f) * kPi, w_start = start_a - summand / 2.0f, w_max = max_a + summand;
+		const float rf = grid_r(gy - 1) + kPathWidth - 1.0f, rb = hill_r - sc(15.0f, 25.0f);
+		auto blocked = [&](P p) {
+			const size_t v = (size_t)seas_vertex(hm, world_x(p), world_z(p));
+			return hm.data[v] >= h_hill || temple_mask[v];
+		};
+		auto add_span = [&](P a, P b) {
+			if (blocked({(a.x + b.x) / 2.0f, (a.y + b.y) / 2.0f})) return;
+			out.wall_spans.insert(out.wall_spans.end(), {world_x(a), world_z(a), world_x(b), world_z(b)});
+			mask_capsule(hm, wall_mask, world_x(a), world_z(a), world_x(b), world_z(b), 1.5f);
+		};
+		auto add_gate = [&](P p, float dir_x, float dir_y) {
+			if (blocked(p)) return;
+			out.gates.insert(out.gates.end(), {world_x(p), world_z(p), -std::atan2(-dir_y, dir_x)});
+			mask_disk(hm, gate_mask, world_x(p), world_z(p), L.gate / 2.0f);
+		};
+		// The circular front wall, its arc in tiles from w_start.
+		{
+			const float pattern = 4.0f * L.tower + 3.0f * L.segment + L.gate, total = w_max * rf;
+			const int parts = std::max(1, (int)std::ceil((total - L.tower) / pattern));
+			const float k = total / ((float)parts * pattern + L.tower);
+			auto at = [&](float s) { return polar_p(grid_centre, rf, w_start + s / rf); };
+			auto arc_span = [&](float s0, float s1) {
+				const int n = std::max(1, (int)std::ceil((s1 - s0) / L.segment));
+				for (int j = 0; j < n; ++j) add_span(at(s0 + (s1 - s0) * (float)j / (float)n), at(s0 + (s1 - s0) * (float)(j + 1) / (float)n));
+			};
+			float s0 = 0.0f;
+			for (int p = 0; p < parts; ++p) {
+				const float g0 = ((float)p * pattern + 2.0f * L.tower + L.segment) * k, g1 = g0 + L.gate * k;
+				arc_span(s0, g0);
+				const float a = w_start + (g0 + g1) / 2.0f / rf;
+				add_gate(at((g0 + g1) / 2.0f), -std::sin(a), std::cos(a));
+				s0 = g1;
+			}
+			arc_span(s0, total);
+		}
+		// The side and back walls.
+		std::vector<P> line;
+		line.push_back(polar_p(grid_centre, rf, w_start));
+		for (int x = 0; x < gx; ++x) line.push_back(polar_p(grid_centre, rb, w_start + w_max * (float)x / (float)std::max(1, gx - 1)));
+		line.push_back(polar_p(grid_centre, rf, w_start + w_max));
+		const float pattern = 4.0f * L.tower + 2.0f * L.segment + L.gate;
+		for (size_t i = 1; i < line.size(); ++i) {
+			const P a = line[i - 1], b = line[i];
+			const float len = std::hypot(b.x - a.x, b.y - a.y);
+			if (len < 1e-3f) continue;
+			const float dx = (b.x - a.x) / len, dy = (b.y - a.y) / len;
+			const int parts = std::max(1, (int)std::ceil(len / pattern));
+			const float k = len / ((float)parts * pattern);
+			auto at = [&](float s) { return P{a.x + dx * s, a.y + dy * s}; };
+			auto line_span = [&](float s0, float s1) {
+				if (s1 - s0 < L.tower + 0.5f) return;
+				const int n = std::max(1, (int)std::ceil((s1 - s0) / L.segment));
+				for (int j = 0; j < n; ++j) add_span(at(s0 + (s1 - s0) * (float)j / (float)n), at(s0 + (s1 - s0) * (float)(j + 1) / (float)n));
+			};
+			float s0 = 0.0f;
+			for (int p = 0; p < parts; ++p) {
+				const float g0 = ((float)p * pattern + L.tower) * k, g1 = g0 + L.gate * k;
+				line_span(s0, g0);
+				add_gate(at((g0 + g1) / 2.0f), dx, dy);
+				s0 = g1;
+			}
+			line_span(s0, len);
+		}
+		// The ground under the walls raised (avoiding the cliffs), at the gates sunk like a path.
+		std::vector<uint8_t> raise(N, 0);
+		for (size_t v = 0; v < N; ++v) raise[v] = wall_mask[v] && hm.data[v] < h_hill;
+		seas_paint_modify(hm, raise, 2.5f * hs * kMetre, 2.0f);
+		const auto to_path = seas_dist_inside(hm, out.path);
+		std::vector<uint8_t> sink(N, 0);
+		for (size_t g2 = 0; g2 + 2 < out.gates.size(); g2 += 3) {
+			std::vector<uint8_t> m(N, 0);
+			mask_disk(hm, m, out.gates[g2], out.gates[g2 + 1], kPathWidth);
+			for (size_t v = 0; v < N; ++v)
+				if (m[v] && !out.path[v] && !out.city[v] && hm.data[v] < h_hill && to_path[v] <= kPathWidth + 1.0f) sink[v] = 1;
+		}
+		seas_paint_modify(hm, sink, -2.5f * hs * kMetre, 2.0f);
+	}
+
+	// Roads from the gates (else from the grid's outer points) out through the desert, at most
+	// scaleByMapSize(2, 5), 20 apart and clear of the hill, the city, the pyramids and players.
+	std::vector<uint8_t> road(N, 0), pyramid_mask(N, 0);
+	mask_disk(hm, pyramid_mask, out.pyramids[0], out.pyramids[1], out.pyramids_r);
+	{
+		std::vector<std::pair<float, float>> starts;
+		if (!out.gates.empty()) {
+			for (size_t i = 0; i + 2 < out.gates.size(); i += 3) starts.push_back({out.gates[i], out.gates[i + 1]});
+		} else {
+			for (int y = 0; y < gy; ++y) starts.push_back({world_x(G(y, 0)), world_z(G(y, 0))});
+			for (int y = 0; y < gy; ++y) starts.push_back({world_x(G(y, gx - 1)), world_z(G(y, gx - 1))});
+			for (int x = 0; x < gx; ++x) starts.push_back({world_x(G(gy - 1, x)), world_z(G(gy - 1, x))});
+		}
+		for (size_t i = starts.size(); i > 1; --i) std::swap(starts[i - 1], starts[(size_t)rng.range_int(0, (int)i - 1)]);
+		std::vector<uint8_t> hill_or_city(N, 0);
+		for (size_t v = 0; v < N; ++v) hill_or_city[v] = hm.data[v] >= h_hill || out.city[v];
+		const auto to_pyramid = seas_dist_inside(hm, pyramid_mask), to_hill_city = seas_dist_inside(hm, hill_or_city);
+		std::vector<uint8_t> desert_now(N, 0);
+		for (size_t v = 0; v < N; ++v) desert_now[v] = desert[v] && hm.data[v] >= water_h;
+		const float max_roads = sc(2.0f, 5.0f);
+		int roads = 0;
+		for (const auto &st : starts) {
+			if ((float)roads >= max_roads) break;
+			float best = 1e30f, cx = st.first, cz = st.second;
+			for (size_t v = 0; v < N; ++v) {
+				if (!out.path[v]) continue;
+				float x, z;
+				seas_world(hm, (int)v, x, z);
+				const float d = std::hypot(x - st.first, z - st.second);
+				if (d < best) { best = d; cx = x; cz = z; }
+			}
+			const float dl = std::max(1e-3f, std::hypot(st.first - cx, st.second - cz));
+			const float fx = cx + (st.first - cx) / dl * 0.75f * size, fz = cz + (st.second - cz) / dl * 0.75f * size;
+			const auto to_road = seas_dist_inside(hm, road);
+			for (int tries = 0; tries < 30; ++tries) {
+				const auto m = seas_path(hm, rng, fx, fz, st.first, st.second, sc(5.0f, 3.0f), 0.1f, 5.0f, 0.5f, 0.0f, 0.0f, [&](int v) {
+					const size_t i = (size_t)v;
+					return desert_now[i] && to_hill_city[i] > 0.0f && to_pyramid[i] > 6.0f && to_player[i] > 16.0f && to_road[i] > 20.0f;
+				});
+				if (!seas_any(m)) continue;
+				seas_add(road, m);
+				++roads;
+				break;
+			}
+		}
+		std::vector<uint8_t> sink(N, 0);
+		for (size_t v = 0; v < N; ++v) sink[v] = road[v] && !out.path[v];
+		seas_paint_modify(hm, sink, -1.5f * hs * kMetre, 1.0f);
+	}
+
+	// createBumps(..., scaleByMapSize(30, 300), 1, 8, 4, 0, 3) away from the city and the river.
+	{
+		std::vector<uint8_t> hill(N, 0);
+		for (size_t v = 0; v < N; ++v) hill[v] = hm.data[v] >= h_hill;
+		std::vector<uint8_t> water_now(N, 0);
+		for (size_t v = 0; v < N; ++v) water_now[v] = hm.data[v] < water_h;
+		std::vector<uint8_t> city_any(N, 0);
+		for (size_t v = 0; v < N; ++v) city_any[v] = out.city[v] != 0;
+		const auto to_city = seas_dist_inside(hm, city_any), to_water = seas_dist_inside(hm, water_now), to_hill = seas_dist_inside(hm, hill);
+		const auto to_path = seas_dist_inside(hm, out.path), to_road = seas_dist_inside(hm, road), to_temple = seas_dist_inside(hm, temple_mask);
+		const auto to_pyramid = seas_dist_inside(hm, pyramid_mask), to_wall = seas_dist_inside(hm, wall_mask), to_gate = seas_dist_inside(hm, gate_mask);
+		seas_create_areas(hm, rng, sc(30.0f, 300.0f), 10, [&](float x, float z) {
+			const auto m = seas_chain(hm, rng, x, z, 1, 8, 4, 0.0f, 0.0f, {}, [&](int v) {
+				const size_t i = (size_t)v;
+				return to_player[i] > 6.0f && to_city[i] > 0.0f && to_water[i] > 2.0f && to_hill[i] > 0.0f && to_path[i] > 0.0f &&
+				       to_road[i] > 0.0f && to_temple[i] > 4.0f && to_pyramid[i] > 8.0f && to_wall[i] > 0.0f && to_gate[i] > 4.0f;
+			});
+			if (!seas_any(m)) return false;
+			seas_paint_modify(hm, m, 3.0f * kMetre, 2.0f);
+			return true;
+		});
+	}
+
+	// The bases, levelled; then the classes the entity pass keeps to.
+	finish_spawns(hm, spawns, locs, h_fertile, 18.0f, water_h);
+	const auto slope = slopes(hm);
+	out.fertile = fertile;
+	out.water.assign(N, 0);
+	out.desert.assign(N, 0);
+	out.hill.assign(N, 0);
+	out.hilltop.assign(N, 0);
+	out.cliff.assign(N, 0);
+	for (size_t v = 0; v < N; ++v) {
+		const float h = hm.data[v];
+		out.water[v] = h < water_h;
+		out.hill[v] = h >= h_hill;
+		out.cliff[v] = out.hill[v] && slope[v] >= 2.0f;
+		out.hilltop[v] = h >= h_hilltop && slope[v] < 2.0f;
+		out.desert[v] = desert[v] && !out.water[v];
+		if (out.water[v]) out.fertile[v] = 0;
+	}
+	// What the forests, mines and animals keep away from (avoidCollisions: the hill, 2 from the
+	// paths, 4 from the city, the temples and the walls, 8 from the gates, 10 from the ritual
+	// place, 7 from the pyramids and 6 from the roads).
+	{
+		std::vector<uint8_t> city_any(N, 0), ritual(N, 0);
+		for (size_t v = 0; v < N; ++v) city_any[v] = out.city[v] != 0;
+		mask_disk(hm, ritual, out.ritual[0], out.ritual[1], sc(4.0f, 6.0f));
+		const auto to_path = seas_dist_inside(hm, out.path), to_city = seas_dist_inside(hm, city_any), to_temple = seas_dist_inside(hm, temple_mask);
+		const auto to_wall = seas_dist_inside(hm, wall_mask), to_gate = seas_dist_inside(hm, gate_mask), to_ritual = seas_dist_inside(hm, ritual);
+		const auto to_pyramid = seas_dist_inside(hm, pyramid_mask), to_road = seas_dist_inside(hm, road);
+		out.keep_clear.assign(N, 0);
+		for (size_t v = 0; v < N; ++v)
+			out.keep_clear[v] = out.hill[v] || to_path[v] <= 2.0f || to_city[v] <= 4.0f || to_temple[v] <= 4.0f || to_wall[v] <= 4.0f ||
+			                    to_gate[v] <= 8.0f || to_ritual[v] <= 10.0f || to_pyramid[v] <= 7.0f || to_road[v] <= 6.0f;
+	}
+}
+
+void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+		RmsRng &rng, const JebelBarkalLayout &lay) {
+	// jebel_barkal.js's entities: Napata (the temples and the wonder, the lion path's champion
+	// guardians, the ritual place's healers and palms, the districts filled by CityPainter
+	// with the Kushite structures of the difficulty, houses, markets and forges uncapturable,
+	// and the wall), the pyramids with archers and treasures, the hill's archers and Ptolemaic
+	// siege engines, treasures on the hilltop and along the city's paths, and the trigger points
+	// jebel_barkal_triggers.js patrols: A at the path crossings, B over the map. The map's
+	// generic forests, mines and animals are cleared from the hill and the city (the script's
+	// avoidCollisions). Left out: the statues, handcarts, fences and other actors, the hawk,
+	// and the stone ring of towers round each base (RTS0's bases have none).
+	using namespace jebel;
+	(void)spawns;
+	const float half = hm.map_half, size = 2.0f * half;
+	const size_t N = hm.data.size();
+	auto sc = [&](float a, float b) { return seas_scale(a, b, half); };
+	auto at = [&](float x, float z) { return (size_t)seas_vertex(hm, x, z); };
+	struct Spot {
+		float x, z;
+	};
+	auto clear_of = [](const std::vector<Spot> &v, float x, float z, float d) {
+		for (const Spot &s : v)
+			if (std::hypot(x - s.x, z - s.z) < d) return false;
+		return true;
+	};
+	auto building = [&](float x, float z, uint8_t type, bool capturable) {
+		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
+		if (id && !capturable) sim.set_structure_uncapturable(id);
+		return id;
+	};
+	auto unit = [&](float x, float z, const char *id) -> uint32_t {
+		const uint16_t t = civ_unit_template_by_id(id);
+		return t == CIV_UNIT_TEMPLATE_NONE ? 0 : sim.spawn_gaia_unit(x, z, (UnitType)civ_unit_template(t).unit_type, id);
+	};
+	auto count = [](float amount) { return (int)std::ceil(amount); }; // createObjectGroups places until it reaches amount
+
+	// The generic resources off the hill and out of the city.
+	{
+		const auto res = sim.resources();
+		std::vector<Spot> doomed;
+		for (size_t r = 0; r < res.count; ++r)
+			if (res.alive[r] && lay.keep_clear[at(res.x[r], res.z[r])]) doomed.push_back({res.x[r], res.z[r]});
+		for (const Spot &d : doomed) sim.clear_resources_near(d.x, d.z, 0.01f);
+	}
+
+	// Temples and the wonder.
+	for (size_t i = 0; i < lay.temples.size(); ++i) building(lay.temple_pos[2 * i], lay.temple_pos[2 * i + 1], lay.temples[i], true);
+
+	// The pyramids: one group of scaleByMapSize(1, 6) to scaleByMapSize(2, 8) large and small
+	// pyramids scaleByMapSize(6, 8) to scaleByMapSize(6, 14) round a point of their area.
+	std::vector<Spot> pyramids;
+	{
+		const float ga = rng.range_float(0.0f, 2.0f * kPi), gr = std::sqrt(rng.range_float(0.0f, 1.0f)) * lay.pyramids_r;
+		const float gx = lay.pyramids[0] + std::cos(ga) * gr, gz = lay.pyramids[1] + std::sin(ga) * gr;
+		const int n = rng.range_int((int)sc(1.0f, 6.0f), (int)sc(2.0f, 8.0f));
+		std::vector<float> halves;
+		for (int k = 0, tries = 0; k < n && tries < n * 20; ++tries) {
+			const uint8_t type = rng.range_int(0, 1) ? BLD_PYRAMID_SMALL : BLD_PYRAMID_LARGE;
+			const float d = rng.range_float(sc(6.0f, 8.0f), sc(6.0f, 14.0f)), a = rng.range_float(0.0f, 2.0f * kPi);
+			const float x = gx + std::cos(a) * d, z = gz + std::sin(a) * d, h = footprint_half(type);
+			bool ok = x * x + z * z < (half - h - 2.0f) * (half - h - 2.0f) && !lay.water[at(x, z)];
+			for (size_t j = 0; j < pyramids.size() && ok; ++j)
+				ok = std::hypot(x - pyramids[j].x, z - pyramids[j].z) >= std::max(sc(6.0f, 8.0f), h + halves[j] + 1.0f);
+			if (!ok) continue;
+			if (!building(x, z, type, true)) continue;
+			pyramids.push_back({x, z});
+			halves.push_back(h);
+			++k;
+		}
+	}
+
+	// The ritual place: healers on a half circle round the statue, palms behind them.
+	{
+		const float rx = lay.ritual[0], rz = lay.ritual[1];
+		auto half_circle = [&](int n, float r, const auto &put) {
+			for (int k = 0; k < n; ++k) {
+				const float a = lay.ritual_angle + kPi * (float)k / (float)std::max(1, n - 1);
+				put(rx + r * std::cos(a), rz - r * std::sin(a));
+			}
+		};
+		half_circle((int)std::lround(sc(2.0f, 10.0f)), sc(2.0f, 3.0f), [&](float x, float z) { unit(x, z, "kush/support_healer_b"); });
+		std::vector<Spot> temples;
+		for (size_t i = 0; i < lay.temples.size(); ++i) temples.push_back({lay.temple_pos[2 * i], lay.temple_pos[2 * i + 1]});
+		half_circle((int)std::lround(sc(6.0f, 16.0f)), sc(4.0f, 5.0f), [&](float x, float z) {
+			for (size_t i = 0; i < temples.size(); ++i)
+				if (std::fabs(x - temples[i].x) <= footprint_half(lay.temples[i]) + 1.0f &&
+						std::fabs(z - temples[i].z) <= footprint_half(lay.temples[i]) + 1.0f)
+					return;
+			sim.spawn_resource_world(x, z, RES_WOOD, TREE_WOOD_SUPPLY);
+		});
+	}
+
+	// The guardians: scaleByMapSize(2, 40) Kushite champions in two files along the central
+	// path, clear of its crossings.
+	const int gx = lay.grid_x, gy = lay.grid_y, gxc = gx / 2;
+	auto grid = [&](int y, int x) { return from_world(lay.grid[(size_t)(2 * (y * gx + x))], lay.grid[(size_t)(2 * (y * gx + x) + 1)]); };
+	std::vector<Spot> crossings;
+	for (int y = 0; y < gy; ++y)
+		for (int x = 0; x < gx; ++x) crossings.push_back({world_x(grid(y, x)), world_z(grid(y, x))});
+	std::vector<Spot> guardians;
+	{
+		static const char *const kChampions[] = {"kush/champion_infantry_archer", "kush/champion_infantry_amun", "kush/champion_infantry_apedemak"};
+		const P start = grid(0, gxc), end = grid(gy - 1, gxc);
+		const float len = std::hypot(end.x - start.x, end.y - start.y), a = lay.grid_angle[(size_t)gxc];
+		const float n = sc(2.0f, 40.0f);
+		for (int side = 0; side < 2; ++side)
+			for (int k = 0; (float)k < n; ++k) {
+				// Vector2D(0, pathWidthCenter / 2 * (i - 0.5)).rotate(-angle) beside the path.
+				const float off = kPathWidthCenter / 2.0f * ((float)side - 0.5f);
+				const P p = {start.x - off * std::sin(a) + len * (float)k / n * std::cos(a) + 0.5f,
+				             start.y + off * std::cos(a) + len * (float)k / n * std::sin(a) + 0.5f};
+				const float x = world_x(p), z = world_z(p);
+				if (!clear_of(crossings, x, z, kPathWidth + 2.0f)) continue;
+				unit(x, z, kChampions[rng.range_int(0, 2)]);
+				guardians.push_back({x, z});
+			}
+	}
+
+	// Trigger points A on the path crossings, 8 apart.
+	{
+		std::vector<Spot> order = crossings, placed;
+		for (size_t i = order.size(); i > 1; --i) std::swap(order[i - 1], order[(size_t)rng.range_int(0, (int)i - 1)]);
+		const int amount = count(sc(20.0f, 100.0f));
+		for (const Spot &c : order) {
+			if ((int)placed.size() >= amount) break;
+			for (int tries = 0; tries < 30; ++tries) {
+				const float a = rng.range_float(0.0f, 2.0f * kPi), r = rng.range_float(0.0f, kPathWidth - 2.0f);
+				const float x = c.x + std::cos(a) * r, z = c.z + std::sin(a) * r;
+				if (!clear_of(placed, x, z, 8.0f)) continue;
+				sim.add_trigger_point('A', x, z);
+				placed.push_back({x, z});
+				break;
+			}
+		}
+	}
+
+	// The districts (CityPainter): through each district in rows along its angle, at every free
+	// spot the first of the shuffled structures that fits and keeps its distance from its kind.
+	{
+		const uint8_t tower = size >= 256.0f && kDifficulty >= 3 ? BLD_TOWER : BLD_SENTRY_TOWER;
+		struct CityBuilding {
+			uint8_t type;
+			int difficulty;
+			float avoid;
+			bool near_path, capturable;
+		};
+		const CityBuilding all[] = {
+			{BLD_HOUSE, 1, 0.0f, false, false},          {BLD_FORTRESS, 3, 25.0f, true, true},        {BLD_TOWN_CENTER, 2, 60.0f, true, true},
+			{BLD_ELEPHANT_STABLE, 2, 10.0f, false, true}, {BLD_STABLE, 2, 20.0f, false, true},          {BLD_BARRACKS, 2, 12.0f, false, true},
+			{tower, 2, 17.0f, false, true},               {BLD_MARKET, 1, 15.0f, false, false},          {BLD_FORGE, 1, 30.0f, false, false},
+			{BLD_CAMP_NOBA, 2, 30.0f, false, true},       {BLD_CAMP_BLEMMYE, 2, 30.0f, false, true},
+		};
+		std::vector<CityBuilding> layout;
+		for (const CityBuilding &b : all)
+			if (kDifficulty >= b.difficulty) layout.push_back(b);
+		std::vector<std::vector<Spot>> placed(layout.size());
+		const auto to_path = seas_dist_inside(hm, lay.path);
+		std::vector<uint8_t> taken(N, 0);
+		const int districts = (gx - 1) * (gy - 1);
+		for (int d = 1; d <= districts; ++d) {
+			const int y = (d - 1) / (gx - 1) + 1, x = (d - 1) % (gx - 1) + 1;
+			const float angle = (-lay.grid_angle[(size_t)(y * gx + x - 1)] - lay.grid_angle[(size_t)(y * gx + x)]) / 2.0f;
+			std::vector<std::pair<std::pair<float, float>, size_t>> spots;
+			for (size_t v = 0; v < N; ++v) {
+				if (lay.city[v] != d) continue;
+				float wx, wz;
+				seas_world(hm, (int)v, wx, wz);
+				const P r = rot_ccw(from_world(wx, wz), angle);
+				spots.push_back({{r.x, r.y}, v});
+			}
+			std::sort(spots.begin(), spots.end());
+			for (const auto &s : spots) {
+				const size_t v = s.second;
+				if (taken[v]) continue;
+				float sx, sz;
+				seas_world(hm, (int)v, sx, sz);
+				std::vector<size_t> order(layout.size());
+				for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+				for (size_t i = order.size(); i > 1; --i) std::swap(order[i - 1], order[(size_t)rng.range_int(0, (int)i - 1)]);
+				for (size_t k : order) {
+					const CityBuilding &b = layout[k];
+					if (b.near_path && to_path[v] > 8.0f) continue;
+					// CityPainter puts a structure's corner on the point, its obstruction running on
+					// along the row.
+					const float h = footprint_half(b.type);
+					const P off = rot_ccw(P{h, h}, -angle);
+					const float cx = sx + off.x, cz = sz - off.y;
+					if (!clear_of(placed[k], cx, cz, b.avoid + h)) continue;
+					// The footprint within the district, on free, dry, level ground.
+					const int x0 = std::max(0, (int)std::ceil((cx - h + half) / grid_spacing(hm)));
+					const int x1 = std::min(hm.res - 1, (int)std::floor((cx + h + half) / grid_spacing(hm)));
+					const int z0 = std::max(0, (int)std::ceil((cz - h + half) / grid_spacing(hm)));
+					const int z1 = std::min(hm.res - 1, (int)std::floor((cz + h + half) / grid_spacing(hm)));
+					bool fits = true;
+					for (int gz2 = z0; gz2 <= z1 && fits; ++gz2)
+						for (int gx2 = x0; gx2 <= x1 && fits; ++gx2) {
+							const size_t u = (size_t)gz2 * (size_t)hm.res + (size_t)gx2;
+							fits = lay.city[u] == d && !taken[u] && !lay.water[u] && !lay.cliff[u];
+						}
+					if (!fits || !building(cx, cz, b.type, b.capturable)) continue;
+					for (int gz2 = z0; gz2 <= z1; ++gz2)
+						for (int gx2 = x0; gx2 <= x1; ++gx2) taken[(size_t)gz2 * (size_t)hm.res + (size_t)gx2] = 1;
+					placed[k].push_back({cx, cz});
+					break;
+				}
+			}
+		}
+	}
+
+	// The Napata wall and its gates.
+	std::vector<Spot> walls;
+	if (lay.wall != 0xFF) {
+		for (size_t i = 0; i + 3 < lay.wall_spans.size(); i += 4) {
+			sim.spawn_gaia_wall(lay.wall_spans[i], lay.wall_spans[i + 1], lay.wall_spans[i + 2], lay.wall_spans[i + 3], lay.wall);
+			walls.push_back({(lay.wall_spans[i] + lay.wall_spans[i + 2]) / 2.0f, (lay.wall_spans[i + 1] + lay.wall_spans[i + 3]) / 2.0f});
+		}
+		for (size_t i = 0; i + 2 < lay.gates.size(); i += 3) {
+			sim.spawn_gaia_gate(lay.gates[i], lay.gates[i + 1], lay.gates[i + 2], lay.wall);
+			walls.push_back({lay.gates[i], lay.gates[i + 1]});
+		}
+	}
+
+	// The hill's defenders, scaled by difficulty: groups of Kushite archers on the hilltop
+	// and single ones on the upper slope, all near the cliffs, and Ptolemaic siege engines.
+	const auto to_cliff = seas_dist_inside(hm, lay.cliff);
+	std::vector<Spot> soldiers;
+	static const char *const kArchers[] = {"kush/infantry_archer_b", "kush/champion_infantry_archer"};
+	auto pick_cells = [&](const auto &ok) {
+		std::vector<size_t> cells;
+		for (size_t v = 0; v < N; ++v)
+			if (ok(v)) cells.push_back(v);
+		return cells;
+	};
+	auto groups_on = [&](const std::vector<size_t> &cells, int amount, int retry, float spacing, const auto &put) {
+		for (int placed = 0, tries = 0; !cells.empty() && placed < amount && tries < amount * retry; ++tries) {
+			float x, z;
+			seas_world(hm, (int)cells[(size_t)rng.range_int(0, (int)cells.size() - 1)], x, z);
+			if (!clear_of(soldiers, x, z, spacing)) continue;
+			put(x, z);
+			++placed;
+		}
+	};
+	const float diff = (float)kDifficulty / 3.0f;
+	const auto hilltop = pick_cells([&](size_t v) { return lay.hilltop[v] && to_cliff[v] > 1.0f && to_cliff[v] <= 5.0f; });
+	groups_on(hilltop, count(sc(1.0f, 5.0f) * diff), 250, 0.0f, [&](float x, float z) {
+		const int n = rng.range_int((int)sc(4.0f, 10.0f), (int)sc(6.0f, 20.0f));
+		for (int k = 0; k < n; ++k) {
+			const float a = rng.range_float(0.0f, 2.0f * kPi), r = rng.range_float(1.0f, 4.0f);
+			const float ux = x + std::cos(a) * r, uz = z + std::sin(a) * r;
+			if (!lay.hill[at(ux, uz)] || lay.cliff[at(ux, uz)]) continue;
+			unit(ux, uz, kArchers[rng.range_int(0, 1)]);
+			soldiers.push_back({ux, uz});
+		}
+	});
+	const auto slope_cells = pick_cells([&](size_t v) {
+		return lay.hill[v] && hm.data[v] >= lay.height_archers && hm.data[v] <= lay.height_hilltop && to_cliff[v] > 1.0f && to_cliff[v] <= 5.0f;
+	});
+	groups_on(slope_cells, count(sc(8.0f, 100.0f) * diff), 250, 1.0f, [&](float x, float z) {
+		unit(x, z, kArchers[rng.range_int(0, 1)]);
+		soldiers.push_back({x, z});
+	});
+	// ptol/siege_lithobolos_unpacked and polybolos_unpacked: RTS0 spawns them packed.
+	groups_on(hilltop, count(sc(1.0f, 6.0f) * diff), 250, 1.0f, [&](float x, float z) {
+		unit(x, z, rng.range_int(0, 1) ? "ptol/siege_polybolos_packed" : "ptol/siege_lithobolos_packed");
+		soldiers.push_back({x, z});
+	});
+
+	// Archers and treasures by the pyramids, 7 to 10 from them.
+	std::vector<Spot> treasures;
+	static const uint8_t kHillTreasures[] = {TREASURE_WOOD, TREASURE_STONE, TREASURE_METAL};
+	static const uint8_t kCityTreasures[] = {TREASURE_FOOD_BIN, TREASURE_FOOD_CRATE, TREASURE_FOOD_JARS, TREASURE_WOOD, TREASURE_STONE, TREASURE_METAL};
+	if (!pyramids.empty()) {
+		const auto by_pyramids = pick_cells([&](size_t v) {
+			float x, z;
+			seas_world(hm, (int)v, x, z);
+			const bool near = !clear_of(pyramids, x, z, 10.0f + footprint_half(BLD_PYRAMID_LARGE));
+			return near && clear_of(pyramids, x, z, 7.0f + footprint_half(BLD_PYRAMID_SMALL)) && !lay.water[v] && !lay.hill[v];
+		});
+		groups_on(by_pyramids, count(sc(3.0f, 8.0f)), 250, 1.0f, [&](float x, float z) {
+			unit(x, z, "kush/infantry_archer_b");
+			soldiers.push_back({x, z});
+		});
+		for (int k = 0, tries = 0, n = count(sc(1.0f, 10.0f)); !by_pyramids.empty() && k < n && tries < n * 250; ++tries) {
+			float x, z;
+			seas_world(hm, (int)by_pyramids[(size_t)rng.range_int(0, (int)by_pyramids.size() - 1)], x, z);
+			if (!clear_of(treasures, x, z, 1.0f) || !clear_of(soldiers, x, z, 1.0f)) continue;
+			sim.spawn_treasure(x, z, kHillTreasures[rng.range_int(0, 2)]);
+			treasures.push_back({x, z});
+			++k;
+		}
+	}
+	// Treasures on the hilltop and along the city's paths.
+	{
+		const auto top = pick_cells([&](size_t v) { return lay.hilltop[v] && to_cliff[v] > 1.0f; });
+		for (int k = 0, tries = 0, n = count(sc(8.0f, 35.0f)); !top.empty() && k < n && tries < n * 250; ++tries) {
+			float x, z;
+			seas_world(hm, (int)top[(size_t)rng.range_int(0, (int)top.size() - 1)], x, z);
+			if (!clear_of(treasures, x, z, 1.0f)) continue;
+			sim.spawn_treasure(x, z, kHillTreasures[rng.range_int(0, 2)]);
+			treasures.push_back({x, z});
+			++k;
+		}
+		std::vector<uint8_t> city_any(N, 0);
+		for (size_t v = 0; v < N; ++v) city_any[v] = lay.city[v] != 0;
+		const auto to_city = seas_dist_inside(hm, city_any);
+		const auto by_city = pick_cells([&](size_t v) { return lay.path[v] && to_city[v] <= 1.0f; });
+		for (int k = 0, tries = 0, n = count(sc(2.0f, 60.0f)); !by_city.empty() && k < n && tries < n * 500; ++tries) {
+			float x, z;
+			seas_world(hm, (int)by_city[(size_t)rng.range_int(0, (int)by_city.size() - 1)], x, z);
+			if (!clear_of(treasures, x, z, 2.0f) || !clear_of(guardians, x, z, 4.0f) || !clear_of(walls, x, z, 2.0f)) continue;
+			sim.spawn_treasure(x, z, kCityTreasures[rng.range_int(0, 5)]);
+			treasures.push_back({x, z});
+			++k;
+		}
+	}
+
+	// Trigger points B where the attackers patrol: away from the city, the hill, water, walls
+	// and mines, 15 apart.
+	{
+		std::vector<uint8_t> city_any(N, 0);
+		for (size_t v = 0; v < N; ++v) city_any[v] = lay.city[v] != 0;
+		const auto to_city = seas_dist_inside(hm, city_any), to_hill = seas_dist_inside(hm, lay.hill);
+		const auto res = sim.resources();
+		auto near_resource = [&](float x, float z) {
+			for (size_t r = 0; r < res.count; ++r) {
+				if (!res.alive[r] || res.subtype[r] == RES_SUB_FISH) continue;
+				const float d = res.type[r] == RES_WOOD ? 1.0f : 4.0f;
+				if (std::fabs(res.x[r] - x) < d && std::fabs(res.z[r] - z) < d && std::hypot(res.x[r] - x, res.z[r] - z) < d) return true;
+			}
+			return false;
+		};
+		std::vector<Spot> placed;
+		const int amount = count(sc(20.0f, 100.0f));
+		for (int tries = 0; (int)placed.size() < amount && tries < amount * 30; ++tries) {
+			const auto p = seas_random_point(hm, rng);
+			const size_t v = at(p.first, p.second);
+			if (to_city[v] <= 8.0f || to_hill[v] <= 4.0f || lay.water[v] || !clear_of(walls, p.first, p.second, 2.0f + 3.0f) ||
+					!clear_of(placed, p.first, p.second, 15.0f) || near_resource(p.first, p.second))
+				continue;
+			sim.add_trigger_point('B', p.first, p.second);
+			placed.push_back({p.first, p.second});
+		}
+	}
+	(void)water_h;
+}
+
 void RmsGenerator::synth_island_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
 		const uint8_t *teams) {
 	// island_stronghold.js: sea at -10 m; each team (getTeamsArray, players
@@ -8319,6 +9132,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	float water_h = -1.0f;
 	std::vector<PlayerSpawn> spawns;
 	DanubiusLayout danubius;
+	JebelBarkalLayout jebel_barkal;
 
 	const auto &minfo = map_type_info(config.map_type);
 	sim.set_map_half(config.map_half);
@@ -8364,7 +9178,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_anatolian_plateau(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_JEBEL_BARKAL:
-			synth_jebel_barkal(hm, rng, water_h, spawns, config.num_players);
+			synth_jebel_barkal_0ad(hm, rng, water_h, spawns, config.num_players, config.teams, jebel_barkal);
 			break;
 		case MAP_MAINLAND:
 			synth_mainland(hm, rng, water_h, spawns, config.num_players);
@@ -8611,6 +9425,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// Entities only the trigger maps have (Gaia towers, central mines)
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
+	if (config.map_type == MAP_JEBEL_BARKAL) place_jebel_barkal_entities(sim, hm, water_h, spawns, rng, jebel_barkal);
 
 	return true;
 }
