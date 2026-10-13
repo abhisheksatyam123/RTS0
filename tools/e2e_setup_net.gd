@@ -11,6 +11,8 @@ extends SceneTree
 #      "Stay ready", "I'm not ready!") and waits for the host, with no
 #      Start button; a refused request says why, and Back leaves the game;
 #   3. outside a networked game the page is the single-player one.
+# A lobby game of two players is a Rated Game by default (0.28 Rating.js),
+# and a rated game has no cheats (Cheats.js).
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_setup_net.gd
 # Exit code 0 = pass.
@@ -84,6 +86,7 @@ func run() -> void:
 	ms.slot_diffs = [3, 3, 3]
 	ms.slot_behs = [2, 2, 2]
 	ms.slot_colors = [0, 1, 2]
+	ms.net_lobby = "127.0.0.1:1"
 
 	print("1. the host")
 	var host := StubMain.new()
@@ -101,6 +104,25 @@ func run() -> void:
 		"the setup drops the Closed slot and keeps Random (%s %s)" % [str(ms.slot_types), str(ms.slot_civs)])
 	check(host.pushes > 0 and not ms.cheats, "the host sends its setup, cheats off")
 	check(cells(page)[0].text == "alice (You)" and cells(page)[7].text == "bob", "slots show their players")
+	var vis := "VBox/HBox/LeftScroll/Left/MapVisRow/"
+	var rated: CheckBox = page.get_node(vis + "RatedGame")
+	var cheats: CheckBox = page.get_node(vis + "Cheats")
+	check(rated.visible and rated.button_pressed and cheats.disabled and not cheats.button_pressed and ms.rated,
+		"a lobby 1v1 is a Rated Game by default, without cheats")
+	rated.button_pressed = false
+	cheats.button_pressed = true
+	await create_timer(0.4).timeout
+	check(not cheats.disabled and not ms.rated and ms.cheats, "unrated, the host may allow cheats")
+	rated.button_pressed = true
+	await create_timer(0.4).timeout
+	check(ms.rated and not ms.cheats and not cheats.button_pressed, "rated again: no cheats")
+	page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value = 3
+	page._on_slot_kind(1, 2)
+	await create_timer(0.4).timeout
+	check(not rated.visible and not ms.rated, "three players: not rated")
+	page._on_slot_kind(2, 2)
+	await create_timer(0.4).timeout
+	check(rated.visible and ms.rated, "two again")
 	page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").value = 99
 	await create_timer(0.4).timeout
 	check(ms.seed == 99, "a change on the page reaches MatchSettings")
@@ -135,6 +157,8 @@ func run() -> void:
 	ms.slot_teams = [1, 2]
 	ms.slot_colors = [0, 4]
 	ms.seed = 1234
+	ms.rated = true
+	ms.cheats = false
 	page = await open_page(client)
 	check(page._mp_role == "client", "a client's page")
 	start = page.get_node("VBox/HBox/Right/BtnStart")
@@ -142,6 +166,9 @@ func run() -> void:
 	check(not start.visible and page.get_node("VBox/HBox/Right/NetWaitLabel").visible, "no Start: waiting for the host")
 	check(page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").value == 1234 and page._slot_rows[1]["civ"] == 3,
 		"the host's setup shows")
+	check(page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame").visible
+		and page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame").button_pressed
+		and page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame").disabled, "the host's Rated Game shows, locked")
 	check(not page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").editable
 		and page.get_node("VBox/HBox/LeftScroll/Left/MapList").mouse_filter == Control.MOUSE_FILTER_IGNORE
 		and page.get_node("VBox/HBox/LeftScroll/Left/Waves").disabled, "the host's settings are locked")
@@ -181,9 +208,13 @@ func run() -> void:
 	await frames(2)
 
 	print("3. single player")
+	ms.net_lobby = ""
+	ms.rated = false
 	page = await open_page(null)
 	check(page._mp_role == "none" and page.get_node("VBox/HBox/Right/BtnStart").visible
-		and not page.has_node("VBox/HBox/Right/BtnReady") and not page.get_node("VBox/HBox/LeftScroll/Left/Waves").disabled,
+		and not page.has_node("VBox/HBox/Right/BtnReady") and not page.get_node("VBox/HBox/LeftScroll/Left/Waves").disabled
+		and not page.has_node("VBox/HBox/LeftScroll/Left/MapVisRow/RatedGame")
+		and page.get_node("VBox/HBox/LeftScroll/Left/MapVisRow/Cheats").disabled,
 		"the single-player page")
 	page.queue_free()
 	cfg.set_value("persistmatchsettings", saved_persist)

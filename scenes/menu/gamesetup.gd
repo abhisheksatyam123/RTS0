@@ -1566,6 +1566,8 @@ var _net_names: Array = []
 var _net_tick := 0.0
 var _ready_btn: Button
 var _wait_label: Label
+var _rated: CheckBox
+var _rated_was_available := false
 ## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
 ## StayReady); pressing moves to the next state.
 const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
@@ -1611,6 +1613,39 @@ func _build_net_controls() -> void:
 	_wait_label.visible = _mp_role == "client"
 	_ready_btn.visible = _mp_role == "client"
 	start.visible = _mp_role == "host"
+	# 0.28 Rating.js "Rated Game", next to Cheats.js, which the host sets in a
+	# networked game (off by default) unless the game is rated.
+	var cheats: CheckBox = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats
+	cheats.button_pressed = false
+	cheats.disabled = false
+	cheats.toggled.connect(func(_on): _update_rated())
+	_rated = CheckBox.new()
+	_rated.name = "RatedGame"
+	_rated.text = "Rated Game"
+	_rated.tooltip_text = "Toggle 1v1 rated game."
+	_rated.toggled.connect(func(_on): _update_rated())
+	cheats.get_parent().add_child(_rated)
+	cheats.get_parent().move_child(_rated, cheats.get_index() + 1)
+	_update_rated()
+
+## Rating.js: a lobby game of exactly two players may be rated, and is by
+## default when it becomes one; Cheats.js: a rated game has no cheats.
+func _rated_available() -> bool:
+	return has_node("/root/MatchSettings") and str(get_node("/root/MatchSettings").net_lobby) != "" \
+		and _net_rows().size() == 2
+
+func _update_rated() -> void:
+	if _rated == null or _mp_role != "host":
+		return
+	var avail := _rated_available()
+	if avail and not _rated_was_available:
+		_rated.set_pressed_no_signal(true)
+	_rated_was_available = avail
+	_rated.visible = avail
+	var cheats: CheckBox = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats
+	cheats.disabled = avail and _rated.button_pressed
+	if cheats.disabled:
+		cheats.set_pressed_no_signal(false)
 
 func _update_net_controls() -> void:
 	if _mp_role == "none":
@@ -1675,6 +1710,10 @@ func _host_write_setup(force: bool) -> void:
 			_net_random_map = str(pool[randi() % pool.size()]["id"])
 		ps["map_id"] = _net_random_map
 	ps["map_locks_players"] = _is_scenario()
+	_update_rated()
+	ps["rated"] = _rated_available() and _rated.button_pressed
+	# Cheats.js: the host's choice in a networked game, never in a rated one.
+	ps["cheats"] = $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed and not ps["rated"]
 	if not force and ps == _net_sent:
 		return
 	_net_sent = ps.duplicate(true)
@@ -1689,8 +1728,6 @@ func _host_write_setup(force: bool) -> void:
 	ms.player_count = ps["slot_types"].size()
 	ms.campaign_run = ""
 	ms.campaign_level = ""
-	# Cheats.js: off in a networked game unless the host allows them.
-	ms.cheats = false
 	ms.ai_difficulty = 3
 	ms.ai_behavior = 2
 	for i in range(ps["slot_types"].size()):
@@ -1709,6 +1746,9 @@ func _on_net_setup_changed() -> void:
 			src[k] = ms.get(k)
 		_apply_settings(src)
 		refresh_map_list()
+		$VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.set_pressed_no_signal(bool(ms.cheats))
+		_rated.set_pressed_no_signal(bool(ms.rated))
+		_rated.visible = bool(ms.rated)
 	elif _mp_role == "host":
 		# A client's own civ, team or colour, which RtsoMain wrote into MatchSettings.
 		var rows := _net_rows()
