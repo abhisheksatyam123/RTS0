@@ -1,5 +1,6 @@
 #include "rms_generator.h"
 #include "script_terrains.h"
+#include "resource_counts_data.h"
 #include "tree_slot_gatherers.h"
 #include "simulation.h"
 #include "heightmap_images.h"
@@ -4206,8 +4207,10 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 		}
 	}
 
-	// 2. Contested Neutral Gold & Stone Quarries
-	int num_neutral_mines = std::max(4, config.num_players * 2) * scale_by_map_size(1, 4, half);
+	// 2. Contested Neutral Gold & Stone Quarries (maps with a 0 A.D. script take its
+	// counts from top_up_resources instead)
+	int num_neutral_mines = map_resource_counts(map_type_info(config.map_type).id) ? 0
+			: std::max(4, config.num_players * 2) * scale_by_map_size(1, 4, half);
 	// lower_nubia.js: its own createMines passes, pyramid and trees.
 	if (config.map_type == MAP_LOWER_NUBIA) {
 		num_neutral_mines = 0;
@@ -4297,6 +4300,8 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 	if (config.map_type == MAP_NGORONGORO) num_packs = 0; // each zone's own hunt (place_ngorongoro_entities)
 	// river_archipelago.js's deer, boar and tigers: place_river_archipelago_entities.
 	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_packs = 0;
+	// Maps with a 0 A.D. script take its hunt from top_up_resources.
+	if (map_resource_counts(map_type_info(config.map_type).id)) num_packs = 0;
 
 	for (int p = 0; p < num_packs; ++p) {
 		float px = rng.range_float(-half * 0.75f, half * 0.75f);
@@ -10777,6 +10782,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	// Distribute balanced player bases and starter clusters
 	distribute_player_bases(sim, hm, spawns, rng, config);
+	const size_t base_resources = sim.resources().count, base_fauna = sim.fauna().count;
 
 	// Distribute neutral resources, groves, and quarries
 	distribute_neutral_resources(sim, hm, water_h, spawns, rng, config);
@@ -10797,6 +10803,9 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
 	if (config.map_type == MAP_JEBEL_BARKAL) place_jebel_barkal_entities(sim, hm, water_h, spawns, rng, jebel_barkal);
 	if (config.map_type == MAP_RIVER_ARCHIPELAGO) place_river_archipelago_entities(sim, hm, water_h, spawns, rng, river_archipelago);
+
+	// The rest of the mines, fruit and hunt the map's 0 A.D. script places
+	top_up_resources(sim, hm, water_h, spawns, config, base_resources, base_fauna);
 
 	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
 	// under them go (template_gaia_flora's DeleteUponConstruction).
@@ -11343,6 +11352,170 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 				if (open_water(fx, fz, 2)) sim.spawn_resource_world(fx, fz, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
 			}
 		}
+	}
+}
+
+void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+		const Config &config, size_t base_resources, size_t base_fauna) {
+	// 0 A.D.'s scripts each place their own Gaia mines, fruit and hunt (createBalancedMines,
+	// createMines, createFood, rmgen2 addMetal/addStone/addBerries/addAnimals). Their counts
+	// outside the player bases, run per map size and player count, are in
+	// resource_counts_data.h; whatever the passes above already placed counts toward them,
+	// and the rest goes on open land away from the bases, mines and food apart. A separate
+	// stream keeps every other placement on the map unchanged.
+	const MapResourceCounts *rc = map_resource_counts(map_type_info(config.map_type).id);
+	if (!rc) return;
+	const float half = hm.map_half, tiles = 2.0f * half;
+	auto target = [&](const uint16_t (&grid)[4][3]) { return map_resource_count(grid, tiles, config.num_players); };
+	auto sbms = [&](float lo, float hi) { return lo + (hi - lo) * std::clamp((tiles - 128.0f) / 384.0f, 0.0f, 1.0f); };
+
+	// Taken ground: every resource (trees included) on a 2-unit grid, so nothing lands on another.
+	const int cells = std::max(1, (int)std::ceil(tiles / 2.0f));
+	std::vector<uint8_t> taken((size_t)cells * (size_t)cells, 0);
+	auto cell = [&](float x, float z) {
+		const int cx = std::clamp((int)((x + half) / 2.0f), 0, cells - 1), cz = std::clamp((int)((z + half) / 2.0f), 0, cells - 1);
+		return (size_t)cz * (size_t)cells + (size_t)cx;
+	};
+	auto free_at = [&](float x, float z) {
+		for (int dz = -1; dz <= 1; ++dz)
+			for (int dx = -1; dx <= 1; ++dx)
+				if (taken[cell(x + 2.0f * (float)dx, z + 2.0f * (float)dz)]) return false;
+		return true;
+	};
+	int have_ml = 0, have_ms = 0, have_sl = 0, have_ss = 0, have_fruit = 0, have_hunt = 0;
+	std::vector<std::pair<float, float>> mines, food;
+	const auto rv = sim.resources();
+	for (size_t i = 0; i < rv.count; ++i) {
+		if (!rv.alive[i]) continue;
+		taken[cell(rv.x[i], rv.z[i])] = 1;
+		const bool ruins = rv.subtype[i] == RES_SUB_RUINS, large = rv.amount[i] >= 2000;
+		if ((rv.type[i] == RES_GOLD || rv.type[i] == RES_STONE) && !ruins) {
+			mines.push_back({rv.x[i], rv.z[i]});
+			if (i < base_resources) continue;
+			if (rv.type[i] == RES_GOLD) ++(large ? have_ml : have_ms);
+			else ++(large ? have_sl : have_ss);
+		} else if (rv.type[i] == RES_FOOD && rv.subtype[i] == RES_SUB_NONE) {
+			food.push_back({rv.x[i], rv.z[i]});
+			if (i >= base_resources) ++have_fruit;
+		}
+	}
+	const auto fv = sim.fauna();
+	for (size_t i = 0; i < fv.count; ++i) {
+		if (!fv.alive[i] || fauna_type_info(fv.fauna_type[i]).food_amount <= 0) continue;
+		food.push_back({fv.pos_x[i], fv.pos_z[i]});
+		if (i >= base_fauna) ++have_hunt;
+	}
+
+	RmsRng rng(config.seed ^ 0x52535243u); // 'RSRC'
+	// Kept clear of every civic centre: past 0.28's placeStartingWalls ring (about 20
+	// tiles out on Iberian bases), which goes up after these.
+	constexpr float kBaseGap = 24.0f;
+	auto apart = [](const std::vector<std::pair<float, float>> &v, float x, float z, float d) {
+		for (const auto &p : v)
+			if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < d * d) return false;
+		return true;
+	};
+	auto open_land = [&](float x, float z) {
+		return x > -half + 3.0f && x < half - 3.0f && z > -half + 3.0f && z < half - 3.0f &&
+		       hm.sample_world(x, z) >= water_h + 0.4f && hm.compute_slope_world(x, z) <= 0.7f && free_at(x, z);
+	};
+	// A spot on open land base_gap from every civic centre and spacing from the others in
+	// near; when none turns up, the spacing halves (twice) before giving up.
+	auto pick = [&](float base_gap, const std::vector<std::pair<float, float>> &near, float spacing, float &ox, float &oz) {
+		for (float sp = spacing; sp >= spacing * 0.25f; sp *= 0.5f)
+			for (int attempt = 0; attempt < 300; ++attempt) {
+				const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+				if (!open_land(x, z)) continue;
+				bool near_base = false;
+				for (const auto &sp_ : spawns)
+					near_base |= (sp_.x - x) * (sp_.x - x) + (sp_.z - z) * (sp_.z - z) < base_gap * base_gap;
+				if (near_base || !apart(near, x, z, sp)) continue;
+				ox = x;
+				oz = z;
+				return true;
+			}
+		return false;
+	};
+	auto place = [&](float x, float z, uint8_t type, int32_t amount, uint8_t flora = 0) {
+		if (!open_land(x, z)) return false;
+		sim.spawn_resource_world(x, z, type, amount, RES_SUB_NONE, 0, flora);
+		taken[cell(x, z)] = 1;
+		return true;
+	};
+
+	// Mines: the large ones alone and far apart, the small ones in clusters of 2-3
+	// (createBalancedMines' SimpleObject(oSmall, 2, 3, 0, 2)).
+	struct MinePass { uint8_t type; int want; int32_t amount; bool large; };
+	const MinePass passes[4] = {
+		{RES_GOLD, target(rc->metal_large) - have_ml, rc->metal_large_amount, true},
+		{RES_STONE, target(rc->stone_large) - have_sl, rc->stone_large_amount, true},
+		{RES_GOLD, target(rc->metal_small) - have_ms, rc->metal_small_amount, false},
+		{RES_STONE, target(rc->stone_small) - have_ss, rc->stone_small_amount, false},
+	};
+	for (const MinePass &mp : passes) {
+		for (int left = mp.want; left > 0;) {
+			float x, z;
+			if (!pick(kBaseGap, mines, mp.large ? sbms(14.0f, 28.0f) : sbms(10.0f, 20.0f), x, z)) break;
+			mines.push_back({x, z});
+			const int n = mp.large ? 1 : std::min(left, rng.range_int(2, 3));
+			int placed = 0;
+			for (int k = 0; k < n; ++k) {
+				const float a = 6.2831853f * (float)k / (float)n + rng.range_float(0.0f, 1.0f);
+				placed += place(k ? x + std::cos(a) * 1.8f : x, k ? z + std::sin(a) * 1.8f : z, mp.type, mp.amount);
+			}
+			left -= std::max(placed, 1);
+		}
+	}
+
+	// Fruit: berry bushes in clusters of 5 (the scripts' SimpleObject(oFruitBush, 5, 5, 0, 3)),
+	// fruit trees in clusters of 2-4, each kind by its share of the script's fruit.
+	int fruit_left = target(rc->fruit) - have_fruit;
+	while (fruit_left > 0 && rc->fruit_kinds[0].name) {
+		const ResourceKindShare *k = &rc->fruit_kinds[0];
+		if (rc->fruit_kinds[1].name && rng.range_int(1, 100) > rc->fruit_kinds[0].percent) k = &rc->fruit_kinds[1];
+		const uint8_t flora = flora_kind_by_name(k->name);
+		float x, z;
+		if (flora == FLORA_COUNT || !pick(kBaseGap, food, 10.0f, x, z)) break;
+		food.push_back({x, z});
+		const int n = std::min(fruit_left, flora == FLORA_BERRY ? 5 : rng.range_int(2, 4));
+		int placed = 0;
+		for (int i = 0; i < n; ++i) {
+			const float a = rng.range_float(0.0f, 6.2831853f), r = i ? rng.range_float(1.0f, 3.0f) : 0.0f;
+			placed += place(x + std::cos(a) * r, z + std::sin(a) * r, RES_FOOD, k->amount, flora);
+		}
+		fruit_left -= std::max(placed, 1);
+	}
+
+	// Hunt: herds of 3-6 (predators and other dangerous animals alone or in pairs), each
+	// herd one of the script's species by share; a generic-biome script's animals are
+	// the biome's (main hunt twice as often as the secondary), as when the game setup
+	// picks another biome.
+	const bool own_kinds = rc->hunt_kinds[0].name && sim.biome_override() < 0;
+	int hunt_left = target(rc->hunt) - have_hunt;
+	for (int herd = 0; hunt_left > 0; ++herd) {
+		uint8_t ftype = FAUNA_COUNT;
+		if (own_kinds) {
+			int roll = rng.range_int(1, 100);
+			for (const auto &k : rc->hunt_kinds) {
+				if (!k.name) break;
+				ftype = fauna_type_by_name(k.name);
+				if ((roll -= k.percent) <= 0) break;
+			}
+		}
+		if (ftype >= FAUNA_COUNT) {
+			const BiomeFauna bf = biome_fauna(config.biome, herd);
+			ftype = herd % 3 == 2 ? bf.secondary_hunt : bf.main_hunt;
+		}
+		const FaunaTypeInfo &fi = fauna_type_info(ftype);
+		float x, z;
+		if (!pick(kBaseGap, food, 10.0f, x, z)) break;
+		food.push_back({x, z});
+		const int n = std::min(hunt_left, fi.is_dangerous() ? rng.range_int(1, 2) : rng.range_int(3, 6));
+		for (int i = 0; i < n; ++i) {
+			const float a = 6.2831853f * (float)i / (float)n, r = rng.range_float(1.0f, 3.0f);
+			sim.spawn_fauna(x + std::cos(a) * r, z + std::sin(a) * r, ftype);
+		}
+		hunt_left -= n;
 	}
 }
 

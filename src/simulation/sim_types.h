@@ -2663,7 +2663,8 @@ enum FaunaBehavior : uint8_t {
 	FAUNA_HERDED     = 3,
 	FAUNA_CARCASS    = 4,
 	FAUNA_CORRALLED  = 5,
-	FAUNA_ROAMING    = 6  // IDLE.ROAMING
+	FAUNA_ROAMING    = 6, // IDLE.ROAMING
+	FAUNA_MOVING     = 7  // INDIVIDUAL.WALKING: an owned animal going where its owner sent it
 };
 
 } // namespace rtso
