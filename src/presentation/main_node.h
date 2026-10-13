@@ -41,6 +41,7 @@
 #include "../network/lobby_client.h"
 #include "../core/memory/arena.h"
 #include <godot_cpp/classes/rich_text_label.hpp>
+#include <godot_cpp/classes/confirmation_dialog.hpp>
 #include <godot_cpp/classes/line_edit.hpp>
 #include <godot_cpp/classes/h_separator.hpp>
 #include <godot_cpp/classes/json.hpp>
@@ -216,6 +217,10 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool patrol_mode = false;
 	bool guard_mode = false;
 	bool call_to_arms_mode = false; // the Call to arms button: the next right-click picks the spot
+	// The Garrison and Repair buttons (unit_actions.js ACTION_GARRISON / ACTION_REPAIR): the
+	// next right-click garrisons or repairs, as holding session.garrison / session.repair does.
+	bool garrison_mode = false;
+	bool repair_mode = false;
 	uint8_t current_build_type = rtso::BLD_HOUSE;
 	uint32_t selected_building_id = 0;
 	// Width in world units (= 0 A.D. tiles) of generated random maps: 128 Tiny
@@ -301,6 +306,12 @@ public:
 	void _on_minimap_order(Vector2 world_pos);
 	void trigger_flare(float x, float z);
 	void _on_flare_requested(Vector2 world_pos);
+	// g_EntityCommands (unit_actions.js): the command row's buttons and their hotkeys.
+	void _on_entity_command(const String &name);
+	void request_delete();
+	void add_entity_command(const char *name, const char *label, const char *hotkey, const String &tip,
+			const char *icon, bool enabled = true, int count = 0);
+	void _on_delete_confirmed();
 	void _on_idle_worker_clicked();
 	void _on_speed_button_pressed();
 	void _on_speed_selected(int id);
@@ -442,6 +453,7 @@ public:
 	Dictionary debug_selection_grid(bool select_all);
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
+	Array debug_command_row();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
@@ -521,7 +533,8 @@ private:
 	rtso::RtsoMusic music_;
 	rtso::RtsoSessionAudio session_audio_;
 	uint8_t music_civ_ = 0xFF;
-	double delete_armed_at_ = -10.0; // session.kill confirmation window
+	ConfirmationDialog *delete_dialog_ = nullptr; // DeleteSelectionConfirmation
+	PackedInt32Array delete_pending_;
 	void play_alarm(const char *path);
 	void play_sfx(const char *path);
 	void play_spatial_sfx(const char *path, Vector3 pos);
