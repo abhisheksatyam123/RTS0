@@ -1088,6 +1088,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	else cfg.biome = BIOME_AEGEAN;
 	if (biome_override_ >= 0) cfg.biome = (BiomeType)biome_override_;
 	cfg.team_placement = team_placement_;
+	cfg.landscape = map_landscape_;
 
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
@@ -5652,6 +5653,26 @@ bool Simulation::garrison_unit_now(uint32_t unit_id, uint32_t building_id) {
 	if (!structure_accepts_garrison(b, (size_t)i) || (int)b.garrisoned_units.size() >= b.garrison_cap) return false;
 	garrison_now((size_t)i, b);
 	return true;
+}
+
+void Simulation::spawn_gaia_wall(float sx, float sz, float ex, float ez, uint8_t kind) {
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	for (const WallPiece &p : wall_placement(GAIA_PLAYER, sx, sz, ex, ez, nullptr, nullptr, kind)) {
+		if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) continue;
+		set_structure_uncapturable(spawn_wall_piece(p, GAIA_PLAYER, 1.0f));
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk) rebuild_nav_grid();
+}
+
+void Simulation::clear_resources_near(float x, float z, float r) {
+	for (size_t i = 0; i < resources_.count; ++i) {
+		if (!resources_.alive[i] || resources_.subtype[i] == RES_SUB_FISH) continue;
+		if (std::hypot(resources_.x[i] - x, resources_.z[i] - z) > r) continue;
+		resources_.alive[i] = 0;
+		resources_.amount[i] = 0;
+	}
 }
 
 uint32_t Simulation::spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank) {
@@ -13525,6 +13546,8 @@ void Simulation::petra_manage_military_production(float dt) {
 		if (!fortress) for (int r = 0; r < RES_COUNT; ++r) reserve[r] = PETRA_FORTRESS_COST[r];
 	}
 	bool reserving = reserve[RES_FOOD] + reserve[RES_WOOD] + reserve[RES_GOLD] + reserve[RES_STONE] > 0.0f;
+	bool champion_waiting = false;
+	float champion_cost[RES_COUNT] = {};
 	for (const auto &opt : options) {
 		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
 		const bool siege_opt = is_siege(civ_unit_template(opt.tmpl).unit_type);
@@ -13544,6 +13567,21 @@ void Simulation::petra_manage_military_production(float dt) {
 			}
 		}
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
+		if ((civ_unit_template(opt.tmpl).flags & ROSTER_CHAMPION) && !champion_waiting) {
+			// HugeAttack's champion unitStat waits in its queue for its price (queueManager), so
+			// cheaper soldiers that also cost metal (mercenaries) do not spend it first each pass.
+			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
+			unit_train_cost(petra_pid_, opt.tmpl, ui, champion_cost);
+			bool short_of = false;
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (champion_cost[r] > 0.0f && petra_ps().res[r] - reserve[r] < champion_cost[r]) short_of = true;
+			if (short_of) {
+				champion_waiting = true;
+				for (int r = 0; r < RES_COUNT; ++r) reserve[r] += champion_cost[r];
+				reserving = true;
+			}
+			continue;
+		}
 		if (civ_unit_template(opt.tmpl).flags & ROSTER_HERO) {
 			// The hero leads the HugeAttack's unitStat (priority over champions): soldiers train
 			// only from what its price leaves, or cheaper units would always spend it first.
@@ -13563,6 +13601,12 @@ void Simulation::petra_manage_military_production(float dt) {
 			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
 			reserving = true;
 		}
+	}
+	if (champion_waiting) {
+		// A cheaper soldier queued after it cleared the queue's wants: the champion still waits.
+		PetraQueueAccount &w = petra_queues_.wants[PETRA_QUEUE_MILITARY];
+		w.food = std::max(w.food, champion_cost[RES_FOOD]); w.wood = std::max(w.wood, champion_cost[RES_WOOD]);
+		w.gold = std::max(w.gold, champion_cost[RES_GOLD]); w.stone = std::max(w.stone, champion_cost[RES_STONE]);
 	}
 }
 
@@ -13866,6 +13910,7 @@ void Simulation::petra_staff_foundations() {
 	watch.reserve(petra_fnd_watch_.size() + 4);
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress >= 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.type == BLD_FIELD) continue; // "we do not build fields": the food gatherers do (buildAnyField)
 		PetraFoundationWatch w;
 		w.id = b.id;
 		w.progress = b.build_progress;
@@ -13888,14 +13933,14 @@ void Simulation::petra_staff_foundations() {
 		const Building &b = buildings_[building_id_to_idx_.at(w.id)];
 		// assignToFoundations targetNB: 15 on a base anchor (or the wonder in wonder victory),
 		// 7 on a fortress or wonder, 4 on military buildings, towers and the market, 3 on
-		// houses and wood dropsites, else 2. (Petra's fields get their 3 farmers.)
+		// houses and wood dropsites, else 2.
 		int want = 2;
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
 		    (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER)) want = 15;
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
-		else if (b.type == BLD_HOUSE || b.type == BLD_STOREHOUSE || b.type == BLD_FIELD) want = 3;
+		else if (b.type == BLD_HOUSE || b.type == BLD_STOREHOUSE) want = 3;
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0});
 	}
 
@@ -14260,6 +14305,18 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
+	// Field foundations and their builders (buildAnyField: found.getBuildersNb()).
+	std::vector<std::pair<uint32_t, int>> field_builders;
+	if (!reassignable_workers.empty()) {
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == BLD_FIELD && b.build_progress < 1.0f && b.hp > 0.0f && !b.wrecked)
+				field_builders.push_back({b.id, 0});
+		for (size_t i = 0; i < units_.count && !field_builders.empty(); ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.action_state[i] == ACTION_BUILD)
+				for (auto &[id, n] : field_builders)
+					if (id == units_.target_building_id[i]) { ++n; break; }
+	}
+
 	// Assign reassignable workers to nearest safe dropsite and resource
 	for (size_t widx : reassignable_workers) {
 		uint8_t chosen_res_type = RES_FOOD;
@@ -14330,8 +14387,32 @@ void Simulation::petra_manage_economy(float dt) {
 				}
 			}
 			if (best_rid != 0) { got_type = rt; break; }
+			// worker.js startGathering, food: with no food in reach and no field with room,
+			// build a field foundation (buildAnyField, up to the field's MaxGatherers builders).
+			if (rt == RES_FOOD && unit_can_build(units_.unit_type[widx], units_.tmpl[widx])) {
+				std::pair<uint32_t, int> *fb = nullptr;
+				float fbest = 1e9f;
+				for (auto &e : field_builders) {
+					if (e.second >= FIELD_MAX_GATHERERS) continue;
+					const Building &f = buildings_[building_id_to_idx_.at(e.first)];
+					if (naval_map && petra_building_land(f) != wland) continue;
+					const float d2 = (f.x - wx) * (f.x - wx) + (f.z - wz) * (f.z - wz);
+					if (d2 < fbest) { fbest = d2; fb = &e; }
+				}
+				if (fb) {
+					uint32_t uid = units_.id[widx];
+					order_build_or_repair(&uid, 1, fb->first);
+					fb->second++;
+					got_type = RES_FOOD;
+					break;
+				}
+			}
 		}
 		if (best_c) best_c->slots--;
+		if (best_rid == 0 && got_type == RES_FOOD && units_.action_state[widx] == ACTION_BUILD) {
+			workers_food += food_weight(widx);
+			continue;
+		}
 
 		if (best_rid != 0) {
 			uint32_t uid = units_.id[widx];
@@ -14344,7 +14425,7 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	petra_manage_hunters(hunt_scan);
-	petra_manage_fields((int)target_food);
+	petra_manage_fields();
 }
 
 // 0 A.D. distances are metres squared; one RTS0 unit is 4 m, so they divide by 16.
@@ -14596,22 +14677,25 @@ void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
 	}
 }
 
-// headquarters.js / baseManager.js: once the hunt and berries near our
-// dropsites can't feed the food gatherers, Petra farms. Each field holds
-// FIELD_MAX_GATHERERS, and one field is laid out at a time; its builders
-// start farming it when it's done.
-void Simulation::petra_manage_fields(int target_food) {
+// baseManager.js checkResourceLevels, food branch. The food Petra counts is the fruit and grain
+// on its land near its food dropsites (nearby: within 90 m, 22.5 units; medium, in the village
+// phase, within 180 m), animals and fields left out. With no field yet it lays one once that
+// food is under 600; after that it keeps provisionFields foundations going (2, 1 below Medium,
+// one fewer past 300 food or 5 fields). A civ that can't build fields lays a corral when the
+// food is under 900 (needCorral) and manageCorral breeds an animal while it has no more than
+// one per corral (counted near it until corral animals have owners).
+void Simulation::petra_manage_fields() {
 	std::vector<std::pair<float, float>> drops;
 	const Building *farmstead = nullptr, *tc = nullptr;
-	int fields = 0;
-	bool field_pending = false;
+	int fields = 0, field_foundations = 0, corrals = 0;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 		if (b.type == BLD_FIELD) {
 			++fields;
-			if (b.build_progress < 1.0f) field_pending = true;
+			field_foundations += b.build_progress < 1.0f;
 			continue;
 		}
+		if (b.type == BLD_CORRAL) ++corrals;
 		if (b.build_progress < 1.0f) continue;
 		if (is_civic_centre(b.type) || b.type == BLD_FARMSTEAD) {
 			drops.push_back({b.x, b.z});
@@ -14619,26 +14703,54 @@ void Simulation::petra_manage_fields(int target_food) {
 			if (is_civic_centre(b.type) && !tc) tc = &b;
 		}
 	}
-	if (field_pending || drops.empty()) return;
+	if (drops.empty()) return;
 
-	float natural_food = 0.0f;
+	const float reach = petra_ps().phase < 2 ? 45.0f : 22.5f;
+	float count = 0.0f;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.amount[r] <= 0) continue;
-		if (resources_.subtype[r] == RES_SUB_FISH) continue; // villagers cannot gather fish
-		if (field_bld_by_res_.count(resources_.id[r])) continue;
+		const uint8_t sub = resources_.subtype[r];
+		if (sub == RES_SUB_FISH || sub == RES_SUB_MEAT || field_bld_by_res_.count(resources_.id[r])) continue;
 		for (const auto &d : drops) {
 			const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
-			if (dx * dx + dz * dz <= 40.0f * 40.0f) { natural_food += (float)resources_.amount[r]; break; }
+			if (dx * dx + dz * dz < reach * reach) { count += (float)resources_.amount[r]; break; }
 		}
 	}
-	// About 150 food of hunt or berries per gatherer still in reach.
-	const int natural_slots = std::min(target_food, (int)(natural_food / 150.0f));
-	const int want = std::min(12, (target_food - natural_slots + FIELD_MAX_GATHERERS - 1) / FIELD_MAX_GATHERERS);
-	if (fields >= want) return;
 
+	const uint8_t civ = petra_ps().civ;
+	auto can_build = [&](uint8_t t) {
+		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+	};
 	const Building *anchor = farmstead ? farmstead : tc;
-	if (!anchor) return;
-	petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+	if (can_build(BLD_FIELD)) {
+		if (fields == 0) {
+			if (count < 600.0f && anchor) petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+			return;
+		}
+		int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
+		if (count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
+		if (field_foundations < goal && anchor) petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+		return;
+	}
+	if (corrals == 0) {
+		if (count < 900.0f && anchor && can_build(BLD_CORRAL))
+			petra_place_building(BLD_CORRAL, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+		return;
+	}
+	if (ticks_ % 16 != 12) return; // manageCorral, every fourth played turn
+	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.type != BLD_CORRAL || b.build_progress < 1.0f || b.hp <= 0.0f || !b.queue.empty()) continue;
+		for (uint8_t k = 0; k < ct.count; ++k) {
+			int have = 0; // countEntitiesByType: the corral's own animals around it
+			for (size_t f = 0; f < fauna_.count; ++f)
+				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] &&
+				    std::hypot(fauna_.pos_x[f] - b.x, fauna_.pos_z[f] - b.z) < 20.0f) ++have;
+			if (have > corrals) continue;
+			cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1);
+			return;
+		}
+	}
 }
 
 // tradeManager.js performBarter, at most one deal a pass. Necessity: buy a
@@ -22899,6 +23011,7 @@ void Simulation::register_map_triggers(MapType type) {
 		case MAP_POLAR_SEA: register_trigger_script("polar_sea_triggers"); break;
 		case MAP_SURVIVAL_OF_THE_FITTEST: register_trigger_script("survivalofthefittest_triggers"); break;
 		case MAP_ELEPHANTINE: register_trigger_script("elephantine_triggers"); break;
+		case MAP_DANUBIUS: register_trigger_script("danubius_triggers"); break;
 		default: break;
 	}
 }
@@ -22913,6 +23026,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"survivalofthefittest_triggers", TRIGGER_ACTION_SURVIVAL_INIT, TUTORIAL_NONE},
 		{"death_canyon_invasion_force_triggers", TRIGGER_ACTION_DEATH_CANYON_INIT, TUTORIAL_NONE},
 		{"elephantine_triggers", TRIGGER_ACTION_ELEPHANTINE_INIT, TUTORIAL_NONE},
+		{"danubius_triggers", TRIGGER_ACTION_DANUBIUS_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -23088,6 +23202,27 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_ELEPHANTINE_INIT:
 			trigger_elephantine_init();
+			break;
+		case TRIGGER_ACTION_DANUBIUS_INIT:
+			trigger_danubius_init();
+			break;
+		case TRIGGER_ACTION_DANUBIUS_CC_ATTACKERS:
+			trigger_danubius_cc_attackers();
+			break;
+		case TRIGGER_ACTION_DANUBIUS_SHIPS:
+			trigger_danubius_ships();
+			break;
+		case TRIGGER_ACTION_DANUBIUS_FILL_SHIPS:
+			trigger_danubius_fill_ships();
+			break;
+		case TRIGGER_ACTION_DANUBIUS_UNLOAD_ORDER:
+			trigger_danubius_unload_order();
+			break;
+		case TRIGGER_ACTION_DANUBIUS_SHIP_RANGE:
+			trigger_danubius_ship_range();
+			break;
+		case TRIGGER_ACTION_DANUBIUS_OWNERSHIP:
+			trigger_danubius_ownership(data);
 			break;
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
@@ -23344,27 +23479,8 @@ void Simulation::trigger_survival_wave() {
 		else if (c & TC_CHAMPION) champions.push_back(t);
 	}
 	const bool want_hero = minutes > sim_rng_.range_float(kSurvivalHeroMin, kSurvivalHeroMax) && !heroes.empty();
-	// TriggerHelper.BalancedTemplateComposition: fixed counts first, then the groups by
-	// frequency; RandomTemplateComposition splits each group's share at random.
-	struct Group { const std::vector<uint16_t> *templates; int count; float frequency; };
-	std::vector<Group> groups;
-	for (const Group &g : {Group{&heroes, want_hero ? 1 : 0, 0.0f}, Group{&siege, 0, siege_ratio}, Group{&champions, 0, 1.0f - siege_ratio}})
-		if (!g.templates->empty()) groups.push_back(g);
-	int remainder = total;
 	std::vector<std::pair<uint16_t, int>> counts;
-	auto add_templates = [&](const std::vector<uint16_t> &names, int count) {
-		random_template_composition(names, count, counts);
-		remainder -= count;
-	};
-	for (const Group &g : groups)
-		if (g.count) add_templates(*g.templates, std::min(remainder, g.count));
-	float freq_sum = 0.0f;
-	std::vector<const Group *> by_freq;
-	for (const Group &g : groups)
-		if (g.frequency != 0.0f) { by_freq.push_back(&g); freq_sum += g.frequency; }
-	for (size_t i = 0; i < by_freq.size(); ++i)
-		add_templates(*by_freq[i]->templates, i + 1 == by_freq.size() ? remainder
-				: std::min(remainder, (int)std::lround(by_freq[i]->frequency / freq_sum * (float)total)));
+	balanced_template_composition({{heroes, want_hero ? 1 : 0, 0.0f}, {siege, 0, siege_ratio}, {champions, 0, 1.0f - siege_ratio}}, total, counts);
 
 	bool spawned = false;
 	for (const TriggerPoint &p : triggers_.points) {
@@ -23941,6 +24057,429 @@ void Simulation::trigger_elephantine_init() {
 			}
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// maps/random/danubius_triggers.js: Gallic reinforcements land on both banks of the Danube.
+// Ships respawn every few minutes, attack the nearest warship and patrol the river; they are
+// filled with soldiers and unload them on a bank where players hold defensive structures. The
+// Gaia villages send out waves of their own. Left out: the ritual animations (RTS0 has no
+// scripted animation) and the unit AI's "targetClasses" filter on patrols.
+namespace {
+// The script's TriggerWatch roles: a village civic centre, a ship, and a ship sent to unload
+// on the left or right bank (its player byte holds the unload point's index).
+constexpr uint8_t kDanubiusCivicCentre = 1, kDanubiusShip = 2, kDanubiusShipLeft = 3, kDanubiusShipRight = 4;
+constexpr float kDanubiusUnloadDistance = 50.0f / 4.0f; // shipUngarrisonDistance: 50 m
+constexpr int kDanubiusPatrolCount = 5;                  // patrolCount
+constexpr float kDanubiusFormationProbability = 0.2f;   // formationProbability
+constexpr uint8_t kDanubiusFormations[] = {FORMATION_BOX, FORMATION_BATTLE_LINE, FORMATION_LINE, FORMATION_COLUMN};
+const char *const kDanubiusHeroes[] = {"gaul/hero_viridomarus", "gaul/hero_vercingetorix", "gaul/hero_brennus"};
+// A roster template and rank (the 0 A.D. _b, _a and _e templates) in one key.
+constexpr uint16_t kDanubiusRankShift = 12;
+static_assert(CIV_UNIT_TEMPLATE_COUNT < (1u << kDanubiusRankShift), "roster ids must fit under the rank bits");
+enum DanubiusTarget : uint8_t { DANUBIUS_TARGET_SHIP, DANUBIUS_TARGET_DEFENSIVE, DANUBIUS_TARGET_UNIT };
+
+// danubiusAttackerTemplates: TriggerHelper.GetTemplateNamesByClasses over the Gallic roster.
+struct DanubiusTemplates {
+	std::vector<uint16_t> ships, siege, females, healers, champions, champion_infantry, infantry_ranged, citizen_soldiers, heroes;
+};
+const DanubiusTemplates &danubius_templates() {
+	static const DanubiusTemplates t = [] {
+		DanubiusTemplates d;
+		for (uint16_t id : civ_roster_ids(CIV_GAULS)) {
+			const CivUnitTemplate &u = civ_unit_template(id);
+			if (std::strstr(u.id, "rts0_")) continue;
+			const uint64_t c = u.tech_classes;
+			const size_t len = std::strlen(u.id);
+			const int ranks = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0 ? 3 : 1;
+			auto add = [&](std::vector<uint16_t> &v, int max_rank) {
+				for (int r = 0; r < std::min(ranks, max_rank); ++r) v.push_back((uint16_t)(id | r << kDanubiusRankShift));
+			};
+			if (c & TC_HERO) {
+				for (const char *h : kDanubiusHeroes)
+					if (std::strcmp(u.id, h) == 0) d.heroes.push_back(id);
+				continue;
+			}
+			if (c & TC_WARSHIP) add(d.ships, 3);
+			if (c & TC_SIEGE) add(d.siege, 3);
+			if (c & TC_FEMALECITIZEN) add(d.females, 3);
+			if (c & TC_HEALER) add(d.healers, 3);
+			if (c & TC_CHAMPION) add(d.champions, 3);
+			if ((c & TC_CHAMPION) && (c & TC_INFANTRY)) add(d.champion_infantry, 3);
+			if ((c & TC_INFANTRY) && (c & TC_RANGED)) add(d.infantry_ranged, 3);
+			if (c & TC_CITIZENSOLDIER) add(d.citizen_soldiers, 1); // "Basic"
+		}
+		// The script's own order of the heroes.
+		std::sort(d.heroes.begin(), d.heroes.end(), [](uint16_t a, uint16_t b) {
+			auto at = [](uint16_t t) {
+				for (size_t i = 0; i < std::size(kDanubiusHeroes); ++i)
+					if (std::strcmp(civ_unit_template(t).id, kDanubiusHeroes[i]) == 0) return i;
+				return std::size(kDanubiusHeroes);
+			};
+			return at(a) < at(b);
+		});
+		return d;
+	}();
+	return t;
+}
+} // namespace
+
+uint32_t Simulation::danubius_spawn(uint16_t key, float x, float z) {
+	const CivUnitTemplate &u = civ_unit_template((uint16_t)(key & ((1u << kDanubiusRankShift) - 1)));
+	return spawn_gaia_unit(x, z, (UnitType)u.unit_type, u.id, 1 + (key >> kDanubiusRankShift));
+}
+
+uint64_t Simulation::unit_classes_at(size_t i) const {
+	const uint16_t t = units_.tmpl[i];
+	return t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+}
+
+bool Simulation::danubius_is_left(float x, float z) const {
+	// IsLeftRiverside: (position - centre) x riverDirection < 0, the direction being trigger point I.
+	for (const TriggerPoint &p : triggers_.points)
+		if (p.ref == 'I') return x * p.z - z * p.x < 0.0f;
+	return x < 0.0f;
+}
+
+void Simulation::danubius_active_riversides(bool &left, bool &right) const {
+	// GetActiveRiversides: a bank counts while a player holds a "Defensive" structure there.
+	left = right = false;
+	for (const Building &b : buildings_) {
+		if (b.team >= MAX_PLAYERS || b.hp <= 0.0f || b.wrecked || !(building_tech_classes(b.type) & TC_DEFENSIVE)) continue;
+		(danubius_is_left(b.x, b.z) ? left : right) = true;
+		if (left && right) return;
+	}
+}
+
+void Simulation::danubius_composition(float minutes, bool siege, int total, std::vector<std::pair<uint16_t, int>> &counts) {
+	// GetAttackerComposition, then TriggerHelper.BalancedTemplateComposition.
+	const DanubiusTemplates &t = danubius_templates();
+	// unique_entities: the Gaia heroes that are still about (on land or aboard).
+	std::vector<uint16_t> heroes;
+	for (uint16_t h : t.heroes) {
+		bool alive = false;
+		for (size_t i = 0; i < units_.count && !alive; ++i)
+			alive = units_.tmpl[i] == h && units_.team[i] == GAIA_PLAYER && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED);
+		if (!alive) heroes.push_back(h);
+	}
+	const float champ = std::clamp((minutes - 25.0f) / 75.0f, 0.0f, 1.0f);         // championRatio
+	const bool hero = sim_rng_.range_float(0.0f, 1.0f) < std::clamp((minutes - 25.0f) / 60.0f, 0.0f, 1.0f); // heroProbability
+	const int siege_n = siege ? 1 + std::min(2, (int)std::floor(minutes / 30.0f)) : 0;                 // siegeCount
+	const float healer = sim_rng_.range_float(0.0f, 0.1f);                                          // healerRatio
+	balanced_template_composition({{heroes, hero ? 1 : 0, 0.0f}, {t.siege, siege_n, 0.0f}, {t.healers, 0, healer},
+	                               {t.champions, 0, champ}, {t.citizen_soldiers, 0, 1.0f - champ}},
+	                              total, counts);
+}
+
+std::vector<uint32_t> Simulation::danubius_spawn_counts(const std::vector<std::pair<uint16_t, int>> &counts, float x, float z, float r0,
+		size_t first) {
+	// TriggerHelper.SpawnUnits round the source's footprint (PickSpawnPoint); `first` carries
+	// on the spiral of an earlier batch at the same source.
+	std::vector<uint32_t> ids;
+	for (const auto &[key, n] : counts)
+		for (int k = 0; k < n; ++k) {
+			const float at = (float)(first + ids.size());
+			const float a = 2.3999632f * at, r = r0 + 0.8f * std::sqrt(at);
+			if (const uint32_t id = danubius_spawn(key, x + std::cos(a) * r, z + std::sin(a) * r)) ids.push_back(id);
+		}
+	return ids;
+}
+
+void Simulation::danubius_attack_and_patrol(const std::vector<uint32_t> &ids, uint8_t target, uint8_t ref, bool attack) {
+	// AttackAndPatrol: the healers guard a hero or champion (else a soldier) of the group; the
+	// rest attack the nearest player target of the class on their bank, then patrol up to five
+	// of the trigger points `ref`.
+	if (ids.empty()) return;
+	std::vector<uint32_t> healers, attackers, heroes, soldiers;
+	for (uint32_t id : ids) {
+		const int32_t u = lookup_unit(id);
+		if (u < 0) continue;
+		const uint64_t c = unit_classes_at((size_t)u);
+		if (c & (TC_HERO | TC_CHAMPION)) heroes.push_back(id);
+		if (c & TC_SOLDIER) soldiers.push_back(id);
+		if (!units_.alive[u]) continue;
+		((c & TC_HEALER) ? healers : attackers).push_back(id);
+	}
+	if (!healers.empty()) {
+		const auto &guard = heroes.empty() ? soldiers : heroes;
+		if (!guard.empty()) order_guard(healers.data(), healers.size(), guard[(size_t)sim_rng_.range_int(0, (int)guard.size() - 1)]);
+	}
+	if (attackers.empty()) return;
+	const int32_t lead = lookup_unit(attackers[0]);
+	const float lx = units_.pos_x[lead], lz = units_.pos_z[lead];
+	const bool left = danubius_is_left(lx, lz);
+	uint32_t best = 0;
+	float best_d = std::numeric_limits<float>::infinity();
+	if (target == DANUBIUS_TARGET_DEFENSIVE) {
+		for (const Building &b : buildings_) {
+			if (b.team >= MAX_PLAYERS || b.hp <= 0.0f || b.wrecked || !(building_tech_classes(b.type) & TC_DEFENSIVE)) continue;
+			if (danubius_is_left(b.x, b.z) != left) continue;
+			const float d = std::hypot(b.x - lx, b.z - lz);
+			if (d < best_d) { best_d = d; best = b.id; }
+		}
+		if (attack && best) order_attack_building(attackers.data(), attackers.size(), best, true, false);
+	} else {
+		for (size_t i = 0; i < units_.count; ++i) {
+			if (!units_.alive[i] || units_.team[i] >= MAX_PLAYERS) continue;
+			const bool ship = unit_is_ship(units_.unit_type[i]);
+			if (target == DANUBIUS_TARGET_SHIP ? !(unit_classes_at(i) & TC_WARSHIP) : ship) continue; // "Warship", "Unit+!Ship"
+			if (danubius_is_left(units_.pos_x[i], units_.pos_z[i]) != left) continue;
+			const float d = std::hypot(units_.pos_x[i] - lx, units_.pos_z[i] - lz);
+			if (d < best_d) { best_d = d; best = units_.id[i]; }
+		}
+		if (attack && best) order_attack(attackers.data(), attackers.size(), best, true);
+	}
+	std::vector<const TriggerPoint *> pts;
+	for (const TriggerPoint &p : triggers_.points)
+		if (p.ref == ref) pts.push_back(&p);
+	for (size_t i = pts.size(); i > 1; --i) std::swap(pts[i - 1], pts[(size_t)sim_rng_.range_int(0, (int)i - 1)]); // shuffleArray
+	for (size_t i = 0; i < pts.size() && (int)i < kDanubiusPatrolCount; ++i)
+		order_patrol(attackers.data(), attackers.size(), pts[i]->x, pts[i]->z, true);
+}
+
+void Simulation::trigger_danubius_init() {
+	// InitDanubius.
+	for (const Building &b : buildings_)
+		if (b.team == GAIA_PLAYER && is_civic_centre(b.type) && b.hp > 0.0f && !b.wrecked)
+			triggers_.watched.push_back({b.id, GAIA_PLAYER, 1, kDanubiusCivicCentre, 0});
+	triggers_.register_trigger(TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ACTION_DANUBIUS_OWNERSHIP, true);
+	// StartCelticRitual: the Gaia people on the map at the start hold a defensive stance.
+	std::vector<uint32_t> people;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == GAIA_PLAYER && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
+				(unit_classes_at(i) & (TC_INFANTRY | TC_FEMALECITIZEN | TC_HEALER)))
+			people.push_back(units_.id[i]);
+	if (!people.empty()) order_set_stance(people.data(), people.size(), STANCE_DEFENSIVE);
+	// GarrisonAllGallicBuildings and TurretAllGallicBuildings, full.
+	const DanubiusTemplates &t = danubius_templates();
+	std::vector<uint16_t> house = t.females;
+	house.insert(house.end(), t.healers.begin(), t.healers.end());
+	std::vector<std::pair<uint32_t, const std::vector<uint16_t> *>> holders;
+	for (const Building &b : buildings_) {
+		if (b.team != GAIA_PLAYER || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		const uint64_t c = building_tech_classes(b.type);
+		if (c & TC_HOUSE) holders.push_back({b.id, &house});
+		else if (is_civic_centre(b.type) || (c & TC_TEMPLE)) holders.push_back({b.id, &t.champions});
+		else if (c & TC_TOWER) holders.push_back({b.id, &t.champion_infantry});
+		else if (c & TC_OUTPOST) holders.push_back({b.id, &t.infantry_ranged});
+	}
+	for (const auto &[id, templates] : holders) {
+		const int cap = get_garrison_capacity(id);
+		auto it = building_id_to_idx_.find(id);
+		if (cap <= 0 || it == building_id_to_idx_.end()) continue;
+		std::vector<std::pair<uint16_t, int>> counts;
+		random_template_composition(*templates, cap, counts);
+		const float x = buildings_[it->second].x, z = buildings_[it->second].z;
+		for (const auto &[key, n] : counts)
+			for (int k = 0; k < n; ++k)
+				if (const uint32_t uid = danubius_spawn(key, x, z)) garrison_unit_now(uid, id);
+	}
+	// SpawnInitialCCDefenders: one template of each group at every village, defensive.
+	for (const TriggerWatch &w : std::vector<TriggerWatch>(triggers_.watched)) {
+		auto it = building_id_to_idx_.find(w.id);
+		if (w.role != kDanubiusCivicCentre || it == building_id_to_idx_.end()) continue;
+		const Building &b = buildings_[it->second];
+		const float bx = b.x, bz = b.z, r0 = b.half_size + 1.5f;
+		std::vector<uint32_t> defenders;
+		for (const auto &[templates, n] : {std::pair{&t.citizen_soldiers, 8}, std::pair{&t.champions, 13}, std::pair{&t.healers, 4},
+				std::pair{&t.females, 5}}) {
+			if (templates->empty()) continue;
+			const auto ids = danubius_spawn_counts({{(*templates)[(size_t)sim_rng_.range_int(0, (int)templates->size() - 1)], n}}, bx, bz, r0,
+			                                       defenders.size());
+			defenders.insert(defenders.end(), ids.begin(), ids.end());
+		}
+		for (int k = 0; k < 10; ++k) {
+			const float at = (float)(defenders.size() + (size_t)k);
+			const float a = 2.3999632f * at, r = r0 + 0.8f * std::sqrt(at);
+			spawn_fauna(bx + std::cos(a) * r, bz + std::sin(a) * r, FAUNA_SHEEP);
+		}
+		if (!defenders.empty()) order_set_stance(defenders.data(), defenders.size(), STANCE_DEFENSIVE);
+	}
+	trigger_danubius_cc_attackers();
+	trigger_danubius_ships();
+	triggers_.set_timeout((uint32_t)std::lround(sim_rng_.range_float(5.0f, 7.0f) * 60000.0f), TRIGGER_ACTION_DANUBIUS_UNLOAD_ORDER);
+	triggers_.set_interval(5000, 5000, TRIGGER_ACTION_DANUBIUS_SHIP_RANGE);
+}
+
+void Simulation::trigger_danubius_cc_attackers() {
+	// SpawnCCAttackers: min(20, 1.5 per minute) soldiers from each village on a bank players
+	// hold, patrolling the bank's G or H points; again every 6 to 8 minutes while a village stands.
+	const float minutes = (float)triggers_.time_ms / 60000.0f;
+	bool left, right;
+	danubius_active_riversides(left, right);
+	bool any = false;
+	for (const TriggerWatch &w : std::vector<TriggerWatch>(triggers_.watched)) {
+		if (w.role != kDanubiusCivicCentre) continue;
+		any = true;
+		auto it = building_id_to_idx_.find(w.id);
+		if (it == building_id_to_idx_.end()) continue;
+		const Building &b = buildings_[it->second];
+		const bool is_left = danubius_is_left(b.x, b.z);
+		if (is_left ? !left : !right) continue;
+		const float bx = b.x, bz = b.z, r0 = b.half_size + 1.5f;
+		std::vector<std::pair<uint16_t, int>> counts;
+		danubius_composition(minutes, false, std::min(20, std::max(0, (int)std::lround(minutes * 1.5f))), counts);
+		danubius_attack_and_patrol(danubius_spawn_counts(counts, bx, bz, r0), DANUBIUS_TARGET_UNIT, is_left ? 'G' : 'H', false);
+	}
+	if (any)
+		triggers_.set_timeout((uint32_t)std::lround(sim_rng_.range_float(6.0f, 8.0f) * 60000.0f), TRIGGER_ACTION_DANUBIUS_CC_ATTACKERS);
+}
+
+void Simulation::trigger_danubius_ships() {
+	// SpawnShips: up to max(2, min(1.5, minutes / 10) x players) Gallic warships at the A points,
+	// each attacking the nearest warship and patrolling the B points; every 8 to 10 minutes. The
+	// script compares its count with the number still to spawn, so it tops up only from below
+	// half the limit; kept as it is.
+	const float minutes = (float)triggers_.time_ms / 60000.0f;
+	int players = 0;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (is_defeated(p)) continue;
+		bool present = false;
+		for (const Building &b : buildings_) present |= b.team == p && b.hp > 0.0f && !b.wrecked;
+		for (size_t i = 0; i < units_.count && !present; ++i) present = units_.alive[i] && units_.team[i] == p;
+		players += present;
+	}
+	auto ship_count = [&] {
+		int n = 0;
+		for (const TriggerWatch &w : triggers_.watched) n += w.role >= kDanubiusShip;
+		return n;
+	};
+	const int spawn_count = std::max(2, (int)std::lround(std::min(1.5f, minutes / 10.0f) * (float)players)) - ship_count();
+	const DanubiusTemplates &t = danubius_templates();
+	std::vector<const TriggerPoint *> spawn_points;
+	for (const TriggerPoint &p : triggers_.points)
+		if (p.ref == 'A') spawn_points.push_back(&p);
+	while (ship_count() < spawn_count && !spawn_points.empty() && !t.ships.empty()) {
+		const TriggerPoint &p = *spawn_points[(size_t)sim_rng_.range_int(0, (int)spawn_points.size() - 1)];
+		const uint32_t id = danubius_spawn(t.ships[(size_t)sim_rng_.range_int(0, (int)t.ships.size() - 1)], p.x, p.z);
+		if (!id) break;
+		triggers_.watched.push_back({id, GAIA_PLAYER, 0, kDanubiusShip, 0});
+	}
+	for (const TriggerWatch &w : std::vector<TriggerWatch>(triggers_.watched))
+		if (w.role >= kDanubiusShip) danubius_attack_and_patrol({w.id}, DANUBIUS_TARGET_SHIP, 'B', true);
+	triggers_.set_timeout((uint32_t)std::lround(sim_rng_.range_float(8.0f, 10.0f) * 60000.0f), TRIGGER_ACTION_DANUBIUS_SHIPS);
+	triggers_.cancel_timer((uint32_t)triggers_.vars[0]);
+	trigger_danubius_fill_ships();
+}
+
+void Simulation::trigger_danubius_fill_ships() {
+	// FillShips: each ship takes on new soldiers up to min(30, 2 per minute), siege engines
+	// among them; every 4 to 5 minutes. RTS0 stops at the ship's capacity, where 0 A.D. logs the
+	// units that do not fit.
+	const float minutes = (float)triggers_.time_ms / 60000.0f;
+	for (const TriggerWatch &w : std::vector<TriggerWatch>(triggers_.watched)) {
+		const int32_t s = w.role >= kDanubiusShip ? lookup_unit(w.id) : -1;
+		if (s < 0 || !units_.alive[s] || !is_transport(w.id)) continue;
+		const int aboard = (int)get_transport_passenger_count(w.id);
+		const int want = std::min(std::min(30, (int)std::lround(minutes * 2.0f)) - aboard, get_transport_capacity(w.id) - aboard);
+		if (want <= 0) continue;
+		std::vector<std::pair<uint16_t, int>> counts;
+		danubius_composition(minutes, true, want, counts);
+		const float x = units_.pos_x[s], z = units_.pos_z[s];
+		for (const auto &[key, n] : counts)
+			for (int k = 0; k < n; ++k)
+				if (const uint32_t uid = danubius_spawn(key, x, z)) order_board_transport(&uid, 1, w.id);
+	}
+	triggers_.vars[0] = (int32_t)triggers_.set_timeout((uint32_t)std::lround(sim_rng_.range_float(4.0f, 5.0f) * 60000.0f),
+	                                                    TRIGGER_ACTION_DANUBIUS_FILL_SHIPS);
+}
+
+void Simulation::trigger_danubius_unload_order() {
+	// UngarrisonShipsOrder: half the ships (all, when players hold only one bank) sail to a
+	// random C (left) or D (right) shore point to unload; every 5 to 7 minutes. With no player
+	// structure left on either bank the script stops ordering for good.
+	bool left, right;
+	danubius_active_riversides(left, right);
+	if (!left && !right) return;
+	std::vector<size_t> ships;
+	for (size_t k = 0; k < triggers_.watched.size(); ++k)
+		if (triggers_.watched[k].role >= kDanubiusShip) ships.push_back(k);
+	size_t n_left = left ? ships.size() : 0;
+	if (left && right) {
+		for (size_t i = ships.size(); i > 1; --i) std::swap(ships[i - 1], ships[(size_t)sim_rng_.range_int(0, (int)i - 1)]);
+		n_left = (size_t)std::lround((float)ships.size() / 2.0f);
+	}
+	for (size_t i = 0; i < ships.size(); ++i) {
+		TriggerWatch &w = triggers_.watched[ships[i]];
+		const uint8_t ref = i < n_left ? 'C' : 'D';
+		std::vector<const TriggerPoint *> pts;
+		for (const TriggerPoint &p : triggers_.points)
+			if (p.ref == ref) pts.push_back(&p);
+		if (pts.empty()) continue;
+		const size_t pick = (size_t)sim_rng_.range_int(0, (int)pts.size() - 1);
+		order_walk(&w.id, 1, pts[pick]->x, pts[pick]->z);
+		w.role = ref == 'C' ? kDanubiusShipLeft : kDanubiusShipRight;
+		w.player = (uint8_t)pick;
+	}
+	triggers_.set_timeout((uint32_t)std::lround(sim_rng_.range_float(5.0f, 7.0f) * 60000.0f), TRIGGER_ACTION_DANUBIUS_UNLOAD_ORDER);
+}
+
+void Simulation::trigger_danubius_ship_range() {
+	// CheckShipRange, every 5 s: a ship within 50 m of its unload point puts everyone ashore;
+	// the siege engines go for the bank's defensive structures, the rest for its units, then
+	// patrol the E (left) or F (right) points; the ship goes back to the river. A ship that
+	// finds no shore to unload on keeps sailing to its point.
+	for (size_t k = 0; k < triggers_.watched.size(); ++k) {
+		const TriggerWatch w = triggers_.watched[k];
+		if (w.role != kDanubiusShipLeft && w.role != kDanubiusShipRight) continue;
+		const int32_t s = lookup_unit(w.id);
+		if (s < 0 || !units_.alive[s]) continue;
+		const uint8_t ref = w.role == kDanubiusShipLeft ? 'C' : 'D';
+		const TriggerPoint *point = nullptr;
+		for (size_t i = 0, n = 0; i < triggers_.points.size() && !point; ++i)
+			if (triggers_.points[i].ref == ref && n++ == w.player) point = &triggers_.points[i];
+		if (!point || std::hypot(units_.pos_x[s] - point->x, units_.pos_z[s] - point->z) > kDanubiusUnloadDistance) continue;
+		const auto *aboard = get_transport_passengers(w.id);
+		const std::vector<uint32_t> passengers = aboard ? *aboard : std::vector<uint32_t>{};
+		if (!passengers.empty()) {
+			order_disembark_all(w.id);
+			if (get_transport_passenger_count(w.id) == passengers.size()) continue;
+		}
+		triggers_.watched[k].role = kDanubiusShip;
+		std::vector<uint32_t> humans, siege;
+		for (uint32_t id : passengers) {
+			const int32_t u = lookup_unit(id);
+			if (u < 0 || !units_.alive[u]) continue;
+			((unit_classes_at((size_t)u) & TC_SIEGE) ? siege : humans).push_back(id);
+		}
+		danubius_attack_and_patrol({w.id}, DANUBIUS_TARGET_SHIP, 'B', true);
+		if (sim_rng_.range_float(0.0f, 1.0f) < kDanubiusFormationProbability && !humans.empty())
+			order_set_formation(humans.data(), humans.size(), kDanubiusFormations[sim_rng_.range_int(0, (int)std::size(kDanubiusFormations) - 1)]);
+		const uint8_t land = w.role == kDanubiusShipLeft ? 'E' : 'F';
+		danubius_attack_and_patrol(siege, DANUBIUS_TARGET_DEFENSIVE, land, true);
+		danubius_attack_and_patrol(humans, DANUBIUS_TARGET_UNIT, land, true);
+	}
+}
+
+void Simulation::trigger_danubius_ownership(const TriggerEventData &data) {
+	// DanubiusOwnershipChange: a village or ship lost by Gaia is forgotten.
+	if (data.from != GAIA_PLAYER) return;
+	auto &w = triggers_.watched;
+	w.erase(std::remove_if(w.begin(), w.end(), [&](const TriggerWatch &t) { return t.id == data.entity && t.role == data.value; }), w.end());
+}
+
+void Simulation::balanced_template_composition(const std::vector<TemplateBalance> &groups, int total,
+		std::vector<std::pair<uint16_t, int>> &counts) {
+	// TriggerHelper.BalancedTemplateComposition: groups without templates drop out; the fixed
+	// counts come first, then the groups by frequency share what is left (RandomTemplateComposition
+	// splits each group's share at random).
+	int remainder = total;
+	auto add = [&](const std::vector<uint16_t> &names, int count) {
+		int before = 0, after = 0;
+		for (const auto &c : counts) before += c.second;
+		random_template_composition(names, count, counts);
+		for (const auto &c : counts) after += c.second;
+		remainder -= after - before;
+	};
+	for (const TemplateBalance &g : groups)
+		if (!g.templates.empty() && g.count) add(g.templates, std::min(remainder, g.count));
+	float sum = 0.0f;
+	std::vector<const TemplateBalance *> by_freq;
+	for (const TemplateBalance &g : groups)
+		if (!g.templates.empty() && g.frequency != 0.0f) { by_freq.push_back(&g); sum += g.frequency; }
+	for (size_t i = 0; i < by_freq.size(); ++i)
+		add(by_freq[i]->templates, i + 1 == by_freq.size() ? remainder
+				: std::min(remainder, (int)std::lround(by_freq[i]->frequency / sum * (float)total)));
 }
 
 void Simulation::trigger_volcano_garrison_towers() {

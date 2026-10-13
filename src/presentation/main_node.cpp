@@ -4924,6 +4924,7 @@ void RtsoMain::apply_match_settings() {
 	}
 	sim->set_biome_override((int)ms->get("biome") - 1); // 0 = the map's own biome
 	sim->set_team_placement((int)ms->get("team_placement"));
+	sim->set_map_landscape((int)ms->get("landscape"));
 	// Civs before the map: spawn_unit gives each starting unit its owner's
 	// roster template (Simulation::reset keeps civs), as 0 A.D. spawns
 	// StartEntities from the player's own civ.
@@ -5613,6 +5614,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 		for (int i = 0; i < 8 && i < snames.size(); ++i) setup.names[i] = String(snames[i]).utf8().get_data();
 		setup.water_level = (uint8_t)std::clamp((int)ms->get("water_level"), 0, 2);
 		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
+		setup.landscape = (uint8_t)std::clamp((int)ms->get("landscape"), 0, 15);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
@@ -5704,6 +5706,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		random_map_teams[i] = (i < setup.slot_count && setup.teams[i] >= 1 && setup.teams[i] <= 8) ? setup.teams[i] : 0;
 	sim->set_biome_override((int)setup.biome - 1);
 	sim->set_team_placement(setup.team_placement);
+	sim->set_map_landscape(setup.landscape);
 	// Civs before the map, so starting units take their owner's roster templates.
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
@@ -5798,6 +5801,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		apply_player_names(snames);
 		ms->set("water_level", sim->water_level_mode());
 		ms->set("team_placement", (int)setup.team_placement);
+		ms->set("landscape", (int)setup.landscape);
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());
