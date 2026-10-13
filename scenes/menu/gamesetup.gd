@@ -158,6 +158,14 @@ const LANDSCAPES := [["Random", 0, "Choose a random landscape."],
 	["Naval: Archipelago", 3, "Players are scattered across island chains and disconnected islands."],
 	["Naval: Lake and rivers", 9, "A central lake with rivers possibly separating neighboring players."]]
 const LANDSCAPE_MAPS := ["random_unknown"]
+# 0 A.D. data/settings/trigger_difficulties.json: [name, tooltip], value = index + 1.
+# Shown for the maps whose json lists SupportedTriggerDifficulties.
+const TRIGGER_DIFFICULTIES := [["Very Easy", "Choose this difficulty if you are discovering 0 A.D."],
+	["Easy", "Choose this difficulty if you do not like being knocked down."],
+	["Medium", "Choose this difficulty if you have already a good experience with 0 A.D."],
+	["Hard", "Choose this difficulty if you want to be really challenged."],
+	["Very Hard", "Choose this difficulty if you do not mind being swept out."]]
+const TRIGGER_DIFFICULTY_MAPS := ["random_jebel_barkal"]
 
 # 0 A.D. common/settings.js loadMapTypes: [name, title, description]; Skirmish is the default.
 const MAP_TYPES := [["skirmish", "Skirmish", "A map with a predefined landscape and number of players. Freely select the other game settings."],
@@ -309,6 +317,11 @@ func _read_scenario(map_id: String) -> Dictionary:
 	var pl: Array = parsed.get("players", [])
 	if not pl.is_empty():
 		d["players"] = pl.size()
+	# The map's players in player order (the JSON lists them by "id"), whose civs
+	# and teams load_map_seeded applies.
+	pl = pl.filter(func(p): return typeof(p) == TYPE_DICTIONARY)
+	pl.sort_custom(func(a, b): return int(a.get("id", 0)) < int(b.get("id", 0)))
+	d["map_players"] = pl
 	return d
 
 func _make_option(slot: Control) -> RtsoSafeSelect:
@@ -437,12 +450,20 @@ func _on_map_list_selected(idx: int) -> void:
 func _is_scenario() -> bool:
 	return str(_selected_map().get("type", "")) == "scenario"
 
-## The scenario's PlayerData entry for slot i, {} otherwise.
+## The scenario's player entry for slot i from its map JSON (0.28's PlayerData,
+## tools/port_0ad_maps.py), {} otherwise.
 func _map_player(i: int) -> Dictionary:
 	if not _is_scenario():
 		return {}
-	var pl: Array = _selected_map().get("settings", {}).get("players", [])
-	return pl[i] if i < pl.size() and typeof(pl[i]) == TYPE_DICTIONARY else {}
+	var pl: Array = _selected_map().get("map_players", [])
+	return pl[i] if i < pl.size() else {}
+
+## A map player's civ as a CIVS index (the JSON's civ number), -1 when unset.
+func _map_civ(p: Dictionary) -> int:
+	var c: Variant = p.get("civ", -1)
+	if typeof(c) == TYPE_STRING:
+		return _civ_index(c)
+	return int(c) if int(c) >= 0 and int(c) < CIVS.size() else -1
 
 func _civ_index(code: String) -> int:
 	for i in range(CIVS.size()):
@@ -499,7 +520,7 @@ func _apply_map_locks() -> void:
 	_ensure_slot_rows(int(_slot_count_node().value))
 	for i in range(_slot_rows.size()):
 		var p := _map_player(i)
-		var c := _civ_index(str(p.get("civ", "")))
+		var c := _map_civ(p)
 		if c >= 0:
 			_slot_rows[i]["civ"] = c
 		if not p.is_empty():
@@ -523,7 +544,10 @@ func _update_map_options() -> void:
 	var ls := id in LANDSCAPE_MAPS
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeLabel.visible = ls
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.visible = ls
-	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls
+	var td := id in TRIGGER_DIFFICULTY_MAPS
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.visible = td
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.visible = td
+	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td
 
 func _selected_map() -> Dictionary:
 	if _filtered.is_empty():
@@ -644,7 +668,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		else: civ.add_item(c["name"])
 	civ.add_item("Random")
 	civ.select(clampi(int(row["civ"]), 0, CIVS.size()))
-	civ.disabled = _civ_index(str(_map_player(i).get("civ", ""))) >= 0
+	civ.disabled = _map_civ(_map_player(i)) >= 0
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
 	var team_slot := Control.new()
@@ -796,6 +820,13 @@ func _build_options() -> void:
 		ltips.append("%s: %s" % [l[0], l[2]])
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeLabel.tooltip_text = "\n".join(ltips)
 	lsc.select(0)
+	var tdf := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot)
+	var dtips := PackedStringArray()
+	for d in TRIGGER_DIFFICULTIES:
+		tdf.add_item(d[0])
+		dtips.append("%s: %s" % [d[0], d[1]])
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.tooltip_text = "Select the difficulty of this scenario.\n" + "\n".join(dtips)
+	tdf.select(2)
 	var res := _make_option($VBox/HBox/LeftScroll/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -829,7 +860,7 @@ func _on_reroll_seed() -> void:
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
 	"ceasefire_min", "reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "water_level",
-	"sea_level_rise_min", "team_placement", "landscape", "map_size", "start_res", "biome", "game_speed",
+	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
@@ -871,7 +902,8 @@ func page_state() -> Dictionary:
 		"pop_cap": st["pop_cap"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
-		"team_placement": st["team_placement"], "landscape": st["landscape"], "map_size": st["map_size"],
+		"team_placement": st["team_placement"], "landscape": st["landscape"],
+		"trigger_difficulty": st["trigger_difficulty"], "map_size": st["map_size"],
 		"start_res": st["res"], "biome": st["biome"], "game_speed": st["speed"],
 		"slot_types": rows.map(func(r): return int(r["kind"])), "slot_civs": rows.map(func(r): return int(r["civ"])),
 		"slot_teams": rows.map(func(r): return int(r["team"])), "slot_diffs": rows.map(func(r): return int(r["diff"])),
@@ -934,6 +966,8 @@ func _apply_settings(ms: Dictionary) -> void:
 	for i in range(LANDSCAPES.size()):
 		if int(LANDSCAPES[i][1]) == int(ms.get("landscape")):
 			lsc.select(i)
+	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
+	tdf.select(clampi(int(ms.get("trigger_difficulty", 3)) - 1, 0, TRIGGER_DIFFICULTIES.size() - 1))
 	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -995,6 +1029,7 @@ func _collect_setup() -> Dictionary:
 	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
 	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
+	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -1047,6 +1082,8 @@ func _collect_setup() -> Dictionary:
 		"sea_level_rise_min": int(SEA_RISE_TIMES[maxi(sr.get_selected(), 0)]),
 		"team_placement": maxi(tpl.get_selected(), 0),
 		"landscape": int(LANDSCAPES[maxi(lsc.get_selected(), 0)][1]),
+		# Maps without trigger difficulties play at the default, Medium.
+		"trigger_difficulty": maxi(tdf.get_selected(), 0) + 1 if str(m.get("id", "")) in TRIGGER_DIFFICULTY_MAPS else 3,
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
@@ -1140,6 +1177,7 @@ func _on_start_pressed() -> void:
 	ms.sea_level_rise_min = int(st["sea_level_rise_min"])
 	ms.team_placement = int(st["team_placement"])
 	ms.landscape = int(st["landscape"])
+	ms.trigger_difficulty = int(st.get("trigger_difficulty", 3))
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])
