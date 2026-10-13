@@ -9601,10 +9601,9 @@ void Simulation::tick_combat(float dt) {
 			wild.push_back((uint16_t)f);
 
 	// 1. Target Acquisition & Stance Evaluation (0 A.D. UnitAI.js)
-	JobSystem::instance().for_each_index(n, [&](size_t i) {
-		// tick_gather uses attack_timer as the harvest clock; counting it down
-		// here as well cancelled every harvest tick, so nobody ever gathered.
-		tick_attack_timer(i, dt);
+	// again: the unit just hit a target it looks past (look_again below); an attack-move or
+	// patrol then looks for more at once (FINDINGNEWTARGET: FindWalkAndFightTargets).
+	auto acquire = [&](size_t i, bool again) {
 		target_idx[i] = -1;
 		if (!units_.alive[i]) return;
 		if (units_.attack_damage[i] <= 0.0f) return;
@@ -9634,7 +9633,8 @@ void Simulation::tick_combat(float dt) {
 			return;
 		const bool guarding = st == ACTION_GUARD; // target_unit_id is the guarded unit
 		const uint32_t prev_unit = units_.target_unit_id[i], prev_bld = units_.target_building_id[i];
-		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL;
+		const bool walk_and_fight = st == ACTION_ATTACK_MOVE || st == ACTION_PATROL ||
+				(again && (units_.order_kind[i] == ORDER_WALK_AND_FIGHT || units_.order_kind[i] == ORDER_PATROL));
 
 		const float pxi = units_.pos_x[i];
 		const float pzi = units_.pos_z[i];
@@ -9814,7 +9814,19 @@ void Simulation::tick_combat(float dt) {
 		if (attack_under_way(i) && (units_.target_unit_id[i] != prev_unit || units_.target_building_id[i] != prev_bld))
 			stop_attack(i);
 		target_idx[i] = found;
+	};
+	JobSystem::instance().for_each_index(n, [&](size_t i) {
+		// tick_gather uses attack_timer as the harvest clock; counting it down
+		// here as well cancelled every harvest tick, so nobody ever gathered.
+		tick_attack_timer(i, dt);
+		acquire(i, false);
 	});
+	// Attack.js Attack (0.28): after a hit in reach on a target matching none of its
+	// PreferredClasses that no player ordered, the attacker stops (TargetInvalidated) and
+	// FINDINGNEWTARGET runs at once: back to an interrupted order, or FindNewTargets, which
+	// may pick the same target again.
+	std::vector<uint32_t> &look_again = combat_look_again_scratch_;
+	look_again.clear();
 
 	// 2. Unit vs Unit Attack Execution
 	for (size_t i = 0; i < n; ++i) {
@@ -9840,6 +9852,10 @@ void Simulation::tick_combat(float dt) {
 		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
 		units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked", answered by tick_unit_ai
+		if (in_range && !(units_.order_kind[i] == ORDER_ATTACK && units_.order_target[i] == units_.id[t]) &&
+				preference_of(unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs,
+						unit_preferences(units_.tmpl[t], units_.unit_type[t]).classes) == PREF_NONE)
+			look_again.push_back((uint32_t)i);
 
 		// Attack.js PerformAttack -> Attacking.HandleAttackEffects against this target.
 		const float final_dmg = unit_attack_damage(i, (size_t)t);
@@ -9921,6 +9937,20 @@ void Simulation::tick_combat(float dt) {
 		}
 	}
 
+	auto look_again_now = [&] {
+		if (look_again.empty()) return;
+		for (size_t bi = 0; bi < nb && bld_live && bi < buildings_.size(); ++bi) // razed this tick
+			if (bld_live[bi] && (buildings_[bi].wrecked || buildings_[bi].hp <= 0.0f)) bld_live[bi] = 0;
+		for (uint32_t i : look_again) {
+			if (!units_.alive[i]) continue;
+			units_.target_unit_id[i] = 0;
+			units_.target_building_id[i] = 0;
+			acquire(i, true);
+		}
+		look_again.clear();
+	};
+	look_again_now();
+
 	// 3. Units Attacking Buildings & Siege Demolition (0 A.D. Attack.js + BuildingDamage)
 	// A unit allowed to capture uses its Capture attack (Attack.js Capture: MaxRange 4,
 	// RepeatTime 1 s) on a structure it can capture; tick_capture spends the points.
@@ -9981,6 +10011,10 @@ void Simulation::tick_combat(float dt) {
 
 		attack_done(i, in_range, units_.attack_cooldown[i]);
 		units_.action_state[i] = ACTION_ATTACK;
+		// Attack.js Attack (0.28): likewise after a hit on a structure (look_again).
+		if (in_range && !(units_.order_kind[i] == ORDER_ATTACK_BUILDING && units_.order_target[i] == b.id) &&
+				preference_of(unit_preferences(units_.tmpl[i], units_.unit_type[i]).prefs, building_pref_classes(b.type)) == PREF_NONE)
+			look_again.push_back((uint32_t)i);
 
 		const float bld_dmg = unit_damage_to_structure(i, b);
 		bool is_ranged_attack = template_has_ranged_attack(units_.tmpl[i], units_.unit_type[i],
@@ -10040,6 +10074,8 @@ void Simulation::tick_combat(float dt) {
 				cause_damage_over_area(sp, units_.id[i], units_.team[i], b.x, b.z, -dx, -dz); // melee Splash
 		}
 	}
+
+	look_again_now();
 
 	// 4. Structure arrows: 0 A.D. BuildingAI.js. While enemies are in range a timer fires
 	// ten rounds per RepeatTime (after PrepareTime). Round 0 takes GetArrowCount(); each
@@ -18474,6 +18510,8 @@ uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &
 			tx = units_.pos_x[u]; tz = units_.pos_z[u]; return plan.target_building_id;
 		}
 	}
+	// uniqueTargetId: no other target once that one is destroyed or captured.
+	if (plan.kind == PETRA_ATTACK_UNIQUE) return 0;
 	if (plan.kind == PETRA_ATTACK_RUSH && plan.state != AttackPlan::ATTACKED) return find_petra_rush_target(tx, tz, plan.target_player);
 	return find_petra_attack_target(tx, tz, same_land, &plan);
 }
@@ -18518,7 +18556,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				int started = 0;
 				bool huge_started = false;
 				for (const AttackPlan &p : petra_started_attacks_) {
-					if ((p.kind != PETRA_ATTACK_ATTACK && p.kind != PETRA_ATTACK_HUGE) ||
+					if ((p.kind != PETRA_ATTACK_ATTACK && p.kind != PETRA_ATTACK_HUGE && p.kind != PETRA_ATTACK_UNIQUE) ||
 					    (p.state != AttackPlan::WALKING && p.state != AttackPlan::ATTACKED)) continue;
 					++started;
 					huge_started |= p.kind == PETRA_ATTACK_HUGE;
@@ -20437,6 +20475,54 @@ void Simulation::petra_manage_defense(float dt) {
 		armies.back().foe_ids.push_back(fid);
 	};
 	const PetraBase *home = get_primary_petra_base();
+	// defenseManager.js targetList: an enemy structure in our territory, or an enemy civic
+	// centre going up within 30000 m² of one of our finished structures.
+	auto defense_target = [&](const Building &b) {
+		if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
+		if (territory_owner_at(b.x, b.z) == petra_pid_) return true;
+		if (!is_civic_centre(b.type) || b.build_progress >= 1.0f) return false;
+		for (const Building *o : own_structures) {
+			if (o->build_progress < 1.0f) continue;
+			const float dx = o->x - b.x, dz = o->z - b.z;
+			if (dx * dx + dz * dz <= 30000.0f / 16.0f) return true; // m² to RTS0 units² (4 m each)
+		}
+		return false;
+	};
+	// switchToAttack: a disbanding army with a defender on the same land within 120 m of a
+	// target turns into an attack on that target alone (attackManager.js
+	// switchDefenseToAttack with uniqueTarget), starting where the army stands.
+	auto switch_to_attack = [&](PetraDefenseArmy &a) {
+		for (const Building &b : buildings_) {
+			if (!defense_target(b)) continue;
+			const uint16_t land = petra_land_at(b.x, b.z);
+			bool near = false;
+			for (uint32_t uid : a.defender_ids) {
+				const int32_t i = lookup_unit(uid);
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+				if (dx * dx + dz * dz <= 14400.0f / 16.0f) { near = true; break; }
+			}
+			if (!near) continue;
+			AttackPlan plan;
+			for (uint32_t uid : a.defender_ids) {
+				const int32_t i = lookup_unit(uid);
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+				plan.squad.push_back(uid);
+			}
+			a.defender_ids.clear();
+			plan.kind = PETRA_ATTACK_UNIQUE;
+			plan.type = AttackPlan::PLAN_ASSAULT;
+			plan.target_building_id = b.id;
+			plan.target_player = b.team;
+			plan.target_x = plan.staging_x = b.x;
+			plan.target_z = plan.staging_z = b.z;
+			plan.initial_squad_size = plan.squad.size();
+			plan.state = AttackPlan::ATTACKED;
+			order_attack_move(plan.squad.data(), plan.squad.size(), b.x, b.z, false, false, true, petra_attack_avoid(plan, false));
+			petra_started_attacks_.push_back(std::move(plan));
+			return;
+		}
+	};
 	// defenseArmy.js clear: a defender below low health goes to heal in the nearest healing
 	// structure; the others come home instead of chasing foes out of territory.
 	auto clear_army = [&](PetraDefenseArmy &a) {
@@ -20506,6 +20592,7 @@ void Simulation::petra_manage_defense(float dt) {
 	}
 	for (size_t k = 0; k < armies.size(); ++k) {
 		if (!armies[k].foe_ids.empty()) continue;
+		switch_to_attack(armies[k]);
 		clear_army(armies[k]);
 		armies.erase(armies.begin() + (ptrdiff_t)k--);
 	}
@@ -20548,6 +20635,7 @@ void Simulation::petra_manage_defense(float dt) {
 				keep = reach > 0.0f && dx * dx + dz * dz <= reach * reach;
 			}
 			if (keep) continue;
+			switch_to_attack(armies[k]);
 			clear_army(armies[k]);
 			armies.erase(armies.begin() + (ptrdiff_t)k--);
 		}
@@ -20582,10 +20670,9 @@ void Simulation::petra_manage_defense(float dt) {
 		if (dangerous) make_into_army(units_.id[i]);
 	}
 
-	// Enemy foundations in our territory (defenseManager targetList): whoever stands by one.
+	// isDangerous: whoever stands by a structure of the targetList.
 	for (const auto &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0.0f) continue;
-		if (territory_owner_at(b.x, b.z) != petra_pid_) continue;
+		if (!defense_target(b)) continue;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
 			float dx = units_.pos_x[i] - b.x;
@@ -22690,7 +22777,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if (ar.version >= SAVE_VERSION_PETRA_STARTED_ATTACKS) ar.pod(v.kind);
 		if (ar.version >= SAVE_VERSION_PETRA_ATTACK_REQUEST) { ar.pod(v.target_player); ar.pod(v.forced); ar.pod(v.requested); }
 		if constexpr (Ar::loading)
-			if (v.state > S::AttackPlan::ABORT || v.kind > PETRA_ATTACK_RAID) ar.ok = false;
+			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};
 	auto field = [&](auto &v) {
 		using T = std::decay_t<decltype(v)>;

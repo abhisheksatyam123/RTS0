@@ -2061,6 +2061,47 @@ static void test_defense_armies() {
 	CHECK(armies.size() == 1, "armies that meet merge (armyMergeSize)");
 }
 
+// defenseManager.js switchToAttack: an army whose foes are gone, with a defender within
+// 120 m of an enemy structure in our territory, attacks that structure alone and ends
+// once it falls (uniqueTargetId).
+static void test_defense_switch_to_attack() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 20; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	const uint32_t tower = s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f);
+	for (int k = 0; k < 3; ++k) s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f);
+	const auto unique = [&]() -> const Simulation::AttackPlan * {
+		for (const auto &p : s->petra_started_attacks())
+			if (p.kind == PETRA_ATTACK_UNIQUE) return &p;
+		return nullptr;
+	};
+	const Simulation::AttackPlan *plan = nullptr;
+	for (int t = 0; t < 60 && !plan; ++t) {
+		run_for(*s, 0.5f);
+		plan = unique();
+	}
+	std::printf("  defense: army switched to attack: %s, target %s, %zu units\n", plan ? "yes" : "no",
+	            plan && plan->target_building_id == tower ? "the tower" : "other", plan ? plan->squad.size() : (size_t)0);
+	CHECK(plan && plan->target_building_id == tower && !plan->squad.empty(), "the disbanding army attacks the enemy structure in our land");
+	if (!plan) return;
+	for (auto &b : s->buildings_)
+		if (b.id == tower) s->destroy_building(b);
+	run_for(*s, 2.0f);
+	plan = unique();
+	std::printf("  defense: after the tower falls the plan is %s\n", !plan ? "over" : plan->state == Simulation::AttackPlan::REGROUP ? "going home" : "still attacking");
+	CHECK(!plan || plan->state == Simulation::AttackPlan::REGROUP, "it takes no other target (uniqueTargetId)");
+}
+
 // defenseManager.js isDangerous / checkEvents outside our own land: Petra sends
 // defenders to an ally's civic centre under attack, keeps a backup of up to 12
 // far-off units at home, and answers a unit attacked in neutral land.
@@ -2677,6 +2718,7 @@ int main() {
 	test_decay_destroy();
 	test_defense_by_strength();
 	test_defense_armies();
+	test_defense_switch_to_attack();
 	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();

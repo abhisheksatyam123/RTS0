@@ -338,7 +338,11 @@ enum PetraAttackKind : uint8_t {
 	PETRA_ATTACK_ATTACK = 1, // "Attack": the default town-phase army
 	PETRA_ATTACK_HUGE   = 2, // "HugeAttack": from the third default attack on
 	PETRA_ATTACK_RAID   = 3, // cavalry against an enemy structure in our territory
-	PETRA_ATTACK_KINDS  = 4
+	PETRA_ATTACK_KINDS  = 4,
+	// An "Attack" (TYPE_DEFAULT) on one target only, made from a disbanding defense army
+	// (defenseManager.js switchToAttack, uniqueTargetId); it ends with its target. Not a
+	// plan the manager launches, so launched[] has no slot for it.
+	PETRA_ATTACK_UNIQUE = 4
 };
 
 // attackManager.js state for one AI. Saved raw (save v18), so it has no
