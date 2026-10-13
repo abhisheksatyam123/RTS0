@@ -5124,6 +5124,11 @@ void RtsoMain::apply_map_player_overrides() {
 		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
 		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
 	}
+	if (map_has_teams_) {
+		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
+		sim->set_setup_teams(map_team_);
+		sim->apply_team_diplomacy();
+	}
 }
 
 bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
@@ -5132,7 +5137,9 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		map_civ_[p] = -1;
 		map_has_res_[p] = false;
+		map_team_[p] = 0;
 	}
+	map_has_teams_ = false;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
@@ -5227,8 +5234,13 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			if (p.has("resources")) {
 				Dictionary r = p["resources"];
 				const char *keys[4] = {"food", "wood", "stone", "metal"};
-				for (int k = 0; k < 4; ++k) map_res_[team][k] = (int)r.get(keys[k], 0);
+				for (int k = 0; k < 4; ++k) map_res_[team][k] = (int)r.get(keys[k], 300); // Player.js: 300 of each unless set
 				map_has_res_[team] = true;
+			}
+			if (p.has("team")) {
+				const int t = (int)p["team"];
+				map_team_[team] = (uint8_t)(t >= 0 && t < rtso::MAX_PLAYERS ? t + 1 : 0);
+				map_has_teams_ = true;
 			}
 		}
 		// Civs before the units: spawn_unit takes its owner's roster.
