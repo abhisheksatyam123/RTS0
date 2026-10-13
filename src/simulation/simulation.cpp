@@ -16226,6 +16226,10 @@ void Simulation::petra_manage_fields() {
 		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.amount[r] <= 0) continue;
 		const uint8_t sub = resources_.subtype[r];
 		if (sub == RES_SUB_FISH || sub == RES_SUB_MEAT || field_bld_by_res_.count(resources_.id[r])) continue;
+		// Food in enemy territory, which findSupply never gathers, doesn't put off the first
+		// field: a farmstead pushed toward a close neighbour would otherwise count its berries.
+		const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
+		if (terr >= 0 && terr < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)terr)) continue;
 		for (const auto &d : drops) {
 			const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
 			if (dx * dx + dz * dz < reach * reach) { count += (float)resources_.amount[r]; break; }
