@@ -11564,7 +11564,6 @@ void Simulation::check_victory_conditions(float dt) {
 	int structure_count[MAX_TEAMS] = {};
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
-	int hero_count[MAX_TEAMS] = {};
 	bool wonder[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
 		// Unstarted foundations don't keep a player alive (an AI with no units left can still
@@ -11580,7 +11579,6 @@ void Simulation::check_victory_conditions(float dt) {
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
 		if (units_.unit_type[u] == UNIT_CATAFALQUE) continue; // not ConquestCritical
 		unit_count[t]++;
-		if (units_.unit_type[u] == UNIT_HERO) hero_count[t]++;
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
@@ -11651,7 +11649,7 @@ void Simulation::check_victory_conditions(float dt) {
 		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
 		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
 		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
-		       ((vk & VK_REGICIDE) && hero_count[t] == 0);
+		       ((vk & VK_REGICIDE) && regicide_hero_lost(t));
 	};
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
@@ -11812,6 +11810,15 @@ void Simulation::apply_relic_count() {
 		}
 		spawn_relic(x, z, civs[k % PLAYABLE_CIV_COUNT]);
 	}
+}
+
+bool Simulation::regicide_hero_lost(int t) const {
+	// Regicide.js CheckRegicideDefeat: the hero it spawned for the player died or changed
+	// owner ("%(player)s has been defeated (lost hero)."). Heroes trained later don't count.
+	const uint32_t h = t < MAX_PLAYERS ? regicide_hero_[t] : 0;
+	if (!h) return false;
+	const int32_t u = lookup_unit(h);
+	return u < 0 || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED) || units_.team[u] != t;
 }
 
 void Simulation::spawn_regicide_heroes() {
