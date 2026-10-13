@@ -11,7 +11,7 @@ Manifest counts come from `assets/models/manifest.json`. The disk column was cou
 
 | Item | Manifest | On disk |
 |---|---|---|
-| models | **1076** (units 539, buildings 510, vegetation 27) | 539 / 510 / 27 `.glb` (vegetation 27 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`, and 15 trees from `tools/fetch_0ad_trees.py`) |
+| models | **1192** (units 565, buildings 536, vegetation 91) | 565 / 536 / 91 `.glb` (vegetation 91 includes the 0 A.D. fish shoal, `fish.glb`, from `tools/dae_to_glb.gd`, and 15 trees plus 64 `_v2`..`_v4` tree variants from `tools/fetch_0ad_trees.py`) |
 | props | not in the manifest | 8 `.glb` in `assets/models/props/` (7 carried-resource shuttles, the garrison flag) from `tools/dae_to_glb.gd` with `prop`; 11 flag skins in `assets/textures/garrison_flags/` |
 | scenery | not in the manifest | 22 `.glb` in `assets/models/scenery/` for the 19 Gaia scenery types (`data/scenery_actors.json`), from `tools/extract_0ad_scenery.py` |
 | player masks | not in the manifest | 472 L8 `.png` in `assets/textures/player_masks/` (1 - alpha of 0 A.D.'s `player_trans` skins) and `data/player_masks.json` (1986 GLB images), from `tools/extract_player_masks.py` and `tools/extract_0ad_structures.py` |
@@ -216,7 +216,7 @@ python3 tools/audit_assets.py --pmd-diff   # needs public.zip (not present 2026-
 jq '{models:(.models|length), animations:(.animations|length), skeletons:(.skeletons|length), terrain:(.terrain|length)}' assets/models/manifest.json
 ls assets/models/units/*.glb | wc -l       # 363
 ls assets/models/buildings/*.glb | wc -l   # 367
-ls assets/models/vegetation/*.glb | wc -l  # 27
+ls assets/models/vegetation/*.glb | wc -l  # 91
 ls assets/animations/*.psa | wc -l         # 1316
 ls assets/skeletons/*.xml | wc -l          # 98
 ls assets/textures/terrain/*.png | wc -l   # 653 (652 manifest entries + splat.png)

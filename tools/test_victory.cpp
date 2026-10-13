@@ -138,6 +138,9 @@ int main() {
 		}
 		CHECK(heroes[0] == 1 && heroes[1] == 1);
 		CHECK(!sim->is_game_over());
+		// Regicide.js: only the spawned hero counts; a second hero the enemy trained
+		// doesn't keep it in the game.
+		sim->spawn_unit(u.pos_x[enemy_hero] + 6.0f, u.pos_z[enemy_hero], 1, UNIT_HERO);
 		kill_unit(*sim, enemy_hero);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
@@ -535,6 +538,30 @@ int main() {
 		CHECK(sim.pop_max(0) <= 200);
 		sim.set_pop_cap(300);
 		CHECK(sim.world_pop_cap() == 0 && sim.pop_cap() == 300);
+		// A scenario's per-player PopulationLimit (Miletus P1 1000, Death Canyon's attackers 1):
+		// that player's own cap, the others keep the setup's; it beats World Population for
+		// that player, survives a save and reset() clears it.
+		sim.set_player_pop_cap(1, 1000);
+		sim.set_player_pop_cap(2, 1);
+		CHECK(sim.pop_cap(0) == 300 && sim.pop_cap(1) == 1000 && sim.pop_cap(2) == 1 && sim.pop_limit(2) == 1);
+		CHECK(sim.pop_max(2) <= 1);
+		sim.set_world_pop_cap(600);
+		CHECK(sim.pop_cap(1) == 1000 && sim.pop_cap(0) == 200);
+		sim.set_pop_cap(300);
+		{
+			Simulation *a = fresh(VICTORY_CONQUEST), *loaded = fresh(VICTORY_CONQUEST);
+			a->set_player_pop_cap(1, 1000);
+			a->set_player_pop_cap(2, 1);
+			const char *ppath = "test_victory_popcap.sav";
+			CHECK(a->save_state(ppath));
+			CHECK(loaded->load_state(ppath) && loaded->player_pop_cap(1) == 1000 && loaded->pop_cap(2) == 1 &&
+					loaded->pop_cap(0) == a->pop_cap(0));
+			std::remove(ppath);
+			a->reset();
+			CHECK(a->player_pop_cap(1) == 0 && a->pop_cap(1) == a->pop_cap());
+			delete a;
+			delete loaded;
+		}
 		GameSetupParams gp, back;
 		gp.world_pop = 2400;
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.world_pop == 2400);
@@ -667,10 +694,12 @@ int main() {
 		sim.apply_team_diplomacy();
 		CHECK(sim.is_ally(0, 1) && sim.is_ally(0, 3) && !sim.is_hostile(1, 0) && sim.is_hostile(0, 2));
 		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ENEMY));
-		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && !sim.is_hostile(1, 0));
+		// Diplomacy.js mutual worsening: war on the old teammate is war back.
+		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && sim.is_hostile(1, 0));
 		CHECK(sim.is_ally(0, 3) && sim.is_ally(1, 3) && sim.same_team(1, 3) && !sim.same_team(0, 1));
 		CHECK(sim.player_team(1) == 1 && sim.player_team(0) == 0);
-		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && !sim.is_ally(0, 1)); // allying is one-sided
+		CHECK(sim.cmd_set_diplomacy(1, 0, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
 		sim.set_lock_teams(true);
 		CHECK(!sim.cmd_set_diplomacy(1, 3, Simulation::DIPLO_ENEMY) && sim.is_ally(1, 3));
 	}

@@ -389,6 +389,13 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	};
 	if (!net_game_started() || current_turn_ == 0) { reject(2); return; }
 	ensure_lockstep_peers();
+	// A player seated at Start that still plays: its request from game setup
+	// came late (a slow load outlasts REJOIN_RETRY_MS, so it asks again). It
+	// is in the match already; serving it would drop it from the lockstep.
+	if (peer_active(client_id) && !lockstep_since_.count(client_id) && !observer_requests_.count(client_id)) {
+		reject(2);
+		return;
+	}
 	// A repeated request (the transfer stalled): start over from this turn.
 	lockstep_peers_.erase(std::remove(lockstep_peers_.begin(), lockstep_peers_.end(), client_id), lockstep_peers_.end());
 	lockstep_since_.erase(client_id);
@@ -1463,6 +1470,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
 		} else if (c.cmd_type == (uint8_t)NetCommandType::NET_CMD_RESIGN) { // Resign (0 A.D. "resign")
 			sim.cmd_resign(pl);
+		} else if (c.cmd_type == (uint8_t)NetCommandType::NET_CMD_FOCUS_FIRE) { // Focus fire — entity_ids=structures.
+			// cmd_focus_fire checks that `pl` owns each structure itself.
+			sim.cmd_focus_fire(pl, c.entity_ids.data(), c.entity_ids.size(), c.target_id, queued,
+					(c.param & NET_PARAM_PUSH_FRONT) != 0);
 		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
 			// target_x=resource or tech; acts on the raw selection, whoever owns it.
 			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());
