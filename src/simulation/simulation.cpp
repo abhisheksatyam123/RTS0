@@ -1144,6 +1144,19 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
 	triggers_.difficulty = trigger_difficulty_; // Trigger.js SetDifficulty (generate reset the triggers)
+	// Daytime (danubius.js randBool(2/3) for day, polar_sea.js randBool(1/3) for dawn): drawn
+	// from the seed alone, so the map's own random stream and the lockstep hash are untouched.
+	map_daytime_ = 0;
+	if (type == MAP_DANUBIUS || type == MAP_POLAR_SEA) {
+		map_daytime_ = map_daytime_choice_;
+		if (map_daytime_ == 0) {
+			uint64_t z = (uint64_t)seed + 0x9E3779B97F4A7C15ull; // splitmix64
+			z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+			z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+			const bool first = (z ^ (z >> 31)) % 3 < (type == MAP_DANUBIUS ? 2u : 1u);
+			map_daytime_ = first ? 1 : 2;
+		}
+	}
 	if (biome_override_ >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
@@ -16953,6 +16966,248 @@ bool Simulation::petra_can_fish_safely(float x, float z, uint16_t sea) const {
 	return true;
 }
 
+// queueplanBuilding.js findDockPosition (no proximity, not oversea): over the territory tiles
+// (8 m) within 96 m of ours (getFrontierProximity, 40 per 24 m step), a shore spot on `land`
+// facing `sea` (isDockLocation) where a dock fits, scored by 20 per missing unit of wood (twice),
+// stone and metal within 80 m on shared.js resourceMaps (getResourcesAround, up to 10), 20 on
+// the map border and the open water ahead (checkDockPlacement, 4 per 15 m up to 16); the lowest
+// wins, out of danger. In the village phase a spot with less than 10 water waits for later.
+bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const {
+	if (nav_grid_.cells.blank() || !land || !sea) return false;
+	constexpr float kCcTile = 2.0f; // the territory tile, 8 m
+	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const BuildingTypeInfo &info = building_type_info(BLD_DOCK);
+	const int foot = info.footprint;
+	const float half = 0.5f * (float)foot * GRID; // halfDepth and halfWidth: a square footprint
+
+	const bool allied_victory = !last_man_standing();
+	auto ours = [&](float x, float z) {
+		const int owner = territory_owner_at(x, z);
+		return owner == (int)petra_pid_ || (allied_victory && owner >= 0 && owner < MAX_PLAYERS && is_ally(petra_pid_, (uint8_t)owner));
+	};
+	// Only tiles within 96 m of our territory can score: the box around it.
+	int bx0 = w, bz0 = w, bx1 = -1, bz1 = -1;
+	for (int iz = 0; iz < w; ++iz)
+		for (int ix = 0; ix < w; ++ix)
+			if (ours(((float)ix + 0.5f) * kCcTile - map_half_, ((float)iz + 0.5f) * kCcTile - map_half_)) {
+				bx0 = std::min(bx0, ix); bx1 = std::max(bx1, ix);
+				bz0 = std::min(bz0, iz); bz1 = std::max(bz1, iz);
+			}
+	if (bx1 < 0) return false;
+	const int reach = (int)std::ceil(96.0f / 4.0f / kCcTile);
+	bx0 = std::max(0, bx0 - reach); bz0 = std::max(0, bz0 - reach);
+	bx1 = std::min(w - 1, bx1 + reach); bz1 = std::min(w - 1, bz1 + reach);
+	// shared.js resourceMaps for wood, stone and metal: supply / 50 (wood) or / 90 over 36 m or
+	// 48 m, half of it constant and half linear, 8-bit cells; only near that box (80 m + 48 m).
+	const float rmargin = (80.0f + 48.0f) / 4.0f + kCcTile;
+	const float rx0 = (float)bx0 * kCcTile - map_half_ - rmargin, rx1 = (float)(bx1 + 1) * kCcTile - map_half_ + rmargin;
+	const float rz0 = (float)bz0 * kCcTile - map_half_ - rmargin, rz1 = (float)(bz1 + 1) * kCcTile - map_half_ + rmargin;
+	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
+	std::vector<uint8_t> maps[3];
+	auto build_maps = [&] { // only once a shore tile needs them
+	for (auto &m : maps) m.assign((size_t)w * w, 0);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		if (resources_.x[r] < rx0 || resources_.x[r] > rx1 || resources_.z[r] < rz0 || resources_.z[r] > rz1) continue;
+		int k = -1;
+		for (int j = 0; j < 3; ++j)
+			if (resources_.type[r] == kRes[j]) k = j;
+		if (k < 0) continue;
+		const bool sparse = k != 0;
+		const float strength = (float)resources_.amount[r] / (sparse ? 90.0f : 50.0f);
+		const float md = (sparse ? 48.0f : 36.0f) / 4.0f / kCcTile, md2 = md * md;
+		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
+		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
+		const int x1 = (int)std::floor(std::min((float)(w - 1), cx + md)), y1 = (int)std::floor(std::min((float)(w - 1), cy + md));
+		for (int y = y0; y < y1; ++y)
+			for (int x = x0; x < x1; ++x) {
+				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
+				if (r2 >= md2) continue;
+				uint8_t &cell = maps[k][(size_t)y * w + x];
+				cell = (uint8_t)std::clamp((float)cell + 0.5f * strength, 0.0f, 255.0f);
+				cell = (uint8_t)std::clamp((float)cell + 0.5f * strength / md * (md - std::sqrt(r2)), 0.0f, 255.0f);
+			}
+	}
+	};
+	// getResourcesAround: the diamond of 80 m, each cell weighted by its closeness, wood twice.
+	auto resources_around = [&](int ix, int iy) {
+		if (maps[0].empty()) build_maps();
+		const int size = (int)std::floor(80.0f / 4.0f / kCcTile);
+		float total = 0.0f, nbcell = 0.0f;
+		for (int k = 0; k < 3; ++k) {
+			const float weigh0 = k == 0 ? 2.0f : 1.0f;
+			for (int dy = -size; dy <= size; ++dy) {
+				const int ky = iy + dy, dxmax = size - std::abs(dy);
+				if (ky < 0 || ky >= w) continue;
+				for (int dx = -dxmax; dx <= dxmax; ++dx) {
+					const int kx = ix + dx;
+					if (kx < 0 || kx >= w) continue;
+					const float weight = weigh0 * (float)(dxmax - std::abs(dx)) / (float)size;
+					total += weight * (float)maps[k][(size_t)ky * w + kx];
+					nbcell += weight;
+				}
+			}
+		}
+		return nbcell > 0.0f ? total / nbcell : 0.0f;
+	};
+	auto land_cell = [&](float x, float z) -> uint16_t {
+		if (std::abs(x) >= map_half_ || std::abs(z) >= map_half_) return 0;
+		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+		return nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+	};
+	auto sea_cell = [&](float x, float z) -> uint16_t {
+		if (std::abs(x) >= map_half_ || std::abs(z) >= map_half_) return 0;
+		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+		return nav_grid_.is_passable_for(cx, cz, PASS_SHIP) ? nav_grid_.global_region_at(cx, cz, PASS_SHIP) : 0;
+	};
+	static constexpr float kAround[12][2] = {{1.0f, 0.0f}, {0.87f, 0.5f}, {0.5f, 0.87f}, {0.0f, 1.0f}, {-0.5f, 0.87f}, {-0.87f, 0.5f},
+	                                          {-1.0f, 0.0f}, {-0.87f, -0.5f}, {-0.5f, -0.87f}, {0.0f, -1.0f}, {0.5f, -0.87f}, {0.87f, -0.5f}};
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	const float border = 80.0f / 4.0f;
+	const float step = 24.0f / 4.0f;
+	// Tiles with that sea within reach of the dock's depth (a box blur of the sea mask): only
+	// those can be shore tiles, so the others skip isDockLocation's twelve probes.
+	const int sr = (int)std::ceil((half + 2.0f * kCcTile) / kCcTile) + 1;
+	const int mw = bx1 - bx0 + 1, mh = bz1 - bz0 + 1;
+	std::vector<uint8_t> near_sea((size_t)mw * mh, 0);
+	{
+		std::vector<int> rows((size_t)mw * mh, 0);
+		for (int iz = 0; iz < mh; ++iz) {
+			std::vector<int> pre((size_t)(mw + 2 * sr + 1), 0);
+			for (int k = 0; k < mw + 2 * sr; ++k) {
+				const int ix = bx0 - sr + k;
+				const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)(bz0 + iz) + 0.5f) * kCcTile - map_half_;
+				pre[(size_t)k + 1] = pre[(size_t)k] + (ix >= 0 && ix < w && sea_cell(x, z) == sea ? 1 : 0);
+			}
+			for (int ix = 0; ix < mw; ++ix) rows[(size_t)iz * mw + ix] = pre[(size_t)ix + 2 * sr + 1] - pre[(size_t)ix];
+		}
+		// Rows beyond the box edge: count them too, so the blur reaches across it.
+		auto row_count = [&](int iz, int ix) -> int {
+			if (iz >= 0 && iz < mh) return rows[(size_t)iz * mw + ix];
+			const int gz = bz0 + iz;
+			if (gz < 0 || gz >= w) return 0;
+			int n = 0;
+			for (int k = -sr; k <= sr; ++k) {
+				const int gx = bx0 + ix + k;
+				if (gx < 0 || gx >= w) continue;
+				n += sea_cell(((float)gx + 0.5f) * kCcTile - map_half_, ((float)gz + 0.5f) * kCcTile - map_half_) == sea;
+			}
+			return n;
+		};
+		for (int ix = 0; ix < mw; ++ix)
+			for (int iz = 0; iz < mh; ++iz) {
+				int n = 0;
+				for (int k = -sr; k <= sr && !n; ++k) n += row_count(iz + k, ix);
+				near_sea[(size_t)iz * mw + ix] = n > 0;
+			}
+	}
+	struct Cand { float val; int ix, iz, water; };
+	std::vector<Cand> cands;
+	bool found = false;
+	int best_water = 0;
+	for (int iz = bz0; iz <= bz1; ++iz) {
+		for (int ix = bx0; ix <= bx1; ++ix) {
+			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
+			if (!near_sea[(size_t)(iz - bz0) * mw + (ix - bx0)]) continue;
+			// isDockLocation: land or water here, our land within its depth on one side and
+			// the sea on the other.
+			const uint16_t here = land_cell(x, z);
+			if (here ? here != land : !sea_cell(x, z)) continue;
+			bool shore = false;
+			const float dim_land = half + 1.5f * kCcTile, dim_sea = half + 2.0f * kCcTile;
+			for (const auto &a : kAround) {
+				if (land_cell(x + dim_land * a[0], z + dim_land * a[1]) != land) continue;
+				if (sea_cell(x - dim_sea * a[0], z - dim_sea * a[1]) != sea) continue;
+				shore = true;
+				break;
+			}
+			if (!shore) continue;
+			// getFrontierProximity: 0 inside our territory, else the 24 m steps to it (up to 4).
+			int prox = 0;
+			if (!ours(x, z)) {
+				prox = 5;
+				for (const auto &a : kAround) {
+					for (int i = 1; i < 5 && i < prox; ++i) {
+						const float px = x + (float)i * step * a[0], pz = z + (float)i * step * a[1];
+						if (std::abs(px) >= map_half_ || std::abs(pz) >= map_half_) continue;
+						if (ours(px, pz)) { prox = i; break; }
+					}
+					if (prox == 1) break;
+				}
+				if (prox > 4) continue;
+			}
+			float score = 40.0f * (float)prox;
+			score += 20.0f * (10.0f - std::min(10.0f, resources_around(ix, iz)));
+			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) score += 20.0f;
+			// checkDockPlacement water: open water of that sea ahead, in 15 m steps along three
+			// lines from the shore, 4 a step, up to 16.
+			Building probe;
+			probe.half_size = half;
+			probe.x = x;
+			probe.z = z;
+			float sx = 0.0f, sz = 0.0f;
+			uint16_t near_sea = 0;
+			if (!nearest_ship_cell(probe, sx, sz, &near_sea) || near_sea != sea) continue;
+			float ux = sx - x, uz = sz - z;
+			const float len = std::sqrt(ux * ux + uz * uz);
+			if (len > 1e-3f) { ux /= len; uz /= len; }
+			else { ux = 0.0f; uz = 0.0f; }
+			const float side = 0.75f * half, sp = 15.0f / 4.0f;
+			int water = 0;
+			for (int i = 1; i < 5 && len > 1e-3f; ++i) {
+				bool open = true;
+				for (int k = -1; k <= 1 && open; ++k) {
+					const float px = sx + (float)i * sp * ux - (float)k * (float)i * side * uz;
+					const float pz = sz + (float)i * sp * uz + (float)k * (float)i * side * ux;
+					open = sea_cell(px, pz) == sea;
+				}
+				if (!open) break;
+				water += 4;
+			}
+			cands.push_back({score + 16.0f - (float)water, ix, iz, water});
+		}
+	}
+	// The best first: the first that fits wins (later tiles on ties, as the scan replaced them).
+	std::sort(cands.begin(), cands.end(), [w](const Cand &a, const Cand &b) {
+		return a.val != b.val ? a.val < b.val : a.iz * w + a.ix > b.iz * w + b.ix;
+	});
+	for (const Cand &c : cands) {
+		{
+			const float x = ((float)c.ix + 0.5f) * kCcTile - map_half_, z = ((float)c.iz + 0.5f) * kCcTile - map_half_;
+			// getNonObstructedTile: the dock on this tile or one beside it, out of danger
+			// (isDangerousLocation).
+			const int cx0 = (int)std::floor(x / GRID - 0.5f * (float)foot), cz0 = (int)std::floor(z / GRID - 0.5f * (float)foot);
+			int cx = 0, cz = 0;
+			bool fits = false;
+			for (int r = 0; r <= 1 && !fits; ++r)
+				for (int dz = -r; dz <= r && !fits; ++dz)
+					for (int dx = -r; dx <= r && !fits; ++dx) {
+						if (std::abs(dx) != r && std::abs(dz) != r) continue;
+						const float px = ((float)(cx0 + dx) + 0.5f * (float)foot) * GRID, pz = ((float)(cz0 + dz) + 0.5f * (float)foot) * GRID;
+						if (!petra_cc_tile_ok(BLD_DOCK, px, pz)) continue;
+						Building p2;
+						p2.half_size = half;
+						p2.x = px;
+						p2.z = pz;
+						if (dock_sea(p2) != sea || petra_building_land(p2, &topo, land) != land) continue;
+						fits = true;
+						cx = cx0 + dx;
+						cz = cz0 + dz;
+					}
+			if (!fits) continue;
+			found = true;
+			best_water = c.water;
+			out_cx = cx;
+			out_cz = cz;
+			break;
+		}
+	}
+	// Still in the village phase with little water around: wait for the territory to grow.
+	if (found && best_water < 10 && petra_ps().phase == 1) return false;
+	return found;
+}
+
 // navalManager.js update (checkLevels, maintainFleet, buildNavalStructures,
 // moveApart) with worker.js fishing. Petra builds a dock per sea its bases touch
 // once its population passes popForDock, trains the transport ships its attacks
@@ -16961,6 +17216,7 @@ bool Simulation::petra_can_fish_safely(float x, float z, uint16_t sea) const {
 void Simulation::petra_manage_naval(float dt) {
 	petra_naval_timer_ += dt;
 	if (petra_naval_timer_ < 2.0f) return;
+	const float naval_span = petra_naval_timer_;
 	petra_naval_timer_ = 0.0f;
 	if (nav_grid_.cells.blank()) return;
 
@@ -17022,27 +17278,26 @@ void Simulation::petra_manage_naval(float dt) {
 					    petra_building_land(b, &topo, land) == land && dock_sea(b) == sea) { connected = true; break; }
 				if (connected) continue;
 				started = true; // the first unconnected sea of the first base without a dock there
-				// queueplanBuilding.js findDockPosition: the nearest shore spot on that sea.
-				const int sx = (int)std::floor(base.x / GRID), sz = (int)std::floor(base.z / GRID);
-				bool placed = false;
-				for (int r = 2; r <= 30 && !placed; ++r)
-					for (int dx = -r; dx <= r && !placed; ++dx)
-						for (int dz = -r; dz <= r && !placed; ++dz) {
-							if (std::abs(dx) != r && std::abs(dz) != r) continue;
-							const int cx = sx + dx, cz = sz + dz;
-							if (!petra_can_place(cx, cz, info.footprint, BLD_DOCK)) continue;
-							Building probe;
-							probe.half_size = info.footprint * GRID * 0.5f;
-							probe.x = (cx + info.footprint * 0.5f) * GRID;
-							probe.z = (cz + info.footprint * 0.5f) * GRID;
-							if (dock_sea(probe) != sea || petra_building_land(probe, &topo, land) != land) continue;
-							placed = true;
-							if (!petra_try_pay(PETRA_QUEUE_NAVAL, (float)info.food_cost, (float)info.wood_cost,
-							                   (float)info.gold_cost, (float)info.stone_cost)) break;
-							const uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
-							auto idle = get_idle_workers(petra_pid_);
-							if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
-						}
+				// A search over our territory's shores: once each 10 s of AI time while no spot is
+				// found; while a dock found waits for its resources, each naval turn keeps the
+				// want alive and the search runs again once the queue can pay (the plan's start).
+				const PetraQueueAccount &want = petra_queues_.wants[PETRA_QUEUE_NAVAL];
+				const bool waiting = want.food + want.wood + want.gold + want.stone > 0.0f;
+				if (!waiting && (int)(petra_timer_ / 10.0f) == (int)((petra_timer_ - naval_span) / 10.0f)) break;
+				const float cost[4] = {(float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost};
+				const PetraQueueAccount &acc = petra_queues_.accounts[PETRA_QUEUE_NAVAL];
+				if (waiting && (acc.food < cost[0] || acc.wood < cost[1] || acc.gold < cost[2] || acc.stone < cost[3] ||
+				                petra_ps().food() < cost[0] || petra_ps().wood() < cost[1] ||
+				                petra_ps().gold() < cost[2] || petra_ps().stone() < cost[3])) {
+					petra_try_pay(PETRA_QUEUE_NAVAL, cost[0], cost[1], cost[2], cost[3]); // registers the want
+					break;
+				}
+				int cx = 0, cz = 0;
+				if (!petra_find_dock_position(land, sea, cx, cz)) break;
+				if (!petra_try_pay(PETRA_QUEUE_NAVAL, cost[0], cost[1], cost[2], cost[3])) break;
+				const uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
+				auto idle = get_idle_workers(petra_pid_);
+				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
 			}
 		}
 	}
