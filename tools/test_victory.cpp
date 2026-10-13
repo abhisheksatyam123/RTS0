@@ -253,7 +253,8 @@ int main() {
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST_UNITS);
 		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
-		const uint32_t house = sim->spawn_building(-30, -30, BLD_HOUSE, 1, 1.0f); // cells: (-60, -60) m
+		// An outpost: once captured it stays on neutral land without decaying (TerritoryDecay.js).
+		const uint32_t house = sim->spawn_building(-30, -30, BLD_OUTPOST, 1, 1.0f); // cells: (-60, -60) m
 		run(*sim, 0.5f);
 		wipe(*sim, 1, true, false);
 		run(*sim, 1.0f);
@@ -356,6 +357,7 @@ int main() {
 		Simulation *sim = fresh(VICTORY_WONDER);
 		sim->set_wonder_duration(120.0f);
 		sim->spawn_building(-20, 20, BLD_WONDER, 0, 1.0f);
+		sim->spawn_building(-20, 34, BLD_TOWN_CENTER, 0, 1.0f); // the wonder's territory: no decay to Gaia
 		run(*sim, 119.0f);
 		CHECK(!sim->is_game_over() && sim->wonder_time_remaining() < 2.0f);
 		run(*sim, 2.0f);
@@ -725,6 +727,33 @@ int main() {
 		CHECK(ns.size() == 1 && ns[0].kind == N::BARTER && ns[0].other == RES_FOOD && ns[0].tech == RES_WOOD &&
 				ns[0].amounts[0] == 100 && ns[0].amounts[1] > 0);
 		CHECK(sim.can_barter(0));
+	}
+
+	// 27. Landscape (0 A.D. unknown.json Landscapes): Unknown builds the chosen
+	// landscape; Mainland has no water, Central Sea splits the map by water.
+	{
+		auto water_share = [](uint8_t landscape, uint32_t seed) {
+			Simulation sim;
+			sim.set_map_landscape(landscape);
+			sim.generate_random_map(MAP_UNKNOWN, seed, 2, 64.0f);
+			int wet = 0, all = 0;
+			for (float x = -60.0f; x <= 60.0f; x += 2.0f)
+				for (float z = -60.0f; z <= 60.0f; z += 2.0f) {
+					if (x * x + z * z > 58.0f * 58.0f) continue; // circular map
+					++all;
+					wet += sim.get_terrain_height(x, z) < sim.water_height();
+				}
+			return (float)wet / (float)all;
+		};
+		for (uint32_t seed : {3u, 11u}) {
+			CHECK(water_share(3 + 12, seed) == 0.0f);  // Mainland
+			CHECK(water_share(3 + 2, seed) > 0.10f);   // Naval: Central Sea
+		}
+		GameSetupParams gp, back;
+		gp.landscape = 3 + 12;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.landscape == 15);
+		gp.landscape = 0;
+		CHECK(format_game_start_full(gp).find("landscape=") == std::string::npos);
 	}
 
 	if (failures) {

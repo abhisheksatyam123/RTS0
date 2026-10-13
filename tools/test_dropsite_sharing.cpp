@@ -32,6 +32,9 @@ int main() {
 	const uint32_t cc = s.spawn_building_world(-40.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	const uint32_t ally_store = s.spawn_building_world(20.0f, 0.0f, BLD_STOREHOUSE, 1, 1.0f);
 	const uint32_t enemy_store = s.spawn_building_world(20.0f, 20.0f, BLD_STOREHOUSE, 2, 1.0f);
+	// Their owners' territory, so neither storehouse decays to Gaia on neutral land.
+	s.spawn_building_world(46.0f, -6.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s.spawn_building_world(20.0f, 48.0f, BLD_TOWN_CENTER, 2, 1.0f);
 	const uint32_t woman = s.spawn_unit(26.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
 	const int32_t w = s.lookup_unit(woman);
 	s.units_.res_type_carried[w] = RES_WOOD;
