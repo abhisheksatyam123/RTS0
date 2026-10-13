@@ -3766,6 +3766,9 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 	if (diplomacy_[player_id][target] != stance)
 		note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}}); // Commands.js "diplomacy" notification
 	set_diplomacy(player_id, target, stance);
+	// Diplomacy.js OnDiplomacyChanged, "mutual worsening of relations": the other player's
+	// stance drops to match (war declared on it is war back), with no notification of its own.
+	if (diplomacy_[target][player_id] < stance) set_diplomacy(target, player_id, stance);
 	return true;
 }
 
