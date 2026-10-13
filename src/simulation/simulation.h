@@ -16,6 +16,7 @@
 #include "tutorial_data.h"
 #include "turret_data.h"
 #include <cstdint>
+#include <map>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -161,10 +162,13 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 60; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 64; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
+	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
+	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -223,6 +227,9 @@ public:
 		float half_d = 0.0f; // half its depth, along v (building_half_depth); set both with set_extents
 		uint8_t type; // BLD_*
 		uint8_t team; // 0=player, 1=enemy
+		// The civ whose template it was placed as (its builder's; CIV_COUNT for Gaia's). 0 A.D. keeps an
+		// entity's template through captures, so GarrisonHolder Max and List follow this, not the owner.
+		uint8_t civ = CIV_COUNT;
 		float hp;
 		float max_hp;
 		float aura_hp_mult = 1.0f; // Health/Max auras applied to max_hp and hp (Antiochus IV, the Persian catafalque)
@@ -348,6 +355,8 @@ public:
 	bool unit_running(size_t i) const;
 	// 0 A.D. Identity classes, RestrictedClasses, Bonuses and Spread of the unit at SoA index i.
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
+	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
+	float unit_clearance_at(size_t i) const { return unit_building_clearance(units_.tmpl[i], units_.unit_type[i]); }
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -547,6 +556,30 @@ public:
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
+	// Units that train (0 A.D. Trainer on a unit: Athenian and Persian triremes, Cyrus II;
+	// unit_trainer_data.h). Each trainer unit keeps its own production queue; the units it
+	// trains step out beside it (Footprint.PickSpawnPoint).
+	bool cmd_train_from_unit(uint8_t player, uint32_t unit_id, uint16_t tmpl, int count = 1);
+	bool cmd_cancel_unit_train(uint8_t player, uint32_t unit_id, size_t queue_idx);
+	// Roster templates the unit `tmpl` trains for `player` now (Trainer/Entities with their
+	// requirements met), and every one it could train (`all`).
+	std::vector<uint16_t> unit_trainables(uint8_t player, uint16_t tmpl, bool all = false) const;
+	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
+	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
+	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).
+	static std::vector<uint8_t> unit_researchables(uint16_t tmpl);
+	bool cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_t tech);
+	// A training unit's queue. `player` paid; Trainer.js OnOwnershipChanged refunds them when
+	// the unit dies or changes hands.
+	struct UnitQueue {
+		uint8_t player = 0;
+		std::vector<ProductionOrder> orders; // never empty
+	};
+	const std::map<uint32_t, UnitQueue> &unit_queues() const { return unit_queues_; }
+	const std::vector<ProductionOrder> *unit_queue(uint32_t unit_id) const {
+		auto it = unit_queues_.find(unit_id);
+		return it == unit_queues_.end() ? nullptr : &it->second.orders;
+	}
 	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
 	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
 			bool queued = false);
@@ -1240,9 +1273,10 @@ public:
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
 	uint8_t player_phase(uint8_t pid = 0) const { return player(pid).phase; }
-	void set_player_civ(uint8_t civ) { players_[0].civ = (Civilization)civ; }
+	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
-	void set_team_civ(uint8_t team, uint8_t civ) { if (team < MAX_PLAYERS) players_[team].civ = (Civilization)civ; }
+	// A civ chosen after the player's starting structures were placed re-templates them too.
+	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
 	void set_biome(uint8_t b) { biome_ = b; }
 	uint8_t biome() const { return biome_; }
@@ -1398,6 +1432,9 @@ public:
 		float radius = 32.0f;
 		float danger_level = 0.0f;
 		bool resources_depleted = false;
+		// baseManager.js neededDefenders: emergency units still to train for a civic centre we
+		// built or captured (in what was padding, so saves keep their layout).
+		uint8_t needed_defenders = 0;
 	};
 
 	enum PetraPriorityQueue : uint8_t {
@@ -1481,7 +1518,8 @@ public:
 			petra_tribute_inbox_[to][from][res] += (float)amount;
 	}
 	bool petra_in_emergency() const { return petra_emergency_.active; }
-	const PetraDefenseArmy &petra_defense_army() const { return petra_defense_army_; }
+	const std::vector<PetraDefenseArmy> &petra_defense_armies() const { return petra_defense_armies_; }
+	bool petra_is_defender(uint32_t uid) const;
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
 	const std::vector<PetraTransportPlan> &petra_transport_plans() const { return petra_transports_; }
 	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
@@ -1500,10 +1538,15 @@ public:
 		const uint8_t *fauna_type;
 		const uint8_t *behavior;
 		const uint8_t *alive;
+		const uint8_t *owner; // GAIA_PLAYER, or the player whose corral trained it
 	};
 	FaunaView fauna() const;
 
-	uint32_t spawn_fauna(float x, float z, uint8_t ftype);
+	uint32_t spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner = GAIA_PLAYER);
+	uint8_t fauna_owner(uint32_t fauna_id) const {
+		auto it = fauna_id_to_idx_.find(fauna_id);
+		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
+	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
 	uint32_t find_nearby_prey(size_t i, float x, float z) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
@@ -1859,9 +1902,13 @@ private:
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
+	void tick_unit_production(float dt); // units' Trainer queues (unit_queues_)
+	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
+	// Production queues of units that train, by unit id (saved SAVE_VERSION_UNIT_TRAINERS).
+	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
@@ -2027,6 +2074,10 @@ private:
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
 	} fauna_;
+	// Each animal's owner (Ownership): GAIA_PLAYER, or the player whose corral trained it
+	// (0 A.D. Trainer spawns gaia/fauna_*_trainable owned by that player). Beside fauna_, not
+	// in it, so the saved FaunaStorage layout stays; save v58 adds it.
+	uint8_t fauna_owner_[FaunaStorage::MAX_FAUNA] = {};
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
@@ -2244,6 +2295,7 @@ private:
 	void tick_trigger_watches();
 	void trigger_survival_init();
 	void trigger_survival_wave();
+	void trigger_gallic_fields(bool attack);
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
@@ -2319,7 +2371,7 @@ private:
 	int petra_opening_step_ = 0;
 	float petra_opening_timer_ = 0.0f;
 	PetraConfig petra_config_;
-	PetraDefenseArmy petra_defense_army_;
+	std::vector<PetraDefenseArmy> petra_defense_armies_; // defenseManager.js armies
 	PetraEmergency petra_emergency_;
 	PetraDefenseBuild petra_defense_build_;
 	PetraDropsiteCheck petra_dropsite_check_;
@@ -2489,6 +2541,9 @@ private:
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
+	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
+	bool petra_near_invading_army(float x, float z, float dist2) const;
+	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
@@ -2564,6 +2619,12 @@ private:
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
+	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
+	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
+	bool petra_emergency_rally(const Building &b) const {
+		return b.team == petra_pid_ && b.has_rally_point && b.rally_target_bld_id == b.id;
+	}
+	void petra_end_emergency_rallies();
 	void petra_change_diplomacy(uint8_t player, uint8_t stance);
 	void petra_last_man_standing_check();
 	int petra_player_entities(uint8_t player) const;
@@ -2608,7 +2669,7 @@ private:
 	// and swapped in while that AI thinks (0 A.D. runs one Petra instance per AI).
 #define RTSO_PETRA_SLOT_FIELDS(X) \
 	X(petra_threat_map_) X(petra_strike_force_) X(petra_attack_plan_) X(petra_raid_plan_) \
-	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_army_) X(petra_emergency_) \
+	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_armies_) X(petra_emergency_) \
 	X(petra_queues_) X(petra_transports_) X(petra_defense_timer_) X(petra_victory_timer_) \
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
@@ -2726,6 +2787,7 @@ private:
 	bool flee_done(size_t i);
 	void respond_to_attacker(size_t i, uint32_t attacker_id, float ax, float az, bool melee, bool structure = false);
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
+	std::vector<uint32_t> combat_look_again_scratch_; // tick_combat: units that hit a non-preferred target
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).

@@ -1508,6 +1508,8 @@ static const uint8_t kCrowdClips[] = {
 static_assert(sizeof(kCrowdClips) == 25, "kCrowdClips must match CROWD_CLIP_COUNT");
 // Death clips play once and hold their last frame (slots 3 and 24).
 static constexpr uint32_t CROWD_DEATH_SLOTS = (1u << 3) | (1u << 24);
+// Fauna clip slots that hold their last frame: death (3) and the second death (5).
+static constexpr uint32_t FAUNA_DEATH_SLOTS = (1u << 3) | (1u << 5);
 
 static int crowd_slot_of(ClipId clip) {
 	switch (clip) {
@@ -1738,11 +1740,13 @@ void RtsoWorldView::ensure_fauna_frames(uint8_t ftype) {
 	if (!inst) return;
 	// Animals flee at a run when they have one.
 	AnimationPlayer *ap = find_anim_player(inst);
-	uint8_t want[FAUNA_CLIP_COUNT] = { CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH };
+	uint8_t want[FAUNA_CLIP_COUNT] = { CLIP_IDLE, CLIP_WALK, CLIP_ATTACK, CLIP_DEATH, CLIP_IDLE2, CLIP_DEATH2 };
 	if (ap && ap->has_animation(clip_name(CLIP_RUN))) want[1] = CLIP_RUN;
-	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true };
+	// The second idle and death only when the model has them (with_fauna_variant).
+	const bool needed[FAUNA_CLIP_COUNT] = { true, true, true, true,
+			ap && ap->has_animation(clip_name(CLIP_IDLE2)), ap && ap->has_animation(clip_name(CLIP_DEATH2)) };
 	bool done[FAUNA_CLIP_COUNT] = {};
-	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, 1u << 3);
+	bake_puppet_clips(inst, fauna_puppet[ftype], done, want, needed, FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 	for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 		if (fauna_mm[ftype][c].is_valid() && fauna_puppet[ftype][c].posed_frames[0].is_valid()) {
 			fauna_mm[ftype][c]->set_mesh(fauna_puppet[ftype][c].posed_frames[0]);
@@ -3218,21 +3222,29 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (speed2 > 0.001f) return 1;
 		return 0;
 	};
+	// 0 A.D. plays one of an actor's same-named clips at random; as with units
+	// (with_variant), each animal keeps one by its id: half fall with the second
+	// death and a quarter stand with the second idle, when the model has them.
+	auto with_fauna_variant = [this](int clip, uint8_t ft, uint32_t id) -> int {
+		const uint32_t h = id * 2654435761u;
+		if (clip == 3 && (h & 0x80000000u) && fauna_puppet[ft][5].baked_count > 0) return 5;
+		if (clip == 0 && (h >> 29) == 3u && fauna_puppet[ft][4].baked_count > 0) return 4;
+		return clip;
+	};
 	int f_counts[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
 		if (ft >= rtso::FAUNA_COUNT) continue;
+		// Baked before the first count, so both passes pick the same clips.
+		ensure_fauna_frames(ft);
 		float vx = fview.vel_x[f];
 		float vz = fview.vel_z[f];
 		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
-		f_counts[ft][clip]++;
+		f_counts[ft][with_fauna_variant(clip, ft, fview.id[f])]++;
 	}
 	for (int ft = 0; ft < rtso::FAUNA_COUNT; ++ft) {
-		int any = 0;
-		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) any += f_counts[ft][c];
-		if (any > 0) ensure_fauna_frames((uint8_t)ft);
-		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, 1u << 3);
+		cycle_puppet_meshes(fauna_puppet[ft], fauna_mm[ft], f_counts[ft], FAUNA_CLIP_COUNT, FAUNA_DEATH_SLOTS);
 		for (int c = 0; c < FAUNA_CLIP_COUNT; ++c) {
 			if (fauna_mm[ft][c].is_valid()) {
 				fauna_mm[ft][c]->set_instance_count(f_counts[ft][c]);
@@ -3246,7 +3258,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (ft >= rtso::FAUNA_COUNT) continue;
 		float vx = fview.vel_x[f];
 		float vz = fview.vel_z[f];
-		int clip = fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0);
+		int clip = with_fauna_variant(fauna_clip_of(fview.behavior[f], vx * vx + vz * vz, fview.alive[f] != 0),
+				ft, fview.id[f]);
 		float fx = fview.pos_x[f];
 		float fz = fview.pos_z[f];
 		float fy = sim->get_terrain_height(fx, fz);

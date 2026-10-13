@@ -114,6 +114,8 @@ def fauna_rows(loader):
             flags.append("FAUNA_F_KILL_BEFORE_GATHER")
         if rtype == "food.fish":
             flags.append("FAUNA_F_FISH")
+        if t.value("UnitMotion/PassabilityClass", "") == "large":
+            flags.append("FAUNA_F_LARGE")
         rows.append({
             "stem": stem,
             "name": t.value("Identity/GenericName", stem),
@@ -301,6 +303,7 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tFAUNA_F_TRAINABLE = 4,          // *_trainable: the corral's player-owned copy")
     w("\tFAUNA_F_KILL_BEFORE_GATHER = 8, // ResourceSupply/KillBeforeGather")
     w("\tFAUNA_F_FISH = 16,              // food.fish (whales) instead of food.meat")
+    w("\tFAUNA_F_LARGE = 32,             // UnitMotion/PassabilityClass large (bulls, adult elephants)")
     w("};")
     w("")
     w("struct FaunaTypeInfo {")
@@ -327,6 +330,7 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tfloat footprint;          // Footprint radius in 0 A.D. metres (a square as the circle of equal area)")
     w("\tbool is_domestic() const { return flags & FAUNA_F_DOMESTIC; }")
     w("\tbool is_naval() const { return flags & FAUNA_F_NAVAL; }")
+    w("\tbool is_large() const { return flags & FAUNA_F_LARGE; }")
     w("\tfloat attack_damage() const { return hack_damage + pierce_damage + crush_damage; }")
     w("\t// UnitAI.IsDangerousAnimal: an animal whose stance targets visible enemies and that can attack.")
     w("\tbool is_dangerous() const {")
