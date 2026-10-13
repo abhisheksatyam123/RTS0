@@ -980,7 +980,7 @@ static void test_first_base() {
 	for (size_t i = 0; i < u.count; ++i) // a nomad start: everyone stands idle
 		if (u.alive[i] && u.team[i] == 1) { u.action_state[i] = ACTION_IDLE; u.has_order[i] = 0; u.target_resource_id[i] = 0; }
 	PlayerState &ps = s->players_[1];
-	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 100.0f; ps.stone() = 200.0f;
+	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 250.0f; ps.stone() = 300.0f;
 	const uint32_t treasure = s->spawn_resource_treasure(tx + 9.0f, tz + 9.0f, RES_WOOD); // 300 wood, outside the wreck
 	bool founded = false, built = false;
 	float t = 0.0f;
@@ -1290,6 +1290,9 @@ static void test_nomad_first_base() {
 	s->set_sim_seed(42);
 	s->reset();
 	s->set_nomad(true);
+	// Seated players: placePlayersNomad leaves each one the treasure its civic centre needs.
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	auto town_centers = [&](bool built) {
 		int n = 0;
