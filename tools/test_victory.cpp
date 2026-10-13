@@ -138,6 +138,9 @@ int main() {
 		}
 		CHECK(heroes[0] == 1 && heroes[1] == 1);
 		CHECK(!sim->is_game_over());
+		// Regicide.js: only the spawned hero counts; a second hero the enemy trained
+		// doesn't keep it in the game.
+		sim->spawn_unit(u.pos_x[enemy_hero] + 6.0f, u.pos_z[enemy_hero], 1, UNIT_HERO);
 		kill_unit(*sim, enemy_hero);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
