@@ -208,7 +208,7 @@ int main() {
 		const float before = s.pack_time_s((size_t)idx_of(s, cat));
 		s.player(0).phase = 3;
 		s.set_player_resources(0, 5000, 5000, 5000, 5000);
-		uint32_t arsenal = s.spawn_building_world(-20.0f, 0.0f, BLD_ARSENAL, 0, 1.0f);
+		uint32_t arsenal = s.spawn_building_world(-30.0f, -30.0f, BLD_ARSENAL, 0, 1.0f); // in the civic centre's territory
 		CHECK(s.cmd_research(0, arsenal, TECH_SIEGE_PACK_UNPACK));
 		run(s, ti.research_time + 1.0f);
 		CHECK(s.player(0).has_tech(TECH_SIEGE_PACK_UNPACK));

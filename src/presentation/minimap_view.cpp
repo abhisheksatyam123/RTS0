@@ -100,8 +100,8 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 
 // Territory tint upload — closes docs/REMAINING_GAPS.md:148 ("upload
 // territory_grid_ as texture, minimap overlay matches sim"). Rasterises
-// sim->territory_grid() (simulation.h:327; 64x64 cells written by
-// simulation.cpp:728-756 rebuild_territory -> blur_territory, cell = team+1,
+// sim->territory_grid() (cells written by Simulation::rebuild_territory_grids,
+// CCmpTerritoryManager's influence flood fill, cell = team+1,
 // 0 = unclaimed, same mapping as territory_owner_at simulation.cpp:762-769)
 // into a single RGBA8 ImageTexture. The grid bytes are memcmp'd once per
 // _draw() and the texture only re-uploaded when ownership actually changes.
@@ -231,19 +231,13 @@ void RtsoMiniMapView::_draw() {
 	}
 
 	// 1b. Smoothed Territory Influence Outlines (0 A.D. Territory System).
-	// Circle-overlay -> territory_grid_ cell mapping (parity note): each circle
-	// below stamps the SAME TC(32m)/fortress(28m)/tower(18m) radii that
-	// simulation.cpp:735-752 rasterises into influence_grid_ before the 3x3
-	// blur_territory (grid_nav.h:501-530) drawn 1:1 by the texture above —
-	// circles = hard-radius approximation, texture = blurred sim ground truth.
+	// A circle at each territory root's TerritoryInfluence radius (territory_data.h, before
+	// techs): an outline over the texture above, which draws the sim's claimed tiles.
 	if (show_territory) {
 		for (const auto &b : mirages_.buildings()) {
 			if (b.build_progress < 1.0f) continue;
 			Vector2 pos = map_to_mini(b.x, b.z);
-			float radius_m = 0.0f;
-			if (rtso::is_civic_centre(b.type)) radius_m = 32.0f;
-			else if (b.type == rtso::BLD_FORTRESS) radius_m = 28.0f;
-			else if (rtso::is_defense_tower(b.type)) radius_m = 18.0f;
+			const float radius_m = rtso::is_territory_root(b.type) ? rtso::territory_influence_info(b.type).radius : 0.0f;
 
 			if (radius_m > 0.0f) {
 				float r_px = (radius_m / (half_map * 2.0f)) * sz.x;
