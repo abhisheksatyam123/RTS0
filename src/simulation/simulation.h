@@ -1386,6 +1386,9 @@ public:
 		float radius = 32.0f;
 		float danger_level = 0.0f;
 		bool resources_depleted = false;
+		// baseManager.js neededDefenders: emergency units still to train for a civic centre we
+		// built or captured (in what was padding, so saves keep their layout).
+		uint8_t needed_defenders = 0;
 	};
 
 	enum PetraPriorityQueue : uint8_t {
@@ -2564,6 +2567,12 @@ private:
 	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
+	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
+	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
+	bool petra_emergency_rally(const Building &b) const {
+		return b.team == petra_pid_ && b.has_rally_point && b.rally_target_bld_id == b.id;
+	}
+	void petra_end_emergency_rallies();
 	void petra_change_diplomacy(uint8_t player, uint8_t stance);
 	void petra_last_man_standing_check();
 	int petra_player_entities(uint8_t player) const;
