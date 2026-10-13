@@ -461,6 +461,36 @@ int main() {
 		CHECK(tw == 0 && lw == 0 && gt == 0);
 	}
 
+	// 12. fortress.js's "Spahbod" (placeCustomFortress): a closed square of WallSet pieces round
+	// each Civic Centre, its first gate towards the map centre, the four side buildings inside.
+	{
+		s.reset();
+		s.generate_random_map(MAP_FORTRESS, 5, 2, 128.0f);
+		float cx = 0.0f, cz = 0.0f;
+		for (const auto &b : s.buildings())
+			if (b.type == BLD_TOWN_CENTER && b.team == 0) cx = b.x, cz = b.z;
+		int longs = 0, gates = 0, towers = 0, inside = 0;
+		float side = 0.0f, gate_dot = -1.0f;
+		for (const auto &b : s.buildings()) {
+			if (b.team != 0) continue;
+			const float dx = b.x - cx, dz = b.z - cz, r = std::hypot(dx, dz);
+			if (b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE) {
+				longs += b.type == BLD_WALL_SEGMENT;
+				gates += b.type == BLD_GATE;
+				CHECK(b.half_size == 0.5f * WALL_SEGMENT_LENGTHS[0] && b.build_progress >= 1.0f);
+				side = std::max(side, r);
+				// A gate faces the map centre (or away from it).
+				if (b.type == BLD_GATE) gate_dot = std::max(gate_dot, std::fabs(-(dx * cx + dz * cz) / (r * std::hypot(cx, cz))));
+			}
+			towers += b.type == BLD_WALL_TOWER;
+			if (b.type == BLD_BARRACKS || b.type == BLD_STABLE || b.type == BLD_TEMPLE || b.type == BLD_MARKET)
+				inside += r < 14.0f;
+		}
+		std::printf("  fortress spahbod: %d long walls, %d gates, %d towers, %d side buildings inside, walls to %.1f\n",
+				longs, gates, towers, inside, side);
+		CHECK(longs == 10 && gates == 2 && towers == 12 && inside == 4 && side < 20.0f && gate_dot > 0.99f);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

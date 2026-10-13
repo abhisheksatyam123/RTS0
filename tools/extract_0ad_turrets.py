@@ -27,7 +27,7 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from extract_0ad_rosters import CIVS, CIV_ENUM, TemplateLoader  # noqa: E402
+from extract_0ad_rosters import CIVS, CIV_COUNT, CIV_ENUM_OF, CIV_SLOTS, TemplateLoader  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_HEADER = os.path.join(REPO, "src", "simulation", "turret_data.h")
@@ -114,9 +114,12 @@ def emit(table, wallset, siege):
     w("};")
     w("")
     w("// [civ][0 wall segment, 1 gate, 2 outpost]")
-    w(f"inline constexpr TurretPointSet TURRET_POINTS[{len(CIVS)}][{len(KINDS)}] = {{")
-    for civ, enum in zip(CIVS, CIV_ENUM):
-        w(f"\t{{ // {enum}")
+    w(f"inline constexpr TurretPointSet TURRET_POINTS[{CIV_COUNT}][{len(KINDS)}] = {{")
+    for civ in CIV_SLOTS:
+        if civ is None:
+            w("\t{}, // CIV_GAIA")
+            continue
+        w(f"\t{{ // {CIV_ENUM_OF[civ]}")
         for (bld, stem) in KINDS:
             pts = table[(civ, stem)][:MAX_POINTS]
             body = ", ".join(f"{{{f(x)}, {f(y)}, {f(z)}}}" for x, y, z in pts)
@@ -126,9 +129,12 @@ def emit(table, wallset, siege):
     w("")
     w("// [civ][0 long WallSet segment, 1 medium segment, 2 gate]: every TurretPoint, x along the")
     w("// wall and z across it (0 A.D.'s own frame), for pieces laid by the WallSet.")
-    w(f"inline constexpr TurretPointSet TURRET_POINTS_WALLSET[{len(CIVS)}][{len(WALLSET_KINDS)}] = {{")
-    for civ, enum in zip(CIVS, CIV_ENUM):
-        w(f"\t{{ // {enum}")
+    w(f"inline constexpr TurretPointSet TURRET_POINTS_WALLSET[{CIV_COUNT}][{len(WALLSET_KINDS)}] = {{")
+    for civ in CIV_SLOTS:
+        if civ is None:
+            w("\t{}, // CIV_GAIA")
+            continue
+        w(f"\t{{ // {CIV_ENUM_OF[civ]}")
         for (what, stem) in WALLSET_KINDS:
             pts = wallset[(civ, stem)]
             if len(pts) > MAX_POINTS:

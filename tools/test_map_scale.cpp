@@ -410,7 +410,8 @@ int main() {
 			towers += b.type == BLD_WALL_TOWER;
 			++kinds[b.type];
 		}
-		CHECK(walls >= 4 * 40 && gates == 4 * 4 && towers >= 4 * 8, "fortress: %d walls, %d gates, %d towers", walls, gates, towers);
+		// The Spahbod: 10 long walls, 2 gates, 8 towers and 4 corner towers each.
+		CHECK(walls == 4 * 10 && gates == 4 * 2 && towers == 4 * 12, "fortress: %d walls, %d gates, %d towers", walls, gates, towers);
 		CHECK(kinds[BLD_MARKET] == 4 && kinds[BLD_BARRACKS] == 4 && kinds[BLD_STABLE] == 4 && kinds[BLD_TEMPLE] == 4,
 		      "fortress: each player gets a market, barracks, stable and temple");
 		// The gates (unlocked) let units out of the walls.
