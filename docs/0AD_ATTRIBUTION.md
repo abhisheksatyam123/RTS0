@@ -244,6 +244,8 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | `scenes/reference/manual.gd` | `gui/manual/manual.js` and `manual.xml` | Hand-ported |
 | `scenes/reference/catafalque_page.gd`, `RtsoReference.get_catafalques` | `gui/reference/catafalque/` (CatafalquePage.js, Emblem.js, catafalque.xml, styles.xml), `getAurasTooltip` from `gui/common/tooltips.js` | Hand-ported |
 | `scenes/reference/credits_page.gd` | `gui/credits/credits.js` and `credits.xml` | Hand-ported |
+| `scenes/menu/splashscreen.gd` (welcome page) | 0.28 `gui/splashscreen/splashscreen.{js,xml,txt}` (text copied, translated per line through the .po files) and `gui/pregame/SplashscreenHandler.js` | Hand-ported + text copy |
+| Population Cap Type in `scenes/menu/gamesetup.gd` (`POP_CAP_TYPES`) | 0.28 `simulation/data/settings/population_capacities.json` (data copied), `gamesetup/.../PopulationCapType.js`, `PopulationCap.js`, `LockedTeams.js` | Data copy + port |
 | `data/reference/credits/*.json` | `gui/credits/texts/*.json` (all ten credits files) | Copied as is |
 | `assets/textures/ui/portraits/catafalque.png` | `art/textures/ui/reference/portraits/catafalque.png` | Copied as is |
 | `data/reference/loading.json`, `data/reference/manual.json` | `gui/text/tips/*.txt` (47 tips), `gui/text/quotes.txt` (199 quotes), `gui/manual/intro.txt` | `tools/extract_0ad_loading.py` |

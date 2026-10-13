@@ -114,6 +114,11 @@ func _ready() -> void:
 
 	$CivSwitcher.pressed.connect(_cycle_background)
 
+	# 0.28 SplashScreenHandler: the welcome page over the menu shown at startup
+	# (not under a -s test script).
+	if get_tree().get_script() == null:
+		load("res://scenes/menu/splashscreen.gd").open_at_startup(self)
+
 	# Connect hover sounds
 	for btn in $MainPanel/Buttons.get_children():
 		if btn is Button:
