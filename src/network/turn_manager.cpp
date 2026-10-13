@@ -405,14 +405,14 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	}
 	// An observer takes no seat, even a free one.
 	const bool observer = observer_requests_.count(client_id) != 0;
-	if (observer && !allow_late_observers_) { reject(6); return; }
+	if (observer && !allow_late_observers_) { reject(6); net_host_->refusePeer(client_id); return; }
 	if (observer) {
 		// 0 A.D. NetServer: the sessions beyond the players may not pass
 		// network.observerlimit once the game runs.
 		int watching = 0;
 		for (const auto &p : net_host_->getPeers())
 			if (p.id != client_id && p.connected && p.is_authenticated && p.is_observer) ++watching;
-		if (watching + 1 > observer_limit_) { reject(7); return; }
+		if (watching + 1 > observer_limit_) { reject(7); net_host_->refusePeer(client_id); return; }
 	}
 	if (observer) seat = 0xFF;
 	else if (seat == 0xFF) { reject(1); return; }
