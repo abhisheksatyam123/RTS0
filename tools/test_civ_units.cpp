@@ -285,6 +285,17 @@ int main() {
 		CHECK(civ_unit_template(cav).trainers == bld_bit(BLD_STABLE));
 		CHECK(civ_unit_template(ram).trainers == bld_bit(BLD_ARSENAL));
 		CHECK(civ_unit_template(merc).trainers == bld_bit(BLD_EMBASSY));
+		// The Briton crannog (structures/brit/crannog.xml): a Town phase Civic Center that trains
+		// what the Civic Center trains and ships, and shoots like one.
+		CHECK(civ_can_build(CIV_BRITONS, BLD_CRANNOG) && !civ_can_build(CIV_GAULS, BLD_CRANNOG));
+		CHECK(is_civic_centre(BLD_CRANNOG) && is_territory_root(BLD_CRANNOG) && building_required_phase(BLD_CRANNOG) == 2);
+		CHECK(civ_unit_template(roster_id("brit/ship_fishing")).trainers.test(BLD_CRANNOG));
+		CHECK(civ_unit_template(roster_id("brit/infantry_spearman_b")).trainers.test(BLD_CRANNOG));
+		CHECK(civ_unit_template(roster_id("brit/support_female_citizen")).trainers.test(BLD_CRANNOG));
+		CHECK(civ_unit_template(roster_id("brit/rts0_villager")).trainers.test(BLD_CRANNOG));
+		CHECK(!civ_unit_template(roster_id("gaul/rts0_villager")).trainers.test(BLD_CRANNOG));
+		CHECK(building_ai_info(BLD_CRANNOG).shoots() && civ_building_is_dropsite(BLD_CRANNOG));
+		CHECK(territory_influence_info(BLD_CRANNOG).root && territory_influence_info(BLD_CRANNOG).weight == 10000);
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));
