@@ -3294,7 +3294,13 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
-	view->sync(sim, (float)delta, selected_ids);
+	if (inspected_kind_ == INSPECT_UNIT || inspected_kind_ == INSPECT_FAUNA) {
+		PackedInt32Array shown = selected_ids;
+		shown.push_back((int32_t)inspected_id_);
+		view->sync(sim, (float)delta, shown);
+	} else {
+		view->sync(sim, (float)delta, selected_ids);
+	}
 	if (cam_rig) {
 		minimap_view->set_local_player(viewer);
 		minimap_view->sync(sim, cam_rig->get_target_pos());
@@ -3352,6 +3358,7 @@ void RtsoMain::_process(double delta) {
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
 	prune_selection();
+	if (!selected_ids.is_empty() || selected_building_id != 0) inspected_kind_ = INSPECT_NONE;
 	update_inspector();
 	update_command_panel();
 	const auto attacks = sim->take_attacked_events();
@@ -3747,6 +3754,201 @@ void RtsoMain::prune_selection() {
 	selected_ids = kept;
 }
 
+// What a click on (x, z) inspects when it hits nothing of the player's own: another
+// player's unit, an animal, another player's structure or a resource, nearest first by
+// that order, and only what the player sees (units, animals) or has explored.
+bool RtsoMain::inspect_at(const Vector3 &click_pos) {
+	if (!sim) return false;
+	const uint8_t vp = view_player();
+	const bool all = sim->reveal_map() || vp >= rtso::MAX_PLAYERS;
+	auto seen = [&](float x, float z, uint8_t team) { return all || sim->is_entity_visible_to_viewer(x, z, team, vp); };
+	auto explored = [&](float x, float z) { return all || sim->fow_state_at(x, z, vp) != rtso::Simulation::FOW_UNEXPLORED; };
+	auto pick = [&](uint8_t kind, uint32_t id) {
+		inspected_kind_ = kind;
+		inspected_id_ = id;
+		return true;
+	};
+	const float cx = click_pos.x, cz = click_pos.z;
+	{
+		auto uv = sim->units();
+		size_t best = (size_t)-1;
+		float best_d2 = 1.4f * 1.4f;
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (!uv.alive[i] || uv.team[i] == local_player() || !seen(uv.pos_x[i], uv.pos_z[i], uv.team[i])) continue;
+			const float dx = uv.pos_x[i] - cx, dz = uv.pos_z[i] - cz, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = i; }
+		}
+		if (best != (size_t)-1) return pick(INSPECT_UNIT, uv.id[best]);
+	}
+	{
+		auto fv = sim->fauna();
+		size_t best = (size_t)-1;
+		float best_d2 = 1.6f * 1.6f;
+		for (size_t f = 0; f < fv.count; ++f) {
+			if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
+			if (!seen(fv.pos_x[f], fv.pos_z[f], fv.owner ? fv.owner[f] : rtso::GAIA_PLAYER)) continue;
+			const float dx = fv.pos_x[f] - cx, dz = fv.pos_z[f] - cz, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = f; }
+		}
+		if (best != (size_t)-1) return pick(INSPECT_FAUNA, fv.id[best]);
+	}
+	for (const auto &b : sim->buildings()) {
+		if (b.team == local_player() || b.wrecked || !explored(b.x, b.z)) continue;
+		const float hr = (b.hu > 0.0f ? std::max(b.hu, b.hv) : b.half_size) + 0.4f;
+		const float dx = b.x - cx, dz = b.z - cz;
+		if (dx * dx + dz * dz <= hr * hr) return pick(INSPECT_BUILDING, b.id);
+	}
+	{
+		auto rv = sim->resources();
+		size_t best = (size_t)-1;
+		float best_d2 = 1.3f * 1.3f;
+		for (size_t r = 0; r < rv.count; ++r) {
+			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN || !explored(rv.x[r], rv.z[r])) continue;
+			const float dx = rv.x[r] - cx, dz = rv.z[r] - cz, d2 = dx * dx + dz * dz;
+			if (d2 < best_d2) { best_d2 = d2; best = r; }
+		}
+		if (best != (size_t)-1) return pick(INSPECT_RESOURCE, rv.id[best]);
+	}
+	inspected_kind_ = INSPECT_NONE;
+	return false;
+}
+
+namespace {
+String inspect_armour(float hack, float pierce, float crush) {
+	return "Armor: " + String::num(hack, 0) + " hack, " + String::num(pierce, 0) + " pierce, " + String::num(crush, 0) + " crush";
+}
+String flora_title(uint8_t flora) {
+	static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",
+		"Berry Bush", "Apple Tree", "Date Palm", "Carob", "Poplar", "Fan Palm", "Beech", "Dead Tree", "Cypress",
+		"Aleppo Pine", "Fir", "Tropical Bush", "Olive", "Banyan", "Tropical Palm", "Maple", "Juniper", "Teak"};
+	return flora < sizeof(kNames) / sizeof(kNames[0]) ? String(kNames[flora]) : String("Tree");
+}
+} // namespace
+
+bool RtsoMain::fill_inspected_details() {
+	if (!sim || inspected_kind_ == INSPECT_NONE) return false;
+	const uint8_t vp = view_player();
+	const bool all = sim->reveal_map() || vp >= rtso::MAX_PLAYERS;
+	auto bar = [](ProgressBar *pb, Label *lbl, bool on, float value = 0.0f, float max = 1.0f, const String &text = String()) {
+		pb->set_visible(on);
+		lbl->set_visible(on);
+		if (!on) return;
+		pb->set_max(max > 0.0f ? max : 1.0f);
+		pb->set_value(value);
+		lbl->set_text(text);
+	};
+	auto owner_text = [&](uint8_t owner) {
+		return owner >= rtso::MAX_PLAYERS ? String("Gaia")
+				: player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
+	};
+	auto health = [&](float hp, float max) {
+		bar(inspector_hp_bar, inspector_hp_label, max > 0.0f, hp, max,
+				"Health: " + String::num((double)hp, 0) + " / " + String::num((double)max, 0));
+	};
+	bar(inspector_capture_bar, inspector_capture_label, false);
+	bar(inspector_xp_bar, inspector_xp_label, false);
+	bar(inspector_aura_bar, inspector_aura_label, false);
+	inspector_extra->set_text("");
+
+	if (inspected_kind_ == INSPECT_UNIT) {
+		auto uv = sim->units();
+		size_t u = 0;
+		for (; u < uv.count; ++u)
+			if (uv.id[u] == inspected_id_) break;
+		if (u == uv.count || !uv.alive[u] || (!all && !sim->is_entity_visible_to_viewer(uv.pos_x[u], uv.pos_z[u], uv.team[u], vp)))
+			return false;
+		const uint8_t utype = uv.unit_type[u];
+		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
+		const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
+		inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
+		static const char *kRank[] = {"", "", "Advanced ", "Elite "};
+		inspector_title->set_text(String(kRank[std::min(std::max(1, (int)uv.rank[u]), 3)]) + String::utf8(uinfo.name));
+		inspector_class->set_text(owner_text(uv.team[u]));
+		health(uv.hp[u], uv.max_hp[u]);
+		String stats;
+		if (uinfo.attack_damage > 0.0f) stats = "Attack: " + String::num(uinfo.attack_damage, 1) + ", interval " + String::num(uinfo.attack_cooldown, 2) + " s\n";
+		inspector_stats->set_text(stats + inspect_armour(uinfo.hack_armor, uinfo.pierce_armor, uinfo.crush_armor));
+		return true;
+	}
+	if (inspected_kind_ == INSPECT_FAUNA) {
+		auto fv = sim->fauna();
+		size_t f = 0;
+		for (; f < fv.count; ++f)
+			if (fv.id[f] == inspected_id_) break;
+		const uint8_t owner = f < fv.count && fv.owner ? fv.owner[f] : rtso::GAIA_PLAYER;
+		if (f == fv.count || !fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED ||
+				(!all && !sim->is_entity_visible_to_viewer(fv.pos_x[f], fv.pos_z[f], owner, vp)))
+			return false;
+		const auto &fi = rtso::fauna_type_info(fv.fauna_type[f]);
+		inspector_portrait->set_texture(Ref<Texture2D>());
+		inspector_title->set_text(String::utf8(fi.name));
+		inspector_class->set_text(owner_text(owner));
+		health(fv.hp[f], fv.max_hp[f]);
+		String stats;
+		if (fi.attack_damage() > 0.0f) stats = "Attack: " + String::num(fi.attack_damage(), 1) + ", interval " + String::num(fi.attack_cooldown, 2) + " s\n";
+		inspector_stats->set_text(stats + inspect_armour(fi.hack_armor, fi.pierce_armor, fi.crush_armor));
+		if (fv.food_amount[f] > 0) inspector_extra->set_text("Food: " + String::num_int64(fv.food_amount[f]));
+		return true;
+	}
+	if (inspected_kind_ == INSPECT_BUILDING) {
+		const rtso::Simulation::Building *found = nullptr;
+		for (const auto &b : sim->buildings())
+			if (b.id == inspected_id_) { found = &b; break; }
+		if (!found || found->wrecked || found->hp <= 0.0f) return false;
+		const auto &binfo = rtso::building_type_info(found->type);
+		inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
+		inspector_title->set_text(String(binfo.name));
+		inspector_class->set_text(owner_text(found->team));
+		health(found->hp, found->max_hp);
+		if (found->max_capture_points > 0.0f)
+			bar(inspector_capture_bar, inspector_capture_label, true, found->capture_points, found->max_capture_points,
+					"Capture points: " + String::num((double)found->capture_points, 0) + " / " + String::num((double)found->max_capture_points, 0));
+		inspector_stats->set_text(found->build_progress < 1.0f
+				? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
+		return true;
+	}
+	// A resource: its kind and what is left (selection_details.js resourceSupply).
+	auto rv = sim->resources();
+	size_t r = 0;
+	for (; r < rv.count; ++r)
+		if (rv.id[r] == inspected_id_) break;
+	if (r == rv.count || !rv.alive[r] || rv.amount[r] <= 0) return false;
+	String title, kind;
+	switch (rv.type[r]) {
+	case rtso::RES_WOOD: title = flora_title(rv.flora ? rv.flora[r] : 0); kind = "Wood"; break;
+	case rtso::RES_GOLD: title = rv.subtype[r] == rtso::RES_SUB_RUINS ? "Ruins" : "Metal Mine"; kind = "Metal"; break;
+	case rtso::RES_STONE: title = rv.subtype[r] == rtso::RES_SUB_RUINS ? "Ruins" : "Stone Quarry"; kind = "Stone"; break;
+	default:
+		title = rv.subtype[r] == rtso::RES_SUB_MEAT ? String("Carcass") : rv.subtype[r] == rtso::RES_SUB_FISH ? String("Fish")
+				: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
+		kind = "Food";
+	}
+	inspector_portrait->set_texture(Ref<Texture2D>());
+	inspector_title->set_text(title);
+	inspector_class->set_text("Gaia");
+	bar(inspector_hp_bar, inspector_hp_label, false);
+	inspector_stats->set_text(kind + ": " + String::num_int64(rv.amount[r]) + "\nGatherers: up to " +
+			String::num_int64(sim->resource_max_gatherers(rv.id[r])));
+	return true;
+}
+
+// The player's own selected livestock (0 A.D. livestock are units): one animal's details,
+// or a count for several. False when the selection holds anything else.
+bool RtsoMain::fill_livestock_details() {
+	if (!sim || selected_ids.is_empty()) return false;
+	for (int s = 0; s < selected_ids.size(); ++s)
+		if (!sim->fauna_selectable_by(local_player(), (uint32_t)selected_ids[s])) return false;
+	const uint8_t keep_kind = inspected_kind_;
+	const uint32_t keep_id = inspected_id_;
+	inspected_kind_ = INSPECT_FAUNA;
+	inspected_id_ = (uint32_t)selected_ids[0];
+	const bool ok = fill_inspected_details();
+	inspected_kind_ = keep_kind;
+	inspected_id_ = keep_id;
+	if (ok && selected_ids.size() > 1) inspector_title->set_text(String::num_int64(selected_ids.size()) + " animals selected");
+	return ok;
+}
+
 void RtsoMain::update_inspector() {
 	if (!inspector_panel) return;
 	auto show_bar = [](ProgressBar *bar, Label *lbl, bool v) {
@@ -3856,7 +4058,14 @@ void RtsoMain::update_inspector() {
 	}
 
 	if (selected_ids.is_empty()) {
-		inspector_panel->set_visible(false);
+		ungarrison_btn->set_visible(false);
+		if (inspected_kind_ != INSPECT_NONE && !fill_inspected_details()) inspected_kind_ = INSPECT_NONE;
+		inspector_panel->set_visible(inspected_kind_ != INSPECT_NONE);
+		return;
+	}
+	if (fill_livestock_details()) {
+		ungarrison_btn->set_visible(false);
+		inspector_panel->set_visible(true);
 		return;
 	}
 	auto uview = sim->units();
@@ -5391,6 +5600,11 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							if (hit_bld != 0) {
 								selected_building_id = hit_bld;
 								if (!is_shift) selected_ids.clear();
+							} else if (!is_ctrl && inspect_at(click_pos)) {
+								// Another player's unit or structure, an animal or a resource:
+								// selected for its details only (0 A.D. EntitySelection).
+								selected_ids.clear();
+								selected_building_id = 0;
 							} else {
 								// Clicked empty ground: deselect if shift not pressed
 								if (!is_shift) {
