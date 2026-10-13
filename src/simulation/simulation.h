@@ -808,7 +808,7 @@ public:
 	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
 	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
-	// this unload are in `taken`); without a passenger, the nearest dry ground.
+	// this unload are in `taken`), false when there is none; without a passenger, the nearest dry ground.
 	struct SpawnSpot { float x, z, r; };
 	bool ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger = SIZE_MAX,
 			std::vector<SpawnSpot> *taken = nullptr) const;

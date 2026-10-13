@@ -5602,7 +5602,7 @@ bool Simulation::nearest_water_for_ship(size_t ship, float x, float z, float &ou
 // hull, scanned in a fixed order so every peer picks the same spot. For a passenger it is
 // the nearest such spot where its body overlaps no unit standing ashore and no passenger
 // already set down (`taken`), as Footprint.PickSpawnPoint skips obstructed points; when the
-// shore is full it shares the nearest dry spot and pushing parts them.
+// shore is full there is none, and the passenger stays aboard.
 bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger,
 		std::vector<SpawnSpot> *taken) const {
 	const float sx = units_.pos_x[ship], sz = units_.pos_z[ship];
@@ -5658,10 +5658,11 @@ bool Simulation::ship_unload_point(size_t ship, float &out_x, float &out_z, size
 			return true;
 		}
 	}
-	if (!dry) return false;
+	// A passenger finds no free spot when units stand on every dry one: it stays aboard, as
+	// GarrisonHolder's unforced Eject leaves a unit PickSpawnPoint found no spot for.
+	if (!dry || spread) return false;
 	out_x = first_x;
 	out_z = first_z;
-	if (taken) taken->push_back({first_x, first_z, pr});
 	return true;
 }
 
@@ -5835,8 +5836,9 @@ void Simulation::tick_siege_garrisons() {
 }
 
 // A ship's GarrisonHolder OnDestroy (EjectHealth 0): EjectClassesOnDestroy
-// (FemaleCitizen Infantry Healer Dog) swim to the nearest dry ground within its
-// loading reach; everyone else, and everyone out at sea, goes down with it.
+// (FemaleCitizen Infantry Healer Dog) swim to a free spot on dry ground within its
+// loading reach; everyone else, everyone out at sea and anyone with no free spot (EjectOrKill
+// kills what the unforced PerformEject leaves aboard) goes down with it.
 void Simulation::unload_sunk_ship(size_t ship) {
 	auto pit = transport_passengers_.find(units_.id[ship]);
 	if (pit == transport_passengers_.end()) return;
@@ -5847,8 +5849,8 @@ void Simulation::unload_sunk_ship(size_t ship) {
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
-		if (shore && (unit_tech_classes(units_.unit_type[p]) & ejected)) {
-			ship_unload_point(ship, lx, lz, (size_t)p, &taken);
+		if (shore && (unit_tech_classes(units_.unit_type[p]) & ejected) &&
+				ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
 			units_.pos_x[p] = lx;
 			units_.pos_z[p] = lz;
 			units_.alive[p] = 1;
@@ -8392,8 +8394,8 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		if (turn_ends)
 			pressure = (uint8_t)std::min(PUSH_MAX_PRESSURE, (int)((PUSH_PRESSURE_DECAY * pressure) >> 16) + added_pressure);
 		// MinimalForce lets crowds settle, but it can also hold idle units that were put on top of
-		// one another (passengers set down on a crowded shore, where ship_unload_point finds no free
-		// spot): an idle unit whose body overlaps another idle unit's is always pushed.
+		// one another (a siege engine's forced eject at its centre): an idle unit whose body overlaps
+		// another idle unit's is always pushed.
 		if (!body_overlap && ax * ax + az * az <= min_push * min_push) {
 			ax = az = 0.0f;
 		} else {
