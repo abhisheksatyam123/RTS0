@@ -30,6 +30,11 @@ namespace nav {
 
 inline constexpr float FOOTPRINT_SNAP = 1e-3f; // radians
 
+// A footprint by value, for a shape that is not a building yet (a placement being tested).
+struct Footprint {
+	float x = 0.0f, z = 0.0f, ux = 1.0f, uz = 0.0f, hu = 0.0f, hv = 0.0f;
+};
+
 // The u axis of a footprint turned by `rot`, reduced to under a quarter turn, and whether the
 // quarter turns taken off number an odd count (width and depth then lie along v and u).
 inline void footprint_axis(float rot, float& ux, float& uz, bool& swapped)
@@ -145,6 +150,38 @@ bool footprint_overlaps_box(const B& b, float x0, float z0, float x1, float z1)
 	if (std::fabs(b.x - cx) >= b.hu * ax + b.hv * az + hx || std::fabs(b.z - cz) >= b.hu * az + b.hv * ax + hz) return false;
 	const Vec2 l = footprint_local(b, cx, cz);
 	return std::fabs(l.x) < b.hu + hx * ax + hz * az && std::fabs(l.y) < b.hv + hx * az + hz * ax;
+}
+
+// Whether the footprint covers the axis-aligned box [x0, x1] x [z0, z1] wholly, edges included.
+template <class B>
+bool footprint_covers_box(const B& b, float x0, float z0, float x1, float z1)
+{
+	if (b.uz == 0.0f) return x0 >= b.x - b.hu && x1 <= b.x + b.hu && z0 >= b.z - b.hv && z1 <= b.z + b.hv;
+	for (const float px : {x0, x1})
+		for (const float pz : {z0, z1}) {
+			const Vec2 l = footprint_local(b, px, pz);
+			if (std::fabs(l.x) > b.hu || std::fabs(l.y) > b.hv) return false;
+		}
+	return true;
+}
+
+// Whether two footprints overlap (touching does not count): the separating axis test over both
+// shapes' axes, as Geometry.cpp TestSquareSquare does for CCmpObstructionManager::TestStaticShape,
+// but strict, so footprints that only share an edge stand side by side as on RTS0's grid.
+template <class A, class B>
+bool footprints_overlap(const A& a, const B& b)
+{
+	const float dx = b.x - a.x, dz = b.z - a.z;
+	if (a.uz == 0.0f && b.uz == 0.0f) return std::fabs(dx) < a.hu + b.hu && std::fabs(dz) < a.hv + b.hv;
+	const Vec2 au = footprint_u(a), av = footprint_v(a), bu = footprint_u(b), bv = footprint_v(b);
+	// Apart along `axis` (a unit vector) when the gap between the centres exceeds both shapes'
+	// half spans on it.
+	auto apart = [&](const Vec2& axis) {
+		const float ra = a.hu * std::fabs(axis.x * au.x + axis.y * au.y) + a.hv * std::fabs(axis.x * av.x + axis.y * av.y);
+		const float rb = b.hu * std::fabs(axis.x * bu.x + axis.y * bu.y) + b.hv * std::fabs(axis.x * bv.x + axis.y * bv.y);
+		return std::fabs(dx * axis.x + dz * axis.y) >= ra + rb;
+	};
+	return !(apart(au) || apart(av) || apart(bu) || apart(bv));
 }
 
 } // namespace nav
