@@ -119,6 +119,12 @@ public:
 	// Every kick this peer was told about, and whether it was us.
 	const std::vector<KickedMsg> &kicks() const { return kicks_; }
 	bool kickedSelf() const { return kicked_self_; }
+	// Client: the link to the host is gone (0 A.D. netstatus "disconnected"),
+	// and why, as 0 A.D.'s NetHost.h NDR_* reasons (getDisconnectReason): 0 the
+	// host fell silent, 2 the host ended the game, 6 kicked, 7 banned,
+	// 14 wrong password. -1 while connected.
+	bool connectionLost() const { return disconnect_reason_ >= 0; }
+	int disconnectReason() const { return disconnect_reason_; }
 
 	// Callbacks
 	void onCommand(std::function<void(uint32_t, const uint8_t*, size_t)> cb);
@@ -174,6 +180,12 @@ private:
 	int auth_result_ = -1;
 	std::vector<KickedMsg> kicks_;
 	bool kicked_self_ = false;
+	bool banned_self_ = false;
+	int disconnect_reason_ = -1;
+	void lose_host(int reason);
+	// The disconnect notice is a bare unreliable datagram (ENet's waits for an
+	// ack); a few copies make a lost one unlikely, and repeats are harmless.
+	static constexpr int kDisconnectSends = 3;
 	std::vector<ClientPerformanceMsg::Entry> client_perf_;
 	uint64_t client_perf_reports_ = 0;
 	uint64_t last_perf_ms_ = 0;
