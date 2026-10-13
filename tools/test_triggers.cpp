@@ -440,6 +440,111 @@ static void check_survival() {
 		std::printf("Survival of the Fittest: %d treasure points a set, seekers in the valley and invulnerable, economy disabled, %d attackers in the first wave, defeat on civic centre loss: ok\n", bcd[0], w1);
 }
 
+static void tut_cmd(TurnManager &tm, Simulation &s, uint8_t type, uint32_t target, std::vector<uint32_t> ids = {}, uint8_t param = 0) {
+	NetCommand c;
+	c.client_id = 0;
+	c.cmd_type = type;
+	c.target_id = target;
+	c.entity_ids = std::move(ids);
+	c.param = param;
+	tm.post_local_command(c);
+	for (int i = 0; i < 4; ++i) tm.tick(TurnManager::TURN_DURATION, s);
+}
+
+static void tut_ready(TurnManager &tm, Simulation &s) {
+	tut_cmd(tm, s, (uint8_t)NetCommandType::NET_CMD_TUTORIAL_READY, 0);
+}
+
+static void tut_queued(Simulation &s, uint8_t player, const char *tmpl, uint16_t count) {
+	uint32_t cc = 0;
+	for (const Simulation::Building &b : s.buildings_)
+		if (b.team == player && is_civic_centre(b.type)) { cc = b.id; break; }
+	TriggerEventData ev;
+	ev.player = player;
+	ev.entity = cc;
+	ev.value = civ_unit_template_by_id(tmpl);
+	ev.count = count;
+	s.trigger_event(TRIGGER_ON_TRAINING_QUEUED, ev);
+}
+
+static void check_tutorials() {
+	const int before = failures;
+	static Simulation s, loaded;
+	TurnManager tm;
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_player_active(0, true, false); // seated as Game Setup does: you, and Petra on the enemy
+	s.set_player_active(1, true, true);
+	CHECK(s.register_trigger_script("introductory_tutorial"), "introductory_tutorial not registered");
+	CHECK(s.tutorial_id() == TUTORIAL_INTRODUCTORY, "tutorial id %d", s.tutorial_id());
+	CHECK(tutorial_goal_count(TUTORIAL_INTRODUCTORY) == 27 && tutorial_goal_count(TUTORIAL_ECONOMY) == 32, "goal counts");
+	for (int t = 0; t < 4; ++t) tm.tick(TurnManager::TURN_DURATION, s);
+	CHECK(s.tutorial_goal_index() == 0 && s.tutorial_ready_button(), "intro starts on goal 0 with Ready (%d)", s.tutorial_goal_index());
+	CHECK(s.victory_condition() == VICTORY_ENDLESS, "tutorial has a victory condition");
+	CHECK(!s.petra_runs_for(1), "Petra still plays the tutorial's enemy");
+	const float x = s.units_.pos_x[0], z = s.units_.pos_z[0];
+	const uint32_t fruit = s.spawn_resource_world(x + 6.0f, z, RES_FOOD, 200, RES_SUB_NONE);
+	const uint32_t tree = s.spawn_resource_world(x - 6.0f, z, RES_WOOD, 200);
+	tut_cmd(tm, s, 4, fruit); // gathering before Ready does nothing
+	CHECK(s.tutorial_goal_index() == 0, "a gather order skipped the Ready button");
+	tut_ready(tm, s);
+	CHECK(s.tutorial_goal_index() == 1 && !s.tutorial_ready_button(), "Ready did not open goal 1 (%d)", s.tutorial_goal_index());
+	tut_cmd(tm, s, 4, tree); // goal 1 wants berries
+	CHECK(s.tutorial_goal_index() == 1, "wood advanced the berries goal");
+	tut_cmd(tm, s, 4, fruit);
+	tut_cmd(tm, s, 4, tree);
+	CHECK(s.tutorial_goal_index() == 3, "gather goals: at %d, want 3", s.tutorial_goal_index());
+	tut_queued(s, 1, "spart/infantry_spearman_b", 5); // the enemy's training is not the player's
+	CHECK(s.tutorial_goal_index() == 3, "the enemy's training advanced the goal");
+	tut_queued(s, 0, "spart/infantry_spearman_b", 1);
+	CHECK(s.tutorial_goal_index() == 3 && s.tutorial_warning() == TUTORIAL_WARN_BATCH_HOTKEY, "single hoplite: warning %d", s.tutorial_warning());
+	tut_queued(s, 0, "spart/infantry_javelineer_b", 5);
+	CHECK(s.tutorial_warning() == TUTORIAL_WARN_CLICK_HOPLITE, "skirmisher batch: warning %d", s.tutorial_warning());
+	tut_queued(s, 0, "spart/infantry_spearman_b", 5);
+	CHECK(s.tutorial_goal_index() == 4 && s.tutorial_warning() == TUTORIAL_WARN_NONE, "hoplite batch: at %d", s.tutorial_goal_index());
+
+	// Save mid-tutorial: the goal and its registrations come back.
+	const char *path = "/tmp/rts0_test_tutorial.sav";
+	CHECK(s.save_state(path), "tutorial save");
+	loaded.set_sim_seed(SEED);
+	loaded.spawn_initial();
+	CHECK(loaded.load_state(path), "tutorial load");
+	CHECK(loaded.tutorial_id() == TUTORIAL_INTRODUCTORY && loaded.tutorial_goal_index() == 4 && tm.compute_sim_hash(loaded) == tm.compute_sim_hash(s),
+	      "tutorial state lost on load (goal %d)", loaded.tutorial_goal_index());
+	CHECK(loaded.trigger_hash() == s.trigger_hash(), "trigger hash differs after load");
+
+	// Economy walkthrough: five Ready goals, then gathering, hunting, a rally point.
+	static Simulation e;
+	TurnManager te;
+	e.set_sim_seed(SEED);
+	e.spawn_initial();
+	e.set_waves_enabled(false);
+	CHECK(e.register_trigger_script("starting_economy_walkthrough"), "starting_economy_walkthrough not registered");
+	for (int t = 0; t < 4; ++t) te.tick(TurnManager::TURN_DURATION, e);
+	for (int i = 0; i < 5; ++i) tut_ready(te, e);
+	CHECK(e.tutorial_goal_index() == 5 && !e.tutorial_ready_button(), "economy: at %d after five Ready", e.tutorial_goal_index());
+	const float ex = e.units_.pos_x[0], ez = e.units_.pos_z[0];
+	const uint32_t efruit = e.spawn_resource_world(ex + 6.0f, ez, RES_FOOD, 200, RES_SUB_NONE);
+	const uint32_t etree = e.spawn_resource_world(ex - 6.0f, ez, RES_WOOD, 200);
+	tut_cmd(te, e, 4, efruit);
+	tut_cmd(te, e, 4, etree);
+	tut_cmd(te, e, 17, 1, {}, 0); // hunt
+	CHECK(e.tutorial_goal_index() == 8, "economy gather goals: at %d, want 8", e.tutorial_goal_index());
+	uint32_t cc = 0;
+	for (const Simulation::Building &b : e.buildings_)
+		if (b.team == 0 && is_civic_centre(b.type)) { cc = b.id; break; }
+	tut_cmd(te, e, 14, 0, {efruit, cc}); // a rally point on berries
+	CHECK(e.tutorial_goal_index() == 8 && e.tutorial_warning() == TUTORIAL_WARN_RALLY_TREE, "rally on berries: warning %d", e.tutorial_warning());
+	tut_cmd(te, e, 14, 0, {etree, cc});
+	CHECK(e.tutorial_goal_index() == 9, "rally on the tree: at %d", e.tutorial_goal_index());
+	tut_queued(e, 0, "athen/infantry_spearman_b", 1);
+	CHECK(e.tutorial_warning() == TUTORIAL_WARN_HOLD_SHIFT, "single hoplite: warning %d", e.tutorial_warning());
+	tut_queued(e, 0, "athen/infantry_spearman_b", 5);
+	CHECK(e.tutorial_goal_index() == 10, "hoplite batch: at %d", e.tutorial_goal_index());
+	if (failures == before) std::printf("tutorials: Ready, gather, training and rally goals advance; state survives a save: ok\n");
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -455,6 +560,7 @@ int main() {
 	check_save_load(tm, MAP_FLOOD, 261.0f, 264.0f, Simulation::WATER_LEVEL_RISING, 25, "Flood mid-rise");
 	check_save_load(tm, MAP_EXTINCT_VOLCANO, 90.0f, 200.0f, Simulation::WATER_LEVEL_RISING, 2, "Extinct Volcano before and during the rise");
 	check_identical_saves();
+	check_tutorials();
 	std::printf("RESULT: %s (%d failed checks)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
 }
