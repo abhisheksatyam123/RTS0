@@ -18338,9 +18338,21 @@ void Simulation::petra_manage_opening(float dt) {
 }
 
 void Simulation::apply_petra_config() {
-	petra_config_.recompute();
 	// Until a slot gets its own setting, every AI plays at the shared one.
 	for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+	reroll_petra_personalities();
+}
+
+// Each AI draws its own personality within its behaviour's range (config.js setConfig),
+// from the match seed so every lockstep peer draws the same one.
+void Simulation::reroll_petra_personalities() {
+	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked());
+	for (size_t i = 0; i < petra_slots_.size(); ++i) {
+		// While another AI runs, PETRA_PLAYER's config sits in that AI's slot.
+		const uint8_t owner = (i == petra_pid_ && petra_pid_ != PETRA_PLAYER) ? PETRA_PLAYER : (uint8_t)i;
+		if (i == petra_pid_ && petra_pid_ == PETRA_PLAYER) continue; // lives in petra_config_
+		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked());
+	}
 }
 
 // Where player pid's PetraConfig lives right now: in the members while that
@@ -18377,14 +18389,14 @@ void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.difficulty = petra_clamp_difficulty(d);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.behavior = petra_clamp_behavior(b);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::petra_refresh_queue_accounts(float dt) {

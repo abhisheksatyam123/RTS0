@@ -323,7 +323,7 @@ public:
 	~Simulation();
 
 	void reset();
-	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); }
+	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); reroll_petra_personalities(); }
 	uint32_t sim_seed() const { return sim_seed_; }
 	uint32_t sim_rng_state() const { return sim_rng_.state(); }
 	uint32_t next_id() const { return next_id_; }
@@ -819,7 +819,7 @@ public:
 	void set_regicide_garrison(bool on) { set_setup_flag(SETUP_REGICIDE_GARRISON, on); }
 	bool regicide_garrison() const { return setup_flags_ & SETUP_REGICIDE_GARRISON; }
 	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
-	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
+	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); reroll_petra_personalities(); }
 	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
 	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
 	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
@@ -2446,6 +2446,9 @@ private:
 	void petra_manage_emergency(float dt);
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
+	// config.js setConfig personality draw: per-player seed from the match seed, + teamsLocked.
+	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
+	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields();
