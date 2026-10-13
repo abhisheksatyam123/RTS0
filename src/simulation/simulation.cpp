@@ -19022,6 +19022,18 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			const bool capped = pop_max(petra_pid_) - pop_current(petra_pid_) < 5;
 			bool ready = squad.size() >= target ||
 			             (squad.size() >= minimum && (capped || plan.state_timer >= 180.0f));
+			// attackPlan.js updatePreparation "Fasten the end game": every 5th AI turn, a plan
+			// with siege engines that outnumbers 20 + twice every enemy's units starts now
+			// (forceStart).
+			if (!ready && siege_units > 0 && (int)(petra_timer_ / 2.5f) != (int)((petra_timer_ - FIXED_STEP) / 2.5f)) {
+				size_t enemies = 0;
+				bool has_enemies = false;
+				for (int p = 0; p < MAX_PLAYERS; ++p)
+					has_enemies |= p != petra_pid_ && petra_foe((uint8_t)p) && !is_defeated((uint8_t)p);
+				for (size_t i = 0; i < units_.count; ++i)
+					if (units_.alive[i] && units_.team[i] < MAX_PLAYERS && petra_foe(units_.team[i]) && !is_defeated(units_.team[i])) ++enemies;
+				if (has_enemies && squad.size() > 20 + 2 * enemies) plan.forced = ready = true;
+			}
 			// A siege plan waits for its siege engines in the town phase on.
 			if (ready && !plan.forced && plan.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2 &&
 			    siege_units == 0 && plan.state_timer < 240.0f)
