@@ -1718,6 +1718,20 @@ inline int relic_global_aura_index(int16_t aura) {
 }
 static_assert(RELIC_GLOBAL_AURA_COUNT <= 64, "global aura masks are uint64_t");
 
+// The garrison_arrow_auras() row of civ_hero_aura `aura`, or -1 (no garrison BuildingAI effect).
+inline int garrison_arrow_aura_index(int16_t aura) {
+	static const auto kIndex = [] {
+		std::array<int8_t, CIV_HERO_AURA_COUNT> idx{};
+		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a) {
+			idx[a] = -1;
+			for (uint16_t g = 0; g < GARRISON_ARROW_AURA_COUNT; ++g)
+				if (std::strcmp(civ_hero_aura_table()[a].id, garrison_arrow_auras()[g].id) == 0) idx[a] = (int8_t)g;
+		}
+		return idx;
+	}();
+	return aura >= 0 && aura < CIV_HERO_AURA_COUNT ? kIndex[(size_t)aura] : -1;
+}
+
 // The builder_rate_range_auras() row of civ_hero_aura `aura`, or -1 (no Builder/Rate effect).
 inline int builder_rate_aura_index(int16_t aura) {
 	static const auto kIndex = [] {
