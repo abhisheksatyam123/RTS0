@@ -404,6 +404,24 @@ int main() {
 		CHECK(building_type_info(BLD_EMBASSY_IBERIAN).stone_cost == 100 && building_type_info(BLD_EMBASSY_IBERIAN).wood_cost == 100); // 0.28
 		CHECK(building_type_info(BLD_EMBASSY_ITALIC).stone_cost == 100 && building_type_info(BLD_EMBASSY_ITALIC).max_hp == 1500.0f); // 0.28
 		CHECK(building_required_phase(BLD_EMBASSY_IBERIAN) == 2 && building_phase_class(BLD_EMBASSY_ITALIC) == 2);
+		{
+			// 0.28 structures/<civ>/*.xml where a civ's template differs from the generic one, as
+			// the build button prices them (structure_cost_for, structure_build_time_for).
+			static Simulation c;
+			c.set_sim_seed(9);
+			c.set_team_civ(0, CIV_BRITONS);
+			c.set_team_civ(1, CIV_IBERIANS);
+			c.reset();
+			float p0[RES_COUNT], p1[RES_COUNT];
+			c.structure_cost_for(0, BLD_BARRACKS, p0);
+			c.structure_cost_for(1, BLD_BARRACKS, p1);
+			CHECK(p0[RES_WOOD] == 300.0f && p0[RES_STONE] == 0.0f && p1[RES_WOOD] == 200.0f && p1[RES_STONE] == 100.0f);
+			c.structure_cost_for(1, BLD_TOWER, p1);
+			CHECK(p1[RES_WOOD] == 50.0f && p1[RES_STONE] == 250.0f && c.structure_max_hp(BLD_TOWER, 1) == 2400.0f);
+			CHECK(std::fabs(c.structure_build_time_for(1, BLD_TOWER) - 50.0f) < 0.01f);
+			CHECK(civ_building_type_info(CIV_ATHENIANS, BLD_HOUSE).pop_bonus == 10 && civ_building_type_info(CIV_ATHENIANS, BLD_HOUSE).max_hp == 1200.0f);
+			CHECK(civ_building_type_info(CIV_GAULS, BLD_HOUSE).pop_bonus == 5 && civ_building_type_info(CIV_MAURYANS, BLD_WALL_TOWER).wood_cost == 60);
+		}
 		CHECK(building_type_info(BLD_EMBASSY_ITALIC).garrison_cap == 6 &&
 			garrison_list_matches(structure_garrison_list(BLD_EMBASSY_ITALIC, CIV_CARTHAGINIANS), TC_CAVALRY));
 		static Simulation b;
