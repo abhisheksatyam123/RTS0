@@ -187,6 +187,48 @@ static void test_foundation_clearing() {
 	CHECK(s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED); // committed: units path around it
 }
 
+// CheckFoundation tests a foundation's turned square against the turned squares of the standing
+// structures (CCmpObstructionManager::TestStaticShape), and a destroyed structure's rubble has no
+// Obstruction: its ground is free to build on again.
+static void test_turned_and_freed_ground() {
+	static Simulation s;
+	constexpr float QUARTER_PI = 0.785398163f;
+	const float diagonal = Simulation::DEFAULT_BUILDING_ROT + QUARTER_PI;
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.rebuild_territory();
+	CHECK(building_type_info(BLD_HOUSE).footprint == 1); // the cells below are one house apart
+
+	// A house turned 45 degrees reaches into the cells beside it.
+	CHECK(s.cmd_build(0, -12, 20, BLD_HOUSE, diagonal) != 0);
+	CHECK(s.check_placement(0, -11, 20, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+	CHECK(s.check_placement(0, -12, 21, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+	CHECK(s.check_placement(0, -11, 20, BLD_HOUSE, diagonal) == Simulation::PLACE_OBSTRUCTED);
+	// Two turned houses on diagonal cells share cells but not ground: the second one fits.
+	CHECK(s.check_placement(0, -11, 21, BLD_HOUSE, diagonal) == Simulation::PLACE_OK);
+	CHECK(s.cmd_build(0, -11, 21, BLD_HOUSE, diagonal) != 0);
+	// An unturned house on a diagonal cell clears the turned one's corners too.
+	CHECK(s.check_placement(0, -13, 19, BLD_HOUSE) == Simulation::PLACE_OK);
+	// A turned house is kept off water under its corners.
+	CHECK(s.check_placement(0, -20, 8, BLD_HOUSE) == Simulation::PLACE_OK);
+	CHECK(s.check_placement(0, -20, 8, BLD_HOUSE, diagonal) == Simulation::PLACE_TERRAIN);
+
+	// A deleted foundation and a destroyed house free their ground.
+	const uint32_t plot = s.cmd_build(0, -16, 24, BLD_HOUSE);
+	const uint32_t house = s.spawn_building(-14, 24, BLD_HOUSE, 0, 1.0f);
+	CHECK(plot && house);
+	CHECK(s.check_placement(0, -16, 24, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+	CHECK(s.check_placement(0, -14, 24, BLD_HOUSE) == Simulation::PLACE_OBSTRUCTED);
+	const uint32_t both[2] = {plot, house};
+	s.cmd_delete(0, both, 2);
+	for (int k = 0; k < 20; ++k) s.tick(Simulation::FIXED_STEP);
+	CHECK(s.check_placement(0, -16, 24, BLD_HOUSE) == Simulation::PLACE_OK);
+	CHECK(s.check_placement(0, -14, 24, BLD_HOUSE) == Simulation::PLACE_OK);
+	CHECK(s.cmd_build(0, -16, 24, BLD_HOUSE) != 0);
+	std::printf("  turned houses: a 45-degree house blocks the cells beside it, another fits on the diagonal; "
+	            "a deleted foundation and a destroyed house free their ground\n");
+}
+
 int main() {
 	static Simulation s;
 	fresh(s);
@@ -261,6 +303,7 @@ int main() {
 	test_build_and_repair();
 	test_rotation();
 	test_foundation_clearing();
+	test_turned_and_freed_ground();
 
 	std::printf("RESULT: %s (%d)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;

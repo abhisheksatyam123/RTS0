@@ -479,6 +479,7 @@ void Simulation::reset() {
 	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 	std::fill(std::begin(regicide_hero_), std::end(regicide_hero_), 0u);
 	for (auto &v : match_trained_) v.clear();
 	for (auto &v : petra_army_ids_) v.clear();
@@ -783,6 +784,7 @@ void Simulation::spawn_war(int total_units) {
 	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 	relics_.clear();
 	treasures_.clear();
 	scenery_.clear();
@@ -972,15 +974,15 @@ void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	if (resources_.max_amount[it->second] > 0) resources_.max_amount[it->second] = amount;
 }
 
-uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress) {
+uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress, float rot) {
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
 	float x = (cell_x + footprint * 0.5f) * GRID;
 	float z = (cell_y + footprint * 0.5f) * GRID;
-	return spawn_building_world(x, z, type, team, progress);
+	return spawn_building_world(x, z, type, team, progress, rot);
 }
 
-uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint8_t team, float progress) {
+uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint8_t team, float progress, float rot) {
 	uint32_t bid = alloc_id();
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
@@ -1015,6 +1017,8 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	if (type == BLD_DOCK || type == BLD_SUPER_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
 		const float a = dock_angle(wx, wz, half);
 		if (!std::isnan(a)) b.set_rot(a);
+	} else {
+		b.set_rot(rot);
 	}
 	b.attack_timer = 0.0f;
 	b.is_burning = false;
@@ -1041,12 +1045,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 
 	buildings_.push_back(b);
 	building_id_to_idx_[bid] = buildings_.size() - 1;
-
-	for (int dx = 0; dx < footprint; ++dx) {
-		for (int dy = 0; dy < footprint; ++dy) {
-			occupied_cells_.insert(cell_x + dx, cell_y + dy);
-		}
-	}
+	occupy_cells(buildings_.back());
 	if (progress >= 0.99f && !bulk_spawn_) {
 		rebuild_nav_grid();
 		if (has_territory_influence(b.type)) {
@@ -1125,10 +1124,11 @@ void Simulation::remove_player_structures() {
 	nomad_start_ = true;
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 	for (size_t i = 0; i < buildings_.size(); ++i) {
 		const Building &b = buildings_[i];
 		building_id_to_idx_[b.id] = i;
-		for (const auto &[cx, cy] : building_cells(b)) occupied_cells_.insert(cx, cy);
+		if (!b.wrecked) occupy_cells(b);
 	}
 }
 
@@ -1558,7 +1558,10 @@ float Simulation::get_terrain_height(float x, float z) const {
 	return h0 * (1.0f - tz) + h1 * tz;
 }
 
+// A square of whole cells overlaps every building that reaches into one of them, so occupied
+// cells, FULL or PART, decide it exactly.
 bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
+	ensure_occupied_cells();
 	int limit = (int)(map_half_ / GRID) - footprint;
 	for (int dx = 0; dx < footprint; ++dx) {
 		for (int dy = 0; dy < footprint; ++dy) {
@@ -1569,6 +1572,31 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 		}
 	}
 	return true;
+}
+
+void Simulation::occupy_cells(const Building &b) const {
+	for (const auto &[cx, cy] : building_cells(b))
+		occupied_cells_.insert(cx, cy,
+				nav::footprint_covers_box(b, cx * GRID, cy * GRID, (cx + 1) * GRID, (cy + 1) * GRID) ? CellSet::FULL : CellSet::PART);
+}
+
+void Simulation::ensure_occupied_cells() const {
+	if (!occupied_stale_) return;
+	occupied_stale_ = false;
+	occupied_cells_.clear();
+	for (const Building &b : buildings_)
+		if (!b.wrecked) occupy_cells(b);
+}
+
+bool Simulation::footprint_hits_building(const nav::Footprint &f) const {
+	const float e = nav::footprint_extent(f);
+	for (const Building &b : buildings_) {
+		if (b.wrecked) continue;
+		const float r = e + nav::footprint_extent(b);
+		if (std::fabs(b.x - f.x) >= r || std::fabs(b.z - f.z) >= r) continue;
+		if (nav::footprints_overlap(f, b)) return true;
+	}
+	return false;
 }
 
 namespace {
@@ -1654,7 +1682,9 @@ uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int 
 	mix(fbits(map_half_));
 	mix(((uint64_t)petra_pid_ << 8) | btype);
 	for (const Building &b : buildings_) {
-		const bool in_area = b.cell_x <= ax1 && b.cell_x + b.footprint > ax0 && b.cell_y <= az1 && b.cell_y + b.footprint > az0;
+		// Its footprint's bounds (a turned or off-grid one reaches past its cell_x/cell_y square).
+		const float be = nav::footprint_extent(b);
+		const bool in_area = b.x - be < (ax1 + 1) * GRID && b.x + be > ax0 * GRID && b.z - be < (az1 + 1) * GRID && b.z + be > az0 * GRID;
 		const bool distance_rule = rule.distance_class != DIST_NONE && b.team == petra_pid_ && b.hp > 0.0f &&
 		                           distance_class_of(b.type) == rule.distance_class;
 		if (!in_area && !distance_rule) continue;
@@ -1696,17 +1726,45 @@ uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int 
 	return h;
 }
 
-Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const {
+Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
 	const int foot = building_type_info(b_type).footprint;
-	if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
-	std::vector<std::pair<int, int>> cells;
-	cells.reserve((size_t)(foot * foot));
-	for (int dz = 0; dz < foot; ++dz)
-		for (int dx = 0; dx < foot; ++dx) cells.emplace_back(cell_x + dx, cell_y + dz);
 	const float x0 = cell_x * GRID, z0 = cell_y * GRID;
 	const float x1 = x0 + foot * GRID, z1 = z0 + foot * GRID;
-	return check_placement_cells(player, b_type, cells, x0, z0, x1, z1, 0.5f * (x0 + x1), 0.5f * (z0 + z1), nullptr, nullptr);
+	const float cxw = 0.5f * (x0 + x1), czw = 0.5f * (z0 + z1);
+	// The footprint as spawn_building would turn it: a dock faces the sea whatever it was asked.
+	float rot = angle;
+	if (b_type == BLD_DOCK || b_type == BLD_SUPER_DOCK) {
+		const float a = dock_angle(cxw, czw, foot * GRID * 0.5f);
+		rot = std::isnan(a) ? DEFAULT_BUILDING_ROT : a;
+	}
+	float ux, uz;
+	nav::footprint_axis(rot, ux, uz);
+	if (uz == 0.0f) { // unturned, or a quarter turn of a square: its square of cells
+		if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
+		std::vector<std::pair<int, int>> cells;
+		cells.reserve((size_t)(foot * foot));
+		for (int dz = 0; dz < foot; ++dz)
+			for (int dx = 0; dx < foot; ++dx) cells.emplace_back(cell_x + dx, cell_y + dz);
+		return check_placement_cells(player, b_type, cells, x0, z0, x1, z1, cxw, czw, nullptr, nullptr);
+	}
+	// Turned (CheckFoundation tests the turned square): every cell it reaches into, kept as far
+	// from the map edge as an unturned one.
+	Building turned{};
+	turned.x = cxw;
+	turned.z = czw;
+	turned.type = b_type;
+	turned.footprint = foot;
+	turned.cell_x = cell_x;
+	turned.cell_y = cell_y;
+	turned.rot = rot;
+	turned.set_extents(foot * GRID * 0.5f, building_half_depth(b_type, foot * GRID * 0.5f));
+	const std::vector<std::pair<int, int>> cells = building_cells(turned);
+	const int limit = (int)(map_half_ / GRID) - foot;
+	for (const auto &[cx, cy] : cells)
+		if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
+	const float e = nav::footprint_extent(turned);
+	return check_placement_cells(player, b_type, cells, cxw - e, czw - e, cxw + e, czw + e, cxw, czw, &turned, nullptr);
 }
 
 Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, uint8_t b_type,
@@ -1719,14 +1777,34 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
 	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
 	// (trees, mines, bushes; a field's grain and carcasses don't block). check_placement has
-	// tested a square's map edge and buildings with can_place.
+	// tested a square's map edge and buildings with can_place. A turned footprint obstructs where
+	// it overlaps a building's (TestStaticShape), but a wall piece joining towers (`ignore_cells`)
+	// still tests whole cells.
 	if (rect) {
+		ensure_occupied_cells();
 		const int limit = (int)(map_half_ / GRID) - 1;
+		bool part = false;
 		for (const auto &[cx, cy] : cells) {
 			if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
-			if (!occupied_cells_.contains(cx, cy)) continue;
-			if (!ignore_cells || std::find(ignore_cells->begin(), ignore_cells->end(), std::make_pair(cx, cy)) == ignore_cells->end())
-				return PLACE_OBSTRUCTED;
+			const uint8_t m = occupied_cells_.mark(cx, cy);
+			if (!m) continue;
+			if (ignore_cells) {
+				if (std::find(ignore_cells->begin(), ignore_cells->end(), std::make_pair(cx, cy)) == ignore_cells->end())
+					return PLACE_OBSTRUCTED;
+				continue;
+			}
+			if (m == CellSet::FULL) return PLACE_OBSTRUCTED;
+			part = true;
+		}
+		if (part) {
+			nav::Footprint f;
+			f.x = rect->x;
+			f.z = rect->z;
+			f.ux = rect->ux;
+			f.uz = rect->uz;
+			f.hu = rect->hu;
+			f.hv = rect->hv;
+			if (footprint_hits_building(f)) return PLACE_OBSTRUCTED;
 		}
 	}
 	{
@@ -1762,21 +1840,26 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	auto too_steep_for_dock = [&](int nx, int ny) {
 		return nav_grid_.compute_cell_slope(nx, ny, terrain_heights_, terrain_res_) > SHORE_MAX_TERRAIN_SLOPE;
 	};
+	// Whether nav cell (nx, ny) lies under the footprint: every cell of its bounds, or of a turned
+	// footprint's bounds those it overlaps.
+	auto under = [&](int nx, int ny) {
+		if (!rect) return true;
+		const float wx0 = -nav_grid_.map_half + nx * nav_cell, wz0 = -nav_grid_.map_half + ny * nav_cell;
+		return nav::footprint_overlaps_box(*rect, wx0, wz0, wx0 + nav_cell, wz0 + nav_cell);
+	};
 	if (have_nav) {
 		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
 		auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
 		if (rule.placement == PLACE_LAND) {
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x)
-					if (is_water(x, y) || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
+					if ((is_water(x, y) || nav_grid_.is_steep(x, y)) && under(x, y)) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE && rect) {
 			// A WallSet piece stands wholly where land units can go (CheckFoundation over its
 			// shape with default-terrain-only): no deep water or steep slope under it.
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x) {
-					if (!nav_grid_.cells.inside(x, y)) continue;
-					const float wx0 = -nav_grid_.map_half + x * nav_cell, wz0 = -nav_grid_.map_half + y * nav_cell;
-					if (!nav::footprint_overlaps_box(*rect, wx0, wz0, wx0 + nav_cell, wz0 + nav_cell)) continue;
+					if (!nav_grid_.cells.inside(x, y) || !under(x, y)) continue;
 					if (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
 				}
 		} else if (rule.placement == PLACE_LAND_SHORE) {
@@ -1788,10 +1871,10 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			bool land = false, sea = false;
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x)
-					if (too_steep_for_dock(x, y)) return PLACE_TERRAIN;
+					if (too_steep_for_dock(x, y) && under(x, y)) return PLACE_TERRAIN;
 			for (int y = ny0; y <= ny1 && !land; ++y)
 				for (int x = nx0; x <= nx1 && !land; ++x)
-					land = !is_water(x, y);
+					land = !is_water(x, y) && under(x, y);
 			const int ring = std::max(1, (int)std::ceil(GRID / nav_cell));
 			for (int y = ny0 - ring; y <= ny1 + ring && !sea; ++y)
 				for (int x = nx0 - ring; x <= nx1 + ring && !sea; ++x)
@@ -1820,7 +1903,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	// 4. Distance from the player's own structures (foundations included) of the
 	// same class, measured between footprint edges.
 	if (rule.distance_class != DIST_NONE) {
-		const float half = 0.5f * (x1 - x0);
+		const float half = rect ? rect->half_size : 0.5f * (x1 - x0);
 		for (const Building &b : buildings_) {
 			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
 			const float d = std::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
@@ -1874,11 +1957,6 @@ float Simulation::unpack_angle(uint32_t packed) {
 
 std::vector<std::pair<int, int>> Simulation::building_cells(const Building &b) const {
 	std::vector<std::pair<int, int>> cells;
-	if (!is_wallset_piece(b.type, b.half_size)) {
-		for (int dx = 0; dx < b.footprint; ++dx)
-			for (int dy = 0; dy < b.footprint; ++dy) cells.emplace_back(b.cell_x + dx, b.cell_y + dy);
-		return cells;
-	}
 	const float e = nav::footprint_extent(b);
 	const int cx0 = (int)std::floor((b.x - e) / GRID), cx1 = (int)std::floor((b.x + e) / GRID);
 	const int cy0 = (int)std::floor((b.z - e) / GRID), cy1 = (int)std::floor((b.z + e) / GRID);
@@ -2040,7 +2118,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 		b.max_hp *= health / building_type_info(b.type).max_hp;
 		b.hp = progress <= 0.0f ? 1.0f : b.max_hp * progress;
 	}
-	for (const auto &[cx, cy] : building_cells(b)) occupied_cells_.insert(cx, cy);
+	occupied_stale_ = true; // spawn_building_world took the unturned footprint's cells
 	if (progress >= 0.99f && !bulk_spawn_) rebuild_nav_grid();
 	return bid;
 }
@@ -2142,14 +2220,13 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	if (!civ_can_build(players_[player].civ, b_type)) return 0; // civ-specific structures
 	if (triggers_.building_disabled(player, b_type)) return 0;   // the map script's SetDisabledTemplates
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
-	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
+	if (check_placement(player, cell_x, cell_y, b_type, unpack_angle(pack_angle(angle))) != PLACE_OK) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
 	if (!entity_limit_allows_building(player, b_type)) return 0; // EntityLimits.js AllowedToBuild
 
 	if (!pay_for_structure(player, b_type)) return 0;
 
-	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
-	if (b_type != BLD_DOCK && b_type != BLD_SUPER_DOCK) buildings_[building_id_to_idx_[bid]].set_rot(unpack_angle(pack_angle(angle)));
+	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f, unpack_angle(pack_angle(angle)));
 	if (player == 0) record_.buildings_constructed++;
 	if (!triggers_.triggers.empty()) {
 		// The new foundation entity: OnOwnershipChanged from INVALID_PLAYER to its owner.
@@ -6594,6 +6671,7 @@ void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 	refund_foundation(b);
 	stat_building_lost(b, killer);
 	b.wrecked = true;
+	occupied_stale_ = true;
 	b.hp = 0.0f;
 	b.build_progress = 0.0f;
 	record_death((float)b.cell_x, (float)b.cell_y, b.team, (b.team == 0) ? 1 : 0, b.type, true);
@@ -12490,6 +12568,7 @@ void Simulation::destroy_building(Building &b) {
 	cancel_upgrade(b, b.team);
 	stat_building_lost(b, 0xFF);
 	b.wrecked = true;
+	occupied_stale_ = true;
 	b.hp = 0.0f;
 	b.build_progress = 0.0f;
 	record_death((float)b.cell_x, (float)b.cell_y, b.team, b.team, b.type, true); // no killer, no loot
@@ -13093,10 +13172,37 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
-	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
+	if (!petra_ring_clear(cell_x, cell_y, footprint)) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// The ground petra_can_place needs: its footprint's cells free and a ring of whole cells round it
+// with no building covering one (FULL). A building off the grid or turned that only reaches into
+// a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
+// the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
+// On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
+bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
+	ensure_occupied_cells();
+	const int limit = (int)(map_half_ / GRID) - (footprint + 2);
+	bool part = false;
+	for (int dx = -1; dx <= footprint; ++dx)
+		for (int dy = -1; dy <= footprint; ++dy) {
+			const int cx = cell_x + dx, cy = cell_y + dy;
+			if (std::abs(cx) > limit || std::abs(cy) > limit) return false;
+			const uint8_t m = occupied_cells_.mark(cx, cy);
+			if (!m) continue;
+			const bool ring = dx < 0 || dy < 0 || dx == footprint || dy == footprint;
+			if (!ring || m == CellSet::FULL) return false;
+			part = true;
+		}
+	if (!part) return true;
+	nav::Footprint grown;
+	grown.x = (cell_x + footprint * 0.5f) * GRID;
+	grown.z = (cell_y + footprint * 0.5f) * GRID;
+	grown.hu = grown.hv = (footprint + 1) * GRID * 0.5f;
+	return !footprint_hits_building(grown);
 }
 
 // EntityLimits for a placement search: counting the player's entities walks every
@@ -20923,6 +21029,7 @@ bool Simulation::load_state(const char *filepath) {
 	buildings_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 
 	for (uint32_t b = 0; b < num_blds; ++b) {
 		Building bld;
@@ -21060,7 +21167,7 @@ bool Simulation::load_state(const char *filepath) {
 
 		buildings_.push_back(bld);
 		building_id_to_idx_[bld.id] = buildings_.size() - 1;
-		for (const auto &[cx, cy] : building_cells(bld)) occupied_cells_.insert(cx, cy);
+		if (!bld.wrecked) occupy_cells(bld);
 	}
 
 	// 5. G3 Market prices & trader routes (version 2+, fallback for v1)
@@ -25490,6 +25597,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		// mark_building_wreck, but nobody killed it: no loot for anyone.
 		stat_building_lost(b, 0xFF);
 		b.wrecked = true;
+		occupied_stale_ = true;
 		b.hp = 0.0f;
 		b.build_progress = 0.0f;
 		record_death(b.x, b.z, b.team, b.team, b.type, true);
