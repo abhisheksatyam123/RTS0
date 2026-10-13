@@ -64,7 +64,7 @@ int main() {
 	CHECK(s.is_hostile(2, 4) && s.is_hostile(4, 2));
 	CHECK(!s.is_hostile(5, 5) && s.is_ally(5, 5));
 
-	// Each player owns its own row: one player's stance never moves another's.
+	// Each player owns its own row: allying one way never moves the other player's stance.
 	fresh(s);
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) s.set_player_team(p, p); // back to free-for-all
 	s.apply_team_diplomacy();
@@ -78,6 +78,12 @@ int main() {
 	CHECK(s.cmd_set_diplomacy(6, 3, Simulation::DIPLO_ALLY));
 	CHECK(s.is_ally(3, 6) && s.is_ally(6, 3));
 	CHECK(!s.is_hostile(3, 6) && !s.is_hostile(6, 3));
+	// Diplomacy.js OnDiplomacyChanged: a worse stance is mirrored, a better one is not.
+	CHECK(s.cmd_set_diplomacy(3, 6, Simulation::DIPLO_NEUTRAL));
+	CHECK(s.get_diplomacy(6, 3) == Simulation::DIPLO_NEUTRAL && !s.is_ally(3, 6));
+	CHECK(s.cmd_set_diplomacy(6, 3, Simulation::DIPLO_ENEMY));
+	CHECK(s.get_diplomacy(3, 6) == Simulation::DIPLO_ENEMY && s.is_hostile(3, 6) && s.is_hostile(6, 3));
+	CHECK(s.get_diplomacy(0, 6) == Simulation::DIPLO_ENEMY && s.get_diplomacy(6, 0) == Simulation::DIPLO_ENEMY);
 	// Rejected: self, out of range, unknown stance.
 	CHECK(!s.cmd_set_diplomacy(2, 2, Simulation::DIPLO_ALLY));
 	CHECK(!s.cmd_set_diplomacy(2, 8, Simulation::DIPLO_ALLY));
