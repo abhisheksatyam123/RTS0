@@ -162,7 +162,9 @@ text = "Explored map"
 
 [node name="Cheats" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapVisRow"]
 layout_mode = 2
-tooltip_text = "Toggle the usability of cheats (chat codes)."
+tooltip_text = "Toggle the usability of cheats."
+disabled = true
+button_pressed = true
 text = "Cheats"
 
 [node name="DisableSpies" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapVisRow"]
