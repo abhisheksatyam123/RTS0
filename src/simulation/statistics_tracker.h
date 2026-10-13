@@ -16,13 +16,14 @@
 
 namespace rtso {
 
-// StatisticsTracker.prototype.unitsClasses. A unit can be in several classes
+// StatisticsTracker.prototype.unitsClasses (0.28 template_player.xml UnitClasses,
+// where Civilian took FemaleCitizen's place). A unit can be in several classes
 // (a citizen spearman is Infantry and Worker); the last slot is the total,
 // which counts each unit once.
 enum StatUnitClass : uint8_t {
 	STAT_UNIT_INFANTRY = 0,
 	STAT_UNIT_WORKER,
-	STAT_UNIT_FEMALE_CITIZEN,
+	STAT_UNIT_CIVILIAN, // was FemaleCitizen before 0.28; same slot, so saves are unchanged
 	STAT_UNIT_CAVALRY,
 	STAT_UNIT_CHAMPION,
 	STAT_UNIT_HERO,
@@ -91,7 +92,7 @@ inline constexpr float STATISTICS_SAMPLE_INTERVAL = 30.0f;
 inline constexpr float STATISTICS_EXPLORE_CELL = 8.0f;
 
 inline const char *stat_unit_class_name(uint8_t c) {
-	static const char *k[STAT_UNIT_SLOTS] = {"Infantry", "Worker", "FemaleCitizen", "Cavalry", "Champion",
+	static const char *k[STAT_UNIT_SLOTS] = {"Infantry", "Worker", "Civilian", "Cavalry", "Champion",
 	                                         "Hero", "Siege", "Ship", "Trader", "total"};
 	return c < STAT_UNIT_SLOTS ? k[c] : "";
 }
@@ -109,7 +110,7 @@ inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 	auto set = [&](StatUnitClass c) { m |= 1u << c; };
 	switch (unit_type) {
 	case UNIT_VILLAGER: set(STAT_UNIT_WORKER); break;
-	case UNIT_FEMALE_CITIZEN: set(STAT_UNIT_WORKER); set(STAT_UNIT_FEMALE_CITIZEN); break;
+	case UNIT_FEMALE_CITIZEN: set(STAT_UNIT_WORKER); set(STAT_UNIT_CIVILIAN); break; // 0.28: Civilian
 	case UNIT_WORKER_ELEPHANT: set(STAT_UNIT_WORKER); break;
 	case UNIT_SWORDSMAN: case UNIT_ARCHER: case UNIT_SPEARMAN: case UNIT_ARCHER_MAIDEN: case UNIT_CARNYX:
 		set(STAT_UNIT_INFANTRY); break;
@@ -127,6 +128,7 @@ inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 	// Citizen soldiers gather and build (template_unit_infantry/cavalry: Worker).
 	if ((roster_flags & ROSTER_CITIZEN) && (m & ((1u << STAT_UNIT_INFANTRY) | (1u << STAT_UNIT_CAVALRY)))) set(STAT_UNIT_WORKER);
 	if (roster_flags & ROSTER_SIEGE_TOWER) set(STAT_UNIT_SIEGE);
+	if (roster_flags & ROSTER_CIVILIAN) { set(STAT_UNIT_CIVILIAN); set(STAT_UNIT_WORKER); }
 	// 0 A.D. champions and heroes are not counted as citizen infantry or cavalry.
 	if (m & ((1u << STAT_UNIT_HERO) | (1u << STAT_UNIT_CHAMPION))) m &= ~(1u << STAT_UNIT_WORKER);
 	return m;
