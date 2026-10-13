@@ -1623,7 +1623,7 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
 	case BLD_PALISADE: case BLD_PALISADE_GATE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	// rome/siege_wall_*: own, neutral or enemy territory (to wall in a besieged town).
-	case BLD_SIEGE_WALL:
+	case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE:
 		return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL | TERR_ENEMY, DIST_NONE, 0.0f};
 	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
@@ -2845,6 +2845,10 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	// nor the one-cell palisade maps and older saves place.
 	if (b.type == BLD_PALISADE && (!is_wallset_piece(b.type, b.half_size) || is_palisade_tower(b.type, b.half_size) ||
 			std::fabs(b.half_size - 0.5f * PALISADE_SEGMENT_LENGTHS[0]) > 0.01f))
+		return UPGRADE_ERR_NONE;
+	// ... and of the Roman siege wall only siege_wall_long (to the siege wall gate).
+	if (b.type == BLD_SIEGE_WALL && (is_siege_wall_tower(b.type, b.half_size) ||
+			std::fabs(b.half_size - 0.5f * wallset_info(WALLSET_SIEGE).lengths[0]) > 0.01f))
 		return UPGRADE_ERR_NONE;
 	// Upgrade.js Upgrade(): not while upgrading or producing.
 	if (b.upgrade_to != BLD_TYPE_COUNT || !b.queue.empty()) return UPGRADE_ERR_BUSY;
@@ -5701,12 +5705,12 @@ bool Simulation::unit_turretable(size_t i) const {
 }
 
 const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
-	if (b.type == BLD_SIEGE_WALL) {
-		// rome/siege_wall_*: the long and medium segments' and the tower's own points
+	if (b.type == BLD_SIEGE_WALL || b.type == BLD_SIEGE_WALL_GATE) {
+		// rome/siege_wall_*: the long and medium segments', the tower's and the gate's own points
 		// (siege_wall_short has none, and none of them a garrison).
 		static constexpr TurretPointSet NONE{};
 		const WallSetInfo &ws = wallset_info(WALLSET_SIEGE);
-		const int k = is_siege_wall_tower(b.type, b.half_size) ? 2
+		const int k = b.type == BLD_SIEGE_WALL_GATE ? 3 : is_siege_wall_tower(b.type, b.half_size) ? 2
 				: b.half_size >= 0.5f * ws.lengths[0] - 0.01f ? 0 : b.half_size >= 0.5f * ws.lengths[1] - 0.01f ? 1 : -1;
 		return k < 0 ? &NONE : &TURRET_POINTS_SIEGE_WALL[k];
 	}
@@ -5898,9 +5902,9 @@ void Simulation::spawn_gaia_wall(float sx, float sz, float ex, float ez, uint8_t
 void Simulation::spawn_gaia_gate(float x, float z, float rot, uint8_t kind) {
 	if (get_terrain_height(x, z) < terrain_water_height_ + 0.15f) return;
 	const bool palisade = kind == WALLSET_PALISADE, bulk = bulk_spawn_;
+	const uint8_t type = palisade ? (uint8_t)BLD_PALISADE_GATE : kind == WALLSET_SIEGE ? (uint8_t)BLD_SIEGE_WALL_GATE : (uint8_t)BLD_GATE;
 	bulk_spawn_ = true;
-	set_structure_uncapturable(spawn_wall_piece({palisade ? (uint8_t)BLD_PALISADE_GATE : (uint8_t)BLD_GATE, x, z, rot, (palisade ? 14.0f : 36.0f) / 4.0f * 0.5f},
-	                                            GAIA_PLAYER, 1.0f));
+	set_structure_uncapturable(spawn_wall_piece({type, x, z, rot, (palisade ? 14.0f : 36.0f) / 4.0f * 0.5f}, GAIA_PLAYER, 1.0f));
 	bulk_spawn_ = bulk;
 	if (!bulk) rebuild_nav_grid();
 }
@@ -9099,7 +9103,7 @@ void Simulation::tick_repair(float dt) {
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
 			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
 			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER ||
-					b.type == BLD_SIEGE_WALL; // rome/siege_wall_* too
+					b.type == BLD_SIEGE_WALL || b.type == BLD_SIEGE_WALL_GATE; // rome/siege_wall_* too
 			const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
 			const float repair_rate = b.max_hp / (ratio * structure_build_time(b));
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
@@ -24571,7 +24575,10 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
 			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
-			static_assert(BLD_TYPE_COUNT <= 64, "disabled_buildings is a 64-bit mask");
+			// disabled_buildings is a 64-bit mask; the one type past it, the siege wall gate, is
+			// reached only by an Upgrade, which no_building doesn't stop either.
+			static_assert(BLD_TYPE_COUNT <= 64 || (BLD_TYPE_COUNT == 65 && BLD_SIEGE_WALL_GATE == 64),
+			              "disabled_buildings is a 64-bit mask");
 			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = ~0ull;
 			break;
 		default:
