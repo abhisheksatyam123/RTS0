@@ -43,7 +43,7 @@ KINDS = [("BLD_WALL_SEGMENT", "wall_long"), ("BLD_GATE", "wall_gate"), ("BLD_OUT
 WALLSET_KINDS = [("long segment", "wall_long"), ("medium segment", "wall_medium"), ("gate", "wall_gate")]
 # The Roman siege wall (rome/wallset_siege) -> its pieces' points: one set for Rome only.
 SIEGE_KINDS = [("long segment", "siege_wall_long"), ("medium segment", "siege_wall_medium"),
-               ("tower", "siege_wall_tower")]
+               ("tower", "siege_wall_tower"), ("gate", "siege_wall_gate")]
 WALLSET_SCALE = 0.25  # 4 m a unit, as WallPiece lengths and footprints (sim_types.h WALL_SEGMENT_LENGTHS)
 
 

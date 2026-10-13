@@ -555,6 +555,33 @@ static void check_tutorials() {
 	CHECK(e.tutorial_warning() == TUTORIAL_WARN_HOLD_SHIFT, "single hoplite: warning %d", e.tutorial_warning());
 	tut_queued(e, 0, "athen/infantry_spearman_b", 5);
 	CHECK(e.tutorial_goal_index() == 10, "hoplite batch: at %d", e.tutorial_goal_index());
+	// 0.28's order: the storehouse, then the rally point removed, then a batch of civilians.
+	auto fire = [&](uint8_t event, uint32_t value, uint32_t count = 0) {
+		TriggerEventData ev;
+		ev.player = 0;
+		ev.value = value;
+		ev.count = count;
+		e.trigger_event(event, ev);
+	};
+	fire(TRIGGER_ON_TRAINING_FINISHED, 0);
+	fire(TRIGGER_ON_PLAYER_COMMAND, TRIGGER_CMD_CONSTRUCT, BLD_STOREHOUSE);
+	fire(TRIGGER_ON_STRUCTURE_BUILT, BLD_STOREHOUSE);
+	CHECK(e.tutorial_goal_index() == 13, "storehouse built: at %d", e.tutorial_goal_index());
+	tut_queued(e, 0, "athen/support_female_citizen", 5);
+	CHECK(e.tutorial_goal_index() == 13, "civilians trained before the rally point went: at %d", e.tutorial_goal_index());
+	fire(TRIGGER_ON_PLAYER_COMMAND, TRIGGER_CMD_UNSET_RALLY);
+	CHECK(e.tutorial_goal_index() == 14, "rally point removed: at %d", e.tutorial_goal_index());
+	tut_queued(e, 0, "athen/support_female_citizen", 1);
+	CHECK(e.tutorial_warning() == TUTORIAL_WARN_HOLD_SHIFT_FEMALE, "single civilian: warning %d", e.tutorial_warning());
+	tut_queued(e, 0, "athen/support_female_citizen", 5);
+	CHECK(e.tutorial_goal_index() == 15, "civilian batch: at %d", e.tutorial_goal_index());
+	fire(TRIGGER_ON_TRAINING_FINISHED, 0);
+	CHECK(e.tutorial_goal_index() == 16, "civilians trained: at %d", e.tutorial_goal_index());
+	{
+		// Every "%(hotkey)s" of a line is the player's key.
+		const TutorialGoal *g = tutorial_goal(TUTORIAL_ECONOMY, 9);
+		CHECK(g && g->lines[1].hotkey && std::strcmp(g->lines[1].hotkey, "session.batchtrain") == 0, "batch line without its hotkey");
+	}
 	if (failures == before) std::printf("tutorials: Ready, gather, training and rally goals advance; state survives a save: ok\n");
 }
 
@@ -566,7 +593,9 @@ static void check_death_canyon() {
 	s.set_waves_enabled(false);
 	CHECK(s.register_trigger_script("death_canyon_invasion_force_triggers"), "death_canyon_invasion_force_triggers not registered");
 	run_to(s, 0.5f);
-	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
+	// disabled_buildings is a 64-bit mask: the types past it (the siege wall gate) are reached only
+	// by an Upgrade, which no_building doesn't stop.
+	for (uint8_t t = 0; t < BLD_TYPE_COUNT && t < 64; ++t) {
 		CHECK(s.building_disabled_by_trigger(1, t) && s.building_disabled_by_trigger(3, t), "Invasion Force may build type %d", t);
 		CHECK(!s.building_disabled_by_trigger(0, t) && !s.building_disabled_by_trigger(2, t), "a base player may not build type %d", t);
 	}
