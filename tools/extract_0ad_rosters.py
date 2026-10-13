@@ -1047,9 +1047,7 @@ PREVIOUS_SIM_ROOT = None
 # type whose Trainer list theirs adds to: --keep-trainers adds them to the kept trainers where
 # the release trains the unit there, or where the civ has the template and the kept trainers
 # hold that type (0.28's crannog adds ships to the civil centre's list).
-KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER"),
-                               "BLD_WAGON_ENCAMPMENT": ("encampment", None),
-                               "BLD_WAGON_ENCAMPMENT_FORTIFIED": ("encampment_fortified", None)}
+KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
 # --retire: kept rows (fnmatch patterns) the release no longer trains: they keep their ids for
