@@ -84,7 +84,9 @@ Dictionary stats_dict(const rtso::PlayerStatistics &st) {
 			c[units ? rtso::stat_unit_class_name((uint8_t)i) : rtso::stat_building_class_name((uint8_t)i)] = (int64_t)v[i];
 		return c;
 	};
-	d["unitsTrained"] = by_class(st.units_trained, true);
+	Dictionary trained = by_class(st.units_trained, true);
+	trained["Domestic"] = (int64_t)st.livestock_bred; // not in the total, as StatisticsTracker.js
+	d["unitsTrained"] = trained;
 	d["unitsLost"] = by_class(st.units_lost, true);
 	d["enemyUnitsKilled"] = by_class(st.enemy_units_killed, true);
 	d["unitsLostValue"] = (int64_t)st.units_lost_value;
@@ -111,6 +113,10 @@ Dictionary stats_dict(const rtso::PlayerStatistics &st) {
 	d["resourcesUsed"] = res(st.resources_used);
 	d["resourcesSold"] = res(st.resources_sold);
 	d["resourcesBought"] = res(st.resources_bought);
+	d["resourcesCount"] = res(st.resources_count);
+	d["populationCount"] = (int64_t)st.population_count;
+	d["successfulBribes"] = (int64_t)st.successful_bribes;
+	d["failedBribes"] = (int64_t)st.failed_bribes;
 	d["tributesSent"] = (int64_t)st.tributes_sent;
 	d["tributesReceived"] = (int64_t)st.tributes_received;
 	d["tradeIncome"] = (int64_t)st.trade_income;

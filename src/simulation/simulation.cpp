@@ -6519,7 +6519,11 @@ void Simulation::stat_gathered(uint8_t player_id, uint8_t res, int amount, bool 
 PlayerStatistics Simulation::statistics(uint8_t player_id) const {
 	if (player_id >= MAX_PLAYERS) return PlayerStatistics{};
 	PlayerStatistics st = stats_[player_id];
-	for (int r = 0; r < RES_COUNT; ++r) st.resources_used[r] = (int32_t)std::lround(players_[player_id].used[r]);
+	for (int r = 0; r < RES_COUNT; ++r) {
+		st.resources_used[r] = (int32_t)std::lround(players_[player_id].used[r]);
+		st.resources_count[r] = (uint32_t)std::max(0.0f, std::floor(players_[player_id].res[r])); // GetResourceCounts
+	}
+	st.population_count = (uint32_t)std::max(0, pop_current(player_id)); // GetPopulationCount
 	st.peak_percent_map_controlled = std::max(st.peak_percent_map_controlled, percent_map_controlled(player_id));
 	st.team_peak_percent_map_controlled = std::max(st.team_peak_percent_map_controlled, team_percent_map_controlled(player_id));
 	return st;
@@ -8836,6 +8840,7 @@ void Simulation::tick_production(float dt) {
 					corral_count(b.id) < CORRAL_GARRISON_MAX;
 				if (!pen) pick_spawn_point(b, UNIT_FEMALE_CITIZEN, 0, sx, sz);
 				uint32_t fid = spawn_fauna(sx, sz, corral_animal_for(civ_of(b.team), done.tmpl));
+				if (b.team < MAX_PLAYERS) stats_[b.team].livestock_bred++; // IncreaseTrainedUnitsCounter: Domestic
 				auto fit = fauna_id_to_idx_.find(fid);
 				if (pen && fit != fauna_id_to_idx_.end()) {
 					size_t fidx = fit->second;
@@ -12436,6 +12441,7 @@ Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 	};
 	if (candidates.empty()) {
 		pay(bribe_cost(player, target, true)); // TrySubtractResources: nothing if it can't pay
+		if (player < MAX_PLAYERS) stats_[player].failed_bribes++; // Commands.js IncreaseFailedBribesCounter
 		return BRIBE_NO_UNITS;
 	}
 	const uint32_t id = candidates[(size_t)sim_rng_.range_int(0, (int)candidates.size() - 1)];
@@ -12444,6 +12450,7 @@ Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 	const int32_t u = lookup_unit(id);
 	const float range = units_.unit_type[u] == UNIT_MERCHANT_SHIP ? 50.0f : 60.0f;
 	spies_.push_back({id, player, {0, 0, 0}, 15.0f * 60.0f / std::max(30.0f, range)});
+	if (player < MAX_PLAYERS) stats_[player].successful_bribes++; // VisionSharing.AddSpy
 	return BRIBE_OK;
 }
 
@@ -19843,7 +19850,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 StatisticsTracker's resource and population counts, livestock bred and bribes
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -21223,11 +21230,48 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 
 	// 10. StatisticsTracker (save v30). Older saves start the counters at zero.
 	if (ar.version < S::SAVE_VERSION_STATISTICS) return;
-	static_assert(sizeof(PlayerStatistics) == 4 * 91 && sizeof(StatisticsSample) == 4 + 8 * sizeof(PlayerStatistics) + 4 * 32,
+	static_assert(sizeof(PlayerStatistics) == 4 * 99 && sizeof(StatisticsSample) == 4 + 8 * sizeof(PlayerStatistics) + 4 * 32,
 	              "PlayerStatistics holds 4-byte fields only (saved raw); update the sizes when adding one");
-	ar.pod(s.stats_);
-	for (PlayerState &ps : s.players_) ar.pod(ps.used);
-	io_vec_pod(ar, s.stat_samples_, (uint32_t)S::MAX_STATISTICS_SAMPLES);
+	static_assert(offsetof(PlayerStatistics, resources_count) == 4 * PLAYER_STATISTICS_V30_FIELDS,
+	              "fields from v60 on are appended after the v30-v59 ones");
+	if constexpr (Ar::loading) {
+		if (ar.version < S::SAVE_VERSION_STATISTICS_COUNTS) {
+			// v30-v59: the counters without the v60 tail, which starts at zero.
+			struct OldStats { uint32_t f[PLAYER_STATISTICS_V30_FIELDS]; };
+			struct OldSample { float time; OldStats players[8]; float maps[32]; };
+			auto widen = [](const OldStats &o) {
+				PlayerStatistics st{};
+				std::memcpy(&st, o.f, sizeof(o.f));
+				return st;
+			};
+			std::array<OldStats, MAX_PLAYERS> old{};
+			ar.pod(old);
+			for (size_t p = 0; p < MAX_PLAYERS; ++p) s.stats_[p] = widen(old[p]);
+			for (PlayerState &ps : s.players_) ar.pod(ps.used);
+			std::vector<OldSample> rows;
+			io_vec_pod(ar, rows, (uint32_t)S::MAX_STATISTICS_SAMPLES);
+			s.stat_samples_.assign(rows.size(), StatisticsSample{});
+			for (size_t i = 0; i < rows.size(); ++i) {
+				StatisticsSample &row = s.stat_samples_[i];
+				row.time = rows[i].time;
+				for (size_t p = 0; p < 8; ++p) {
+					row.players[p] = widen(rows[i].players[p]);
+					row.percent_map_explored[p] = rows[i].maps[p];
+					row.team_percent_map_explored[p] = rows[i].maps[8 + p];
+					row.percent_map_controlled[p] = rows[i].maps[16 + p];
+					row.team_percent_map_controlled[p] = rows[i].maps[24 + p];
+				}
+			}
+		} else {
+			ar.pod(s.stats_);
+			for (PlayerState &ps : s.players_) ar.pod(ps.used);
+			io_vec_pod(ar, s.stat_samples_, (uint32_t)S::MAX_STATISTICS_SAMPLES);
+		}
+	} else {
+		ar.pod(s.stats_);
+		for (PlayerState &ps : s.players_) ar.pod(ps.used);
+		io_vec_pod(ar, s.stat_samples_, (uint32_t)S::MAX_STATISTICS_SAMPLES);
+	}
 	ar.pod(s.stats_explore_res_);
 	if constexpr (Ar::loading)
 		if (!ar.ok || s.stats_explore_res_ < 0 || s.stats_explore_res_ > S::MAX_GRID_RES) { ar.ok = false; return; }
