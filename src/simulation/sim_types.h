@@ -1390,6 +1390,24 @@ inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
 }
 
+// Can a building of this type research the tech? Its research base's list, less what the
+// form drops (0.28 Researcher "-" tokens): the crannog drops phase_town and
+// hellenistic_metropolis, the Han Imperial Court phase_town, and the military colony
+// (template_structure_civic_civil_centre_military_colony) researches the Civic Center
+// list except the two phases and hellenistic_metropolis.
+inline bool building_researches_tech(uint8_t type, uint8_t tech_id) {
+	const uint8_t r = tech_info(tech_id).researcher;
+	switch (type) {
+	case BLD_CRANNOG:
+		return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN && tech_id != TECH_HELLENISTIC_METROPOLIS;
+	case BLD_IMPERIAL_COURT: return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN;
+	case BLD_MILITARY_COLONY:
+		return r == BLD_MILITARY_COLONY || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
+		                                    && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	default: return r == building_research_base(type);
+	}
+}
+
 // Does an entity with these TechClass bits match effect `e`'s affects list?
 inline bool tech_effect_applies(const TechEffect &e, uint64_t classes) {
 	if (e.affects_count == 0) return true;

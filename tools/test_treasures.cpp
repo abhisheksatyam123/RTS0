@@ -174,6 +174,17 @@ int main() {
 		for (const auto &x : s.buildings()) if (x.id == camp) b = &x;
 		std::printf("mercenary camp: owner %d after 90 s of capture\n", b ? (int)b->team : -1);
 		CHECK(b && b->team == 0);
+		// 0.28's camp trains units/{civ}/*_merc_b for its captor: the Ptolemies' four, the
+		// Seleucids' two and the Kushites' one; every other civ's captor trains nothing there.
+		int merc[CIV_COUNT] = {};
+		for (uint8_t c = 0; c < CIV_COUNT; ++c)
+			for (const uint16_t id : civ_roster_ids(c))
+				if (civ_unit_template(id).trainers & bld_bit(BLD_MERCENARY_CAMP)) {
+					++merc[c];
+					CHECK(std::strstr(civ_unit_template(id).id, "_merc_b") != nullptr);
+				}
+		CHECK(merc[CIV_PTOLEMIES] == 4 && merc[CIV_SELEUCIDS] == 2 && merc[CIV_KUSHITES] == 1);
+		CHECK(merc[CIV_ATHENIANS] == 0 && merc[CIV_ROMANS] == 0 && merc[CIV_BRITONS] == 0);
 	}
 
 	// 6b. Gaia-owned units and structures from a 0 A.D. map (Player 0): the roster template by

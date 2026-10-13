@@ -1013,6 +1013,11 @@ PREVIOUS_SIM_ROOT = None
 # the release trains the unit there, or where the civ has the template and the kept trainers
 # hold that type (0.28's crannog adds ships to the civil centre's list).
 KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
+# Building types whose kept trainers --keep-trainers takes from the release instead: 0.28's
+# mercenary camps (ptol/mercenary_camp and the captured Gaia merc_camp_egyptian) train only
+# units/{civ}/*_merc_b, which only the Ptolemies (4), Seleucids (2) and Kushites (1) have,
+# where the earlier tree's camp trained each captor's citizen infantry.
+KEEP_TRAINERS_FROM_RELEASE = {"BLD_MERCENARY_CAMP"}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
 # --retire: kept rows (fnmatch patterns) the release no longer trains: they keep their ids for
@@ -1249,7 +1254,8 @@ def collect(sim_root):
             phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
             blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
             if KEEP_TRAINERS and rid in prev_layout:
-                kept = list(prev_layout[rid][0])
+                kept = [b for b in prev_layout[rid][0] if b not in KEEP_TRAINERS_FROM_RELEASE]
+                kept += [b for b in blds if b in KEEP_TRAINERS_FROM_RELEASE]
                 for b, (tmpl, base) in KEEP_TRAINERS_NEW_BUILDINGS.items():
                     if b not in kept and (b in blds or (base in kept and
                                                         loader.exists("structures/%s/%s" % (civ, tmpl)))):

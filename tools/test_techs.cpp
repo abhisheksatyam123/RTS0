@@ -101,6 +101,27 @@ int main() {
 	CHECK(s.phase_structures(0, 1) == 5);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, tc) == Simulation::TECH_OK);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, barracks) == Simulation::TECH_ERR_BUILDING);
+	// 0.28 crannog.xml drops -phase_town_{civ} and -hellenistic_metropolis from the
+	// Civic Center list it otherwise keeps (City Phase stays).
+	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_PHASE_TOWN));
+	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_HELLENISTIC_METROPOLIS));
+	CHECK(building_researches_tech(BLD_CRANNOG, TECH_PHASE_CITY));
+	CHECK(!building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_TOWN)); // civil_centre_court -phase_town_{civ}
+	CHECK(building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_CITY));
+	// The Ptolemaic military colony: the Civic Center list less both phases and the metropolis.
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_TOWN));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_CITY));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_HELLENISTIC_METROPOLIS));
+	CHECK(building_researches_tech(BLD_MILITARY_COLONY, TECH_ARCHERY_TRADITION));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_FARMING_1));
+	{
+		Simulation c;
+		fresh(c);
+		for (int k = 0; k < 5; ++k) c.spawn_building_world(-20.0f + 6.0f * k, 20.0f, BLD_HOUSE, 0, 1.0f);
+		CHECK(c.phase_structures(0, 1) >= 5);
+		const uint32_t cr = c.spawn_building_world(40.0f, 40.0f, BLD_CRANNOG, 0, 1.0f);
+		CHECK(c.research_check(0, TECH_PHASE_TOWN, cr) == Simulation::TECH_ERR_BUILDING);
+	}
 	CHECK(s.research_check(0, TECH_WEAPONS_1) == Simulation::TECH_ERR_PHASE);
 	CHECK(s.research_check(0, TECH_ROMAN_ROADS) == Simulation::TECH_ERR_CIV);
 	s.set_player_civ(2); // Britons may research Nisean horses only after the champion unlock
