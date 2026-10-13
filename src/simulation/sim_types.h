@@ -666,7 +666,7 @@ struct AlertRaiserInfo {
 inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 	constexpr float S = 0.28f;
 	switch (building_research_base(type)) {
-		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: out = {false, 120 * S, 180 * S, 100 * S}; return true;
+		case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: case BLD_WAGON_ENCAMPMENT: out = {false, 120 * S, 180 * S, 100 * S}; return true;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: out = {false, 50 * S, 100 * S, 100 * S}; return true;
 		case BLD_MARKET: out = {true, -1.0f, -1.0f, 100 * S}; return true;
 		default: return false;
@@ -1558,7 +1558,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
