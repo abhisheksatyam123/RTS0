@@ -338,6 +338,32 @@ int main() {
 		CHECK(s.units().action_state[idx_of(s, w)] != ACTION_REPAIR);
 	}
 
+	// 15. A structure keeps its template through a capture (0 A.D. changes only the owner): a Han
+	// storehouse taken by the Athenians keeps its Minister's seat; an Athenian barracks taken by
+	// the Han gains none. A civ chosen after the start re-templates the player's structures.
+	{
+		fresh(s);
+		s.set_team_civ(0, CIV_HAN);
+		s.set_team_civ(1, CIV_ATHENIANS);
+		uint32_t st = s.spawn_building_world(0.0f, 20.0f, BLD_STOREHOUSE, 0, 1.0f);
+		uint32_t bk = s.spawn_building_world(30.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+		CHECK(s.get_garrison_capacity(st) == 1);
+		find_bld(s, st)->team = 1; // captured (test poke: only the owner changes, as in tick_capture)
+		find_bld(s, bk)->team = 0;
+		std::printf("captured: han storehouse holds %d, athenian barracks takes a minister %d\n",
+				s.get_garrison_capacity(st), (int)s.can_garrison_in(s.spawn_unit(32.0f, 9.0f, 0, UNIT_MINISTER), bk));
+		CHECK(s.get_garrison_capacity(st) == 1);
+		uint32_t min1 = s.spawn_unit(2.0f, 24.0f, 1, UNIT_MINISTER);
+		CHECK(s.can_garrison_in(min1, st));
+		uint32_t min0 = s.spawn_unit(31.0f, 9.0f, 0, UNIT_MINISTER);
+		CHECK(!s.can_garrison_in(min0, bk));
+		// Picking a civ after the start (game setup order) re-templates that player's own structures.
+		uint32_t h = s.spawn_building_world(-30.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+		CHECK(s.get_garrison_capacity(h) == 6); // Han: big house
+		s.set_team_civ(0, CIV_BRITONS);
+		CHECK(s.get_garrison_capacity(h) == 3 && s.get_garrison_capacity(bk) == 10);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
