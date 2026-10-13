@@ -510,67 +510,6 @@ struct NavGrid {
         return a != 0 && a == b;
     }
 
-    // Territory blur — 3x3 box blur (avg neighbor count >4) for soft borders
-    // Mirrors CCmpTerritoryManager.cpp influence blur (separable box, threshold).
-    void blur_territory(const Grid<uint8_t>& influence, Grid<uint8_t>& out) const {
-        if (influence.w != out.w || influence.h != out.h) {
-            out.resize(influence.w, influence.h, 0);
-        }
-        if (influence.data.empty()) {
-            out.fill(0);
-            return;
-        }
-        // Handle aliasing via temp copy (avoid overwriting while reading)
-        if (&influence == &out) {
-            Grid<uint8_t> tmp = influence;
-            blur_territory(tmp, out);
-            return;
-        }
-        // 3x3 box blur: for each cell count occupied neighbors (non-zero) in 3x3,
-        // if >4 mark as occupied / majority team, else empty. Majority vote preserves team id.
-        for (int y = 0; y < influence.h; ++y) {
-            for (int x = 0; x < influence.w; ++x) {
-                int cnt_nonzero = 0;
-                // Majority vote over at most 9 values; a small table instead
-                // of a 256-entry histogram (zeroing it per cell dominated the
-                // cost on large maps). First value to reach a count wins ties.
-                uint8_t vals[9];
-                int freq[9];
-                int nvals = 0;
-                int best_val = 0;
-                int best_cnt = 0;
-                for (int dy = -1; dy <= 1; ++dy) {
-                    for (int dx = -1; dx <= 1; ++dx) {
-                        int nx = x + dx;
-                        int ny = y + dy;
-                        if (!influence.inside(nx, ny)) continue;
-                        uint8_t v = influence.at(nx, ny);
-                        if (v != 0) {
-                            cnt_nonzero++;
-                            int k = 0;
-                            while (k < nvals && vals[k] != v) ++k;
-                            if (k == nvals) { vals[nvals] = v; freq[nvals] = 0; ++nvals; }
-                            int f = ++freq[k];
-                            if (f > best_cnt) {
-                                best_cnt = f;
-                                best_val = v;
-                            }
-                        }
-                    }
-                }
-                // avg neighbor count >4  => majority of 3x3 occupied
-                if (cnt_nonzero > 4) {
-                    // Use majority team value if any, otherwise keep center value or 1
-                    out.at(x, y) = best_val ? static_cast<uint8_t>(best_val) : influence.at(x, y);
-                    if (out.at(x, y) == 0) out.at(x, y) = 1;
-                } else {
-                    // Preserve sparse: if original had isolated influence but not enough neighbors, clear
-                    out.at(x, y) = 0;
-                }
-            }
-        }
-    }
-
     // Bilinear height sample matching Simulation::get_terrain_height.
     float sample_height_bilinear(float wx, float wz, const std::vector<float>& heights, int h_res) const {
         if (heights.empty() || h_res <= 0) return 0.0f;

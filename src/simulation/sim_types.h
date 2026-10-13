@@ -417,6 +417,7 @@ enum BuildingType : uint8_t {
 };
 
 #include "civ_building_data.h"
+#include "territory_data.h"
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
@@ -438,10 +439,12 @@ inline constexpr bool is_civic_centre(uint8_t type) {
 inline constexpr bool is_defense_tower(uint8_t type) {
 	return type == BLD_TOWER || type == BLD_TOWER_GREAT;
 }
-// Structures that root territory on their own: civic centres, fortresses, defense towers.
-inline constexpr bool is_territory_root(uint8_t type) {
-	return is_civic_centre(type) || type == BLD_FORTRESS || is_defense_tower(type);
-}
+// TerritoryInfluence/Root: civic centres, wonders and a few civ structures (the
+// military colony, palace, tachara, ministry, Cothon); territory connects through them.
+inline bool is_territory_root(uint8_t type) { return territory_influence_info(type).root; }
+// Structures that claim territory (TerritoryInfluence); docks, fields, outposts,
+// palisades and camps claim none.
+inline bool has_territory_influence(uint8_t type) { return territory_influence_info(type).radius > 0.0f; }
 
 enum ResourceType : uint8_t {
 	RES_WOOD = 0,

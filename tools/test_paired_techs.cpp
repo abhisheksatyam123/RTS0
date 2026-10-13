@@ -33,7 +33,9 @@ static void fresh(Simulation &s, Civilization civ) {
 	s.players_[1].civ = CIV_ATHENIANS;
 	for (uint8_t p = 0; p < 2; ++p) s.players_[p].active = 1, s.players_[p].is_ai = 0; // no Petra spending
 	s.set_victory_condition(VICTORY_ENDLESS);
-	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	// Close enough that the test structures stand in its territory, not on neutral land
+	// where they would decay to Gaia (TerritoryDecay.js).
+	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
 	s.players_[0].phase = 3;
 	for (int r = 0; r < RES_COUNT; ++r) s.players_[0].res[r] = 5000.0f;
