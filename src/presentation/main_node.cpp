@@ -449,6 +449,9 @@ void RtsoMain::_ready() {
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
 		// flare): "[Flare] x,z" -> local map ping, not chat text.
 		if (msg.begins_with("[Flare]")) {
+			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
+			const String guid = String::utf8(cm.sender_guid.c_str());
+			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
 			String coords = msg.substr(7).strip_edges();
 			int32_t comma = coords.find(",");
 			if (comma > 0) {
@@ -5299,7 +5302,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 		if (fired("teamchat") || fired("privatechat")) {
 			if (!chat_window_.is_open()) toggle_chat();
-			chat_window_.select_channel(fired("teamchat") ? 1 : 0);
+			if (fired("teamchat")) chat_window_.select_team();
+			else chat_window_.select_last_private();
 			return;
 		}
 
@@ -8096,6 +8100,47 @@ String RtsoMain::chat_user(const String &sender_guid) {
 	char hex[8] = "b3b3b3";
 	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(sim->player_color(pl) & 0xFFFFFF));
 	return "[color=#" + String(hex) + "]" + name.replace("[", "[lb]") + "[/color]";
+}
+
+uint8_t RtsoMain::chat_player_of(const String &sender_guid) {
+	if (!net_lockstep()) return local_player();
+	uint32_t client = turn_mgr_.local_client_id();
+	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	for (const auto &e : net_host_.playerAssignment())
+		if (e.client == client) return e.player;
+	return turn_mgr_.player_for_client(client);
+}
+
+// ChatAddressees.js AddresseeTypes isAddressee, with the local player as the receiver.
+bool RtsoMain::chat_is_addressee(const String &sender_guid, const String &tag) {
+	const uint8_t from = chat_player_of(sender_guid), me = local_player();
+	const bool from_obs = from >= rtso::MAX_PLAYERS, me_obs = me >= rtso::MAX_PLAYERS;
+	if (tag == "[Observers]") return me_obs;
+	if (tag == "[Allies]")
+		return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ALLY &&
+				sim->get_diplomacy(me, from) == rtso::Simulation::DIPLO_ALLY;
+	if (tag == "[Enemies]") return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ENEMY;
+	if (tag.begins_with("[Player-")) {
+		const int target = tag.substr(8, tag.length() - 9).to_int(); // player id + 1, 0 for an observer
+		return (me_obs ? target == 0 : target == (int)me + 1) && (!from_obs || me_obs);
+	}
+	return true;
+}
+
+bool RtsoMain::chat_local_observer() { return local_player() >= rtso::MAX_PLAYERS; }
+
+std::vector<std::pair<int, String>> RtsoMain::chat_private_targets() {
+	std::vector<std::pair<int, String>> out;
+	if (!net_lockstep()) return out;
+	const uint32_t mine = turn_mgr_.local_client_id();
+	const bool me_obs = chat_local_observer();
+	for (const auto &e : net_host_.playerAssignment()) {
+		if (e.client == mine) continue;
+		const bool obs = e.player >= rtso::MAX_PLAYERS;
+		if (me_obs && !obs) continue; // no private message from an observer to a player
+		out.push_back({obs ? 0 : (int)e.player + 1, chat_user("peer-" + String::num_int64(e.client))});
+	}
+	return out;
 }
 
 void RtsoMain::_on_chat_send_pressed() {
