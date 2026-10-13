@@ -34,6 +34,7 @@
 #include "simulation/simulation.h"
 #undef private
 #include "network/turn_manager.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -545,6 +546,158 @@ static void check_tutorials() {
 	if (failures == before) std::printf("tutorials: Ready, gather, training and rally goals advance; state survives a save: ok\n");
 }
 
+static void check_death_canyon() {
+	const int before = failures;
+	static Simulation s;
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	CHECK(s.register_trigger_script("death_canyon_invasion_force_triggers"), "death_canyon_invasion_force_triggers not registered");
+	run_to(s, 0.5f);
+	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
+		CHECK(s.building_disabled_by_trigger(1, t) && s.building_disabled_by_trigger(3, t), "Invasion Force may build type %d", t);
+		CHECK(!s.building_disabled_by_trigger(0, t) && !s.building_disabled_by_trigger(2, t), "a base player may not build type %d", t);
+	}
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	float x = 0.0f, z = 0.0f;
+	for (size_t i = 0; i < s.units_.count; ++i)
+		if (s.units_.alive[i] && s.units_.team[i] == 1) { x = s.units_.pos_x[i]; z = s.units_.pos_z[i]; break; }
+	CHECK(s.cmd_build_wall(1, x + 4.0f, z + 4.0f, x + 12.0f, z + 4.0f, nullptr, 0, false, 0) == 0, "the Invasion Force laid a wall");
+	if (failures == before) std::printf("Death Canyon - Invasion Force: the invasion forces build nothing: ok\n");
+}
+
+static void check_elephantine() {
+	const int before = failures;
+	static Simulation s;
+	build(s, MAP_ELEPHANTINE);
+	int temples = 0, pyramids = 0, towers = 0, full = 0, holders = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER) continue;
+		temples += b.type == BLD_TEMPLE || b.type == BLD_TEMPLE_AMUN || b.type == BLD_WONDER;
+		pyramids += b.type == BLD_PYRAMID_LARGE;
+		if (building_tech_classes(b.type) & TC_TOWER) {
+			++towers;
+			CHECK(b.max_capture_points == 0.0f, "Kushite tower %u capturable", b.id);
+		}
+	}
+	CHECK(temples == 1 && pyramids == 1, "island temples %d, pyramids %d", temples, pyramids);
+	CHECK(towers >= 2, "only %d Kushite towers", towers);
+	int gaia_units = 0;
+	for (size_t i = 0; i < s.units_.count; ++i) gaia_units += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER;
+	CHECK(gaia_units >= 8, "only %d Kushites on the island", gaia_units);
+	run_to(s, 1.0f);
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER) continue;
+		const int cap = s.get_garrison_capacity(b.id);
+		if (cap <= 0) continue;
+		++holders;
+		full += (int)b.garrisoned_units.size() == cap;
+	}
+	CHECK(holders > 0 && full == holders, "%d of %d Gaia structures garrisoned to capacity", full, holders);
+	std::vector<uint32_t> inside;
+	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
+	int defensive = 0, soldiers = 0;
+	for (size_t i = 0; i < s.units_.count; ++i) {
+		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER) continue;
+		if (std::find(inside.begin(), inside.end(), s.units_.id[i]) != inside.end()) continue;
+		const uint16_t t = s.units_.tmpl[i];
+		if (t >= CIV_UNIT_TEMPLATE_COUNT || !(civ_unit_template(t).tech_classes & TC_SOLDIER)) continue;
+		++soldiers;
+		defensive += s.units_.stance[i] == STANCE_DEFENSIVE;
+	}
+	CHECK(soldiers > 0 && defensive == soldiers, "%d of %d island soldiers defensive", defensive, soldiers);
+	if (failures == before)
+		std::printf("Elephantine: temple, pyramid, %d uncapturable towers, %d Kushites, %d structures garrisoned: ok\n", towers, gaia_units, holders);
+}
+
+static void check_danubius() {
+	// danubius.js / danubius_triggers.js on a 256-tile map: a Gallic village on each bank, the
+	// garrisons and defenders at the start, two Gaia warships that take soldiers on board and
+	// put them ashore, and the villages' own waves.
+	const int before = failures;
+	static Simulation s;
+	build(s, MAP_DANUBIUS);
+	int ccs = 0, houses = 0, temples = 0, towers = 0, walls = 0, capturable = 0;
+	bool left = false, right = false;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER) continue;
+		if (b.type == BLD_TOWN_CENTER) {
+			++ccs;
+			(s.danubius_is_left(b.x, b.z) ? left : right) = true;
+			continue;
+		}
+		houses += b.type == BLD_HOUSE;
+		temples += b.type == BLD_TEMPLE;
+		const bool tower = b.type == BLD_SENTRY_TOWER;
+		towers += tower;
+		walls += b.type == BLD_PALISADE || b.type == BLD_WALL_TOWER;
+		if (b.type == BLD_HOUSE || b.type == BLD_TEMPLE || tower) capturable += b.max_capture_points > 0.0f;
+	}
+	CHECK(ccs == 2 && left && right, "%d Gaia civic centres, one on each bank: %d %d", ccs, left, right);
+	CHECK(houses >= 14 && temples >= 3 && towers >= 6, "villages: %d houses, %d temples, %d watchtowers", houses, temples, towers);
+	CHECK(capturable == 0, "%d village structures capturable", capturable);
+	CHECK(walls > 0, "no palisade round the villages");
+	int refs[256] = {};
+	for (const TriggerPoint &p : s.triggers_.points) ++refs[p.ref];
+	for (char r : {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'}) CHECK(refs[(int)r] > 0, "no trigger point %c", r);
+	CHECK(refs['I'] == 1 && refs['C'] <= 200 && refs['D'] <= 200, "I %d, C %d, D %d", refs['I'], refs['C'], refs['D']);
+	for (const TriggerPoint &p : s.triggers_.points)
+		if (p.ref == 'C' || p.ref == 'D') CHECK(s.danubius_is_left(p.x, p.z) == (p.ref == 'C'), "unload point %c on the wrong bank", p.ref);
+
+	run_to(s, 1.0f);
+	int holders = 0, full = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER || b.type == BLD_PALISADE || b.type == BLD_WALL_TOWER) continue;
+		const int cap = s.get_garrison_capacity(b.id);
+		if (cap <= 0) continue;
+		++holders;
+		full += (int)b.garrisoned_units.size() == cap;
+	}
+	CHECK(holders > 0 && full == holders, "%d of %d Gaia structures garrisoned to capacity", full, holders);
+	std::vector<uint32_t> ships;
+	for (const TriggerWatch &w : s.triggers_.watched)
+		if (w.role >= 2) ships.push_back(w.id);
+	CHECK(ships.size() == 2, "%zu Gaia warships at the start", ships.size());
+	for (uint32_t id : ships) {
+		const int32_t u = s.lookup_unit(id);
+		CHECK(u >= 0 && s.units_.alive[u] && s.units_.team[u] == GAIA_PLAYER && unit_is_ship(s.units_.unit_type[u]), "ship %u", id);
+	}
+	// The soldiers on the ground (not the outposts' turreted slingers).
+	std::vector<uint32_t> inside;
+	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
+	int defenders = 0, defensive = 0;
+	for (size_t i = 0; i < s.units_.count; ++i) {
+		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER || s.units_.tmpl[i] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		if (std::find(inside.begin(), inside.end(), s.units_.id[i]) != inside.end()) continue;
+		if (!(civ_unit_template(s.units_.tmpl[i]).tech_classes & TC_SOLDIER)) continue;
+		++defenders;
+		defensive += s.units_.stance[i] == STANCE_DEFENSIVE;
+	}
+	CHECK(defenders >= 2 * 21 && defensive == defenders, "%d of %d village soldiers defensive", defensive, defenders);
+
+	// FillShips at 4-5 minutes: min(30, 2 per minute) aboard each ship that has room.
+	run_to(s, 301.0f);
+	std::vector<uint32_t> aboard;
+	for (const TriggerWatch &w : s.triggers_.watched)
+		if (w.role >= 2)
+			if (const auto *p = s.get_transport_passengers(w.id)) aboard.insert(aboard.end(), p->begin(), p->end());
+	CHECK(!aboard.empty(), "no soldiers aboard the Gaia ships at 5 minutes");
+	// UngarrisonShipsOrder at 5-7 minutes, the villages' first waves at 6-8.
+	run_to(s, 600.0f);
+	int ashore = 0, patrols = 0;
+	for (uint32_t id : aboard) {
+		const int32_t u = s.lookup_unit(id);
+		ashore += u >= 0 && s.units_.alive[u];
+	}
+	for (size_t i = 0; i < s.units_.count; ++i)
+		patrols += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER && s.units_.order_kind[i] == ORDER_PATROL;
+	CHECK(ashore > 0, "none of the %zu soldiers aboard came ashore by 10 minutes", aboard.size());
+	CHECK(patrols > 0, "no Gaia soldiers patrolling by 10 minutes");
+	if (failures == before)
+		std::printf("Danubius: 2 villages (%d houses, %d temples, %d towers), %d holders garrisoned, %d defenders, %zu aboard, %d ashore, %d patrolling: ok\n",
+		            houses, temples, towers, holders, defenders, aboard.size(), ashore, patrols);
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -561,6 +714,10 @@ int main() {
 	check_save_load(tm, MAP_EXTINCT_VOLCANO, 90.0f, 200.0f, Simulation::WATER_LEVEL_RISING, 2, "Extinct Volcano before and during the rise");
 	check_identical_saves();
 	check_tutorials();
+	check_death_canyon();
+	check_elephantine();
+	check_danubius();
+	check_save_load(tm, MAP_DANUBIUS, 290.0f, 400.0f, Simulation::WATER_LEVEL_RISING, 25, "Danubius with soldiers aboard and ships unloading");
 	std::printf("RESULT: %s (%d failed checks)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
 }

@@ -486,6 +486,41 @@ static void test_patrol() {
 	}
 	centroid(s, inf, cx, cz);
 	check(waited && cx < -12.0f && s.formations().size() == 1, "and comes back to the start, still in formation");
+
+	// Shift-queued patrol points: PATROL.CHECKINGWAYPOINT pushes each leg to the back of the
+	// queue, so the formation loops through every point, and a queued walk runs in turn.
+	Simulation q;
+	setup(q, CIV_ATHENIANS);
+	auto sq = spawn_block(q, 8, -20, 0, 0, UNIT_SWORDSMAN);
+	q.order_set_formation(sq.data(), sq.size(), FORMATION_BOX);
+	run(q, 3.0f);
+	q.order_patrol(sq.data(), sq.size(), 20.0f, 0.0f);
+	q.order_patrol(sq.data(), sq.size(), 20.0f, 20.0f, true);
+	const uint32_t qfid = q.formations()[0].id;
+	auto next_wait = [&](float &x, float &z) {
+		bool w = false;
+		for (int k = 0; k < 600 && !w; ++k) {
+			run(q, 0.1f);
+			w = ctrl(q, qfid) && ctrl(q, qfid)->order == Simulation::FORDER_PATROL_WAIT;
+		}
+		centroid(q, sq, x, z);
+		run(q, 4.0f); // PatrolWaitTime
+		return w;
+	};
+	float x1, z1, x2, z2, x3, z3;
+	const bool w1 = next_wait(x1, z1), w2 = next_wait(x2, z2), w3 = next_wait(x3, z3);
+	std::printf("   queued patrol stops: (%.0f, %.0f) (%.0f, %.0f) (%.0f, %.0f)\n", x1, z1, x2, z2, x3, z3);
+	check(w1 && w2 && w3 && z1 < 4.0f && z2 > 16.0f && z3 < 4.0f && x3 > 16.0f,
+			"queued patrol points loop: first, second, then the first again");
+	q.order_walk(sq.data(), sq.size(), -20.0f, -20.0f, true);
+	bool walked = false;
+	for (int k = 0; k < 1200 && !walked; ++k) {
+		run(q, 0.1f);
+		float x, z;
+		centroid(q, sq, x, z);
+		walked = x < -16.0f && z < -16.0f;
+	}
+	check(walked, "a walk queued behind the patrol points runs in turn");
 }
 
 static void test_guard() {
