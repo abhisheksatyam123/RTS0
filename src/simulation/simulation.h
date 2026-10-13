@@ -1502,6 +1502,18 @@ public:
 		uint8_t pad[3];
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
+	// The scenery_ index of entity `id`, or -1.
+	int32_t scenery_index(uint32_t id) const {
+		for (size_t k = 0; k < scenery_.size(); ++k) if (scenery_[k].id == id) return (int32_t)k;
+		return -1;
+	}
+	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
+	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
+	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	float unit_damage_to_scenery(size_t i) const;
+	void tick_scenery_attackers();
+	void destroy_scenery(size_t k, int32_t killer);
 	// The grain supply of a finished field (0 if none): a Gaia field is farmed through it.
 	uint32_t field_resource_id(uint32_t building_id) const {
 		auto it = field_res_by_bld_.find(building_id);
