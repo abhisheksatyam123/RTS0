@@ -1900,6 +1900,39 @@ static void test_worker_mix() {
 	CHECK(max_houses >= 1 && max_houses <= 3, "houses go up a few at a time");
 }
 
+// findTrainableUnits / trainEmergencyUnits: Petra trains only what a building's Trainer list
+// names and the map has not disabled (Seleucid pikemen train at the barracks only).
+static void test_unit_choice() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->set_team_civ(1, CIV_SELEUCIDS);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	uint16_t spear = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, "sele/infantry_spearman_b") == 0) spear = t;
+	const_cast<TriggerState &>(s->trigger_state()).disabled_templates.push_back(spear);
+	int foreign = 0, disabled = 0, soldiers = 0;
+	for (int k = 0; k < 7 * 60; ++k) {
+		run_for(*s, 1.0f);
+		for (const auto &b : s->buildings()) {
+			if (b.team != 1) continue;
+			for (const auto &o : b.queue) {
+				if (o.is_tech() || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT) continue;
+				foreign += !(civ_unit_template(o.tmpl).trainers & bld_bit(b.type));
+				disabled += o.tmpl == spear;
+				soldiers += (civ_unit_template(o.tmpl).tech_classes & TC_CITIZENSOLDIER) != 0;
+			}
+		}
+	}
+	std::printf("  Seleucids, spearmen disabled, 7 min: %d queue-seconds of citizen soldiers, %d off their Trainer list, %d disabled\n",
+	            soldiers, foreign, disabled);
+	CHECK(soldiers > 0, "trains citizen soldiers");
+	CHECK(foreign == 0, "trains each unit only where its Trainer list allows");
+	CHECK(disabled == 0, "never trains a disabled template");
+}
+
 // victoryManager.js: in wonder victory a finished wonder is a critical entity,
 // guarded by up to 10 + 5 * defensive soldiers, champions first, who turn on
 // whoever attacks it.
@@ -3328,6 +3361,7 @@ int main() {
 	test_abort_nearest_base();
 	test_mobile_dropsite_follows();
 	test_worker_mix();
+	test_unit_choice();
 	test_build_defenses();
 	test_defensive_location();
 	test_dropsites();
