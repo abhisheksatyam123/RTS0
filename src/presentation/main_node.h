@@ -375,6 +375,8 @@ public:
 	void _start_menu_net();
 	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
 	Dictionary get_lobby_state() const;
+	// The lockstep state hash this client computed for a turn (0 if not kept).
+	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
@@ -476,6 +478,7 @@ public:
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
+	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	Dictionary debug_unset_rally_step(int step);
@@ -520,6 +523,7 @@ private:
 	bool selection_can_garrison(uint32_t building_id) const;
 	void update_hud();
 	void update_inspector();
+	void prune_selection();
 	void update_command_panel();
 	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);
@@ -578,6 +582,7 @@ private:
 	bool replay_recording_ = false;
 	bool replay_finished_ = false;
 	String replay_dir_;            // user://replays/<id>/ of the game being recorded
+	String watched_replay_dir_;    // the replay being watched (0 A.D. Engine.GetCurrentReplayDirectory)
 	Dictionary replay_meta_;       // its metadata.json, minus what is filled at write time
 	uint32_t replay_written_turn_ = 0;
 	Label *replay_label_ = nullptr;

@@ -83,7 +83,7 @@ struct Projectile {
 // One item of a structure's production queue (0 A.D. ProductionQueue.js Item): a batch of
 // `count` units (Trainer.js) or one technology (Researcher.js), worked on front first.
 struct ProductionOrder {
-	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_COUNT for a technology
+	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_TECH for a technology
 	float timer;
 	float duration;
 	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE; // civ roster unit to spawn (NONE = civ default for unit_type)
@@ -758,6 +758,8 @@ public:
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
 	// mutual ally once `player` has researched Diaspora (Player/sharedDropsites).
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
+	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
+	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
@@ -2546,6 +2548,9 @@ private:
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
+	void petra_assign_bombers(); // attackManager.js assignBombers
+	// navalManager.requireTransport for a worker: ship it from its land to a supply's on another.
+	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
 	void petra_manage_critical_ent_healers();
