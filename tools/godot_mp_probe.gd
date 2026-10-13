@@ -85,6 +85,7 @@ func _run() -> void:
 	# The match: main.tscn behind the loading page.
 	var main = null
 	var started := false
+	var saw_wait := false
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -96,6 +97,9 @@ func _run() -> void:
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
+		if not saw_wait and str(st.get("net_status", "")) != "":
+			saw_wait = true
+			_say("waiting=%s %s" % [st.get("net_status", ""), st.get("net_loading", "")])
 		if role == "host" and not started and int(st.get("players", 0)) >= 2:
 			started = true
 			_say("both players in, pressing Start")
@@ -117,9 +121,12 @@ func _run() -> void:
 			await _wait(0.2)
 			var st: Dictionary = main.get_lobby_state()
 			if role == "host" and str(st.get("chat", "")).contains("has left the game."):
+				var left := 0
 				for line in str(st.get("chat", "")).split("\n"):
 					if line.contains("has left the game."):
+						left += 1
 						_say("chat_left=" + line.strip_edges())
+				_say("chat_left_lines=%d" % left)
 				break
 			if role == "join" and st.get("disconnected", false):
 				_say("net_status=" + str(st.get("net_status", "")).replace("\n", " | ") +
