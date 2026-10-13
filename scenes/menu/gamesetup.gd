@@ -138,6 +138,24 @@ const TEAM_PLACEMENTS := [["Random", "Select a random team placement pattern whe
 	["Random Group", "Allied players are grouped, but otherwise placed randomly on the map."],
 	["Stronghold", "Allied players are grouped in one random place of the map."]]
 const TEAM_PLACEMENT_MAPS := ["random_ambush", "random_frontier"]
+# 0 A.D. Landscape (unknown.json Landscapes, gamesettings Landscape.js): [name,
+# value, description]; value is RmsGenerator::UNKNOWN_LANDSCAPE_* (3 + landscape).
+const LANDSCAPES := [["Random", 0, "Choose a random landscape."],
+	["Random Land", 1, "Choose a random land landscape"],
+	["Continent", 4, "All players starts on a continent surrounded by water."],
+	["Isthmus", 6, "Two Mediterranean land masses connected by a narrow spit of land, called an 'Isthmus'."],
+	["Central River", 7, "A small central river."],
+	["Edge Seas", 10, "Players are aligned on a strip of land with seas bordering on one or both sides that may hold islands."],
+	["Gulf", 11, "Land shaped like a concrescent moon around a central lake."],
+	["Lakes", 12, "Mainland style with some small random lakes."],
+	["Passes", 13, "A large hill encompasses the map and leaves players only a small passage to the two neighboring players."],
+	["Lowlands", 14, "The land is enclosed by a hill that leaves a small area per player connected to the large central place."],
+	["Mainland", 15, "A typical map without any water."],
+	["Random Naval", 2, "Choose a random naval landscape"],
+	["Naval: Central Sea", 5, "A huge sea is dividing the map into two halves."],
+	["Naval: Archipelago", 3, "Players are scattered across island chains and disconnected islands."],
+	["Naval: Lake and rivers", 9, "A central lake with rivers possibly separating neighboring players."]]
+const LANDSCAPE_MAPS := ["random_unknown"]
 
 # 0 A.D. map sizes (width in meters) for random maps.
 const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium (256 m)"],
@@ -289,7 +307,10 @@ func _update_map_options() -> void:
 	var tp := id in TEAM_PLACEMENT_MAPS
 	$VBox/HBox/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
 	$VBox/HBox/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
-	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp
+	var ls := id in LANDSCAPE_MAPS
+	$VBox/HBox/Left/MapOptionsRow/LandscapeLabel.visible = ls
+	$VBox/HBox/Left/MapOptionsRow/LandscapeSlot.visible = ls
+	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls
 
 func _selected_map() -> Dictionary:
 	if _filtered.is_empty():
@@ -550,6 +571,13 @@ func _build_options() -> void:
 		tips.append("%s: %s" % [p[0], p[1]])
 	$VBox/HBox/Left/MapOptionsRow/TeamPlacementLabel.tooltip_text = "\n".join(tips)
 	tpl.select(0)
+	var lsc := _make_option($VBox/HBox/Left/MapOptionsRow/LandscapeSlot)
+	var ltips := PackedStringArray()
+	for l in LANDSCAPES:
+		lsc.add_item(l[0])
+		ltips.append("%s: %s" % [l[0], l[2]])
+	$VBox/HBox/Left/MapOptionsRow/LandscapeLabel.tooltip_text = "\n".join(ltips)
+	lsc.select(0)
 	var res := _make_option($VBox/HBox/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -620,6 +648,11 @@ func _restore_settings() -> void:
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
 	var tpl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	tpl.select(clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1))
+	var lsc: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/LandscapeSlot.get_child(0)
+	lsc.select(0)
+	for i in range(LANDSCAPES.size()):
+		if int(LANDSCAPES[i][1]) == int(ms.get("landscape")):
+			lsc.select(i)
 	var msz: RtsoSafeSelect = $VBox/HBox/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -683,6 +716,7 @@ func _collect_setup() -> Dictionary:
 	var wl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
 	var sr: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
 	var tpl: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
+	var lsc: RtsoSafeSelect = $VBox/HBox/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -734,6 +768,7 @@ func _collect_setup() -> Dictionary:
 		"water_level": maxi(wl.get_selected(), 0),
 		"sea_level_rise_min": int(SEA_RISE_TIMES[maxi(sr.get_selected(), 0)]),
 		"team_placement": maxi(tpl.get_selected(), 0),
+		"landscape": int(LANDSCAPES[maxi(lsc.get_selected(), 0)][1]),
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
@@ -810,6 +845,7 @@ func _on_start_pressed() -> void:
 	ms.water_level = int(st["water_level"])
 	ms.sea_level_rise_min = int(st["sea_level_rise_min"])
 	ms.team_placement = int(st["team_placement"])
+	ms.landscape = int(st["landscape"])
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])
