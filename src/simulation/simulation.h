@@ -2546,6 +2546,7 @@ private:
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
+	void petra_assign_bombers(); // attackManager.js assignBombers
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
 	void petra_manage_critical_ent_guards();
 	void petra_manage_critical_ent_healers();

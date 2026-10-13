@@ -2163,6 +2163,40 @@ static void test_capturing_armies() {
 	CHECK(taken, "Petra captures a Gaia structure in its land");
 }
 
+// attackManager.js assignBombers: an idle stone thrower shells an enemy structure it can
+// reach from our land, and leaves alone those deep in enemy land.
+static void test_assign_bombers() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr, *enemy_cc = nullptr;
+	for (const auto &b : s->buildings_) {
+		if (b.type != BLD_TOWN_CENTER || b.build_progress < 1.0f) continue;
+		if (b.team == 1) cc = &b;
+		if (b.team == 0) enemy_cc = &b;
+	}
+	CHECK(cc && enemy_cc, "both sides have a civic centre");
+	if (!cc || !enemy_cc) return;
+	const float cx = cc->x, cz = cc->z;
+	// Called straight after spawning, while the stone thrower is idle (its own UnitAI would
+	// otherwise pick the tower up once it sees it).
+	const uint32_t cat = s->spawn_unit(cx - 12.0f, cz + 6.0f, 1, UNIT_CATAPULT);
+	const uint32_t enemy_cc_id = enemy_cc->id;
+	s->petra_assign_bombers();
+	int32_t ci = s->lookup_unit(cat);
+	CHECK(ci >= 0 && !s->units_.has_order[ci], "it leaves the enemy civic centre in enemy land alone");
+	(void)enemy_cc_id;
+	const uint32_t tower = s->spawn_building_world(cx - 12.0f, cz + 18.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+	s->petra_assign_bombers();
+	ci = s->lookup_unit(cat);
+	const bool shelling = ci >= 0 && s->units_.order_kind[ci] == ORDER_ATTACK_BUILDING && s->units_.order_target[ci] == tower;
+	std::printf("  bombers: idle stone thrower shells the enemy tower in our land: %s\n", shelling ? "yes" : "no");
+	CHECK(shelling, "an idle stone thrower shells an enemy structure within reach (assignBombers)");
+}
+
 // defenseManager.js isDangerous / checkEvents outside our own land: Petra sends
 // defenders to an ally's civic centre under attack, keeps a backup of up to 12
 // far-off units at home, and answers a unit attacked in neutral land.
@@ -2781,6 +2815,7 @@ int main() {
 	test_defense_armies();
 	test_defense_switch_to_attack();
 	test_capturing_armies();
+	test_assign_bombers();
 	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
