@@ -29,6 +29,14 @@
 
 using namespace godot;
 
+// 0 A.D.'s sprintf with named arguments: each "%(key)s" in the (translated)
+// format string becomes its value, so translators can reorder them.
+static String sprintf0(const String &format, std::initializer_list<std::pair<const char *, String>> args) {
+	String s = format;
+	for (const auto &a : args) s = s.replace(String("%(") + a.first + ")s", a.second);
+	return s;
+}
+
 // 0 A.D. Trainer lists (civ_unit_template(..).trainers): does a structure of type
 // `btype` train any of `civ`'s units of class `utype`?
 static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
@@ -2101,13 +2109,10 @@ void RtsoMain::notify_attack(Vector3 pos, uint8_t attacker, bool structure) {
 	const bool gaia = attacker == rtso::GAIA_PLAYER;
 	session_audio_.play_group("interface/alarm", gaia ? "alarm_attacked_gaia" : "alarmattackplayer", 0.25f);
 	if (!chat_window_.is_ready() || !user_opts_.attack_notice) return;
-	String who = gaia ? String("Gaia")
-			: player_display_name(attacker) + " (" + String(rtso::civ_info(sim->player_civ(attacker)).name) + ")";
+	// ChatMessageFormatSimulation.attack: the attacker's name in its colour.
 	(void)structure; // 0 A.D. words unit and structure attacks the same way
-	const String what = "You have been attacked";
-	const String key = rtso::hotkeys::table().label("camera.lastattackfocus").c_str();
-	chat_window_.append_line("[color=#ff6644]" + what + " by " + who + "![/color]" +
-			(key.is_empty() ? String() : " [color=#aaaaaa](" + key + " to view)[/color]") + "\n");
+	chat_window_.append_line(sprintf0(tr("%(icon)sYou have been attacked by %(attacker)s!"),
+			{{"icon", ""}, {"attacker", colored_player_name(attacker)}}) + "\n");
 }
 
 // colorizePlayernameByID: the name in the player's displayed colour.
@@ -2135,17 +2140,24 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 				sim->get_diplomacy(b, a) == rtso::Simulation::DIPLO_ALLY;
 	};
 	// getLocalizedResourceAmounts: "100 food, 50 wood and 200 metal".
-	auto amounts_text = [](const int32_t *amounts, const uint8_t *types, int n) {
-		static const char *kNames[rtso::RES_COUNT] = {"wood", "metal", "stone", "food"}; // RES_* order
-		String parts[rtso::RES_COUNT];
-		int count = 0;
+	// tooltips.js: "%(amount)s %(resourceType)s" each, the last joined by
+	// "%(previousAmounts)s and %(lastAmount)s", the others by ", ".
+	auto amounts_text = [this](const int32_t *amounts, const uint8_t *types, int n) {
+		// resourceNameWithinSentence: the resource's name in the "withinSentence"
+		// context; English keeps it lower case ("200 food, 100 wood and 300 metal").
+		static const char *kNames[rtso::RES_COUNT] = {"Wood", "Metal", "Stone", "Food"}; // RES_* order
+		PackedStringArray parts;
 		for (int i = 0; i < n; ++i)
-			if (amounts[i] > 0 && types[i] < rtso::RES_COUNT)
-				parts[count++] = String::num_int64(amounts[i]) + " " + kNames[types[i]];
-		String out;
-		for (int i = 0; i < count; ++i)
-			out += (i == 0 ? "" : i == count - 1 ? " and " : ", ") + parts[i];
-		return out;
+			if (amounts[i] > 0 && types[i] < rtso::RES_COUNT) {
+				const String name = tr(kNames[types[i]]);
+				parts.push_back(sprintf0(tr("%(amount)s %(resourceType)s"), {{"amount", String::num_int64(amounts[i])},
+						{"resourceType", name == kNames[types[i]] ? name.to_lower() : name}}));
+			}
+		if (parts.size() < 2) return parts.is_empty() ? String() : parts[0];
+		const String last = parts[parts.size() - 1];
+		parts.remove_at(parts.size() - 1);
+		return sprintf0(tr("%(previousAmounts)s and %(lastAmount)s"),
+				{{"previousAmounts", String(tr(", ")).join(parts)}, {"lastAmount", last}});
 	};
 	for (const N &n : notices) {
 		String line;
@@ -2155,31 +2167,44 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			int32_t a[4];
 			for (int i = 0; i < 4; ++i) a[i] = n.amounts[kOrder[i]];
 			const String what = amounts_text(a, kOrder, 4);
-			if (n.other == me) line = colored_player_name(n.player) + " has sent you " + what + ".";
-			else if (n.player == me) line = "You have sent " + colored_player_name(n.other) + " " + what + ".";
+			if (n.other == me)
+				line = sprintf0(tr("%(player)s has sent you %(amounts)s."), {{"player", colored_player_name(n.player)}, {"amounts", what}});
+			else if (n.player == me)
+				line = sprintf0(tr("You have sent %(player2)s %(amounts)s."), {{"player2", colored_player_name(n.other)}, {"amounts", what}});
 			else if (user_opts_.tribute_notice &&
 					(observer || (sim->teams_locked() && mutual_ally(n.player, me) && mutual_ally(n.other, me))))
-				line = colored_player_name(n.player) + " has sent " + colored_player_name(n.other) + " " + what + ".";
+				line = sprintf0(tr("%(player)s has sent %(player2)s %(amounts)s."),
+						{{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}, {"amounts", what}});
 		} else if (n.kind == N::BARTER) {
 			if (observer && user_opts_.barter_notice) {
 				const String given = amounts_text(&n.amounts[0], &n.other, 1);
 				const String gained = amounts_text(&n.amounts[1], &n.tech, 1);
-				line = colored_player_name(n.player) + " bartered " + given + " for " + gained + ".";
+				line = sprintf0(tr("%(player)s bartered %(amountGiven)s for %(amountGained)s."),
+						{{"player", colored_player_name(n.player)}, {"amountGiven", given}, {"amountGained", gained}});
 			}
 		} else if (n.kind == N::PHASE_STARTED || n.kind == N::PHASE_ABORTED || n.kind == N::PHASE_COMPLETED) {
 			if (user_opts_.phase_notice == 0 || (n.player != me && !observer && !mutual_ally(n.player, me))) continue;
-			const String phase = String::utf8(rtso::tech_info(n.tech).name);
-			if (n.kind == N::PHASE_COMPLETED) line = colored_player_name(n.player) + " has reached the " + phase + ".";
+			const String phase = tr(String::utf8(rtso::tech_info(n.tech).name));
+			const String player = colored_player_name(n.player);
+			if (n.kind == N::PHASE_COMPLETED)
+				line = sprintf0(tr("%(player)s has reached the %(phaseName)s."), {{"player", player}, {"phaseName", phase}});
 			else if (user_opts_.phase_notice == 2 && n.kind == N::PHASE_STARTED)
-				line = colored_player_name(n.player) + " is advancing to the " + phase + ".";
+				line = sprintf0(tr("%(player)s is advancing to the %(phaseName)s."), {{"player", player}, {"phaseName", phase}});
 			else if (user_opts_.phase_notice == 2)
-				line = "The " + phase + " of " + colored_player_name(n.player) + " has been aborted.";
+				line = sprintf0(tr("The %(phaseName)s of %(player)s has been aborted."), {{"player", player}, {"phaseName", phase}});
 		} else if (n.kind == N::DIPLOMACY) {
-			static const char *kWord[3] = {"allied with", "neutral with", "at war with"};
-			const char *word = kWord[n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2];
-			if (observer) line = colored_player_name(n.player) + " is now " + word + " " + colored_player_name(n.other) + ".";
-			else if (n.player == me) line = "You are now " + String(word) + " " + colored_player_name(n.other) + ".";
-			else if (n.other == me) line = colored_player_name(n.player) + " is now " + word + " you.";
+			// ChatMessageFormatSimulation.diplomacy's three message sets.
+			static const char *kObserver[3] = {"%(player)s is now allied with %(player2)s.",
+					"%(player)s is now neutral with %(player2)s.", "%(player)s is now at war with %(player2)s."};
+			static const char *kMine[3] = {"You are now allied with %(player)s.",
+					"You are now neutral with %(player)s.", "You are now at war with %(player)s."};
+			static const char *kTheirs[3] = {"%(player)s is now allied with you.",
+					"%(player)s is now neutral with you.", "%(player)s is now at war with you."};
+			const int w = n.tech <= rtso::Simulation::DIPLO_ENEMY ? n.tech : 2;
+			if (observer)
+				line = sprintf0(tr(kObserver[w]), {{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}});
+			else if (n.player == me) line = sprintf0(tr(kMine[w]), {{"player", colored_player_name(n.other)}});
+			else if (n.other == me) line = sprintf0(tr(kTheirs[w]), {{"player", colored_player_name(n.player)}});
 		}
 		if (!line.is_empty()) chat_window_.append_line(line + "\n");
 	}
@@ -2444,7 +2469,7 @@ void RtsoMain::update_pause_overlay() {
 	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
 	if (!show) return;
 	pause_resume_label_->set_visible(hotkey_paused_);
-	const String by = networked && !who.is_empty() ? vformat(tr("Paused by %s"), who) : String();
+	const String by = networked && !who.is_empty() ? sprintf0(tr("Paused by %(players)s"), {{"players", who}}) : String();
 	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
 }
 
@@ -2502,11 +2527,12 @@ void RtsoMain::post_network_chat() {
 		if (!first) {
 			for (const auto &e : chat_assignments_)
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(now, e.client))
-					chat_window_.append_line(vformat(tr("%s has left the game."), who(e)) + "\n");
+					chat_window_.append_line(sprintf0(tr("%(player)s has left the game."), {{"player", who(e)}}) + "\n");
 			for (const auto &e : now)
 				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(chat_assignments_, e.client))
-					chat_window_.append_line(vformat(e.player < rtso::MAX_PLAYERS
-							? tr("%s is starting to rejoin the game.") : tr("%s is starting to join the game."), who(e)) + "\n");
+					chat_window_.append_line(sprintf0(e.player < rtso::MAX_PLAYERS
+							? tr("%(player)s is starting to rejoin the game.") : tr("%(player)s is starting to join the game."),
+							{{"player", who(e)}}) + "\n");
 		}
 		chat_assignments_ = now;
 	}
@@ -2514,7 +2540,7 @@ void RtsoMain::post_network_chat() {
 	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
 		const auto &k = kicks[kicks_chatted_];
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
-		chat_window_.append_line(vformat(k.ban ? tr("%s has been banned") : tr("%s has been kicked"), name) + "\n");
+		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
 	}
 }
 
