@@ -19216,8 +19216,8 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 		for (int ix = x0; ix <= x1; ++ix) {
 			const float x = centre(ix), z = centre(iz);
 			if (territory_owner_at(x, z) != (int)petra_pid_) continue;
-			auto [nx, nz] = nav_grid_.world_to_cell(x, z);
-			const uint16_t land = nav_grid_.global_region_at(nx, nz, PASS_INFANTRY);
+			// The tile's land (getLandAccess): a tile under a structure takes the land around it.
+			const uint16_t land = petra_land_at(x, z);
 			if (!land) continue;
 			float best = 1e30f;
 			for (size_t a = 0; a < m.anchors.size(); ++a) {
