@@ -13,7 +13,9 @@ sits on bone 1, so the node moves by that bone's pose times its inverse bind.
 
 The keys go into the GLB's Idle and Walk/Run clips (Attack and Death take the
 idle stroke), looped to the clip's length. A hull with no clips gets Idle, Walk
-and Run. Keyed nodes are renamed oarx_<k>, so the runtime sine leaves them be.
+and Run. The rams and the Han tower ship were written static, every oar baked
+into the hull's space; their oar nodes get their transforms back first
+(unbake_oars). Keyed nodes are renamed oarx_<k>, so the runtime sine leaves them be.
 Templates that borrow their class model's clips (manifest clips_from) are left
 alone, as are hulls whose actors 0 A.D. trunk no longer has (the German ships).
 
@@ -29,7 +31,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from add_0ad_clips import MANIFEST, REPO, add_accessor, read_glb, write_glb  # noqa: E402
+from add_0ad_clips import MANIFEST, REPO, add_accessor, read_accessor, read_glb, write_glb  # noqa: E402
 from extract_0ad_assets import (Vfs, _actor_path, _psa_for_dae, compose_actor,  # noqa: E402
                                 mat3_to_quat, parse_pmd, parse_psa, quat_to_mat)
 from oad_collada_archive import ColladaArchive  # noqa: E402
@@ -44,7 +46,10 @@ def tq_mat(t, q):
 
 
 def mat_tq(m):
-    q = mat3_to_quat([[float(m[i][j]) for j in range(3)] for i in range(3)])
+    """Translation and rotation; a uniform scale (unbaked oars) is left to the node."""
+    r = np.array(m, dtype=float)[:3, :3]
+    r = r / np.linalg.norm(r[:, 0])
+    q = mat3_to_quat([[float(r[i][j]) for j in range(3)] for i in range(3)])
     return [float(x) for x in m[:3, 3]], [float(x) for x in q]
 
 
@@ -92,6 +97,58 @@ def oar_parts(vfs, actors):
     return out
 
 
+def unbake_oars(gltf, bin_, vfs, actors):
+    """Rams and the Han tower ship were written as static GLBs: every oar baked
+    into model space as its own mesh node, in compose_actor's part order. Give
+    each oar node its rest transform back (fitted from the oar mesh's own
+    vertices), with the mesh in the oar's space, and name it oar_<k>."""
+    nodes = gltf["nodes"]
+    kids = nodes[0].get("children") or []
+    for act in actors:
+        if not vfs.exists(act):
+            continue
+        parts, _ = compose_actor(vfs, act)
+        if len(parts) != len(kids):
+            continue
+        out = {}
+        for k, (part, ni) in enumerate(zip(parts, kids)):
+            if "ship_oar" not in (part.source or "") or "mesh" not in nodes[ni]:
+                continue
+            prim = gltf["meshes"][nodes[ni]["mesh"]]["primitives"][0]
+            pos = read_accessor(gltf, bin_, prim["attributes"]["POSITION"]).astype(float)
+            raw = np.array([v for v, _n in part.mesh_data["verts"]], dtype=float)
+            if len(raw) != len(pos):
+                continue
+            a_h = np.hstack([raw, np.ones((len(raw), 1))])
+            fit = np.linalg.lstsq(a_h, pos, rcond=None)[0].T
+            if np.abs(a_h @ fit.T - pos).max() > 1e-4:
+                continue
+            node_m = np.vstack([fit, [0, 0, 0, 1]])
+            sc = float(np.linalg.norm(node_m[:3, 0]))
+            rot = node_m[:3, :3] / sc
+            inv = np.linalg.inv(node_m)
+            local = (inv[:3, :3] @ pos.T).T + inv[:3, 3]
+            acc = add_accessor(gltf, bin_, local.astype(np.float32), "VEC3")
+            gltf["accessors"][acc]["min"] = [float(x) for x in local.min(0)]
+            gltf["accessors"][acc]["max"] = [float(x) for x in local.max(0)]
+            prim["attributes"]["POSITION"] = acc
+            if "NORMAL" in prim["attributes"]:
+                nrm = read_accessor(gltf, bin_, prim["attributes"]["NORMAL"]).astype(float)
+                nrm = (rot.T @ nrm.T).T
+                nrm /= np.maximum(np.linalg.norm(nrm, axis=1, keepdims=True), 1e-9)
+                prim["attributes"]["NORMAL"] = add_accessor(gltf, bin_, nrm.astype(np.float32), "VEC3")
+            if "TANGENT" in prim["attributes"]:
+                tan = read_accessor(gltf, bin_, prim["attributes"]["TANGENT"]).astype(float)
+                tan[:, :3] = (rot.T @ tan[:, :3].T).T
+                prim["attributes"]["TANGENT"] = add_accessor(gltf, bin_, tan.astype(np.float32), "VEC4")
+            t, q = mat_tq(node_m)
+            nodes[ni].update({"name": f"oar_{k}", "translation": t, "rotation": [float(x) for x in q],
+                              "scale": [sc] * 3})
+            out[ni] = (_actor_path(part.source), node_m)
+        return out
+    return {}
+
+
 def anim_length(gltf, bin_, anim):
     end = 0.0
     for s in anim["samplers"]:
@@ -129,12 +186,12 @@ def fix(path, entry, vfs):
     gltf, bin_ = read_glb(path)
     nodes = gltf["nodes"]
     oars = [i for i, n in enumerate(nodes) if n.get("name", "").startswith("oar_")]
-    if not oars:
-        return 0, set()
     actors = sorted(s[len("actor:"):] for s in entry.get("sources", [])
                     if s.startswith("actor:art/actors/structures/"))
-    parts = oar_parts(vfs, actors)
     matched = {}
+    if not oars and not any(n.get("name", "").startswith("oarx_") for n in nodes):
+        matched = unbake_oars(gltf, bin_, vfs, actors)
+    parts = oar_parts(vfs, actors) if oars else []
     for i in oars:
         nd = nodes[i]
         rest = tq_mat(nd.get("translation", [0, 0, 0]), nd.get("rotation", [0, 0, 0, 1]))
