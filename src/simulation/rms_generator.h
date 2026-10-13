@@ -126,6 +126,9 @@ public:
 		// UNKNOWN_LANDSCAPE_RANDOM, _RANDOM_LAND, _RANDOM_NAVAL, or
 		// UNKNOWN_LANDSCAPE_FIRST + one landscape (synth_unknown's order).
 		uint8_t landscape = 0;
+		// Game Setup Trigger Difficulty (data/settings/trigger_difficulties.json:
+		// 1 Very Easy .. 5 Very Hard, 3 Medium), for the maps that support it.
+		uint8_t trigger_difficulty = 3;
 	};
 	enum : uint8_t {
 		UNKNOWN_LANDSCAPE_RANDOM = 0, UNKNOWN_LANDSCAPE_RANDOM_LAND = 1, UNKNOWN_LANDSCAPE_RANDOM_NAVAL = 2,
@@ -238,6 +241,7 @@ private:
 		std::vector<float> temple_pos;            // x, z pairs
 		float ritual[2] = {}, ritual_angle = 0.0f, pyramids[2] = {}, pyramids_r = 0.0f;
 		uint8_t wall = 0xFF;                      // WallSetKind of the Napata wall, 0xFF for none
+		uint8_t difficulty = 3;                   // getDifficulty(): the Trigger Difficulty, 1..5
 		std::vector<float> wall_spans, gates;     // x0, z0, x1, z1 per span; x, z, rot per gate
 		float height_hill = 0.0f, height_hilltop = 0.0f, height_archers = 0.0f;
 		std::vector<uint8_t> fertile, desert, water, hill, hilltop, cliff, path, crossing, city, keep_clear;
