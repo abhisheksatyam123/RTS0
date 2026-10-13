@@ -1305,6 +1305,7 @@ enum TechStat : uint8_t {
 	TSTAT_GARRISON_ARROWS, // BuildingAI/GarrisonArrowMultiplier
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
 	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
+	TSTAT_UNIT_LOOT_FOOD, TSTAT_UNIT_LOOT_WOOD, TSTAT_UNIT_LOOT_STONE, TSTAT_UNIT_LOOT_METAL, // Loot/<res> of the unit itself
 	TSTAT_COUNT
 };
 

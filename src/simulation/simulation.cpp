@@ -3296,6 +3296,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		for (float &g : tm.gather) g = 1.0f;
 		for (float &c : tm.cost) c = 1.0f;
 		for (float &c : tm.cost_add) c = 0.0f;
+		for (float &l : tm.loot_mul) l = 1.0f;
+		for (float &l : tm.loot_add) l = 0.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
@@ -3409,6 +3411,13 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 						if (e.op == TOP_ADD) tm.cost_add[cost_res] += e.value;
 						else apply(tm.cost[cost_res]);
 						break;
+					case TSTAT_UNIT_LOOT_FOOD: case TSTAT_UNIT_LOOT_WOOD: case TSTAT_UNIT_LOOT_STONE: case TSTAT_UNIT_LOOT_METAL: {
+						static constexpr int kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+						const int r = kRes[e.stat - TSTAT_UNIT_LOOT_FOOD];
+						if (e.op == TOP_ADD) tm.loot_add[r] += e.value;
+						else apply(tm.loot_mul[r]);
+						break;
+					}
 					default: break;
 				}
 			}
@@ -6952,6 +6961,14 @@ void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, si
 	if (owner < MAX_PLAYERS && players_[owner].has_tech(TECH_COST_HEALER) &&
 			unit_is_healer(units_.tmpl[victim], units_.unit_type[victim]))
 		loot.metal = 0;
+	// Loot/<res> technologies of the victim's owner on its roster template (Celtic Auxiliaries).
+	if (owner < MAX_PLAYERS && units_.tmpl[victim] < CIV_UNIT_TEMPLATE_COUNT && !loot_denied_unit(victim)) {
+		const TechMods::Template &tm = tech_mods(owner).tmpl[units_.tmpl[victim]];
+		loot.food = (uint16_t)std::max(0.0f, std::floor(loot.food * tm.loot_mul[RES_FOOD] + tm.loot_add[RES_FOOD]));
+		loot.wood = (uint16_t)std::max(0.0f, std::floor(loot.wood * tm.loot_mul[RES_WOOD] + tm.loot_add[RES_WOOD]));
+		loot.stone = (uint16_t)std::max(0.0f, std::floor(loot.stone * tm.loot_mul[RES_STONE] + tm.loot_add[RES_STONE]));
+		loot.metal = (uint16_t)std::max(0.0f, std::floor(loot.metal * tm.loot_mul[RES_GOLD] + tm.loot_add[RES_GOLD]));
+	}
 	collect_loot(looter_id, looter_player, loot, loot_rank_multiplier(units_.rank[victim]),
 			units_.res_type_carried[victim], units_.carry[victim]);
 }
