@@ -20399,6 +20399,13 @@ void Simulation::petra_manage_defense(float dt) {
 			}
 		}
 	}
+	// defenseManager.js assignDefenders: a shortage of defenders trains infantry garrisoned in the
+	// civic centre nearest the armies still in need (trainEmergencyUnits).
+	if (!needs.empty()) {
+		std::vector<std::pair<float, float>> positions;
+		for (const Need &n : needs) positions.push_back({n.x, n.z});
+		petra_train_emergency_units(positions);
+	}
 
 	// defenseArmy.js assignUnit: a defender with no foe of its army to fight takes the foe
 	// attacking it, else the nearest foe with at most 2 already against it, else the
