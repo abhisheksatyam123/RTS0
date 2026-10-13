@@ -1649,6 +1649,24 @@ static void test_placement_miss_memory_exact() {
 // baseManager.js findBestDropsiteLocation scores territory tiles on the resource maps: the
 // storehouse goes by the big forest, not the small grove, beyond 60 m of the civic centre.
 // queueplanBuilding.js keeps the farmstead out of the woods (a third of the wood map off).
+// Petra pays a structure what it costs its own civ (structure_cost), not the generic row:
+// a Briton barracks is 300 wood and no stone.
+static void test_structure_cost_by_civ() {
+	auto s = std::make_unique<Simulation>();
+	s->reset();
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_BRITONS;
+	s->set_player_resources(1, 1000, 1000, 1000, 1000);
+	fund_queues(*s);
+	float c[RES_COUNT];
+	s->structure_cost(1, BLD_BARRACKS, -1.0f, c);
+	const BuildingTypeInfo &generic = building_type_info(BLD_BARRACKS);
+	std::printf("  Briton barracks %.0fw %.0fs (generic %dw %ds)\n", c[RES_WOOD], c[RES_STONE], generic.wood_cost, generic.stone_cost);
+	CHECK(c[RES_WOOD] == 300.0f && c[RES_STONE] == 0.0f, "a Briton barracks costs 300 wood and no stone");
+	CHECK(s->petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS), "Petra pays for it");
+	CHECK(s->players_[1].wood() == 700.0f && s->players_[1].stone() == 1000.0f, "with 300 wood and no stone");
+}
+
 static void test_dropsite_sites() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -3304,6 +3322,7 @@ int main() {
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
 	test_dropsite_sites();
+	test_structure_cost_by_civ();
 	test_repairs();
 	test_idle_return();
 	test_idle_return_to_wagon();

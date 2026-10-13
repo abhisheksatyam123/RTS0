@@ -172,6 +172,9 @@ def stat_of(path: str):
     m = re.fullmatch(r"Attack/(Melee|Ranged)/Damage/(Hack|Pierce|Crush)", path)
     if m:
         return "TSTAT_" + m.group(1).upper() + "_" + m.group(2).upper()
+    m = re.fullmatch(r"Loot/(food|wood|stone|metal)", path)
+    if m:  # what the unit itself yields when killed (Sacrificial Ritual, Celtic Auxiliaries)
+        return "TSTAT_UNIT_LOOT_" + m.group(1).upper()
     m = re.fullmatch(r"Resistance/Entity/Damage/(Hack|Pierce|Crush)", path)
     if m:
         return "TSTAT_ARMOR_" + m.group(1).upper()

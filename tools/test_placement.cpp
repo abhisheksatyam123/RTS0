@@ -229,6 +229,27 @@ static void test_turned_and_freed_ground() {
 	            "a deleted foundation and a destroyed house free their ground\n");
 }
 
+// BuildRestrictions.js: own territory cut off from every civic centre (IsTerritoryBlinking)
+// takes only what may also go on neutral land ("unconnected own").
+static void test_unconnected_territory() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(-45.0f, 45.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t fort = s.spawn_building_world(45.0f, 45.0f, BLD_FORTRESS, 0, 1.0f);
+	s.rebuild_territory();
+	const bool cut_off = s.territory_owner_at(45.0f, 55.0f) == 0 && !s.territory_connected_at(45.0f, 55.0f);
+	std::printf("fortress territory owner %d, connected %d\n", s.territory_owner_at(45.0f, 55.0f),
+			(int)s.territory_connected_at(45.0f, 55.0f));
+	CHECK(cut_off);
+	CHECK(s.territory_connected_at(-45.0f, 55.0f));
+	CHECK(at(s, 0, -35.0f, 55.0f, BLD_HOUSE) == Simulation::PLACE_OK);           // connected own
+	CHECK(at(s, 0, 52.0f, 58.0f, BLD_HOUSE) == Simulation::PLACE_TERRITORY);     // unconnected own
+	CHECK(at(s, 0, 52.0f, 58.0f, BLD_BARRACKS) == Simulation::PLACE_TERRITORY);
+	CHECK(at(s, 0, 52.0f, 58.0f, BLD_OUTPOST) == Simulation::PLACE_OK);          // own neutral
+	CHECK(at(s, 0, 52.0f, 58.0f, BLD_PALISADE) == Simulation::PLACE_OK);
+	(void)fort;
+}
+
 int main() {
 	static Simulation s;
 	fresh(s);
@@ -309,6 +330,7 @@ int main() {
 	test_rotation();
 	test_foundation_clearing();
 	test_turned_and_freed_ground();
+	test_unconnected_territory();
 
 	std::printf("RESULT: %s (%d)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
