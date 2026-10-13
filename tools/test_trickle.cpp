@@ -173,7 +173,7 @@ int main() {
 	//     autoqueue queues the same batch again.
 	{
 		fresh(s);
-		const uint32_t c = s.spawn_building_world(10.0f, 10.0f, BLD_CORRAL, 0, 1.0f);
+		const uint32_t c = s.spawn_building_world(-25.0f, -15.0f, BLD_CORRAL, 0, 1.0f); // in the civic centre's territory
 		s.players_[0].res[RES_FOOD] = 1000.0f;
 		CHECK(s.cmd_breed_livestock(0, c, FAUNA_SHEEP_TRAINABLE, 5));
 		CHECK(near(s.players_[0].res[RES_FOOD], 750.0f));

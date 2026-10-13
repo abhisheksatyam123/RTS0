@@ -499,9 +499,10 @@ static void test_attack_plans() {
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		// Fortresses on dry land around its base keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
-		// still a target to plan the HugeAttack against.
+		// still a target to plan the HugeAttack against. The one at (34, -4) keeps Petra's second
+		// Civic Center off the neutral strip below it, as in test_roster_army.
 		s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(40.0f, 6.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(34.0f, -4.0f, BLD_FORTRESS, 0, 1.0f);
 		s->spawn_building_world(6.0f, 22.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
