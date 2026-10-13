@@ -18,6 +18,10 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
 - every "range" aura with Looter/Resource modifications (Brennus, Nastasen, Viriato):
   its multiply and add per resource, an AURA_LOOTER source; and every one replacing
   its victims' Loot with 0 (Pericles), an AURA_NO_LOOT source.
+- every "range" or "global" unit aura's AuraManager effects of each kind
+  (extract_0ad_rosters.rts0_aura_effects): civ_roster_data.h keeps only one kind per
+  unit aura, so the others (Brasidas' ranged damage beside his armour, Boudicca's
+  speed beside her attack...) are registered from here.
 - every "range" aura with a Builder/Rate modification (Xerxes, Ptolemy I, the Han
   minister): its multiplier and whether it stacks, registered as an AURA_BUILD source.
 - every "garrison" aura on BuildingAI/GarrisonArrowMultiplier or MaxArrowCount (Caros'
@@ -268,6 +272,22 @@ def main() -> int:
             looter_auras.append((name, mul, add, float(j.get("radius", 0)), players))
         if zero:
             no_loot_auras.append((name, float(j.get("radius", 0)), players))
+    # Unit auras' AuraManager effects of every kind (the roster keeps the strongest one).
+    import extract_0ad_rosters as ros  # noqa: E402
+    effect_rows: list[tuple[str, str, float, float]] = []
+    for rel in sorted(list_files(src, "simulation/data/auras/units/")):
+        if not rel.endswith(".json"):
+            continue
+        j = json.loads(src.read(rel))
+        if j.get("type") not in ("range", "global"):
+            continue
+        a = {"type": j["type"], "radius": float(j.get("radius", 0)),
+             "players": j.get("affectedPlayers", ["Player"]), "modifications": j.get("modifications", [])}
+        effects = ros.rts0_aura_effects(a)
+        if len(effects) < 2:
+            continue  # one kind: the roster row has it
+        for kind, value, rng in effects:
+            effect_rows.append((os.path.basename(rel)[:-5], kind, float(value), float(rng)))
     cap_structures: list[tuple[str, int, str]] = []
     import extract_0ad_attack as atk  # noqa: E402
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
@@ -390,6 +410,19 @@ def main() -> int:
         w(f"\t\t{{\"{name}\", {radius!r}f, {players}}},")
     w("\t};")
     w("\treturn kAuras;")
+    w("}")
+    w("")
+    w("// Every AuraManager effect of the unit auras with more than one kind (extract_0ad_rosters")
+    w("// rts0_aura_effects): civ_roster_data.h's CivHeroAura keeps one kind, and rebuild_auras")
+    w("// registers the rows of the other kinds from here. range in RTS0 units.")
+    w("struct AuraEffectRow { const char *id; uint8_t kind; float value; float range; };")
+    w(f"constexpr uint16_t AURA_EFFECT_ROW_COUNT = {len(effect_rows)};")
+    w("inline const AuraEffectRow *aura_effect_rows() {")
+    w(f"\tstatic const AuraEffectRow kRows[{max(1, len(effect_rows))}] = {{")
+    for name, kind, value, rng in effect_rows:
+        w(f"\t\t{{\"{name}\", {ros.AURA_KIND[kind]} /* {kind} */, {round(value, 4)!r}f, {round(rng, 4)!r}f}},")
+    w("\t};")
+    w("\treturn kRows;")
     w("}")
     w("")
     w("// Structures projecting a capture range aura: BuildingType, capture_range_auras() index.")
