@@ -239,7 +239,7 @@ int main() {
 		for (uint16_t i = civ_roster_begin(CIV_SPARTANS); i < civ_roster_end(CIV_SPARTANS); ++i)
 			if (civ_unit_template(i).trainers & bld_bit(BLD_SYSSITON)) ++at_syssiton;
 		CHECK(at_syssiton >= 3);
-		CHECK(bld_bit(BLD_MINISTRY) == (1ull << 45));
+		CHECK(bld_bit(BLD_MINISTRY).test(45));
 		// 0 A.D. Loot of civ-specific structures (Looter.js), metal as gold.
 		CHECK(building_loot(BLD_ARMY_CAMP).wood == 80 && building_loot(BLD_ARMY_CAMP).stone == 30);
 		CHECK(building_loot(BLD_PYRAMID_LARGE).stone == 90 && building_loot(BLD_PYRAMID_LARGE).metal == 30);
