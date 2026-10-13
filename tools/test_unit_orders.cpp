@@ -2154,6 +2154,49 @@ static void test_nastasen_warships() {
 	check(after[RES_WOOD] == before[RES_WOOD], "Nastasen dead: full cost again");
 }
 
+static void test_arakamani_temples() {
+	std::printf("59. Arakamani's Follower of Apedemak: the Kushite temple and Apedemak guard -30%% cost and time\n");
+	auto near1 = [](float a, float b) { return std::fabs(a - b) < 1e-5f; };
+	Simulation s;
+	setup(s);
+	s.set_team_civ(0, CIV_KUSHITES);
+	const uint16_t ape = roster_named("kush/champion_infantry_apedemak"), amun = roster_named("kush/champion_infantry_amun");
+	check(ape != CIV_UNIT_TEMPLATE_NONE && amun != CIV_UNIT_TEMPLATE_NONE, "roster has both temple guards");
+	struct Costs { float temple[RES_COUNT], ape[RES_COUNT], amun[RES_COUNT], temple_time, ape_time, amun_time, amun_temple_time; };
+	auto costs = [&]() {
+		Costs c{};
+		s.structure_cost(0, BLD_TEMPLE, -1.0f, c.temple);
+		s.unit_train_cost(0, ape, civ_template_unit_info(ape, UNIT_SWORDSMAN), c.ape);
+		s.unit_train_cost(0, amun, civ_template_unit_info(amun, UNIT_SWORDSMAN), c.amun);
+		const auto &m = s.tech_mods(0);
+		c.temple_time = m.bld_build_time[BLD_TEMPLE];
+		c.amun_temple_time = m.bld_build_time[BLD_TEMPLE_AMUN];
+		c.ape_time = s.unit_tech_mods(0, UNIT_SWORDSMAN, ape).train_time;
+		c.amun_time = s.unit_tech_mods(0, UNIT_SWORDSMAN, amun).train_time;
+		return c;
+	};
+	const Costs before = costs();
+	const uint32_t ara = s.spawn_unit(-20, -20, 0, UNIT_HERO, 0.0f, roster_named("kush/hero_arakamani"));
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP); // a global-aura pulse
+	const Costs after = costs();
+	bool temple_ok = true, ape_ok = true, amun_ok = true;
+	for (int r = 0; r < RES_COUNT; ++r) {
+		temple_ok = temple_ok && after.temple[r] == std::round(before.temple[r] * 0.7f);
+		ape_ok = ape_ok && after.ape[r] == std::round(before.ape[r] * 0.7f);
+		amun_ok = amun_ok && after.amun[r] == before.amun[r];
+	}
+	check(before.temple[RES_STONE] > 0.0f && temple_ok, "Temple of Apedemak: -30% cost");
+	check(near1(after.temple_time, before.temple_time * 0.7f), "and -30% build time");
+	check(before.ape[RES_FOOD] > 0.0f && ape_ok, "Apedemak guard: -30% cost");
+	check(near1(after.ape_time, before.ape_time * 0.7f), "and -30% training time");
+	check(amun_ok && after.amun_time == before.amun_time && after.amun_temple_time == before.amun_temple_time,
+			"the Amun guard and the Grand Temple of Amun keep theirs");
+	s.units_.hp[idx_of(s, ara)] = 0.0f;
+	s.units_.alive[idx_of(s, ara)] = 0;
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP);
+	check(costs().temple[RES_STONE] == before.temple[RES_STONE], "Arakamani dead: full cost again");
+}
+
 static void test_gather_rate_auras() {
 	std::printf("58. Iron Pelanors: workers near the Spartan catafalque mine metal 15%% faster\n");
 	auto rate = [](bool catafalque, ResourceType res) {
@@ -2234,6 +2277,7 @@ int main(int argc, char **argv) {
 	test_aura_secondary_effects();
 	test_nastasen_warships();
 	test_gather_rate_auras();
+	test_arakamani_temples();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
