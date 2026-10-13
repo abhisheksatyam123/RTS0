@@ -86,6 +86,7 @@ var _team_toggle: CheckBox
 var _replay_button: Button
 var _continue_button: Button
 var _paused_by_me := false
+var _victory := false
 var _hotkeys = null
 
 func _ready() -> void:
@@ -106,8 +107,9 @@ func configure(g: Dictionary) -> void:
 func close_only() -> void:
 	gui["fromReplayMenu"] = true
 
-func show_summary(_is_victory: bool, record: Dictionary, elapsed_time: float) -> void:
+func show_summary(is_victory: bool, record: Dictionary, elapsed_time: float) -> void:
 	data = record
+	_victory = is_victory
 	if not data.has("game_time"):
 		data["game_time"] = elapsed_time
 	if gui.get("isReplay", false) and str(gui.get("replayDirectory", "")) == "" and not gui.get("isInGame", false):
@@ -988,6 +990,16 @@ func continue_pressed() -> void:
 	get_tree().paused = false
 	if gui.get("isReplay", false):
 		MatchSettings.go("res://scenes/menu/replay_browser.tscn")
+	elif MatchSettings.campaign_run != "":
+		# 0 A.D. campaigns/default_menu/endgame: a level won is completed, then the run's menu.
+		var run := CampaignRun.new(MatchSettings.campaign_run)
+		if run.load_run():
+			if _victory:
+				run.mark_level_complete(MatchSettings.campaign_level)
+			run.set_current()
+		MatchSettings.campaign_run = ""
+		MatchSettings.campaign_level = ""
+		MatchSettings.go("res://scenes/menu/campaigns.tscn")
 	else:
 		MatchSettings.go("res://scenes/menu/main_menu.tscn")
 

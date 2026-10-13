@@ -1861,16 +1861,22 @@ void RtsoMain::update_cursor() {
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			if (!*want) {
 				auto uv = sim->units();
-				bool healer = false;
-				for (int s = 0; s < selected_ids.size() && !healer; ++s)
+				bool healer = false, builder = false;
+				for (int s = 0; s < selected_ids.size() && !(healer && builder); ++s)
 					for (size_t i = 0; i < uv.count; ++i)
 						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
-							healer = rtso::unit_is_healer(uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uv.unit_type[i]);
+							const uint16_t tm = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+							healer = healer || rtso::unit_is_healer(tm, uv.unit_type[i]);
+							builder = builder || rtso::unit_can_build(uv.unit_type[i], tm);
 							break;
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
 					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
 					if (sim->is_hostile(me, uv.team[i])) want = "action-attack";
+					// unit_actions "repair": a builder over a damaged own or allied siege engine or ship.
+					else if (builder && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])) &&
+							sim->is_repairable_unit(uv.id[i]))
+						want = "action-repair";
 					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
 					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
 						want = "action-heal";
@@ -4645,7 +4651,36 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// 1b. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
+			// 1b. Builders right-clicking a damaged own or allied siege engine or ship repair it
+			// (0 A.D. unit_actions "repair": Repairable units, Builder.js CanRepair).
+			{
+				bool any_builder = false;
+				for (int k = 0; k < selected_ids.size() && !any_builder; ++k)
+					for (size_t i = 0; i < uview.count; ++i)
+						if (uview.id[i] == (uint32_t)selected_ids[k]) {
+							any_builder = rtso::unit_can_build(uview.unit_type[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+							break;
+						}
+				uint32_t repair_id = 0;
+				float best_rd2 = 2.2f * 2.2f;
+				for (size_t i = 0; any_builder && i < uview.count; ++i) {
+					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i] || !sim->is_repairable_unit(uview.id[i])) continue;
+					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
+					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+					const float d2 = dx * dx + dz * dz;
+					if (d2 < best_rd2) { best_rd2 = d2; repair_id = uview.id[i]; }
+				}
+				if (repair_id != 0) {
+					if (turn_cmds())
+						post_lockstep(16, sel_ptr, sel_n, 0, 0, repair_id, qbit);
+					else
+						sim->order_build_or_repair(sel_ptr, sel_n, repair_id, queue_shift);
+					play_civ_voice("build");
+					return;
+				}
+			}
+
+			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
 			{
 				// With orderone the first healer of the selection is the one ordered
 				// (input.js firstAbleEntity).
@@ -4678,7 +4713,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 1c. A Gaia treasure: collect it (0 A.D. unit_actions "collect-treasure").
+			// 1d. A Gaia treasure: collect it (0 A.D. unit_actions "collect-treasure").
 			{
 				uint32_t treasure_id = 0;
 				float best_td2 = 2.0f * 2.0f;
