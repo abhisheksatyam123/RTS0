@@ -765,7 +765,11 @@ public:
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
 	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
-	bool ship_unload_point(size_t ship, float &out_x, float &out_z) const;
+	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
+	// this unload are in `taken`); without a passenger, the nearest dry ground.
+	struct SpawnSpot { float x, z, r; };
+	bool ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger = SIZE_MAX,
+			std::vector<SpawnSpot> *taken = nullptr) const;
 	bool nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const;
 	void unload_sunk_ship(size_t ship);
 
@@ -2494,7 +2498,8 @@ private:
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
 	int petra_pop_room() const; // population left after Petra's queued batches
-	float petra_template_strength(const UnitTypeInfo &ui) const;
+	float petra_template_strength(const UnitTypeInfo &ui, float attack_mult = 1.0f) const;
+	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved

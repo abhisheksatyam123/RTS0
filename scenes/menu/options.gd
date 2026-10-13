@@ -58,6 +58,8 @@ const SCHEMA := [
 			[["Sandbox", "0"], ["Very Easy", "1"], ["Easy", "2"], ["Medium", "3"], ["Hard", "4"], ["Very Hard", "5"]]],
 		["dropdown", "gui.gamesetup.aibehavior", "Default AI behavior", "Default behavior of the AI.",
 			[["Random", "random"], ["Balanced", "balanced"], ["Aggressive", "aggressive"], ["Defensive", "defensive"]]],
+		["dropdown", "gui.gamesetup.assignplayers", "Assign players", "Automatically assign joining clients to free player slots during the match setup.",
+			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
 	]],
 	["Game Session", [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],

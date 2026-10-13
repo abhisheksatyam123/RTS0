@@ -22,6 +22,8 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
   (extract_0ad_rosters.rts0_aura_effects): civ_roster_data.h keeps only one kind per
   unit aura, so the others (Brasidas' ranged damage beside his armour, Boudicca's
   speed beside her attack...) are registered from here.
+- every "range" aura with a Builder/Rate modification (Xerxes, Ptolemy I, the Han
+  minister): its multiplier and whether it stacks, registered as an AURA_BUILD source.
 
 Usage:
     python3 tools/extract_0ad_aura_modifiers.py --public PATH [--out src/simulation/aura_modifier_data.h]
@@ -176,6 +178,7 @@ def main() -> int:
 
     # Range auras with a RequiredXp multiplier, anywhere under auras/.
     xp_auras: list[tuple[str, float]] = []
+    build_auras: list[tuple[str, float, bool]] = []
     for rel in sorted(list_files(src, "simulation/data/auras/")):
         if not rel.endswith(".json"):
             continue
@@ -185,6 +188,8 @@ def main() -> int:
         for m in j.get("modifications", []):
             if m["value"] == "Promotion/RequiredXp" and "multiply" in m:
                 xp_auras.append((os.path.basename(rel)[:-5], float(m["multiply"])))
+            if m["value"] == "Builder/Rate" and "multiply" in m:
+                build_auras.append((os.path.basename(rel)[:-5], float(m["multiply"]), bool(j.get("stackable"))))
 
     # Range auras on Capturable/CapturePoints or Capturable/GarrisonRegenRate (multiply),
     # anywhere under auras/, and the RTS0 structures that project them (their own Auras).
@@ -422,12 +427,24 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Range auras multiplying Builder/Rate (AURA_BUILD sources). A stackable one")
+    w("// applies once per source (Auras.js \"stackable\"), the others once however many reach.")
+    w("struct BuilderRateRangeAura { const char *id; float multiply; bool stackable; };")
+    w(f"constexpr uint16_t BUILDER_RATE_RANGE_AURA_COUNT = {len(build_auras)};")
+    w("inline const BuilderRateRangeAura *builder_rate_range_auras() {")
+    w(f"\tstatic const BuilderRateRangeAura kAuras[{max(1, len(build_auras))}] = {{")
+    for name, mul, stack in build_auras:
+        w(f"\t\t{{\"{name}\", {mul!r}f, {'true' if stack else 'false'}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
     w("#endif // RTSO_AURA_MODIFIER_DATA_H")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras, "
           f"{len(capatk_auras)} capture attack range auras, {len(looter_auras)} looter and "
-          f"{len(no_loot_auras)} no-loot range auras")
+          f"{len(no_loot_auras)} no-loot range auras, {len(build_auras)} Builder/Rate range auras")
     for s in skipped:
         print("  not modelled: " + s)
     return 0

@@ -291,4 +291,17 @@ inline const CaptureStructureAura *capture_structure_auras() {
 	return kAuras;
 }
 
+// Range auras multiplying Builder/Rate (AURA_BUILD sources). A stackable one
+// applies once per source (Auras.js "stackable"), the others once however many reach.
+struct BuilderRateRangeAura { const char *id; float multiply; bool stackable; };
+constexpr uint16_t BUILDER_RATE_RANGE_AURA_COUNT = 3;
+inline const BuilderRateRangeAura *builder_rate_range_auras() {
+	static const BuilderRateRangeAura kAuras[3] = {
+		{"han_minister_building", 1.02f, true},
+		{"pers_hero_xerxes_i", 1.15f, false},
+		{"ptol_hero_ptolemy_i_1", 1.1f, false},
+	};
+	return kAuras;
+}
+
 #endif // RTSO_AURA_MODIFIER_DATA_H

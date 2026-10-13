@@ -6592,73 +6592,73 @@
   ],
   "resources": [
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -16.74,
       "z": -118.92,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -17.68,
       "z": -122.34,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -18.0,
       "z": -125.63,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -18.09,
       "z": -127.43,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -16.87,
       "z": -129.1,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -16.06,
       "z": -128.38,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -16.77,
       "z": -125.4,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -16.86,
       "z": -122.35,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -15.69,
       "z": -120.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -14.73,
       "z": -129.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -13.58,
       "z": -131.63,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -12.65,
       "z": -130.38,
       "amount": 200
@@ -6880,493 +6880,493 @@
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 110.34,
       "z": -47.03,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 108.97,
       "z": -46.61,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 108.86,
       "z": -51.67,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 109.93,
       "z": -49.03,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 111.2,
       "z": -50.73,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 111.94,
       "z": -52.31,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 110.43,
       "z": -52.72,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 118.3,
       "z": -55.17,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 112.06,
       "z": -55.49,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 113.6,
       "z": -53.41,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 115.22,
       "z": -56.33,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 116.74,
       "z": -55.76,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 72.46,
       "z": -88.58,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 74.3,
       "z": -87.29,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 75.98,
       "z": -89.37,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 74.8,
       "z": -91.02,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 74.11,
       "z": -93.08,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 75.62,
       "z": -94.44,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 73.73,
       "z": -95.17,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 73.29,
       "z": -97.47,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 75.23,
       "z": -97.86,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 73.05,
       "z": -99.75,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 71.56,
       "z": -99.74,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 76.44,
       "z": -92.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -81.56,
       "z": -47.76,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -80.51,
       "z": -49.09,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -79.12,
       "z": -49.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -77.99,
       "z": -49.98,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -76.56,
       "z": -49.05,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -75.55,
       "z": -48.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -75.22,
       "z": -49.41,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -76.26,
       "z": -50.55,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -74.09,
       "z": -49.68,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -74.95,
       "z": -50.98,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.09,
       "z": -53.63,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -70.41,
       "z": -54.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.9,
       "z": -54.67,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.63,
       "z": -56.27,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -68.13,
       "z": -53.8,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -68.18,
       "z": -55.53,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.16,
       "z": -55.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.64,
       "z": -56.38,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -68.57,
       "z": -57.08,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.33,
       "z": -56.99,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -70.28,
       "z": -57.54,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.11,
       "z": -58.07,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.81,
       "z": -58.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -70.44,
       "z": -59.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.03,
       "z": -59.77,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -72.25,
       "z": -59.35,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.2,
       "z": -59.88,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.89,
       "z": -60.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -72.88,
       "z": -61.44,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.22,
       "z": -61.83,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.8,
       "z": -62.08,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -68.82,
       "z": -63.09,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -68.13,
       "z": -64.31,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -67.31,
       "z": -65.38,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -66.75,
       "z": -66.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -67.39,
       "z": -67.17,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -68.35,
       "z": -67.68,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -64.81,
       "z": -67.07,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -69.17,
       "z": -67.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -70.1,
       "z": -66.88,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.82,
       "z": -66.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -72.99,
       "z": -65.49,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -74.48,
       "z": -65.09,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -73.44,
       "z": -63.31,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -70.75,
       "z": -64.81,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -71.57,
       "z": -61.92,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -68.81,
       "z": -65.16,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -70.9,
       "z": -63.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -67.16,
       "z": -67.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -77.36,
       "z": -33.95,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -77.06,
       "z": -36.88,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -76.9,
       "z": -38.99,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -75.49,
       "z": -38.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -75.75,
       "z": -36.67,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -75.67,
       "z": -33.97,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -74.56,
       "z": -35.38,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -74.47,
       "z": -37.49,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -73.38,
       "z": -36.22,
       "amount": 200
@@ -7456,37 +7456,37 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -50.98,
       "z": -34.99,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -50.86,
       "z": -36.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -52.23,
       "z": -36.77,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -53.09,
       "z": -37.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -54.04,
       "z": -38.35,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -51.77,
       "z": -38.25,
       "amount": 200
@@ -7564,73 +7564,73 @@
       "amount": 300
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -146.93,
       "z": -48.64,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -144.71,
       "z": -48.59,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -143.33,
       "z": -48.09,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -141.62,
       "z": -48.03,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -140.32,
       "z": -47.46,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -139.24,
       "z": -45.53,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -145.95,
       "z": -49.83,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -143.94,
       "z": -49.73,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -142.07,
       "z": -49.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -148.46,
       "z": -47.76,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -142.12,
       "z": -45.76,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -144.66,
       "z": -47.13,
       "amount": 200
@@ -7744,85 +7744,85 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -119.24,
       "z": -56.75,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -118.28,
       "z": -53.19,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -118.61,
       "z": -51.4,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -118.9,
       "z": -49.83,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -117.55,
       "z": -49.91,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -117.79,
       "z": -48.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -118.3,
       "z": -46.82,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -119.52,
       "z": -46.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -120.93,
       "z": -47.23,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -122.7,
       "z": -47.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -123.93,
       "z": -48.83,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -120.01,
       "z": -48.78,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -121.55,
       "z": -48.59,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -123.1,
       "z": -49.35,
       "amount": 200
@@ -8674,7 +8674,7 @@
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 6.74,
       "z": -3.57,
       "amount": 200
@@ -8926,61 +8926,61 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -18.41,
       "z": -17.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -12.02,
       "z": -5.7,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -15.94,
       "z": -15.57,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -18.93,
       "z": -7.16,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -26.63,
       "z": -6.26,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -20.53,
       "z": -1.12,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -14.42,
       "z": -8.94,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -25.24,
       "z": -13.4,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -20.76,
       "z": -10.13,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -21.44,
       "z": -7.48,
       "amount": 200
@@ -9304,79 +9304,79 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -14.22,
       "z": 35.32,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -15.64,
       "z": 35.03,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -13.13,
       "z": 36.17,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -14.73,
       "z": 38.55,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -10.09,
       "z": 36.7,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -9.09,
       "z": 41.27,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -6.37,
       "z": 40.47,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 13.89,
       "z": 37.69,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 15.21,
       "z": 36.56,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 16.53,
       "z": 37.33,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 23.64,
       "z": 48.74,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 24.53,
       "z": 50.89,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 28.38,
       "z": 45.33,
       "amount": 200
@@ -9568,13 +9568,13 @@
       "amount": 1000
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -17.82,
       "z": 63.35,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -18.96,
       "z": 66.16,
       "amount": 200
@@ -9586,7 +9586,7 @@
       "amount": 300
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -16.5,
       "z": 64.65,
       "amount": 200
@@ -9598,37 +9598,37 @@
       "amount": 400
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -11.54,
       "z": 36.02,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -12.84,
       "z": 38.49,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -10.61,
       "z": 39.5,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -8.03,
       "z": 42.04,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -6.07,
       "z": 40.49,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -7.49,
       "z": 39.78,
       "amount": 200
@@ -9766,31 +9766,31 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -37.21,
       "z": 97.83,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -21.35,
       "z": 99.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -25.42,
       "z": 104.41,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -26.34,
       "z": 101.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -21.72,
       "z": 105.66,
       "amount": 200
@@ -9886,55 +9886,55 @@
       "amount": 300
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 0.24,
       "z": 76.29,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 2.11,
       "z": 75.12,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 2.81,
       "z": 71.4,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -0.98,
       "z": 72.71,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -2.59,
       "z": 77.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -1.8,
       "z": 80.17,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 8.08,
       "z": 55.07,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 6.68,
       "z": 57.86,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 9.13,
       "z": 56.82,
       "amount": 200
@@ -9994,13 +9994,13 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -18.56,
       "z": 63.59,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -20.19,
       "z": 65.86,
       "amount": 200
@@ -10048,73 +10048,73 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -16.37,
       "z": 88.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -9.61,
       "z": 96.59,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 12.51,
       "z": 74.13,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 16.11,
       "z": 52.32,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 22.98,
       "z": 29.8,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 21.83,
       "z": 24.32,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": 22.29,
       "z": 27.2,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -13.03,
       "z": 77.44,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -13.55,
       "z": 74.29,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -14.39,
       "z": 71.45,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -25.51,
       "z": 73.74,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -5.58,
       "z": 23.37,
       "amount": 200
@@ -10330,133 +10330,133 @@
       "amount": 1000
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -47.19,
       "z": 14.05,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -45.18,
       "z": 14.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -44.34,
       "z": 12.04,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -41.48,
       "z": 10.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -41.73,
       "z": 11.86,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -42.01,
       "z": 13.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -40.61,
       "z": 14.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -39.17,
       "z": 12.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -38.73,
       "z": 9.41,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -37.79,
       "z": 9.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -36.33,
       "z": 12.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -36.58,
       "z": 12.69,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -35.35,
       "z": 14.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -34.85,
       "z": 13.81,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -39.82,
       "z": 10.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -46.13,
       "z": 11.77,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -38.17,
       "z": 13.97,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -35.93,
       "z": 10.33,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -41.31,
       "z": 15.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -42.38,
       "z": 17.69,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -47.9,
       "z": 15.88,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -36.96,
       "z": 16.59,
       "amount": 200
@@ -10900,25 +10900,25 @@
       "amount": 400
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -43.13,
       "z": -21.56,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -41.36,
       "z": -18.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -44.47,
       "z": -15.17,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -49.49,
       "z": -20.18,
       "amount": 200
@@ -14386,25 +14386,25 @@
       "amount": 5000
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 8.43,
       "z": 127.78,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 11.08,
       "z": 126.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 6.18,
       "z": 127.84,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 8.97,
       "z": 124.04,
       "amount": 200
@@ -14464,103 +14464,103 @@
       "amount": 5000
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.02,
       "z": 19.99,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 19.3,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 16.61,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 14.15,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 12.12,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 10.93,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 11.35,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 9.1,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 5.98,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 5.52,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 7.56,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 9.68,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -152.8,
       "z": 12.02,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -152.61,
       "z": 14.23,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -152.67,
       "z": 17.59,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.05,
       "z": 15.46,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -153.6,
       "z": 6.21,
       "amount": 200
@@ -15772,211 +15772,211 @@
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -111.95,
       "z": 75.58,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -111.57,
       "z": 73.12,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -110.45,
       "z": 70.24,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -109.47,
       "z": 68.64,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -108.67,
       "z": 67.19,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -107.91,
       "z": 65.37,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -106.27,
       "z": 64.83,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -104.21,
       "z": 65.46,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -104.05,
       "z": 66.49,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -104.54,
       "z": 68.01,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -105.21,
       "z": 69.95,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -105.97,
       "z": 70.74,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -107.02,
       "z": 71.94,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -108.61,
       "z": 73.22,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -109.27,
       "z": 74.44,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -110.55,
       "z": 75.28,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -109.19,
       "z": 72.36,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -107.84,
       "z": 69.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -107.01,
       "z": 68.52,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -106.66,
       "z": 67.92,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -105.42,
       "z": 66.84,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -122.78,
       "z": 83.65,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -109.8,
       "z": 83.48,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -110.33,
       "z": 81.1,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -111.16,
       "z": 78.41,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -114.35,
       "z": 74.05,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -112.02,
       "z": 70.46,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -109.8,
       "z": 63.78,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -106.33,
       "z": 75.75,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -103.66,
       "z": 72.4,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -102.2,
       "z": 67.18,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -102.06,
       "z": 64.2,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -103.68,
       "z": 61.55,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -113.04,
       "z": 65.35,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -115.19,
       "z": 71.39,
       "amount": 200
@@ -16480,217 +16480,217 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -107.32,
       "z": 27.28,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -109.53,
       "z": 26.46,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -110.31,
       "z": 25.32,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -111.16,
       "z": 24.32,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -110.79,
       "z": 23.57,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -108.34,
       "z": 23.68,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -106.43,
       "z": 23.69,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -105.67,
       "z": 23.98,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -105.03,
       "z": 25.71,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -105.12,
       "z": 27.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -116.19,
       "z": 5.72,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -119.9,
       "z": 6.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -118.39,
       "z": 3.65,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -117.23,
       "z": 2.05,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -116.81,
       "z": 0.33,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -116.26,
       "z": -2.52,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -116.0,
       "z": -4.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -116.72,
       "z": -5.46,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -117.48,
       "z": -6.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -118.69,
       "z": -7.56,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -118.22,
       "z": -8.17,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -115.66,
       "z": -7.29,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -115.61,
       "z": -6.24,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -114.05,
       "z": -5.13,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -112.15,
       "z": -4.3,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -110.8,
       "z": -3.05,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -109.76,
       "z": -2.12,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -108.2,
       "z": -1.16,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -112.17,
       "z": 1.24,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -112.49,
       "z": 2.63,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -113.19,
       "z": 5.43,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -114.04,
       "z": 5.77,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -115.15,
       "z": 4.71,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -115.35,
       "z": 0.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -115.09,
       "z": -2.29,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -113.33,
       "z": -0.79,
       "amount": 200
@@ -17116,313 +17116,313 @@
       "amount": 300
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 22.94,
       "z": 145.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 22.04,
       "z": 144.14,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 20.88,
       "z": 141.81,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 20.33,
       "z": 141.29,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 20.17,
       "z": 140.72,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 19.47,
       "z": 139.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 19.66,
       "z": 137.77,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 20.6,
       "z": 135.12,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 21.81,
       "z": 135.72,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 23.01,
       "z": 137.32,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 23.66,
       "z": 138.99,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 24.77,
       "z": 139.88,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 26.77,
       "z": 141.12,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 27.97,
       "z": 142.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 29.36,
       "z": 144.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 29.0,
       "z": 146.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 27.7,
       "z": 146.7,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 24.8,
       "z": 144.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 23.67,
       "z": 142.61,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 22.0,
       "z": 141.12,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 21.36,
       "z": 140.09,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 16.65,
       "z": 140.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 16.95,
       "z": 135.15,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 26.93,
       "z": 136.72,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 29.78,
       "z": 140.89,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 37.12,
       "z": 145.69,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 19.5,
       "z": 148.3,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 14.32,
       "z": 145.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 12.63,
       "z": 142.67,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 35.66,
       "z": 147.03,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": 23.8,
       "z": 153.6,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -143.6,
       "z": 3.31,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -142.03,
       "z": 5.79,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -141.01,
       "z": 7.16,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -139.85,
       "z": 6.88,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -137.94,
       "z": 8.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -134.52,
       "z": 7.57,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -134.22,
       "z": 7.12,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -134.02,
       "z": 5.98,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -135.34,
       "z": 4.29,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -136.35,
       "z": 3.77,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -139.56,
       "z": 3.65,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -140.58,
       "z": 3.69,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -141.78,
       "z": 3.92,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -135.76,
       "z": 9.13,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -135.84,
       "z": 9.41,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -137.23,
       "z": 4.42,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -138.46,
       "z": 3.46,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -137.06,
       "z": 6.79,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -141.23,
       "z": 2.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -136.89,
       "z": 2.26,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "beech",
       "x": -138.31,
       "z": 5.62,
       "amount": 200

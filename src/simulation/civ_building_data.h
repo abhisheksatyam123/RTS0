@@ -46,6 +46,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Palisade Gate", "palisade", "palisade", 500.0f, 1, 0, 10, 0, 0, 0, 0, 2.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/palisades_gate */ \
 		{"Iberian Embassy", "embassy", "embassy", 2000.0f, 2, 0, 0, 0, 200, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
 		{"Italic Embassy", "embassy", "embassy", 1500.0f, 1, 0, 0, 200, 0, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
+		{"Siege Wall", "wall_segment", "wall", 2250.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 0.5f, 1.0f, 0.0f}, /* structures/rome/siege_wall_long */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -87,6 +88,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 2, 0, 0}, /* structures/palisades_gate */ \
 		{0, 0, 0, 40, 0}, /* structures/cart/embassy_iberian */ \
 		{0, 0, 0, 0, 40}, /* structures/cart/embassy_italic */ \
+		{0, 0, 12, 0, 0}, /* structures/rome/siege_wall_long */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -137,6 +139,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_PALISADE_GATE: return 0x3fff; // athen spart pers rome cart mace brit gaul iber maur kush ptol sele han
 		case BLD_EMBASSY_IBERIAN: return 0x0010; // cart
 		case BLD_EMBASSY_ITALIC: return 0x0010; // cart
+		case BLD_SIEGE_WALL: return 0x0008; // rome
 		default: return 0xFFFF;
 	}
 }
@@ -181,6 +184,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_PALISADE_GATE: return 1;
 		case BLD_EMBASSY_IBERIAN: return 2;
 		case BLD_EMBASSY_ITALIC: return 2;
+		case BLD_SIEGE_WALL: return 3;
 		default: return 0;
 	}
 }
