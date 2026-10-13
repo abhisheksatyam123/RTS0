@@ -8,6 +8,9 @@
   python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
+  python3 tools/port_0ad_maps.py --supplies-only DIR  # refresh each ported map's resource amounts and
+                                                  # gatherer limits from the templates of an unpacked
+                                                  # 0 A.D. public.zip at DIR (maps/ and simulation/ under it)
   python3 tools/port_0ad_maps.py --player-data-only DIR  # refresh each ported map's PlayerData (civs, starting
                                                   # resources, locked teams, PopulationLimit) from an unpacked
                                                   # 0 A.D. public.zip at DIR (maps/ under it)
@@ -454,7 +457,8 @@ def apply_player_data(players, settings):
 
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
-             terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False):
+             terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
+             supplies_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -784,6 +788,32 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
+        if supplies_only:
+            # Keep the existing map; only refresh each resource's amount and gatherer limit,
+            # entry by entry, when the entries still line up with the template's.
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            have = old.get("resources", [])
+            k = old.get("world_size", world_size_m) / world_size_m
+            if len(have) != len(resources) or any(a["type"] != b["type"] or abs(a["x"] - b["x"] * k) > 0.5 or
+                                                  abs(a["z"] - b["z"] * k) > 0.5 for a, b in zip(have, resources)):
+                print(f"  !! {out_path}: {len(have)} resources, 0 A.D. has {len(resources)}; not refreshed")
+                return
+            changed = 0
+            for a, b in zip(have, resources):
+                before = (a.get("amount"), a.get("max_gatherers"))
+                a["amount"] = b["amount"]
+                a.pop("max_gatherers", None)
+                if "max_gatherers" in b:
+                    a["max_gatherers"] = b["max_gatherers"]
+                changed += before != (a.get("amount"), a.get("max_gatherers"))
+            if changed:
+                with open(out_path, "w") as f:
+                    json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {changed} of {len(have)} supplies changed")
+            return
         if gaia_only:
             # Keep the existing map; only refresh its Gaia arrays.
             if not os.path.exists(out_path):
@@ -890,6 +920,19 @@ if __name__ == "__main__":
                 port_map(mid, xrel, None, source=src, player_data_only=True)
             except FileNotFoundError:
                 print(f"  !! {mid}: no {xrel} in 0 A.D.")
+    elif len(sys.argv) > 2 and sys.argv[1] == "--supplies-only":
+        src = DirSource(sys.argv[2])
+        tables = [(mid, xrel, prel, size, bome, hscale) for mid, xrel, prel, size, bome, hscale in maps_list]
+        tables += [(mid, f"maps/skirmishes/{name}.xml", f"maps/skirmishes/{name}.pmp", None, bome, None)
+                   for name, (mid, bome) in github_skirmishes.items()]
+        tables += [(mid, f"maps/{folder}/{name}.xml", f"maps/{folder}/{name}.pmp", None, bome, None)
+                   for folder, table in (("scenarios", github_scenarios), ("tutorials", github_tutorials))
+                   for name, (mid, bome) in table.items()]
+        for row in sorted(set(tables)):
+            try:
+                port_map(*row, source=src, supplies_only=True)
+            except FileNotFoundError:
+                print(f"  !! {row[0]}: no {row[1]} in 0 A.D.")
     elif len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only"):
         # Refresh fauna, treasures and ruins (or only the per-tile terrain, or only the
         # Environment) of every ported map from 0 A.D.'s GitHub.
