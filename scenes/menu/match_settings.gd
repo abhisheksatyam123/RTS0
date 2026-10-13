@@ -53,6 +53,9 @@ var disable_treasures: bool = false
 # Random-map biome: 0 = the map's own, else rtso::BiomeType + 1. Game speed at the start.
 var biome: int = 0
 var game_speed: float = 1.0
+# The map sets every slot's civ, team and colour (a scenario): in a networked
+# game setup, clients may not ask to change theirs.
+var map_locks_players: bool = false
 # Map trigger options (0 A.D. WaterLevel, SeaLevelRiseTime): Flood water level
 # 0 rising, 1 shallow, 2 deep; Extinct Volcano minutes until the water rises.
 var water_level: int = 0

@@ -85,7 +85,19 @@ public:
 	bool game_start_sent() const { return game_start_sent_; }
 	void sendHandshake();
 	void sendAuthenticate(const std::string &name, const std::string &password = "");
-	void sendReady(bool ready = true);
+	// Client: ready (or not) for the host's setup with this settings_version.
+	void sendReady(bool ready = true, uint32_t setup_version = 0);
+	// Game setup before Start (see NetSetupState). Host: send the setup to
+	// every admitted client (or to one); clear every client's ready flag
+	// (0 A.D. ClearAllPlayerReady). Client: the host's setups as they came
+	// (newest by NetSetupState::seq wins); ask the host to change our own slot ("civ=3").
+	void sendGameSetup(const std::string &attrs, uint32_t peer_id = 0xFFFFFFFF);
+	void clearAllReady();
+	std::vector<std::string> takeGameSetups() { std::vector<std::string> v; v.swap(game_setups_); return v; }
+	void sendSetupRequest(const std::string &request);
+	// Host: the clients' setup requests since the last call, oldest first.
+	struct SetupRequest { uint32_t client; std::string request; };
+	std::vector<SetupRequest> takeSetupRequests() { std::vector<SetupRequest> v; v.swap(setup_requests_); return v; }
 	void sendGameStart(const std::string &attributes);
 	// Resend the SAME setup attributes to ONE peer (late-join resend). public so
 	// TurnManager, which owns the payload it validated, can drive it.
@@ -190,6 +202,8 @@ private:
 	std::vector<ClientPerformanceMsg::Entry> client_perf_;
 	uint64_t client_perf_reports_ = 0;
 	uint64_t last_perf_ms_ = 0;
+	std::vector<std::string> game_setups_; // client: the host's NMT_GAME_SETUPs not yet taken
+	std::vector<SetupRequest> setup_requests_;
 	std::vector<PlayerAssignmentMsg::Entry> player_assignment_;
 	uint64_t player_assignments_ = 0;
 
