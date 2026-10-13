@@ -148,7 +148,7 @@ func run() -> void:
 	b.sort_by("months")
 	var idx: int = b._replays.map(func(r): return r.dir.get_file()).find(NAMES[0])
 	b.select_replay(idx)
-	check(b._info.visible and b._info_labels.name.text == "E2E Continental" and b._info_labels.victory.text == "Wonder"
+	check(b._info.visible and b._info_labels.name.text == "E2E Continental" and b._info_labels.victory.text == "Conquest, Wonder"
 		and b._info_labels.type.text == "Random" and b._info_labels.size.text == "Small", "map, type, size and victory")
 	# map_preview is null in an unimported headless project; the menu shows what Game Setup shows.
 	check(b._info_labels.preview.texture == b.SetupPage.map_preview("random_continental")

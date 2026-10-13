@@ -686,7 +686,9 @@ void RmsGenerator::synth_archipelago(HeightmapGrid &hm, RmsRng &rng, float &wate
 	float half = hm.map_half;
 	spawns.clear();
 
-	// 1. Home Islands for Players
+	// 1. Home Islands for Players: archipelago.js's islandRadius, scaleByMapSize(22, 31) tiles
+	// (one RTS0 unit per tile), so a bigger map gives each player the land and trees it needs.
+	const float island_r = 22.0f + 9.0f * std::max(0.0f, 2.0f * half - 128.0f) / 384.0f;
 	float spawn_r = half * 0.56f;
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.35f;
@@ -696,7 +698,7 @@ void RmsGenerator::synth_archipelago(HeightmapGrid &hm, RmsRng &rng, float &wate
 		float fz = -std::sin(angle);
 
 		// Raise player island
-		hm.level_area(sx, sz, 16.0f, 12.0f, 4.5f);
+		hm.level_area(sx, sz, island_r, 12.0f, 4.5f);
 		spawns.push_back({(uint8_t)i, sx, sz, 4.5f, fx, fz});
 	}
 
