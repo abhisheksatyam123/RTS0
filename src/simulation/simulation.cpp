@@ -15445,6 +15445,14 @@ void Simulation::petra_manage_economy(float dt) {
 					order_return_resource(&uid, 1, best);
 					continue;
 				}
+				// gameState.getOwnDropsites holds units too (supply wagons, worker elephants):
+				// with only one of those on its land, the worker returns there, tick_gather
+				// picking the nearest dropsite as for any return.
+				if (petra_mobile_dropsite_on_land(i)) {
+					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+					units_.has_order[i] = 1;
+					continue;
+				}
 			}
 			reassignable_workers.push_back(i);
 		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
@@ -15456,7 +15464,7 @@ void Simulation::petra_manage_economy(float dt) {
 			if (units_.action_state[i] == ACTION_RETURN_DROPSITE && naval_workers &&
 			    std::none_of(buildings_.begin(), buildings_.end(), [&](const Building &b) {
 				    return dropsite_accepts(i, b) && petra_same_land(i, b);
-			    }) && !petra_passenger(units_.id[i])) {
+			    }) && !petra_mobile_dropsite_on_land(i) && !petra_passenger(units_.id[i])) {
 				reassignable_workers.push_back(i);
 				continue;
 			}
@@ -21356,6 +21364,20 @@ std::vector<int> Simulation::petra_garrison_incoming() const {
 }
 
 // PETRA.getLandAccess: the structure's land is the one next to its obstruction.
+// A mobile dropsite (template_unit_support_elephant, _wagon: every resource) unit i may
+// drop at, standing on i's land, as tick_gather would take it.
+bool Simulation::petra_mobile_dropsite_on_land(size_t i) const {
+	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return false;
+	const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+	for (size_t e = 0; e < units_.count; ++e) {
+		if (!units_.alive[e] || !unit_is_mobile_dropsite(units_.unit_type[e]) || units_.action_state[e] == ACTION_GARRISONED)
+			continue;
+		if (!mobile_dropsite_usable_by(units_.team[i], e)) continue;
+		if (land == 0 || petra_land_at(units_.pos_x[e], units_.pos_z[e]) == land) return true;
+	}
+	return false;
+}
+
 bool Simulation::petra_same_land(size_t i, const Building &b) const {
 	auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
 	const uint16_t land = nav_grid_.global_region_at(ux, uz, PASS_INFANTRY);
