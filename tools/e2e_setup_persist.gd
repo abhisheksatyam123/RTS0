@@ -62,7 +62,7 @@ func run() -> void:
 	page = await open_setup()
 	var rows: Array = page._slot_rows
 	check(int(page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots").value) == 3, "three slots again")
-	check(rows.size() >= 3 and int(rows[1]["civ"]) == Setup.CIVS.size(), "slot 2 is still Random: %s" % (rows[1]["civ"] if rows.size() > 1 else "-"))
+	check(rows.size() >= 3 and int(rows[1]["civ"]) == Setup.RANDOM_CIV, "slot 2 is still Random: %s" % (rows[1]["civ"] if rows.size() > 1 else "-"))
 	check(rows.size() >= 3 and int(rows[2]["kind"]) == 2, "slot 3 is still Closed")
 	pop = page.get_node("VBox/HBox/LeftScroll/Left/PopCapSlot").get_child(0)
 	check(pop.get_selected() == 2, "the population limit is kept: %d" % pop.get_selected())
@@ -73,9 +73,9 @@ func run() -> void:
 	page._on_start_pressed()
 	check(ms.cheats, "the match has cheats on")
 	check(ms.slot_names.size() > 0 and ms.slot_names[0] == "Tester", "you are named after Options: " + str(ms.slot_names))
-	check(ms.slot_civs.size() == 2 and int(ms.slot_civs[1]) < Setup.CIVS.size(), "the Random civ is picked for the match: " + str(ms.slot_civs))
+	check(ms.slot_civs.size() == 2 and Setup.CIVS.any(func(c): return int(c["id"]) == int(ms.slot_civs[1])), "the Random civ is picked for the match: " + str(ms.slot_civs))
 	var kept: Dictionary = Setup.load_persisted()
-	check(kept.get("slot_civs", []).size() == 2 and int(kept["slot_civs"][1]) == Setup.CIVS.size(), "the file keeps Random: " + str(kept.get("slot_civs")))
+	check(kept.get("slot_civs", []).size() == 2 and int(kept["slot_civs"][1]) == Setup.RANDOM_CIV, "the file keeps Random: " + str(kept.get("slot_civs")))
 	await frames(2)
 
 	print("4. Persist match settings off")
