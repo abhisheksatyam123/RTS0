@@ -2261,6 +2261,25 @@ static void test_healer_attack_order() {
 	check(std::fabs(s.units().pos_x[s.lookup_unit(h)] - hx) < 0.5f, "one already in range stays put");
 }
 
+static void test_restricted_attack_order() {
+	std::printf("63. an attack order on a target its RestrictedClasses forbid is a walk (UnitAI.Attack CanAttack)\n");
+	Simulation s;
+	setup(s);
+	uint32_t ram = s.spawn_unit(-20, 0, 0, UNIT_SIEGE_RAM);
+	const uint32_t e = post(s, 10, 0, UNIT_SPEARMAN, 5000.0f);
+	check(!s.unit_can_target(s.lookup_unit(ram), s.lookup_unit(e)), "a ram can't attack a soldier (Field Organic)");
+	s.order_attack(&ram, 1, e);
+	check(s.unit_order(ram).kind == ORDER_WALK && (s.unit_order(ram).flags & ORDER_FLAG_FORCE), "it walks to it instead");
+	const float d0 = dist(s, ram, 10, 0);
+	run(s, 10.0f);
+	check(dist(s, ram, 10, 0) < d0 - 5.0f, "towards the soldier");
+	uint32_t dog = s.spawn_unit(-20, 20, 0, UNIT_WAR_DOG);
+	const uint32_t house = s.spawn_building_world(10, 20, BLD_HOUSE, 1, 1.0f);
+	check(!s.unit_can_target_building(s.lookup_unit(dog), BLD_HOUSE), "a dog can't attack a structure");
+	s.order_attack_building(&dog, 1, house, false, false);
+	check(s.unit_order(dog).kind == ORDER_WALK, "and walks to the house");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2324,6 +2343,7 @@ int main(int argc, char **argv) {
 	test_gather_rate_auras();
 	test_attack_preference_switch();
 	test_healer_attack_order();
+	test_restricted_attack_order();
 	test_arakamani_temples();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);

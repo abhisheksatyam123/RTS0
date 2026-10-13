@@ -4294,7 +4294,7 @@ void Simulation::attack_unit_one_by_one(const uint32_t *unit_ids, size_t count, 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (units_.attack_damage[uidx] <= 0.0f) {
+		if (units_.attack_damage[uidx] <= 0.0f || !unit_can_target((size_t)uidx, (size_t)tidx)) { // CanAttack
 			walk_to_attack_target((size_t)uidx, tx, tz, 0.0f, tx, tz);
 			continue;
 		}
@@ -4322,8 +4322,9 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 	attack_building_one_by_one(now.data(), now.size(), target_building_id, allow_capture);
 }
 
-// UnitAI Attack: a unit that can't attack walks to the target instead (WalkToTarget, to
-// (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
+// UnitAI Attack: a unit that can't attack the target (no attack, or the target is in its
+// RestrictedClasses: a ram and a unit, a dog and a structure) walks to it instead (WalkToTarget,
+// to (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
 // killed (0.28 WalkToTargetRange; one already in range stops there). RTS0's walk goes to where
 // the target stands now, where 0 A.D.'s follows it. A player's order: the walk is forced.
 void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz) {
@@ -4358,7 +4359,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		const bool captures = allow_capture && unit_capture_strength(units_.unit_type[uidx]) > 0.0f;
-		if (units_.attack_damage[uidx] <= 0.0f && !captures) {
+		if (!captures && (units_.attack_damage[uidx] <= 0.0f || !unit_can_target_building((size_t)uidx, b.type))) { // CanAttack
 			float sx = b.x, sz = b.z;
 			stand_outside(b, units_.id[uidx], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz);
 			walk_to_attack_target((size_t)uidx, b.x, b.z, b.half_size, sx, sz);
