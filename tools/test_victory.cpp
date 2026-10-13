@@ -146,6 +146,28 @@ int main() {
 		CHECK(sim->is_victory());
 		delete sim;
 	}
+	// 7b. ConquestCritical (Conquest*.js class filters): towers, fields, traders and an
+	// unfinished barracks don't keep a player in a Conquest match; a house does. The partial
+	// conquests count every unit or every structure of their own kind.
+	for (int k = 0; k < 4; ++k) {
+		const VictoryCondition vc[4] = {VICTORY_CONQUEST, VICTORY_CONQUEST, VICTORY_CONQUEST_STRUCTURES, VICTORY_CONQUEST_UNITS};
+		Simulation *sim = fresh(vc[k]);
+		run(*sim, 0.05f);
+		wipe(*sim, 1, true, true);
+		sim->stats_[1].units_lost[STAT_UNIT_TOTAL]++; // the wipe stands for losses in battle
+		if (k != 3) {
+			sim->spawn_building(30, 30, BLD_TOWER, 1, 1.0f);
+			sim->spawn_building(40, 30, BLD_FIELD, 1, 1.0f);
+			sim->spawn_building(30, 40, BLD_BARRACKS, 1, 0.5f);
+		}
+		if (k != 2) sim->spawn_unit(35, 35, 1, UNIT_TRADER);
+		if (k == 1) sim->spawn_building(40, 40, BLD_HOUSE, 1, 1.0f);
+		run(*sim, 1.0f);
+		const bool want_out = k == 0;
+		if (sim->is_victory() != want_out) std::printf("  conquest-critical case %d: player 1 %s\n", k, want_out ? "should be out" : "should stay");
+		CHECK(sim->is_victory() == want_out);
+		delete sim;
+	}
 	// 8. Endless: nobody is ever defeated.
 	{
 		Simulation *sim = fresh(VICTORY_ENDLESS);

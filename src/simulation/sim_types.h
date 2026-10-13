@@ -469,6 +469,27 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 inline constexpr bool is_civic_centre(uint8_t type) {
 	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG;
 }
+// 0 A.D. class ConquestCritical (template_structure_civic, _military and _wonder, less the
+// stoa and the forge): the structures that keep a player in a Conquest match. Towers, walls,
+// palisades, economic and other special structures don't.
+inline constexpr bool is_conquest_critical(uint8_t type) {
+	switch (type) {
+		case BLD_STOREHOUSE: case BLD_TOWER: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE:
+		case BLD_WALL_SEGMENT: case BLD_CORRAL: case BLD_FIELD: case BLD_FORGE: case BLD_SENTRY_TOWER:
+		case BLD_OUTPOST: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_THEATER: case BLD_AMPHITHEATER:
+		case BLD_LIBRARY: case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL:
+		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE:
+			return false;
+		default:
+			return type < BLD_TYPE_COUNT;
+	}
+}
+// 0 A.D. units without ConquestCritical: catafalques, traders, healers, fishing and merchant ships.
+inline constexpr bool is_conquest_critical_unit(uint8_t utype) {
+	return utype != UNIT_CATAFALQUE && utype != UNIT_TRADER && utype != UNIT_HEALER &&
+	       utype != UNIT_FISHING_BOAT && utype != UNIT_MERCHANT_SHIP;
+}
 // The defense tower and its Han Great Archery Tower form (StoneTower).
 inline constexpr bool is_defense_tower(uint8_t type) {
 	return type == BLD_TOWER || type == BLD_TOWER_GREAT;
