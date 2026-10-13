@@ -291,11 +291,24 @@ int main() {
 		CHECK(is_civic_centre(BLD_CRANNOG) && is_territory_root(BLD_CRANNOG) && building_required_phase(BLD_CRANNOG) == 2);
 		CHECK(civ_unit_template(roster_id("brit/ship_fishing")).trainers.test(BLD_CRANNOG));
 		CHECK(civ_unit_template(roster_id("brit/infantry_spearman_b")).trainers.test(BLD_CRANNOG));
-		CHECK(civ_unit_template(roster_id("brit/support_female_citizen")).trainers.test(BLD_CRANNOG));
+		CHECK(civ_unit_template(roster_id("brit/support_civilian")).trainers.test(BLD_CRANNOG));
 		CHECK(civ_unit_template(roster_id("brit/rts0_villager")).trainers.test(BLD_CRANNOG));
 		CHECK(!civ_unit_template(roster_id("gaul/rts0_villager")).trainers.test(BLD_CRANNOG));
 		CHECK(building_ai_info(BLD_CRANNOG).shoots() && civ_building_is_dropsite(BLD_CRANNOG));
 		CHECK(territory_influence_info(BLD_CRANNOG).root && territory_influence_info(BLD_CRANNOG).weight == 10000);
+		// 0.28's Civilians (template_unit_support_civilian) replace the Female Citizens: the Civic
+		// Center trains support_civilian, houses support_civilian_house after Fertility Festival, and
+		// the women's rows stay for saves but train nowhere.
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			const uint16_t civ_t = civ_default_template(c, UNIT_FEMALE_CITIZEN);
+			CHECK(civ_t != CIV_UNIT_TEMPLATE_NONE && std::strstr(civ_unit_template(civ_t).id, "/support_civilian"));
+		}
+		CHECK(civ_unit_template(roster_id("athen/support_civilian")).trainers == bld_bit(BLD_TOWN_CENTER));
+		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).trainers == bld_bit(BLD_HOUSE));
+		CHECK(civ_unit_template(roster_id("athen/support_civilian_house")).unlock_tech == TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC);
+		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen")).trainers);
+		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen_house")).trainers);
+		CHECK(std::strcmp(civ_unit_template(roster_id("athen/support_civilian")).name, "Athenian Artisan") == 0);
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));

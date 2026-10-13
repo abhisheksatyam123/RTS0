@@ -453,6 +453,34 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x008u}, // brit/ship_fire_fire
 		{0x00000u, 0x008u}, // gaul/ship_fire_fire
 		{0x00000u, 0x008u}, // iber/ship_fire_fire
+		{0x00000u, 0x000u}, // athen/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // athen/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // spart/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // spart/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // pers/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // pers/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // rome/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // rome/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // cart/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // cart/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // mace/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // mace/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // brit/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // brit/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // gaul/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // gaul/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // iber/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // iber/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // maur/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // maur/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // kush/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // kush/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // ptol/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // ptol/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // sele/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // sele/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // han/support_civilian (RTS0-only)
+		{0x00000u, 0x000u}, // han/support_civilian_house (RTS0-only)
 	};
 	return kRows;
 }
