@@ -92,7 +92,7 @@ static void test_data() {
 	const CombatProfile &spear = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_SPEARMAN);
 	const CombatProfile &cav = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_CAVALRY);
 	const CombatProfile &sword = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_SWORDSMAN);
-	check(std::fabs(combat_bonus(spear, cav, CIV_ATHENIANS) - 3.0f) < 1e-4f, "spearman x3 against cavalry");
+	check(std::fabs(combat_bonus(spear, cav, CIV_ATHENIANS) - 2.5f) < 1e-4f, "spearman x2.5 against cavalry (0.28)");
 	check(std::fabs(combat_bonus(spear, sword, CIV_ATHENIANS) - 1.0f) < 1e-4f, "spearman x1 against infantry");
 	check(std::fabs(combat_bonus(sword, cav, CIV_ATHENIANS) - 1.0f) < 1e-4f, "swordsman has no bonus");
 	const CombatProfile &cc = building_combat(BLD_TOWN_CENTER);
@@ -103,7 +103,7 @@ static void test_data() {
 	check(!combat_can_target(ram, sword) && combat_can_target(ram, cc), "ram: no units, yes structures");
 	const CombatProfile &dog = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_WAR_DOG);
 	check(!combat_can_target(dog, cc) && combat_can_target(dog, sword), "dog: no structures, yes units");
-	check(unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_ARCHER).spread == 2.5f, "archer spread 2.5");
+	check(unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_ARCHER).spread == 2.25f, "archer spread 2.25 (0.28)");
 }
 
 // One melee hit from `att` on a fresh dummy of `type`; returns the damage dealt.
@@ -439,7 +439,7 @@ static void test_status() {
 	check(maiden != CIV_UNIT_TEMPLATE_NONE && iber_cav != CIV_UNIT_TEMPLATE_NONE, "roster has maiden archers and Iberian champion cavalry");
 	const CombatProfile &mp = unit_combat(maiden, UNIT_ARCHER_MAIDEN);
 	const CombatProfile &cp = unit_combat(iber_cav, UNIT_CAVALRY);
-	check(mp.status == 1 && std::fabs(mp.status_dps - 0.5f) < 1e-4f && mp.status_time == 10.0f, "maiden archer: Poisoned 1 per 2 s for 10 s");
+	check(mp.status == 1 && std::fabs(mp.status_dps - 2.0f / 0.6f) < 1e-3f && std::fabs(mp.status_time - 3.6f) < 1e-4f, "maiden archer: Poisoned 2 per 0.6 s for 3.6 s (0.28)");
 	check(cp.status == 2 && std::fabs(cp.status_dps - 2.0f / 3.0f) < 1e-3f && cp.status_time == 9.0f, "Iberian champion cavalry: Burning 2 per 3 s for 9 s");
 	uint32_t v = s.spawn_unit(-20.0f, 20.0f, 0, UNIT_SWORDSMAN);
 	uint32_t ram = s.spawn_unit(-24.0f, 20.0f, 0, UNIT_SIEGE_RAM);
@@ -448,7 +448,7 @@ static void test_status() {
 	s.apply_status((size_t)idx(s, v), mp);
 	s.apply_status((size_t)idx(s, ram), mp);
 	for (int k = 0; k < 500; ++k) s.tick(DT);
-	check(std::fabs((hv - s.units_.hp[idx(s, v)]) - 10.0f) < 0.1f, "two poisoned hits: 0.5 hp/s for 20 s");
+	check(std::fabs((hv - s.units_.hp[idx(s, v)]) - 24.0f) < 0.1f, "two poisoned hits: 3.33 hp/s for 7.2 s");
 	check(s.units_.hp[idx(s, ram)] == hr, "a ram is immune to poison");
 	check(s.units_.status_effects[idx(s, v)] == 0, "poison wears off");
 
@@ -572,13 +572,14 @@ static void test_structure_auras() {
 	check(std::fabs(l2.buildings_[l2.building_id_to_idx_[store2]].queue.front().duration - time_plain * 0.85f) < 1e-3f,
 		"library: tech time x0.85");
 	l2.rebuild_territory();
+	const float cc_r = territory_influence_info(BLD_TOWN_CENTER).radius; // 140 m (TerritoryInfluence)
 	float cc_plain = 0.0f;
-	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_plain = r.radius;
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= cc_r) cc_plain = r.radius;
 	l2.spawn_building_world(-10.0f, -40.0f, BLD_THEATER, 0, 1.0f);
 	l2.rebuild_territory();
 	float cc_theater = 0.0f;
-	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_theater = r.radius;
-	check(cc_plain == 32.0f && std::fabs(cc_theater - 32.0f * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= cc_r) cc_theater = r.radius;
+	check(cc_plain == cc_r && std::fabs(cc_theater - cc_r * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
 
 	// Hippocrates' Hippocratic Oath: own and allied healers +1 health per heal, anywhere.
 	Simulation h;
@@ -775,6 +776,8 @@ static void test_projectile_landing() {
 		archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
 		s.order_set_stance(&archer, 1, STANCE_STAND_GROUND);
 		bid = s.spawn_building_world(30.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+		// Its territory: on neutral land the barracks would decay and Petra would garrison the spearman.
+		s.spawn_building_world(52.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
 		spear = dummy(s, 30.0f, building(s, bid)->half_size + 3.0f, UNIT_SPEARMAN, 500.0f); // a float this size keeps the hit exact
 		s.units_.attack_damage[idx(s, spear)] = 0.0f; // never answers
 	};

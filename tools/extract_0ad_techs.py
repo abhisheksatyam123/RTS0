@@ -162,6 +162,7 @@ def stat_of(path: str):
         "Health/IdleRegenRate": "TSTAT_IDLE_REGEN",
         "Capturable/CapturePoints": "TSTAT_CAPTURE_POINTS",
         "Capturable/GarrisonRegenRate": "TSTAT_GARRISON_REGEN",
+        "TerritoryInfluence/Radius": "TSTAT_TERRITORY_RADIUS",
         "Cost/Resources/food": "TSTAT_COST_FOOD",
         "Cost/Resources/wood": "TSTAT_COST_WOOD",
         "Cost/Resources/stone": "TSTAT_COST_STONE",

@@ -202,8 +202,8 @@ int main() {
 	// 6. Rigorous Training: a unit garrisoned in a barracks gains 1 xp a second.
 	{
 		fresh(s, CIV_ATHENIANS);
-		const uint32_t bar = s.spawn_building_world(0.0f, 20.0f, BLD_BARRACKS, 0, 1.0f);
-		const uint32_t uid = s.spawn_unit(0.0f, 14.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("athen/infantry_spearman_b"));
+		const uint32_t bar = s.spawn_building_world(-30.0f, -30.0f, BLD_BARRACKS, 0, 1.0f); // in the civic centre's territory
+		const uint32_t uid = s.spawn_unit(-30.0f, -36.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("athen/infantry_spearman_b"));
 		CHECK(s.garrison_unit_now(uid, bar));
 		for (int t = 0; t < (int)std::lround(101.0f / Simulation::FIXED_STEP); ++t) s.tick(Simulation::FIXED_STEP);
 		const size_t i = idx(s, uid);
@@ -276,7 +276,7 @@ int main() {
 		fresh(s, CIV_PERSIANS);
 		const uint16_t imm = tmpl_of("pers/champion_infantry");
 		const uint16_t bow = tmpl_of("pers/champion_infantry_archer_upgrade");
-		CHECK(civ_unit_template(bow).trainers == 0 && (civ_unit_template(bow).flags & ROSTER_RANGED));
+		CHECK(!civ_unit_template(bow).trainers && (civ_unit_template(bow).flags & ROSTER_RANGED));
 		const uint32_t u = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, imm);
 		s.set_player_resources(0, 0, 0, 0, 0);
 		CHECK(s.cmd_upgrade_units(0, &u, 1, bow));

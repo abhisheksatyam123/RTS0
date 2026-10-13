@@ -157,7 +157,7 @@ static void test_petra_sea_trade() {
 	std::printf("Petra: %d merchant ships, %d trading\n", ships, trading);
 	// Every ship launches on the water and trades; Petra trains no more than its trader target.
 	CHECK(ships >= 1 && trading == ships);
-	CHECK(ships <= s.petra_config().target_num_traders + 1);
+	CHECK(ships <= s.petra_target_traders() + 1);
 }
 
 static const uint8_t *subtype_of(const Simulation &s, uint32_t rid, int32_t *amount = nullptr) {
@@ -500,7 +500,7 @@ static void test_petra_overseas_attack() {
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
-	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_HOUSE, 0);
+	const uint32_t house = s.spawn_building_world(20.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	std::vector<uint32_t> army;
 	for (int k = 0; k < 6; ++k) army.push_back(s.spawn_unit(-36.0f + 2.0f * k, 30.0f, 1, UNIT_SPEARMAN));
 	s.petra_army_ids_[1] = army; // trained for the attack, not as workers (ids rise, so sorted)
@@ -616,7 +616,7 @@ static void test_petra_concurrent_transports() {
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
-	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_HOUSE, 0);
+	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
 	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
 	std::vector<uint32_t> army;
@@ -859,6 +859,9 @@ static void test_petra_unreachable_target() {
 	s.spawn_building_world(-30.0f, -40.0f, BLD_TOWN_CENTER, 1);
 	const uint32_t barracks = s.spawn_building_world(30.0f, -42.0f, BLD_BARRACKS, 0); // on the mesa
 	const uint32_t house = s.spawn_building_world(0.0f, -50.0f, BLD_HOUSE, 0);         // below it
+	// Player 0's own Civic Center, out of the 80 m defended radius of both: its territory
+	// connects them, so neither decays (TerritoryDecay.js) and drops out as a target.
+	s.spawn_building_world(25.0f, -63.0f, BLD_TOWN_CENTER, 0);
 	run(s, 1.0f);
 	const uint16_t below = s.petra_land_at(-30.0f, -30.0f), top = s.petra_land_at(30.0f, -42.0f);
 	CHECK(below && top && below != top);

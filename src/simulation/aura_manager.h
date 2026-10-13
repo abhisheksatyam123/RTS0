@@ -22,7 +22,11 @@ enum AuraType : uint8_t {
     AURA_REQUIRED_XP = 8, // Promotion/RequiredXp multiplier
     AURA_CAPTURE_POINTS = 9, // Capturable/CapturePoints multiplier of structures (capture_range_auras)
     AURA_GARRISON_REGEN = 10, // Capturable/GarrisonRegenRate multiplier of structures
-    AURA_COUNT  = 11
+    AURA_CAPTURE_MUL = 11, // Attack/Capture/Capture multiplier of units (capture_attack_range_auras)
+    AURA_CAPTURE_ADD = 12, // Attack/Capture/Capture added to units
+    AURA_LOOTER = 13, // Looter/Resource of units; value = looter_range_auras() row
+    AURA_NO_LOOT = 14, // Loot replaced by 0 on victims (no_loot_range_auras)
+    AURA_COUNT  = 15
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -107,6 +111,48 @@ public:
             m *= s.value;
         }
         return m;
+    }
+
+    // Calls f(source) for every aura of this type reaching an entity of player qowner at
+    // (qx, qz), each aura once however many sources project it (Auras.js: an aura is not
+    // stackable, so two carnyxes weaken an enemy no more than one). qtmpl and qclasses filter
+    // units as in query_modifier; structure: the entity is a structure, which only auras
+    // naming the Structure class reach.
+    template <class F>
+    void for_each_reaching(float qx, float qz, uint8_t qowner, AuraType type, uint16_t qtmpl,
+            const CombatClasses *qclasses, bool structure, F &&f) const {
+        if (type >= AURA_COUNT || of_type_[type].empty()) return;
+        const uint16_t qbit = aura_player_bit(qowner);
+        int16_t seen[16];
+        int n_seen = 0;
+        for (uint32_t k : of_type_[type]) {
+            const AuraSource &s = sources[k];
+            if (!s.alive || !(s.affected & qbit)) continue;
+            if (structure) {
+                if (s.aura < 0 || !civ_hero_aura(s.aura).structures) continue;
+            } else {
+                if (s.aura >= 0 && !civ_aura_affects(s.aura, qtmpl)) continue;
+                if (s.need_class != 0xFF && !(qclasses && qclasses->has(s.need_class))) continue;
+            }
+            const float dx = qx - s.x, dz = qz - s.z;
+            if (dx * dx + dz * dz > s.range * s.range) continue;
+            bool dup = false;
+            for (int j = 0; j < n_seen && !dup; ++j) dup = seen[j] == s.aura;
+            if (dup) continue;
+            if (n_seen < 16) seen[n_seen++] = s.aura;
+            f(s);
+        }
+    }
+
+    // AURA_CAPTURE_MUL (product, 1 when none) or AURA_CAPTURE_ADD (sum, 0 when none) on a
+    // unit, as ModifiersManager stacks modifications.
+    float query_stacked(float qx, float qz, uint8_t qowner, AuraType type, uint16_t qtmpl,
+            const CombatClasses *qclasses) const {
+        const bool add = type == AURA_CAPTURE_ADD;
+        float r = add ? 0.0f : 1.0f;
+        for_each_reaching(qx, qz, qowner, type, qtmpl, qclasses, false,
+            [&](const AuraSource &s) { r = add ? r + s.value : r * s.value; });
+        return r;
     }
 
     // Combined modifier on a unit of player qowner at (qx, qz). qtmpl is its roster
