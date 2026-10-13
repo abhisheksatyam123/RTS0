@@ -375,6 +375,8 @@ public:
 	void _start_menu_net();
 	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
 	Dictionary get_lobby_state() const;
+	// The lockstep state hash this client computed for a turn (0 if not kept).
+	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
@@ -382,14 +384,30 @@ public:
 	bool turn_cmds() const override { return net_lockstep() || local_turns_; }
 	// The player this client controls: its lockstep slot in multiplayer, player 0 otherwise.
 	// In a replay it is the player whose panels the viewer follows.
+	// An observer or defeated player who picked a player view follows that
+	// player's panels (0 A.D. g_ViewedPlayer), but orders nothing.
 	uint8_t local_player() const {
 		if (turn_mgr_.is_replaying()) return replay_hud_player_;
-		if (net_lockstep()) return turn_mgr_.local_player();
-		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0; // 0xFF: no player, as a multiplayer observer
+		if (observer_view_ < rtso::MAX_PLAYERS && spectating()) return observer_view_;
+		return seat_player();
 	}
-	// Whose sight the world, minimap and fog show: the local player, or in a
-	// replay the perspective picked (a player, or rtso::OBSERVER_VIEW).
-	uint8_t view_player() const { return turn_mgr_.is_replaying() ? replay_view_ : local_player(); }
+	// The seat this client plays: its lockstep slot in multiplayer, player 0
+	// offline; 0xFF for an observer (multiplayer, or every slot AI).
+	uint8_t seat_player() const {
+		if (net_lockstep()) return turn_mgr_.local_player();
+		return local_observer_ ? (uint8_t)0xFF : (uint8_t)0;
+	}
+	// This client only watches: an observer, or a player who was defeated
+	// (0 A.D. g_IsObserver). Not in a replay, which has its own picker.
+	bool spectating() const;
+	// Whose sight the world, minimap and fog show: the local player, or the
+	// perspective a replay viewer or an observer picked (a player, or
+	// rtso::OBSERVER_VIEW, the whole map).
+	uint8_t view_player() const {
+		if (turn_mgr_.is_replaying()) return replay_view_;
+		if (spectating()) return observer_view_;
+		return local_player();
+	}
 	// 0 A.D. PlayerName: a human's lobby name in multiplayer, else Game Setup's name
 	// (AI slots get one from their civ's AINames), else "Player N".
 	String player_display_name(uint8_t pid) const override;
@@ -569,6 +587,13 @@ private:
 	OptionButton *replay_speed_picker_ = nullptr;
 	Button *replay_pause_btn_ = nullptr;
 	uint8_t replay_view_ = rtso::OBSERVER_VIEW; // replay perspective (0 A.D. replay "Player view")
+	// An observer's perspective (0 A.D. session "viewPlayer" dropdown): the whole
+	// map, or one player's sight and panels. Presentation only.
+	uint8_t observer_view_ = rtso::OBSERVER_VIEW;
+	OptionButton *observer_view_picker_ = nullptr;
+	void update_observer_view_picker();
+	void set_observer_view(int player);
+	void _on_observer_view_selected(int index);
 	uint8_t replay_hud_player_ = 0;
 	// Single player with no Human slot (0 A.D. Game Setup lets every slot be AI):
 	// you watch the AIs play with the map revealed and give no orders.

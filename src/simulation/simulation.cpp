@@ -1658,6 +1658,8 @@ struct BuildRestriction {
 	float min_distance; // world units (one tile, 4 m)
 };
 BuildRestriction build_restriction(uint8_t type) {
+	// brit/crannog: a civil centre (200 m from a CivilCentre) laid on the shore, own ally neutral.
+	if (type == BLD_CRANNOG) return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	switch (building_research_base(type)) {
 	case BLD_TOWN_CENTER: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
@@ -15709,14 +15711,18 @@ void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
 // phase, within 180 m), animals and fields left out. With no field yet it lays one once that
 // food is under 600; after that it keeps provisionFields foundations going (2, 1 below Medium,
 // one fewer past 300 food or 5 fields). A civ that can't build fields lays a corral when the
-// food is under 900 (needCorral) and manageCorral breeds an animal while it has no more than
-// one per corral (counted near it until corral animals have owners).
+// food is under 900 (needCorral); manageCorral then lays another corral while it has fewer
+// than its phase number and over 30 population per corral, and breeds an animal of a kind
+// while it owns no more of that kind than it has corrals.
 void Simulation::petra_manage_fields() {
 	std::vector<std::pair<float, float>> drops;
 	const Building *farmstead = nullptr, *tc = nullptr;
-	int fields = 0, field_foundations = 0, corrals = 0;
+	int fields = 0, field_foundations = 0, corrals = 0, civic_centres = 0;
+	bool market = false;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		civic_centres += is_civic_centre(b.type);
+		market |= b.type == BLD_MARKET && b.build_progress >= 1.0f;
 		if (b.type == BLD_FIELD) {
 			++fields;
 			field_foundations += b.build_progress < 1.0f;
@@ -15749,24 +15755,37 @@ void Simulation::petra_manage_fields() {
 		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	const Building *anchor = farmstead ? farmstead : tc;
+	// configFirstBase: a starting land under 25000 m² saves space (one field at most, one field
+	// foundation fewer, and a corral), one under 60000 m² takes two fields at most; a second
+	// civic centre (handleNewBase) or a finished market (checkEvents) lifts both.
+	int max_fields = 0;
+	bool save_space = false;
+	if (civic_centres <= 1 && !market) {
+		uint16_t home = 0;
+		const PetraNavalTopo &topo = petra_classified_topo(home);
+		if (tc) home = petra_building_land(*tc, &topo);
+		const float m2 = home && home < topo.land_size.size() ? topo.cell_m2 * (float)topo.land_size[home] : 1e9f;
+		save_space = m2 < 25000.0f;
+		max_fields = save_space ? 1 : m2 < 60000.0f ? 2 : 0;
+	}
 	if (can_build(BLD_FIELD)) {
 		if (fields == 0) {
 			if (count < 600.0f && anchor) {
 				const float at[2] = {anchor->x, anchor->z}; // favoredBase: the base doing the check
 				petra_place_generic(BLD_FIELD, PETRA_QUEUE_VILLAGER, nullptr, at);
 			}
-			return;
+		} else if (!max_fields || fields < max_fields) {
+			int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
+			if (petra_attack_mgr_.save_resources || save_space || count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
+			if (field_foundations < goal && anchor) {
+				const float at[2] = {anchor->x, anchor->z};
+				petra_place_generic(BLD_FIELD, PETRA_QUEUE_VILLAGER, nullptr, at);
+			}
 		}
-		int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
-		if (petra_attack_mgr_.save_resources || count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
-		if (field_foundations < goal && anchor) {
-			const float at[2] = {anchor->x, anchor->z};
-			petra_place_generic(BLD_FIELD, PETRA_QUEUE_VILLAGER, nullptr, at);
-		}
-		return;
+		if (!save_space) return; // needCorral: only a small starting land wants a corral as well
 	}
 	if (corrals == 0) {
-		if (count < 900.0f && anchor && can_build(BLD_CORRAL))
+		if ((count < 900.0f || save_space) && anchor && can_build(BLD_CORRAL))
 		{
 			const float at[2] = {anchor->x, anchor->z};
 			petra_place_generic(BLD_CORRAL, PETRA_QUEUE_VILLAGER, nullptr, at);
@@ -15774,14 +15793,18 @@ void Simulation::petra_manage_fields() {
 		return;
 	}
 	if (ticks_ % 16 != 12) return; // manageCorral, every fourth played turn
+	if (!can_build(BLD_FIELD) && corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor &&
+	    can_build(BLD_CORRAL)) {
+		const float at[2] = {anchor->x, anchor->z};
+		if (petra_place_generic(BLD_CORRAL, PETRA_QUEUE_VILLAGER, nullptr, at)) return;
+	}
 	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.type != BLD_CORRAL || b.build_progress < 1.0f || b.hp <= 0.0f || !b.queue.empty()) continue;
 		for (uint8_t k = 0; k < ct.count; ++k) {
-			int have = 0; // countEntitiesByType: the corral's own animals around it
+			int have = 0; // countEntitiesByType: our own animals of that kind
 			for (size_t f = 0; f < fauna_.count; ++f)
-				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] &&
-				    std::hypot(fauna_.pos_x[f] - b.x, fauna_.pos_z[f] - b.z) < 20.0f) ++have;
+				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] && fauna_owner_[f] == petra_pid_) ++have;
 			if (have > corrals) continue;
 			cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1);
 			return;
@@ -17770,10 +17793,9 @@ void Simulation::petra_manage_research(float dt) {
 		for (const auto &b : buildings_)
 			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type) == cls)
 				return; // one at a time; it counts once finished
-		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_FORGE, BLD_TEMPLE, BLD_MARKET};
 		if (cls == 1) {
-			for (uint8_t t : kVillage) if (petra_place_generic(t, PETRA_QUEUE_TECH)) return;
+			petra_place_generic(BLD_HOUSE, PETRA_QUEUE_TECH);
 		} else {
 			for (uint8_t t : kTown)
 				if (!have_building(t) && (t == BLD_MARKET ? petra_build_market(home->x, home->z, PETRA_QUEUE_TECH)
@@ -25316,11 +25338,11 @@ constexpr uint8_t kSurvivalCivicCentre = 1, kSurvivalTreasureFemale = 2;
 constexpr uint8_t kSurvivalTreasures[] = {TREASURE_FOOD_BARREL, TREASURE_FOOD_BIN, TREASURE_FOOD_CRATE,
 	TREASURE_FOOD_JARS, TREASURE_METAL, TREASURE_STONE, TREASURE_WOOD, TREASURE_WOOD, TREASURE_WOOD};
 // disabledTemplates: economic structures, expansions, walls and shoreline (RTS0 has no
-// rotary mill, crannog or super dock; a stone wallset is its segments, towers and gates, and
-// the Roman siege wallset its BLD_SIEGE_WALL pieces).
+// rotary mill; a stone wallset is its segments, towers and gates, and the Roman siege wallset
+// its BLD_SIEGE_WALL pieces).
 constexpr uint8_t kSurvivalDisabledBuildings[] = {BLD_CORRAL, BLD_FARMSTEAD, BLD_FIELD, BLD_STOREHOUSE,
 	BLD_TOWN_CENTER, BLD_MILITARY_COLONY, BLD_WALL_SEGMENT, BLD_WALL_TOWER, BLD_GATE, BLD_PALISADE,
-	BLD_SIEGE_WALL, BLD_DOCK, BLD_LIGHTHOUSE};
+	BLD_SIEGE_WALL, BLD_DOCK, BLD_LIGHTHOUSE, BLD_SUPER_DOCK, BLD_CRANNOG};
 const char *const kSurvivalDisabledUnits[] = {"maur/support_elephant"};
 // survivalofthefittest.js (0.28) "Forbid placing foundations at the center": an
 // obstructors/placement_24x24 (Obstruction/Static 24 m, BlockFoundation only) every 6 m of the
@@ -27193,10 +27215,11 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			fauna_.hp[f] = 0.0f;
 		}
 	// Structures and resources under water become decorative actors in 0 A.D.:
-	// here they are gone. Docks float with the water.
+	// here they are gone. Docks and the crannog (Position/Floating) float with the water.
 	bool lost_building = false;
 	for (Building &b : buildings_) {
-		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || !submerged(b.x, b.z)) continue;
+		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || b.type == BLD_CRANNOG ||
+				!submerged(b.x, b.z)) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0) continue;

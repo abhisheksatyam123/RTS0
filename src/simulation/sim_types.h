@@ -415,7 +415,8 @@ enum BuildingType : uint8_t {
 	BLD_EMBASSY_ITALIC = 62,  // cart/embassy_italic
 	BLD_SIEGE_WALL = 63,      // rome/wallset_siege: siege_wall_long/medium/short and siege_wall_tower
 	BLD_SIEGE_WALL_GATE = 64, // rome/siege_wall_gate (a siege_wall_long Upgrade)
-	BLD_TYPE_COUNT = 65
+	BLD_CRANNOG = 65,         // brit/crannog (a Civic Center on the shore: is_civic_centre)
+	BLD_TYPE_COUNT = 66
 };
 
 #include "civ_building_data.h"
@@ -429,7 +430,7 @@ static_assert(TERRITORY_INFLUENCE_ROWS == BLD_TYPE_COUNT,
 inline constexpr uint8_t building_research_base(uint8_t type) {
 	return (type >= BLD_TACHARA_FOOD && type <= BLD_TACHARA_METAL) ? (uint8_t)BLD_TACHARA
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
-	       : type == BLD_IMPERIAL_COURT ? (uint8_t)BLD_TOWN_CENTER
+	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
 	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
@@ -437,7 +438,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 // 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
 // territory root, a dropsite for every resource, a conquest-critical base).
 inline constexpr bool is_civic_centre(uint8_t type) {
-	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT;
+	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG;
 }
 // The defense tower and its Han Great Archery Tower form (StoneTower).
 inline constexpr bool is_defense_tower(uint8_t type) {

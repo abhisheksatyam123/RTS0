@@ -657,7 +657,8 @@ struct RejoinMsg {
 	uint8_t kind = REQUEST;
 	uint32_t turn = 0;
 	uint32_t total = 0;  // HEADER: saved-world size; CHUNK: offset of these bytes
-	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started, 6 = no late observers;
+	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started, 6 = no late observers,
+	                     //   7 = observer limit reached (0 A.D. NDR_SERVER_FULL);
 	                     // REQUEST: 1 = join as an observer (0 A.D. observer late join)
 	std::vector<uint8_t> bytes; // HEADER: the rest of the header; CHUNK: world bytes
 	static constexpr size_t CHUNK_BYTES = 1024;
