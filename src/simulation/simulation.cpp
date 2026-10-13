@@ -2628,7 +2628,7 @@ bool Simulation::cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_
 	const uint16_t allies = ally_civ_mask(player);
 	auto team = [&](uint8_t stat, int8_t r) { return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT); };
 	ProductionOrder order;
-	order.unit_type = UNIT_TYPE_COUNT;
+	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech;
 	order.timer = 0.0f;
 	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
@@ -3019,7 +3019,7 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	};
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
 	ProductionOrder order;
-	order.unit_type = UNIT_TYPE_COUNT;
+	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech_id;
 	order.timer = 0.0f;
 	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
@@ -8867,12 +8867,13 @@ void Simulation::tick_gather(float dt) {
 	}
 	// Every other supply's gatherers, for its MaxGatherers (ResourceSupply.AddActiveGatherer).
 	supply_gatherers_.clear();
-	// Mauryan worker elephants: mobile dropsites taking their owner's every resource
-	// (template_unit_support_elephant ResourceDropsite food wood stone metal).
-	std::vector<uint32_t> elephants;
+	// Mobile dropsites (worker elephants, supply wagons) taking every resource
+	// (template_unit_support_elephant and _wagon ResourceDropsite food wood stone metal).
+	std::vector<uint32_t> mobile_drops;
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i]) continue;
-		if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT && units_.action_state[i] != ACTION_GARRISONED) elephants.push_back((uint32_t)i);
+		if (unit_is_mobile_dropsite(units_.unit_type[i]) && units_.action_state[i] != ACTION_GARRISONED)
+			mobile_drops.push_back((uint32_t)i);
 		const uint32_t rid = units_.target_resource_id[i];
 		// Leaving GATHERING (StopGathering) drops the rate fixed at its start.
 		if (units_.gather_res[i] != 0 && (units_.action_state[i] != ACTION_GATHER || rid != units_.gather_res[i])) {
@@ -8898,8 +8899,8 @@ void Simulation::tick_gather(float dt) {
 					units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
-			float drop_x = 0, drop_z = 0, drop_half = 0; // drop_half: a worker elephant's radius
-			const Building *drop = nullptr; // a structure, else the elephant at drop_x, drop_z
+			float drop_x = 0, drop_z = 0, drop_half = 0; // drop_half: a mobile dropsite's radius
+			const Building *drop = nullptr; // a structure, else the mobile dropsite at drop_x, drop_z
 			bool found_dropsite = false;
 
 			for (const auto &b : buildings_) {
@@ -8925,15 +8926,15 @@ void Simulation::tick_gather(float dt) {
 				}
 			}
 			if (units_.unit_type[i] != UNIT_FISHING_BOAT) {
-				for (uint32_t e : elephants) {
-					if (units_.team[e] != uteam) continue;
+				for (uint32_t e : mobile_drops) {
+					if (!mobile_dropsite_usable_by(uteam, e)) continue;
 					const float dx = units_.pos_x[i] - units_.pos_x[e];
 					const float dz = units_.pos_z[i] - units_.pos_z[e];
 					const float d2 = dx * dx + dz * dz;
 					if (d2 < best_d2) {
 						best_d2 = d2;
 						drop_x = units_.pos_x[e]; drop_z = units_.pos_z[e]; drop = nullptr;
-						drop_half = unit_collision_radius(UNIT_WORKER_ELEPHANT);
+						drop_half = unit_collision_radius(units_.unit_type[e]);
 						found_dropsite = true;
 					}
 				}
@@ -13322,6 +13323,15 @@ bool Simulation::dropsite_usable_by(uint8_t player, const Building &b) const {
 	if (b.team == player) return true;
 	return player < MAX_PLAYERS && b.team < MAX_PLAYERS && b.dropsite_shared &&
 		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, b.team);
+}
+
+// The same rule for a unit that is a dropsite: the supply wagon is Sharable and keeps the
+// default sharing, the worker elephant takes only its owner's resources.
+bool Simulation::mobile_dropsite_usable_by(uint8_t player, size_t e) const {
+	const uint8_t owner = units_.team[e];
+	if (owner == player) return true;
+	return player < MAX_PLAYERS && owner < MAX_PLAYERS && unit_dropsite_sharable(units_.unit_type[e]) &&
+		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, owner);
 }
 
 // set-dropsite-sharing (Commands.js): the owner of a dropsite turns sharing on or off; the
@@ -17804,7 +17814,7 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	                   tinfo.gold_cost * tc[RES_GOLD], tinfo.stone_cost * tc[RES_STONE]))
 		return false;
 	ProductionOrder order;
-	order.unit_type = UNIT_TYPE_COUNT;
+	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech_id;
 	order.timer = 0.0f;
 	order.paid[RES_FOOD] = (float)tinfo.food_cost;
@@ -22661,7 +22671,7 @@ bool Simulation::load_state(const char *filepath) {
 		if (!pq && old_research_tech != TECH_NONE && old_research_duration > 0.0f) {
 			// The old research runs on as the front item, ahead of the units it held up.
 			ProductionOrder po{};
-			po.unit_type = UNIT_TYPE_COUNT;
+			po.unit_type = UNIT_TYPE_TECH;
 			po.tech = old_research_tech;
 			po.timer = old_research_timer;
 			po.duration = old_research_duration;
@@ -23482,7 +23492,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				for (float &p : o.paid) ar.pod(p);
 				if constexpr (Ar::loading)
 					if (o.is_tech() ? o.tech >= TECH_COUNT
-					                : (o.unit_type >= UNIT_TYPE_COUNT || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT || o.count == 0))
+					                : (o.unit_type >= UNIT_TYPE_COUNT || o.unit_type == UNIT_TYPE_TECH || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT ||
+					                   o.count == 0))
 						ar.ok = false;
 			});
 			if constexpr (Ar::loading)
