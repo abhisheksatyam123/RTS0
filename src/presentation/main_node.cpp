@@ -124,6 +124,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
+	ClassDB::bind_method(D_METHOD("get_match_settings_info"), &RtsoMain::get_match_settings_info);
 	ClassDB::bind_method(D_METHOD("_on_tutorial_ready_pressed"), &RtsoMain::_on_tutorial_ready_pressed);
 	ClassDB::bind_method(D_METHOD("resign"), &RtsoMain::resign);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
@@ -569,7 +570,8 @@ void RtsoMain::_ready() {
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
-				first_key("session.gui.barter.toggle"), first_key("session.gui.objectives.toggle"));
+				first_key("session.gui.barter.toggle"),
+				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
 	time_notification_label_ = memnew(Label);
@@ -1714,6 +1716,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat"] = chat_window_.is_open();
 	d["diplomacy"] = diplo_dialog_.is_open();
 	d["objectives"] = objectives_dialog_.is_open();
+	d["match_settings_text"] = objectives_dialog_.text();
+	d["match_settings_state"] = objectives_dialog_.player_state();
 	Node *barter = get_node_or_null(NodePath("BarterDialog"));
 	d["barter"] = barter ? bool(barter->call("is_open")) : false;
 	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
@@ -3355,7 +3359,7 @@ void RtsoMain::_process(double delta) {
 	show_session_notices(sim->take_session_notices());
 	update_cursor();
 	chat_window_.tick_overlay();
-	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
+	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
@@ -4968,7 +4972,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		if (fired("session.gui.diplomacy.toggle")) { toggle_diplomacy(); return; }
 		if (fired("session.diplomacycolors")) { toggle_diplomacy_colors(); return; }
-		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
+		if (fired("session.gui.matchsettings.toggle") || fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
 		if (fired("session.gui.tutorial.toggle")) { tutorial_panel_.toggle(); return; }
 		if (fired("session.gui.barter.toggle")) {
 			_toggle_session_dialog("BarterDialog");
@@ -7354,10 +7358,51 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 	chat_window_.send_pressed();
 }
 
+// 0 A.D. MatchSettingsDialog.toggle.
 void RtsoMain::toggle_objectives() {
 	const bool open = objectives_dialog_.is_open();
-	if (!open) close_open_dialogs();
-	objectives_dialog_.toggle(sim, local_player());
+	close_open_dialogs();
+	if (!open) objectives_dialog_.open(match_settings_description(), match_settings_player_state());
+}
+
+// The settings getGameDescription describes: the running match's own (saved with it)
+// and the Game Setup ones only the map generator used (in every replay and save).
+Dictionary RtsoMain::get_match_settings_info() const {
+	Dictionary d;
+	if (!sim) return d;
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")))
+		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty"}) d[k] = ms->get(k);
+	d["map_id"] = String::utf8(sim->current_map_id().c_str());
+	d["map_name"] = String::utf8(sim->current_map_name().c_str());
+	d["victory_mask"] = (int)sim->victory_conditions(); // rtso::VictoryKind bits
+	d["wonder_min"] = (int)std::lround(sim->wonder_duration() / 60.0f);
+	d["relic_min"] = (int)std::lround(sim->relic_duration() / 60.0f);
+	d["relic_count"] = sim->relic_count();
+	d["regicide_garrison"] = sim->regicide_garrison();
+	d["lock_teams"] = sim->teams_locked();
+	d["last_man_standing"] = sim->last_man_standing();
+	d["ceasefire_min"] = (int)std::lround(sim->ceasefire_seconds() / 60.0f);
+	d["pop_cap"] = sim->pop_cap_setting(); // negative: World or Team Population
+	d["nomad"] = sim->nomad();
+	d["disable_treasures"] = sim->disable_treasures();
+	d["explore_map"] = sim->explore_map();
+	d["reveal_map"] = sim->reveal_map();
+	d["cheats"] = sim->cheats_enabled();
+	return d;
+}
+
+String RtsoMain::match_settings_description() const {
+	Ref<Script> desc = ResourceLoader::get_singleton()->load("res://scenes/session/game_description.gd");
+	return desc.is_valid() ? (String)desc->call("describe", get_match_settings_info()) : String();
+}
+
+// MatchSettingsDialog.rebuild: g_PlayerStateMessages for a player who has won or lost.
+String RtsoMain::match_settings_player_state() const {
+	const uint8_t me = local_player();
+	if (!sim || me >= rtso::MAX_PLAYERS) return String();
+	if (sim->is_victory_for(me)) return "You have won!";
+	if (sim->is_defeated(me)) return "You have been defeated!";
+	return String();
 }
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
@@ -7400,7 +7445,7 @@ void RtsoMain::_on_tutorial_ready_pressed() {
 	post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TUTORIAL_READY, nullptr, 0, 0.0f, 0.0f, 0, 0);
 }
 
-// Top panel IconButtons: DiplomacyDialogButton, TradeDialogButton, ObjectivesDialogButton.
+// Top panel IconButtons: DiplomacyDialogButton, TradeDialogButton, MatchSettingsDialogButton.
 void RtsoMain::_toggle_session_dialog(String name) {
 	if (name == "DiplomacyDialog") toggle_diplomacy();
 	else if (name == "Objectives") toggle_objectives();
