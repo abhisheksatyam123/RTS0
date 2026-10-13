@@ -20,6 +20,18 @@ static bool is_promotion_target(const char *id)
 	return false;
 }
 
+// Rows 0.28 retired: they keep their ids for saves but no structure trains them and nothing
+// promotes to them (extract_0ad_rosters.py --retire): the Female Citizens 0.28's Civilians
+// replace, and the units 0.28 dropped.
+static bool is_retired(const char *id)
+{
+	static const char *const kDropped[] = {"rome/cavalry_auxiliary_b", "cart/cavalry_swordsman_iber_b", "cart/infantry_swordsman_ital_b"};
+	if (std::strstr(id, "/support_female_citizen")) return true;
+	for (const char *d : kDropped)
+		if (std::strcmp(id, d) == 0) return true;
+	return false;
+}
+
 static int g_checks = 0;
 static int g_failed = 0;
 
@@ -67,7 +79,7 @@ int main()
 		bool upgrade_target = false; // reached by a unit Upgrade (the Immortals' bow)
 		for (const CivUnitUpgrade *up = civ_unit_upgrade_table(); up->from != 0xFFFF; ++up)
 			upgrade_target = upgrade_target || up->to == i;
-		if (upgrade_target) continue;
+		if (upgrade_target || is_retired(u.id)) continue;
 		if (!is_promotion_target(u.id) || u.civ >= CIV_COUNT || u.hp <= 0.0f) {
 			tail_ok = false;
 			std::printf("      bad promotion-only row %u %s\n", i, u.id);
@@ -83,9 +95,7 @@ int main()
 		bool rows_ok = true;
 		for (uint16_t i : ids) {
 			const CivUnitTemplate &u = civ_unit_template(i);
-			// 0.28's Civilians replace the Female Citizens, whose rows keep their ids for saves
-			// but no structure trains them (extract_0ad_rosters.py --retire).
-			const bool retired = std::strstr(u.id, "/support_female_citizen") != nullptr;
+			const bool retired = is_retired(u.id);
 			if (u.civ != c || u.unit_type >= UNIT_TYPE_COUNT || u.hp <= 0.0f || u.speed <= 0.0f ||
 					u.phase < 1 || u.phase > 3 || !u.trainers != retired || u.train_time <= 0.0f) {
 				rows_ok = false;
