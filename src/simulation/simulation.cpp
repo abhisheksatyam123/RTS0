@@ -11837,6 +11837,7 @@ void Simulation::check_victory_conditions(float dt) {
 	constexpr int MAX_TEAMS = MAX_PLAYERS;
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
+	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	bool wonder[MAX_TEAMS] = {};
@@ -11845,6 +11846,7 @@ void Simulation::check_victory_conditions(float dt) {
 		// queue them).
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
 		structure_count[b.team]++;
+		if (is_conquest_critical(b.type) && b.build_progress >= 1.0f) critical_count[b.team]++;
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
 		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && b.build_progress >= 1.0f) built_cc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
@@ -11852,8 +11854,8 @@ void Simulation::check_victory_conditions(float dt) {
 	for (size_t u = 0; u < units_.count; ++u) {
 		uint8_t t = units_.team[u];
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
-		if (units_.unit_type[u] == UNIT_CATAFALQUE) continue; // not ConquestCritical
-		unit_count[t]++;
+		unit_count[t]++; // ConquestUnits.js "Unit+!Animal": every unit, catafalques and traders too
+		if (is_conquest_critical_unit(units_.unit_type[u])) critical_count[t]++;
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
@@ -11910,17 +11912,21 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 
 	// Each active condition defeats on its own (every Conquest*.js query and Regicide.js
-	// call SetState("defeated") independently). Each partial conquest's second query
-	// ("ConquestCritical ...") is Conquest itself.
+	// call SetState("defeated") independently). A partial conquest's second query
+	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
+	// empty after its first, so the first decides.
 	const uint8_t vk = victory_conditions();
-	constexpr uint8_t kAnyConquest = VK_CONQUEST | VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES | VK_CONQUEST_CIVIC_CENTRES;
 	auto defeated = [&](int t) {
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
 		// centre yet is not out until one is lost.
 		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
-		return ((vk & kAnyConquest) && no_units && no_structures) ||
+		// Conquest.js's list starts with what the player holds at the start and only fires on a
+		// loss, so a player that never lost anything (a test's lone market) stays in until it
+		// holds nothing at all.
+		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
+		return ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) ||
 		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
 		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
 		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
