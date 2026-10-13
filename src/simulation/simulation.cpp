@@ -24337,6 +24337,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"elephantine_triggers", TRIGGER_ACTION_ELEPHANTINE_INIT, TUTORIAL_NONE},
 		{"danubius_triggers", TRIGGER_ACTION_DANUBIUS_INIT, TUTORIAL_NONE},
 		{"jebel_barkal_triggers", TRIGGER_ACTION_JEBEL_BARKAL_INIT, TUTORIAL_NONE},
+		{"gallic_fields_3p", TRIGGER_ACTION_GALLIC_FIELDS, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -24567,6 +24568,9 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP:
 			trigger_jebel_barkal_ownership(data);
+			break;
+		case TRIGGER_ACTION_GALLIC_FIELDS:
+			trigger_gallic_fields(arg != 0.0f);
 			break;
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
@@ -24829,6 +24833,44 @@ void Simulation::trigger_survival_treasures() {
 			spawn_treasure(p.x, p.z, kSurvivalTreasures[sim_rng_.range_int(0, (int)std::size(kSurvivalTreasures) - 1)]);
 	const float minutes = sim_rng_.range_float(kSurvivalTreasureMin, kSurvivalTreasureMax);
 	triggers_.set_timeout((uint32_t)std::lround(minutes * 60000.0f), TRIGGER_ACTION_SURVIVAL_TREASURES);
+}
+
+void Simulation::trigger_gallic_fields(bool attack) {
+	// maps/skirmishes/gallic_fields_3p.js. vars 0 attackSize, 1 attackTime [ms].
+	int32_t *v = triggers_.vars;
+	if (!attack) {
+		v[0] = 1;         // attack with 1 soldier
+		v[1] = 60 * 1000; // attack in 1 minute
+		triggers_.set_timeout((uint32_t)v[1], TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
+		return;
+	}
+	// SpawnAndAttack: SpawnUnitsFromTriggerPoints(pickRandom(["B", "C"]),
+	// "units/rome/champion_infantry_swordsman_02", attackSize, 0): Roman champions as Gaia on
+	// every point of the set, each group sent to attack-walk to its point owner's A point.
+	const uint8_t ref = sim_rng_.range_int(0, 1) ? 'C' : 'B';
+	const uint16_t tmpl = roster_template_named("rome/champion_infantry_swordsman");
+	for (const TriggerPoint &p : triggers_.points) {
+		if (p.ref != ref || tmpl == CIV_UNIT_TEMPLATE_NONE) continue;
+		std::vector<uint32_t> ids;
+		for (int k = 0; k < v[0]; ++k) {
+			// TriggerHelper.SpawnUnits puts them all on the point; spread them a little.
+			const float a = 2.3999632f * (float)k, r = 0.8f * std::sqrt((float)k);
+			if (const uint32_t id = spawn_unit(p.x + std::cos(a) * r, p.z + std::sin(a) * r, GAIA_PLAYER,
+					(UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl))
+				ids.push_back(id);
+		}
+		for (const TriggerPoint &t : triggers_.points)
+			if (t.ref == 'A' && t.owner == p.owner) {
+				// "attack-walk", targetClasses Unit and Structure, allowCapture false, queued.
+				if (!ids.empty()) order_attack_move(ids.data(), ids.size(), t.x, t.z, true, false, false);
+				break;
+			}
+	}
+	// Enlarge the attack time and size.
+	const float rand = sim_rng_.range_float(1.0f, 3.0f);
+	v[1] = (int32_t)((float)v[1] * rand);
+	v[0] = (int32_t)std::lround((float)v[0] * rand);
+	triggers_.set_timeout((uint32_t)v[1], TRIGGER_ACTION_GALLIC_FIELDS, 1.0f);
 }
 
 void Simulation::trigger_survival_wave() {

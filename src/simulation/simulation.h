@@ -2229,6 +2229,7 @@ private:
 	void tick_trigger_watches();
 	void trigger_survival_init();
 	void trigger_survival_wave();
+	void trigger_gallic_fields(bool attack);
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").

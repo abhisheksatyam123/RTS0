@@ -87,6 +87,7 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL = 29,  // JebelBarkal_SpawnCityPatrolGroups
 	TRIGGER_ACTION_JEBEL_BARKAL_ATTACK = 30,       // JebelBarkal_SpawnAttackerGroups
 	TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP = 31,    // JebelBarkal_OwnershipChange
+	TRIGGER_ACTION_GALLIC_FIELDS = 32,             // skirmishes/gallic_fields_3p.js: arg 0 init, 1 SpawnAndAttack
 	TRIGGER_ACTION_COUNT
 };
 
