@@ -409,6 +409,31 @@ static void test_transport() {
 	}
 	std::printf("  8 passengers ashore: %d overlapping pairs, %d in the water\n", overlaps, wet);
 	CHECK(overlaps == 0 && wet == 0);
+	// A crowded shore: PickSpawnPoint finds no free spot, so the passengers stay aboard (the
+	// unforced Eject), and when the ship sinks EjectOrKill drowns the ones it could not eject.
+	const uint32_t pair[] = {crew[0], crew[1]};
+	s.order_board_transport(pair, 2, ship3);
+	run(s, 10.0f);
+	CHECK(s.get_transport_passenger_count(ship3) == 2);
+	const float sx3 = s.units().pos_x[idx(s, ship3)], sz3 = s.units().pos_z[idx(s, ship3)];
+	const float crowd_r = Simulation::SHIP_LOADING_RANGE + unit_collision_radius(UNIT_TRIREME) + 2.0f;
+	int crowd = 0;
+	for (float dx = -crowd_r; dx <= crowd_r; dx += 0.75f)
+		for (float dz = -crowd_r; dz <= crowd_r; dz += 0.75f) {
+			if (dx * dx + dz * dz > crowd_r * crowd_r) continue;
+			s.spawn_unit(sx3 + dx, sz3 + dz, 0, UNIT_SPEARMAN);
+			++crowd;
+		}
+	s.order_disembark_all(ship3);
+	std::printf("  crowded shore (%d units): %zu passengers stay aboard\n", crowd, s.get_transport_passenger_count(ship3));
+	CHECK(s.get_transport_passenger_count(ship3) == 2);
+	s.order_disembark_single(ship3, crew[0]);
+	CHECK(aboard(s, ship3, crew[0]));
+	s.units_.hp[idx(s, ship3)] = 0.0f;
+	s.units_.alive[idx(s, ship3)] = 0;
+	run(s, 0.1f);
+	CHECK(s.get_transport_passengers(ship3) == nullptr);
+	CHECK(!s.units().alive[idx(s, crew[0])] && !s.units().alive[idx(s, crew[1])]);
 	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
 }
 
