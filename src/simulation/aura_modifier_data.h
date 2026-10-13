@@ -265,8 +265,8 @@ struct BuilderRateRangeAura { const char *id; float multiply; bool stackable; };
 constexpr uint16_t BUILDER_RATE_RANGE_AURA_COUNT = 3;
 inline const BuilderRateRangeAura *builder_rate_range_auras() {
 	static const BuilderRateRangeAura kAuras[3] = {
-		{"han_minister_building", 1.02f, true},
-		{"pers_hero_xerxes_i", 1.15f, false},
+		{"han_minister_building", 1.1f, false},
+		{"pers_hero_xerxes_i_1", 1.25f, false},
 		{"ptol_hero_ptolemy_i_1", 1.1f, false},
 	};
 	return kAuras;

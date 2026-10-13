@@ -176,9 +176,9 @@ int main() {
 		std::remove(path);
 	}
 
-	// 7. Builder/Rate range auras (builder_rate): each minister within 40 m multiplies its
-	//    owner's Workers' build rate by 1.02 (han_minister_building.json, stackable);
-	//    Xerxes' Administrator x1.15 (60 m, Workers) and Ptolemy I's Patron of Construction
+	// 7. Builder/Rate range auras (builder_rate), 0.28 values: a minister within 20 m multiplies
+	//    its owner's Workers' build rate by 1.1 (han_minister_building.json, not stackable);
+	//    Xerxes' Administrator x1.25 (100 m, Workers) and Ptolemy I's Patron of Construction
 	//    x1.1 (60 m, Builders) count once however many reach.
 	{
 		auto tmpl_of = [](const char *id) {
@@ -197,10 +197,10 @@ int main() {
 		spawn_minister(s, 0.0f, 2.0f);
 		spawn_minister(s, 0.0f, -2.0f);
 		run(s, 0.5f);
-		std::printf("two ministers nearby: build rate x%.4f (want 1.0404)\n", rate(worker));
-		CHECK(near(rate(worker), 1.02f * 1.02f));
+		std::printf("two ministers nearby: build rate x%.4f (want 1.1)\n", rate(worker));
+		CHECK(near(rate(worker), 1.1f));
 		CHECK(near(rate(enemy), 1.0f));
-		CHECK(near(rate(far_worker), 1.0f)); // 40 m (11.2 units) reaches 2 units past the edge only
+		CHECK(near(rate(far_worker), 1.0f)); // 20 m (5.6 units) reaches no further than the minister's edge
 		// A worker builds a house faster by the same factor.
 		fresh(s);
 		uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("han/infantry_spearman_b"));
@@ -214,8 +214,8 @@ int main() {
 		run(s, 4.0f);
 		const float with = hb().build_progress - p0;
 		const float bt = s.structure_build_time(hb());
-		std::printf("house: %.4f of it in 4 s (want %.4f)\n", with, 4.0f * 1.0404f / bt);
-		CHECK(std::fabs(with - 4.0f * 1.0404f / bt) < 0.01f);
+		std::printf("house: %.4f of it in 4 s (want %.4f)\n", with, 4.0f * 1.1f / bt);
+		CHECK(std::fabs(with - 4.0f * 1.1f / bt) < 0.01f);
 
 		// Xerxes once, even beside a second aura source of the same name.
 		fresh(s);
@@ -224,8 +224,8 @@ int main() {
 		s.spawn_unit(0.0f, 3.0f, 0, UNIT_HERO, 0.0f, tmpl_of("pers/hero_xerxes_i"));
 		s.spawn_unit(0.0f, -3.0f, 0, UNIT_HERO, 0.0f, tmpl_of("pers/hero_xerxes_i"));
 		run(s, 0.5f);
-		std::printf("Xerxes: build rate x%.3f (want 1.15)\n", rate(pw));
-		CHECK(near(rate(pw), 1.15f));
+		std::printf("Xerxes: build rate x%.3f (want 1.25)\n", rate(pw));
+		CHECK(near(rate(pw), 1.25f));
 
 		fresh(s);
 		s.players_[0].civ = CIV_PTOLEMIES;
