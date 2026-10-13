@@ -7703,6 +7703,13 @@ void Simulation::tick(float dt) {
 
 	// 6. Waves, AI, and World simulation
 	if (waves_enabled_) tick_waves(dt);
+	// The map's treasures as the match starts, before Petra's first turn looks for them (0 A.D.
+	// places them with the map; startingStrategy.js buildFirstBase counts on a Nomad start's).
+	if (ticks_ == 0 && !game_over_ && !victory_ && victory_conditions()) {
+		if (disable_treasures_) clear_treasures();
+		if (nomad_start_) spawn_nomad_treasures();
+		nomad_start_ = false;
+	}
 	tick_petra_ai(dt);
 	cc_captures_.clear();
 	tick_fauna(dt);
@@ -11799,11 +11806,6 @@ void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
 	if (!victory_conditions()) return;
-	if (ticks_ == 0) {
-		if (disable_treasures_) clear_treasures();
-		if (nomad_start_) spawn_nomad_treasures();
-		nomad_start_ = false;
-	}
 	if (has_victory(VK_REGICIDE) && ticks_ == 0) spawn_regicide_heroes();
 	if (has_victory(VK_RELIC) && ticks_ == 0 && (relic_count_ > 0 || relics_.empty())) apply_relic_count();
 
