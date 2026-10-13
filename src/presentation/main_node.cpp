@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
 #include <cstring>
@@ -43,6 +44,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
 	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
 	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
+	ClassDB::bind_method(D_METHOD("_on_minimap_order", "world_pos"), &RtsoMain::_on_minimap_order);
 	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_speed_selected", "id"), &RtsoMain::_on_speed_selected);
@@ -60,9 +62,13 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
 	ClassDB::bind_method(D_METHOD("_on_remove_guard_pressed"), &RtsoMain::_on_remove_guard_pressed);
 	ClassDB::bind_method(D_METHOD("_on_call_to_arms_pressed"), &RtsoMain::_on_call_to_arms_pressed);
+	ClassDB::bind_method(D_METHOD("_on_entity_command", "name"), &RtsoMain::_on_entity_command);
+	ClassDB::bind_method(D_METHOD("_on_pause_overlay_pressed"), &RtsoMain::_on_pause_overlay_pressed);
+	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
+	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -127,6 +133,9 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
 	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
+	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
+	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
+	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
@@ -192,6 +201,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
 	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
 	bind_enum("BuildingType", "SIEGE_WALL", rtso::BLD_SIEGE_WALL);
+	bind_enum("BuildingType", "SIEGE_WALL_GATE", rtso::BLD_SIEGE_WALL_GATE);
 	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
 	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
@@ -306,6 +316,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
 	if (n == "palisade_gate" || n == "palisades_gate") return rtso::BLD_PALISADE_GATE;
 	if (n == "siege_wall" || n == "wallset_siege") return rtso::BLD_SIEGE_WALL;
+	if (n == "siege_wall_gate") return rtso::BLD_SIEGE_WALL_GATE;
 	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
 	if (n == "wonder") return rtso::BLD_WONDER;
 	if (n == "dock") return rtso::BLD_DOCK;
@@ -438,7 +449,7 @@ void RtsoMain::_ready() {
 
 	minimap_view = memnew(RtsoMiniMapView);
 	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
-	minimap_view->connect("flare_requested", Callable(this, "_on_flare_requested"));
+	minimap_view->connect("minimap_order", Callable(this, "_on_minimap_order"));
 	ui_layer->add_child(minimap_view);
 
 	// Minimap layer toggles (methods were ClassDB-bound but had no UI driver).
@@ -882,6 +893,7 @@ void RtsoMain::_ready() {
 
 	// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
 	selection_grid_.build(inspector_panel, Vector2(102, 60), Vector2(404, 120), this, "_on_selection_group_clicked", 10, 36.0f);
+	selection_grid_.set_right_click("_on_selection_group_gui_input");
 	garrison_grid_.build(inspector_panel, Vector2(102, 148), Vector2(404, 34), this, "_on_garrison_group_clicked", 12, 30.0f);
 
 	// =========================================================================
@@ -941,8 +953,17 @@ void RtsoMain::_ready() {
 	stances_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(stances_bar);
 
-	// Indexed by UnitStance (0 A.D. g_Stances).
-	const char *stance_names[5] = {"Aggressive", "Defensive", "Stand Ground", "Violent", "Passive"};
+	// Indexed by UnitStance; laid out in 0 A.D. g_Stances order (violent, aggressive,
+	// defensive, passive, standground: UnitAI's selectable stances when a template names
+	// none), with selection_panels_helpers.js names and tooltips.
+	const char *stance_names[5] = {"Aggressive", "Defensive", "Standground", "Violent", "Passive"};
+	const char *stance_tips[5] = {
+		"Attack nearby opponents",
+		"Attack nearby opponents, chase a short distance and return to the original location",
+		"Attack opponents in range, but don't move",
+		"Attack nearby opponents, focus on attackers and chase while visible",
+		"Flee if attacked"
+	};
 	// 0 A.D. stance icons (art/textures/ui/session/stances), same order as the names.
 	const char *stance_icons[5] = {
 		"res://assets/textures/ui/stances/aggressive.png",
@@ -951,10 +972,14 @@ void RtsoMain::_ready() {
 		"res://assets/textures/ui/stances/violent.png",
 		"res://assets/textures/ui/stances/passive.png"
 	};
-	for (int s = 0; s < 5; ++s) {
+	const int stance_order[5] = {rtso::STANCE_VIOLENT, rtso::STANCE_AGGRESSIVE, rtso::STANCE_DEFENSIVE,
+			rtso::STANCE_PASSIVE, rtso::STANCE_STAND_GROUND};
+	for (int s : stance_order) {
 		Button *sb = memnew(Button);
 		sb->set_custom_minimum_size(Vector2(95, 24));
 		sb->set_text(stance_names[s]);
+		sb->set_tooltip_text(String(stance_names[s]) + "\n" + stance_tips[s]);
+		sb->set_toggle_mode(true); // pressed = some selected unit holds it (IsStanceSelected)
 		Ref<Texture2D> s_ico = load_tex(stance_icons[s]);
 		if (s_ico.is_valid()) {
 			sb->set_button_icon(s_ico);
@@ -963,7 +988,9 @@ void RtsoMain::_ready() {
 		sb->add_theme_font_size_override("font_size", 9);
 		sb->connect("pressed", Callable(this, "_on_stance_selected").bind(s));
 		stances_bar->add_child(sb);
+		stance_buttons_[s] = sb;
 	}
+	stances_bar->set_visible(false);
 
 	// Actions & Formations Bar
 	actions_bar = memnew(HBoxContainer);
@@ -1024,6 +1051,43 @@ void RtsoMain::_ready() {
 	banner_label->add_theme_font_size_override("font_size", 22);
 	banner_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	banner_panel->add_child(banner_label);
+
+	// PauseOverlay.xml: a dimmed full-screen button with the pause captions.
+	pause_overlay_ = memnew(Button);
+	pause_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
+	pause_overlay_->set_flat(true);
+	pause_overlay_->set_focus_mode(Control::FOCUS_NONE);
+	pause_overlay_->set_visible(false);
+	pause_overlay_->connect("pressed", Callable(this, "_on_pause_overlay_pressed"));
+	{
+		ColorRect *dim = memnew(ColorRect);
+		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
+		dim->set_color(Color(0, 0, 0, 0.45f));
+		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		pause_overlay_->add_child(dim);
+		auto caption = [&](const String &text, float top, int size) {
+			Label *l = memnew(Label);
+			l->set_text(text);
+			l->set_anchor(SIDE_LEFT, 0.3f);
+			l->set_anchor(SIDE_RIGHT, 0.7f);
+			l->set_anchor(SIDE_TOP, 0.4f);
+			l->set_anchor(SIDE_BOTTOM, 0.4f);
+			l->set_offset(SIDE_TOP, top);
+			l->set_offset(SIDE_BOTTOM, top + size + 8);
+			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			l->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+			l->add_theme_font_size_override("font_size", size);
+			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+			l->add_theme_constant_override("outline_size", 4);
+			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			pause_overlay_->add_child(l);
+			return l;
+		};
+		caption(tr("Game Paused"), -20.0f, 28);
+		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
+		pause_by_label_ = caption("", 50.0f, 14);
+	}
+	ui_layer->add_child(pause_overlay_);
 
 	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
@@ -1507,6 +1571,69 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 	return d;
 }
 
+// Test hook: the selection, the selected structure's rally point, and every own
+// unit with its template, rank, world position and screen position.
+Dictionary RtsoMain::debug_selection_state() {
+	Dictionary d;
+	if (!sim) return d;
+	d["selected"] = selected_ids;
+	d["building"] = (int64_t)selected_building_id;
+	for (const auto &b : sim->buildings())
+		if (b.id == selected_building_id && b.has_rally_point) d["rally"] = Vector2(b.rally_x, b.rally_z);
+	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	Array units;
+	auto uview = sim->units();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		Dictionary u;
+		u["id"] = (int64_t)uview.id[i];
+		u["tmpl"] = (int64_t)uview.tmpl[i];
+		u["rank"] = (int64_t)uview.rank[i];
+		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
+		if (cam) {
+			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
+			u["behind"] = cam->is_position_behind(wp);
+			u["screen"] = cam->unproject_position(wp);
+		}
+		units.push_back(u);
+	}
+	d["units"] = units;
+	d["viewport"] = get_viewport()->get_visible_rect().size;
+	return d;
+}
+
+// Test hook: the command panel's buttons after a refresh (text, tooltip,
+// disabled, instance id).
+Array RtsoMain::debug_command_row() {
+	Array out;
+	update_command_panel();
+	for (int i = 0; i < production_bar->get_child_count(); ++i)
+		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) {
+			Dictionary e;
+			e["text"] = btn->get_text();
+			e["tip"] = btn->get_tooltip_text();
+			e["disabled"] = btn->is_disabled();
+			e["id"] = (int64_t)btn->get_instance_id();
+			out.push_back(e);
+		}
+	return out;
+}
+
+// Test hook: which session dialogs are open, the pause overlay's state, and
+// the chat log; `chat` in the input line is sent first when given.
+Dictionary RtsoMain::debug_dialogs() {
+	Dictionary d;
+	d["chat"] = chat_window_.is_open();
+	d["diplomacy"] = diplo_dialog_.is_open();
+	d["objectives"] = objectives_dialog_.is_open();
+	Node *barter = get_node_or_null(NodePath("BarterDialog"));
+	d["barter"] = barter ? bool(barter->call("is_open")) : false;
+	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
+	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
+	d["chat_log"] = chat_window_.log_text();
+	return d;
+}
+
 // Test hook: step 0 places a barracks with a rally point and selects it; step 1
 // does what a right-click on the barracks itself does; every step reports the
 // rally point and whether the barracks centre / a far spot count as "itself".
@@ -1705,9 +1832,64 @@ void RtsoMain::chat_send_wire(const std::string &wire) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
+	if (rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare hotkey wins
+		trigger_flare(world_pos.x, world_pos.y);
+		return;
+	}
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
 	}
+}
+
+// input.js triggerFlareAction: one flare per g_FlareCooldown (3 s), shown in the
+// world and on the minimap and sent to the other players.
+void RtsoMain::trigger_flare(float x, float z) {
+	const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
+	if (now < last_flare_time_ + 3.0) return;
+	last_flare_time_ = now;
+	range_overlays_.add_marker(x, z, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
+	if (minimap_view) minimap_view->add_ping(Vector2(x, z), Color(1.0f, 0.4f, 0.2f));
+	_on_flare_requested(Vector2(x, z));
+	play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
+}
+
+// MiniMap.js onWorldClick, right button: determineAction with no entity under the
+// cursor, so a structure sets its rally point and units walk there (attack-walk
+// with session.attackmove), queued with session.queue.
+void RtsoMain::_on_minimap_order(Vector2 world_pos) {
+	if (!sim) return;
+	if (rtso::hotkeys::held("session.flare")) {
+		trigger_flare(world_pos.x, world_pos.y);
+		return;
+	}
+	const bool queued = rtso::hotkeys::held("session.queue");
+	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
+	if (selected_building_id != 0) {
+		if (turn_cmds()) {
+			uint32_t extra[2] = {0, 0};
+			post_lockstep(14, extra, 2, world_pos.x, world_pos.y, selected_building_id, qbit);
+		} else {
+			sim->cmd_set_rally_point(local_player(), selected_building_id, world_pos.x, world_pos.y, 0, 0, queued);
+		}
+		return;
+	}
+	if (selected_ids.is_empty()) return;
+	const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
+	const size_t sel_n = selected_ids.size();
+	range_overlays_.add_marker(world_pos.x, world_pos.y, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+	if (rtso::hotkeys::held("session.attackmove")) {
+		if (turn_cmds())
+			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
+		else
+			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, false, true);
+		play_civ_voice("attack");
+		return;
+	}
+	if (turn_cmds())
+		post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
+	else
+		sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
+	play_civ_voice("move");
 }
 
 void RtsoMain::_on_idle_worker_clicked() {
@@ -1934,6 +2116,8 @@ void RtsoMain::update_cursor() {
 					rtso::hotkeys::held("session.calltoarms")) want = "action-attack-move";
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
+			else if (garrison_mode) want = "action-garrison";
+			else if (repair_mode) want = "action-repair";
 			if (!*want) {
 				auto uv = sim->units();
 				bool healer = false, builder = false;
@@ -2109,11 +2293,46 @@ void RtsoMain::quickload() {
 }
 
 void RtsoMain::toggle_pause() {
+	// PauseControl.js canPause: an observer who is not the host cannot pause a
+	// multiplayer match (resuming their own pause stays allowed).
+	if (!hotkey_paused_ && net_lockstep() && !turn_mgr_.is_replaying() && local_player() >= rtso::MAX_PLAYERS &&
+			!net_host_.isHost())
+		return;
 	hotkey_paused_ = !hotkey_paused_;
 	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
-	if (banner_label) banner_label->set_text(hotkey_paused_ ? "Game paused" : "");
-	if (banner_panel) banner_panel->set_visible(hotkey_paused_);
 	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
+	update_pause_overlay();
+}
+
+// PauseOverlay.rebuild: shown for your own pause and while another client
+// pauses; the resume line only for your own; "Paused by" in multiplayer.
+void RtsoMain::update_pause_overlay() {
+	if (!pause_overlay_) return;
+	const bool networked = net_lockstep() && !turn_mgr_.is_replaying();
+	String who;
+	bool others = false;
+	if (networked)
+		for (uint32_t c : turn_mgr_.paused_clients()) {
+			others = others || c != turn_mgr_.local_client_id();
+			String name;
+			for (const auto &e : net_host_.playerAssignment())
+				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str());
+			if (name.is_empty()) {
+				const uint8_t pl = turn_mgr_.player_for_client(c);
+				name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
+			}
+			who += (who.is_empty() ? "" : ", ") + name;
+		}
+	const bool show = hotkey_paused_ || others;
+	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
+	if (!show) return;
+	pause_resume_label_->set_visible(hotkey_paused_);
+	const String by = networked && !who.is_empty() ? vformat(tr("Paused by %s"), who) : String();
+	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
+}
+
+void RtsoMain::_on_pause_overlay_pressed() {
+	if (hotkey_paused_) toggle_pause();
 }
 
 void RtsoMain::_on_menu_button_pressed() {
@@ -2228,7 +2447,115 @@ void RtsoMain::_on_remove_guard_pressed() {
 void RtsoMain::_on_call_to_arms_pressed() {
 	if (selected_ids.is_empty()) return;
 	call_to_arms_mode = true;
-	attack_move_mode = patrol_mode = guard_mode = false;
+	attack_move_mode = patrol_mode = guard_mode = garrison_mode = repair_mode = false;
+}
+
+// One g_EntityCommands button (unit_actions.js): the hotkey and title on the
+// tooltip's first line, the body below, the icon, and a count where it has one.
+void RtsoMain::add_entity_command(const char *name, const char *label, const char *hotkey, const String &tip,
+		const char *icon, bool enabled, int count) {
+	Button *btn = memnew(Button);
+	btn->set_text(count > 0 ? String(label) + " (" + String::num_int64(count) + ")" : String(label));
+	const std::string key = (hotkey && *hotkey) ? rtso::hotkeys::table().label(hotkey) : std::string();
+	btn->set_tooltip_text(key.empty() ? tip : "[" + String(key.c_str()) + "] " + tip);
+	Ref<Texture2D> ico = load_tex(String("res://assets/textures/ui/archive/icons/") + icon);
+	if (ico.is_valid()) {
+		btn->set_button_icon(ico);
+		btn->add_theme_constant_override("icon_max_width", 20);
+	}
+	btn->set_disabled(!enabled);
+	btn->connect("pressed", Callable(this, "_on_entity_command").bind(String(name)));
+	production_bar->add_child(btn);
+}
+
+// g_EntityCommands execute() for the command row, and the hotkeys that run them.
+void RtsoMain::_on_entity_command(const String &name) {
+	if (!sim) return;
+	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const size_t n = selected_ids.size();
+	auto arm = [&](bool &mode) {
+		if (n == 0) return;
+		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
+		mode = true;
+	};
+	if (name == "delete") {
+		request_delete();
+	} else if (name == "stop") { // stopUnits
+		if (n == 0) return;
+		if (turn_cmds())
+			post_lockstep(2, ids, n);
+		else
+			sim->cmd_stop(ids, n);
+	} else if (name == "back-to-work") { // backToWork
+		if (n == 0) return;
+		if (turn_cmds())
+			post_lockstep(31, ids, n);
+		else
+			sim->order_back_to_work(ids, n);
+		play_civ_voice("gather");
+	} else if (name == "call-to-arms") {
+		_on_call_to_arms_pressed();
+	} else if (name == "garrison") {
+		arm(garrison_mode);
+	} else if (name == "repair") {
+		arm(repair_mode);
+	} else if (name == "add-guard") {
+		arm(guard_mode);
+	} else if (name == "patrol") {
+		arm(patrol_mode);
+	} else if (name == "remove-guard") {
+		_on_remove_guard_pressed();
+	} else if (name == "unload-all") {
+		_on_ungarrison_pressed();
+	} else if (name == "select-trading-goods") {
+		_toggle_session_dialog("BarterDialog");
+	} else if (name == "focus-rally") {
+		// The first rally point, else the structure itself.
+		for (const auto &b : sim->buildings())
+			if (b.id == selected_building_id && cam_rig) {
+				cam_rig->set_target_pos(b.has_rally_point ? Vector3(b.rally_x, 0, b.rally_z) : Vector3(b.x, 0, b.z));
+				break;
+			}
+	}
+}
+
+// unit_actions.js "delete": everything selected that may be deleted (not a
+// structure you hold less than half the capture points of), after
+// DeleteSelectionConfirmation unless session.noconfirmation is held.
+void RtsoMain::request_delete() {
+	delete_pending_.clear();
+	for (int s = 0; s < selected_ids.size(); ++s) delete_pending_.push_back(selected_ids[s]);
+	for (const auto &b : sim->buildings())
+		if (b.id == selected_building_id && b.team == local_player() && !(b.max_capture_points > 0.0f &&
+				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))
+			delete_pending_.push_back((int32_t)b.id);
+	if (delete_pending_.is_empty()) return;
+	if (rtso::hotkeys::held("session.noconfirmation")) {
+		_on_delete_confirmed();
+		return;
+	}
+	if (!delete_dialog_) {
+		delete_dialog_ = memnew(ConfirmationDialog);
+		delete_dialog_->set_title(tr("Delete"));
+		delete_dialog_->set_text(tr("Destroy everything currently selected?"));
+		delete_dialog_->get_ok_button()->set_text(tr("Yes"));
+		delete_dialog_->get_cancel_button()->set_text(tr("No"));
+		delete_dialog_->connect("confirmed", Callable(this, "_on_delete_confirmed"));
+		ui_layer->add_child(delete_dialog_);
+	}
+	delete_dialog_->popup_centered();
+}
+
+void RtsoMain::_on_delete_confirmed() {
+	if (!sim || delete_pending_.is_empty()) return;
+	std::vector<uint32_t> ids;
+	for (int s = 0; s < delete_pending_.size(); ++s) ids.push_back((uint32_t)(int64_t)delete_pending_[s]);
+	delete_pending_.clear();
+	if (turn_cmds())
+		post_lockstep(30, ids.data(), ids.size());
+	else
+		sim->cmd_delete(local_player(), ids.data(), ids.size());
+	clear_selection();
 }
 
 void RtsoMain::_on_stance_selected(int stance) {
@@ -2645,6 +2972,7 @@ void RtsoMain::_process(double delta) {
 		notice_until_ = 0;
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
+	update_pause_overlay();
 	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
@@ -3393,7 +3721,7 @@ void RtsoMain::update_inspector() {
 		inspector_stats->set_text("");
 		inspector_extra->set_text("");
 		ungarrison_btn->set_visible(false);
-		selection_grid_.update(groups, "Click to select only these, Ctrl+click to deselect them.");
+		selection_grid_.update(groups, "Click to select only these, Ctrl+click or right-click to deselect them.");
 		show_selection_grid = true;
 	}
 	inspector_panel->set_visible(true);
@@ -3401,9 +3729,20 @@ void RtsoMain::update_inspector() {
 
 // Multi-selection icon click (0 A.D. selection_panels.js Selection.execute):
 // select only that group, or drop it with session.deselectgroup (Ctrl).
+// selection_panels.js Selection onPressRight: a right-click drops the group.
+void RtsoMain::_on_selection_group_gui_input(const Ref<InputEvent> &event, int key) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || mb->is_pressed()) return;
+	select_group(key, true);
+}
+
 void RtsoMain::_on_selection_group_clicked(int key) {
+	select_group(key, rtso::hotkeys::held("session.deselectgroup"));
+}
+
+// makePrimarySelectionGroup (keep only the group) or removeFromSelectionGroup (drop it).
+void RtsoMain::select_group(int key, bool drop) {
 	if (!sim) return;
-	const bool drop = rtso::hotkeys::held("session.deselectgroup");
 	auto uview = sim->units();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
@@ -3446,6 +3785,27 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 
 void RtsoMain::update_command_panel() {
 	if (!command_panel) return;
+
+	// g_SelectionPanels.Stance: shown when only units are selected, the stances
+	// some selected unit holds highlighted (GuiInterface IsStanceSelected).
+	if (stances_bar && sim) {
+		bool held[5] = {};
+		bool any = false;
+		if (selected_building_id == 0 && !selected_ids.is_empty()) {
+			auto uv = sim->units();
+			for (int s = 0; s < selected_ids.size(); ++s)
+				for (size_t i = 0; i < uv.count; ++i)
+					if (uv.id[i] == (uint32_t)selected_ids[s]) {
+						if (uv.stance[i] < 5) held[uv.stance[i]] = true;
+						any = true;
+						break;
+					}
+		}
+		stances_bar->set_visible(any);
+		for (int st = 0; st < 5; ++st)
+			if (stance_buttons_[st] && stance_buttons_[st]->is_pressed() != held[st])
+				stance_buttons_[st]->set_pressed_no_signal(held[st]);
+	}
 
 	// The buttons are built after the current ones each frame, then
 	// keep_command_buttons() keeps whichever set is older when both look and
@@ -3616,6 +3976,29 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 		}
+		// The structure's command row (unit_actions.js g_EntityCommands).
+		if (found_b && found_b->team == local_player()) {
+			const int inside = (int)found_b->garrisoned_units.size();
+			if (inside > 0)
+				add_entity_command("unload-all", "Unload All", "session.unload",
+						"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+			// isUndeletable: you must hold half the capture points.
+			if (found_b->max_capture_points > 0.0f &&
+					found_b->capture_points_by_team[found_b->team] < found_b->max_capture_points * 0.5f)
+				add_entity_command("delete", "Delete", "",
+						"You cannot destroy this entity as you own less than half the capture points", "kill_small_disabled.png", false);
+			else
+				add_entity_command("delete", "Delete", "session.kill",
+						String("Self-Destruct\nDestroy the selected entities.\nUse ") +
+								rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
+						"kill_small.png");
+			if (found_b->has_rally_point)
+				add_entity_command("focus-rally", "Focus on Rally Point", "camera.rallypointfocus",
+						"Focus on Rally Point\nCenter the view on the selected rally point.", "focus-rally.png");
+			if (found_b->type == rtso::BLD_MARKET && found_b->build_progress >= 1.0f)
+				add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
+						"Barter & Trade\nOpen the dialog for managing resource trading and bartering.", "economics.png");
+		}
 	} else {
 		// Non-building selected: clear visual queue slots
 		production_queue_.update(nullptr);
@@ -3782,33 +4165,67 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 
-			// g_EntityCommands "remove-guard" (shown while any selected unit guards) and
-			// "call-to-arms" (any unit with UnitAI), unit_actions.js.
-			bool any_guarding = false;
-			for (int i = 0; i < selected_ids.size() && !any_guarding; ++i)
-				any_guarding = sim->unit_is_guarding((uint32_t)selected_ids[i]);
+			// The command row, g_EntityCommands in unit_actions.js order: each shows when
+			// its getInfo would (any selected unit it applies to).
 			{
-				struct EntityCommand { bool shown; const char *label; const char *hotkey; const char *tip; const char *icon; const char *method; };
-				const EntityCommand cmds[2] = {
-					{any_guarding, "Unguard", "", "Remove guard", "res://assets/textures/ui/archive/icons/remove-guard.png", "_on_remove_guard_pressed"},
-					{true, "Call to arms", "session.calltoarms",
-							"Send the selected units on attack move to the specified location after dropping resources.",
-							"res://assets/textures/ui/archive/icons/call-to-arms.png", "_on_call_to_arms_pressed"},
-				};
-				for (const auto &c : cmds) {
-					if (!c.shown) continue;
-					Button *btn = memnew(Button);
-					btn->set_text(c.label);
-					const std::string key = *c.hotkey ? rtso::hotkeys::table().label(c.hotkey) : std::string();
-					btn->set_tooltip_text(key.empty() ? String(c.tip) : "[" + String(key.c_str()) + "] " + String(c.tip));
-					Ref<Texture2D> ico = load_tex(c.icon);
-					if (ico.is_valid()) {
-						btn->set_button_icon(ico);
-						btn->add_theme_constant_override("icon_max_width", 20);
+				bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
+				bool any_guard = false, any_can_add_guard = false, any_garrison = false;
+				int passengers = 0;
+				for (int s = 0; s < selected_ids.size(); ++s) {
+					const uint32_t id = (uint32_t)selected_ids[s];
+					for (size_t u = 0; u < uview.count; ++u) {
+						if (uview.id[u] != id) continue;
+						const uint8_t ut = uview.unit_type[u];
+						const uint16_t tm = uview.tmpl[u];
+						const uint64_t cls = tm < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tm).tech_classes : rtso::unit_tech_classes(ut);
+						const bool guarding = sim->unit_is_guarding(id);
+						any_guarding = any_guarding || guarding;
+						any_busy = any_busy || (sim->unit_has_order(id) && !guarding); // "stop": not idle, not guarding
+						any_work = any_work || sim->unit_has_work_order(id);
+						// "call-to-arms": Soldier, Warship, Siege or Healer.
+						any_fighter = any_fighter || (cls & (rtso::TC_SOLDIER | rtso::TC_WARSHIP | rtso::TC_SIEGE | rtso::TC_HEALER)) != 0;
+						// UnitAI CanGuard / CanPatrol: soldiers, warships and siege.
+						const bool can_guard = (cls & (rtso::TC_SOLDIER | rtso::TC_WARSHIP | rtso::TC_SIEGE)) != 0;
+						any_guard = any_guard || can_guard;
+						any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
+						any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
+						if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
+						break;
 					}
-					btn->connect("pressed", Callable(this, c.method));
-					production_bar->add_child(btn);
 				}
+				if (passengers > 0)
+					add_entity_command("unload-all", "Unload All", "session.unload",
+							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
+				add_entity_command("delete", "Delete", "session.kill",
+						String("Self-Destruct\nDestroy the selected entities.\nUse ") +
+								rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
+						"kill_small.png");
+				if (any_busy)
+					add_entity_command("stop", "Abort", "session.stop",
+							"Abort\nCancel the current orders for the selected units.", "stop.png");
+				if (any_fighter)
+					add_entity_command("call-to-arms", "Call to Arms", "session.calltoarms",
+							"Attack\nSend the selected units on attack move to the specified location after dropping resources.",
+							"call-to-arms.png");
+				if (any_garrison)
+					add_entity_command("garrison", "Garrison", "session.garrison",
+							"Garrison\nOrder the selected units to garrison in a structure or another unit.", "garrison.png");
+				if (has_worker)
+					add_entity_command("repair", "Repair", "session.repair",
+							"Repair\nOrder the selected units to repair a structure, ship, or siege engine.", "repair.png");
+				if (any_work)
+					add_entity_command("back-to-work", "Back to Work", "session.backtowork",
+							"Back to Work\nOrder the selected units to resume their work.", "back-to-work.png");
+				if (any_can_add_guard)
+					add_entity_command("add-guard", "Guard", "session.guard",
+							"Guard\nOrder the selected units to guard a structure or unit.", "add-guard.png");
+				if (any_guarding)
+					add_entity_command("remove-guard", "Abort Guard", "",
+							"Abort Guard\nOrder the selected units to stop guarding.", "remove-guard.png");
+				if (any_guard)
+					add_entity_command("patrol", "Patrol", "session.patrol",
+							"Patrol\nOrder to repeatedly go to a point and come back, attacking all enemies along the way.",
+							"patrol.png");
 			}
 
 			if (has_worker) {
@@ -4080,29 +4497,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		auto ids_ptr = [&]() { return (const uint32_t *)selected_ids.ptr(); };
 
 		if (fired("cancel") || fired("selection.cancel")) {
-			// 0 A.D. closeOpenDialogs(), then clearSelection() (input.js:1709).
-			if (chat_window_.is_open()) {
-				chat_window_.close();
-				return;
-			}
-			if (diplo_dialog_.is_open()) {
-				diplo_dialog_.close();
-				return;
-			}
-			if (objectives_dialog_.is_open()) {
-				objectives_dialog_.close();
-				return;
-			}
-			// The GDScript dialogs (Barter & Trade, structure tree) close the same way.
-			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) {
-				if (bool(barter->call("is_open"))) {
-					barter->call("toggle");
-					return;
-				}
-			}
+			// 0 A.D. closeOpenDialogs() closes every dialog at once, then
+			// clearSelection() (input.js:1709).
+			if (close_open_dialogs()) return;
 			if (build_mode) enter_build_mode(false);
-			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode)
-				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = false;
+			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || repair_mode)
+				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
 			else clear_selection();
 			return;
 		}
@@ -4142,15 +4542,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("teamchat") || fired("privatechat")) {
-			if (!chat_window_.is_open()) chat_window_.toggle();
+			if (!chat_window_.is_open()) toggle_chat();
 			chat_window_.select_channel(fired("teamchat") ? 1 : 0);
 			return;
 		}
 
 		// Control groups (0 A.D. input.js:852-873 and performGroup, input.js:1606):
 		// N selects group N, Ctrl+N saves the selection as group N, Shift+N adds
-		// the selection to group N, and pressing N twice within 500 ms centres the
-		// camera on the group. Groups are disjoint (gui.session.disjointcontrolgroups).
+		// group N to the selection (performGroup "add"), and pressing N twice within
+		// 500 ms centres the camera on the group. Groups are disjoint
+		// (gui.session.disjointcontrolgroups).
 		for (int g = 1; g <= 10; ++g) {
 			const int grp = g % 10;
 			const std::string n = std::to_string(g);
@@ -4158,8 +4559,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const bool save = fired(("selection.group.save." + n).c_str());
 			const bool add = fired(("selection.group.add." + n).c_str());
 			if (!sel && !save && !add) continue;
-			if (save || add) {
-				if (save) selected_groups[grp].clear();
+			if (save) {
+				selected_groups[grp].clear();
 				for (int s = 0; s < selected_ids.size(); ++s) {
 					for (int o = 0; o < 10; ++o) {
 						if (o == grp) continue;
@@ -4187,6 +4588,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			selected_groups[grp] = recall;
 			if (recall.is_empty()) return;
+			if (add) {
+				for (int m = 0; m < recall.size(); ++m)
+					if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
+				selected_building_id = 0;
+				play_civ_voice("select");
+				return;
+			}
 			const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
 			if (grp == last_group_pressed_ && now_ms - last_group_press_ms_ < 500 && cam_rig)
 				cam_rig->set_target_pos(first_pos);
@@ -4210,7 +4618,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
 		if (fired("session.gui.tutorial.toggle")) { tutorial_panel_.toggle(); return; }
 		if (fired("session.gui.barter.toggle")) {
-			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
+			_toggle_session_dialog("BarterDialog");
 			return;
 		}
 		if (fired("structree")) {
@@ -4267,6 +4675,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (cam_rig) cam_rig->set_follow_id(selected_ids.is_empty() ? 0 : (uint32_t)selected_ids[0]);
 			return;
 		}
+		if (fired("camera.rallypointfocus")) { // unit_actions.js "focus-rally"
+			_on_entity_command("focus-rally");
+			return;
+		}
 		if (fired("camera.lastattackfocus")) {
 			if (cam_rig && has_last_attack_) cam_rig->set_target_pos(last_attack_pos_);
 			return;
@@ -4274,50 +4686,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		// Unit commands (0 A.D. [hotkey.session], misc.xml).
 		if (fired("session.stop")) {
-			if (!selected_ids.is_empty()) {
-				if (turn_cmds())
-					post_lockstep(2, ids_ptr(), selected_ids.size());
-				else
-					sim->cmd_stop(ids_ptr(), selected_ids.size());
-			}
+			_on_entity_command("stop");
 			return;
 		}
 		if (fired("session.unload")) {
 			_on_ungarrison_pressed();
 			return;
 		}
-		// Delete (0 A.D. session.kill, unit_actions "delete"): asks first, like
-		// 0 A.D.'s confirmation box; a second press within 3 s or holding
-		// session.noconfirmation (Shift) destroys the selection.
+		// Delete (0 A.D. session.kill, unit_actions "delete"): DeleteSelectionConfirmation
+		// asks first unless session.noconfirmation (Shift) is held.
 		if (fired("session.kill")) {
-			std::vector<uint32_t> ids;
-			for (int s = 0; s < selected_ids.size(); ++s) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
-			if (selected_building_id != 0) ids.push_back(selected_building_id);
-			if (ids.empty()) return;
-			const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
-			if (!rtso::hotkeys::held("session.noconfirmation") && now - delete_armed_at_ > 3.0) {
-				delete_armed_at_ = now;
-				chat_window_.append_line("[color=#ffaa44]Press " +
-						String(rtso::hotkeys::table().label("session.kill").c_str()) +
-						" again to destroy the selection.[/color]\n");
-				return;
-			}
-			delete_armed_at_ = -10.0;
-			if (turn_cmds())
-				post_lockstep(30, ids.data(), ids.size());
-			else
-				sim->cmd_delete(local_player(), ids.data(), ids.size());
-			clear_selection();
+			_on_entity_command("delete");
 			return;
 		}
 		// Back to work (session.backtowork): resume the last gather or build.
 		if (fired("session.backtowork")) {
-			if (selected_ids.is_empty()) return;
-			if (turn_cmds())
-				post_lockstep(31, ids_ptr(), selected_ids.size());
-			else
-				sim->order_back_to_work(ids_ptr(), selected_ids.size());
-			play_civ_voice("gather");
+			_on_entity_command("back-to-work");
 			return;
 		}
 		auto apply_stance = [&](uint8_t st) {
@@ -4335,7 +4719,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.attackmoveunit")) {
 			if (!selected_ids.is_empty()) {
 				attack_move_mode = true;
-				patrol_mode = guard_mode = call_to_arms_mode = false;
+				patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
 			}
 			return;
 		}
@@ -4409,15 +4793,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (mb->is_pressed()) {
 				// Hold K and click to send a flare (0 A.D. session.flare).
 				if (rtso::hotkeys::held("session.flare")) {
-					// input.js triggerFlareAction: one flare per g_FlareCooldown (3 s).
-					const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
-					if (now < last_flare_time_ + 3.0) return;
-					last_flare_time_ = now;
-					Vector3 click_pos = get_ground_click_pos(mouse_pos);
-					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
-					if (minimap_view) minimap_view->add_ping(Vector2(click_pos.x, click_pos.z), Color(1.0f, 0.4f, 0.2f));
-					_on_flare_requested(Vector2(click_pos.x, click_pos.z));
-					play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
+					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
+					trigger_flare(click_pos.x, click_pos.z);
 					return;
 				}
 
@@ -4439,7 +4816,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				// Godot flags the second press of a double-click (0 A.D. ev.clicks == 2,
 				// input.js:893); consumed on release below.
-				double_click_pending = mb->is_double_click();
+				// A third press soon after a double-click is 0 A.D.'s triple-click
+				// (ev.clicks == 3: the exact template and rank).
+				{
+					const uint64_t now = Time::get_singleton()->get_ticks_msec();
+					if (mb->is_double_click()) {
+						click_count_ = 2;
+						last_double_click_ms_ = now;
+						last_double_click_pos_ = mouse_pos;
+					} else if (last_double_click_ms_ != 0 && now - last_double_click_ms_ < 500 &&
+							mouse_pos.distance_to(last_double_click_pos_) < 8.0f) {
+						click_count_ = 3;
+						last_double_click_ms_ = 0;
+					} else {
+						click_count_ = 1;
+					}
+				}
+				double_click_pending = click_count_ >= 2;
 				dragging = true;
 				drag_start = mouse_pos;
 				sel_rect->set_rect(drag_start, mouse_pos, true);
@@ -4560,19 +4953,28 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							if (at >= 0) selected_ids.remove_at(at);
 						} else if (best_uidx != (size_t)-1) {
 							if (dbl_click) {
-								// Double-click selects every same-type player unit on screen, or on
-								// the whole map with selection.offscreen (0 A.D. gui/session/input.js:1022-1042)
+								// Double-click selects the player's units of the clicked one's template
+								// (any rank), triple-click its exact template and rank, on screen or on
+								// the whole map with selection.offscreen; Ctrl removes them instead
+								// (0 A.D. gui/session/input.js:1009-1042, selectionGroupName).
 								const uint8_t same_type = uview.unit_type[best_uidx];
+								const uint16_t same_tmpl = uview.tmpl[best_uidx];
+								const uint8_t same_rank = uview.rank[best_uidx];
+								const bool exact = click_count_ >= 3;
+								auto matches = [&](size_t i) {
+									if (same_tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? uview.tmpl[i] != same_tmpl : uview.unit_type[i] != same_type)
+										return false;
+									return !exact || uview.rank[i] == same_rank;
+								};
 								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
-								if (!is_shift) {
+								if (!is_shift && !is_ctrl) {
 									selected_ids.clear();
 								}
 								selected_building_id = 0;
 								if (cam) {
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (size_t i = 0; i < uview.count; ++i) {
-										if (!uview.alive[i] || uview.team[i] != local_player() ||
-											uview.unit_type[i] != same_type)
+										if (!uview.alive[i] || uview.team[i] != local_player() || !matches(i))
 											continue;
 										Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
 										if (!offscreen && cam->is_position_behind(world_pos)) continue;
@@ -4580,25 +4982,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 										if (offscreen || (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
 											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y)) {
 											int32_t uid = (int32_t)uview.id[i];
-											if (!selected_ids.has(uid))
+											const int64_t at = selected_ids.find(uid);
+											if (is_ctrl) {
+												if (at >= 0) selected_ids.remove_at(at);
+											} else if (at < 0) {
 												selected_ids.push_back(uid);
+											}
 										}
 									}
 								}
-								if (selected_ids.is_empty())
+								if (selected_ids.is_empty() && !is_ctrl)
 									selected_ids.push_back((int32_t)uview.id[best_uidx]);
 							} else if (is_shift) {
-								// Shift+click toggles membership of clicked unit
-								int32_t uid = (int32_t)uview.id[best_uidx];
-								int idx = -1;
-								for (int s = 0; s < selected_ids.size(); ++s) {
-									if (selected_ids[s] == uid) { idx = s; break; }
-								}
-								if (idx >= 0) {
-									selected_ids.remove_at(idx);
-								} else {
-									selected_ids.push_back(uid);
-								}
+								// Shift+click adds the unit (selection.add -> addList keeps it if
+								// already selected; Ctrl+click is the removal).
+								const int32_t uid = (int32_t)uview.id[best_uidx];
+								if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 								selected_building_id = 0;
 							} else {
 								selected_ids.clear();
@@ -4674,6 +5073,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
+			// A right-click while band-boxing cancels the box and gives no order
+			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
+			if (dragging && drag_start.distance_to(mouse_pos) > 4.0f) {
+				dragging = false;
+				double_click_pending = false;
+				sel_rect->set_rect(Vector2(), Vector2(), false);
+				return;
+			}
 			if (build_mode) {
 				enter_build_mode(false);
 				return;
@@ -4762,8 +5169,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			// Attack-move: session.attackmove (Ctrl) + right-click, or attack_move_mode
 			// toggled. Ctrl on one of our own buildings garrisons instead (session.garrison).
+			// The Garrison and Repair buttons arm one click, like holding the modifier.
+			const bool force_garrison = garrison_mode || rtso::hotkeys::held("session.garrison");
+			const bool force_repair = repair_mode || rtso::hotkeys::held("session.repair");
+			garrison_mode = repair_mode = false;
 			bool garrison_click = false;
-			if (rtso::hotkeys::held("session.garrison")) {
+			if (force_garrison) {
 				for (const auto &b : sim->buildings()) {
 					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
@@ -5056,7 +5467,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
 					const uint32_t gaia_grain = b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
-					if (trade_route_click(b, true, queue_shift, nullptr)) {
+					const bool friendly = b.team == local_player() || sim->is_ally(local_player(), b.team);
+					if (force_garrison && friendly && selection_can_garrison(b.id)) {
+						// session.garrison is a hotkeyActionCheck: it wins over returning
+						// resources and repairing (unit_actions.js "garrison").
+						if (turn_cmds())
+							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
+						else
+							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
+						clear_selection();
+					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
+						// session.repair likewise wins over returning resources (unit_actions.js "repair").
+						if (turn_cmds())
+							post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
+						else
+							sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
+						play_civ_voice("build");
+					} else if (trade_route_click(b, true, queue_shift, nullptr)) {
 						// setup-trade-route has specificness 0: it wins over garrison and capture.
 					} else if (gaia_grain) { // a Gaia field: anyone may farm it (0 A.D. "gather" comes before "capture")
 						if (turn_cmds())
@@ -6425,11 +6852,35 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 }
 
 void RtsoMain::toggle_chat() {
+	if (!chat_window_.is_open()) close_open_dialogs();
 	chat_window_.toggle();
 }
 
 void RtsoMain::_on_chat_channel_btn_pressed(int channel_idx) {
 	chat_window_.select_channel(channel_idx);
+}
+
+// colorizePlayernameByGUID: the client's name in its player's colour (grey for an
+// observer); "peer-<id>" is the sender's client, empty the local player.
+String RtsoMain::chat_user(const String &sender_guid) {
+	uint32_t client = turn_mgr_.local_client_id();
+	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	String name;
+	uint8_t pl = 0xFF;
+	if (net_lockstep()) {
+		for (const auto &e : net_host_.playerAssignment())
+			if (e.client == client) {
+				name = String::utf8(e.name.c_str());
+				pl = e.player;
+			}
+		if (pl == 0xFF) pl = turn_mgr_.player_for_client(client);
+	} else {
+		pl = local_player();
+	}
+	if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : sender_guid;
+	char hex[8] = "b3b3b3";
+	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(sim->player_color(pl) & 0xFFFFFF));
+	return "[color=#" + String(hex) + "]" + name.replace("[", "[lb]") + "[/color]";
 }
 
 void RtsoMain::_on_chat_send_pressed() {
@@ -6442,7 +6893,38 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 }
 
 void RtsoMain::toggle_objectives() {
+	const bool open = objectives_dialog_.is_open();
+	if (!open) close_open_dialogs();
 	objectives_dialog_.toggle(sim, local_player());
+}
+
+// session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
+// settings close together; opening one of them closes the others first.
+bool RtsoMain::close_open_dialogs() {
+	bool any = false;
+	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))
+		if (Object::cast_to<CanvasItem>(menu) ? Object::cast_to<CanvasItem>(menu)->is_visible() : bool(menu->get("visible"))) {
+			_on_menu_button_pressed();
+			any = true;
+		}
+	if (chat_window_.is_open()) {
+		chat_window_.close();
+		any = true;
+	}
+	if (diplo_dialog_.is_open()) {
+		diplo_dialog_.close();
+		any = true;
+	}
+	if (objectives_dialog_.is_open()) {
+		objectives_dialog_.close();
+		any = true;
+	}
+	if (Node *barter = get_node_or_null(NodePath("BarterDialog")))
+		if (bool(barter->call("is_open"))) {
+			barter->call("toggle");
+			any = true;
+		}
+	return any;
 }
 
 // 0 A.D. messages.js onTutorialReady: "dialog-answer" to the trigger script; the
@@ -6460,10 +6942,14 @@ void RtsoMain::_on_tutorial_ready_pressed() {
 void RtsoMain::_toggle_session_dialog(String name) {
 	if (name == "DiplomacyDialog") toggle_diplomacy();
 	else if (name == "Objectives") toggle_objectives();
-	else if (Node *n = get_node_or_null(NodePath(name))) n->call("toggle");
+	else if (Node *n = get_node_or_null(NodePath(name))) {
+		if (!(n->has_method("is_open") && bool(n->call("is_open")))) close_open_dialogs();
+		n->call("toggle");
+	}
 }
 
 void RtsoMain::toggle_diplomacy() {
+	if (!diplo_dialog_.is_open()) close_open_dialogs();
 	diplo_dialog_.toggle();
 }
 

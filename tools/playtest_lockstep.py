@@ -282,14 +282,16 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     # Formations (cmd 8, Formation.js): the squad forms a box (template 2) of 4,
     # then the controller walks (order 1) and attack-walks (order 2), each
     # within COMMAND_DELAY turns of its command, on the same turns on both peers.
+    # An attack-walk that meets a foe in sight at once shows as its members
+    # fighting (order 4) on the turn it lands.
     def form_steps(e):
         rows = [(t, e[t].get("form")) for t in sorted(e) if "form" in e[t]]
         return [(t, b) for (_, a), (t, b) in zip(rows, rows[1:]) if a != b]
     forms = [form_steps(e) for e in extras]
-    def form_at(lo, hi, want):
-        return next((t for t, b in forms[0] if lo < t <= hi and b == want), None)
+    def form_at(lo, hi, *want):
+        return next((t for t, b in forms[0] if lo < t <= hi and b in want), None)
     form_turns = {"box": form_at(345, 349, "2:0:4"), "walk": form_at(355, 359, "2:1:4"),
-                  "attack_walk": form_at(365, 369, "2:2:4")}
+                  "attack_walk": form_at(365, 369, "2:2:4", "2:4:4")}
     form_ok = forms[0] == forms[1] and all(v is not None for v in form_turns.values())
     # Return resource (cmd 34) and trade routes (cmd 35): the carrier takes the
     # drop-off order (12) and empties its 5 wood; the trader walks (1) with the

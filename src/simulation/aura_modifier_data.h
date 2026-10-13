@@ -241,6 +241,19 @@ inline const LooterRangeAura *looter_range_auras() {
 	return kAuras;
 }
 
+// Range auras on ResourceGatherer/Rates of the units they reach (AURA_GATHER_RATE sources,
+// value = row): a gather rate x multiply per GatherKind (grain, fruit, meat, fish, wood,
+// stone, metal); radius in 0 A.D. metres.
+struct GatherRateRangeAura { const char *id; float multiply[7]; float radius; uint8_t players; };
+constexpr uint16_t GATHER_RATE_RANGE_AURA_COUNT = 2;
+inline const GatherRateRangeAura *gather_rate_range_auras() {
+	static const GatherRateRangeAura kAuras[2] = {
+		{"farmstead_60", {1.75f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, 60.0f, 1},
+		{"spart_catafalque_3", {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.15f}, 80.0f, 1},
+	};
+	return kAuras;
+}
+
 // Range auras replacing Loot (xp and resources) with 0 on the entities they reach
 // (AURA_NO_LOOT sources): those give their killer nothing.
 struct NoLootRangeAura { const char *id; float radius; uint8_t players; };
@@ -303,6 +316,17 @@ inline const BuilderRateRangeAura *builder_rate_range_auras() {
 		{"han_minister_building", 1.1f, false},
 		{"pers_hero_xerxes_i_1", 1.25f, false},
 		{"ptol_hero_ptolemy_i_1", 1.1f, false},
+	};
+	return kAuras;
+}
+
+// Garrison auras on BuildingAI: while a unit carrying one is garrisoned, the structure or
+// siege tower holding it multiplies GarrisonArrowMultiplier and MaxArrowCount.
+struct GarrisonArrowAura { const char *id; float arrow_multiply; float max_multiply; };
+constexpr uint16_t GARRISON_ARROW_AURA_COUNT = 1;
+inline const GarrisonArrowAura *garrison_arrow_auras() {
+	static const GarrisonArrowAura kAuras[1] = {
+		{"iber_hero_caros_1", 1.75f, 1.75f},
 	};
 	return kAuras;
 }
