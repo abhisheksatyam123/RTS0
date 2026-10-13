@@ -146,7 +146,8 @@ int main() {
 	}
 
 	// 8. Capture the Relic: Setup.js's one relic when nothing is set, and an owned relic
-	// does not keep a player alive in Conquest.
+	// does not keep a player alive in Conquest (catafalques drop ConquestCritical), but does
+	// in Conquest Units, whose "Unit+!Animal" query counts it.
 	{
 		fresh(s);
 		s.set_victory_condition(VICTORY_RELIC);
@@ -157,6 +158,17 @@ int main() {
 		const uint32_t r2 = s.spawn_relic(10.0f, 10.0f);
 		s.units_.team[s.lookup_unit(r2)] = 1;
 		std::vector<uint32_t> p0 = squad(s, 0, 1, -10.0f, -10.0f);
+		s.record_.enemies_killed = 1;
+		run(s, 1.0f);
+		CHECK(!s.is_defeated(1));
+		fresh(s);
+		s.set_victory_condition(VICTORY_CONQUEST);
+		const uint32_t r3 = s.spawn_relic(10.0f, 10.0f);
+		s.units_.team[s.lookup_unit(r3)] = 1;
+		std::vector<uint32_t> q0 = squad(s, 0, 1, -10.0f, -10.0f);
+		for (auto &b : s.buildings_)
+			if (b.team == 1 && !b.wrecked) s.destroy_building(b);
+		s.stats_[1].units_lost[STAT_UNIT_TOTAL] = 1; // Conquest.js fires on a loss
 		s.record_.enemies_killed = 1;
 		run(s, 1.0f);
 		CHECK(s.is_defeated(1));
