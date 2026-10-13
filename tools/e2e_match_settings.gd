@@ -1,0 +1,121 @@
+extends SceneTree
+# The in-game Match Settings dialog as 0 A.D. 0.28 shows it
+# (gui/session/match_settings/MatchSettingsDialog.js, gui/common/gamedescription.js):
+#   1. a random map with Regicide, locked teams, Nomad, High resources, a World
+#      Population and cheats lists each setting as getGameDescription words it;
+#   2. the top panel button and the hotkey open it, and opening it closes the
+#      other session dialogs;
+#   3. a scenario's own per-player resources read "Per Player";
+#   4. a defeated player sees "You have been defeated!" over the settings.
+#
+#   godot --headless --path . --fixed-fps 20 -s tools/e2e_match_settings.gd
+# Exit code 0 = pass.
+
+const GameDescription = preload("res://scenes/session/game_description.gd")
+
+var failures := 0
+
+func check(cond: bool, what: String) -> void:
+	print("  ok   " if cond else "  FAIL ", what)
+	if not cond:
+		failures += 1
+
+func frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+func _initialize() -> void:
+	run.call_deferred()
+
+func has_line(text: String, label: String, details: String) -> bool:
+	return text.split("\n").has("[color=orange]%s[/color] %s" % [label, details])
+
+func run() -> void:
+	var ms = root.get_node("MatchSettings")
+	ms.map_id = "random_continental"
+	ms.seed = 99
+	ms.map_size = 192
+	ms.slot_types = [0, 1]
+	ms.slot_civs = [0, 1]
+	ms.slot_teams = [1, 2]
+	ms.victory = GameDescription.VICTORY_REGICIDE
+	ms.regicide_garrison = false
+	ms.lock_teams = true
+	ms.nomad = true
+	ms.start_res = 3
+	ms.pop_cap = -600
+	ms.cheats = true
+	ms.ceasefire_min = 5
+	ms.replay_dir = ""
+	ms.load_save_path = ""
+	change_scene_to_file("res://scenes/main.tscn")
+	await frames(60)
+	var main = current_scene
+
+	print("1. getGameDescription lines")
+	main._toggle_session_dialog("Objectives")
+	await frames(2)
+	var d: Dictionary = main.debug_dialogs()
+	check(d["objectives"], "the top panel button opens Match Settings")
+	var text: String = d["match_settings_text"]
+	print(text)
+	check(has_line(text, "Regicide", "Defeat opponents by killing their hero."), "Regicide")
+	check(has_line(text, "Exposed Heroes", "Heroes cannot be garrisoned and they are vulnerable to raids."), "Exposed Heroes")
+	check(has_line(text, "Locked Teams", "Players can't change the initial teams."), "Locked Teams instead of Diplomacy")
+	check(not text.contains("Players can make alliances"), "no alliance line with locked teams")
+	check(has_line(text, "Allied Victory", "If one player wins, his or her allies win too. If one group of allies remains, they win."), "Allied Victory")
+	check(has_line(text, "Ceasefire", "For the first 5 minutes, other players will stay neutral."), "Ceasefire")
+	check(has_line(text, "Map Name", "Continental"), "Map Name")
+	check(has_line(text, "Map Type", "Random"), "Map Type")
+	check(has_line(text, "Map Size", "Small"), "Map Size")
+	check(has_line(text, "Nomad Mode", "Players start with only few units and have to find a suitable place to build their city."), "Nomad Mode")
+	check(has_line(text, "Starting Resources", "High (1000)"), "Starting Resources")
+	check(has_line(text, "Population Cap Type", "World Population"), "Population Cap Type")
+	check(has_line(text, "World Population Cap", "600"), "World Population Cap")
+	check(has_line(text, "Treasures", "As defined by the map."), "Treasures")
+	check(has_line(text, "Explored Map", "disabled") and has_line(text, "Revealed Map", "disabled"), "Explored and Revealed Map")
+	check(has_line(text, "Allied View", "disabled"), "Allied View")
+	check(has_line(text, "Cheats", "enabled"), "Cheats")
+	check(str(d["match_settings_state"]) == "", "no player-state line while playing")
+
+	print("2. One dialog at a time")
+	main.toggle_diplomacy()
+	await frames(2)
+	d = main.debug_dialogs()
+	check(d["diplomacy"] and not d["objectives"], "diplomacy closes Match Settings")
+	main.toggle_objectives()
+	await frames(2)
+	d = main.debug_dialogs()
+	check(d["objectives"] and not d["diplomacy"], "Match Settings closes diplomacy")
+	main.toggle_objectives()
+	await frames(2)
+	check(not main.debug_dialogs()["objectives"], "toggling again closes it")
+
+	print("3. Scenario settings")
+	var info: Dictionary = main.get_match_settings_info()
+	info["map_id"] = "laconia"
+	info["map_name"] = "Laconia"
+	info["pop_cap"] = 300
+	var scen := GameDescription.describe(info)
+	check(has_line(scen, "Map Type", "Scenario"), "a scenario's map type")
+	check(has_line(scen, "Starting Resources", "Per Player"), "its own resources read Per Player")
+	check(has_line(scen, "Population Cap", "300"), "a player cap")
+	check(not scen.contains("Map Size") and not scen.contains("Nomad Mode"), "no random-map lines")
+	info["victory"] = GameDescription.VICTORY_WONDER
+	info["wonder_min"] = 1
+	info["lock_teams"] = false
+	scen = GameDescription.describe(info)
+	check(has_line(scen, "Conquest", GameDescription.CONQUEST[1]) and has_line(scen, "Wonder (1 minute)", GameDescription.WONDER_DESC), "Wonder adds to Conquest")
+	check(has_line(scen, "Diplomacy", "Players can make alliances and declare war on allies."), "Diplomacy when teams are open")
+
+	print("4. Player state")
+	main.resign()
+	await frames(40)
+	main.close_open_dialogs()
+	main.toggle_objectives()
+	await frames(2)
+	d = main.debug_dialogs()
+	check(str(d["match_settings_state"]) == "You have been defeated!", "a defeated player sees the state line: " + str(d["match_settings_state"]))
+
+	print("RESULT: ", "PASS" if failures == 0 else "FAIL (%d)" % failures)
+	quit(1 if failures else 0)

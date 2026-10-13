@@ -6,7 +6,7 @@
 // wood, stone, metal) with the stock abbreviated like abbreviateLargeNumbers and
 // the current gatherers beside it; CounterPopulation's "count/limit (max)" with
 // the total gatherers; the idle worker button; the IconButtons (Diplomacy,
-// Barter & Trade, Objectives); the match clock and the wave / wonder banner.
+// Barter & Trade, Match Settings); the match clock and the wave / wonder banner.
 
 #include <godot_cpp/classes/button.hpp>
 #include <godot_cpp/classes/control.hpp>
@@ -129,11 +129,11 @@ public:
 		idle_worker_btn_->connect("pressed", Callable(owner, "_on_idle_worker_clicked"));
 		top_hbox->add_child(idle_worker_btn_);
 
-		// 6. IconButtons: DiplomacyDialogButton, TradeDialogButton, ObjectivesDialogButton.
+		// 6. IconButtons: DiplomacyDialogButton, TradeDialogButton, MatchSettingsDialogButton.
 		// Tooltips lead with the hotkey like colorizeHotkey; owner->_toggle_session_dialog opens them.
 		const char *dialog_names[3] = {"DiplomacyDialog", "BarterDialog", "Objectives"};
 		const char *dialog_icons[3] = {"res://assets/textures/ui/archive/icons/diplomacy.png",
-				"res://assets/textures/ui/archive/icons/economics.png", ""};
+				"res://assets/textures/ui/archive/icons/economics.png", "res://assets/textures/ui/archive/icons/match-settings.png"};
 		const char *dialog_text[3] = {"Diplo", "Trade", "Obj"};
 		for (int i = 0; i < 3; ++i) {
 			Button *b = memnew(Button);
@@ -259,7 +259,7 @@ public:
 	// Hotkey text for the IconButtons' tooltips, e.g. "Ctrl+B" (set by the owner).
 	void set_dialog_tooltips(const godot::String &diplomacy, const godot::String &trade, const godot::String &objectives) {
 		const godot::String keys[3] = {diplomacy, trade, objectives};
-		const char *names[3] = {"Diplomacy", "Barter & Trade", "Objectives"};
+		const char *names[3] = {"Diplomacy", "Barter & Trade", "Match Settings"};
 		for (int i = 0; i < 3; ++i)
 			if (dialog_btns_[i]) dialog_btns_[i]->set_tooltip_text(keys[i].is_empty() ? godot::String(names[i]) : "[" + keys[i] + "] " + names[i]);
 	}

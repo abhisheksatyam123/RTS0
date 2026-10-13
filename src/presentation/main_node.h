@@ -458,6 +458,9 @@ public:
 
 	void toggle_diplomacy();
 	void toggle_objectives();
+	Dictionary get_match_settings_info() const;
+	String match_settings_description() const;
+	String match_settings_player_state() const;
 	void _on_tutorial_ready_pressed();
 	void resign();
 	void _toggle_session_dialog(String name);
