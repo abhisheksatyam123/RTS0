@@ -340,6 +340,7 @@ void NetHost::send_wire_packet(const std::string &ip, uint16_t port, uint32_t pe
 		prp.dest_port = port;
 		prp.packet_data = std::move(packet);
 		prp.sent_time_ms = get_now_ms();
+		prp.first_sent_ms = prp.sent_time_ms;
 		prp.retry_count = 0;
 		pending_acks_.push_back(std::move(prp));
 	}
@@ -867,18 +868,25 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 	if (message_cb_) message_cb_(author, msg);
 }
 
+// Reliable means delivered or the link is gone, as ENet's reliable packets
+// are: resend until the peer acks, backing off from 200 ms to 1 s, and give
+// up only once the peer has dropped or would have timed out (10 s). Giving
+// up sooner lost a turn batch or a rejoin chunk for good whenever a peer's
+// frames stalled for a couple of seconds, and the match or the rejoin froze.
 void NetHost::check_retransmissions(uint64_t now_ms) {
 	for (auto it = pending_acks_.begin(); it != pending_acks_.end(); ) {
-		if (now_ms - it->sent_time_ms > 200) {
-			if (it->retry_count < 8) {
-				send_raw_packet(it->dest_ip, it->dest_port, it->packet_data.data(), it->packet_data.size());
-				it->sent_time_ms = now_ms;
-				it->retry_count++;
-				++it;
-			} else {
-				stats_.dropped_packets++;
-				it = pending_acks_.erase(it);
-			}
+		const NetPeer *p = getPeer(it->peer_id);
+		// (A client's link to the host reads unconnected until the host acks it.)
+		const bool gone = !p || (isHost() && !p->connected) || now_ms - it->first_sent_ms > 10000;
+		const uint64_t wait = std::min<uint64_t>(200ull << std::min(it->retry_count, 3), 1000);
+		if (gone) {
+			stats_.dropped_packets++;
+			it = pending_acks_.erase(it);
+		} else if (now_ms - it->sent_time_ms > wait) {
+			send_raw_packet(it->dest_ip, it->dest_port, it->packet_data.data(), it->packet_data.size());
+			it->sent_time_ms = now_ms;
+			it->retry_count++;
+			++it;
 		} else {
 			++it;
 		}
