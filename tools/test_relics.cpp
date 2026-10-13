@@ -302,12 +302,14 @@ int main() {
 		run(s, 1.0f);
 		CHECK(std::fabs(s.promotion_required_xp((size_t)su) - xp * 0.75f) < 1e-3f);
 
-		// Kushite Earliest Nubian Queen: the owner's enemies' women gather 15% slower.
+		// Kushite Earliest Nubian Queen: the owner's enemies' civilians (women and
+		// male citizens alike, 0.28's "Civilian" class) gather 15% slower.
 		give_relic(s, CIV_KUSHITES, 0);
 		run(s, 1.0f);
 		CHECK(std::fabs(s.tech_mods(1).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] - 0.85f) < 1e-5f);
 		CHECK(s.tech_mods(0).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f);
 		CHECK(s.tech_mods(2).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f); // player 0's ally
+		CHECK(std::fabs(s.tech_mods(1).gather[UNIT_VILLAGER][Simulation::GK_WOOD] - 0.85f) < 1e-5f);
 
 		// Germanic Sacred Groves: the owner's workers gather wood 20% faster and carry 10 more.
 		const int16_t carry0 = s.tech_mods(0).carry[UNIT_VILLAGER][RES_WOOD];
@@ -315,7 +317,7 @@ int main() {
 		run(s, 1.0f);
 		CHECK(std::fabs(s.tech_mods(0).gather[UNIT_VILLAGER][Simulation::GK_WOOD] - 1.2f) < 1e-5f);
 		CHECK(s.tech_mods(0).carry[UNIT_VILLAGER][RES_WOOD] == carry0 + 10);
-		CHECK(s.tech_mods(1).gather[UNIT_VILLAGER][Simulation::GK_WOOD] == 1.0f);
+		CHECK(std::fabs(s.tech_mods(1).gather[UNIT_VILLAGER][Simulation::GK_WOOD] - 0.85f) < 1e-5f); // Kushite relic only
 
 		// Macedonian Financial Reorganization (+1 metal a second), Seleucid Immigration
 		// (+5% population limit), Han Imperial Music Bureau (technologies half price).
