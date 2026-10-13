@@ -26,7 +26,8 @@ enum AuraType : uint8_t {
     AURA_CAPTURE_ADD = 12, // Attack/Capture/Capture added to units
     AURA_LOOTER = 13, // Looter/Resource of units; value = looter_range_auras() row
     AURA_NO_LOOT = 14, // Loot replaced by 0 on victims (no_loot_range_auras)
-    AURA_COUNT  = 15
+    AURA_BUILD = 15, // Builder/Rate multiplier
+    AURA_COUNT  = 16
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -163,6 +164,8 @@ public:
     //     strongest penalty
     //     (0 when none reaches the unit).
     //   AURA_ARMOR / AURA_HEAL_AMOUNT: strongest bonus plus strongest penalty.
+    //   AURA_BUILD: the product of every aura reaching the unit, a stackable one (the Han
+    //     minister's) once per source and any other once (0 when none reaches the unit).
     // structure: the query is for a structure, which only auras naming the Structure
     // class reach (CivHeroAura::structures).
     float query_modifier(float qx, float qz, uint8_t qowner, AuraType type,
@@ -171,7 +174,9 @@ public:
         if (type >= AURA_COUNT || of_type_[type].empty()) return 0.0f;
         const uint16_t qbit = aura_player_bit(qowner);
         bool any = false;
-        float sum = 0.0f, up = 0.0f, down = 0.0f;
+        float sum = 0.0f, up = 0.0f, down = 0.0f, product = 1.0f;
+        int16_t once[8]; // non-stackable AURA_BUILD auras already counted
+        int once_n = 0;
         const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION
             || type == AURA_REQUIRED_XP;
         if (mul) up = down = 1.0f;
@@ -191,6 +196,15 @@ public:
             any = true;
             if (type == AURA_HEAL) {
                 sum += s.value;
+            } else if (type == AURA_BUILD) {
+                const int row = builder_rate_aura_index(s.aura);
+                if (row < 0 || !builder_rate_range_auras()[row].stackable) {
+                    bool seen = false;
+                    for (int k = 0; k < once_n; ++k) seen |= once[k] == s.aura;
+                    if (seen) continue;
+                    if (once_n < 8) once[once_n++] = s.aura;
+                }
+                product *= s.value;
             } else {
                 if (s.value > up) up = s.value;
                 if (s.value < down) down = s.value;
@@ -198,6 +212,7 @@ public:
         }
         if (!any) return 0.0f;
         if (type == AURA_HEAL) return sum;
+        if (type == AURA_BUILD) return product;
         if (mul) return up * down;
         return up + down;
     }
