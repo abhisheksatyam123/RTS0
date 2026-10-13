@@ -11811,8 +11811,13 @@ uint8_t Simulation::side_of(uint8_t pid) const {
 	return side;
 }
 
-void Simulation::end_match(uint8_t winners) {
+void Simulation::end_match(uint8_t winners, uint8_t reason) {
 	winners &= (uint8_t)~defeated_mask_; // a defeated ally stays defeated (0 A.D.)
+	// EndGameManager.MarkPlayersAsWon / SetPlayerWon: "X and Y have won (wonder victory)."
+	// for the winners, and the players a wonder, relics or a scenario beat are named too.
+	const uint8_t beaten = (uint8_t)(participant_mask_ & ~winners & ~defeated_mask_);
+	if (winners) note_session({SessionNotice::WON, 0, winners, reason, {}});
+	if (beaten && (reason == SessionNotice::END_WONDER || reason == SessionNotice::END_RELIC)) note_session({SessionNotice::LOST, 0, beaten, reason, {}});
 	winner_mask_ = winners;
 	convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
 	defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
@@ -11822,7 +11827,7 @@ void Simulation::end_match(uint8_t winners) {
 
 void Simulation::set_player_won(uint8_t pid) {
 	if (game_over_ || victory_ || pid >= MAX_PLAYERS) return;
-	end_match(side_of(pid));
+	end_match(side_of(pid), SessionNotice::END_GAME_MODE);
 }
 
 void Simulation::check_victory_conditions(float dt) {
@@ -11876,7 +11881,7 @@ void Simulation::check_victory_conditions(float dt) {
 		has_active_wonder_ = any_ours;
 		wonder_victory_timer_ = ours;
 		if (holder >= 0) {
-			end_match(side_of((uint8_t)holder));
+			end_match(side_of((uint8_t)holder), SessionNotice::END_WONDER);
 			return;
 		}
 	}
@@ -11902,7 +11907,7 @@ void Simulation::check_victory_conditions(float dt) {
 			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
 				relic_victory_timer_ += dt;
 				if (relic_victory_timer_ >= relic_duration_) {
-					end_match(side);
+					end_match(side, SessionNotice::END_RELIC);
 					return;
 				}
 			} else {
@@ -11916,7 +11921,8 @@ void Simulation::check_victory_conditions(float dt) {
 	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
 	// empty after its first, so the first decides.
 	const uint8_t vk = victory_conditions();
-	auto defeated = [&](int t) {
+	using SN = SessionNotice;
+	auto defeated = [&](int t) -> int { // the reason, or -1 while the player holds on
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
@@ -11926,11 +11932,12 @@ void Simulation::check_victory_conditions(float dt) {
 		// loss, so a player that never lost anything (a test's lone market) stays in until it
 		// holds nothing at all.
 		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
-		return ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) ||
-		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
-		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
-		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
-		       ((vk & VK_REGICIDE) && regicide_hero_lost(t));
+		if ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) return SN::END_CONQUEST;
+		if ((vk & VK_CONQUEST_UNITS) && no_units) return SN::END_UNITS;
+		if ((vk & VK_CONQUEST_STRUCTURES) && no_structures) return SN::END_STRUCTURES;
+		if ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) return SN::END_CIVIC_CENTRES;
+		if ((vk & VK_REGICIDE) && regicide_hero_lost(t)) return SN::END_HERO;
+		return -1;
 	};
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
@@ -11938,7 +11945,11 @@ void Simulation::check_victory_conditions(float dt) {
 	uint8_t fallen = 0;
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (!((participant_mask_ >> t) & 1) || is_defeated((uint8_t)t)) continue;
-		if (defeated(t) || (waves_enabled_ && t == 0 && tc_count[0] == 0)) fallen |= (uint8_t)(1u << t);
+		int why = defeated(t);
+		if (why < 0 && waves_enabled_ && t == 0 && tc_count[0] == 0) why = SN::END_OBJECTIVE;
+		if (why < 0) continue;
+		fallen |= (uint8_t)(1u << t);
+		note_session({SN::DEFEATED, (uint8_t)t, 0, (uint8_t)why, {}});
 	}
 	if (fallen) {
 		convert_to_gaia(fallen);
@@ -27602,6 +27613,7 @@ void Simulation::defeat_player(uint8_t pid) {
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
 	defeated_mask_ |= (uint8_t)(1u << pid);
+	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_OBJECTIVE, {}});
 }
 
 bool Simulation::cmd_resign(uint8_t pid) {
@@ -27610,6 +27622,7 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	participant_mask_ |= bit; // a player that resigns before it held anything is still out
 	convert_to_gaia(bit);
 	defeated_mask_ |= bit;
+	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_RESIGNED, {}}); // Commands.js "resign"
 	return true;
 }
 

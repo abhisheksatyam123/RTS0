@@ -2197,6 +2197,30 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 			if (observer) line = colored_player_name(n.player) + " is now " + word + " " + colored_player_name(n.other) + ".";
 			else if (n.player == me) line = "You are now " + String(word) + " " + colored_player_name(n.other) + ".";
 			else if (n.other == me) line = colored_player_name(n.player) + " is now " + word + " you.";
+		} else if (n.kind == N::DEFEATED || n.kind == N::WON || n.kind == N::LOST) {
+			// ChatMessageFormatSimulation.playerstate, shown to everyone: the defeat reasons of
+			// Conquest*.js, Regicide.js, Commands.js "resign" and TriggerHelper.DefeatPlayer, and
+			// EndGameManager's, WonderVictory.js's and CaptureTheRelic.js's win lines.
+			static const char *kWhy[] = {"lost all critical units and structures", "lost all units", "lost all structures",
+					"lost all civic centers", "lost hero", "", "objective", "last players alive", "wonder victory",
+					"Capture the Relic", "game mode"};
+			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
+			if (n.kind == N::DEFEATED) {
+				line = colored_player_name(n.player) + (n.tech == N::END_RESIGNED ? String(" has resigned.")
+						: " has been defeated (" + why + ").");
+			} else {
+				std::vector<String> names;
+				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+					if ((n.other >> p) & 1) names.push_back(colored_player_name(p));
+				if (names.empty()) continue;
+				String list;
+				for (size_t i = 0; i + 1 < names.size(); ++i) list += (i ? ", " : "") + names[i];
+				const bool one = names.size() == 1;
+				const String who = one ? names.back() : list + " and " + names.back();
+				const String reason = n.kind == N::WON && n.tech == N::END_LAST_ALIVE && one ? String("last player alive") : why;
+				line = who + (n.kind == N::WON ? (one ? " has won (" : " have won (") : (one ? " has been defeated (" : " have been defeated (")) +
+						reason + ").";
+			}
 		}
 		if (!line.is_empty()) chat_window_.append_line(line + "\n");
 	}
