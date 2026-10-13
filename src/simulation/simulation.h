@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 67; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 68; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -261,6 +261,9 @@ public:
 		uint8_t arrow_round = 0;      // currentRound
 		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
 		bool arrow_timer_on = false;  // a FireArrows timer is set
+		// focusTargets (0 A.D. "focus-fire", AddFocusTarget): entity ids its arrows go to first,
+		// in order; empty: FireArrows picks its own. Saved in save_tick_state (SAVE_VERSION_FOCUS_FIRE).
+		std::vector<uint32_t> focus_targets;
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -758,6 +761,13 @@ public:
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
+	// 0 A.D. "focus-fire" (BuildingAI.AddFocusTarget): `player`'s structures in `building_ids`
+	// that shoot arrows aim at `target` (a unit, structure or dangerous animal they can
+	// attack and that is in their range) before anything else: it replaces the focus list,
+	// joins its end (queued) or goes first (push_front). Returns whether any structure took it.
+	static constexpr size_t MAX_FOCUS_TARGETS = 64;
+	bool cmd_focus_fire(uint8_t player, const uint32_t *building_ids, size_t count, uint32_t target,
+			bool queued, bool push_front = false);
 	bool cmd_raise_alert(uint8_t player, uint32_t building_id);
 	bool cmd_end_alert(uint8_t player, uint32_t building_id);
 	// target_unit_id: a unit or a structure, one's own or an ally's (Guard.js).
@@ -880,6 +890,14 @@ public:
 	int team_pop_cap() const { return pop_cap_ <= -TEAM_POP_FLAG ? -pop_cap_ - TEAM_POP_FLAG : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
 	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
+	// A scenario's own PopulationLimit for one player (0.28 PlayerData; InitGame.js gives the
+	// other players the setup's cap and PopulationCapManager.SetPerPlayerPopulationCaps). 0
+	// clears it; reset() clears every player's. Saved (SAVE_VERSION_PLAYER_POP_CAP).
+	static constexpr int MAX_PLAYER_POP_CAP = 1000000;
+	void set_player_pop_cap(uint8_t player, int cap) {
+		if (player < MAX_PLAYERS) player_pop_cap_[player] = std::clamp(cap, 0, MAX_PLAYER_POP_CAP);
+	}
+	int player_pop_cap(uint8_t player) const { return player < MAX_PLAYERS ? player_pop_cap_[player] : 0; }
 	void set_team_pop_cap(int team) { pop_cap_ = team > 0 ? -TEAM_POP_FLAG - std::min(team, MAX_TEAM_POP) : 0; }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
@@ -1878,6 +1896,7 @@ private:
 			float armor[3];
 			float cost[RES_COUNT];
 			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
+			float loot_mul[RES_COUNT], loot_add[RES_COUNT]; // the unit's own Loot/<res> (Celtic Auxiliaries)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
@@ -2201,6 +2220,7 @@ private:
 	bool waves_enabled_ = false;
 	bool last_man_standing_ = false;
 	int pop_cap_ = 200;
+	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
 	std::vector<BattleAlert> pending_alerts_;
