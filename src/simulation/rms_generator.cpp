@@ -1,5 +1,6 @@
 #include "rms_generator.h"
 #include "script_terrains.h"
+#include "tree_slot_gatherers.h"
 #include "simulation.h"
 #include "heightmap_images.h"
 #include <cmath>
@@ -10835,6 +10836,11 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	// Each slot's template wood (0: TREE_WOOD_SUPPLY), parallel to t12, t45 and t3.
 	const uint16_t *w12 = f->tree12_wood[o12], *w45 = f->tree45_wood[o45];
 	const uint16_t w3 = f->tree3_wood[o3];
+	// Each slot's template MaxGatherers (tree_slot_gatherers.h), parallel to t12, t45 and t3.
+	const char *slot_name = own ? own->map_id : sim.current_map_biome().c_str();
+	const int g12[2] = {tree_slot_gatherers(slot_name, own, 0, (int)o12, 0), tree_slot_gatherers(slot_name, own, 0, (int)o12, 1)};
+	const int g45[2] = {tree_slot_gatherers(slot_name, own, 2, (int)o45, 0), tree_slot_gatherers(slot_name, own, 2, (int)o45, 1)};
+	const int g3 = tree_slot_gatherers(slot_name, own, 1, (int)o3, 0);
 
 	const auto rv = sim.resources();
 	// Trees per 2-tile cell, to tell forests from stragglers.
@@ -10860,26 +10866,32 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 		const uint32_t h = hash(tx, tz, 4);
 		uint8_t kind;
 		uint16_t wood;
+		int gatherers;
 		if (near >= 4) {
 			// createDefaultForests: each forest is either a tree1/tree2 or a tree4/tree5 mix.
 			const bool second = hash((int)std::floor(rv.x[r] / 12.0f), (int)std::floor(rv.z[r] / 12.0f), 5) & 1u;
 			kind = (second ? t45 : t12)[h & 1u];
 			wood = (second ? w45 : w12)[h & 1u];
+			gatherers = (second ? g45 : g12)[h & 1u];
 		} else if (type == MAP_LOWER_NUBIA && own) {
 			// lower_nubia.js's lone trees are its stragglers (acacia, dead tree, bush_badlands), not palms.
 			kind = f->tree3[h % (uint32_t)n3];
 			wood = f->tree3_wood[h % (uint32_t)n3];
+			gatherers = tree_slot_gatherers(slot_name, own, 1, (int)(h % (uint32_t)n3), 0);
 		} else {
 			// createStragglerTrees: [tree1, tree2, tree4, tree3].
 			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
 			const uint16_t pick_wood[4] = {w12[0], w12[1], w45[0], w3};
 			kind = pick[h % 4u];
+			const int pick_gatherers[4] = {g12[0], g12[1], g45[0], g3};
 			wood = pick_wood[h % 4u];
+			gatherers = pick_gatherers[h % 4u];
 		}
 		sim.set_resource_flora(rv.id[r], kind);
 		// The template's ResourceSupply/Max, for a tree the generator spawned with TREE_WOOD_SUPPLY
 		// (the Survival of the Fittest forests keep their own 800).
 		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
+		if (gatherers != 8) sim.set_resource_max_gatherers(rv.id[r], gatherers);
 	}
 }
 
