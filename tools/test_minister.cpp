@@ -60,7 +60,7 @@ int main() {
 		CHECK(ct.unit_type == UNIT_MINISTER && ct.civ == CIV_HAN && ct.phase == 2);
 		CHECK(ct.trainers == bld_bit(BLD_MINISTRY));
 		CHECK(ct.food_cost == 100 && ct.gold_cost == 100 && ct.wood_cost == 0 && near(ct.train_time, 15.0f));
-		CHECK(near(ct.hp, 200.0f));
+		CHECK(near(ct.hp, 50.0f)); // 0.28 support_minister
 		CHECK((ct.tech_classes & TC_MINISTER) && !(ct.tech_classes & TC_SOLDIER));
 		CHECK(unit_default_stance(UNIT_MINISTER) == STANCE_PASSIVE);
 		// Added after the promotion-only rows so no saved template id moved, and still
@@ -155,7 +155,7 @@ int main() {
 		const uint32_t m = spawn_minister(s, 0.0f, 0.0f);
 		const int32_t mi = s.lookup_unit(m);
 		std::printf("intensive training: minister max hp %.0f\n", s.units_.max_hp[mi]);
-		CHECK(near(s.units_.max_hp[mi], 300.0f));
+		CHECK(near(s.units_.max_hp[mi], 75.0f));
 	}
 
 	// 6. Save/load with ministers garrisoned keeps the hash.
