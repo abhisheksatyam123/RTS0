@@ -195,7 +195,7 @@ class RtsoWorldView : public Node3D {
 	void build_ground_paint(const rtso::Simulation *sim);
 	// Per-biome sun, ambient, fog, sky and water (0 A.D. rmbiome Environment).
 	Ref<Environment> env_base_;
-	void apply_biome_environment(const std::string &biome, const std::string &map_id);
+	void apply_biome_environment(const std::string &biome, const std::string &map_id, uint8_t daytime = 0);
 	bool apply_sky_box(const godot::Ref<godot::Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const godot::Color &ground);
 	godot::Ref<godot::Shader> sky_box_shader_;
 
