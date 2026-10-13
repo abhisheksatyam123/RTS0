@@ -198,7 +198,7 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_RANDOM_HIGHLANDS, "random_highlands", "Highlands (RMS)", "alpine", true, "Rugged alpine terrain with sheer mountain cliffs, gorge rivers, and strategic passes."},
 		{MAP_RANDOM_VALLEY, "random_valley", "Fertile Valley (RMS)", "latium", true, "A lush river valley bounded by towering mountain ridges with balanced contested resources."},
 		{MAP_RANDOM_MEDITERRANEAN, "random_mediterranean", "Mediterranean Sea (RMS)", "mediterranean", true, "A central sea ringed by continuous fertile mainland coasts for all civilizations."},
-		{MAP_DANUBIUS, "danubius", "Danubius (RMS)", "temperate", true, "Meandering dual-channel river with fords, sandbars, and central island fortress."},
+		{MAP_DANUBIUS, "danubius", "Danubius (RMS)", "temperate", true, "Players start along the banks of the river Danube, where Gallic villages and the ships of Celtic reinforcements attack all of them."},
 		{MAP_SAHARAN_OASES, "saharan_oases", "Saharan Oases (RMS)", "oasis", true, "Arid desert with sinusoidal sand dunes, date palm groves, and freshwater oases."},
 		{MAP_ANATOLIAN_PLATEAU, "anatolian_plateau", "Anatolian Plateau (RMS)", "steppe", true, "High plateau steppe surrounded by perimeter canyon ravines and rich mineral outcrops."},
 		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "Iconic central sandstone mesa landmark with high-ground elevation advantage and surrounding savanna quarries."},
@@ -288,7 +288,7 @@ inline bool map_is_naval(int type) {
 		case MAP_ENGLISH_CHANNEL: case MAP_DODECANESE: case MAP_FLOOD: case MAP_RANDOM_ARCHIPELAGO:
 		case MAP_AEGEAN_SEA: case MAP_ARCHIPELAGO_0AD: case MAP_ISLANDS: case MAP_CYCLADIC_ARCHIPELAGO:
 		case MAP_CORSICA: case MAP_BAHRAIN:
-		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN:
+		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN: case MAP_DANUBIUS:
 			return true;
 		default:
 			return false;
@@ -1225,6 +1225,7 @@ enum TechStat : uint8_t {
 	TSTAT_SPREAD,          // Attack/Ranged/Projectile/Spread
 	TSTAT_GARRISON_ARROWS, // BuildingAI/GarrisonArrowMultiplier
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
+	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_COUNT
 };
 

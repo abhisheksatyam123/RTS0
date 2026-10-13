@@ -38,7 +38,7 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"athen/infantry_slinger_b", 2, 100, nullptr, 3},
 	{"athen/infantry_spearman_b", 1, 100, nullptr, 2},
 	{"athen/infantry_spearman_b", 2, 100, nullptr, 3},
-	{"athen/infantry_spearman_b", 3, 100, "athen/champion_infantry", 1},
+	{"athen/infantry_spearman_b", 3, 250, "athen/champion_infantry", 1},
 	{"athen/support_healer_b", 1, 150, nullptr, 2},
 	{"athen/support_healer_b", 2, 150, nullptr, 3},
 	{"spart/cavalry_javelineer_b", 1, 150, nullptr, 2},
@@ -257,6 +257,13 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"rome/cavalry_auxiliary_b", 2, 150, nullptr, 3},
 };
 
+// 0.28 targets the roster lacks, standing in with the pre-0.28 target (INTERIM_TARGETS):
+//   rome/cavalry_javelineer_b -> rome/cavalry_javelineer_auxiliary_b (as rome/cavalry_auxiliary_b)
+//   rome/cavalry_spearman_b -> rome/cavalry_spearman_auxiliary_b (as rome/cavalry_auxiliary_b)
+//   rome/champion_infantry_swordsman -> rome/champion_infantry_swordsman_first (as rome/infantry_legionary)
+//   rome/infantry_spearman_a -> rome/infantry_spearman_conscript (as rome/infantry_legionary)
+//   rome/infantry_spearman_b -> rome/infantry_spearman_conscript (as rome/infantry_legionary)
+
 // Roster units whose 0 A.D. template starts above Basic (Identity/Rank).
 struct PromotionStart {
 	const char *id;
@@ -289,8 +296,8 @@ struct RankBonus {
 	float train_time_mul;
 };
 
-inline constexpr RankBonus RANK_BONUS_ADVANCED = {1.25f, 1.2f, 1.0f, 0.7f, 5.0f, 3.0f, 0.7f, 1.2f};
-inline constexpr RankBonus RANK_BONUS_ELITE = {1.25f, 1.2f, 1.0f, 0.8f, 5.0f, 3.0f, 0.7f, 1.2f};
+inline constexpr RankBonus RANK_BONUS_ADVANCED = {1.25f, 1.1f, 0.0f, 0.7f, 5.0f, 3.0f, 0.7f, 1.2f};
+inline constexpr RankBonus RANK_BONUS_ELITE = {1.25f, 1.1f, 0.0f, 0.8f, 5.0f, 3.0f, 0.7f, 1.2f};
 
 // Technologies that change Promotion/RequiredXp for units with every `need` class and
 // no `forbid` class (TechClass bits), at `rank` (0 any): multiply, or replace with 0.
