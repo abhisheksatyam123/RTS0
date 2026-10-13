@@ -1,33 +1,55 @@
 extends CanvasLayer
-# Save and load dialogs, after 0 A.D. gui/savedgames (save.js, load.js,
-# savegame_list.js): every saved game newest first with its date, map and
-# description. Save writes a new slot or overwrites the selected one (after
-# asking); Load loads the selected one; Delete removes it (after asking).
+# Save and load dialogs, a port of 0 A.D. gui/loadgame (load.xml,
+# SavegameList.js, SavegameDetails.js, SavegameDeleter.js, SavegameLoader.js,
+# SavegameWriter.js):
+#   - the list has Date / Time, Map Type, Map Name and Description columns,
+#     sorts by any of them (newest first by default) and by default shows only
+#     compatible saves ("Filter compatible saved games");
+#   - the details show the map with its preview image, the player count, played
+#     time, map type, size, victory condition, save format and the players by team;
+#   - Save writes a new save, or overwrites the selected one after asking, keeping
+#     the selected save's description unless it was edited;
+#   - Load loads the selected save, asking first when it was written with another
+#     save format; a save from a newer RTS0 can't be loaded;
+#   - Delete (session.savedgames.delete) asks first, unless Shift
+#     (session.savedgames.noconfirmation) is held.
 #
 # Saves are user://saves/<name>.rts0sav with <name>.json (metadata) and
 # <name>.png (a screenshot, when one could be taken) beside it, all written by
-# RtsoMain.save_game. A save written by a newer RTS0 (a higher save format) is
-# shown in red and can't be loaded, as 0 A.D. marks incompatible saves. Save calls the RtsoMain it is given. Load
-# (from a match or the main menu) starts the match scene with
-# MatchSettings.load_save_path set, and the scene loads it after building the map.
+# RtsoMain.save_game. Save calls the RtsoMain it is given. Load (from a match
+# or the main menu) starts the match scene with MatchSettings.load_save_path
+# set, and the scene loads it after building the map.
 
 signal closed
 
 const SAVE_ROOT := "user://saves"
+const ReplayPage = preload("res://scenes/menu/replay_browser.gd")
+const SetupPage = preload("res://scenes/menu/gamesetup.gd")
+const GOLD := Color(0.9, 0.75, 0.31)
+const INCOMPATIBLE := Color8(96, 96, 96)
+const COLUMNS := [["date", "Date / Time", 25], ["mapType", "Map Type", 15], ["mapName", "Map Name", 35], ["description", "Description", 25]]
 
 var mode := "load" # "save" or "load"
 var game: Node = null # RtsoMain, or null in the main menu
 
-var _saves: Array = [] # {path, meta}
-var _list: ItemList
-var _details: RichTextLabel
-var _thumb: TextureRect
-var _desc: LineEdit
-var _status: Label
-var _btn_ok: Button
-var _btn_delete: Button
-var _confirm: ConfirmationDialog
+var saves: Array = [] # shown entries: {path, id, meta, compatible, newer, date, map, map_id, map_type, size, victory, description}
+var sort_column := "date"
+var sort_order := -1
+var list: Tree
+var feedback: Label
+var compatibility_filter: CheckBox
+var description: LineEdit
+var details: Control
+var labels := {}
+var players_text: RichTextLabel
+var btn_ok: Button
+var btn_delete: Button
+var confirm: ConfirmationDialog
+var message: AcceptDialog
+var _description_changed := false
+var _selected_id := ""
 var _pending := ""
+var _hotkeys = null
 
 static func open(parent: Node, dialog_mode: String, rts_main: Node = null) -> CanvasLayer:
 	var d = load("res://scenes/session/savegame_dialog.gd").new()
@@ -39,86 +61,38 @@ static func open(parent: Node, dialog_mode: String, rts_main: Node = null) -> Ca
 func _ready() -> void:
 	layer = 20
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var theme_res = load("res://assets/themes/zeroad_theme.tres")
-	var bg := ColorRect.new()
-	bg.color = Color(0, 0, 0, 0.6)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	if theme_res:
-		center.theme = theme_res
-	add_child(center)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(860, 500)
-	center.add_child(panel)
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 10)
-	panel.add_child(vbox)
-	var title := Label.new()
-	title.text = "Save Game" if mode == "save" else "Load Game"
-	title.add_theme_font_size_override("font_size", 20)
-	title.add_theme_color_override("font_color", Color(0.9, 0.75, 0.31))
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
-	var row := HBoxContainer.new()
-	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	row.add_theme_constant_override("separation", 12)
-	vbox.add_child(row)
-	_list = ItemList.new()
-	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_list.size_flags_stretch_ratio = 1.5
-	_list.item_selected.connect(_on_selected)
-	_list.item_activated.connect(func(_i): _on_ok())
-	row.add_child(_list)
-	var side := VBoxContainer.new()
-	side.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(side)
-	_thumb = TextureRect.new()
-	_thumb.custom_minimum_size = Vector2(320, 180)
-	_thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	_thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	side.add_child(_thumb)
-	_details = RichTextLabel.new()
-	_details.bbcode_enabled = true
-	_details.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side.add_child(_details)
-	if mode == "save":
-		_desc = LineEdit.new()
-		_desc.placeholder_text = "Description (optional)"
-		_desc.max_length = 80
-		MatchSettings.prepare_line_edit(_desc)
-		_desc.text_submitted.connect(func(_t): _on_ok())
-		vbox.add_child(_desc)
-	_status = Label.new()
-	_status.add_theme_color_override("font_color", Color(1.0, 0.6, 0.4))
-	vbox.add_child(_status)
-	var buttons := HBoxContainer.new()
-	buttons.alignment = BoxContainer.ALIGNMENT_END
-	buttons.add_theme_constant_override("separation", 12)
-	vbox.add_child(buttons)
-	_btn_delete = _button(buttons, "Delete", _on_delete)
-	_button(buttons, "Cancel", close)
-	_btn_ok = _button(buttons, "Save" if mode == "save" else "Load", _on_ok)
-	_confirm = ConfirmationDialog.new()
-	_confirm.process_mode = Node.PROCESS_MODE_ALWAYS
-	_confirm.confirmed.connect(_on_confirmed)
-	add_child(_confirm)
+	if ClassDB.class_exists("RtsoHotkeyConfig"):
+		_hotkeys = ClassDB.instantiate("RtsoHotkeyConfig")
+	_build()
 	refresh()
-	if _desc:
-		_desc.grab_focus()
+	if mode == "load":
+		select_save(0) # LoadGamePage: selectFirst
+	else:
+		description.grab_focus()
 
-func _button(parent: Node, text: String, cb: Callable) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(120, 36)
-	b.pressed.connect(cb)
-	parent.add_child(b)
-	return b
+# --- List (SavegameList.js) --------------------------------------------------------
 
+## The save as the list and details read it.
+func _entry(path: String, meta: Dictionary) -> Dictionary:
+	var settings: Dictionary = meta.get("settings", {})
+	var map_id := str(meta.get("map_id", settings.get("map_id", "")))
+	var info := ReplayPage.map_info(map_id)
+	var v := int(meta.get("save_version", 0))
+	var date := str(meta.get("date", "")).replace("T", " ")
+	if meta.has("timestamp"):
+		var local := int(meta.timestamp) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60
+		date = Time.get_datetime_string_from_unix_time(local, true)
+	return {"path": path, "id": path.get_file().get_basename(), "meta": meta,
+		"compatible": v == RtsoMain.get_save_version(), "newer": v > RtsoMain.get_save_version(),
+		"timestamp": int(meta.get("timestamp", 0)), "date": date, "map": str(meta.get("map_name", map_id)),
+		"map_id": map_id, "map_type": info["type"],
+		"size": int(settings.get("map_size", 0)) if info["type"] == "Random" else int(info["size"]),
+		"victory": int(settings.get("victory", 0)), "description": str(meta.get("description", "")),
+		"players": meta.get("players", [])}
+
+## updateSavegameList.
 func refresh() -> void:
-	_list.clear()
-	_saves.clear()
+	saves.clear()
 	var dir := DirAccess.open(SAVE_ROOT)
 	if dir:
 		for f in dir.get_files():
@@ -128,118 +102,195 @@ func refresh() -> void:
 			var meta := _read_json(path.get_basename() + ".json")
 			if meta.is_empty():
 				# Saves from before metadata existed still list, by file date.
-				meta = {"timestamp": FileAccess.get_modified_time(path), "map_name": "?",
-					"date": Time.get_datetime_string_from_unix_time(FileAccess.get_modified_time(path), true)}
-			var v := int(meta.get("save_version", 0))
-			_saves.append({"path": path, "meta": meta, "compatible": v <= RtsoMain.get_save_version()})
-	_saves.sort_custom(func(a, b): return int(a.meta.get("timestamp", 0)) > int(b.meta.get("timestamp", 0)))
-	if mode == "save":
-		_list.add_item("[New saved game]")
-	for s in _saves:
-		var m: Dictionary = s.meta
-		var desc: String = m.get("description", "")
-		if desc == "":
-			desc = s.path.get_file().get_basename()
-		_list.add_item("%s   %s   %s" % [str(m.get("date", "")).replace("T", " "), m.get("map_name", "?"), desc])
+				meta = {"timestamp": FileAccess.get_modified_time(path), "map_name": "?"}
+			var e := _entry(path, meta)
+			if e.compatible or not compatibility_filter.button_pressed:
+				saves.append(e)
+	saves.sort_custom(func(a, b):
+		var ka = _sort_key(a)
+		var kb = _sort_key(b)
+		if ka == kb:
+			return a.id < b.id
+		return ka > kb if sort_order < 0 else ka < kb)
+	list.clear()
+	var root := list.create_item()
+	for s in saves:
+		var row := list.create_item(root)
+		row.set_text(0, s.date)
+		row.set_text(1, s.map_type)
+		row.set_text(2, s.map)
+		row.set_text(3, s.description)
 		if not s.compatible:
-			_list.set_item_custom_fg_color(_list.item_count - 1, Color(0.85, 0.4, 0.35))
-	if _list.item_count > 0:
-		_list.select(0)
-		_on_selected(0)
+			for c in COLUMNS.size():
+				row.set_custom_color(c, INCOMPATIBLE)
+	for c in COLUMNS.size():
+		list.set_column_title(c, COLUMNS[c][1] + ("" if COLUMNS[c][0] != sort_column else ("  ▼" if sort_order < 0 else "  ▲")))
+	feedback.visible = saves.is_empty()
+	# Keep the selected save if it is still listed.
+	var i := saves.map(func(s): return s.id).find(_selected_id)
+	if i >= 0:
+		list.set_selected(root.get_child(i), 0)
 	else:
-		_list.add_item("No saved games.")
-		_list.set_item_disabled(0, true)
-		_details.text = ""
-	_update_buttons()
+		_selected_id = ""
+	_on_selection_change()
 
-func _selected_save() -> Dictionary:
-	var sel := _list.get_selected_items()
-	if sel.is_empty():
+func _sort_key(s: Dictionary) -> Variant:
+	match sort_column:
+		"mapName": return s.map
+		"mapType": return s.map_type
+		"description": return s.description
+	return s.timestamp
+
+## Clicking a column heading sorts by it; clicking it again reverses the order.
+func sort_by(column: String) -> void:
+	if sort_column == column:
+		sort_order = -sort_order
+	else:
+		sort_column = column
+		sort_order = -1 if column == "date" else 1
+	refresh()
+
+func selected_save() -> Dictionary:
+	var item := list.get_selected()
+	if item == null:
 		return {}
-	var i: int = sel[0] - (1 if mode == "save" else 0)
-	return _saves[i] if i >= 0 and i < _saves.size() else {}
+	var i := item.get_index()
+	return saves[i] if i >= 0 and i < saves.size() else {}
 
-func _update_buttons() -> void:
-	var s := _selected_save()
-	_btn_delete.disabled = s.is_empty()
-	_btn_ok.disabled = mode == "load" and (s.is_empty() or not s.compatible)
-
-func _on_selected(_i: int) -> void:
-	_update_buttons()
-	var s := _selected_save()
-	_thumb.texture = null
-	if s.is_empty():
-		_details.text = "Saves the match in a new slot." if mode == "save" else ""
+func select_save(index: int) -> void:
+	if index < 0 or index >= saves.size():
+		list.deselect_all()
+		_selected_id = ""
+		_on_selection_change()
 		return
-	var png: String = s.path.get_basename() + ".png"
-	if FileAccess.file_exists(png):
-		var img := Image.load_from_file(ProjectSettings.globalize_path(png))
-		if img:
-			_thumb.texture = ImageTexture.create_from_image(img)
-	var m: Dictionary = s.meta
-	var t := "[b]%s[/b]\n" % m.get("map_name", "?")
-	t += "Saved: %s\n" % str(m.get("date", "")).replace("T", " ")
-	t += "Game time: %s\n" % _clock(float(m.get("game_time", 0.0)))
-	if m.get("description", "") != "":
-		t += "Description: %s\n" % m.description
-	t += "\n[b]Players[/b]\n"
-	for p in m.get("players", []):
-		t += "%s - %s, team %d%s\n" % [p.get("name", "?"), p.get("civ_name", "?"), int(p.get("team", 0)),
-			" (AI)" if p.get("ai", false) else ""]
-	if not s.compatible:
-		t += "\n[color=#e07060]Saved by a newer RTS0 (save format v%d; this build reads up to v%d).[/color]\n" % [int(m.get("save_version", 0)), RtsoMain.get_save_version()]
-	_details.text = t
-	if _desc and m.get("description", "") != "":
-		_desc.text = m.description
+	list.set_selected(list.get_root().get_child(index), 0)
 
-func _on_ok() -> void:
-	var s := _selected_save()
+## generateSavegameLabel.
+func save_label(s: Dictionary) -> String:
+	return "%s %s%s" % [s.date, s.map, (" - " + s.description) if s.description != "" else ""]
+
+## Every handler's onSelectionChange.
+func _on_selection_change() -> void:
+	var s := selected_save()
+	_selected_id = s.get("id", "")
+	btn_delete.disabled = s.is_empty()
+	btn_ok.disabled = mode == "load" and s.is_empty()
+	if mode == "save" and not _description_changed and not s.is_empty():
+		description.text = s.description
+	_show_details(s)
+
+# --- Details (SavegameDetails.js) ----------------------------------------------------
+
+func _show_details(s: Dictionary) -> void:
+	details.visible = not s.is_empty()
+	if s.is_empty():
+		return
+	var m: Dictionary = s.meta
+	labels.name.text = s.map
+	var tex: Texture2D = SetupPage.map_preview(s.map_id) if s.map_id != "" else null
+	if tex == null and FileAccess.file_exists(s.path.get_basename() + ".png"):
+		var img := Image.load_from_file(ProjectSettings.globalize_path(s.path.get_basename() + ".png"))
+		if img:
+			tex = ImageTexture.create_from_image(img)
+	labels.preview.texture = tex
+	labels.players.text = str(s.players.size())
+	labels.time.text = ReplayPage.time_to_string(float(m.get("game_time", 0.0)))
+	labels.type.text = s.map_type
+	labels.size.text = ReplayPage.map_size_name(s.size)
+	labels.victory.text = ReplayPage.victory_name(s.victory)
+	# 0 A.D. lists the save's mods here, in orange when they differ.
+	var v := int(m.get("save_version", 0))
+	labels.version.text = "Save format: v%d" % v
+	labels.version.add_theme_color_override("font_color", Color.WHITE if s.compatible else Color.ORANGE)
+	players_text.text = ReplayPage.player_info(s, true)
+
+# --- Actions (SavegameLoader.js, SavegameWriter.js, SavegameDeleter.js) ---------------
+
+func confirm_pressed() -> void:
 	if mode == "save":
-		if not s.is_empty():
-			_ask("Overwrite this saved game?", "overwrite")
-			return
+		save_pressed()
+	else:
+		load_pressed()
+
+func load_pressed() -> void:
+	var s := selected_save()
+	if s.is_empty():
+		return
+	if s.compatible:
+		_load(s.path)
+		return
+	var v := int(s.meta.get("save_version", 0))
+	if s.newer:
+		_show_message("This savegame needs a newer version of RTS0 (save format v%d, while you are running v%d)." % [v, RtsoMain.get_save_version()])
+		return
+	_ask("Warning", "This savegame was written with save format v%d, while you are running v%d.\nDo you still want to proceed?" % [v, RtsoMain.get_save_version()], "load")
+
+func save_pressed() -> void:
+	var s := selected_save()
+	if s.is_empty():
 		_save_to(_new_name())
 	else:
-		if s.is_empty() or not s.compatible:
-			return
-		_load(s.path)
+		_ask("OVERWRITE SAVE", "\"%s\"\nSaved game will be permanently overwritten, are you sure?" % save_label(s), "overwrite")
 
-func _on_delete() -> void:
-	if not _selected_save().is_empty():
-		_ask("Delete this saved game? This cannot be undone.", "delete")
-
-func _ask(text: String, action: String) -> void:
-	_pending = action
-	_confirm.dialog_text = text
-	_confirm.popup_centered()
-
-func _on_confirmed() -> void:
-	var s := _selected_save()
+func delete_pressed(no_confirmation := false) -> void:
+	var s := selected_save()
 	if s.is_empty():
 		return
+	if no_confirmation:
+		delete_selected()
+	else:
+		_ask("DELETE", "\"%s\"\nSaved game will be permanently deleted, are you sure?" % save_label(s), "delete")
+
+func delete_selected() -> void:
+	var s := selected_save()
+	if s.is_empty():
+		return
+	var i := list.get_selected().get_index()
+	for ext in [".rts0sav", ".json", ".png"]:
+		var f: String = s.path.get_basename() + ext
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	_selected_id = ""
+	refresh()
+	# The next save takes the deleted one's place in the list.
+	if not saves.is_empty():
+		select_save(mini(i, saves.size() - 1))
+
+func _ask(title: String, text: String, action: String) -> void:
+	_pending = action
+	confirm.title = title
+	confirm.dialog_text = text
+	confirm.popup_centered()
+
+func _show_message(text: String) -> void:
+	message.dialog_text = text
+	message.popup_centered()
+
+func _on_confirmed() -> void:
+	var s := selected_save()
 	if _pending == "delete":
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(s.path))
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(s.path.get_basename() + ".json"))
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(s.path.get_basename() + ".png"))
-		refresh()
+		delete_selected()
+	elif s.is_empty():
+		return
 	elif _pending == "overwrite":
-		_save_to(s.path.get_file().get_basename())
+		_save_to(s.id)
+	elif _pending == "load":
+		_load(s.path)
 
 func _new_name() -> String:
 	return "savegame_" + Time.get_datetime_string_from_system(false, false).replace(":", "").replace("-", "").replace("T", "_")
 
 func _save_to(name: String) -> void:
 	if game == null or not game.has_method("save_game_as"):
-		_status.text = "No match to save."
+		_show_message("No match to save.")
 		return
 	if game.has_method("is_replay_playback") and game.is_replay_playback():
-		_status.text = "A replay can't be saved."
+		_show_message("A replay can't be saved.")
 		return
-	var desc: String = _desc.text.strip_edges() if _desc else ""
-	if game.save_game_as(name, desc):
+	if game.save_game_as(name, description.text.strip_edges()):
 		close()
 	else:
-		_status.text = "Saving failed."
+		_show_message("Saving failed.")
 
 func _load(path: String) -> void:
 	# Loading ends the current match (as in 0 A.D.): the match scene starts over,
@@ -253,17 +304,204 @@ func close() -> void:
 	closed.emit()
 	queue_free()
 
+func _fired(event: InputEvent, hotkey: String) -> bool:
+	if _hotkeys == null or not (event is InputEventKey) or not event.pressed or event.echo:
+		return false
+	var keys: Array = [str(_hotkeys.call("event_key_name", event)).to_lower()]
+	for m in [["ctrl", event.ctrl_pressed], ["shift", event.shift_pressed], ["alt", event.alt_pressed]]:
+		if m[1] and not keys.has(m[0]):
+			keys.append(m[0])
+	keys.sort()
+	for combo in _hotkeys.call("get_hotkey_map").get(hotkey, PackedStringArray()):
+		var want: Array = Array(str(combo).to_lower().split("+"))
+		want.sort()
+		if want == keys:
+			return true
+	return false
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+	if not (event is InputEventKey) or not event.pressed or confirm.visible or message.visible:
+		return
+	if event.keycode == KEY_ESCAPE or _fired(event, "cancel"):
 		get_viewport().set_input_as_handled()
 		close()
+	elif (event.keycode == KEY_DELETE or _fired(event, "session.savedgames.delete")) and not description.has_focus():
+		get_viewport().set_input_as_handled()
+		delete_pressed(event.shift_pressed) # session.savedgames.noconfirmation
+
+# --- Page (load.xml) -------------------------------------------------------------------
+
+func _label(text: String, size := 14, color := Color.WHITE) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	return l
+
+func _button(parent: Node, text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 32)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.pressed.connect(cb)
+	parent.add_child(b)
+	return b
+
+func _info_row(parent: VBoxContainer, caption: String, key: String) -> void:
+	var row := HBoxContainer.new()
+	var cap := _label(caption, 14, GOLD)
+	cap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(cap)
+	var val := _label("", 14)
+	val.name = "Saved" + key.capitalize().replace(" ", "")
+	val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(val)
+	parent.add_child(row)
+	labels[key] = val
+
+func _build() -> void:
+	var bg := ColorRect.new() # BackgroundTranslucent
+	bg.color = Color(0, 0, 0, 0.6)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(bg)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var theme_res = load("res://assets/themes/zeroad_theme.tres")
+	if theme_res:
+		center.theme = theme_res
+	add_child(center)
+	var panel := PanelContainer.new() # ModernDialog, 920 x 650
+	panel.custom_minimum_size = Vector2(920, 620)
+	center.add_child(panel)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 6)
+	panel.add_child(outer)
+	var title := _label("Save Game" if mode == "save" else "Load Game", 20, GOLD)
+	title.name = "Title"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	outer.add_child(title)
+	var cols := HBoxContainer.new()
+	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cols.add_theme_constant_override("separation", 16)
+	outer.add_child(cols)
+
+	# Left: the list, the description (saving) and the buttons.
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(590, 0)
+	left.add_theme_constant_override("separation", 8)
+	cols.add_child(left)
+	var list_box := Control.new()
+	list_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left.add_child(list_box)
+	list = Tree.new()
+	list.name = "GameSelection"
+	list.set_anchors_preset(Control.PRESET_FULL_RECT)
+	list.columns = COLUMNS.size()
+	list.column_titles_visible = true
+	list.hide_root = true
+	list.select_mode = Tree.SELECT_ROW
+	list.allow_reselect = true
+	list.add_theme_font_size_override("font_size", 13)
+	var sel := StyleBoxFlat.new()
+	sel.bg_color = Color(0.35, 0.28, 0.12, 0.9)
+	list.add_theme_stylebox_override("selected", sel)
+	list.add_theme_stylebox_override("selected_focus", sel)
+	for c in COLUMNS.size():
+		list.set_column_expand(c, true)
+		list.set_column_expand_ratio(c, COLUMNS[c][2])
+		list.set_column_clip_content(c, true)
+	list.column_title_clicked.connect(func(c, _b): sort_by(COLUMNS[c][0]))
+	list.item_selected.connect(_on_selection_change)
+	list.item_activated.connect(confirm_pressed) # onMouseLeftDoubleClickItem
+	if mode == "save":
+		# Clicking below the saves picks a new save again.
+		list.empty_clicked.connect(func(_p, _b): select_save(-1))
+	list_box.add_child(list)
+	feedback = _label("No saved games found.", 14)
+	feedback.name = "GameSelectionFeedback"
+	feedback.position = Vector2(12, 36)
+	list_box.add_child(feedback)
+	description = LineEdit.new()
+	description.name = "SaveGameDesc"
+	description.placeholder_text = "Description"
+	description.max_length = 80
+	description.visible = mode == "save"
+	MatchSettings.prepare_line_edit(description)
+	description.text_changed.connect(func(_t): _description_changed = true)
+	description.text_submitted.connect(func(_t): confirm_pressed())
+	left.add_child(description)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 12)
+	left.add_child(buttons)
+	_button(buttons, "Cancel", close)
+	btn_delete = _button(buttons, "Delete", func(): delete_pressed(Input.is_key_pressed(KEY_SHIFT)))
+	btn_delete.tooltip_text = "Delete the selected savegame using Delete.\nHold Shift to skip the confirmation dialog while deleting."
+	btn_ok = _button(buttons, "Save" if mode == "save" else "Load", confirm_pressed)
+
+	# Right: the filter and the details.
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 4)
+	cols.add_child(right)
+	compatibility_filter = CheckBox.new()
+	compatibility_filter.name = "CompatibilityFilter"
+	compatibility_filter.text = "Filter compatible saved games"
+	compatibility_filter.button_pressed = true
+	compatibility_filter.flat = true
+	compatibility_filter.toggled.connect(func(_on): refresh())
+	right.add_child(compatibility_filter)
+	var valid := VBoxContainer.new()
+	valid.name = "ValidGame"
+	valid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	valid.add_theme_constant_override("separation", 3)
+	right.add_child(valid)
+	details = valid
+	valid.add_child(HSeparator.new())
+	var map_name := _label("", 16, GOLD)
+	map_name.name = "SavedMapName"
+	map_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	map_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	valid.add_child(map_name)
+	labels["name"] = map_name
+	var preview := TextureRect.new()
+	preview.name = "SavedInfoPreview"
+	preview.custom_minimum_size = Vector2(0, 188)
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	valid.add_child(preview)
+	labels["preview"] = preview
+	_info_row(valid, "Players:", "players")
+	_info_row(valid, "Played time:", "time")
+	_info_row(valid, "Map Type:", "type")
+	_info_row(valid, "Map Size:", "size")
+	_info_row(valid, "Victory:", "victory")
+	valid.add_child(HSeparator.new())
+	var version := _label("", 13)
+	version.name = "SavedMods"
+	valid.add_child(version)
+	labels["version"] = version
+	valid.add_child(HSeparator.new())
+	players_text = RichTextLabel.new()
+	players_text.name = "SavedPlayersNames"
+	players_text.bbcode_enabled = true
+	players_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	players_text.add_theme_font_size_override("normal_font_size", 13)
+	players_text.add_theme_font_size_override("bold_font_size", 13)
+	valid.add_child(players_text)
+
+	confirm = ConfirmationDialog.new()
+	confirm.process_mode = Node.PROCESS_MODE_ALWAYS
+	confirm.ok_button_text = "Yes"
+	confirm.cancel_button_text = "No"
+	confirm.confirmed.connect(_on_confirmed)
+	add_child(confirm)
+	message = AcceptDialog.new()
+	message.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(message)
 
 func _read_json(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
 		return {}
 	var v = JSON.parse_string(FileAccess.get_file_as_string(path))
 	return v if v is Dictionary else {}
-
-func _clock(seconds: float) -> String:
-	var s := int(seconds)
-	return "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]

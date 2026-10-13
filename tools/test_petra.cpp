@@ -2195,6 +2195,51 @@ static void test_dropsites() {
 	CHECK(count(BLD_FARMSTEAD, false) == std::max(farms, 1), "one farmstead");
 }
 
+// baseManager.js checkResourceLevels, food branch: the first field once the fruit and grain near
+// the food dropsites is under 600, then provisionFields foundations (2 at Medium), one fewer
+// while more than 300 food is still in reach.
+static void test_food_fields() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 2.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->petra_pid_ = 1;
+	auto fields = [&](bool foundations_only) {
+		int n = 0;
+		for (const auto &b : s->buildings_)
+			n += b.team == 1 && b.type == BLD_FIELD && b.hp > 0.0f && (!foundations_only || b.build_progress < 1.0f);
+		return n;
+	};
+	CHECK(fields(false) == 0, "no field at the start");
+	s->petra_manage_fields();
+	CHECK(fields(false) == 0, "berries in reach: no field yet");
+	std::vector<std::pair<size_t, int>> fruit;
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.alive[r] && s->resources_.type[r] == RES_FOOD && s->resources_.subtype[r] != RES_SUB_FISH &&
+		    s->resources_.subtype[r] != RES_SUB_MEAT) {
+			fruit.push_back({r, (int)s->resources_.amount[r]});
+			s->resources_.amount[r] = 0;
+		}
+	s->petra_manage_fields();
+	const int first = fields(false);
+	s->petra_manage_fields();
+	const int second = fields(false);
+	s->petra_manage_fields();
+	const int third = fields(false);
+	std::printf("  food fields: none while berries last, then %d, %d, %d\n", first, second, third);
+	CHECK(first == 1, "the first field once the food in reach is gone");
+	CHECK(second == 2 && third == 2, "two field foundations at a time (provisionFields)");
+	for (const auto &[r, amount] : fruit) s->resources_.amount[r] = amount;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_FIELD && b.build_progress < 1.0f) { b.build_progress = 1.0f; break; }
+	s->petra_manage_fields();
+	CHECK(fields(true) == 1 && fields(false) == 2, "one foundation at a time while food is still in reach");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -2240,6 +2285,7 @@ int main() {
 	test_worker_mix();
 	test_build_defenses();
 	test_dropsites();
+	test_food_fields();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
