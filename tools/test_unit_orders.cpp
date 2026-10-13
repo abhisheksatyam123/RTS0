@@ -2154,6 +2154,25 @@ static void test_nastasen_warships() {
 	check(after[RES_WOOD] == before[RES_WOOD], "Nastasen dead: full cost again");
 }
 
+static void test_gather_rate_auras() {
+	std::printf("58. Iron Pelanors: workers near the Spartan catafalque mine metal 15%% faster\n");
+	auto rate = [](bool catafalque, ResourceType res) {
+		Simulation s;
+		setup(s);
+		s.set_team_civ(0, CIV_SPARTANS);
+		const uint32_t mine = s.spawn_resource_world(0, 0, res, 5000);
+		uint32_t w = s.spawn_unit(1.5f, 0, 0, UNIT_FEMALE_CITIZEN);
+		if (catafalque) s.spawn_unit(6, 6, 0, UNIT_CATAFALQUE, 0.0f, roster_named("spart/catafalque"));
+		s.order_gather(&w, 1, mine);
+		run(s, 2.0f);
+		return act_of(s, w) == ACTION_GATHER ? s.units_.gather_rate[s.lookup_unit(w)] : 0.0f;
+	};
+	const float alone = rate(false, RES_GOLD), near = rate(true, RES_GOLD);
+	check(alone > 0.0f, "a worker mines metal");
+	check(std::fabs(near - alone * 1.15f) < 1e-4f * alone, "beside the catafalque: x1.15");
+	check(std::fabs(rate(true, RES_STONE) - rate(false, RES_STONE)) < 1e-6f, "stone mining unchanged");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2214,6 +2233,7 @@ int main(int argc, char **argv) {
 	test_hero_global_auras();
 	test_aura_secondary_effects();
 	test_nastasen_warships();
+	test_gather_rate_auras();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
