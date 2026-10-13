@@ -260,6 +260,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool map_has_teams_ = false;
 	// The scenario's PopulationLimit (0 A.D. ScriptSettings, locked in its game setup); -1: none.
 	int map_pop_limit_ = -1;
+	int map_player_pop_limit_[8] = {}; // a scenario player's own PopulationLimit; 0 = none
 	void apply_map_player_overrides();
 
 	bool dragging = false;
@@ -591,6 +592,8 @@ private:
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
 	bool over_own_rally_structure(const Vector3 &at) const;
+	// 0 A.D. "focus-fire": the selected arrow-shooting structure aims at the enemy under `at`.
+	bool try_focus_fire(const Vector3 &at);
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);

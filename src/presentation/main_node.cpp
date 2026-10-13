@@ -2192,6 +2192,38 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 // cursor shows what a right-click would do with the current selection.
 // unit_actions.js "unset-rallypoint" getActionInfo: the target is the selected
 // structure itself and it has a rally point.
+// unit_actions.js: right-clicking an enemy with a structure that shoots arrows selected
+// sends Commands.js "focus-fire" (BuildingAI.AddFocusTarget; Shift queues it) instead of
+// setting the rally point there. Lockstep command 50.
+bool RtsoMain::try_focus_fire(const Vector3 &at) {
+	const uint8_t me = local_player();
+	const auto bit = std::find_if(sim->buildings().begin(), sim->buildings().end(),
+			[&](const rtso::Simulation::Building &b) { return b.id == selected_building_id; });
+	if (bit == sim->buildings().end() || bit->team != me || !rtso::building_ai_info(bit->type).shoots()) return false;
+	uint32_t target = 0;
+	auto uview = sim->units();
+	float best = 2.2f * 2.2f;
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || !sim->is_hostile(me, uview.team[i])) continue;
+		const float dx = uview.pos_x[i] - at.x, dz = uview.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 < best) { best = d2; target = uview.id[i]; }
+	}
+	for (const auto &b : sim->buildings()) {
+		if (target) break;
+		if (b.wrecked || b.team >= rtso::MAX_PLAYERS || !sim->is_hostile(me, b.team)) continue;
+		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
+		if (dx * dx + dz * dz <= hit_r * hit_r) target = b.id;
+	}
+	if (!target) return false;
+	const bool queued = rtso::hotkeys::held("session.queue");
+	const uint32_t ids[1] = {selected_building_id};
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target, queued ? rtso::NET_PARAM_QUEUED : 0);
+	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued))
+		return false;
+	return true;
+}
+
 bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
 	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
 	for (const auto &b : sim->buildings()) {
@@ -3432,7 +3464,7 @@ void RtsoMain::_process(double delta) {
 		session_audio_.set_listener(focus.x, focus.z);
 	}
 	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
-	session_audio_.tick_combat(sim, local_player(), attacks, match_elapsed_time);
+	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time);
 	update_music_state();
 
 	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
@@ -4357,7 +4389,7 @@ void RtsoMain::update_command_panel() {
 			// out with the reason research_check() gives.
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
-				if (ti.researcher != rtso::building_research_base(found_b->type) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				if (!rtso::building_researches_tech(found_b->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
@@ -5754,6 +5786,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			// If building selected, right click sets Rally Point!
 			if (selected_building_id != 0) {
+				if (try_focus_fire(click_pos)) return;
 				uint32_t target_res = 0, target_bld = 0;
 				auto rview = sim->resources();
 				for (size_t r = 0; r < rview.count; ++r) {
@@ -6491,6 +6524,7 @@ void RtsoMain::apply_map_player_overrides() {
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
 		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
+		sim->set_player_pop_cap(p, map_player_pop_limit_[p]);
 	}
 	if (map_pop_limit_ > 0) sim->set_pop_cap(map_pop_limit_);
 	if (map_has_teams_) {
@@ -6506,6 +6540,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		map_civ_[p] = -1;
 		map_has_res_[p] = false;
+		map_player_pop_limit_[p] = 0;
 		map_team_[p] = 0;
 	}
 	map_has_teams_ = false;
@@ -6608,6 +6643,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 				for (int k = 0; k < 4; ++k) map_res_[team][k] = (int)r.get(keys[k], 300); // Player.js: 300 of each unless set
 				map_has_res_[team] = true;
 			}
+			// 0.28 PlayerData PopulationLimit (InitGame.js SetPerPlayerPopulationCaps).
+			if (p.has("pop_limit")) map_player_pop_limit_[team] = std::max(0, (int)p["pop_limit"]);
 			if (p.has("team")) {
 				const int t = (int)p["team"];
 				map_team_[team] = (uint8_t)(t >= 0 && t < rtso::MAX_PLAYERS ? t + 1 : 0);
