@@ -164,7 +164,7 @@ def footprint_of(t):
 
 def row_of(t, structure=False):
     r = {"classes": sorted(ex.classes_of(t)), "attack": attack_of(t), "footprint": footprint_of(t),
-         "immune": status_immunity(t)}
+         "immune": status_immunity(t), "capture": t.num("Attack/Capture/Capture", 0.0)}
     if structure:
         r["armour"] = tuple(t.num("Resistance/Entity/Damage/" + k) for k in ("Hack", "Pierce", "Crush"))
     return r
@@ -280,6 +280,7 @@ def emit(units, generic, buildings, classes):
     w("\tuint8_t status_immune; // statuses it blocks (bits 1 Poisoned, 2 Burning; BlockChance 1)")
     w("\tfloat prepare; // Attack PrepareTime (s): the first hit lands this long after an attack starts")
     w("\tfloat proj_speed, proj_gravity; // Projectile Speed (m/s, horizontal) and Gravity (m/s^2), 0 = melee")
+    w("\tfloat capture; // Attack/Capture/Capture: capture points a second, 0 = no Capture attack")
     w("};")
     w("")
 
@@ -294,11 +295,11 @@ def emit(units, generic, buildings, classes):
             bon.append("{{0, 0}, 1.0f, 255}")
         arm = row.get("armour", (0, 0, 0))
         st = a["status"]
-        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d, %s, %s, %s}, // %s" % (
+        return "\t\t{%s, %s, %s, %d, {%s}, %s, %s, %s, %s, %d, %s, %s, %d, %s, %s, %s, %s}, // %s" % (
             mask(row["classes"], index), mask(a["restricted"], index), f(a["spread"]), len(a["bonuses"]),
             ", ".join(bon), f(arm[0]), f(arm[1]), f(arm[2]), f(round(row["footprint"], 3)),
             st[0], f(round(st[1], 4)), f(st[2]), row["immune"], f(round(a["prepare"], 4)),
-            f(a["proj_speed"]), f(a["proj_gravity"]), comment)
+            f(a["proj_speed"]), f(a["proj_gravity"]), f(row["capture"]), comment)
 
     w("// 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).")
     w("inline constexpr float COMBAT_DISTANCE_SCALE = %s;" % f(ex.RANGED_RANGE_SCALE))
