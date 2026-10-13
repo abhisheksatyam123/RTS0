@@ -28,7 +28,9 @@ enum AuraType : uint8_t {
     AURA_NO_LOOT = 14, // Loot replaced by 0 on victims (no_loot_range_auras)
     AURA_BUILD = 15, // Builder/Rate multiplier
     AURA_GATHER_RATE = 16, // ResourceGatherer/Rates of units; value = gather_rate_range_auras() row
-    AURA_COUNT  = 17
+    AURA_RANGE_ADD = 17, // Attack/*/MaxRange added to units; value = range_add_range_auras() row
+    AURA_VISION_ADD = 18, // Vision/Range metres added (0 A.D. metres; Lugius' Terror Cimbricus)
+    AURA_COUNT  = 19
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -92,6 +94,12 @@ public:
     }
 
     bool has(AuraType type) const { return type < AURA_COUNT && !of_type_[type].empty(); }
+    bool has_negative(AuraType type) const {
+        if (type >= AURA_COUNT) return false;
+        for (uint32_t k : of_type_[type])
+            if (sources[k].alive && sources[k].value < 0.0f) return true;
+        return false;
+    }
 
     // AURA_CAPTURE_POINTS / AURA_GARRISON_REGEN on a structure of qowner at (qx, qz): the
     // product of every capture_range_auras() aura reaching it, each aura once however many
@@ -164,7 +172,7 @@ public:
     //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP: strongest bonus times
     //     strongest penalty
     //     (0 when none reaches the unit).
-    //   AURA_ARMOR / AURA_HEAL_AMOUNT: strongest bonus plus strongest penalty.
+    //   AURA_ARMOR / AURA_HEAL_AMOUNT / AURA_VISION_ADD: strongest bonus plus strongest penalty.
     //   AURA_BUILD: the product of every aura reaching the unit, a stackable one (the Han
     //     minister's) once per source and any other once (0 when none reaches the unit).
     // structure: the query is for a structure, which only auras naming the Structure
