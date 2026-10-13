@@ -108,6 +108,9 @@ public:
 	// Host: 0 A.D. NetServer::KickPlayer. Tells every client, drops the peer (the
 	// lockstep goes on without it) and, with ban, refuses its name and address
 	// from then on. False if there is no such admitted client.
+	// Host: close a client's link once the answer just sent reaches it, with
+	// no kick notice (0 A.D. NetServer Disconnect(NDR_SERVER_FULL)).
+	void refusePeer(uint32_t peer_id);
 	bool kickPeer(uint32_t peer_id, bool ban);
 	// Host: the admitted client with this name (0 if none).
 	uint32_t peerByName(const std::string &name) const;
