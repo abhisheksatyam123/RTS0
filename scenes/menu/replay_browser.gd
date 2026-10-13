@@ -135,7 +135,8 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 		"map": str(meta.get("map_name", map_id)), "map_id": map_id, "map_type": info["type"], "desc": info["desc"],
 		"size": size, "pop": pop, "world_pop": int(attribs.get("worldpop", 0)),
 		"duration": float(meta.get("start_time", 0.0)) + float(meta.get("duration", 0.0)),
-		"victory": victory, "multiplayer": humans > 1 or str(meta.get("kind", "sp")) == "mp"}
+		"victory": victory, "multiplayer": humans > 1 or str(meta.get("kind", "sp")) == "mp",
+		"campaign": str(settings.get("campaign_run", "")) != ""}
 
 ## loadReplays: read every replay folder, then refill the filters.
 func load_replays() -> void:
@@ -227,7 +228,8 @@ func passes(r: Dictionary) -> bool:
 			if not r["multiplayer"]:
 				return false
 		3:
-			return false # no campaigns yet
+			if not r["campaign"]:
+				return false
 	if _victory_filter.selected > 0 and r["victory"] != _victory_filter.selected - 1:
 		return false
 	if _date_filter.selected > 0 and r["month"] != _date_filter.get_item_text(_date_filter.selected):

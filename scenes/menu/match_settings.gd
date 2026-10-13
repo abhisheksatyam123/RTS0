@@ -73,6 +73,10 @@ var slot_teams: Array = [0, 0]
 # a replay folder (user://replays/<id>/) to watch, or a saved game to load.
 var replay_dir: String = ""
 var load_save_path: String = ""
+# 0 A.D. campaignData: the campaign run (its file name under user://saves/campaigns/)
+# and the level being played; empty outside a campaign. Saves and replays keep them.
+var campaign_run: String = ""
+var campaign_level: String = ""
 
 func strip_engine_popups(n: Node) -> void:
 	if n == null:

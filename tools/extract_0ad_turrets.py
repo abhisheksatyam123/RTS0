@@ -9,7 +9,8 @@ Reads, under binaries/data/mods/public/simulation/templates:
 
 A one-cell RTS0 wall segment and gate (maps, older saves) are much shorter than 0 A.D.'s
 walls, so each keeps the civ's points that fit on it: wall_long's points for a segment,
-wall_gate's for a gate, offsets scaled by COMBAT_DISTANCE_SCALE (0.28). WallSet pieces (#233)
+wall_gate's for a gate, offsets scaled by COMBAT_DISTANCE_SCALE (0.28); when none fits
+(the Kushite gate) every point is pulled onto the cell's edge. WallSet pieces (#233)
 are as long as 0 A.D.'s, so TURRET_POINTS_WALLSET keeps every point of wall_long, wall_medium
 and wall_gate, in the wall's own frame (x along it) at 4 m a unit.
 
@@ -53,13 +54,18 @@ def points(loader, civ, stem, scale=SCALE, fit=True):
     tp = loader.load(name).get("TurretHolder/TurretPoints")
     if tp is None:
         return []
-    out = []
+    every = []
     for p in tp.children.values():
         x, y, z = (float(p.value(k)) * scale for k in ("X", "Y", "Z"))
         if p.value("AllowedClasses") or p.value("Template"):
             raise SystemExit(f"{name}: AllowedClasses / Template turret points are not ported")
-        if not fit or (abs(x) <= HALF_CELL and abs(z) <= HALF_CELL):
-            out.append((round(x, 3), round(y, 3), round(z, 3)))
+        every.append((x, y, z))
+    out = [q for q in every if not fit or (abs(q[0]) <= HALF_CELL and abs(q[2]) <= HALF_CELL)]
+    if fit and not out:
+        # None fits (the Kushite gate's points sit on its two towers, 2.8 units apart):
+        # pull each onto the cell's edge so the one-cell gate still holds them.
+        out = [(max(-HALF_CELL, min(HALF_CELL, x)), y, max(-HALF_CELL, min(HALF_CELL, z))) for x, y, z in every]
+    out = [(round(x, 3), round(y, 3), round(z, 3)) for x, y, z in out]
     return sorted(out, key=lambda q: (q[2], q[0]))
 
 

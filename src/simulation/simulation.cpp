@@ -2366,8 +2366,10 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
 	// The civ's unit of this class that this building trains (0 A.D. Trainer
-	// lists), cheapest phase first; else the class's standard unit, except that
-	// heroes and champions only ever come from their own structures.
+	// lists), cheapest phase first; a building whose Trainer lists none of the
+	// class trains nothing for it (Trainer.js only queues entities it lists). RTS0's
+	// own villager, in no Trainer list, trains at a house as women do there
+	// (support_female_citizen_house); can_train_at checks the festival.
 	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
 		const uint8_t civ = civ_of(b.team);
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
@@ -2377,8 +2379,9 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
 		}
 		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
-		else if (civ_unit_template(tmpl).flags & (ROSTER_HERO | ROSTER_CHAMPION)) return false;
-		else return cmd_train_template_at(player_id, building_id, tmpl, false, count);
+		else if ((b.type == BLD_HOUSE || b.type == BLD_APARTMENT) && (unit_tech_classes((uint8_t)u_type) & TC_CIVILIAN))
+			return cmd_train_template_at(player_id, building_id, tmpl, false, count);
+		else return false;
 	}
 	return cmd_train_template(player_id, building_id, tmpl, count);
 }
@@ -15345,7 +15348,24 @@ void Simulation::petra_manage_trading(float dt) {
 			if (units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
 			const uint16_t access = ship ? petra_ship_sea(i) : (topo.naval_map ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 1);
 			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
-			if (r && !ship && r->land != access) r = nullptr; // needs a transport (not ported)
+			if (r && !ship && r->land != access) {
+				// updateTrader: a land trader with no route on its own land asks the navalManager
+				// for a ship to the nearer end of the best route (requireTransport).
+				// RTS0's idle traders take any route on their own (order_trade_auto), one they
+				// can't walk here: that counts as idle too.
+				if ((units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_TRADE) && !petra_passenger(uid)) {
+					auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
+					if (ita != building_id_to_idx_.end() && itb != building_id_to_idx_.end()) {
+						const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
+						const float px = units_.pos_x[i], pz = units_.pos_z[i];
+						const Building &end = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz) <=
+						                      (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz) ? s : t;
+						const uint16_t sea = topo.sea_between(access, r->land);
+						if (sea) petra_start_transport({uid}, px, pz, end.x, end.z, sea, PETRA_TRANSPORT_TRADER);
+					}
+				}
+				continue;
+			}
 			auto cur = trader_routes_.find(uid);
 			const bool has_route = cur != trader_routes_.end();
 			const bool idle = units_.action_state[i] == ACTION_IDLE;
@@ -18331,9 +18351,21 @@ void Simulation::petra_manage_opening(float dt) {
 }
 
 void Simulation::apply_petra_config() {
-	petra_config_.recompute();
 	// Until a slot gets its own setting, every AI plays at the shared one.
 	for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+	reroll_petra_personalities();
+}
+
+// Each AI draws its own personality within its behaviour's range (config.js setConfig),
+// from the match seed so every lockstep peer draws the same one.
+void Simulation::reroll_petra_personalities() {
+	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked());
+	for (size_t i = 0; i < petra_slots_.size(); ++i) {
+		// While another AI runs, PETRA_PLAYER's config sits in that AI's slot.
+		const uint8_t owner = (i == petra_pid_ && petra_pid_ != PETRA_PLAYER) ? PETRA_PLAYER : (uint8_t)i;
+		if (i == petra_pid_ && petra_pid_ == PETRA_PLAYER) continue; // lives in petra_config_
+		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked());
+	}
 }
 
 // Where player pid's PetraConfig lives right now: in the members while that
@@ -18370,14 +18402,14 @@ void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.difficulty = petra_clamp_difficulty(d);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.behavior = petra_clamp_behavior(b);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::petra_refresh_queue_accounts(float dt) {

@@ -42,12 +42,15 @@ static const Simulation::Building &bld(Simulation &s, uint32_t id) { return s.bu
 
 int main() {
 	// 1. The generated points: an Athenian wall segment holds 4 (two rows), a gate 2, an
-	//    outpost 1 at 8 m (2.24 RTS0 units).
+	//    outpost 1 at 8 m (2.24 RTS0 units). The Kushite gate's 6 points, on its two towers,
+	//    are pulled onto the one-cell gate's ends rather than dropped.
 	{
 		CHECK(TURRET_POINTS[CIV_ATHENIANS][0].count == 4);
 		CHECK(TURRET_POINTS[CIV_ATHENIANS][1].count == 2);
 		CHECK(TURRET_POINTS[CIV_ATHENIANS][2].count == 1);
 		CHECK(std::fabs(TURRET_POINTS[CIV_ATHENIANS][2].pt[0].y - 2.24f) < 1e-4f);
+		CHECK(TURRET_POINTS[CIV_KUSHITES][1].count == 6);
+		for (int k = 0; k < 6; ++k) CHECK(std::fabs(std::fabs(TURRET_POINTS[CIV_KUSHITES][1].pt[k].x) - 1.0f) < 1e-4f);
 	}
 
 	static Simulation s;
