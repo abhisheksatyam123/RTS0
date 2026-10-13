@@ -390,13 +390,23 @@ class TemplateLoader:
     def __init__(self, sim_root):
         self.root = os.path.join(sim_root, "templates")
         self.cache = {}
+        # --previous-0ad: a template this tree lacks is read from the previous one
+        # (--keep-trainers keeps rows whose template the release dropped).
+        self.fallback = TemplateLoader(PREVIOUS_SIM_ROOT) if PREVIOUS_SIM_ROOT and PREVIOUS_SIM_ROOT != sim_root else None
+
+    def own_exists(self, name):
+        return os.path.isfile(os.path.join(self.root, name.split("|")[-1] + ".xml"))
 
     def exists(self, name):
-        return os.path.isfile(os.path.join(self.root, name + ".xml"))
+        return self.own_exists(name) or (self.fallback is not None and self.fallback.exists(name))
 
     def load(self, name):
         if name in self.cache:
             return self.cache[name]
+        if self.fallback is not None and not self.own_exists(name) and self.fallback.exists(name):
+            node = self.fallback.load(name)
+            self.cache[name] = node
+            return node
         if "|" in name:
             mixin, rest = name.split("|", 1)
             node = self.load(rest).copy()
@@ -665,8 +675,6 @@ def unit_upgrades(loader, name, civ):
             ent = (c.value("Entity") or "").replace("{civ}", civ).replace("{native}", civ)
             if not loader.exists(ent):
                 continue
-            if "Ignited" in loader.load(ent).tokens("Identity/VisibleClasses"):
-                continue  # fire-ship ignition: fire damage, burning and DeathDamage aren't modelled yet
             cost = {r: int(c.num("Cost/" + r)) for r in ("food", "wood", "stone", "metal") if c.num("Cost/" + r)}
             phase = 1
             for tech in c.tokens("Requirements/Techs"):
@@ -979,6 +987,27 @@ def aura_modifications(a):
 
 
 RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
+# --keep-trainers: refresh stats only. Every row civ_roster_data.h has keeps its
+# trainers and phase (also rows the release no longer trains, read from
+# --previous-0ad when the release dropped the template) and new rows are left
+# out, so a release's stat changes land without touching what saves store.
+KEEP_TRAINERS = False
+PREVIOUS_SIM_ROOT = None
+# --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
+APPEND_ROWS = set()
+
+
+def previous_layout():
+    """id -> (trainer BuildingType names, phase) from the checked-in civ_roster_data.h."""
+    if not os.path.exists(OUT_HEADER):
+        return {}
+    with open(OUT_HEADER, encoding="utf-8") as fh:
+        text = fh.read()
+    out = {}
+    for m in re.finditer(r'^\t\t\{"([^"]+)", "[^"]*", "[^"]*", CIV_[A-Z]+, UNIT_[A-Z_]+, (\d), [^,]*, ([^\n]*?),\n',
+                         text, re.M):
+        out[m.group(1)] = (re.findall(r"bld_bit\((BLD_[A-Z_0-9]+)\)", m.group(3)), int(m.group(2)))
+    return out
 
 
 def keep_previous_ids(rows):
@@ -991,12 +1020,53 @@ def keep_previous_ids(rows):
     with open(OUT_HEADER, encoding="utf-8") as fh:
         prev = re.findall(r'^\t\t\{"([^"]+)", "[^"]*", "[^"]*", CIV_[A-Z]+, UNIT_', fh.read(), re.M)
     by_id = {r["id"]: r for r in rows}
+    if KEEP_TRAINERS:
+        keep = set(prev) | APPEND_ROWS
+        added = [r["id"] for r in rows if r["id"] not in keep]
+        if added:
+            print("--keep-trainers leaves out new rows: " + ", ".join(added), file=sys.stderr)
+        rows = [r for r in rows if r["id"] in keep]
+        by_id = {r["id"]: r for r in rows}
     gone = [i for i in prev if i not in by_id]
     if gone:
         sys.exit("roster rows gone from 0 A.D. (%s): re-run with --renumber and bump the save version"
                  % ", ".join(gone))
     seen = set(prev)
     return [by_id[i] for i in prev] + [r for r in rows if r["id"] not in seen]
+
+
+def keep_previous_aura_ids(auras, rows):
+    """--keep-trainers: saved aura sources store civ_hero_aura_table() indices, so
+    the checked-in table's auras keep their rows (an aura the release dropped
+    stays as an inert row, kind 255, affecting nobody) and new auras go after them."""
+    with open(OUT_HEADER, encoding="utf-8") as fh:
+        text = fh.read()
+    sec = text[text.index("kAuras[CIV_HERO_AURA_COUNT]"):]
+    sec = sec[:sec.index("\n\t};")]
+    prev = [(m.group(1), int(m.group(2))) for m in re.finditer(
+        r'^\t\t\{"([^"]+)", "(?:[^"\\]|\\.)*", "(?:[^"\\]|\\.)*", [^,]+, (\d+),', sec, re.M)]
+    key = lambda a: (a["id"], AURA_KIND[a["rts0"][0]] if a.get("rts0") else 255)  # noqa: E731
+    pool = list(range(len(auras)))
+    order, retired = [], []
+    for pid, pkind in prev:
+        hit = next((i for i in pool if key(auras[i]) == (pid, pkind)), None)
+        if hit is None:
+            hit = next((i for i in pool if auras[i]["id"] == pid), None)
+        if hit is None:
+            retired.append(pid)
+            auras.append({"id": pid, "name": "", "description": "", "type": "range", "radius": 0.0,
+                          "affects": [], "players": [], "modifications": [], "rts0": None})
+            hit = len(auras) - 1
+        else:
+            pool.remove(hit)
+        order.append(hit)
+    order += pool
+    if retired:
+        print("--keep-trainers keeps dropped auras as inert rows: " + ", ".join(retired), file=sys.stderr)
+    remap = {old: new for new, old in enumerate(order)}
+    for r in rows:
+        r["auras"] = [remap[i] for i in r["auras"]]
+    return [auras[i] for i in order]
 
 
 def collect(sim_root):
@@ -1011,6 +1081,7 @@ def collect(sim_root):
         generic[cls] = raw_stats(loader.load(tmpl))
 
     bonuses = load_civ_bonuses(sim_root)
+    prev_layout = previous_layout() if KEEP_TRAINERS else {}
     rows = []
     auras = []
     skipped = []
@@ -1067,6 +1138,11 @@ def collect(sim_root):
                         pending.append(tgt)
                     break
                 src_name, node = tgt, loader.load(tgt)
+        if KEEP_TRAINERS:
+            for pid, (pblds, pphase) in prev_layout.items():
+                ent = "units/" + pid
+                if pid.startswith(civ + "/") and ent not in trainers and loader.exists(ent):
+                    trainers[ent] = {"buildings": set(pblds), "kinds": set(), "phase": pphase}
         # The civ's catafalque: no structure trains it; Capture the Relic places it for Gaia.
         relic = "units/%s/catafalque" % civ
         if loader.exists(relic) and relic not in trainers:
@@ -1135,14 +1211,19 @@ def collect(sim_root):
                 auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
             if len(hero_auras) > 3:  # three slots: range auras before garrison ones (the minister has four)
                 hero_auras.sort(key=lambda i: auras[i]["type"] == "garrison")
+            rid = name.split("units/", 1)[-1]
+            phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
+            blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
+            if KEEP_TRAINERS and rid in prev_layout:
+                blds, phase = prev_layout[rid][0], prev_layout[rid][1]
             rows.append({
-                "id": name.split("units/", 1)[-1],
+                "id": rid,
                 "civ": civ,
                 "class": cls,
                 "name": t.value("Identity/GenericName", ""),
                 "specific_name": t.value("Identity/SpecificName", ""),
-                "phase": max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1),
-                "trainers": sorted(trainers[name]["buildings"], key=BUILDING_BITS.index),
+                "phase": phase,
+                "trainers": blds,
                 "trained_at_0ad": sorted(trainers[name]["kinds"]),
                 "flags": flags,
                 "unlock_tech": unlock_tech_of(t),
@@ -1208,6 +1289,8 @@ def collect(sim_root):
                             "modifications": a.get("modifications", []),
                             "rts0": (kind, value, rng), "buildings": [enum],
                         })
+    if KEEP_TRAINERS:
+        auras = keep_previous_aura_ids(auras, rows)
     # Which roster units each aura affects (0 A.D. "affects" class lists).
     for a in auras:
         a["affects_rows"] = [i for i, r in enumerate(rows) if affects_match(a["affects"], set(r["classes"]))]
@@ -1656,9 +1739,19 @@ def main():
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--renumber", action="store_true",
                     help="lay the rows out afresh instead of keeping civ_roster_data.h's template ids")
+    ap.add_argument("--keep-trainers", action="store_true",
+                    help="refresh stats only: keep every row's trainers and phase, add no rows")
+    ap.add_argument("--append", default="",
+                    help="with --keep-trainers: comma-separated new row ids to add after the existing rows")
+    ap.add_argument("--previous-0ad", dest="prev_zad",
+                    help="older 0 A.D. tree for templates the release dropped (with --keep-trainers)")
     args = ap.parse_args()
-    global RENUMBER
+    global RENUMBER, KEEP_TRAINERS, PREVIOUS_SIM_ROOT, APPEND_ROWS
     RENUMBER = args.renumber
+    KEEP_TRAINERS = args.keep_trainers
+    APPEND_ROWS = {x for x in args.append.split(",") if x}
+    if args.prev_zad:
+        PREVIOUS_SIM_ROOT = os.path.join(args.prev_zad, "binaries", "data", "mods", "public", "simulation")
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
     rows, auras, skipped, civ_json, bonuses, team = collect(sim_root)
     header = emit_header(rows, auras, civ_json, bonuses, team)

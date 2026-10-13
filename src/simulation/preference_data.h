@@ -19,7 +19,7 @@ struct PrefProfile { uint8_t count; PrefTerm term[4]; }; // terms by index, over
 // A unit's PreferredClasses and its own preference classes as a target.
 struct PrefUnitRow { PrefProfile prefs; uint8_t classes; };
 
-inline constexpr uint16_t PREF_TEMPLATE_COUNT = 392; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t PREF_TEMPLATE_COUNT = 395; // = CIV_UNIT_TEMPLATE_COUNT
 inline const PrefUnitRow *pref_template_table() {
 	static const PrefUnitRow kTable[PREF_TEMPLATE_COUNT] = {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // athen/cavalry_javelineer_b
@@ -414,6 +414,9 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x08}, // sele/catafalque
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x08}, // han/catafalque
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // pers/champion_infantry_archer_upgrade
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // brit/ship_fire_fire
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // gaul/ship_fire_fire
+		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // iber/ship_fire_fire
 	};
 	return kTable;
 }

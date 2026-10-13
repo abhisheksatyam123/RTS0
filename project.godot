@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.3", "Forward Plus")
 
 MatchSettings="*res://scenes/menu/match_settings.gd"
 UserSettings="*res://scenes/menu/user_settings.gd"
+LobbySession="*res://scenes/menu/lobby_session.gd"
 
 [gui]
 

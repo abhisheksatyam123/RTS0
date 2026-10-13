@@ -65,12 +65,16 @@
    "enum": "CIV_SPARTANS",
    "bonuses": [
     {
-     "name": "Spartan Women",
-     "description": "Female Citizens +40% health and +50% melee attack hack damage."
+     "name": "Ritualistic Exercise",
+     "description": "Citizen-Soldiers +40% health and +50% melee attack hack damage."
     },
     {
      "name": "Laws of Lycurgus",
      "description": "Champion Hoplites are available in village phase, and can promote to highly experienced Olympic Champions."
+    },
+    {
+     "name": "Agoge",
+     "description": "Champion Hoplites -10% attack time."
     }
    ],
    "team_bonuses": [],
@@ -235,12 +239,16 @@
    "enum": "CIV_CARTHAGINIANS",
    "bonuses": [
     {
-     "name": "Commercial Acumen",
-     "description": "Merchant Ships +25% trade gain."
+     "name": "Trademasters",
+     "description": "Trade ships are available in the Village Phase."
     },
     {
-     "name": "Desirable Products",
-     "description": "Docks and Markets +10% international trade bonus."
+     "name": "Mining Economy",
+     "description": "Stone mining technologies are free and instant."
+    },
+    {
+     "name": "Numidian Cavalry",
+     "description": "Cavalry Javelineers +10% walk speed."
     }
    ],
    "team_bonuses": [],
@@ -279,9 +287,24 @@
    ],
    "auto_bonuses": [
     {
+     "id": "cart_stone_01",
+     "name": "Servants",
+     "tooltip": "Workers +25% stone gather rate."
+    },
+    {
+     "id": "cart_stone_02",
+     "name": "Servants",
+     "tooltip": "Workers +25% stone gather rate."
+    },
+    {
+     "id": "cart_stone_03",
+     "name": "Servants",
+     "tooltip": "Workers +25% stone gather rate."
+    },
+    {
      "id": "cart_walls",
      "name": "Triple Walls",
-     "tooltip": "City Walls +100% build time, +100% stone cost, and +200% health."
+     "tooltip": "City Walls +200% health, but +100% build time and stone cost."
     }
    ]
   },
@@ -341,10 +364,6 @@
     {
      "name": "Deas Celtica",
      "description": "Druids increase attack rates of soldiers near them by 5%."
-    },
-    {
-     "name": "Woad Warriors",
-     "description": "All Infantry Units +5% movement speed, and gain +1 loot taking."
     }
    ],
    "team_bonuses": [],
@@ -371,7 +390,8 @@
     "brit/support_trader",
     "brit/war_dog",
     "brit/rts0_villager",
-    "brit/catafalque"
+    "brit/catafalque",
+    "brit/ship_fire_fire"
    ],
    "auto_bonuses": [
     {
@@ -420,7 +440,8 @@
     "gaul/support_healer_b",
     "gaul/support_trader",
     "gaul/rts0_villager",
-    "gaul/catafalque"
+    "gaul/catafalque",
+    "gaul/ship_fire_fire"
    ],
    "auto_bonuses": [
     {
@@ -472,7 +493,8 @@
     "iber/support_healer_b",
     "iber/support_trader",
     "iber/rts0_villager",
-    "iber/catafalque"
+    "iber/catafalque",
+    "iber/ship_fire_fire"
    ],
    "auto_bonuses": []
   },
@@ -577,7 +599,7 @@
    "bonuses": [
     {
      "name": "Polybolos",
-     "description": "Bolt Shooters −33% attack damage and −33% attack time."
+     "description": "Bolt Shooters −45% attack damage and −50% attack time."
     },
     {
      "name": "Nile Delta",
@@ -760,11 +782,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -815,11 +837,11 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 6.5,
+    "hack_dmg": 9.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 100,
     "wood": 40,
@@ -829,7 +851,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 6.5,
+    "damage": 9.0,
     "range": 2.4,
     "carry": 0
    }
@@ -866,22 +888,22 @@
    ],
    "stats": {
     "hp": 200.0,
-    "cooldown": 0.9,
-    "hack_dmg": 6.0,
-    "pierce_dmg": 5.0,
+    "cooldown": 1.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 8.5,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 18.5,
     "range": 2.4,
     "carry": 0
    }
@@ -919,21 +941,21 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 60,
     "wood": 40,
     "gold": 60,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.8447999999999993,
+    "speed": 4.0584,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -971,21 +993,21 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 60,
     "wood": 40,
     "gold": 60,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.8447999999999993,
+    "speed": 4.0584,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -995,7 +1017,7 @@
    "civ": "athen",
    "class": "UNIT_ARCHER",
    "name": "Scythian Archer",
-   "specific_name": "Toxótēs Skythikós",
+   "specific_name": "Speusínios",
    "phase": 3,
    "trainers": [
     "BLD_GYMNASIUM"
@@ -1023,9 +1045,9 @@
    ],
    "stats": {
     "hp": 120.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 13.5,
+    "pierce_dmg": 14.4,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
     "pierce_armor": 3.0,
@@ -1034,11 +1056,11 @@
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 13.5,
+    "damage": 14.4,
     "range": 16.8,
     "carry": 0
    }
@@ -1132,7 +1154,7 @@
    ],
    "stats": {
     "hp": 1000.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 62.0,
     "crush_dmg": 0.0,
@@ -1187,9 +1209,9 @@
    ],
    "stats": {
     "hp": 1000.0,
-    "cooldown": 0.9,
-    "hack_dmg": 12.0,
-    "pierce_dmg": 10.0,
+    "cooldown": 1.0,
+    "hack_dmg": 15.0,
+    "pierce_dmg": 12.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
     "pierce_armor": 12.0,
@@ -1202,7 +1224,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 27.0,
     "range": 2.4,
     "carry": 0
    }
@@ -1243,7 +1265,7 @@
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
-    "hack_dmg": 22.0,
+    "hack_dmg": 26.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
@@ -1257,7 +1279,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 26.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -1305,9 +1327,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.920000000000001,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -1318,9 +1340,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.920000000000001,
     "range": 16.8,
     "carry": 0
    }
@@ -1364,9 +1386,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.920000000000001,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -1377,9 +1399,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.920000000000001,
     "range": 16.8,
     "carry": 0
    }
@@ -1427,9 +1449,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 16.0,
+    "pierce_dmg": 17.6,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -1442,7 +1464,7 @@
     "pop": 1,
     "speed": 4.0584,
     "vision": 22.400000000000002,
-    "damage": 16.0,
+    "damage": 17.6,
     "range": 8.4,
     "carry": 0
    }
@@ -1489,7 +1511,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 11.5,
     "crush_dmg": 1.1,
@@ -1549,11 +1571,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -1561,9 +1583,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -1599,24 +1621,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 18.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -1645,13 +1667,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -1742,23 +1764,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 18.0,
-    "pop": 3,
+    "train_time": 13.5,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -1794,24 +1816,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 9.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -1847,8 +1869,8 @@
     "cooldown": 7.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 250.0,
-    "hack_armor": 1.0,
+    "crush_dmg": 230.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -1859,7 +1881,7 @@
     "pop": 3,
     "speed": 2.5632,
     "vision": 33.6,
-    "damage": 250.0,
+    "damage": 230.0,
     "range": 23.8,
     "carry": 0
    }
@@ -1897,7 +1919,7 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 240.0,
     "crush_dmg": 0.0,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -1906,10 +1928,10 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 2,
-    "speed": 2.8836,
+    "speed": 2.403,
     "vision": 28.000000000000004,
     "damage": 240.0,
-    "range": 25.200000000000003,
+    "range": 22.400000000000002,
     "carry": 0
    }
   },
@@ -1943,8 +1965,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -1969,9 +1991,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -2021,9 +2041,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -2237,11 +2255,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -2292,10 +2310,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -2306,7 +2324,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 11.5,
     "range": 2.4,
     "carry": 0
    }
@@ -2344,21 +2362,21 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.9,
-    "hack_dmg": 6.0,
-    "pierce_dmg": 5.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 8.5,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 18.5,
     "range": 2.4,
     "carry": 0
    }
@@ -2401,7 +2419,7 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 9.5,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
@@ -2413,9 +2431,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 9.5,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -2431,7 +2449,7 @@
     "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
-    "syssiton"
+    "gerousia"
    ],
    "flags": [
     "ROSTER_HERO"
@@ -2455,9 +2473,9 @@
    ],
    "stats": {
     "hp": 1500.0,
-    "cooldown": 0.9,
-    "hack_dmg": 12.0,
-    "pierce_dmg": 10.0,
+    "cooldown": 1.0,
+    "hack_dmg": 15.0,
+    "pierce_dmg": 12.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
     "pierce_armor": 12.0,
@@ -2470,7 +2488,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 27.0,
     "range": 2.4,
     "carry": 0
    }
@@ -2486,7 +2504,7 @@
     "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
-    "syssiton"
+    "gerousia"
    ],
    "flags": [
     "ROSTER_HERO"
@@ -2510,7 +2528,7 @@
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
-    "hack_dmg": 22.0,
+    "hack_dmg": 26.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
@@ -2524,7 +2542,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 26.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -2540,7 +2558,7 @@
     "BLD_SYSSITON"
    ],
    "trained_at_0ad": [
-    "syssiton"
+    "gerousia"
    ],
    "flags": [
     "ROSTER_HERO"
@@ -2563,9 +2581,9 @@
    ],
    "stats": {
     "hp": 1000.0,
-    "cooldown": 0.9,
-    "hack_dmg": 12.0,
-    "pierce_dmg": 10.0,
+    "cooldown": 1.0,
+    "hack_dmg": 15.0,
+    "pierce_dmg": 12.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
     "pierce_armor": 12.0,
@@ -2578,7 +2596,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 27.0,
     "range": 2.4,
     "carry": 0
    }
@@ -2625,7 +2643,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -2685,11 +2703,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -2697,9 +2715,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -2739,21 +2757,21 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 30,
     "wood": 0,
     "gold": 20,
     "stone": 0,
-    "train_time": 10.0,
+    "train_time": 12.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -2787,24 +2805,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -2831,13 +2849,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -2924,23 +2942,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 24.0,
-    "pop": 3,
+    "train_time": 18.0,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -2974,24 +2992,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -3028,7 +3046,7 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 240.0,
     "crush_dmg": 0.0,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -3037,10 +3055,10 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 2,
-    "speed": 2.8836,
+    "speed": 2.403,
     "vision": 28.000000000000004,
     "damage": 240.0,
-    "range": 25.200000000000003,
+    "range": 22.400000000000002,
     "carry": 0
    }
   },
@@ -3074,8 +3092,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -3100,9 +3118,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -3152,9 +3168,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -3368,11 +3382,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 7.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -3383,7 +3397,7 @@
     "pop": 1,
     "speed": 5.4468,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 7.5,
     "range": 16.8,
     "carry": 0
    }
@@ -3425,9 +3439,9 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.0,
-    "hack_dmg": 8.7,
+    "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 2.3,
+    "crush_dmg": 3.5,
     "hack_armor": 3.0,
     "pierce_armor": 2.0,
     "crush_armor": 15.0,
@@ -3439,7 +3453,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 13.5,
     "range": 2.4,
     "carry": 0
    }
@@ -3481,11 +3495,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -3538,10 +3552,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -3552,7 +3566,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 11.5,
     "range": 2.4,
     "carry": 0
    }
@@ -3590,23 +3604,23 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 0.0,
-    "hack_armor": 9.0,
-    "pierce_armor": 8.0,
-    "crush_armor": 21.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 9.0,
+    "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
     "gold": 110,
     "stone": 0,
     "train_time": 25.0,
     "pop": 1,
-    "speed": 6.087599999999999,
+    "speed": 5.1264,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 22.0,
     "range": 4.2,
     "carry": 0
    }
@@ -3645,11 +3659,11 @@
    ],
    "stats": {
     "hp": 240.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 14.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 20.0,
     "food": 150,
@@ -3660,7 +3674,7 @@
     "pop": 1,
     "speed": 5.4468,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 15.0,
     "range": 16.8,
     "carry": 0
    }
@@ -3700,11 +3714,11 @@
    ],
    "stats": {
     "hp": 300.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 14.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 1.0,
     "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 180,
@@ -3715,7 +3729,7 @@
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 15.0,
     "range": 16.8,
     "carry": 0
    }
@@ -3757,7 +3771,7 @@
     "pierce_dmg": 0.0,
     "crush_dmg": 49.50000000000001,
     "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "pierce_armor": 7.0,
     "crush_armor": 20.0,
     "food": 330,
     "wood": 0,
@@ -3805,12 +3819,12 @@
    ],
    "stats": {
     "hp": 120.0,
-    "cooldown": 0.9,
-    "hack_dmg": 5.1,
-    "pierce_dmg": 4.25,
+    "cooldown": 1.0,
+    "hack_dmg": 8.5,
+    "pierce_dmg": 7.225,
     "crush_dmg": 0.0,
-    "hack_armor": 6.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 4.0,
+    "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 50,
     "wood": 30,
@@ -3818,9 +3832,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 9.35,
+    "damage": 15.725,
     "range": 2.4,
     "carry": 0
    }
@@ -3933,7 +3947,7 @@
    ],
    "stats": {
     "hp": 1500.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
     "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
@@ -3980,7 +3994,8 @@
    ],
    "unlock_tech": "TECH_NONE",
    "auras": [
-    20
+    107,
+    108
    ],
    "civ_bonuses": [],
    "classes": [
@@ -3996,7 +4011,7 @@
    ],
    "stats": {
     "hp": 1000.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
     "pierce_dmg": 27.0,
     "crush_dmg": 0.0,
@@ -4058,9 +4073,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.2,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -4071,9 +4086,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.2,
     "range": 16.8,
     "carry": 0
    }
@@ -4118,7 +4133,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -4178,11 +4193,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -4190,9 +4205,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -4226,24 +4241,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -4270,13 +4285,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -4363,23 +4378,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 24.0,
-    "pop": 3,
+    "train_time": 18.0,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -4413,24 +4428,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -4464,8 +4479,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 180.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -4490,9 +4505,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -4542,14 +4555,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "apartment_block",
-    "house",
-    "house_a",
-    "house_b",
-    "inn",
-    "warehouse"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -4761,11 +4767,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -4818,10 +4824,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -4832,7 +4838,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 11.5,
     "range": 2.4,
     "carry": 0
    }
@@ -4869,13 +4875,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 0.75,
-    "hack_dmg": 13.0,
+    "hack_dmg": 18.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 7.0,
-    "pierce_armor": 9.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
@@ -4885,7 +4891,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 13.0,
+    "damage": 18.0,
     "range": 2.4,
     "carry": 0
    }
@@ -4927,11 +4933,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 40,
     "wood": 50,
@@ -4939,9 +4945,9 @@
     "stone": 0,
     "train_time": 15.0,
     "pop": 1,
-    "speed": 4.806,
+    "speed": 5.0729999999999995,
     "vision": 11.200000000000001,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -4983,11 +4989,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 4.0,
-    "pierce_armor": 4.0,
+    "hack_armor": 2.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 40,
     "wood": 40,
@@ -4995,9 +5001,9 @@
     "stone": 0,
     "train_time": 15.0,
     "pop": 1,
-    "speed": 4.4856,
+    "speed": 4.734799999999999,
     "vision": 11.200000000000001,
-    "damage": 5.5,
+    "damage": 8.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -5037,11 +5043,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -5049,9 +5055,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -5093,11 +5099,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 120,
     "wood": 60,
@@ -5105,9 +5111,9 @@
     "stone": 0,
     "train_time": 25.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -5320,7 +5326,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -5352,11 +5358,7 @@
     "BLD_BARRACKS",
     "BLD_ARMY_CAMP"
    ],
-   "trained_at_0ad": [
-    "army_camp",
-    "barracks",
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -5381,11 +5383,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -5393,9 +5395,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -5436,11 +5438,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -5448,9 +5450,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -5493,11 +5495,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -5505,9 +5507,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -5548,11 +5550,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 40,
@@ -5560,9 +5562,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -5607,11 +5609,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 40,
@@ -5619,9 +5621,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -5655,24 +5657,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -5699,13 +5701,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -5792,23 +5794,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 24.0,
-    "pop": 3,
+    "train_time": 18.0,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -5842,24 +5844,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -5892,23 +5894,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 800.0,
+    "hp": 1600.0,
     "cooldown": 4.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 125.0,
+    "crush_dmg": 220.0,
     "hack_armor": 2.0,
     "pierce_armor": 5.0,
-    "crush_armor": 6.0,
+    "crush_armor": 4.0,
     "food": 0,
-    "wood": 300,
+    "wood": 200,
     "gold": 200,
     "stone": 0,
     "train_time": 28.0,
-    "pop": 4,
+    "pop": 3,
     "speed": 4.272,
     "vision": 28.000000000000004,
-    "damage": 125.0,
+    "damage": 220.0,
     "range": 22.400000000000002,
     "carry": 0
    }
@@ -5947,8 +5949,8 @@
     "cooldown": 6.3,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 250.0,
-    "hack_armor": 1.0,
+    "crush_dmg": 230.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -5959,7 +5961,7 @@
     "pop": 3,
     "speed": 3.07584,
     "vision": 33.6,
-    "damage": 250.0,
+    "damage": 230.0,
     "range": 23.8,
     "carry": 0
    }
@@ -5975,6 +5977,7 @@
     "BLD_ARSENAL"
    ],
    "trained_at_0ad": [
+    "army_camp",
     "arsenal"
    ],
    "flags": [
@@ -5999,7 +6002,7 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 40.0,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -6009,9 +6012,9 @@
     "train_time": 25.0,
     "pop": 3,
     "speed": 3.07584,
-    "vision": 24.64,
+    "vision": 26.6,
     "damage": 40.0,
-    "range": 19.6,
+    "range": 16.8,
     "carry": 0
    }
   },
@@ -6047,8 +6050,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -6096,7 +6099,7 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 240.0,
     "crush_dmg": 0.0,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -6105,10 +6108,10 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 2,
-    "speed": 2.8836,
+    "speed": 2.403,
     "vision": 28.000000000000004,
     "damage": 240.0,
-    "range": 25.200000000000003,
+    "range": 22.400000000000002,
     "carry": 0
    }
   },
@@ -6122,9 +6125,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -6174,9 +6175,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -6394,11 +6393,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -6407,7 +6406,7 @@
     "stone": 0,
     "train_time": 15.0,
     "pop": 1,
-    "speed": 5.7672,
+    "speed": 6.34392,
     "vision": 22.400000000000002,
     "damage": 18.0,
     "range": 8.4,
@@ -6452,10 +6451,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.6000000000000005,
+    "pierce_dmg": 6.050000000000001,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 20,
@@ -6466,7 +6465,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 12.650000000000002,
     "range": 2.4,
     "carry": 0
    }
@@ -6509,11 +6508,11 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 6.5,
+    "hack_dmg": 9.9,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 20,
     "wood": 0,
@@ -6523,7 +6522,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 6.5,
+    "damage": 9.9,
     "range": 2.4,
     "carry": 0
    }
@@ -6538,9 +6537,7 @@
    "trainers": [
     "BLD_EMBASSY_IBERIAN"
    ],
-   "trained_at_0ad": [
-    "embassy_iberian"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY",
@@ -6566,11 +6563,11 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 6.5,
+    "hack_dmg": 9.9,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 20,
     "wood": 0,
@@ -6580,7 +6577,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 6.5,
+    "damage": 9.9,
     "range": 2.4,
     "carry": 0
    }
@@ -6617,23 +6614,23 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
     "gold": 100,
     "stone": 0,
-    "train_time": 25.0,
+    "train_time": 18.75,
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 22.0,
     "range": 2.4,
     "carry": 0
    }
@@ -6675,7 +6672,7 @@
     "pierce_dmg": 0.0,
     "crush_dmg": 40.5,
     "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "pierce_armor": 7.0,
     "crush_armor": 20.0,
     "food": 270,
     "wood": 0,
@@ -6722,22 +6719,22 @@
    ],
    "stats": {
     "hp": 200.0,
-    "cooldown": 0.9,
-    "hack_dmg": 6.0,
-    "pierce_dmg": 5.0,
+    "cooldown": 1.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 8.5,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 18.5,
     "range": 2.4,
     "carry": 0
    }
@@ -6948,9 +6945,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.2,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -6961,9 +6958,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.2,
     "range": 16.8,
     "carry": 0
    }
@@ -7007,22 +7004,22 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 16.0,
+    "pierce_dmg": 17.6,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
     "crush_armor": 10.0,
     "food": 0,
     "wood": 0,
-    "gold": 60,
+    "gold": 80,
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
     "speed": 4.0584,
     "vision": 22.400000000000002,
-    "damage": 16.0,
+    "damage": 17.6,
     "range": 8.4,
     "carry": 0
    }
@@ -7066,23 +7063,23 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.75,
     "hack_dmg": 0.0,
-    "pierce_dmg": 11.5,
-    "crush_dmg": 1.1,
+    "pierce_dmg": 14.5475,
+    "crush_dmg": 1.3915000000000002,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
     "crush_armor": 10.0,
     "food": 0,
     "wood": 0,
-    "gold": 60,
+    "gold": 75,
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
     "speed": 3.8447999999999993,
     "vision": 22.400000000000002,
-    "damage": 12.6,
-    "range": 12.600000000000001,
+    "damage": 15.939,
+    "range": 14.000000000000002,
     "carry": 0
    }
   },
@@ -7126,11 +7123,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -7138,9 +7135,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -7184,11 +7181,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.8,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 0,
     "wood": 0,
@@ -7196,9 +7193,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.8,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -7213,9 +7210,7 @@
    "trainers": [
     "BLD_EMBASSY_ITALIC"
    ],
-   "trained_at_0ad": [
-    "embassy_italic"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN",
     "ROSTER_MERCENARY",
@@ -7242,11 +7237,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.8,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 0,
     "wood": 0,
@@ -7254,9 +7249,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.8,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -7292,24 +7287,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -7336,13 +7331,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -7431,23 +7426,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 24.0,
-    "pop": 3,
+    "train_time": 18.0,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -7483,24 +7478,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -7535,23 +7530,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 800.0,
+    "hp": 1600.0,
     "cooldown": 4.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 125.0,
+    "crush_dmg": 220.0,
     "hack_armor": 2.0,
     "pierce_armor": 5.0,
-    "crush_armor": 6.0,
+    "crush_armor": 4.0,
     "food": 0,
-    "wood": 300,
+    "wood": 200,
     "gold": 200,
     "stone": 0,
     "train_time": 28.0,
-    "pop": 4,
+    "pop": 3,
     "speed": 4.272,
     "vision": 28.000000000000004,
-    "damage": 125.0,
+    "damage": 220.0,
     "range": 22.400000000000002,
     "carry": 0
    }
@@ -7588,8 +7583,8 @@
     "cooldown": 7.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 250.0,
-    "hack_armor": 1.0,
+    "crush_dmg": 230.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -7600,7 +7595,7 @@
     "pop": 3,
     "speed": 2.5632,
     "vision": 33.6,
-    "damage": 250.0,
+    "damage": 230.0,
     "range": 23.8,
     "carry": 0
    }
@@ -7638,7 +7633,7 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 240.0,
     "crush_dmg": 0.0,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -7647,10 +7642,10 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 2,
-    "speed": 2.8836,
+    "speed": 2.403,
     "vision": 28.000000000000004,
     "damage": 240.0,
-    "range": 25.200000000000003,
+    "range": 22.400000000000002,
     "carry": 0
    }
   },
@@ -7684,8 +7679,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -7710,9 +7705,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -7763,10 +7756,7 @@
     "BLD_HOUSE",
     "BLD_APARTMENT"
    ],
-   "trained_at_0ad": [
-    "apartment",
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -7982,11 +7972,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 18.0,
+    "pierce_dmg": 19.8,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 20,
@@ -7997,7 +7987,7 @@
     "pop": 1,
     "speed": 5.7672,
     "vision": 22.400000000000002,
-    "damage": 18.0,
+    "damage": 19.8,
     "range": 8.4,
     "carry": 0
    }
@@ -8039,10 +8029,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -8053,7 +8043,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 11.5,
     "range": 2.4,
     "carry": 0
    }
@@ -8090,13 +8080,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
@@ -8106,7 +8096,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 22.0,
     "range": 2.4,
     "carry": 0
    }
@@ -8148,7 +8138,7 @@
     "hp": 120.0,
     "cooldown": 3.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 40.0,
+    "pierce_dmg": 30.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
     "pierce_armor": 3.0,
@@ -8161,7 +8151,7 @@
     "pop": 1,
     "speed": 3.4175999999999997,
     "vision": 22.400000000000002,
-    "damage": 40.0,
+    "damage": 30.0,
     "range": 16.8,
     "carry": 0
    }
@@ -8200,12 +8190,12 @@
    ],
    "stats": {
     "hp": 200.0,
-    "cooldown": 0.9,
-    "hack_dmg": 6.0,
-    "pierce_dmg": 5.0,
+    "cooldown": 1.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 8.5,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -8213,9 +8203,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 18.5,
     "range": 2.4,
     "carry": 0
    }
@@ -8256,11 +8246,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
-    "hack_dmg": 7.0,
+    "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -8268,9 +8258,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 10.0,
     "range": 3.0,
     "carry": 0
    }
@@ -8367,7 +8357,7 @@
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
-    "hack_dmg": 22.0,
+    "hack_dmg": 26.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
@@ -8381,7 +8371,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 26.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -8484,9 +8474,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.920000000000001,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -8497,9 +8487,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.920000000000001,
     "range": 16.8,
     "carry": 0
    }
@@ -8546,7 +8536,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -8606,11 +8596,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
-    "hack_dmg": 2.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 10.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -8618,9 +8608,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 2.8836,
+    "speed": 3.0438,
     "vision": 22.400000000000002,
-    "damage": 5.0,
+    "damage": 11.5,
     "range": 4.8,
     "carry": 0
    }
@@ -8668,10 +8658,10 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 11.5,
-    "crush_dmg": 1.1,
+    "pierce_dmg": 12.65,
+    "crush_dmg": 1.2100000000000002,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
     "crush_armor": 10.0,
@@ -8683,7 +8673,7 @@
     "pop": 1,
     "speed": 3.8447999999999993,
     "vision": 22.400000000000002,
-    "damage": 12.6,
+    "damage": 13.860000000000001,
     "range": 12.600000000000001,
     "carry": 0
    }
@@ -8717,24 +8707,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -8761,13 +8751,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -8854,23 +8844,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 24.0,
-    "pop": 3,
+    "train_time": 18.0,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -8904,24 +8894,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -8957,8 +8947,8 @@
     "cooldown": 7.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 250.0,
-    "hack_armor": 1.0,
+    "crush_dmg": 230.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -8969,7 +8959,7 @@
     "pop": 3,
     "speed": 2.5632,
     "vision": 33.6,
-    "damage": 250.0,
+    "damage": 230.0,
     "range": 23.8,
     "carry": 0
    }
@@ -9007,7 +8997,7 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 240.0,
     "crush_dmg": 0.0,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -9016,10 +9006,10 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 2,
-    "speed": 2.8836,
+    "speed": 2.403,
     "vision": 28.000000000000004,
     "damage": 240.0,
-    "range": 25.200000000000003,
+    "range": 22.400000000000002,
     "carry": 0
    }
   },
@@ -9053,8 +9043,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -9098,11 +9088,11 @@
    ],
    "stats": {
     "hp": 500.0,
-    "cooldown": 2.0,
+    "cooldown": 2.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 2.5,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 50.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -9113,7 +9103,7 @@
     "pop": 3,
     "speed": 2.2428,
     "vision": 22.400000000000002,
-    "damage": 14.5,
+    "damage": 12.5,
     "range": 15.400000000000002,
     "carry": 0
    }
@@ -9128,9 +9118,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -9180,9 +9168,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -9397,11 +9383,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -9452,11 +9438,11 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 6.5,
+    "hack_dmg": 9.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 100,
     "wood": 40,
@@ -9466,7 +9452,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 6.5,
+    "damage": 9.0,
     "range": 2.4,
     "carry": 0
    }
@@ -9506,11 +9492,11 @@
    ],
    "stats": {
     "hp": 300.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 36.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 1.0,
     "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 180,
@@ -9563,11 +9549,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -9575,9 +9561,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.3642000000000003,
+    "speed": 3.5511,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -9619,7 +9605,7 @@
    ],
    "stats": {
     "hp": 1500.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 60.0,
     "crush_dmg": 0.0,
@@ -9676,7 +9662,7 @@
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
-    "hack_dmg": 22.0,
+    "hack_dmg": 26.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
@@ -9690,7 +9676,7 @@
     "pop": 0,
     "speed": 3.3642000000000003,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 26.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -9792,7 +9778,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -9857,7 +9843,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 11.5,
     "crush_dmg": 1.1,
@@ -9920,11 +9906,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -9932,9 +9918,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.3642000000000003,
+    "speed": 3.5511,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -9950,6 +9936,7 @@
     "BLD_DOCK"
    ],
    "trained_at_0ad": [
+    "crannog",
     "dock"
    ],
    "flags": [
@@ -9968,24 +9955,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 700.0,
-    "cooldown": 1.5,
+    "hp": 1200.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
-    "train_time": 40.0,
-    "pop": 3,
+    "train_time": 24.0,
+    "pop": 1,
     "speed": 4.4856,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -10000,6 +9987,7 @@
     "BLD_DOCK"
    ],
    "trained_at_0ad": [
+    "crannog",
     "dock"
    ],
    "flags": [],
@@ -10008,7 +9996,6 @@
    "civ_bonuses": [],
    "classes": [
     "ConquestCritical",
-    "Fire",
     "Fireship",
     "Melee",
     "Ship",
@@ -10016,22 +10003,22 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
+    "hp": 800.0,
     "cooldown": 1.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 1.0,
     "crush_armor": 3.0,
     "food": 0,
-    "wood": 200,
-    "gold": 0,
+    "wood": 100,
+    "gold": 50,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 18.0,
     "pop": 1,
-    "speed": 3.5599999999999996,
-    "vision": 14.000000000000002,
+    "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 0.0,
     "range": 20.0,
     "carry": 0
@@ -10062,13 +10049,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -10141,6 +10128,7 @@
     "BLD_DOCK"
    ],
    "trained_at_0ad": [
+    "crannog",
     "dock"
    ],
    "flags": [
@@ -10159,24 +10147,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -10210,8 +10198,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -10236,10 +10224,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre",
-    "crannog"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -10289,9 +10274,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -10322,7 +10305,7 @@
     "wood": 0,
     "gold": 0,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 35.0,
     "pop": 1,
     "speed": 3.2039999999999997,
     "vision": 8.96,
@@ -10555,11 +10538,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -10612,11 +10595,11 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 7.15,
+    "hack_dmg": 9.9,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 100,
     "wood": 40,
@@ -10626,7 +10609,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.15,
+    "damage": 9.9,
     "range": 2.4,
     "carry": 0
    }
@@ -10665,13 +10648,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.8,
-    "pierce_dmg": 6.6000000000000005,
+    "hack_dmg": 13.200000000000001,
+    "pierce_dmg": 11.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
@@ -10681,7 +10664,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 15.400000000000002,
+    "damage": 24.200000000000003,
     "range": 2.4,
     "carry": 0
    }
@@ -10718,22 +10701,22 @@
    ],
    "stats": {
     "hp": 200.0,
-    "cooldown": 0.9,
-    "hack_dmg": 6.0,
-    "pierce_dmg": 5.0,
+    "cooldown": 1.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 8.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 4.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 2.0,
     "crush_armor": 20.0,
     "food": 120,
     "wood": 100,
     "gold": 0,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 4.4856,
+    "speed": 4.734799999999999,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 18.5,
     "range": 2.4,
     "carry": 0
    }
@@ -10773,11 +10756,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -10785,9 +10768,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -10827,21 +10810,21 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
-    "hack_dmg": 10.0,
+    "hack_dmg": 18.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 6.0,
-    "pierce_armor": 6.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 180,
     "wood": 0,
     "gold": 120,
     "stone": 0,
-    "train_time": 24.0,
+    "train_time": 18.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 10.0,
+    "damage": 18.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -10881,7 +10864,7 @@
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
-    "hack_dmg": 22.0,
+    "hack_dmg": 26.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
@@ -10895,7 +10878,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 26.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -10989,9 +10972,9 @@
    ],
    "stats": {
     "hp": 1000.0,
-    "cooldown": 0.9,
-    "hack_dmg": 12.0,
-    "pierce_dmg": 10.0,
+    "cooldown": 1.0,
+    "hack_dmg": 15.0,
+    "pierce_dmg": 12.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
     "pierce_armor": 12.0,
@@ -11004,7 +10987,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 27.0,
     "range": 2.4,
     "carry": 0
    }
@@ -11051,7 +11034,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -11111,7 +11094,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 11.5,
     "crush_dmg": 1.1,
@@ -11171,11 +11154,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -11183,9 +11166,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -11219,24 +11202,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 700.0,
-    "cooldown": 1.5,
+    "hp": 1200.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
-    "train_time": 40.0,
-    "pop": 3,
+    "train_time": 24.0,
+    "pop": 1,
     "speed": 4.4856,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -11259,7 +11242,6 @@
    "civ_bonuses": [],
    "classes": [
     "ConquestCritical",
-    "Fire",
     "Fireship",
     "Melee",
     "Ship",
@@ -11267,22 +11249,22 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
+    "hp": 800.0,
     "cooldown": 1.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 1.0,
     "crush_armor": 3.0,
     "food": 0,
-    "wood": 200,
-    "gold": 0,
+    "wood": 100,
+    "gold": 50,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 18.0,
     "pop": 1,
-    "speed": 3.5599999999999996,
-    "vision": 14.000000000000002,
+    "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 0.0,
     "range": 20.0,
     "carry": 0
@@ -11311,13 +11293,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -11406,24 +11388,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -11457,8 +11439,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -11483,9 +11465,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -11535,10 +11515,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house",
-    "tavern"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -11569,7 +11546,7 @@
     "wood": 0,
     "gold": 0,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 35.0,
     "pop": 1,
     "speed": 3.2039999999999997,
     "vision": 8.96,
@@ -11754,11 +11731,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -11809,10 +11786,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -11823,7 +11800,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 11.5,
     "range": 2.4,
     "carry": 0
    }
@@ -11866,7 +11843,7 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 25.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 20.0,
     "food": 150,
@@ -11917,11 +11894,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -11929,9 +11906,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -11972,7 +11949,7 @@
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
-    "hack_dmg": 22.0,
+    "hack_dmg": 26.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
@@ -11986,7 +11963,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 26.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -12082,7 +12059,7 @@
    "stats": {
     "hp": 1000.0,
     "cooldown": 0.75,
-    "hack_dmg": 22.0,
+    "hack_dmg": 26.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 12.0,
@@ -12096,7 +12073,7 @@
     "pop": 0,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 22.0,
+    "damage": 26.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -12143,7 +12120,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -12203,7 +12180,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 11.5,
     "crush_dmg": 1.1,
@@ -12261,11 +12238,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -12273,9 +12250,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -12320,11 +12297,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 40,
@@ -12332,9 +12309,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -12368,24 +12345,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 700.0,
-    "cooldown": 1.5,
+    "hp": 1200.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 40.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.4856,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -12408,7 +12385,6 @@
    "civ_bonuses": [],
    "classes": [
     "ConquestCritical",
-    "Fire",
     "Fireship",
     "Melee",
     "Ship",
@@ -12416,22 +12392,22 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
+    "hp": 800.0,
     "cooldown": 1.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 1.0,
     "crush_armor": 3.0,
     "food": 0,
-    "wood": 200,
-    "gold": 0,
+    "wood": 100,
+    "gold": 50,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 18.0,
     "pop": 1,
-    "speed": 3.5599999999999996,
-    "vision": 14.000000000000002,
+    "speed": 5.696,
+    "vision": 22.400000000000002,
     "damage": 0.0,
     "range": 20.0,
     "carry": 0
@@ -12460,13 +12436,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -12555,24 +12531,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -12606,8 +12582,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -12632,9 +12608,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -12684,9 +12658,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -12717,7 +12689,7 @@
     "wood": 0,
     "gold": 0,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 35.0,
     "pop": 1,
     "speed": 3.2039999999999997,
     "vision": 8.96,
@@ -12900,11 +12872,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -12955,11 +12927,11 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 6.5,
+    "hack_dmg": 9.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 100,
     "wood": 40,
@@ -12969,7 +12941,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 6.5,
+    "damage": 9.0,
     "range": 2.4,
     "carry": 0
    }
@@ -13009,11 +12981,11 @@
    ],
    "stats": {
     "hp": 300.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 14.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 1.0,
     "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 180,
@@ -13024,7 +12996,7 @@
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 15.0,
     "range": 16.8,
     "carry": 0
    }
@@ -13068,7 +13040,7 @@
     "pierce_dmg": 0.0,
     "crush_dmg": 49.50000000000001,
     "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "pierce_armor": 7.0,
     "crush_armor": 20.0,
     "food": 330,
     "wood": 0,
@@ -13118,10 +13090,10 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
-    "hack_dmg": 0.0,
+    "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 14.0,
-    "hack_armor": 6.0,
+    "hack_armor": 5.0,
     "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
@@ -13130,9 +13102,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 24.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -13168,23 +13140,23 @@
     "Unit"
    ],
    "stats": {
-    "hp": 200.0,
+    "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "pierce_armor": 4.0,
     "crush_armor": 20.0,
-    "food": 80,
-    "wood": 60,
-    "gold": 80,
+    "food": 100,
+    "wood": 0,
+    "gold": 90,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 4.1652,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -13221,24 +13193,24 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
-    "cooldown": 1.0,
+    "hp": 90.0,
+    "cooldown": 1.75,
     "hack_dmg": 0.0,
-    "pierce_dmg": 13.5,
+    "pierce_dmg": 15.5,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
-    "pierce_armor": 3.0,
+    "hack_armor": 1.0,
+    "pierce_armor": 4.0,
     "crush_armor": 20.0,
-    "food": 80,
-    "wood": 60,
-    "gold": 80,
+    "food": 0,
+    "wood": 100,
+    "gold": 90,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 4.3788,
     "vision": 22.400000000000002,
-    "damage": 13.5,
-    "range": 16.8,
+    "damage": 15.5,
+    "range": 12.600000000000001,
     "carry": 0
    }
   },
@@ -13281,7 +13253,7 @@
     "hp": 200.0,
     "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 14.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
     "pierce_armor": 3.0,
@@ -13294,7 +13266,7 @@
     "pop": 2,
     "speed": 3.2039999999999997,
     "vision": 28.000000000000004,
-    "damage": 14.0,
+    "damage": 15.0,
     "range": 16.8,
     "carry": 0
    }
@@ -13337,7 +13309,7 @@
    ],
    "stats": {
     "hp": 1500.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
     "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
@@ -13506,9 +13478,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.2,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -13519,9 +13491,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.2,
     "range": 16.8,
     "carry": 0
    }
@@ -13566,11 +13538,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -13578,9 +13550,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -13623,11 +13595,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 40,
@@ -13635,9 +13607,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -13671,24 +13643,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 700.0,
-    "cooldown": 1.5,
+    "hp": 1200.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 40.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.4856,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -13715,13 +13687,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -13810,24 +13782,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -13861,8 +13833,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -13939,9 +13911,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -13991,9 +13961,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -14024,7 +13992,7 @@
     "wood": 0,
     "gold": 0,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 35.0,
     "pop": 1,
     "speed": 3.2039999999999997,
     "vision": 8.96,
@@ -14175,7 +14143,7 @@
    "civ": "kush",
    "class": "UNIT_CAVALRY",
    "name": "Napatan Light Cavalry",
-   "specific_name": "iry hr ssmwtt",
+   "specific_name": "Iry hr ssmwtt",
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
@@ -14207,11 +14175,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -14232,7 +14200,7 @@
    "civ": "kush",
    "class": "UNIT_CAMEL",
    "name": "Blemmye Desert Raider",
-   "specific_name": "nhw Bulahau gml",
+   "specific_name": "Nhw Bulahau gml",
    "phase": 2,
    "trainers": [
     "BLD_MERCENARY_CAMP",
@@ -14268,11 +14236,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 18.0,
+    "pierce_dmg": 19.8,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 20,
@@ -14283,7 +14251,7 @@
     "pop": 1,
     "speed": 5.7672,
     "vision": 22.400000000000002,
-    "damage": 18.0,
+    "damage": 19.8,
     "range": 8.4,
     "carry": 0
    }
@@ -14323,10 +14291,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -14337,7 +14305,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 11.5,
     "range": 2.4,
     "carry": 0
    }
@@ -14374,13 +14342,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
@@ -14390,7 +14358,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 22.0,
     "range": 2.4,
     "carry": 0
    }
@@ -14432,7 +14400,7 @@
     "pierce_dmg": 0.0,
     "crush_dmg": 40.5,
     "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "pierce_armor": 7.0,
     "crush_armor": 20.0,
     "food": 270,
     "wood": 0,
@@ -14452,7 +14420,7 @@
    "civ": "kush",
    "class": "UNIT_SWORDSMAN",
    "name": "Napatan Temple Guard",
-   "specific_name": "rs ʿImn",
+   "specific_name": "Rs ʿImn",
    "phase": 3,
    "trainers": [
     "BLD_TEMPLE_AMUN"
@@ -14481,21 +14449,21 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -14505,7 +14473,7 @@
    "civ": "kush",
    "class": "UNIT_SWORDSMAN",
    "name": "Meroitic Temple Guard",
-   "specific_name": "rs ʿIprmk",
+   "specific_name": "Rs ʿIprmk",
    "phase": 3,
    "trainers": [
     "BLD_TEMPLE"
@@ -14534,21 +14502,21 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 1.0,
-    "hack_dmg": 12.0,
+    "hack_dmg": 18.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 4.0,
-    "hack_armor": 7.0,
-    "pierce_armor": 8.0,
+    "crush_dmg": 6.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 16.0,
+    "damage": 24.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -14590,9 +14558,9 @@
    ],
    "stats": {
     "hp": 120.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 13.5,
+    "pierce_dmg": 14.4,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
     "pierce_armor": 3.0,
@@ -14603,9 +14571,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 13.5,
+    "damage": 14.4,
     "range": 16.8,
     "carry": 0
    }
@@ -14647,7 +14615,7 @@
    ],
    "stats": {
     "hp": 1500.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
     "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
@@ -14686,8 +14654,7 @@
    "unlock_tech": "TECH_NONE",
    "auras": [
     70,
-    71,
-    72
+    71
    ],
    "civ_bonuses": [],
    "classes": [
@@ -14820,9 +14787,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.2,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -14833,9 +14800,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.2,
     "range": 16.8,
     "carry": 0
    }
@@ -14845,7 +14812,7 @@
    "civ": "kush",
    "class": "UNIT_ARCHER",
    "name": "Noba Skirmisher",
-   "specific_name": "nhw ʿhȝw Noba",
+   "specific_name": "Nhw ʿhȝw Noba",
    "phase": 2,
    "trainers": [
     "BLD_CAMP_NOBA"
@@ -14879,9 +14846,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 16.0,
+    "pierce_dmg": 17.6,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -14894,7 +14861,7 @@
     "pop": 1,
     "speed": 4.0584,
     "vision": 22.400000000000002,
-    "damage": 16.0,
+    "damage": 17.6,
     "range": 8.4,
     "carry": 0
    }
@@ -14904,7 +14871,7 @@
    "civ": "kush",
    "class": "UNIT_SWORDSMAN",
    "name": "Noba Maceman",
-   "specific_name": "nhw Noba",
+   "specific_name": "Nhw Noba",
    "phase": 2,
    "trainers": [
     "BLD_CAMP_NOBA"
@@ -14938,11 +14905,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 0.0,
+    "hack_dmg": 5.5,
     "pierce_dmg": 0.0,
-    "crush_dmg": 7.0,
-    "hack_armor": 4.0,
-    "pierce_armor": 5.0,
+    "crush_dmg": 7.700000000000001,
+    "hack_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 0,
     "wood": 0,
@@ -14950,9 +14917,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 13.200000000000001,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -14962,7 +14929,7 @@
    "civ": "kush",
    "class": "UNIT_SPEARMAN",
    "name": "Meroitic Pikeman",
-   "specific_name": "siȝwrd",
+   "specific_name": "Siȝwrd",
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
@@ -14995,11 +14962,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
-    "hack_dmg": 2.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 10.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -15007,9 +14974,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 2.8836,
+    "speed": 3.0438,
     "vision": 22.400000000000002,
-    "damage": 5.0,
+    "damage": 11.5,
     "range": 4.8,
     "carry": 0
    }
@@ -15019,7 +14986,7 @@
    "civ": "kush",
    "class": "UNIT_SPEARMAN",
    "name": "Nubian Spearman",
-   "specific_name": "iry-rdwy Nhsyw",
+   "specific_name": "Iry-rdwy Nhsyw",
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
@@ -15054,11 +15021,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -15066,9 +15033,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -15078,7 +15045,7 @@
    "civ": "kush",
    "class": "UNIT_SWORDSMAN",
    "name": "Meroitic Swordsman",
-   "specific_name": "knw hps",
+   "specific_name": "Knw hps",
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
@@ -15111,11 +15078,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 40,
@@ -15123,9 +15090,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -15135,7 +15102,7 @@
    "civ": "kush",
    "class": "UNIT_TRIREME",
    "name": "Arrow Ship",
-   "specific_name": "shry ʿȝ",
+   "specific_name": "Shry ʿȝ",
    "phase": 2,
    "trainers": [
     "BLD_DOCK"
@@ -15160,24 +15127,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -15204,13 +15171,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -15299,24 +15266,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -15350,8 +15317,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 180.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -15371,7 +15338,7 @@
    "civ": "kush",
    "class": "UNIT_BOLT_SHOOTER",
    "name": "Kushite Siege Tower",
-   "specific_name": "iwn n ms",
+   "specific_name": "Iwn n ms",
    "phase": 3,
    "trainers": [
     "BLD_ARSENAL"
@@ -15395,11 +15362,11 @@
    ],
    "stats": {
     "hp": 500.0,
-    "cooldown": 2.0,
+    "cooldown": 2.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 2.5,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 50.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -15410,7 +15377,7 @@
     "pop": 3,
     "speed": 2.2428,
     "vision": 22.400000000000002,
-    "damage": 14.5,
+    "damage": 12.5,
     "range": 15.400000000000002,
     "carry": 0
    }
@@ -15425,9 +15392,7 @@
    "trainers": [
     "BLD_TOWN_CENTER"
    ],
-   "trained_at_0ad": [
-    "civil_centre"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -15477,9 +15442,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -15524,7 +15487,7 @@
    "civ": "kush",
    "class": "UNIT_HEALER",
    "name": "Priest",
-   "specific_name": "wʿb nsw",
+   "specific_name": "Wʿb nsw",
    "phase": 2,
    "trainers": [
     "BLD_TEMPLE"
@@ -15570,7 +15533,7 @@
    "civ": "kush",
    "class": "UNIT_HEALER",
    "name": "Priest",
-   "specific_name": "wʿb nsw",
+   "specific_name": "Wʿb nsw",
    "phase": 3,
    "trainers": [
     "BLD_TEMPLE_AMUN"
@@ -15616,7 +15579,7 @@
    "civ": "kush",
    "class": "UNIT_TRADER",
    "name": "Nilotic Merchant",
-   "specific_name": "rmt sbt",
+   "specific_name": "Rmt sbt",
    "phase": 2,
    "trainers": [
     "BLD_MARKET"
@@ -15740,11 +15703,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 7.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -15755,7 +15718,7 @@
     "pop": 1,
     "speed": 5.4468,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 7.5,
     "range": 16.8,
     "carry": 0
    }
@@ -15800,11 +15763,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 18.0,
+    "pierce_dmg": 19.8,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 20,
@@ -15815,7 +15778,7 @@
     "pop": 1,
     "speed": 5.7672,
     "vision": 22.400000000000002,
-    "damage": 18.0,
+    "damage": 19.8,
     "range": 8.4,
     "carry": 0
    }
@@ -15860,10 +15823,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.6000000000000005,
+    "pierce_dmg": 6.050000000000001,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 20,
@@ -15874,7 +15837,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 12.650000000000002,
     "range": 2.4,
     "carry": 0
    }
@@ -15911,13 +15874,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
@@ -15927,7 +15890,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 22.0,
     "range": 2.4,
     "carry": 0
    }
@@ -15969,7 +15932,7 @@
     "pierce_dmg": 0.0,
     "crush_dmg": 40.5,
     "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "pierce_armor": 7.0,
     "crush_armor": 20.0,
     "food": 270,
     "wood": 0,
@@ -16019,11 +15982,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 2.0,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
-    "hack_armor": 13.0,
-    "pierce_armor": 11.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 8.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -16031,9 +15994,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 2.8836,
+    "speed": 3.0438,
     "vision": 22.400000000000002,
-    "damage": 10.0,
+    "damage": 23.0,
     "range": 4.8,
     "carry": 0
    }
@@ -16075,7 +16038,7 @@
    ],
    "stats": {
     "hp": 1000.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
     "pierce_dmg": 27.0,
     "crush_dmg": 0.0,
@@ -16248,9 +16211,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.920000000000001,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -16261,9 +16224,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.920000000000001,
     "range": 16.8,
     "carry": 0
    }
@@ -16311,9 +16274,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 16.0,
+    "pierce_dmg": 17.6,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -16326,7 +16289,7 @@
     "pop": 1,
     "speed": 4.0584,
     "vision": 22.400000000000002,
-    "damage": 16.0,
+    "damage": 17.6,
     "range": 8.4,
     "carry": 0
    }
@@ -16371,11 +16334,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
-    "hack_dmg": 2.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 10.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -16383,9 +16346,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 2.8836,
+    "speed": 3.0438,
     "vision": 22.400000000000002,
-    "damage": 5.0,
+    "damage": 11.5,
     "range": 4.8,
     "carry": 0
    }
@@ -16432,7 +16395,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 11.5,
     "crush_dmg": 1.1,
@@ -16493,11 +16456,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.95,
+    "pierce_dmg": 4.4,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 0,
     "wood": 0,
@@ -16505,9 +16468,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 9.350000000000001,
     "range": 2.4,
     "carry": 0
    }
@@ -16553,11 +16516,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.8,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 0,
     "wood": 0,
@@ -16565,9 +16528,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.8,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -16601,24 +16564,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -16645,13 +16608,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -16738,23 +16701,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 24.0,
-    "pop": 3,
+    "train_time": 18.0,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -16788,24 +16751,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -16838,23 +16801,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 800.0,
+    "hp": 1600.0,
     "cooldown": 4.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 125.0,
+    "crush_dmg": 220.0,
     "hack_armor": 2.0,
     "pierce_armor": 5.0,
-    "crush_armor": 6.0,
+    "crush_armor": 4.0,
     "food": 0,
-    "wood": 300,
+    "wood": 200,
     "gold": 200,
     "stone": 0,
     "train_time": 28.0,
-    "pop": 4,
+    "pop": 3,
     "speed": 4.272,
     "vision": 28.000000000000004,
-    "damage": 125.0,
+    "damage": 220.0,
     "range": 22.400000000000002,
     "carry": 0
    }
@@ -16891,8 +16854,8 @@
     "cooldown": 7.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 250.0,
-    "hack_armor": 1.0,
+    "crush_dmg": 230.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -16903,7 +16866,7 @@
     "pop": 3,
     "speed": 2.5632,
     "vision": 33.6,
-    "damage": 250.0,
+    "damage": 230.0,
     "range": 23.8,
     "carry": 0
    }
@@ -16939,9 +16902,9 @@
     "hp": 200.0,
     "cooldown": 3.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 160.0,
+    "pierce_dmg": 132.0,
     "crush_dmg": 0.0,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -16950,10 +16913,10 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 2,
-    "speed": 2.8836,
+    "speed": 2.403,
     "vision": 28.000000000000004,
-    "damage": 160.0,
-    "range": 25.200000000000003,
+    "damage": 132.0,
+    "range": 22.400000000000002,
     "carry": 0
    }
   },
@@ -16987,8 +16950,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -17032,11 +16995,11 @@
    ],
    "stats": {
     "hp": 500.0,
-    "cooldown": 2.0,
+    "cooldown": 2.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 2.5,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 50.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -17047,7 +17010,7 @@
     "pop": 3,
     "speed": 2.2428,
     "vision": 22.400000000000002,
-    "damage": 14.5,
+    "damage": 12.5,
     "range": 15.400000000000002,
     "carry": 0
    }
@@ -17063,10 +17026,7 @@
     "BLD_TOWN_CENTER",
     "BLD_MILITARY_COLONY"
    ],
-   "trained_at_0ad": [
-    "civil_centre",
-    "military_colony"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -17116,9 +17076,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -17149,7 +17107,7 @@
     "wood": 0,
     "gold": 0,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 35.0,
     "pop": 1,
     "speed": 3.2039999999999997,
     "vision": 8.96,
@@ -17330,11 +17288,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 7.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -17345,7 +17303,7 @@
     "pop": 1,
     "speed": 5.4468,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 7.5,
     "range": 16.8,
     "carry": 0
    }
@@ -17387,11 +17345,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 18.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -17447,10 +17405,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.6000000000000005,
+    "pierce_dmg": 6.050000000000001,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 20,
@@ -17461,7 +17419,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 12.650000000000002,
     "range": 2.4,
     "carry": 0
    }
@@ -17499,23 +17457,23 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 0.0,
-    "hack_armor": 9.0,
-    "pierce_armor": 8.0,
-    "crush_armor": 21.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 9.0,
+    "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
     "gold": 110,
     "stone": 0,
     "train_time": 25.0,
     "pop": 1,
-    "speed": 6.087599999999999,
+    "speed": 5.1264,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 22.0,
     "range": 4.2,
     "carry": 0
    }
@@ -17555,11 +17513,11 @@
    ],
    "stats": {
     "hp": 300.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 14.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 1.0,
     "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 180,
@@ -17570,7 +17528,7 @@
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 15.0,
     "range": 16.8,
     "carry": 0
    }
@@ -17612,7 +17570,7 @@
     "pierce_dmg": 0.0,
     "crush_dmg": 49.50000000000001,
     "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "pierce_armor": 7.0,
     "crush_armor": 20.0,
     "food": 330,
     "wood": 0,
@@ -17662,11 +17620,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 2.0,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 8.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
-    "hack_armor": 13.0,
-    "pierce_armor": 11.0,
+    "hack_armor": 8.0,
+    "pierce_armor": 8.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -17674,9 +17632,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 2.8836,
+    "speed": 3.0438,
     "vision": 22.400000000000002,
-    "damage": 10.0,
+    "damage": 23.0,
     "range": 4.8,
     "carry": 0
    }
@@ -17716,11 +17674,11 @@
    "stats": {
     "hp": 200.0,
     "cooldown": 0.75,
-    "hack_dmg": 11.0,
+    "hack_dmg": 16.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -17728,9 +17686,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 16.0,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -17937,9 +17895,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.920000000000001,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -17950,9 +17908,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.920000000000001,
     "range": 16.8,
     "carry": 0
    }
@@ -17999,7 +17957,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -18057,11 +18015,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
-    "hack_dmg": 2.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 4.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 10.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 5.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -18069,9 +18027,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 2.8836,
+    "speed": 3.0438,
     "vision": 22.400000000000002,
-    "damage": 5.0,
+    "damage": 11.5,
     "range": 4.8,
     "carry": 0
    }
@@ -18116,11 +18074,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -18128,9 +18086,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -18176,11 +18134,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 0.75,
-    "hack_dmg": 5.5,
+    "hack_dmg": 8.8,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 0,
     "wood": 0,
@@ -18188,9 +18146,9 @@
     "stone": 0,
     "train_time": 7.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.8,
     "range": 1.7999999999999998,
     "carry": 0
    }
@@ -18224,24 +18182,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -18268,13 +18226,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -18361,23 +18319,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 400.0,
-    "cooldown": 8.0,
-    "hack_dmg": 200.0,
+    "hp": 800.0,
+    "cooldown": 3.0,
+    "hack_dmg": 320.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 0.0,
+    "crush_dmg": 50.0,
     "hack_armor": 5.0,
-    "pierce_armor": 3.0,
-    "crush_armor": 8.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 50,
     "wood": 100,
-    "gold": 50,
+    "gold": 25,
     "stone": 0,
-    "train_time": 24.0,
-    "pop": 3,
+    "train_time": 18.0,
+    "pop": 1,
     "speed": 5.696,
     "vision": 22.400000000000002,
-    "damage": 200.0,
+    "damage": 370.0,
     "range": 7.199999999999999,
     "carry": 0
    }
@@ -18411,24 +18369,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -18461,23 +18419,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 800.0,
+    "hp": 1600.0,
     "cooldown": 4.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 125.0,
+    "crush_dmg": 220.0,
     "hack_armor": 2.0,
     "pierce_armor": 5.0,
-    "crush_armor": 6.0,
+    "crush_armor": 4.0,
     "food": 0,
-    "wood": 300,
+    "wood": 200,
     "gold": 200,
     "stone": 0,
     "train_time": 28.0,
-    "pop": 4,
+    "pop": 3,
     "speed": 4.272,
     "vision": 28.000000000000004,
-    "damage": 125.0,
+    "damage": 220.0,
     "range": 22.400000000000002,
     "carry": 0
    }
@@ -18514,8 +18472,8 @@
     "cooldown": 7.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 250.0,
-    "hack_armor": 1.0,
+    "crush_dmg": 230.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -18526,7 +18484,7 @@
     "pop": 3,
     "speed": 2.5632,
     "vision": 33.6,
-    "damage": 250.0,
+    "damage": 230.0,
     "range": 23.8,
     "carry": 0
    }
@@ -18561,8 +18519,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -18606,11 +18564,11 @@
    ],
    "stats": {
     "hp": 500.0,
-    "cooldown": 2.0,
+    "cooldown": 2.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 2.5,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 50.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -18621,7 +18579,7 @@
     "pop": 3,
     "speed": 2.2428,
     "vision": 22.400000000000002,
-    "damage": 14.5,
+    "damage": 12.5,
     "range": 15.400000000000002,
     "carry": 0
    }
@@ -18637,10 +18595,7 @@
     "BLD_TOWN_CENTER",
     "BLD_MILITARY_COLONY"
    ],
-   "trained_at_0ad": [
-    "civil_centre",
-    "military_colony"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -18690,9 +18645,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -18904,11 +18857,11 @@
    ],
    "stats": {
     "hp": 100.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 7.0,
+    "pierce_dmg": 7.5,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 2.0,
     "pierce_armor": 1.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -18919,7 +18872,7 @@
     "pop": 1,
     "speed": 5.4468,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 7.5,
     "range": 16.8,
     "carry": 0
    }
@@ -18959,10 +18912,10 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 1.25,
-    "hack_dmg": 4.0,
-    "pierce_dmg": 3.0,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
+    "hack_armor": 3.0,
     "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 100,
@@ -18973,7 +18926,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 11.5,
     "range": 2.4,
     "carry": 0
    }
@@ -19017,11 +18970,11 @@
    "stats": {
     "hp": 160.0,
     "cooldown": 0.75,
-    "hack_dmg": 6.5,
+    "hack_dmg": 9.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 15.0,
     "food": 100,
     "wood": 40,
@@ -19031,7 +18984,7 @@
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 6.5,
+    "damage": 9.0,
     "range": 2.4,
     "carry": 0
    }
@@ -19040,8 +18993,8 @@
    "id": "han/champion_cavalry_spearman_academy",
    "civ": "han",
    "class": "UNIT_CAVALRY",
-   "name": "Champion Cavalry Spearman",
-   "specific_name": "Wu Wei Yin Cao Cao Guard",
+   "name": "Youzhou Cavalry",
+   "specific_name": "Yōuzhōu Tūqí",
    "phase": 3,
    "trainers": [
     "BLD_ACADEMY"
@@ -19068,23 +19021,23 @@
     "Unit"
    ],
    "stats": {
-    "hp": 300.0,
+    "hp": 260.0,
     "cooldown": 1.25,
-    "hack_dmg": 8.0,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 7.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 150,
     "wood": 80,
     "gold": 100,
     "stone": 0,
-    "train_time": 25.0,
+    "train_time": 18.75,
     "pop": 1,
     "speed": 6.4079999999999995,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 22.0,
     "range": 2.4,
     "carry": 0
    }
@@ -19124,22 +19077,22 @@
    ],
    "stats": {
     "hp": 300.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 14.0,
+    "pierce_dmg": 15.0,
     "crush_dmg": 0.0,
-    "hack_armor": 3.0,
+    "hack_armor": 1.0,
     "pierce_armor": 5.0,
     "crush_armor": 20.0,
     "food": 180,
     "wood": 100,
     "gold": 120,
     "stone": 0,
-    "train_time": 30.0,
+    "train_time": 22.5,
     "pop": 1,
     "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 14.0,
+    "damage": 15.0,
     "range": 16.8,
     "carry": 0
    }
@@ -19179,7 +19132,7 @@
     "hp": 120.0,
     "cooldown": 3.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 40.0,
+    "pierce_dmg": 30.0,
     "crush_dmg": 0.0,
     "hack_armor": 3.0,
     "pierce_armor": 3.0,
@@ -19188,11 +19141,11 @@
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
     "speed": 3.4175999999999997,
     "vision": 22.400000000000002,
-    "damage": 40.0,
+    "damage": 30.0,
     "range": 16.8,
     "carry": 0
    }
@@ -19201,7 +19154,7 @@
    "id": "han/champion_infantry_spearman_academy",
    "civ": "han",
    "class": "UNIT_SPEARMAN",
-   "name": "Palace Guard Spearman",
+   "name": "Tiger Guard Spearman",
    "specific_name": "Hǔ Bēn",
    "phase": 3,
    "trainers": [
@@ -19229,22 +19182,22 @@
    ],
    "stats": {
     "hp": 200.0,
-    "cooldown": 0.9,
-    "hack_dmg": 6.0,
-    "pierce_dmg": 5.0,
+    "cooldown": 1.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 8.5,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 11.0,
+    "damage": 18.5,
     "range": 2.4,
     "carry": 0
    }
@@ -19407,7 +19360,7 @@
     "hp": 1500.0,
     "cooldown": 3.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 60.0,
+    "pierce_dmg": 45.0,
     "crush_dmg": 3.0,
     "hack_armor": 6.0,
     "pierce_armor": 8.0,
@@ -19420,7 +19373,7 @@
     "pop": 0,
     "speed": 5.696,
     "vision": 28.000000000000004,
-    "damage": 63.0,
+    "damage": 48.0,
     "range": 15.400000000000002,
     "carry": 0
    }
@@ -19466,9 +19419,9 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 6.7,
+    "pierce_dmg": 7.2,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -19479,9 +19432,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.6311999999999998,
+    "speed": 3.6668000000000003,
     "vision": 22.400000000000002,
-    "damage": 6.7,
+    "damage": 7.2,
     "range": 16.8,
     "carry": 0
    }
@@ -19531,7 +19484,7 @@
     "hp": 50.0,
     "cooldown": 3.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 28.0,
+    "pierce_dmg": 24.0,
     "crush_dmg": 0.0,
     "hack_armor": 1.0,
     "pierce_armor": 1.0,
@@ -19542,9 +19495,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.4175999999999997,
+    "speed": 3.5599999999999996,
     "vision": 22.400000000000002,
-    "damage": 28.0,
+    "damage": 24.0,
     "range": 12.600000000000001,
     "carry": 0
    }
@@ -19587,11 +19540,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 2.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 4.0,
+    "hack_dmg": 10.0,
+    "pierce_dmg": 3.5,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 6.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -19599,9 +19552,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 2.8836,
+    "speed": 3.0438,
     "vision": 22.400000000000002,
-    "damage": 7.0,
+    "damage": 13.5,
     "range": 4.8,
     "carry": 0
    }
@@ -19648,11 +19601,11 @@
    "stats": {
     "hp": 100.0,
     "cooldown": 1.0,
-    "hack_dmg": 3.0,
-    "pierce_dmg": 2.5,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 5.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
     "crush_armor": 15.0,
     "food": 50,
     "wood": 50,
@@ -19660,9 +19613,9 @@
     "stone": 0,
     "train_time": 10.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 5.5,
+    "damage": 8.5,
     "range": 2.4,
     "carry": 0
    }
@@ -19696,24 +19649,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 500.0,
-    "cooldown": 1.5,
+    "hp": 1000.0,
+    "cooldown": 1.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 15.0,
+    "pierce_dmg": 32.0,
     "crush_dmg": 0.0,
-    "hack_armor": 5.0,
-    "pierce_armor": 6.0,
-    "crush_armor": 3.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 5.0,
+    "crush_armor": 1.0,
     "food": 0,
-    "wood": 120,
-    "gold": 80,
+    "wood": 100,
+    "gold": 100,
     "stone": 0,
     "train_time": 24.0,
-    "pop": 3,
+    "pop": 1,
     "speed": 4.984,
     "vision": 22.400000000000002,
-    "damage": 15.0,
-    "range": 14.000000000000002,
+    "damage": 32.0,
+    "range": 15.750000000000002,
     "carry": 0
    }
   },
@@ -19740,13 +19693,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 120.0,
+    "hp": 220.0,
     "cooldown": 1.0,
     "hack_dmg": 10.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 5.0,
-    "pierce_armor": 10.0,
+    "pierce_armor": 3.0,
     "crush_armor": 3.0,
     "food": 0,
     "wood": 50,
@@ -19835,24 +19788,24 @@
     "Warship"
    ],
    "stats": {
-    "hp": 200.0,
-    "cooldown": 3.0,
+    "hp": 500.0,
+    "cooldown": 2.0,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 28.0,
     "crush_dmg": 0.0,
     "hack_armor": 4.0,
-    "pierce_armor": 2.0,
+    "pierce_armor": 3.0,
     "crush_armor": 5.0,
     "food": 50,
-    "wood": 80,
+    "wood": 50,
     "gold": 0,
     "stone": 0,
     "train_time": 12.0,
-    "pop": 2,
-    "speed": 5.696,
+    "pop": 1,
+    "speed": 6.052,
     "vision": 22.400000000000002,
-    "damage": 12.0,
-    "range": 11.200000000000001,
+    "damage": 28.0,
+    "range": 10.360000000000001,
     "carry": 0
    }
   },
@@ -19885,23 +19838,23 @@
     "Warship"
    ],
    "stats": {
-    "hp": 800.0,
+    "hp": 1600.0,
     "cooldown": 4.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 125.0,
+    "crush_dmg": 220.0,
     "hack_armor": 2.0,
     "pierce_armor": 5.0,
-    "crush_armor": 6.0,
+    "crush_armor": 4.0,
     "food": 0,
-    "wood": 300,
+    "wood": 200,
     "gold": 200,
     "stone": 0,
     "train_time": 28.0,
-    "pop": 4,
+    "pop": 3,
     "speed": 4.272,
     "vision": 28.000000000000004,
-    "damage": 125.0,
+    "damage": 220.0,
     "range": 22.400000000000002,
     "carry": 0
    }
@@ -19911,7 +19864,7 @@
    "civ": "han",
    "class": "UNIT_CATAPULT",
    "name": "Mangonel",
-   "specific_name": "Tóushí Chē",
+   "specific_name": "Pào",
    "phase": 3,
    "trainers": [
     "BLD_ARSENAL"
@@ -19938,8 +19891,8 @@
     "cooldown": 7.0,
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
-    "crush_dmg": 250.0,
-    "hack_armor": 1.0,
+    "crush_dmg": 230.0,
+    "hack_armor": 6.0,
     "pierce_armor": 25.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -19950,7 +19903,7 @@
     "pop": 3,
     "speed": 2.5632,
     "vision": 33.6,
-    "damage": 250.0,
+    "damage": 230.0,
     "range": 23.8,
     "carry": 0
    }
@@ -19985,8 +19938,8 @@
     "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 150.0,
-    "hack_armor": 1.0,
-    "pierce_armor": 50.0,
+    "hack_armor": 7.0,
+    "pierce_armor": 35.0,
     "crush_armor": 5.0,
     "food": 0,
     "wood": 300,
@@ -20030,11 +19983,11 @@
    ],
    "stats": {
     "hp": 500.0,
-    "cooldown": 2.0,
+    "cooldown": 2.5,
     "hack_dmg": 0.0,
-    "pierce_dmg": 12.0,
+    "pierce_dmg": 10.0,
     "crush_dmg": 2.5,
-    "hack_armor": 1.0,
+    "hack_armor": 6.0,
     "pierce_armor": 50.0,
     "crush_armor": 5.0,
     "food": 0,
@@ -20045,7 +19998,7 @@
     "pop": 3,
     "speed": 2.2428,
     "vision": 22.400000000000002,
-    "damage": 14.5,
+    "damage": 12.5,
     "range": 15.400000000000002,
     "carry": 0
    }
@@ -20061,10 +20014,7 @@
     "BLD_TOWN_CENTER",
     "BLD_IMPERIAL_COURT"
    ],
-   "trained_at_0ad": [
-    "civil_centre",
-    "civil_centre_court"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -20114,9 +20064,7 @@
    "trainers": [
     "BLD_HOUSE"
    ],
-   "trained_at_0ad": [
-    "house"
-   ],
+   "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
    ],
@@ -20322,21 +20270,21 @@
    "stats": {
     "hp": 240.0,
     "cooldown": 0.9,
-    "hack_dmg": 7.199999999999999,
-    "pierce_dmg": 6.0,
+    "hack_dmg": 12.0,
+    "pierce_dmg": 10.2,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
     "gold": 80,
     "stone": 0,
-    "train_time": 20.0,
+    "train_time": 15.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 13.2,
+    "damage": 22.2,
     "range": 2.4,
     "carry": 0
    }
@@ -20401,7 +20349,9 @@
    "specific_name": "Antesignānus",
    "phase": 3,
    "trainers": [],
-   "trained_at_0ad": [],
+   "trained_at_0ad": [
+    "army_camp"
+   ],
    "flags": [
     "ROSTER_RANGED",
     "ROSTER_CITIZEN"
@@ -20426,7 +20376,7 @@
    ],
    "stats": {
     "hp": 50.0,
-    "cooldown": 1.25,
+    "cooldown": 1.5,
     "hack_dmg": 0.0,
     "pierce_dmg": 16.0,
     "crush_dmg": 0.0,
@@ -20474,12 +20424,12 @@
    ],
    "stats": {
     "hp": 220.0,
-    "cooldown": 0.9,
-    "hack_dmg": 6.6000000000000005,
-    "pierce_dmg": 5.5,
+    "cooldown": 1.0,
+    "hack_dmg": 11.0,
+    "pierce_dmg": 9.350000000000001,
     "crush_dmg": 0.0,
-    "hack_armor": 8.0,
-    "pierce_armor": 8.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
     "crush_armor": 20.0,
     "food": 80,
     "wood": 60,
@@ -20487,9 +20437,9 @@
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.2039999999999997,
+    "speed": 3.3819999999999997,
     "vision": 22.400000000000002,
-    "damage": 12.100000000000001,
+    "damage": 20.35,
     "range": 2.4,
     "carry": 0
    }
@@ -20499,7 +20449,7 @@
    "civ": "han",
    "class": "UNIT_MINISTER",
    "name": "Imperial Minister",
-   "specific_name": "Guānlì",
+   "specific_name": "Qīng",
    "phase": 2,
    "trainers": [
     "BLD_MINISTRY"
@@ -20511,9 +20461,7 @@
    "unlock_tech": "TECH_NONE",
    "auras": [
     97,
-    98,
-    96,
-    99
+    98
    ],
    "civ_bonuses": [],
    "classes": [
@@ -20525,13 +20473,13 @@
     "Unit"
    ],
    "stats": {
-    "hp": 200.0,
+    "hp": 50.0,
     "cooldown": 1.0,
-    "hack_dmg": 10.0,
+    "hack_dmg": 0.0,
     "pierce_dmg": 0.0,
     "crush_dmg": 0.0,
     "hack_armor": 2.0,
-    "pierce_armor": 4.0,
+    "pierce_armor": 2.0,
     "crush_armor": 6.0,
     "food": 100,
     "wood": 0,
@@ -20541,8 +20489,8 @@
     "pop": 1,
     "speed": 3.2039999999999997,
     "vision": 11.200000000000001,
-    "damage": 10.0,
-    "range": 1.7999999999999998,
+    "damage": 0.0,
+    "range": 1.8,
     "carry": 0
    }
   },
@@ -21169,12 +21117,14 @@
    "specific_name": "Anušiya",
    "phase": 3,
    "trainers": [],
-   "trained_at_0ad": [],
+   "trained_at_0ad": [
+    "barracks"
+   ],
    "flags": [
     "ROSTER_CHAMPION",
     "ROSTER_RANGED"
    ],
-   "unlock_tech": "TECH_NONE",
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
    "auras": [],
    "civ_bonuses": [],
    "classes": [
@@ -21191,23 +21141,155 @@
    ],
    "stats": {
     "hp": 120.0,
-    "cooldown": 1.0,
+    "cooldown": 1.25,
     "hack_dmg": 0.0,
-    "pierce_dmg": 11.475,
+    "pierce_dmg": 12.24,
     "crush_dmg": 0.0,
     "hack_armor": 2.0,
     "pierce_armor": 3.0,
     "crush_armor": 20.0,
-    "food": 80,
-    "wood": 60,
-    "gold": 80,
+    "food": 50,
+    "wood": 30,
+    "gold": 50,
     "stone": 0,
     "train_time": 20.0,
     "pop": 1,
-    "speed": 3.1954559999999996,
+    "speed": 3.226784,
     "vision": 22.400000000000002,
-    "damage": 11.475,
+    "damage": 12.24,
     "range": 16.8,
+    "carry": 0
+   }
+  },
+  {
+   "id": "brit/ship_fire_fire",
+   "civ": "brit",
+   "class": "UNIT_TRIREME",
+   "name": "Fire Ship",
+   "specific_name": "Briton Fire Ship",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Fireship",
+    "Ignited",
+    "Melee",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 800.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 3.0,
+    "food": 0,
+    "wood": 100,
+    "gold": 50,
+    "stone": 0,
+    "train_time": 18.0,
+    "pop": 1,
+    "speed": 6.052,
+    "vision": 22.400000000000002,
+    "damage": 0.0,
+    "range": 20.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "gaul/ship_fire_fire",
+   "civ": "gaul",
+   "class": "UNIT_TRIREME",
+   "name": "Fire Ship",
+   "specific_name": "Gallic Fire Ship",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Fireship",
+    "Ignited",
+    "Melee",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 800.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 3.0,
+    "food": 0,
+    "wood": 100,
+    "gold": 50,
+    "stone": 0,
+    "train_time": 18.0,
+    "pop": 1,
+    "speed": 6.052,
+    "vision": 22.400000000000002,
+    "damage": 0.0,
+    "range": 20.0,
+    "carry": 0
+   }
+  },
+  {
+   "id": "iber/ship_fire_fire",
+   "civ": "iber",
+   "class": "UNIT_TRIREME",
+   "name": "Fire Ship",
+   "specific_name": "Iberian Fire Ship",
+   "phase": 2,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "ConquestCritical",
+    "Fireship",
+    "Ignited",
+    "Melee",
+    "Ship",
+    "Unit",
+    "Warship"
+   ],
+   "stats": {
+    "hp": 800.0,
+    "cooldown": 1.0,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 5.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 3.0,
+    "food": 0,
+    "wood": 100,
+    "gold": 50,
+    "stone": 0,
+    "train_time": 18.0,
+    "pop": 1,
+    "speed": 6.052,
+    "vision": 22.400000000000002,
+    "damage": 0.0,
+    "range": 20.0,
     "carry": 0
    }
   }
@@ -21296,11 +21378,11 @@
   {
    "id": "athen_hero_hippocrates_2",
    "name": "Hippocratic Oath",
-   "description": "Own and Allied Healers +1 healing effect.",
+   "description": "Own and Allied Healers +3 healing effect.",
    "type": "global",
    "radius": 0.0,
    "affects": [
-    "Healer"
+    "Healer !Hero"
    ],
    "players": [
     "MutualAlly"
@@ -21308,12 +21390,12 @@
    "modifications": [
     {
      "value": "Heal/Health",
-     "add": 1.0
+     "add": 3.0
     }
    ],
    "rts0": [
     "AURA_HEAL_AMOUNT",
-    1.0,
+    3.0,
     1000.0
    ]
   },
@@ -21822,41 +21904,23 @@
   },
   {
    "id": "pers_hero_xerxes_i",
-   "name": "Administrator",
-   "description": "Workers +15% build rate and gather speed.",
+   "name": "",
+   "description": "",
    "type": "range",
-   "radius": 60.0,
-   "affects": [
-    "Worker"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Builder/Rate",
-     "multiply": 1.15
-    },
-    {
-     "value": "ResourceGatherer/BaseSpeed",
-     "multiply": 1.15,
-     "affects": "Builder"
-    }
-   ],
-   "rts0": [
-    "AURA_GATHER",
-    0.13043478260869557,
-    16.8
-   ]
+   "radius": 0.0,
+   "affects": [],
+   "players": [],
+   "modifications": [],
+   "rts0": null
   },
   {
    "id": "rome_catafalque_1",
    "name": "Avenger of Lucretia",
-   "description": "After the rape of Lucretia by the son of King Tarquinius Superbus and her subsequent suicide, Brutus vowed to avenge her and overthrow the monarchy.\nFemale Citizens −20% food cost and +10% gather speed.",
+   "description": "After the rape of Lucretia by the son of King Tarquinius Superbus and her subsequent suicide, Brutus vowed to avenge her and overthrow the monarchy.\nCivilians −20% food cost and +10% gather speed.",
    "type": "global",
    "radius": 0.0,
    "affects": [
-    "FemaleCitizen"
+    "Civilian"
    ],
    "players": [
     "Player"
@@ -22480,7 +22544,7 @@
   {
    "id": "mace_hero_alexander_iii_3",
    "name": "Conqueror",
-   "description": "Enemy Civic Centres −50% capture points garrisoned regeneration rate.",
+   "description": "Enemy Civic Centers −50% capture points garrisoned regeneration rate.",
    "type": "range",
    "radius": 60.0,
    "affects": [
@@ -23370,11 +23434,12 @@
   {
    "id": "maur_hero_chandragupta_1",
    "name": "Empire Maker",
-   "description": "Soldiers +1 crush, hack, pierce resistance.",
+   "description": "Elephants and Soldiers +1 crush, hack, pierce resistance.",
    "type": "range",
    "radius": 60.0,
    "affects": [
-    "Soldier"
+    "Soldier",
+    "Elephant"
    ],
    "players": [
     "Player"
@@ -23434,11 +23499,11 @@
   {
    "id": "kush_catafalque_1",
    "name": "Earliest Nubian Queen",
-   "description": "Ruling with full power in the Meroë Empire and also playing a significant role in the Meroitic religion, Shanakdakheto represented the might of Kush, something not to be taken lightly.\nEnemy Female Citizens −15% gather speed.",
+   "description": "Ruling with full power in the Meroë Empire and also playing a significant role in the Meroitic religion, Shanakdakheto represented the might of Kush, something not to be taken lightly.\nEnemy Civilians −15% gather speed.",
    "type": "global",
    "radius": 0.0,
    "affects": [
-    "FemaleCitizen"
+    "Civilian"
    ],
    "players": [
     "Enemy"
@@ -23521,45 +23586,8 @@
   },
   {
    "id": "kush_hero_arakamani_1",
-   "name": "Defier of Tradition",
-   "description": "Temple of Amun +20% resource costs and build time. Amun Temple Guard +20% resource costs and training time.",
-   "type": "global",
-   "radius": 0.0,
-   "affects": [
-    "TempleOfAmun",
-    "AmunGuard"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Cost/BuildTime",
-     "multiply": 1.2
-    },
-    {
-     "value": "Cost/Resources/food",
-     "multiply": 1.2
-    },
-    {
-     "value": "Cost/Resources/wood",
-     "multiply": 1.2
-    },
-    {
-     "value": "Cost/Resources/stone",
-     "multiply": 1.2
-    },
-    {
-     "value": "Cost/Resources/metal",
-     "multiply": 1.2
-    }
-   ],
-   "rts0": null
-  },
-  {
-   "id": "kush_hero_arakamani_2",
    "name": "Follower of Apedemak",
-   "description": "Temple of Apedemak −20% resource costs and build time. Apedemak Temple Guard −20% resource costs and training time.",
+   "description": "Temple of Apedemak −30% resource costs and build time. Apedemak Temple Guard −30% resource costs and training time.",
    "type": "global",
    "radius": 0.0,
    "affects": [
@@ -23572,31 +23600,31 @@
    "modifications": [
     {
      "value": "Cost/BuildTime",
-     "multiply": 0.8
+     "multiply": 0.7
     },
     {
      "value": "Cost/Resources/food",
-     "multiply": 0.8
+     "multiply": 0.7
     },
     {
      "value": "Cost/Resources/wood",
-     "multiply": 0.8
+     "multiply": 0.7
     },
     {
      "value": "Cost/Resources/stone",
-     "multiply": 0.8
+     "multiply": 0.7
     },
     {
      "value": "Cost/Resources/metal",
-     "multiply": 0.8
+     "multiply": 0.7
     }
    ],
    "rts0": null
   },
   {
-   "id": "kush_hero_arakamani_3",
+   "id": "kush_hero_arakamani_2",
    "name": "Slaughter of the Faithful",
-   "description": "Enemy Healers −50% healing strength.",
+   "description": "Enemy Healers −100% healing strength.",
    "type": "range",
    "radius": 60.0,
    "affects": [
@@ -23608,19 +23636,31 @@
    "modifications": [
     {
      "value": "Heal/HP",
-     "multiply": 0.5
+     "multiply": 0
     }
    ],
    "rts0": null
   },
   {
+   "id": "kush_hero_arakamani_3",
+   "name": "",
+   "description": "",
+   "type": "range",
+   "radius": 0.0,
+   "affects": [],
+   "players": [],
+   "modifications": [],
+   "rts0": null
+  },
+  {
    "id": "kush_hero_nastasen_1",
    "name": "Savior of Kush",
-   "description": "Soldiers +10% melee and ranged attack damage, gain +50% resource loot.",
+   "description": "Soldiers and Elephants +15% melee and ranged attack damage, gain +50% resource loot.",
    "type": "range",
    "radius": 60.0,
    "affects": [
-    "Soldier"
+    "Soldier",
+    "Elephant"
    ],
    "players": [
     "Player"
@@ -23628,27 +23668,27 @@
    "modifications": [
     {
      "value": "Attack/Melee/Damage/Hack",
-     "multiply": 1.1
+     "multiply": 1.15
     },
     {
      "value": "Attack/Melee/Damage/Pierce",
-     "multiply": 1.1
+     "multiply": 1.15
     },
     {
      "value": "Attack/Melee/Damage/Crush",
-     "multiply": 1.1
+     "multiply": 1.15
     },
     {
      "value": "Attack/Ranged/Damage/Hack",
-     "multiply": 1.1
+     "multiply": 1.15
     },
     {
      "value": "Attack/Ranged/Damage/Pierce",
-     "multiply": 1.1
+     "multiply": 1.15
     },
     {
      "value": "Attack/Ranged/Damage/Crush",
-     "multiply": 1.1
+     "multiply": 1.15
     },
     {
      "value": "Looter/Resource/food",
@@ -23669,7 +23709,7 @@
    ],
    "rts0": [
     "AURA_ATTACK",
-    1.1,
+    1.15,
     16.8
    ]
   },
@@ -24338,47 +24378,21 @@
   },
   {
    "id": "han_minister_garrison",
-   "name": "Excellency of Works",
-   "description": "Decrease resource costs and research time of technologies in a building by 2% for each Minister garrisoned within.",
-   "type": "garrison",
+   "name": "",
+   "description": "",
+   "type": "range",
    "radius": 0.0,
-   "affects": [
-    "Structure",
-    "!ImperialMinistry"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "Researcher/TechCostMultiplier/wood",
-     "multiply": 0.98
-    },
-    {
-     "value": "Researcher/TechCostMultiplier/food",
-     "multiply": 0.98
-    },
-    {
-     "value": "Researcher/TechCostMultiplier/metal",
-     "multiply": 0.98
-    },
-    {
-     "value": "Researcher/TechCostMultiplier/stone",
-     "multiply": 0.98
-    },
-    {
-     "value": "Researcher/TechCostMultiplier/time",
-     "multiply": 0.98
-    }
-   ],
+   "affects": [],
+   "players": [],
+   "modifications": [],
    "rts0": null
   },
   {
    "id": "han_minister_gathering",
    "name": "Minister over the Masses",
-   "description": "Gatherers +2% gathering rate for every nearby Minister.",
+   "description": "Gatherers +10% gathering rate.",
    "type": "range",
-   "radius": 40.0,
+   "radius": 20.0,
    "affects": [
     "Worker"
    ],
@@ -24388,21 +24402,21 @@
    "modifications": [
     {
      "value": "ResourceGatherer/BaseSpeed",
-     "multiply": 1.02
+     "multiply": 1.1
     }
    ],
    "rts0": [
     "AURA_GATHER",
-    0.019607843137254943,
-    11.200000000000001
+    0.09090909090909094,
+    5.6000000000000005
    ]
   },
   {
    "id": "han_minister_building",
    "name": "Building Programs",
-   "description": "Builders construct buildings +2% faster for every nearby Minister.",
+   "description": "Builders construct buildings +10% faster.",
    "type": "range",
-   "radius": 40.0,
+   "radius": 20.0,
    "affects": [
     "Worker"
    ],
@@ -24412,37 +24426,20 @@
    "modifications": [
     {
      "value": "Builder/Rate",
-     "multiply": 1.02
+     "multiply": 1.1
     }
    ],
    "rts0": null
   },
   {
    "id": "han_minister_garrison_ministry",
-   "name": "Nationalized Industries",
-   "description": "The Imperial Ministry gains a +0.1 wood, stone, metal trickle for each garrisoned minister.",
-   "type": "garrison",
+   "name": "",
+   "description": "",
+   "type": "range",
    "radius": 0.0,
-   "affects": [
-    "ImperialMinistry"
-   ],
-   "players": [
-    "Player"
-   ],
-   "modifications": [
-    {
-     "value": "ResourceTrickle/Rates/wood",
-     "add": 0.1
-    },
-    {
-     "value": "ResourceTrickle/Rates/stone",
-     "add": 0.1
-    },
-    {
-     "value": "ResourceTrickle/Rates/metal",
-     "add": 0.1
-    }
-   ],
+   "affects": [],
+   "players": [],
+   "modifications": [],
    "rts0": null
   },
   {
@@ -24524,7 +24521,7 @@
    "name": "Exhortative Presence",
    "description": "Soldiers +1 crush, hack, pierce resistance and +10% melee and ranged attack damage.",
    "type": "range",
-   "radius": 70.0,
+   "radius": 100.0,
    "affects": [
     "Soldier"
    ],
@@ -24572,7 +24569,7 @@
    "rts0": [
     "AURA_ATTACK",
     1.1,
-    19.6
+    28.000000000000004
    ],
    "buildings": [
     "BLD_PYRAMID_LARGE"
@@ -24583,7 +24580,7 @@
    "name": "Exhortative Presence",
    "description": "Soldiers +1 crush, hack, pierce resistance and +10% melee and ranged attack damage.",
    "type": "range",
-   "radius": 70.0,
+   "radius": 100.0,
    "affects": [
     "Soldier"
    ],
@@ -24631,7 +24628,7 @@
    "rts0": [
     "AURA_ARMOR",
     1,
-    19.6
+    28.000000000000004
    ],
    "buildings": [
     "BLD_PYRAMID_LARGE"
@@ -24688,7 +24685,6 @@
     11.200000000000001
    ],
    "buildings": [
-    "BLD_TEMPLE_AMUN",
     "BLD_TEMPLE_VESTA",
     "BLD_TEMPLE_MARS"
    ]
@@ -24715,6 +24711,88 @@
     "AURA_HEALTH",
     0.95,
     1000.0
+   ],
+   "buildings": [
+    "BLD_TEMPLE_AMUN"
+   ]
+  },
+  {
+   "id": "pers_hero_xerxes_i_1",
+   "name": "Administrator",
+   "description": "Workers +25% build rate and +15% gather speed.",
+   "type": "range",
+   "radius": 100.0,
+   "affects": [
+    "Worker"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Builder/Rate",
+     "multiply": 1.25
+    },
+    {
+     "value": "ResourceGatherer/BaseSpeed",
+     "multiply": 1.15,
+     "affects": "Builder"
+    }
+   ],
+   "rts0": [
+    "AURA_GATHER",
+    0.13043478260869557,
+    28.000000000000004
+   ]
+  },
+  {
+   "id": "pers_hero_xerxes_i_2",
+   "name": "Invader of Greece",
+   "description": "Siege Rams, Elephants, and Champion Infantry +25% Health.",
+   "type": "range",
+   "radius": 60.0,
+   "affects": [
+    "Siege",
+    "Elephant",
+    "Champion Infantry"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Health/Max",
+     "multiply": 1.25
+    }
+   ],
+   "rts0": [
+    "AURA_HEALTH",
+    1.25,
+    16.8
+   ]
+  },
+  {
+   "id": "kush_temple_amun_heal",
+   "name": "Medical Treatment",
+   "description": "Humans +1 health regeneration rate.",
+   "type": "range",
+   "radius": 70.0,
+   "affects": [
+    "Human"
+   ],
+   "players": [
+    "Player"
+   ],
+   "modifications": [
+    {
+     "value": "Health/RegenRate",
+     "add": 1
+    }
+   ],
+   "rts0": [
+    "AURA_HEAL",
+    1,
+    19.6
    ],
    "buildings": [
     "BLD_TEMPLE_AMUN"

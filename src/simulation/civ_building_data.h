@@ -9,45 +9,45 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 
 // BuildingTypeInfo rows for building_type_info(), in BuildingType order.
 #define RTSO_CIV_BUILDING_INFO_ROWS \
-		{"Gymnasium", "gymnasium", "gymnasium", 2000.0f, 2, 0, 0, 100, 150, 0, 10, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/athen/gymnasium */ \
-		{"Council Chamber", "prytaneion", "prytaneion", 2000.0f, 2, 0, 0, 200, 100, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/athen/prytaneion */ \
-		{"Spartan Senate", "gerousia", "gerousia", 2000.0f, 2, 0, 0, 200, 100, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/spart/gerousia */ \
-		{"Military Mess Hall", "syssiton", "syssiton", 2000.0f, 2, 0, 0, 200, 200, 0, 10, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/spart/syssiton */ \
-		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara */ \
+		{"Gymnasium", "gymnasium", "gymnasium", 2000.0f, 2, 0, 0, 100, 150, 0, 10, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/athen/gymnasium */ \
+		{"Council Chamber", "prytaneion", "prytaneion", 2000.0f, 2, 0, 0, 200, 100, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/athen/prytaneion */ \
+		{"Spartan Senate", "gerousia", "gerousia", 2000.0f, 2, 0, 0, 200, 100, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/spart/gerousia */ \
+		{"Military Mess Hall", "syssiton", "syssiton", 2000.0f, 2, 0, 0, 150, 150, 10, 10, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/spart/syssiton */ \
+		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara */ \
 		{"Army Camp", "army_camp", "army_camp", 1750.0f, 2, 0, 400, 0, 150, 0, 20, 62.5f, 1500.0f, 10.0f, 1.0f, 0.0f}, /* structures/rome/army_camp */ \
-		{"Amphitheater", "amphitheater", "amphitheater", 2000.0f, 2, 0, 0, 500, 500, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/amphitheater_pompeii */ \
-		{"Library", "library", "library", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/mace/library */ \
-		{"Kennel", "kennel", "kennel", 500.0f, 1, 0, 100, 0, 0, 0, 10, 12.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/brit/kennel */ \
-		{"Assembly of Princes", "assembly", "assembly", 2000.0f, 2, 0, 400, 0, 0, 0, 20, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/gaul/assembly */ \
+		{"Amphitheater", "amphitheater", "amphitheater", 2000.0f, 2, 0, 0, 500, 500, 0, 5, 125.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/rome/amphitheater_pompeii */ \
+		{"Library", "library", "library", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/mace/library */ \
+		{"Kennel", "kennel", "kennel", 500.0f, 1, 0, 100, 0, 0, 0, 10, 12.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/brit/kennel */ \
+		{"Assembly of Princes", "assembly", "assembly", 2000.0f, 2, 0, 400, 0, 0, 0, 20, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/gaul/assembly */ \
 		{"Revered Monument", "monument", "monument", 1200.0f, 1, 0, 0, 100, 100, 0, 0, 30.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/iber/monument */ \
-		{"Palace", "palace", "palace", 3000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/maur/palace */ \
+		{"Palace", "palace", "palace", 3000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/maur/palace */ \
 		{"Edict Pillar of Ashoka", "pillar", "pillar", 1000.0f, 1, 0, 0, 100, 100, 0, 0, 20.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/maur/pillar_ashoka */ \
-		{"Large Pyramid", "pyramid_large", "pyramid_large", 3000.0f, 2, 0, 0, 150, 450, 0, 0, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/kush/pyramid_large */ \
-		{"Small Pyramid", "pyramid_small", "pyramid_small", 2000.0f, 2, 0, 0, 75, 150, 0, 0, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/kush/pyramid_small */ \
-		{"Mercenary Camp", "mercenary_camp", "mercenary_camp", 1200.0f, 2, 0, 100, 100, 100, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 1.0f}, /* structures/ptol/mercenary_camp */ \
-		{"Lighthouse", "lighthouse", "lighthouse", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 0.5f, 1.0f, 0.0f}, /* structures/ptol/lighthouse */ \
-		{"Military Colony", "military_colony", "military_colony", 2000.0f, 2, 0, 200, 150, 200, 20, 20, 75.0f, 2500.0f, 5.0f, 1.0f, 20.0f}, /* structures/ptol/military_colony */ \
-		{"Imperial Academy", "academy", "academy", 2000.0f, 2, 0, 0, 300, 300, 0, 10, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/han/academy */ \
-		{"Imperial Ministry", "imperial_ministry", "ministry", 3000.0f, 2, 0, 0, 200, 200, 20, 9, 50.0f, 3000.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/ministry */ \
-		{"Blemmye Camp", "camp_blemmye", "camp_blemmye", 1000.0f, 2, 0, 100, 100, 0, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 1.0f}, /* structures/kush/camp_blemmye */ \
-		{"Noba Village", "camp_noba", "camp_noba", 1000.0f, 2, 0, 100, 100, 0, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 1.0f}, /* structures/kush/camp_noba */ \
-		{"Grand Temple of Amun", "temple_amun", "temple_amun", 4000.0f, 2, 0, 0, 0, 600, 0, 40, 100.0f, 1000.0f, 0.5f, 1.0f, 20.0f}, /* structures/kush/temple_amun */ \
-		{"Temple of Vesta", "temple_vesta", "temple_vesta", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_vesta */ \
-		{"Temple of Mars", "temple_mars", "temple_mars", 2000.0f, 2, 0, 0, 0, 300, 0, 30, 50.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/rome/temple_mars */ \
-		{"Ice House", "ice_house", "ice_house", 800.0f, 2, 0, 100, 0, 100, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/ice_house */ \
-		{"Naval Shipyard", "super_dock", "super_dock", 5000.0f, 2, 0, 300, 0, 200, 0, 5, 125.0f, 2000.0f, 0.5f, 2.0f, 0.0f}, /* structures/cart/super_dock */ \
-		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_food */ \
-		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_wood */ \
-		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_stone */ \
-		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/pers/tachara_metal */ \
-		{"Apartment Building", "house", "house", 1800.0f, 1, 0, 175, 0, 50, 20, 12, 22.5f, 1000.0f, 0.5f, 1.0f, 40.0f}, /* structures/cart/apartment */ \
-		{"Imperial Court", "imperial_court", "imperial_court", 4500.0f, 2, 0, 300, 250, 300, 30, 30, 125.0f, 3750.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/civil_centre_court */ \
-		{"Great Tower", "tower_great", "tower_great", 2000.0f, 1, 0, 100, 0, 100, 0, 10, 37.5f, 1000.0f, 0.5f, 1.0f, 20.0f}, /* structures/han/defense_tower_great */ \
-		{"Palisade Gate", "palisade", "palisade", 500.0f, 1, 0, 10, 0, 0, 0, 0, 2.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/palisades_gate */ \
-		{"Iberian Embassy", "embassy", "embassy", 2000.0f, 2, 0, 0, 0, 200, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
-		{"Italic Embassy", "embassy", "embassy", 1500.0f, 1, 0, 0, 200, 0, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
-		{"Siege Wall", "wall_segment", "wall", 2250.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 0.5f, 1.0f, 0.0f}, /* structures/rome/siege_wall_long */ \
-		{"Siege Wall Gate", "gate", "gate", 1875.0f, 1, 0, 50, 0, 0, 0, 0, 6.25f, 500.0f, 0.5f, 1.0f, 0.0f}, /* structures/rome/siege_wall_gate */ \
+		{"Large Pyramid", "pyramid_large", "pyramid_large", 3000.0f, 2, 0, 0, 150, 450, 0, 0, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/kush/pyramid_large */ \
+		{"Small Pyramid", "pyramid_small", "pyramid_small", 2000.0f, 2, 0, 0, 100, 100, 0, 0, 25.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/kush/pyramid_small */ \
+		{"Mercenary Camp", "mercenary_camp", "mercenary_camp", 1200.0f, 2, 0, 100, 100, 100, 0, 10, 75.0f, 500.0f, 10.0f, 1.0f, 1.0f}, /* structures/ptol/mercenary_camp */ \
+		{"Lighthouse", "lighthouse", "lighthouse", 2000.0f, 2, 0, 0, 200, 200, 0, 5, 50.0f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/ptol/lighthouse */ \
+		{"Military Colony", "military_colony", "military_colony", 2000.0f, 2, 0, 200, 150, 200, 20, 20, 75.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* structures/ptol/military_colony */ \
+		{"Imperial Academy", "academy", "academy", 2000.0f, 2, 0, 0, 150, 150, 0, 10, 50.0f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/han/academy */ \
+		{"Imperial Ministry", "imperial_ministry", "ministry", 3000.0f, 2, 0, 50, 50, 200, 20, 9, 50.0f, 3000.0f, 5.0f, 1.0f, 20.0f}, /* structures/han/ministry */ \
+		{"Blemmye Camp", "camp_blemmye", "camp_blemmye", 1000.0f, 2, 0, 100, 100, 0, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 1.0f}, /* structures/kush/camp_blemmye */ \
+		{"Noba Village", "camp_noba", "camp_noba", 1000.0f, 2, 0, 100, 100, 0, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 1.0f}, /* structures/kush/camp_noba */ \
+		{"Grand Temple of Amun", "temple_amun", "temple_amun", 4000.0f, 2, 0, 0, 0, 600, 0, 40, 100.0f, 1000.0f, 15.0f, 1.0f, 20.0f}, /* structures/kush/temple_amun */ \
+		{"Temple of Vesta", "temple_vesta", "temple_vesta", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 20.0f}, /* structures/rome/temple_vesta */ \
+		{"Temple of Mars", "temple_mars", "temple_mars", 2000.0f, 2, 0, 0, 0, 300, 0, 30, 50.0f, 500.0f, 15.0f, 1.0f, 20.0f}, /* structures/rome/temple_mars */ \
+		{"Ice House", "ice_house", "ice_house", 800.0f, 2, 0, 100, 0, 100, 0, 0, 15.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/ice_house */ \
+		{"Naval Shipyard", "super_dock", "super_dock", 5000.0f, 2, 0, 300, 0, 200, 0, 5, 125.0f, 2000.0f, 5.0f, 2.0f, 0.0f}, /* structures/cart/super_dock */ \
+		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara_food */ \
+		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara_wood */ \
+		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara_stone */ \
+		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara_metal */ \
+		{"Apartment Building", "house", "house", 1800.0f, 1, 0, 175, 0, 50, 20, 12, 22.5f, 1000.0f, 5.0f, 1.0f, 40.0f}, /* structures/cart/apartment */ \
+		{"Imperial Court", "imperial_court", "imperial_court", 4500.0f, 2, 0, 300, 250, 300, 30, 30, 125.0f, 3750.0f, 30.0f, 1.0f, 20.0f}, /* structures/han/civil_centre_court */ \
+		{"Great Tower", "tower_great", "tower_great", 2000.0f, 1, 0, 100, 0, 100, 0, 10, 37.5f, 1000.0f, 10.0f, 1.0f, 20.0f}, /* structures/han/defense_tower_great */ \
+		{"Palisade Gate", "palisade", "palisade", 500.0f, 1, 0, 10, 0, 0, 0, 0, 2.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/palisades_gate */ \
+		{"Iberian Embassy", "embassy", "embassy", 2000.0f, 2, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
+		{"Italic Embassy", "embassy", "embassy", 1500.0f, 1, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
+		{"Siege Wall", "wall_segment", "wall", 2250.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_long */ \
+		{"Siege Wall Gate", "gate", "gate", 1875.0f, 1, 0, 50, 0, 0, 0, 0, 6.25f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_gate */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -55,7 +55,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 40, 40}, /* structures/athen/gymnasium */ \
 		{0, 0, 0, 20, 40}, /* structures/athen/prytaneion */ \
 		{0, 0, 0, 20, 40}, /* structures/spart/gerousia */ \
-		{0, 0, 0, 40, 40}, /* structures/spart/syssiton */ \
+		{0, 0, 0, 30, 30}, /* structures/spart/syssiton */ \
 		{0, 0, 0, 40, 40}, /* structures/pers/tachara */ \
 		{0, 0, 80, 30, 0}, /* structures/rome/army_camp */ \
 		{0, 0, 0, 100, 100}, /* structures/rome/amphitheater_pompeii */ \
@@ -66,12 +66,12 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 40, 40}, /* structures/maur/palace */ \
 		{0, 0, 0, 20, 20}, /* structures/maur/pillar_ashoka */ \
 		{0, 0, 0, 90, 30}, /* structures/kush/pyramid_large */ \
-		{0, 0, 0, 30, 15}, /* structures/kush/pyramid_small */ \
+		{0, 0, 0, 20, 20}, /* structures/kush/pyramid_small */ \
 		{0, 0, 20, 0, 20}, /* structures/ptol/mercenary_camp */ \
 		{0, 0, 0, 40, 40}, /* structures/ptol/lighthouse */ \
 		{0, 0, 40, 40, 30}, /* structures/ptol/military_colony */ \
-		{0, 0, 0, 60, 60}, /* structures/han/academy */ \
-		{200, 0, 0, 40, 40}, /* structures/han/ministry */ \
+		{0, 0, 0, 30, 30}, /* structures/han/academy */ \
+		{200, 0, 10, 40, 10}, /* structures/han/ministry */ \
 		{0, 0, 20, 0, 20}, /* structures/kush/camp_blemmye */ \
 		{0, 0, 20, 0, 20}, /* structures/kush/camp_noba */ \
 		{0, 0, 0, 120, 0}, /* structures/kush/temple_amun */ \
@@ -87,8 +87,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 60, 60, 50}, /* structures/han/civil_centre_court */ \
 		{0, 0, 20, 20, 0}, /* structures/han/defense_tower_great */ \
 		{0, 0, 2, 0, 0}, /* structures/palisades_gate */ \
-		{0, 0, 0, 40, 0}, /* structures/cart/embassy_iberian */ \
-		{0, 0, 0, 0, 40}, /* structures/cart/embassy_italic */ \
+		{0, 0, 20, 20, 0}, /* structures/cart/embassy_iberian */ \
+		{0, 0, 20, 20, 0}, /* structures/cart/embassy_italic */ \
 		{0, 0, 12, 0, 0}, /* structures/rome/siege_wall_long */ \
 		{0, 0, 10, 0, 0}, /* structures/rome/siege_wall_gate */ \
 
@@ -169,14 +169,14 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_LIGHTHOUSE: return 3;
 		case BLD_MILITARY_COLONY: return 2;
 		case BLD_ACADEMY: return 3;
-		case BLD_MINISTRY: return 2;
+		case BLD_MINISTRY: return 1;
 		case BLD_CAMP_BLEMMYE: return 2;
 		case BLD_CAMP_NOBA: return 2;
 		case BLD_TEMPLE_AMUN: return 3;
 		case BLD_TEMPLE_VESTA: return 2;
 		case BLD_TEMPLE_MARS: return 3;
 		case BLD_ICE_HOUSE: return 1;
-		case BLD_SUPER_DOCK: return 3;
+		case BLD_SUPER_DOCK: return 2;
 		case BLD_TACHARA_FOOD: return 3;
 		case BLD_TACHARA_WOOD: return 3;
 		case BLD_TACHARA_STONE: return 3;
@@ -214,7 +214,7 @@ inline float civ_building_territory_radius(uint8_t type) {
 inline float civ_building_vision(uint8_t type) {
 	switch (type) {
 		case BLD_ARMY_CAMP: return 27.0f;
-		case BLD_LIGHTHOUSE: return 60.0f;
+		case BLD_LIGHTHOUSE: return 97.5f;
 		case BLD_MILITARY_COLONY: return 27.0f;
 		case BLD_MINISTRY: return 24.0f;
 		case BLD_SUPER_DOCK: return 30.0f;

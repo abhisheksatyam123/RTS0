@@ -23468,6 +23468,15 @@ void Simulation::rebuild_auras() {
 					if (std::strcmp(aura.id, no_loot_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							0.0f, aura_affected_players(team, no_loot_range_auras()[k].players), x, z, a);
+				// Further AuraManager kinds of a multi-effect aura (Brasidas' ranged damage beside
+				// his armour, Boudicca's speed beside her attack); a catafalque's are player mods.
+				if (ut != UNIT_CATAFALQUE)
+					for (uint16_t k = 0; k < AURA_EFFECT_ROW_COUNT; ++k) {
+						const AuraEffectRow &r = aura_effect_rows()[k];
+						if (r.kind == aura.kind || std::strcmp(aura.id, r.id) != 0) continue;
+						aura_mgr_.register_source(id, (AuraType)r.kind, r.range, r.value,
+							aura_affected_players(team, aura.players), x, z, a);
+					}
 				// Range auras on Builder/Rate (Xerxes, Ptolemy I, the Han minister).
 				if (const int row = builder_rate_aura_index(a); row >= 0)
 					aura_mgr_.register_source(id, AURA_BUILD, aura.radius * COMBAT_DISTANCE_SCALE,
