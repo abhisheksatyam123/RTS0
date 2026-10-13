@@ -132,6 +132,15 @@ int main() {
 
 	// Classes a civ lacks are refused (Athenians field no elephants).
 	CHECK(!m.cmd_train(0, tc, UNIT_ELEPHANT));
+	// A class request trains only what the building's Trainer list names: no cavalry
+	// or healers at the barracks, no swordsmen at the Civic Centre (0 A.D. Trainer.js).
+	{
+		const uint32_t bar = m.spawn_building(-20, -6, BLD_BARRACKS, 0, 1.0f);
+		CHECK(!m.cmd_train(0, bar, UNIT_CAVALRY));
+		CHECK(!m.cmd_train(0, bar, UNIT_HEALER));
+		CHECK(m.cmd_train(0, bar, UNIT_SPEARMAN));
+		CHECK(!m.cmd_train(0, tc, UNIT_SWORDSMAN));
+	}
 
 	// Building health takes 0 A.D.'s civ structure bonus (Hellenic Architecture +10%).
 	uint32_t ath_house = s.spawn_building(10, 10, BLD_HOUSE, 0, 1.0f);

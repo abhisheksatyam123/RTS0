@@ -74,7 +74,7 @@ inline constexpr TurretPointSet TURRET_POINTS[14][3] = {
 	},
 	{ // CIV_KUSHITES
 		{4, {{-0.42f, 3.248f, -0.28f}, {0.42f, 3.248f, -0.28f}, {-0.42f, 3.248f, 0.28f}, {0.42f, 3.248f, 0.28f}}}, // BLD_WALL_SEGMENT: kush/wall_long
-		{0, {}}, // BLD_GATE: kush/wall_gate
+		{6, {{-1.0f, 3.248f, -0.84f}, {1.0f, 3.248f, -0.84f}, {-1.0f, 3.248f, 0.0f}, {1.0f, 3.248f, 0.0f}, {-1.0f, 3.248f, 0.84f}, {1.0f, 3.248f, 0.84f}}}, // BLD_GATE: kush/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: kush/outpost
 	},
 	{ // CIV_PTOLEMIES
