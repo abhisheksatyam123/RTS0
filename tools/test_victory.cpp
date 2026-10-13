@@ -253,7 +253,8 @@ int main() {
 	{
 		Simulation *sim = fresh(VICTORY_CONQUEST_UNITS);
 		sim->spawn_unit(-40.0f, 40.0f, 2, UNIT_SWORDSMAN);
-		const uint32_t house = sim->spawn_building(-30, -30, BLD_HOUSE, 1, 1.0f); // cells: (-60, -60) m
+		// An outpost: once captured it stays on neutral land without decaying (TerritoryDecay.js).
+		const uint32_t house = sim->spawn_building(-30, -30, BLD_OUTPOST, 1, 1.0f); // cells: (-60, -60) m
 		run(*sim, 0.5f);
 		wipe(*sim, 1, true, false);
 		run(*sim, 1.0f);
@@ -356,6 +357,7 @@ int main() {
 		Simulation *sim = fresh(VICTORY_WONDER);
 		sim->set_wonder_duration(120.0f);
 		sim->spawn_building(-20, 20, BLD_WONDER, 0, 1.0f);
+		sim->spawn_building(-20, 34, BLD_TOWN_CENTER, 0, 1.0f); // the wonder's territory: no decay to Gaia
 		run(*sim, 119.0f);
 		CHECK(!sim->is_game_over() && sim->wonder_time_remaining() < 2.0f);
 		run(*sim, 2.0f);

@@ -143,6 +143,7 @@ int main() {
 	{
 		static Simulation s;
 		fresh(s);
+		s.spawn_building_world(-55.0f, 30.0f, BLD_TOWN_CENTER, 0, 1.0f); // its territory keeps the farmstead from decaying
 		s.spawn_building_world(-30.0f, 10.0f, BLD_FARMSTEAD, 0, 1.0f);
 		const uint32_t field = s.spawn_building_world(-20.0f, 10.0f, BLD_FIELD, 0, 1.0f);
 		const uint32_t first = s.spawn_unit(-16.0f, 10.0f, 0, UNIT_FEMALE_CITIZEN);
