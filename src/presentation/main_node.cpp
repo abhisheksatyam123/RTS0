@@ -1184,8 +1184,8 @@ void RtsoMain::_ready() {
 	// session_audio.h).
 	music_.build(this);
 	session_audio_.build(this);
-	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db) {
-		if (view) view->play_spatial_sound(s, pos, db, 75.0f, 1.0f);
+	session_audio_.set_spatial([this](const Ref<AudioStream> &s, Vector3 pos, float db, float pitch) {
+		if (view) view->play_spatial_sound(s, pos, db, 75.0f, pitch);
 	});
 
 	// gui/session/Ambient.js: one looping dayscape track ("TODO: Let the map decide the tracks").
@@ -3351,6 +3351,7 @@ void RtsoMain::_process(double delta) {
 		session_audio_.set_listener(focus.x, focus.z);
 	}
 	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
+	session_audio_.tick_combat(sim, local_player(), attacks, match_elapsed_time);
 	update_music_state();
 
 	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity

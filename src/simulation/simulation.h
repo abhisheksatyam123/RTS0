@@ -390,6 +390,7 @@ public:
 		uint8_t target_is_building;
 		float x, z; // the target's position
 		float damage;
+		uint8_t melee; // a melee hit (the attacker's attack_melee sound plays on it)
 	};
 	static constexpr size_t kMaxAttackedEvents = 4096;
 	// Hands over the hits since the last call.
@@ -2105,7 +2106,7 @@ private:
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage);
+			bool target_is_building, float damage, bool melee = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
 	std::vector<SessionNotice> session_notices_;
