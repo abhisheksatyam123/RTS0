@@ -151,31 +151,39 @@ HashMap<String, PlayerMask> &player_masks() {
 	}
 	return m;
 }
-// tools/extract_normal_maps.py: data/normal_maps.json maps the same image
-// keys to 0 A.D.'s normTex for that skin (green flipped to OpenGL).
-HashMap<String, String> &normal_maps() {
-	static auto &m = *new HashMap<String, String>();
-	static bool loaded = false;
-	if (!loaded) {
-		loaded = true;
-		Ref<FileAccess> f = FileAccess::open("res://data/normal_maps.json", FileAccess::READ);
-		if (f.is_valid()) {
-			Dictionary root = JSON::parse_string(f->get_as_text());
-			Array keys = root.keys();
-			for (int i = 0; i < keys.size(); ++i) m.insert(keys[i], root[keys[i]]);
-		}
+// {image key: texture path} tables written by tools/extract_normal_maps.py
+// (data/normal_maps.json: 0 A.D.'s normTex for that skin, green flipped to
+// OpenGL) and tools/extract_specular_maps.py (data/specular_maps.json: its
+// specTex as GGX roughness in red and Godot specular in green).
+HashMap<String, String> load_texture_table(const char *path) {
+	HashMap<String, String> m;
+	Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ);
+	if (f.is_valid()) {
+		Dictionary root = JSON::parse_string(f->get_as_text());
+		Array keys = root.keys();
+		for (int i = 0; i < keys.size(); ++i) m.insert(keys[i], root[keys[i]]);
 	}
+	return m;
+}
+HashMap<String, String> &normal_maps() {
+	static auto &m = *new HashMap<String, String>(load_texture_table("res://data/normal_maps.json"));
+	return m;
+}
+HashMap<String, String> &specular_maps() {
+	static auto &m = *new HashMap<String, String>(load_texture_table("res://data/specular_maps.json"));
 	return m;
 }
 String image_key(const Ref<Texture2D> &tex) {
 	// res://assets/models/units/spearman_tex0.png -> units/spearman_tex0
 	return tex.is_valid() ? tex->get_path().trim_prefix("res://assets/models/").get_basename() : String();
 }
-Ref<Texture2D> normal_map_for(const Ref<Texture2D> &albedo) {
-	const String *path = normal_maps().getptr(image_key(albedo));
+Ref<Texture2D> table_texture_for(HashMap<String, String> &table, const Ref<Texture2D> &albedo) {
+	const String *path = table.getptr(image_key(albedo));
 	if (!path || !ResourceLoader::get_singleton()->exists(*path)) return Ref<Texture2D>();
 	return ResourceLoader::get_singleton()->load(*path);
 }
+Ref<Texture2D> normal_map_for(const Ref<Texture2D> &albedo) { return table_texture_for(normal_maps(), albedo); }
+Ref<Texture2D> specular_map_for(const Ref<Texture2D> &albedo) { return table_texture_for(specular_maps(), albedo); }
 Ref<Shader> &player_color_shader() {
 	static Ref<Shader> &sh = *new Ref<Shader>();
 	return sh;
@@ -185,33 +193,40 @@ HashMap<uint64_t, Ref<ShaderMaterial>> &player_color_mats() {
 	return m;
 }
 
+// Opaque skins with a specular map also take the shader without a mask, as
+// BaseMaterial3D has no per-pixel specular.
 Ref<ShaderMaterial> player_color_material(const Ref<BaseMaterial3D> &bm) {
 	const uint64_t id = bm->get_instance_id();
 	if (Ref<ShaderMaterial> *hit = player_color_mats().getptr(id)) return *hit;
 	Ref<ShaderMaterial> out;
 	Ref<Texture2D> tex = bm->get_texture(BaseMaterial3D::TEXTURE_ALBEDO);
 	if (tex.is_valid()) {
-		if (const PlayerMask *pm = player_masks().getptr(image_key(tex))) {
-			Ref<Texture2D> mask = ResourceLoader::get_singleton()->exists(pm->mask)
-					? Ref<Texture2D>(ResourceLoader::get_singleton()->load(pm->mask))
-					: Ref<Texture2D>();
-			Ref<Shader> &sh = player_color_shader();
-			if (sh.is_null()) sh = ResourceLoader::get_singleton()->load("res://shaders/player_color.gdshader");
-			if (mask.is_valid() && sh.is_valid()) {
-				out.instantiate();
-				out->set_shader(sh);
-				out->set_shader_parameter("albedo_tex", tex);
+		const PlayerMask *pm = player_masks().getptr(image_key(tex));
+		Ref<Texture2D> mask = pm && ResourceLoader::get_singleton()->exists(pm->mask)
+				? Ref<Texture2D>(ResourceLoader::get_singleton()->load(pm->mask))
+				: Ref<Texture2D>();
+		Ref<Texture2D> spec = specular_map_for(tex);
+		const bool opaque = bm->get_transparency() == BaseMaterial3D::TRANSPARENCY_DISABLED;
+		Ref<Shader> &sh = player_color_shader();
+		if (sh.is_null()) sh = ResourceLoader::get_singleton()->load("res://shaders/player_color.gdshader");
+		if ((mask.is_valid() || (spec.is_valid() && opaque)) && sh.is_valid()) {
+			out.instantiate();
+			out->set_shader(sh);
+			out->set_shader_parameter("albedo_tex", tex);
+			if (mask.is_valid()) {
 				out->set_shader_parameter("mask_tex", mask);
-				out->set_shader_parameter("albedo", bm->get_albedo());
 				out->set_shader_parameter("bake_tint", Vector3(pm->tint.r, pm->tint.g, pm->tint.b));
-				out->set_shader_parameter("srgb_vertex_color", bm->get_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR));
-				out->set_shader_parameter("roughness", bm->get_roughness());
-				out->set_shader_parameter("metallic", bm->get_metallic());
-				out->set_shader_parameter("specular", bm->get_specular());
-				Ref<Texture2D> nm = normal_map_for(tex);
-				out->set_shader_parameter("use_normal_map", nm.is_valid());
-				if (nm.is_valid()) out->set_shader_parameter("normal_tex", nm);
 			}
+			out->set_shader_parameter("albedo", bm->get_albedo());
+			out->set_shader_parameter("srgb_vertex_color", bm->get_flag(BaseMaterial3D::FLAG_SRGB_VERTEX_COLOR));
+			out->set_shader_parameter("roughness", bm->get_roughness());
+			out->set_shader_parameter("metallic", bm->get_metallic());
+			out->set_shader_parameter("specular", bm->get_specular());
+			Ref<Texture2D> nm = normal_map_for(tex);
+			out->set_shader_parameter("use_normal_map", nm.is_valid());
+			if (nm.is_valid()) out->set_shader_parameter("normal_tex", nm);
+			out->set_shader_parameter("use_specular_map", spec.is_valid());
+			if (spec.is_valid()) out->set_shader_parameter("specular_tex", spec);
 		}
 	}
 	player_color_mats().insert(id, out);
