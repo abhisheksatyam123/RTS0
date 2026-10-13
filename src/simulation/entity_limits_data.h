@@ -535,6 +535,9 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // sele/catafalque
 	{LIMIT_NONE, 0}, // han/catafalque
 	{LIMIT_NONE, 0}, // pers/champion_infantry_archer_upgrade
+	{LIMIT_NONE, 0}, // brit/ship_fire_fire
+	{LIMIT_NONE, 0}, // gaul/ship_fire_fire
+	{LIMIT_NONE, 0}, // iber/ship_fire_fire
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
@@ -633,6 +636,7 @@ inline constexpr uint8_t BUILDING_LIMIT_CATEGORY[BLD_TYPE_COUNT] = {
 	LIMIT_NONE, // BLD_PALISADE_GATE
 	LIMIT_NONE, // BLD_EMBASSY_IBERIAN
 	LIMIT_NONE, // BLD_EMBASSY_ITALIC
+	LIMIT_NONE, // BLD_SIEGE_WALL
 };
 
 } // namespace rtso

@@ -413,7 +413,8 @@ enum BuildingType : uint8_t {
 	BLD_PALISADE_GATE = 60,   // palisades_gate
 	BLD_EMBASSY_IBERIAN = 61, // cart/embassy_iberian (BLD_EMBASSY is the Celtic one)
 	BLD_EMBASSY_ITALIC = 62,  // cart/embassy_italic
-	BLD_TYPE_COUNT = 63
+	BLD_SIEGE_WALL = 63,      // rome/wallset_siege: siege_wall_long/medium/short and siege_wall_tower
+	BLD_TYPE_COUNT = 64       // the most bld_bit()'s uint64_t masks hold
 };
 
 #include "civ_building_data.h"
@@ -471,9 +472,9 @@ enum ResourceSubtype : uint8_t {
 // Only the drawing reads it; FLORA_DEFAULT lets the viewer pick from the map's biome.
 enum FloraKind : uint8_t {
 	FLORA_DEFAULT = 0,
-	FLORA_BROADLEAF = 1, // elm, maple, poplar, olive, carob, teak, banyan and other leafy trees
-	FLORA_PINE = 2,      // pine, fir, cedar, cypress, juniper
-	FLORA_PALM = 3,      // date, fan, palmyra and tropical palms
+	FLORA_BROADLEAF = 1, // elm, tamarix and other leafy trees without their own model
+	FLORA_PINE = 2,      // pine, cedar, larch, spruce, yew
+	FLORA_PALM = 3,      // date palms
 	FLORA_OAK = 4,
 	FLORA_BAOBAB = 5,
 	FLORA_ACACIA = 6,
@@ -482,14 +483,31 @@ enum FloraKind : uint8_t {
 	FLORA_BERRY = 9,     // gaia/fruit/berry_*, grapes
 	FLORA_APPLE = 10,    // gaia/fruit/apple, fig
 	FLORA_DATE = 11,     // gaia/fruit/date
-	FLORA_COUNT = 12
+	FLORA_CAROB = 12,
+	FLORA_POPLAR = 13,
+	FLORA_FAN_PALM = 14,    // medit_fan_palm
+	FLORA_BEECH = 15,
+	FLORA_DEAD = 16,        // dead, oak_dead, poplar_dead
+	FLORA_CYPRESS = 17,
+	FLORA_ALEPPO_PINE = 18, // aleppo_pine, pine_maritime, pine_black
+	FLORA_FIR = 19,         // fir, fir_winter, pine_w
+	FLORA_TROPIC_BUSH = 20,
+	FLORA_OLIVE = 21,
+	FLORA_BANYAN = 22,      // banyan, strangler
+	FLORA_TROPIC_PALM = 23, // palm_tropic, palm_palmyra, palm_doum, senegal_date_palm
+	FLORA_MAPLE = 24,
+	FLORA_JUNIPER = 25,
+	FLORA_TEAK = 26,        // teak, toona
+	FLORA_COUNT = 27
 };
 
 // The FloraKind a map JSON "resources" type names ("pine", "berry", ...; tools/port_0ad_maps.py),
 // or FLORA_COUNT for a name that is not a plant ("tree" and "food" are FLORA_DEFAULT).
 inline uint8_t flora_kind_by_name(const char *name) {
 	static const char *const kNames[FLORA_COUNT] = {
-		"tree", "broadleaf", "pine", "palm", "oak", "baobab", "acacia", "bamboo", "bush", "berry", "apple", "date"};
+		"tree", "broadleaf", "pine", "palm", "oak", "baobab", "acacia", "bamboo", "bush", "berry", "apple", "date",
+		"carob", "poplar", "fan_palm", "beech", "dead", "cypress", "aleppo_pine", "fir", "tropic_bush", "olive",
+		"banyan", "tropic_palm", "maple", "juniper", "teak"};
 	for (int k = 0; k < FLORA_COUNT; ++k)
 		if (std::strcmp(name, kNames[k]) == 0) return (uint8_t)k;
 	if (std::strcmp(name, "food") == 0 || std::strcmp(name, "fruit") == 0) return FLORA_DEFAULT;
@@ -1035,7 +1053,15 @@ inline constexpr float PALISADE_TOWER_LENGTH = 3.0f / 4.0f;
 inline constexpr float PALISADE_TOWER_HALF = 5.0f / 4.0f * 0.5f;
 inline constexpr float PALISADE_HALF_DEPTH = 2.0f / 4.0f * 0.5f;
 
-enum WallSetKind : uint8_t { WALLSET_STONE = 0, WALLSET_PALISADE = 1, WALLSET_COUNT };
+// rome/wallset_siege.xml (MaxTowerOverlap 1.00): siege_wall_long/medium/short (WallPiece/Length 36,
+// 24 and 12 m, Static depth 4 m) between siege_wall_towers (WallPiece/Length 6 m on a 7 m square
+// footprint). Like palisades, one type holds both: a siege wall tower is a BLD_SIEGE_WALL whose
+// half width is SIEGE_WALL_TOWER_HALF.
+inline constexpr float SIEGE_WALL_TOWER_LENGTH = 6.0f / 4.0f;
+inline constexpr float SIEGE_WALL_TOWER_HALF = 7.0f / 4.0f * 0.5f;
+inline constexpr float SIEGE_WALL_HALF_DEPTH = 4.0f / 4.0f * 0.5f;
+
+enum WallSetKind : uint8_t { WALLSET_STONE = 0, WALLSET_PALISADE = 1, WALLSET_SIEGE = 2, WALLSET_COUNT };
 
 // A WallSet's pieces and their 0 A.D. values: Health/Max, Cost (stone for walls, wood for
 // palisades) and BuildTime (x0.25) of the long, medium and short segment and of the tower. A
@@ -1062,6 +1088,12 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 			PALISADE_TOWER_LENGTH, PALISADE_TOWER_HALF, 0.05f, 0.85f, PALISADE_HALF_DEPTH,
 			{600.0f, 400.0f, 200.0f}, {12.0f, 8.0f, 4.0f}, {12.0f * 0.25f, 8.0f * 0.25f, 4.0f * 0.25f},
 			700.0f, 14.0f, 14.0f * 0.25f},
+		// rome/siege_wall_*: the stone wall's Health (3000, 2000, 1000; tower 4000) x 0.75; wood 60,
+		// 40, 20 and 80; BuildTime 30, 20, 10 and 40 s.
+		{BLD_SIEGE_WALL, BLD_SIEGE_WALL, {WALL_SEGMENT_LENGTHS[0], WALL_SEGMENT_LENGTHS[1], WALL_SEGMENT_LENGTHS[2]},
+			SIEGE_WALL_TOWER_LENGTH, SIEGE_WALL_TOWER_HALF, 0.05f, 1.00f, SIEGE_WALL_HALF_DEPTH,
+			{2250.0f, 1500.0f, 750.0f}, {60.0f, 40.0f, 20.0f}, {30.0f * 0.25f, 20.0f * 0.25f, 10.0f * 0.25f},
+			3000.0f, 80.0f, 40.0f * 0.25f},
 	};
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
 }
@@ -1073,12 +1105,27 @@ inline bool is_palisade_tower(uint8_t type, float half_w) {
 	return type == BLD_PALISADE && std::fabs(half_w - PALISADE_TOWER_HALF) < 0.01f;
 }
 
+inline bool is_siege_wall_tower(uint8_t type, float half_w) {
+	return type == BLD_SIEGE_WALL && std::fabs(half_w - SIEGE_WALL_TOWER_HALF) < 0.01f;
+}
+
+// A WallSet tower held by its segments' type (a palisade tower, a siege wall tower).
+inline bool is_wallset_tower_piece(uint8_t type, float half_w) {
+	return is_palisade_tower(type, half_w) || is_siege_wall_tower(type, half_w);
+}
+
+// The WallSet a piece of `type` belongs to.
+inline uint8_t wallset_kind_of(uint8_t type) {
+	return type == BLD_PALISADE || type == BLD_PALISADE_GATE ? WALLSET_PALISADE
+	       : type == BLD_SIEGE_WALL ? WALLSET_SIEGE : WALLSET_STONE;
+}
+
 // Whether a structure of half width `half_w` is a WallSet piece. The one-cell segment (and the
 // gate it upgrades to) and palisade that maps and older saves place keep their square footprint
 // and their building_type_info row.
 inline bool is_wallset_piece(uint8_t type, float half_w) {
 	if (type == BLD_PALISADE) return std::fabs(half_w - 1.0f) > 0.01f;
-	if (type == BLD_PALISADE_GATE) return true;
+	if (type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL) return true;
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
@@ -1086,8 +1133,8 @@ inline bool is_wallset_piece(uint8_t type, float half_w) {
 // its building_type_info row. what: 0 Health, 1 Cost, 2 BuildTime.
 inline float wallset_piece_value(uint8_t type, float half_w, int what) {
 	if (!is_wallset_piece(type, half_w) || is_gate_type(type)) return -1.0f;
-	const WallSetInfo &ws = wallset_info(type == BLD_PALISADE ? WALLSET_PALISADE : WALLSET_STONE);
-	if (is_palisade_tower(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
+	const WallSetInfo &ws = wallset_info(wallset_kind_of(type));
+	if (is_wallset_tower_piece(type, half_w)) return what == 0 ? ws.tower_health : what == 1 ? ws.tower_cost : ws.tower_build_time;
 	const float *v = what == 0 ? ws.health : what == 1 ? ws.cost : ws.build_time;
 	for (int k = 0; k < 3; ++k)
 		if (std::fabs(0.5f * ws.lengths[k] - half_w) < 0.01f) return v[k];
@@ -1097,8 +1144,8 @@ inline float wallset_piece_value(uint8_t type, float half_w, int what) {
 // Half the depth (along the footprint's v axis, nav/footprint.h) of a building of `type` whose half
 // width is `half_w`. RTS0's buildings are square but for WallSet segments, long and thin.
 inline float building_half_depth(uint8_t type, float half_w) {
-	if (!is_wallset_piece(type, half_w) || is_palisade_tower(type, half_w)) return half_w;
-	return type == BLD_PALISADE || type == BLD_PALISADE_GATE ? PALISADE_HALF_DEPTH : WALL_HALF_DEPTH;
+	if (!is_wallset_piece(type, half_w) || is_wallset_tower_piece(type, half_w)) return half_w;
+	return wallset_info(wallset_kind_of(type)).half_depth;
 }
 
 // 0 A.D. Identity/Requirements/Techs per structure: 1 = phase_village,
@@ -1362,7 +1409,8 @@ inline float building_eject_health(uint8_t type) {
 		case BLD_FORTRESS: return 0.075f;
 		case BLD_CORRAL: return 0.5f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
-		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE: return 0.0f;
+		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE:
+		case BLD_SIEGE_WALL: return 0.0f;
 		default: return 0.1f;
 	}
 }
@@ -1392,7 +1440,8 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_CORRAL: return c | TC_CORRAL;
 		case BLD_MARKET: return c | TC_MARKET;
 		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
-		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE: return c | TC_WALL | TC_DEFENSIVE;
+		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
+		case BLD_SIEGE_WALL: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
@@ -1664,6 +1713,20 @@ inline int relic_global_aura_index(int16_t aura) {
 	return aura >= 0 && aura < CIV_HERO_AURA_COUNT ? kIndex[(size_t)aura] : -1;
 }
 static_assert(RELIC_GLOBAL_AURA_COUNT <= 64, "global aura masks are uint64_t");
+
+// The builder_rate_range_auras() row of civ_hero_aura `aura`, or -1 (no Builder/Rate effect).
+inline int builder_rate_aura_index(int16_t aura) {
+	static const auto kIndex = [] {
+		std::array<int8_t, CIV_HERO_AURA_COUNT> idx{};
+		for (uint16_t a = 0; a < CIV_HERO_AURA_COUNT; ++a) {
+			idx[a] = -1;
+			for (uint16_t g = 0; g < BUILDER_RATE_RANGE_AURA_COUNT; ++g)
+				if (std::strcmp(civ_hero_aura_table()[a].id, builder_rate_range_auras()[g].id) == 0) idx[a] = (int8_t)g;
+		}
+		return idx;
+	}();
+	return aura >= 0 && aura < CIV_HERO_AURA_COUNT ? kIndex[(size_t)aura] : -1;
+}
 
 // Does an entity with these TechClass bits match relic aura modifier `m`?
 inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {
@@ -2339,6 +2402,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
 		case BLD_PALISADE_GATE:
+		case BLD_SIEGE_WALL:
 		case BLD_WALL_TOWER:
 			return "rubble_small";
 		default:
@@ -2368,6 +2432,7 @@ inline const char *civ_building_foundation(uint8_t type) {
 		case BLD_GATE:
 		case BLD_PALISADE:
 		case BLD_PALISADE_GATE:
+		case BLD_SIEGE_WALL:
 		case BLD_WALL_TOWER:
 			return "foundation_wall";
 		case BLD_FIELD:
@@ -2396,6 +2461,7 @@ inline const char *civ_building_scaffold(uint8_t type) {
 		case BLD_OUTPOST:
 		case BLD_PALISADE:
 		case BLD_PALISADE_GATE:
+		case BLD_SIEGE_WALL:
 		case BLD_WALL_TOWER:
 		case BLD_FIELD:
 			return "scaffold_small";

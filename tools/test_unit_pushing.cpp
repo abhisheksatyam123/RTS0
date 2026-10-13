@@ -8,8 +8,10 @@
 //
 //  1. A walker crosses a block of idle spearmen: it paths round them, and none of them is pushed.
 //  2. Spearmen that appear one by one on the same spot (as a ship's passengers come ashore) spread out.
-//  3. A group walks in a crowd without overlapping and ends spread round its point (a second after
-//     it arrives: pushing pressure dampens the pushes of a crowd that has just come together).
+//  3. A group walks in a crowd and ends spread round its point (a second after it arrives: pushing
+//     pressure dampens the pushes of a crowd that has just come together). On the way no two walkers
+//     come closer than the distance 0 A.D. treats as overlapping (Push: half the moving pair's
+//     MovingSpread of its reach), where the push between them is at its strongest.
 //  4. Two groups walking through each other both arrive.
 //  5. The heavier unit pushes harder: a ram and a spearman standing on each other part mostly by
 //     the spearman moving (UnitMotion Weight 50 against 10).
@@ -133,7 +135,15 @@ int main() {
 		std::printf("  30 walking 40 units: done after %d ticks, %.2f apart at least on the way, %.2f a second later, %.2f from the point at most\n",
 		            done, walking_min, min_pair, far);
 		CHECK(done > 0 && done <= 300, "a group walk ends");
-		CHECK(walking_min >= 2.0f * unit_collision_radius(UNIT_SWORDSMAN), "walkers don't overlap on the way");
+		// A walking crowd closes up as in 0 A.D.: its rear carries less pressure, so walks faster, and the
+		// pushes between walkers mostly cancel under MinimalForce until a pair comes within half its
+		// MovingSpread distance (CCmpUnitMotion_System.cpp Push), 0.96 for two swordsmen. Where the
+		// minimum lands above that depends on the walk speed (with walk speeds scaled from 0.9 to 1.3
+		// it ranges from 0.99 to 1.38), so the check is 0 A.D.'s bound, not the bodies' 1.1.
+		const float c = unit_push_clearance(UNIT_SWORDSMAN);
+		const float overlap = ((c + c) * (5.0f / 7.0f) * 1.4f + 4.0f * PUSH_SCALE) * 0.4f * 0.5f;
+		std::printf("  walkers' overlap distance %.2f\n", overlap);
+		CHECK(walking_min >= overlap, "walkers don't overlap on the way");
 		CHECK(min_pair >= 2.0f * unit_collision_radius(UNIT_SWORDSMAN) && far < 7.0f, "and stand apart round their point");
 	}
 	{

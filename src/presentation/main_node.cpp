@@ -81,6 +81,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
 	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
+	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
 	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
@@ -141,6 +142,8 @@ void RtsoMain::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
+	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
+	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -183,6 +186,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "FORTRESS", rtso::BLD_FORTRESS);
 	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
 	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
+	bind_enum("BuildingType", "SIEGE_WALL", rtso::BLD_SIEGE_WALL);
 	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
 	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
@@ -296,6 +300,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "fortress" || n == "palisades_fort" || n == "keep") return rtso::BLD_FORTRESS;
 	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
 	if (n == "palisade_gate" || n == "palisades_gate") return rtso::BLD_PALISADE_GATE;
+	if (n == "siege_wall" || n == "wallset_siege") return rtso::BLD_SIEGE_WALL;
 	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
 	if (n == "wonder") return rtso::BLD_WONDER;
 	if (n == "dock") return rtso::BLD_DOCK;
@@ -1138,6 +1143,7 @@ void RtsoMain::_ready() {
 	if (!start_pending_replay() && !load_pending_save()) {
 		apply_match_settings();
 		begin_match_recording(nullptr);
+		call_deferred("_start_menu_net");
 	}
 }
 
@@ -2805,7 +2811,7 @@ void RtsoMain::_process(double delta) {
 			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
-			const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
@@ -2876,10 +2882,11 @@ void RtsoMain::_process(double delta) {
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
 				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
 				ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
-				ghost_mesh->set_rotation(Vector3(0.0f,
-						placement_angle_at(current_build_type, gx, gz) - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
+				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
+				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
-				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type) == rtso::Simulation::PLACE_OK;
+				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle) ==
+						rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
 			}
 		}
@@ -2898,12 +2905,8 @@ void RtsoMain::_process(double delta) {
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;
 		write_replay(); // the finished match, with its final statistics
-		Node *summary = get_node_or_null(NodePath("SummaryScreen"));
-		if (summary) {
-			summary->call("configure", summary_gui(false));
-			summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(), (float)match_elapsed_time);
-		}
 	}
+	tick_quit_confirmation();
 
 	// Check Victory / Defeat Condition, from the local player's seat
 	if (sim->is_victory_for(local_player())) {
@@ -4205,7 +4208,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 
 				if (build_mode) {
-					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE) {
+					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
+							current_build_type == rtso::BLD_SIEGE_WALL) {
 						wall_drag_mode = true;
 						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
 						return;
@@ -4272,7 +4276,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
 					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 					const bool queued = rtso::hotkeys::held("session.queue");
-					const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+					const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 							drag_end_pos.x, drag_end_pos.z, nullptr, nullptr, wall_kind).empty();
 					if (any) {
@@ -5563,6 +5567,42 @@ void RtsoMain::_on_lobby_observe_toggled(bool on) {
 	if (net_lockstep() && !net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin(on);
 }
 
+void RtsoMain::_start_menu_net() {
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	if (!ms) return;
+	const String mode = ms->get("net_mode");
+	if (mode != "host" && mode != "join") return;
+	ms->set("net_mode", ""); // once: a later match starts offline unless the lobby says otherwise
+	const String lobby = ms->get("net_lobby");
+	if (lobby.contains(":")) {
+		lobby_http_host_ = lobby.get_slice(":", 0).utf8().get_data();
+		lobby_http_port_ = (uint16_t)lobby.get_slice(":", 1).to_int();
+	}
+	if (lobby_name) lobby_name->set_text(ms->get("net_player_name"));
+	if (lobby_host && mode == "join") lobby_host->set_text(ms->get("net_ip"));
+	if (lobby_port) lobby_port->set_text(String::num_int64((int64_t)ms->get("net_port")));
+	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
+	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
+	if (lobby_panel) lobby_panel->set_visible(true);
+	if (mode == "host") _on_lobby_host_pressed();
+	else _on_lobby_join_pressed();
+}
+
+Dictionary RtsoMain::get_lobby_state() const {
+	Dictionary d;
+	const bool hosting = net_host_.isHost();
+	int players = 0;
+	if (hosting) {
+		players = 1;
+		for (const auto &p : net_host_.getPeers())
+			if (p.id != 0 && p.connected && p.is_authenticated && !p.is_observer) ++players;
+	}
+	d["hosting"] = hosting;
+	d["players"] = players;
+	d["started"] = net_game_started_;
+	return d;
+}
+
 // 0 A.D. gamesetup player assignment (PlayerAssignmentsController.js): the host
 // gives each client a slot, or makes it an observer; a client given an AI slot
 // replaces the AI, and one given a slot another client plays swaps with it.
@@ -5772,7 +5812,8 @@ void RtsoMain::_on_lobby_host_pressed() {
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
 	std::ostringstream js;
-	js << "{\"id\":\"room-" << cfg.port << "\",\"host_ip\":\"127.0.0.1\",\"host_port\":"
+	// No host_ip: the lobby records the address this request comes from.
+	js << "{\"id\":\"room-" << cfg.port << "\",\"host_port\":"
 	   << cfg.port << ",\"players\":1,\"max_players\":" << (int)cfg.maxPlayers
 	   << ",\"map_id\":\"default\"}";
 	std::string body;

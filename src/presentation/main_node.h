@@ -345,6 +345,11 @@ public:
 	void apply_game_setup(const rtso::GameSetupParams &setup);
 	void _on_lobby_refresh_pressed();
 	void _on_lobby_observe_toggled(bool on);
+	// The menu lobby (scenes/menu/lobby.gd) hands over a host or join through
+	// MatchSettings net_*; this starts it once the match scene is up.
+	void _start_menu_net();
+	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
+	Dictionary get_lobby_state() const;
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
@@ -512,6 +517,7 @@ private:
 	// ---- Match archive: replays, saves and statistics (match_archive.cpp) ----
 	bool local_turns_ = true;
 	bool summary_shown_ = false; // per match (was a function static: only the first match got one)
+	bool finished_asked_ = false; // QuitConfirmationDefeat shown for the local player
 	uint32_t match_seed_ = 0;
 	bool replay_recording_ = false;
 	bool replay_finished_ = false;
@@ -541,6 +547,8 @@ private:
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
 	Dictionary summary_gui(bool in_game) const;
+	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
+	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
 	void write_save_thumbnail(const String &path);
 };

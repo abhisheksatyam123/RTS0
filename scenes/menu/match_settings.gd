@@ -74,6 +74,15 @@ var slot_teams: Array = [0, 0]
 # a replay folder (user://replays/<id>/) to watch, or a saved game to load.
 var replay_dir: String = ""
 var load_save_path: String = ""
+# Multiplayer handed from the lobby screen to the match (main_node _start_menu_net):
+# net_mode "host" or "join" (cleared once used), net_lobby the lobby server "ip:port".
+var net_mode: String = ""
+var net_lobby: String = ""
+var net_player_name: String = "Player"
+var net_ip: String = "127.0.0.1"
+var net_port: int = 20595
+var net_password: String = ""
+var net_observe: bool = false
 # 0 A.D. campaignData: the campaign run (its file name under user://saves/campaigns/)
 # and the level being played; empty outside a campaign. Saves and replays keep them.
 var campaign_run: String = ""
