@@ -3065,19 +3065,17 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
 	const uint8_t civ = civ_of(player_id);
 	const uint16_t allies = ally_civ_mask(player_id);
-	// han_minister_garrison.json (Excellency of Works): each minister garrisoned in a
-	// structure other than the Imperial Ministry cuts its technologies' cost and time by 2%.
-	float ministers = b.type == BLD_MINISTRY ? 1.0f : std::pow(0.98f, (float)garrisoned_ministers(b));
+	float library = 1.0f;
 	// structures/library.json (Library of Alexandria): while the player has a finished
 	// library, its technologies cost 15% less and take 15% less time (not stackable).
 	for (const Building &o : buildings_)
 		if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
-			ministers *= 0.85f;
+			library *= 0.85f;
 			break;
 		}
 	const float *tc = tech_mods(player_id).bld_tech_cost[b.type]; // Researcher/TechCostMultiplier
 	auto team = [&](uint8_t stat, int8_t r) {
-		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * ministers
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * library
 			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
 	};
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
@@ -12281,7 +12279,7 @@ void Simulation::tick_trickle(float dt) {
 	}
 
 	// Structures, every 2 s (their templates' Interval 2000): template_structure_wonder.xml
-	// 1 food, wood, stone and metal; structures/han/ministry.xml 0.1 wood, stone and metal;
+	// 1 food, wood, stone and metal;
 	// structures/pers/ice_house.xml 1 food. Technologies add to a structure's Rates
 	// (Subterranean Aqueducts: ice houses +1 food). A corral's own rate is 0; each
 	// garrisoned animal adds 1, 2 or 3 food every 5 s by its size
@@ -12293,10 +12291,6 @@ void Simulation::tick_trickle(float dt) {
 			float rate[RES_COUNT] = {};
 			if (b.type == BLD_WONDER) {
 				rate[RES_FOOD] = rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 1.0f;
-			} else if (b.type == BLD_MINISTRY) {
-				// han_minister_garrison_ministry.json (Nationalized Industries): +0.1 wood,
-				// stone and metal for each minister garrisoned inside.
-				rate[RES_WOOD] = rate[RES_STONE] = rate[RES_GOLD] = 0.1f * (1 + garrisoned_ministers(b));
 			} else if (b.type == BLD_ICE_HOUSE) {
 				rate[RES_FOOD] = 1.0f;
 			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
@@ -12332,15 +12326,6 @@ void Simulation::tick_trickle(float dt) {
 			players_[b.team].res[RES_FOOD] += fauna_corral_food(fauna_.fauna_type[f]);
 		}
 	}
-}
-
-int Simulation::garrisoned_ministers(const Building &b) const {
-	int n = 0;
-	for (uint32_t id : b.garrisoned_units) {
-		const int32_t u = lookup_unit(id);
-		n += u >= 0 && units_.unit_type[u] == UNIT_MINISTER;
-	}
-	return n;
 }
 
 // Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
