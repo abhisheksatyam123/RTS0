@@ -184,46 +184,58 @@ public:
 		using namespace godot;
 		if (!sim || !res_labels_[0]) return;
 
-		// Dynamic Civ Crest & Phase Badge Emblems
-		const auto &cinfo = rtso::civ_info(sim->player_civ(me));
-		if (civ_emblem_) {
-			civ_emblem_->set_texture(rtso::load_ui_texture(cinfo.emblem_path));
-		}
-		if (phase_emblem_) {
-			uint8_t pphase = sim->player_phase(me);
-			if (pphase == 1) phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/village.png"));
-			else if (pphase == 2) phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/town.png"));
-			else phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/city.png"));
-		}
+		// CounterManager.rebuild and CivIcon: with no player viewed (an observer,
+		// g_ViewedPlayer <= 0) the resource and population counters and the civ
+		// icon are hidden.
+		const bool hidden = me >= rtso::MAX_PLAYERS;
+		if (civ_emblem_) civ_emblem_->set_visible(!hidden);
+		if (phase_emblem_) phase_emblem_->set_visible(!hidden);
+		for (int i = 0; i < 4; ++i)
+			if (res_panels_[i]) res_panels_[i]->set_visible(!hidden);
+		if (pop_panel_) pop_panel_->set_visible(!hidden);
 
-		// CounterResource / CounterPopulation. Gatherers are units in the gather
-		// state (0 A.D. Player.AddResourceGatherer counts them while they gather).
-		int gatherers[4] = {0, 0, 0, 0};
-		auto uv = sim->units();
-		for (size_t i = 0; i < uv.count; ++i)
-			if (uv.alive[i] && uv.team[i] == me && uv.action_state[i] == rtso::ACTION_GATHER &&
-					uv.res_type_carried[i] < rtso::RES_COUNT)
-				++gatherers[uv.res_type_carried[i]];
-		const auto &ps = sim->player(me);
-		int total = 0;
-		for (int i = 0; i < 4; ++i) {
-			const int r = kResType[i];
-			res_labels_[i]->set_text(abbreviate((int64_t)std::floor(ps.res[r])));
-			set_gatherers(res_stats_[i], gatherers[r]);
-			total += gatherers[r];
-			res_panels_[i]->set_tooltip_text(String(kResTitle[i]) + "\n\nGatherers: current " +
-					String::num_int64(gatherers[r]) + "\nIncome: " + String::num(rate(sim, me, r), 0) + " per minute");
-		}
+		if (!hidden) {
+			// Dynamic Civ Crest & Phase Badge Emblems
+			const auto &cinfo = rtso::civ_info(sim->player_civ(me));
+			if (civ_emblem_) {
+				civ_emblem_->set_texture(rtso::load_ui_texture(cinfo.emblem_path));
+			}
+			if (phase_emblem_) {
+				uint8_t pphase = sim->player_phase(me);
+				if (pphase == 1) phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/village.png"));
+				else if (pphase == 2) phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/town.png"));
+				else phase_emblem_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/phases/city.png"));
+			}
 
-		const int cur_pop = sim->pop_current(me);
-		const int max_pop = sim->pop_max(me);
-		pop_label_->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop) + " (" +
-				String::num_int64(sim->pop_cap(me)) + ")");
-		// CounterPopulation flashes orange while training is blocked; RTS0 refuses to
-		// queue past the limit instead, so a full house shows orange.
-		pop_label_->add_theme_color_override("font_color", cur_pop >= max_pop ? Color(1.0f, 0.65f, 0.0f) : Color(1, 1, 1));
-		set_gatherers(pop_stats_, total);
-		pop_panel_->set_tooltip_text(String("Population: current/limit (max)\n\nGatherers: current ") + String::num_int64(total));
+			// CounterResource / CounterPopulation. Gatherers are units in the gather
+			// state (0 A.D. Player.AddResourceGatherer counts them while they gather).
+			int gatherers[4] = {0, 0, 0, 0};
+			auto uv = sim->units();
+			for (size_t i = 0; i < uv.count; ++i)
+				if (uv.alive[i] && uv.team[i] == me && uv.action_state[i] == rtso::ACTION_GATHER &&
+						uv.res_type_carried[i] < rtso::RES_COUNT)
+					++gatherers[uv.res_type_carried[i]];
+			const auto &ps = sim->player(me);
+			int total = 0;
+			for (int i = 0; i < 4; ++i) {
+				const int r = kResType[i];
+				res_labels_[i]->set_text(abbreviate((int64_t)std::floor(ps.res[r])));
+				set_gatherers(res_stats_[i], gatherers[r]);
+				total += gatherers[r];
+				res_panels_[i]->set_tooltip_text(String(kResTitle[i]) + "\n\nGatherers: current " +
+						String::num_int64(gatherers[r]) + "\nIncome: " + String::num(rate(sim, me, r), 0) + " per minute");
+			}
+
+			const int cur_pop = sim->pop_current(me);
+			const int max_pop = sim->pop_max(me);
+			pop_label_->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop) + " (" +
+					String::num_int64(sim->pop_cap(me)) + ")");
+			// CounterPopulation flashes orange while training is blocked; RTS0 refuses to
+			// queue past the limit instead, so a full house shows orange.
+			pop_label_->add_theme_color_override("font_color", cur_pop >= max_pop ? Color(1.0f, 0.65f, 0.0f) : Color(1, 1, 1));
+			set_gatherers(pop_stats_, total);
+			pop_panel_->set_tooltip_text(String("Population: current/limit (max)\n\nGatherers: current ") + String::num_int64(total));
+		}
 
 		auto idle_workers = sim->get_idle_workers(me);
 		idle_worker_btn_->set_text("Idle: " + String::num_int64(idle_workers.size()));
