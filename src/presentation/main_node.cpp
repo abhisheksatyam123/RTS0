@@ -6040,6 +6040,16 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
+	// TriggerPoint.js markers the scripts spawn at or aim for (owner 0 is Gaia).
+	Array tp_arr = d.get("trigger_points", Array());
+	for (int i = 0; i < tp_arr.size(); ++i) {
+		Dictionary tp = tp_arr[i];
+		const String ref = tp.get("ref", "A");
+		const int owner = (int)tp.get("owner", 0);
+		if (ref.is_empty()) continue;
+		sim->add_trigger_point((uint8_t)ref.unicode_at(0), (float)tp.get("x", 0.0), (float)tp.get("z", 0.0),
+				owner <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(owner - 1, rtso::MAX_PLAYERS - 1));
+	}
 	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
 	Array trig_arr = d.get("trigger_scripts", Array());
 	for (int i = 0; i < trig_arr.size(); ++i) {
