@@ -6,6 +6,10 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
   modifiers that Simulation::compute_tech_mods folds in for every player the aura
   reaches while a relic carrying it is owned (Capture the Relic). Their "range" auras
   stay with the AuraManager (civ_roster_data.h).
+- units/heroes/*.json: the Cost/ and Researcher/ modifications of each "global" or
+  "player" hero aura (Pericles' Periclean Building, Themistocles, Agis, Indibil...), the
+  same kind of player modifiers while the hero lives. Their other modifications (speed,
+  armour, vision...) are AuraManager effects in civ_roster_data.h.
 - every "range" aura with a Promotion/RequiredXp modification (Han Xin's Northern
   Army, the centurion): its multiplier, registered as an AURA_REQUIRED_XP source.
 - every "range" aura on units with an Attack/Capture/Capture modification (the heroes'
@@ -124,20 +128,26 @@ def main() -> int:
         for suffix in ["", "_1", "_2", "_3"]:
             if src.read(f"{AURA_DIR}/{civ}_catafalque{suffix}.json"):
                 names.append(f"{civ}_catafalque{suffix}")
+    hero_dir = "simulation/data/auras/units/heroes"
+    hero_names = sorted(os.path.basename(r)[:-5] for r in list_files(src, hero_dir + "/") if r.endswith(".json"))
 
     auras: list[str] = []
     mods: list[str] = []
     skipped: list[str] = []
     max_alts = 1
-    for name in names:
-        j = json.loads(src.read(f"{AURA_DIR}/{name}.json"))
+    for name, hero in [(n, False) for n in names] + [(n, True) for n in hero_names]:
+        j = json.loads(src.read(f"{hero_dir if hero else AURA_DIR}/{name}.json"))
         if j.get("type") not in ("global", "player"):
             continue  # range auras: civ_roster_data.h / AuraManager
+        if hero and not any(m["value"].startswith(("Cost/", "Researcher/")) for m in j.get("modifications", [])):
+            continue
         players = 0
         for p in j.get("affectedPlayers") or ["Player"]:
             players |= PLAYERS.get(p, 0)
         begin = len(mods)
         for m in j.get("modifications", []):
+            if hero and not m["value"].startswith(("Cost/", "Researcher/")):
+                continue
             stat = EXTRA_STATS.get(m["value"]) or stat_of(m["value"])
             if not stat:
                 skipped.append(f"{name}: {m['value']}")
@@ -156,6 +166,8 @@ def main() -> int:
                 continue
             max_alts = max(max_alts, len(alts))
             mods.append((stat, op, val, alts, name))
+        if hero and len(mods) == begin:
+            continue  # only classes RTS0 has no TechClass for
         auras.append(f"\t\t{{\"{name}\", {players}, {begin}, {len(mods) - begin}}},")
 
     # Range auras with a RequiredXp multiplier, anywhere under auras/.
@@ -264,6 +276,9 @@ def main() -> int:
     w("")
     w(f"constexpr int RELIC_AURA_MAX_ALTS = {max_alts};")
     w("")
+    w("// Global auras whose modifications are player modifiers (Simulation::compute_tech_mods):")
+    w("// Capture the Relic catafalques while a relic is owned, and heroes' cost and research")
+    w("// auras while the hero lives.")
     w("// One modification of a global relic aura: an entity matches when its classes")
     w("// match any alternative (none = every entity of the affected players).")
     w("struct RelicAuraModifier {")
