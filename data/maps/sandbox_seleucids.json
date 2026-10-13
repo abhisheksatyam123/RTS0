@@ -9619,10 +9619,14 @@
       "z": -109.43
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -18.15,
-      "z": -76.04
+      "z": -76.04,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 5.75
     },
     {
       "type": "house",
@@ -9811,10 +9815,14 @@
       "z": -80.24
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": 56.95,
-      "z": -39.32
+      "z": -39.32,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -2.4171,
+      "length": 5.75
     },
     {
       "type": "barracks",

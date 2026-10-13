@@ -360,6 +360,17 @@ static uint8_t map_building_type(const String &n) {
 	return rtso::BLD_TYPE_COUNT;
 }
 
+// A map's wall, palisade or gate laid as a turned WallSet piece (port_0ad_maps.py wall_piece:
+// "wallset" stone, palisade or siege; "piece" wall, tower or gate; Position "angle"; "length").
+static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8_t player) {
+	const String ws = b.get("wallset", "stone"), piece = b.get("piece", "wall");
+	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
+	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
+			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
+	return sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0), (float)b.get("angle", 0.0),
+			(float)b.get("length", 9.0));
+}
+
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
 // BLD_TYPE_COUNT when RTS0 has no such building.
 static uint8_t map_building_template(const String &tmpl) {
@@ -6431,6 +6442,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
+		if (b.has("wallset")) {
+			spawn_map_wall(*sim, b, team);
+			continue;
+		}
 		uint8_t btype = b.has("template") ? map_building_template(b["template"]) : (uint8_t)rtso::BLD_TYPE_COUNT;
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(stype_str);
 		if (btype >= rtso::BLD_TYPE_COUNT) {
@@ -6445,6 +6460,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	std::vector<uint32_t> gaia_structure_ids(gaia_str_arr.size(), 0);
 	for (int i = 0; i < gaia_str_arr.size(); ++i) {
 		Dictionary b = gaia_str_arr[i];
+		if (b.has("wallset")) {
+			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
+			continue;
+		}
 		const uint8_t btype = map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);

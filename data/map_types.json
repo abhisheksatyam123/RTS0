@@ -428,9 +428,117 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"saharan_oases_scenario": {
+			"keywords": [],
+			"settings": {
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "",
+						"team": -1
+					},
+					{
+						"civ": "iber",
+						"resources": {
+							"food": 250,
+							"metal": 300,
+							"stone": 250,
+							"wood": 250
+						},
+						"team": 0
+					},
+					{
+						"civ": "pers",
+						"resources": {
+							"food": 250,
+							"metal": 300,
+							"stone": 250,
+							"wood": 250
+						},
+						"team": 0
+					},
+					{
+						"civ": "brit",
+						"resources": {
+							"food": 300,
+							"metal": 250,
+							"stone": 250,
+							"wood": 250
+						},
+						"team": 1
+					},
+					{
+						"civ": "cart",
+						"resources": {
+							"food": 300,
+							"metal": 250,
+							"stone": 250,
+							"wood": 250
+						},
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"sahel": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"sahel_scenario": {
+			"keywords": [],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "rome",
+						"resources": {
+							"food": 300,
+							"metal": 300,
+							"stone": 300,
+							"wood": 300
+						},
+						"team": 0
+					},
+					{
+						"civ": "cart",
+						"resources": {
+							"food": 300,
+							"metal": 300,
+							"stone": 300,
+							"wood": 300
+						},
+						"team": 1
+					},
+					{
+						"civ": "pers",
+						"resources": {
+							"food": 300,
+							"metal": 300,
+							"stone": 300,
+							"wood": 300
+						},
+						"team": 0
+					},
+					{
+						"civ": "iber",
+						"resources": {
+							"food": 300,
+							"metal": 300,
+							"stone": 100,
+							"wood": 300
+						},
+						"team": 1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"sandbox_athenians": {
 			"keywords": [

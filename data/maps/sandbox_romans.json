@@ -4343,10 +4343,14 @@
       "z": -16.93
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -19.62,
-      "z": -30.42
+      "z": -30.42,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 6.25
     },
     {
       "type": "house",
