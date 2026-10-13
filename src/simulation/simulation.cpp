@@ -7768,17 +7768,31 @@ bool Simulation::unit_running(size_t i) const {
 }
 
 // UnitMotion's walk speed: the template speed with this player's technologies
-// (units_.speed) times the speed auras the unit stands in (strongest bonus times
-// strongest penalty). Auras.js modifies UnitMotion/WalkSpeed, so an aura applies
-// only while the unit is in it.
+// (units_.speed) times the speed auras the unit stands in (AuraManager::query_modifier).
+// Auras.js modifies UnitMotion/WalkSpeed, so an aura applies only while the unit is in
+// it. A battering ram adds 0.15 m/s for each Infantry unit of its owner or a mutual
+// ally inside (units/ram_garrison "Battering Team", stackable; ModifiersManager adds
+// after it multiplies), then a running unit runs at RunMultiplier times its walk.
 float Simulation::unit_walk_speed(size_t i) const {
 	float spd = units_.speed[i];
-	if (unit_running(i)) spd *= unit_run_multiplier(i);
 	if (aura_mgr_.has(AURA_SPEED)) {
 		const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_SPEED,
 			units_.tmpl[i], &unit_combat_at(i).classes);
 		if (aura > 0.0f) spd *= aura;
 	}
+	if (units_.unit_type[i] == UNIT_SIEGE_RAM) {
+		if (const std::vector<uint32_t> *in = get_transport_passengers(units_.id[i])) {
+			int team = 0;
+			for (uint32_t pid : *in) {
+				const int32_t p = lookup_unit(pid);
+				if (p >= 0 && is_ally(units_.team[i], units_.team[p])
+						&& (unit_classes(units_.tmpl[p], units_.unit_type[p]) & TC_INFANTRY))
+					++team;
+			}
+			spd += 0.15f * FORMATION_METRE * (float)team;
+		}
+	}
+	if (unit_running(i)) spd *= unit_run_multiplier(i);
 	return spd;
 }
 
@@ -26996,13 +27010,19 @@ void Simulation::rebuild_auras() {
 		float x = units_.pos_x[i];
 		float z = units_.pos_z[i];
 		uint32_t id = units_.id[i];
-		if (ut == UNIT_CARNYX) {
-			// 0 A.D. units/carnyx: enemy Soldiers within 20 m -10% attack damage
-			aura_mgr_.register_source(id, AURA_ATTACK, 20.f * COMBAT_DISTANCE_SCALE, 0.9f,
-				aura_affected_players(team, AURA_PLAYERS_ENEMIES), x, z, -1, CC_SOLDIER);
-		}
 		// Heroes (and other roster units with auras) project their own 0 A.D. auras.
 		uint16_t tmpl = units_.tmpl[i];
+		if (ut == UNIT_CARNYX) {
+			// 0 A.D. units/carnyx: enemy Soldiers within 20 m -10% attack damage, unless the
+			// unit's roster row carries the carnyx itself (the Gallic trumpeter): one aura.
+			bool own_carnyx = false;
+			if (tmpl < CIV_UNIT_TEMPLATE_COUNT)
+				for (int16_t a : civ_unit_template(tmpl).auras)
+					own_carnyx |= a >= 0 && civ_hero_aura(a).kind == AURA_ATTACK;
+			if (!own_carnyx)
+				aura_mgr_.register_source(id, AURA_ATTACK, 20.f * COMBAT_DISTANCE_SCALE, 0.9f,
+					aura_affected_players(team, AURA_PLAYERS_ENEMIES), x, z, -1, CC_SOLDIER);
+		}
 		if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 			for (int16_t a : civ_unit_template(tmpl).auras) {
 				if (a < 0) continue;
