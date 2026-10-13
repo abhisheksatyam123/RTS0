@@ -1514,6 +1514,15 @@ public:
 	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
 	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
 	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
+	// An "uncapturable|" template (elephantine.js's Kushite towers): no capture points at all.
+	void set_structure_uncapturable(uint32_t building_id) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		Building &b = buildings_[it->second];
+		b.max_capture_points = 0.0f;
+		b.capture_points = 0.0f;
+		b.capture_points_by_team.fill(0.0f);
+	}
 	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
@@ -2086,6 +2095,8 @@ private:
 	void trigger_flood_rise_step(float final_level);
 	void trigger_volcano_rise_step();
 	void trigger_volcano_garrison_towers();
+	void trigger_elephantine_init();
+	void random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts);
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();

@@ -34,6 +34,7 @@
 #include "simulation/simulation.h"
 #undef private
 #include "network/turn_manager.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -565,6 +566,50 @@ static void check_death_canyon() {
 	if (failures == before) std::printf("Death Canyon - Invasion Force: the invasion forces build nothing: ok\n");
 }
 
+static void check_elephantine() {
+	const int before = failures;
+	static Simulation s;
+	build(s, MAP_ELEPHANTINE);
+	int temples = 0, pyramids = 0, towers = 0, full = 0, holders = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER) continue;
+		temples += b.type == BLD_TEMPLE || b.type == BLD_TEMPLE_AMUN || b.type == BLD_WONDER;
+		pyramids += b.type == BLD_PYRAMID_LARGE;
+		if (building_tech_classes(b.type) & TC_TOWER) {
+			++towers;
+			CHECK(b.max_capture_points == 0.0f, "Kushite tower %u capturable", b.id);
+		}
+	}
+	CHECK(temples == 1 && pyramids == 1, "island temples %d, pyramids %d", temples, pyramids);
+	CHECK(towers >= 2, "only %d Kushite towers", towers);
+	int gaia_units = 0;
+	for (size_t i = 0; i < s.units_.count; ++i) gaia_units += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER;
+	CHECK(gaia_units >= 8, "only %d Kushites on the island", gaia_units);
+	run_to(s, 1.0f);
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER) continue;
+		const int cap = s.get_garrison_capacity(b.id);
+		if (cap <= 0) continue;
+		++holders;
+		full += (int)b.garrisoned_units.size() == cap;
+	}
+	CHECK(holders > 0 && full == holders, "%d of %d Gaia structures garrisoned to capacity", full, holders);
+	std::vector<uint32_t> inside;
+	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
+	int defensive = 0, soldiers = 0;
+	for (size_t i = 0; i < s.units_.count; ++i) {
+		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER) continue;
+		if (std::find(inside.begin(), inside.end(), s.units_.id[i]) != inside.end()) continue;
+		const uint16_t t = s.units_.tmpl[i];
+		if (t >= CIV_UNIT_TEMPLATE_COUNT || !(civ_unit_template(t).tech_classes & TC_SOLDIER)) continue;
+		++soldiers;
+		defensive += s.units_.stance[i] == STANCE_DEFENSIVE;
+	}
+	CHECK(soldiers > 0 && defensive == soldiers, "%d of %d island soldiers defensive", defensive, soldiers);
+	if (failures == before)
+		std::printf("Elephantine: temple, pyramid, %d uncapturable towers, %d Kushites, %d structures garrisoned: ok\n", towers, gaia_units, holders);
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -582,6 +627,7 @@ int main() {
 	check_identical_saves();
 	check_tutorials();
 	check_death_canyon();
+	check_elephantine();
 	std::printf("RESULT: %s (%d failed checks)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
 }

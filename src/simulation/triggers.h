@@ -73,6 +73,8 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_TUTORIAL = 18,                  // InitTutorial, then every event the goals listen on
 	// scenarios/death_canyon_invasion_force_triggers.js
 	TRIGGER_ACTION_DEATH_CANYON_INIT = 19,         // DisableBuilding
+	// maps/random/elephantine_triggers.js
+	TRIGGER_ACTION_ELEPHANTINE_INIT = 20,          // InitElephantine
 	TRIGGER_ACTION_COUNT
 };
 
