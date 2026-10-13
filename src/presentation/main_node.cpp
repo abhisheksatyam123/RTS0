@@ -5,6 +5,7 @@
 #include <cstring>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
+#include "simulation/petra_chat.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -3319,17 +3320,15 @@ void RtsoMain::_process(double delta) {
 	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			const uint8_t me = local_player();
-			if (line.to == rtso::PETRA_CHAT_TO_ALLIES) { // "/allies": the speaker and its allies
-				if (me >= rtso::MAX_PLAYERS || (me != line.from && !sim->is_ally(line.from, me))) continue;
-			} else if (line.to != 0xFF && line.to != me) continue; // addressed to someone else
-			// Players named as {P<id>} in the line get their display names.
-			String text(line.text);
-			for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
-				text = text.replace("{P" + String::num_int64(p) + "}", player_display_name(p));
+			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
+				return std::string(player_display_name(pid).utf8().get_data());
+			});
+			// 0 A.D. marks "/allies" lines "(to allies)" and "/msg" lines "(privately)".
 			const bool ai = line.kind != rtso::PETRA_CHAT_ATTACK_REQUESTED || sim->player(line.from).is_ai;
-			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + (ai ? " (AI)" : "") + ":[/color] " +
-			                         text + "\n");
+			const String audience = line.to == rtso::PETRA_CHAT_ALLIES ? " (to allies)" : line.to < rtso::MAX_PLAYERS ? " (privately)" : "";
+			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + (ai ? " (AI)" : "") + audience + ":[/color] " +
+			                         String::utf8(text.c_str()) + "\n");
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
