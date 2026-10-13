@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 66; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 67; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -383,19 +383,31 @@ public:
 	// hashed or read by the simulation; at most kMaxAttackedEvents wait between reads
 	// so a headless sim without a reader stays bounded.
 	struct AttackedEvent {
-		uint32_t attacker_id; // unit or structure, 0 for none (DeathDamage, fauna)
+		uint32_t attacker_id; // unit, structure or animal; 0 for none (DeathDamage)
 		uint32_t target_id;
 		uint8_t attacker_owner;
 		uint8_t target_owner;
 		uint8_t target_is_building;
 		float x, z; // the target's position
 		float damage;
+		uint8_t melee; // a melee hit (the attacker's attack_melee sound plays on it)
 	};
 	static constexpr size_t kMaxAttackedEvents = 4096;
 	// Hands over the hits since the last call.
 	std::vector<AttackedEvent> take_attacked_events() {
 		std::vector<AttackedEvent> out;
 		out.swap(attacked_events_);
+		return out;
+	}
+	// A unit's melee or Slaughter strike on an animal: presentation only like
+	// AttackedEvent (the striker's attack_melee or attack_slaughter sound plays on it).
+	struct FaunaStrikeEvent {
+		uint32_t attacker_id;
+		uint8_t slaughter;
+	};
+	std::vector<FaunaStrikeEvent> take_fauna_strikes() {
+		std::vector<FaunaStrikeEvent> out;
+		out.swap(fauna_strikes_);
 		return out;
 	}
 	// 0 A.D. session chat notifications (gui/session/messages.js "tribute",
@@ -1467,16 +1479,6 @@ public:
 		uint8_t needed_defenders = 0;
 	};
 
-	enum PetraPriorityQueue : uint8_t {
-		PETRA_QUEUE_EMERGENCY = 0, // Threat >= 7.0f: Emergency spearmen, archers, towers
-		PETRA_QUEUE_VILLAGER  = 1, // Economic boom: 35% of total pop
-		PETRA_QUEUE_MILITARY  = 2, // Military strike force: Counter-units for AttackPlan
-		PETRA_QUEUE_TECH      = 3, // Technology & Phase research
-		PETRA_QUEUE_TRADE     = 4, // Market and trader caravans
-		PETRA_QUEUE_NAVAL     = 5, // Dock and triremes on coastal/water maps
-		PETRA_QUEUE_COUNT     = 6
-	};
-
 	const std::vector<PetraBase> &petra_bases() const { return petra_bases_; }
 	const PetraBase *get_primary_petra_base() const;
 	const PetraBase *get_nearest_petra_base(float x, float z) const;
@@ -1679,6 +1681,11 @@ public:
 	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
 	// built and uncapturable.
 	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
+	// A ported map's WallSet piece (tools/port_0ad_maps.py wall_piece): `player`'s built `kind`
+	// (WallSetKind) wall, tower or gate (MapWallPiece) at (x, z), turned to its 0 A.D. Position
+	// `angle`; a wall or gate is `length` long. Gaia's can't be captured. Returns its id.
+	enum MapWallPiece : uint8_t { MAP_WALL_SEGMENT, MAP_WALL_TOWER, MAP_WALL_GATE };
+	uint32_t spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t piece, float x, float z, float angle, float length);
 	// rmgen-common player.js placeStartingWalls, the Iberian "Starting Walls" civ bonus: on a map
 	// over 128 tiles across (`map_tiles`), an Iberian player's base at (x, z) gets built stone
 	// walls, either a ring of long walls, gates and towers (STARTING_WALLS_FORTRESS,
@@ -2114,9 +2121,10 @@ private:
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage);
+			bool target_is_building, float damage, bool melee = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
@@ -2326,6 +2334,7 @@ private:
 	uint8_t setup_flags_ = 0;
 	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }
 	uint32_t regicide_hero_[MAX_PLAYERS] = {};
+	bool regicide_hero_lost(int t) const;
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
 	void remove_player_structures(); // Nomad
 	bool explore_map_ = false;
@@ -2616,6 +2625,7 @@ private:
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
+	bool petra_mobile_dropsite_on_land(size_t unit_idx) const; // a supply wagon or worker elephant it may drop at, on its land
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
 	// emergency the nearest holder at all (unloading one unit when it is full).
 	bool petra_garrison_attacked_unit(size_t unit_idx, bool emergency, std::vector<int> &incoming);
@@ -2652,6 +2662,13 @@ private:
 	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
 	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
+	int petra_queue_base_priority(uint8_t q) const; // config.js priorities after setConfig (attackPlan.js for plan queues)
+	int petra_queue_priority(uint8_t q) const;      // with changePriority's
+	// queueManager.changePriority; `reset_when` names the queue whose next started item resets
+	// it to Config.priorities (a plan's queueToReset), PETRA_Q_COUNT for none.
+	void petra_change_priority(uint8_t q, int priority, uint8_t reset_when = PETRA_Q_COUNT);
+	void petra_check_paused_queues();               // queueManager.checkPausedQueues
+	void petra_fund_queue(uint8_t q, const float cost[RES_COUNT]); // setAccounts, then transferAccounts from the others
 	void petra_staff_foundations();
 	void petra_manage_fields();
 	float petra_gather_rate(size_t i, uint8_t kind) const;
@@ -2669,6 +2686,7 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
 	void petra_treasures_taken(PetraHuntScan &scan) const;
 	void petra_manage_hunters(PetraHuntScan &scan);
+	void petra_check_hunt_drift(PetraHuntScan &scan); // worker.js: a chase that left our land is given up
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
 	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
 	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)

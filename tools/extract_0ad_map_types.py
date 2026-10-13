@@ -62,8 +62,9 @@ def build(public):
             cands = sorted(skirm[mid], key=lambda c: (c[0] != n, c[0] or 0))
             s = script_settings(cands[0][1])
             entry = {"type": "skirmish", "keywords": s.get("Keywords", [])}
-        elif mid in scen:
-            s = script_settings(scen[mid])
+        elif mid in scen or mid.endswith("_scenario") and mid[:-9] in scen:
+            # <name>_scenario: the scenario version of a skirmish map that keeps the plain id.
+            s = script_settings(scen.get(mid) or scen[mid[:-9]])
             entry = {"type": "scenario", "keywords": s.get("Keywords", [])}
             settings = {k: s[k] for k in SETTING_KEYS if k in s}
             players = []

@@ -30,7 +30,7 @@ const CIVS := [
 	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
 	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
 	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
-	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/gauls.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
+	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
 ]
 ## A slot's "civ" is the rtso::Civilization id (14 is Gaia, never listed); this one is "Random".
 const RANDOM_CIV := -1
@@ -166,9 +166,8 @@ const TEAM_PLACEMENTS := [["random", "Random", "Select a random player placement
 # is random_archipelago_0ad): they take none of its settings.
 const OWN_RMS_MAPS := ["random_archipelago"]
 # The sim places players by pattern on every map that lists one, River (5)
-# included, from F's #429 on; before it only Ambush and Frontier do, without
-# River. #429 turns this on.
-const PLACEMENT_EVERY_MAP := false
+# included (#429); off, only Ambush and Frontier offer it, without River.
+const PLACEMENT_EVERY_MAP := true
 const PLACEMENT_MAPS_BEFORE := ["random_ambush", "random_frontier"]
 const TEAM_PLACEMENT_TOOLTIP := "Select one of the starting position patterns of this map."
 # 0 A.D. Landscape (unknown.json Landscapes, gamesettings Landscape.js): [name,
