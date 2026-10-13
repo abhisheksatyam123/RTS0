@@ -70,7 +70,7 @@ def collect(sim_root):
         if not loader.exists(name.split("|")[-1]):
             name = ex.GENERIC[u["class"]]  # RTS0-only rows (the male villager)
         units.append((u["id"], splash_of(loader.load(name))))
-    generic = [(cls, ex.GENERIC[cls], splash_of(loader.load(ex.GENERIC[cls]))) for cls in atk.UNIT_TYPES]
+    generic = [(cls, ex.GENERIC[cls] or "no template", splash_of(ex.generic_template(loader, cls))) for cls in atk.UNIT_TYPES]
     return units, generic
 
 

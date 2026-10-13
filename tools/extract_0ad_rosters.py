@@ -88,6 +88,8 @@ RTS0_CLASSES = {
     "UNIT_SCYTHED_CHARIOT": (320, 5.6, 2.2, 24.0, 1.0, 0, 5, 5, 25, 100, 80, 120, 0, 3, 26, 18, 0, 6),
     "UNIT_CATAFALQUE":      (1000, 1.76, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
     "UNIT_MINISTER":        (200, 3.204, 1.8, 10.0, 1.0, 0, 2, 4, 6, 100, 0, 100, 0, 1, 15, 10, 0, 0),
+    "UNIT_TYPE_TECH":       (0, 0.0, 0.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    "UNIT_WAGON":           (200, 1.78, 1.0, 0.0, 1.0, 0, 4, 4, 10, 50, 50, 0, 0, 1, 12, 0, 0, 0),
 }
 RTS0_FIELDS = ("hp", "speed", "range", "damage", "cooldown", "carry",
                "hack_armor", "pierce_armor", "crush_armor",
@@ -121,6 +123,8 @@ GENERIC = {
     "UNIT_SCYTHED_CHARIOT": "template_unit_champion_cavalry_swordsman",
     "UNIT_MINISTER": "units/han/support_minister",
     "UNIT_CATAFALQUE": "template_unit_catafalque",
+    "UNIT_TYPE_TECH": "",  # a queued technology's ProductionOrder: no template, empty rows
+    "UNIT_WAGON": "template_unit_support_wagon",
 }
 
 # RTS0's male gatherer has no 0 A.D. counterpart in most civs; every civ keeps it.
@@ -217,6 +221,8 @@ UNIQUE_BUILDINGS = [
     ("BLD_SIEGE_WALL", ["siege_wall_long"], "wall_segment", "wall"),
     # Its gate (a siege_wall_long Upgrade), drawn with the stone gate until it has its own model.
     ("BLD_SIEGE_WALL_GATE", ["siege_wall_gate"], "gate", "gate"),
+    # The Briton crannog: a Civic Center laid on the shore (is_civic_centre).
+    ("BLD_CRANNOG", ["crannog"], "crannog", "crannog"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -435,6 +441,14 @@ class TemplateLoader:
             for m in reversed(parent.split("|")):
                 self.apply_mixin(node, m)
         merge_into(node, elem)
+
+
+def generic_template(loader, cls):
+    """The GENERIC template of an RTS0 UnitType, or an empty one where there is none:
+    UNIT_TYPE_TECH has no template, and a tree from before the Germans (2024) has no
+    template_unit_support_wagon."""
+    name = GENERIC[cls]
+    return loader.load(name) if name and loader.exists(name) else Node()
 
 # ---------------------------------------------------------------------------
 # Unit stat extraction
@@ -792,8 +806,8 @@ BUILDING_CLASS = {
     "Storehouse": ["BLD_STOREHOUSE"],
     "House": ["BLD_HOUSE"],
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"],
-    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
-    "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
     "Barracks": ["BLD_BARRACKS"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {
@@ -993,6 +1007,11 @@ RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
 # out, so a release's stat changes land without touching what saves store.
 KEEP_TRAINERS = False
 PREVIOUS_SIM_ROOT = None
+# Building types added after the kept layout, with their structures/{civ}/ template and the
+# type whose Trainer list theirs adds to: --keep-trainers adds them to the kept trainers where
+# the release trains the unit there, or where the civ has the template and the kept trainers
+# hold that type (0.28's crannog adds ships to the civil centre's list).
+KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
 
@@ -1077,8 +1096,8 @@ def collect(sim_root):
             civ_json[civ] = json.load(f)
 
     generic = {}
-    for cls, tmpl in GENERIC.items():
-        generic[cls] = raw_stats(loader.load(tmpl))
+    for cls in GENERIC:
+        generic[cls] = raw_stats(generic_template(loader, cls))
 
     bonuses = load_civ_bonuses(sim_root)
     prev_layout = previous_layout() if KEEP_TRAINERS else {}
@@ -1215,7 +1234,13 @@ def collect(sim_root):
             phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
             blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
             if KEEP_TRAINERS and rid in prev_layout:
-                blds, phase = prev_layout[rid][0], prev_layout[rid][1]
+                kept = list(prev_layout[rid][0])
+                for b, (tmpl, base) in KEEP_TRAINERS_NEW_BUILDINGS.items():
+                    if b not in kept and (b in blds or (base in kept and
+                                                        loader.exists("structures/%s/%s" % (civ, tmpl)))):
+                        kept.append(b)
+                blds = kept
+                blds, phase = sorted(blds, key=BUILDING_BITS.index), prev_layout[rid][1]
             rows.append({
                 "id": rid,
                 "civ": civ,
@@ -1249,7 +1274,9 @@ def collect(sim_root):
                 "id": "%s/rts0_%s" % (civ, cls[5:].lower()),
                 "civ": civ, "class": cls, "name": label, "specific_name": "",
                 "phase": 1,
-                "trainers": ["BLD_TOWN_CENTER"],
+                "trainers": ["BLD_TOWN_CENTER"] + [  # and a civ's own civil centre that trains citizens
+                    bld for bld, (tmpl, base) in KEEP_TRAINERS_NEW_BUILDINGS.items()
+                    if base == "BLD_TOWN_CENTER" and loader.exists("structures/%s/%s" % (civ, tmpl))],
                 "trained_at_0ad": [], "flags": ["ROSTER_CITIZEN"],
                 "classes": ["Citizen", "Human", "Organic", "Unit", "Worker"],
                 "auras": [], "stats": stats,

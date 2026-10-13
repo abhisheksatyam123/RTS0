@@ -93,6 +93,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <tuple>
 #include <utility>
 
 using namespace rtso;
@@ -2261,6 +2262,68 @@ static void test_healer_attack_order() {
 	check(std::fabs(s.units().pos_x[s.lookup_unit(h)] - hx) < 0.5f, "one already in range stays put");
 }
 
+static void test_restricted_attack_order() {
+	std::printf("63. an attack order on a target its RestrictedClasses forbid is a walk (UnitAI.Attack CanAttack)\n");
+	Simulation s;
+	setup(s);
+	uint32_t ram = s.spawn_unit(-20, 0, 0, UNIT_SIEGE_RAM);
+	const uint32_t e = post(s, 10, 0, UNIT_SPEARMAN, 5000.0f);
+	check(!s.unit_can_target(s.lookup_unit(ram), s.lookup_unit(e)), "a ram can't attack a soldier (Field Organic)");
+	s.order_attack(&ram, 1, e);
+	check(s.unit_order(ram).kind == ORDER_WALK && (s.unit_order(ram).flags & ORDER_FLAG_FORCE), "it walks to it instead");
+	const float d0 = dist(s, ram, 10, 0);
+	run(s, 10.0f);
+	check(dist(s, ram, 10, 0) < d0 - 5.0f, "towards the soldier");
+	uint32_t dog = s.spawn_unit(-20, 20, 0, UNIT_WAR_DOG);
+	const uint32_t house = s.spawn_building_world(10, 20, BLD_HOUSE, 1, 1.0f);
+	check(!s.unit_can_target_building(s.lookup_unit(dog), BLD_HOUSE), "a dog can't attack a structure");
+	s.order_attack_building(&dog, 1, house, false, false);
+	check(s.unit_order(dog).kind == ORDER_WALK, "and walks to the house");
+}
+
+static void test_range_check_between_hits() {
+	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
+	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
+	// enough in one tick to take a pair standing in reach out of it.
+	auto step = [](Simulation &s, float seconds) {
+		for (long n = std::lround(seconds / Simulation::FIXED_STEP); n > 0; --n) s.tick(Simulation::FIXED_STEP);
+	};
+	auto step_until = [](Simulation &s, float seconds, auto &&done) {
+		for (long n = std::lround(seconds / Simulation::FIXED_STEP); n > 0; --n) {
+			s.tick(Simulation::FIXED_STEP);
+			if (done()) return true;
+		}
+		return false;
+	};
+	auto run_case = [&](bool leave) {
+		Simulation s;
+		setup(s);
+		uint32_t w = s.spawn_unit(0, 0, 0, UNIT_SWORDSMAN);
+		uint32_t e = post(s, 1.5f, 0, UNIT_SPEARMAN, 5000.0f);
+		s.order_attack(&w, 1, e);
+		// A hit in reach, so the next swing is under way (attack_timer < 0).
+		float hp0 = hp_of(s, e);
+		const bool hit = step_until(s, 10.0f, [&] {
+			const float hp = hp_of(s, e);
+			if (hp >= hp0) return false;
+			hp0 = hp;
+			return s.units_.attack_timer[idx_of(s, w)] < 0.0f;
+		});
+		if (leave) s.units_.pos_x[idx_of(s, e)] = 8.0f; // out of reach right after the hit
+		const float hp1 = hp_of(s, e);
+		step(s, 0.8f); // the next hit was due one RepeatTime (0.75 s) on, in the fourth turn
+		const bool spared = hp_of(s, e) == hp1;
+		const bool again = step_until(s, 10.0f, [&] { return hp_of(s, e) < hp1; });
+		return std::make_tuple(hit, spared, again);
+	};
+	const auto [hit, spared, again] = run_case(true);
+	check(hit, "a swordsman hits a soldier in reach");
+	check(spared, "the soldier, gone out of reach, takes no hit from the swing under way");
+	check(again, "the swordsman chases and hits it again");
+	const auto [hit2, spared2, again2] = run_case(false);
+	check(hit2 && !spared2, "one that stays in reach takes the next hit");
+}
+
 static const Simulation::Scenery *scenery_of(const Simulation &s, uint32_t id) {
 	const int32_t k = s.scenery_index(id);
 	return k >= 0 ? &s.scenery()[k] : nullptr;
@@ -2404,8 +2467,10 @@ int main(int argc, char **argv) {
 	test_gather_rate_auras();
 	test_attack_preference_switch();
 	test_healer_attack_order();
+	test_restricted_attack_order();
 	test_scenery_capture();
 	test_arakamani_temples();
+	test_range_check_between_hits();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

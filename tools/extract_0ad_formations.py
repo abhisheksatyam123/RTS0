@@ -151,11 +151,11 @@ def collect(sim_root):
 
     generic = []
     for cls in atk.UNIT_TYPES:  # kGeneric is indexed by UnitType
-        tmpl = roster.GENERIC[cls]
+        tmpl = roster.GENERIC[cls] or "no template"
         if cls in roster.RTS0_ONLY:
             generic.append((cls, 0, 0, tmpl))
             continue
-        t = loader.load(tmpl)
+        t = roster.generic_template(loader, cls)
         generic.append((cls, formation_mask(t.tokens("UnitAI/Formations")), class_mask(t), tmpl))
     return forms, civs, rows, generic
 
