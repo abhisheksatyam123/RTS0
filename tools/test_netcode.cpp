@@ -593,6 +593,7 @@ struct PeerOpts {
     uint32_t quit_turn = 0;     // the joiner leaves the match after this turn
     uint32_t host_quit_turn = 0;   // host: ends the game after this turn (tells everyone)
     uint32_t host_vanish_turn = 0; // host: drops off after this turn without a word
+    uint32_t stale_rejoin_turn = 0; // joiner: asks to rejoin again mid-match, as a slow loader does
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
     bool observe = false;       // this joiner watches a running match without a seat
     std::string name = "peer";  // the name this peer authenticates with
@@ -1029,6 +1030,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
                 save_ok = sim.save_state(path.c_str()) && sim.load_state(path.c_str());
                 save_hash_after = tm.compute_sim_hash(sim);
             }
+            // A seated player's late rejoin request (its setup-time ask, repeated
+            // after a slow load): the host must keep it in the lockstep.
+            if (!host && opt.stale_rejoin_turn && f.turn_index == opt.stale_rejoin_turn) tm.request_rejoin(false);
             // The host leaves: it ends the game for everyone, or just goes silent.
             if (host && opt.host_quit_turn && f.turn_index == opt.host_quit_turn) {
                 std::fclose(log);
@@ -1205,6 +1209,7 @@ int main(int argc, char **argv) {
     //   [--quit-turn N]     the joiner leaves the match after turn N
     //   [--host-quit-turn N] the host ends the game after turn N
     //   [--host-vanish-turn N] the host drops off after turn N without telling anyone
+    //   [--stale-rejoin-turn N] a seated joiner asks to rejoin again after turn N
     //   [--rejoin 1]        this joiner takes over a dropped seat mid-match
     if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
         netpeer::PeerOpts opt;
@@ -1221,6 +1226,7 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--quit-turn") == 0) opt.quit_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--host-quit-turn") == 0) opt.host_quit_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--host-vanish-turn") == 0) opt.host_vanish_turn = (uint32_t)std::atoi(v);
+            else if (std::strcmp(k, "--stale-rejoin-turn") == 0) opt.stale_rejoin_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
             else if (std::strcmp(k, "--observe") == 0) opt.observe = opt.rejoin = std::atoi(v) != 0;
             else if (std::strcmp(k, "--name") == 0) opt.name = v;

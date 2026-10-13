@@ -33,6 +33,11 @@ static Simulation::Building *find_bld(Simulation &s, uint32_t id) {
 
 static uint8_t owner_of(Simulation &s, uint32_t id) { return find_bld(s, id)->team; }
 static float points_of(Simulation &s, uint32_t id, uint8_t p) { return find_bld(s, id)->capture_points_by_team[p]; }
+// Seconds a structure takes to decay away: its owner regains RegenRate a second against
+// DecayRate (Capturable.js TimerTick), plus a margin.
+static float decay_time(const Simulation::Building *b) {
+	return b->max_capture_points / (b->territory_decay_rate - b->capture_regen_rate) + 5.0f;
+}
 
 // Player 0's civic centre in the south-west, player 1's in the north-east.
 static void fresh(Simulation &s, bool allied = false) {
@@ -63,7 +68,7 @@ int main() {
 	{
 		fresh(s);
 		uint32_t bk = s.spawn_building_world(-40.0f, 30.0f, BLD_BARRACKS, 0, 1.0f);
-		run(s, find_bld(s, bk)->max_capture_points / find_bld(s, bk)->territory_decay_rate + 5.0f);
+		run(s, decay_time(find_bld(s, bk)));
 		CHECK(owner_of(s, bk) == GAIA_PLAYER);
 		fresh(s);
 		uint32_t op = s.spawn_building_world(-40.0f, 30.0f, BLD_OUTPOST, 0, 1.0f);
@@ -75,7 +80,7 @@ int main() {
 	{
 		fresh(s);
 		uint32_t h = s.spawn_building_world(25.0f, 30.0f, BLD_HOUSE, 0, 1.0f);
-		run(s, find_bld(s, h)->max_capture_points / 15.0f + 5.0f);
+		run(s, decay_time(find_bld(s, h)));
 		CHECK(owner_of(s, h) == 1);
 		fresh(s, true);
 		h = s.spawn_building_world(25.0f, 30.0f, BLD_HOUSE, 0, 1.0f);
@@ -87,7 +92,7 @@ int main() {
 	{
 		fresh(s);
 		uint32_t tw = s.spawn_building_world(30.0f, -40.0f, BLD_TOWER, 0, 1.0f);
-		run(s, find_bld(s, tw)->max_capture_points / 15.0f + 5.0f);
+		run(s, decay_time(find_bld(s, tw)));
 		CHECK(owner_of(s, tw) == GAIA_PLAYER);
 	}
 
@@ -96,7 +101,7 @@ int main() {
 	{
 		fresh(s);
 		uint32_t tw = s.spawn_building_world(40.0f, -4.0f, BLD_TOWER, 0, 1.0f);
-		run(s, find_bld(s, tw)->max_capture_points / 15.0f + 5.0f);
+		run(s, decay_time(find_bld(s, tw)));
 		std::printf("cut-off tower next to player 1: owner %d\n", owner_of(s, tw));
 		CHECK(owner_of(s, tw) == 1);
 		fresh(s, true);
@@ -112,7 +117,7 @@ int main() {
 		Simulation::Building *b = find_bld(s, bk);
 		b->team = GAIA_PLAYER;
 		b->capture_points_by_team.fill(0.0f);
-		run(s, b->max_capture_points / 15.0f + 5.0f);
+		run(s, decay_time(b));
 		CHECK(owner_of(s, bk) == 0);
 	}
 

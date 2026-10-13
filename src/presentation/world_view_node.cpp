@@ -2,6 +2,7 @@
 #include "display_colors.h"
 #include "territory_boundary.h"
 #include "terrain_blend.h"
+#include "session_audio.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -105,6 +106,27 @@ Ref<Mesh> RtsoWorldView::wind_mesh(const Ref<Mesh> &src) {
 	}
 	cache[am->get_instance_id()] = out;
 	return out;
+}
+
+// The models of one tree family, at most `max`: <id>.glb, then <id>_v2.glb, <id>_v3.glb
+// ... while they exist (tools/fetch_0ad_trees.py --variants). 0 when <id> has no model.
+static int tree_family_models(const char *id, rtso::ModelLibrary::Entry *out, int max) {
+	int n = 0;
+	for (int v = 0; v < max; ++v) {
+		const String vid = v == 0 ? String(id) : String(id) + String("_v") + String::num_int64(v + 1);
+		if (v > 0 && !ResourceLoader::get_singleton()->exists(String("res://assets/models/vegetation/") + vid + String(".glb")))
+			break;
+		const auto &e = rtso::ModelLibrary::get("vegetation", vid);
+		if (e.mesh.is_null()) break;
+		out[n++] = e;
+	}
+	return n;
+}
+
+// Which of a family's n models a tree draws: a hash of its id, apart from the
+// kind (id % kinds) and the rotation (id % 12) so variants mix within every kind.
+static int tree_variant_of(uint32_t id, int n) {
+	return n > 1 ? (int)(((id * 2654435761u) >> 16) % (uint32_t)n) : 0;
 }
 
 RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
@@ -324,10 +346,12 @@ void RtsoWorldView::_ready() {
 		return m;
 	};
 	for (int k = 0; k < TREE_KINDS; ++k) {
-		tree_mm[k] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
-		tree_mmi[k] = memnew(MultiMeshInstance3D);
-		tree_mmi[k]->set_multimesh(tree_mm[k]);
-		add_child(tree_mmi[k]);
+		for (int v = 0; v < TREE_VARIANTS; ++v) {
+			tree_mm[k][v] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "tree").mesh), true);
+			tree_mmi[k][v] = memnew(MultiMeshInstance3D);
+			tree_mmi[k][v]->set_multimesh(tree_mm[k][v]);
+			add_child(tree_mmi[k][v]);
+		}
 	}
 	pick_tree_kinds("mediterranean");
 	{
@@ -348,15 +372,18 @@ void RtsoWorldView::_ready() {
 			{ "maple", 0.3f, true }, { "juniper", 0.3f, true }, { "teak", 0.21f, true },
 		};
 		for (int k = 1; k < FLORA_KINDS; ++k) {
-			auto e = rtso::ModelLibrary::get("vegetation", kKinds[k].id);
-			if (e.mesh.is_null()) continue;
-			enable_instance_tint(e.mesh);
-			flora_mm[k] = create_multimesh(kKinds[k].tree ? wind_mesh(e.mesh) : e.mesh, true);
+			rtso::ModelLibrary::Entry models[TREE_VARIANTS];
+			flora_variants[k] = tree_family_models(kKinds[k].id, models, TREE_VARIANTS);
 			flora_scale[k] = kKinds[k].scale;
-			flora_y[k] = e.y_offset * kKinds[k].scale;
-			flora_mmi[k] = memnew(MultiMeshInstance3D);
-			flora_mmi[k]->set_multimesh(flora_mm[k]);
-			add_child(flora_mmi[k]);
+			for (int v = 0; v < flora_variants[k]; ++v) {
+				const auto &e = models[v];
+				enable_instance_tint(e.mesh);
+				flora_mm[k][v] = create_multimesh(kKinds[k].tree ? wind_mesh(e.mesh) : e.mesh, true);
+				flora_y[k][v] = e.y_offset * kKinds[k].scale;
+				flora_mmi[k][v] = memnew(MultiMeshInstance3D);
+				flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
+				add_child(flora_mmi[k][v]);
+			}
 		}
 	}
 	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
@@ -427,17 +454,6 @@ void RtsoWorldView::_ready() {
 		return Ref<AudioStream>();
 	};
 
-	sfx_bow_shoot[0] = load_s("res://assets/sounds/combat/bow_shoot_1.ogg");
-	sfx_bow_shoot[1] = load_s("res://assets/sounds/combat/bow_shoot_2.ogg");
-	sfx_arrow_fly = load_s("res://assets/sounds/combat/arrow_fly.ogg");
-	sfx_arrow_hit = load_s("res://assets/sounds/combat/arrow_hit.ogg");
-	sfx_catapult_blast = load_s("res://assets/sounds/combat/catapult_blast.ogg");
-	sfx_sword_hit[0] = load_s("res://assets/sounds/combat/sword_hit_1.ogg");
-	sfx_sword_hit[1] = load_s("res://assets/sounds/combat/sword_hit_2.ogg");
-	sfx_sword_hit[2] = load_s("res://assets/sounds/combat/sword_hit_3.ogg");
-	sfx_spear_hit[0] = load_s("res://assets/sounds/combat/spear_hit_1.ogg");
-	sfx_spear_hit[1] = load_s("res://assets/sounds/combat/spear_hit_2.ogg");
-	sfx_building_collapse = load_s("res://assets/sounds/building/building_collapse.ogg");
 	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
 
 	// Fog overlay: 0 A.D. model_common.fs multiplies every model by the LOS
@@ -980,6 +996,18 @@ void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 p
 		player->set_pitch_scale(pitch_scale);
 		player->play();
 	}
+}
+
+// Health.js PlaySound("death") of a structure: template_structure.xml's
+// attack/destruction/building_collapse_large.xml (attack_sound_data.h).
+static void play_structure_death(RtsoWorldView &view, uint8_t type, Vector3 pos) {
+	static std::mt19937 rng(std::random_device{}());
+	const uint8_t g = rtso::building_attack_sounds(type).c;
+	float pitch = 1.0f;
+	const String path = rtso::pick_attack_sound(g, rng, &pitch);
+	if (path.is_empty()) return;
+	const float gain = rtso::attack_sound_group(g).gain;
+	view.play_spatial_sound(rtso::load_audio(path), pos, gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 95.0f, pitch);
 }
 
 void RtsoWorldView::play_spatial_sound_path(const String &path, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
@@ -1917,21 +1945,27 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 	for (int k = 0; k < TREE_KINDS; ++k) {
 		const Kind &kd = set->kinds[k];
 		if (!kd.id) break;
-		auto e = rtso::ModelLibrary::get("vegetation", kd.id);
-		if (e.mesh.is_null()) continue;
-		enable_instance_tint(e.mesh);
+		rtso::ModelLibrary::Entry models[TREE_VARIANTS];
+		const int n = tree_family_models(kd.id, models, TREE_VARIANTS);
+		if (n == 0) continue;
 		const int slot = tree_kind_count++;
-		tree_mm[slot]->set_instance_count(0);
-		tree_mm[slot]->set_mesh(wind_mesh(e.mesh));
 		tree_scale[slot] = kd.scale;
-		tree_y[slot] = e.y_offset * kd.scale;
+		tree_variants[slot] = n;
+		for (int v = 0; v < n; ++v) {
+			enable_instance_tint(models[v].mesh);
+			tree_mm[slot][v]->set_instance_count(0);
+			tree_mm[slot][v]->set_mesh(wind_mesh(models[v].mesh));
+			tree_y[slot][v] = models[v].y_offset * kd.scale;
+		}
 	}
 	if (tree_kind_count == 0) {
 		tree_kind_count = 1;
 		tree_scale[0] = 1.0f;
-		tree_y[0] = rtso::ModelLibrary::get("vegetation", "tree").y_offset;
+		tree_variants[0] = 1;
+		tree_y[0][0] = rtso::ModelLibrary::get("vegetation", "tree").y_offset;
 	}
-	for (int k = tree_kind_count; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count(0);
+	for (int k = 0; k < TREE_KINDS; ++k)
+		for (int v = k < tree_kind_count ? tree_variants[k] : 0; v < TREE_VARIANTS; ++v) tree_mm[k][v]->set_instance_count(0);
 }
 
 // 0 A.D. random maps paint forest floor under every forest and dirt round
@@ -2743,45 +2777,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	// 3D Positional Combat Acoustics: Melee Weapon Clash (Swords, Spears)
-	for (auto it = unit_clash_cooldown.begin(); it != unit_clash_cooldown.end(); ) {
-		it->second -= delta;
-		if (it->second <= 0.0f) {
-			it = unit_clash_cooldown.erase(it);
-		} else {
-			++it;
-		}
-	}
-	global_clash_timer -= delta;
-
-	int clashes_this_frame = 0;
-	for (size_t i = 0; i < uview.count && clashes_this_frame < 4; ++i) {
-		if (!uview.alive[i] || uview.action_state[i] != rtso::ACTION_ATTACK) continue;
-		uint8_t utype = uview.unit_type[i];
-		bool is_spear = (utype == rtso::UNIT_SPEARMAN);
-		bool is_sword = (utype == rtso::UNIT_SWORDSMAN || utype == rtso::UNIT_CAVALRY || utype == rtso::UNIT_HERO);
-		if (!is_spear && !is_sword) continue;
-
-		uint32_t uid = uview.id[i];
-		if (unit_clash_cooldown.find(uid) == unit_clash_cooldown.end()) {
-			float tx = uview.target_x[i] - uview.pos_x[i];
-			float tz = uview.target_z[i] - uview.pos_z[i];
-			float dist_sq = tx * tx + tz * tz;
-			if (dist_sq <= 14.0f) { // Within melee contact range
-				unit_clash_cooldown[uid] = 0.75f + ((float)(rand() % 40) / 100.0f);
-				Vector3 clash_pos(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]) + 1.0f, uview.pos_z[i]);
-				float pitch = 0.92f + ((float)(rand() % 20) / 100.0f);
-				if (is_spear) {
-					int s_idx = rand() % 2;
-					play_spatial_sound(sfx_spear_hit[s_idx], clash_pos, -2.0f, 65.0f, pitch);
-				} else {
-					int s_idx = rand() % 3;
-					play_spatial_sound(sfx_sword_hit[s_idx], clash_pos, -1.0f, 65.0f, pitch);
-				}
-				clashes_this_frame++;
-			}
-		}
-	}
+	// Melee, shot and impact sounds: RtsoSessionAudio::tick_combat (session_audio.h).
 
 	// =========================================================================
 	// 2. Buildings: Town Center, Barracks, Houses, Towers, Storehouses, Farms
@@ -2809,7 +2805,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (v.phase != 3 && v.phase != 4) {
 				v.phase = 3;
 				v.phase_t = 0.0f;
-				play_spatial_sound(sfx_building_collapse, Vector3(b.x, base_y + 1.0f, b.z), 3.0f, 95.0f, 0.95f);
+				play_structure_death(*this, b.type, Vector3(b.x, base_y + 1.0f, b.z));
 			}
 			v.phase_t += delta;
 			if (v.phase == 3 && v.phase_t >= 0.70f)
@@ -2946,7 +2942,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// A mirage clearing when the viewer looks again is silent.
 			if (it->second.live) {
 				float by = sim->get_terrain_height(it->second.x, it->second.z);
-				play_spatial_sound(sfx_building_collapse, Vector3(it->second.x, by + 1.0f, it->second.z), 3.0f, 95.0f, 0.95f);
+				play_structure_death(*this, it->second.type, Vector3(it->second.x, by + 1.0f, it->second.z));
 			}
 			it = tracked_buildings.erase(it);
 		} else {
@@ -2985,13 +2981,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (bolt_mm.is_valid()) bolt_mm->set_instance_count(bolt_n);
 	if (stone_proj_mm.is_valid()) stone_proj_mm->set_instance_count(stone_n);
 
-	std::unordered_set<uint32_t> current_proj_ids;
 	int arrow_i = 0, bolt_i = 0, stone_i = 0;
 
 	for (size_t p = 0; p < projectiles.size(); ++p) {
 		const auto &proj = projectiles[p];
 		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
-		current_proj_ids.insert(proj.id);
 		Vector3 pos(proj.current_x, proj.current_y, proj.current_z);
 
 		// Calculate direction of flight
@@ -3018,52 +3012,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			arrow_mm->set_instance_transform(arrow_i++, xf);
 		}
 
-		// 3D Positional Projectile Release Acoustics (Bow string whoosh / catapult launch)
-		auto pit = tracked_projectiles.find(proj.id);
-		if (pit == tracked_projectiles.end()) {
-			bool is_crush = (proj.damage_type == 2 || proj.arc_height > 4.0f);
-			PrevProjState st;
-			st.id = proj.id;
-			st.target_x = proj.target_x;
-			st.target_y = proj.target_y;
-			st.target_z = proj.target_z;
-			st.last_progress = proj.progress;
-			st.is_crush = is_crush;
-			tracked_projectiles[proj.id] = st;
-
-			Vector3 launch_pos(proj.start_x, proj.start_y, proj.start_z);
-			float pitch = 0.95f + ((float)(rand() % 15) / 100.0f);
-			if (is_crush) {
-				play_spatial_sound(sfx_catapult_blast, launch_pos, -3.0f, 90.0f, 0.75f);
-			} else if (proj.visual == 1 && sfx_arrow_fly.is_valid()) {
-				// template_unit_ship SoundGroups attack_ranged → arrowfly.xml
-				play_spatial_sound(sfx_arrow_fly, launch_pos, -1.0f, 80.0f, pitch);
-			} else {
-				int s_idx = rand() % 2;
-				play_spatial_sound(sfx_bow_shoot[s_idx], launch_pos, -2.0f, 70.0f, pitch);
-			}
-		} else {
-			pit->second.last_progress = proj.progress;
-			pit->second.target_x = proj.target_x;
-			pit->second.target_y = proj.target_y;
-			pit->second.target_z = proj.target_z;
-		}
-	}
-
-	// 3D Positional Projectile Impact Acoustics (Arrow hit / Catapult stone blast)
-	for (auto it = tracked_projectiles.begin(); it != tracked_projectiles.end(); ) {
-		if (current_proj_ids.find(it->first) == current_proj_ids.end()) {
-			Vector3 hit_pos(it->second.target_x, it->second.target_y, it->second.target_z);
-			float pitch = 0.92f + ((float)(rand() % 18) / 100.0f);
-			if (it->second.is_crush) {
-				play_spatial_sound(sfx_catapult_blast, hit_pos, 2.0f, 100.0f, pitch);
-			} else {
-				play_spatial_sound(sfx_arrow_hit, hit_pos, 0.0f, 65.0f, pitch);
-			}
-			it = tracked_projectiles.erase(it);
-		} else {
-			++it;
-		}
 	}
 
 	// =========================================================================
@@ -3085,18 +3033,26 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (sim->current_map_biome() != tree_biome_) pick_tree_kinds(sim->current_map_biome());
 	// A tree or fruit bush with a FloraKind whose model loaded draws in that kind's batch.
 	auto flora_of = [&](const rtso::FoggedResource &r) -> int {
-		if (r.flora == 0 || r.flora >= FLORA_KINDS || flora_mm[r.flora].is_null()) return 0;
+		if (r.flora == 0 || r.flora >= FLORA_KINDS || flora_variants[r.flora] == 0) return 0;
 		if (r.subtype != rtso::RES_SUB_NONE || (r.type != rtso::RES_WOOD && r.type != rtso::RES_FOOD)) return 0;
 		return r.flora;
 	};
-	size_t n_kind[TREE_KINDS] = {}, n_flora[FLORA_KINDS] = {};
+	size_t n_kind[TREE_KINDS][TREE_VARIANTS] = {}, n_flora[FLORA_KINDS][TREE_VARIANTS] = {};
 	for (const auto &r : fres) {
-		if (const int f = flora_of(r)) { n_flora[f]++; if (r.type == rtso::RES_FOOD) fd--; continue; }
-		if (r.type == rtso::RES_WOOD && r.subtype != rtso::RES_SUB_GRAIN) n_kind[r.id % (uint32_t)tree_kind_count]++;
+		if (const int f = flora_of(r)) {
+			n_flora[f][tree_variant_of(r.id, flora_variants[f])]++;
+			if (r.type == rtso::RES_FOOD) fd--;
+			continue;
+		}
+		if (r.type == rtso::RES_WOOD && r.subtype != rtso::RES_SUB_GRAIN) {
+			const int k = (int)(r.id % (uint32_t)tree_kind_count);
+			n_kind[k][tree_variant_of(r.id, tree_variants[k])]++;
+		}
 	}
-	for (int k = 0; k < TREE_KINDS; ++k) tree_mm[k]->set_instance_count((int)n_kind[k]);
+	for (int k = 0; k < tree_kind_count; ++k)
+		for (int v = 0; v < tree_variants[k]; ++v) tree_mm[k][v]->set_instance_count((int)n_kind[k][v]);
 	for (int k = 1; k < FLORA_KINDS; ++k)
-		if (flora_mm[k].is_valid()) flora_mm[k]->set_instance_count((int)n_flora[k]);
+		for (int v = 0; v < flora_variants[k]; ++v) flora_mm[k][v]->set_instance_count((int)n_flora[k][v]);
 	gold_mm->set_instance_count((int)g);
 	stone_mm->set_instance_count((int)st);
 	if (food_mm.is_valid())
@@ -3104,7 +3060,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	ruins_mm->set_instance_count((int)nru);
 	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia[TREE_KINDS] = {}, iflora[FLORA_KINDS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
+	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
 	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
 	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
@@ -3121,20 +3077,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		const Color tint(lit, lit, lit, 1.0f);
 
 		if (const int f = flora_of(r)) {
+			const int v = tree_variant_of(r.id, flora_variants[f]);
 			const float sc = flora_scale[f];
-			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + flora_y[f], rz));
-			flora_mm[f]->set_instance_transform((int)iflora[f], xf);
-			flora_mm[f]->set_instance_color((int)iflora[f]++, tint);
+			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + flora_y[f][v], rz));
+			flora_mm[f][v]->set_instance_transform((int)iflora[f][v], xf);
+			flora_mm[f][v]->set_instance_color((int)iflora[f][v]++, tint);
 		} else if (r.subtype == rtso::RES_SUB_RUINS) {
 			Transform3D xf(rot, Vector3(rx, ry + e_ruins.y_offset, rz));
 			ruins_mm->set_instance_transform((int)iru, xf);
 			ruins_mm->set_instance_color((int)iru++, tint);
 		} else if (r.type == rtso::RES_WOOD) {
 			const int k = (int)(h % (uint32_t)tree_kind_count);
+			const int v = tree_variant_of(r.id, tree_variants[k]);
 			const float sc = tree_scale[k];
-			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k], rz));
-			tree_mm[k]->set_instance_transform((int)ia[k], xf);
-			tree_mm[k]->set_instance_color((int)ia[k]++, tint);
+			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k][v], rz));
+			tree_mm[k][v]->set_instance_transform((int)ia[k][v], xf);
+			tree_mm[k][v]->set_instance_color((int)ia[k][v]++, tint);
 		} else if (r.type == rtso::RES_GOLD) {
 			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
 			gold_mm->set_instance_transform((int)ig, xf);

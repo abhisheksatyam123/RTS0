@@ -98,11 +98,15 @@ class RtsoWorldView : public Node3D {
 	// static resources batched
 	// Up to TREE_KINDS tree models per biome (pick_tree_kinds), chosen per
 	// tree by its id like 0 A.D. random maps mix a biome's forest templates.
+	// Each draws up to TREE_VARIANTS models of its 0 A.D. actor (<id>.glb, <id>_v2.glb
+	// ..., tools/fetch_0ad_trees.py), one per tree by its id as 0 A.D. picks variants.
 	static constexpr int TREE_KINDS = 3;
-	MultiMeshInstance3D *tree_mmi[TREE_KINDS] = {};
-	Ref<MultiMesh> tree_mm[TREE_KINDS];
+	static constexpr int TREE_VARIANTS = 4;
+	MultiMeshInstance3D *tree_mmi[TREE_KINDS][TREE_VARIANTS] = {};
+	Ref<MultiMesh> tree_mm[TREE_KINDS][TREE_VARIANTS];
 	float tree_scale[TREE_KINDS] = { 1.0f, 1.0f, 1.0f };
-	float tree_y[TREE_KINDS] = {};
+	float tree_y[TREE_KINDS][TREE_VARIANTS] = {};
+	int tree_variants[TREE_KINDS] = { 1, 1, 1 };
 	int tree_kind_count = 1;
 	std::string tree_biome_;
 	void pick_tree_kinds(const std::string &biome);
@@ -110,10 +114,11 @@ class RtsoWorldView : public Node3D {
 	// random map's rmbiome trees) draw that plant, one batch per kind; FLORA_DEFAULT
 	// ones take the biome's pick above.
 	static constexpr int FLORA_KINDS = 27; // rtso::FLORA_COUNT
-	MultiMeshInstance3D *flora_mmi[FLORA_KINDS] = {};
-	Ref<MultiMesh> flora_mm[FLORA_KINDS];
+	MultiMeshInstance3D *flora_mmi[FLORA_KINDS][TREE_VARIANTS] = {};
+	Ref<MultiMesh> flora_mm[FLORA_KINDS][TREE_VARIANTS];
 	float flora_scale[FLORA_KINDS] = {};
-	float flora_y[FLORA_KINDS] = {};
+	float flora_y[FLORA_KINDS][TREE_VARIANTS] = {};
+	int flora_variants[FLORA_KINDS] = {};
 	// Swaying copies of tree meshes (shaders/tree_wind.gdshader), by source mesh.
 	std::unordered_map<int64_t, Ref<Mesh>> wind_cache_;
 	// 0 A.D. carry shuttles (art/actors/props/units/shuttle_*.xml) and the
@@ -263,22 +268,8 @@ class RtsoWorldView : public Node3D {
 	AudioStreamPlayer3D *spatial_players[SPATIAL_AUDIO_POOL_SIZE] = {nullptr};
 	size_t next_spatial_idx = 0;
 
-	Ref<AudioStream> sfx_bow_shoot[2];
-	Ref<AudioStream> sfx_arrow_fly;
-	Ref<AudioStream> sfx_arrow_hit;
-	Ref<AudioStream> sfx_catapult_blast;
-	Ref<AudioStream> sfx_sword_hit[3];
-	Ref<AudioStream> sfx_spear_hit[2];
-	Ref<AudioStream> sfx_building_collapse;
 	Ref<AudioStream> sfx_building_fire;
 
-	struct PrevProjState {
-		uint32_t id = 0;
-		float target_x = 0.0f, target_y = 0.0f, target_z = 0.0f;
-		float last_progress = 0.0f;
-		bool is_crush = false;
-	};
-	std::unordered_map<uint32_t, PrevProjState> tracked_projectiles;
 
 	struct PrevBuildingState {
 		uint32_t id = 0;
@@ -291,8 +282,6 @@ class RtsoWorldView : public Node3D {
 	};
 	std::unordered_map<uint32_t, PrevBuildingState> tracked_buildings;
 
-	std::unordered_map<uint32_t, float> unit_clash_cooldown;
-	float global_clash_timer = 0.0f;
 
 protected:
 	static void _bind_methods();

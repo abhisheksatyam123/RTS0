@@ -15,6 +15,12 @@
 // - Deaths (actor/human/death, actor/mounted/death), heard where they happen.
 // - BattleDetection (simulation/components/BattleDetection.js) fed with the
 //   damage the player deals to other players, which drives the music state.
+// - Combat (template Sound/SoundGroups, attack_sound_data.h): a unit's attack_melee
+//   group on each melee hit, its attack_ranged group as it shoots (a structure's
+//   once per round of arrows, BuildingAI.js FireArrows) and its attack_impact_ranged
+//   group where the projectile lands (DelayedDamage.js), its attack_slaughter group
+//   on each Slaughter strike at a domestic animal, and an animal's own attack_melee
+//   on each bite; heard where they happen while the viewer sees that spot.
 
 #include <godot_cpp/classes/audio_stream_player.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
@@ -37,6 +43,8 @@
 #include "music_manager.h" // load_audio
 
 namespace rtso {
+
+#include "attack_sound_data.h"
 
 inline const char *kAudioRoot = "res://assets/audio/";
 
@@ -113,9 +121,33 @@ inline const std::vector<const char *> &voice_stems(const std::string &action) {
 	return it == m.end() ? none : it->second;
 }
 
+// A unit's attack_melee, attack_ranged and attack_impact_ranged groups: its roster
+// template's, else its UnitType's generic template's.
+inline EntityAttackSounds unit_attack_sounds(uint16_t tmpl, uint8_t unit_type) {
+	if (tmpl < ATTACK_SOUND_ROSTER_ROWS) return roster_attack_sounds()[tmpl];
+	if (unit_type < ATTACK_SOUND_GENERIC_ROWS) return generic_attack_sounds()[unit_type];
+	return {ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE};
+}
+
+// One Sound of group g at random (RandOrder) and its pitch (RandPitch); empty for
+// ATTACK_SOUND_NONE.
+template <class Rng>
+inline godot::String pick_attack_sound(uint8_t g, Rng &rng, float *pitch) {
+	*pitch = 1.0f;
+	if (g == ATTACK_SOUND_NONE || g >= ATTACK_SOUND_GROUP_COUNT) return godot::String();
+	const AttackSoundGroup &grp = attack_sound_group(g);
+	int n = 0;
+	while (grp.files[n]) ++n;
+	if (n == 0) return godot::String();
+	const float u = (float)(rng() % 1000) / 1000.0f;
+	*pitch = grp.pitch_lo + (grp.pitch_hi - grp.pitch_lo) * u;
+	return godot::String(kAudioRoot) + grp.dir + "/" + grp.files[rng() % n];
+}
+
 class RtsoSessionAudio {
 public:
-	using SpatialFn = std::function<void(const godot::Ref<godot::AudioStream> &, godot::Vector3, float)>;
+	// stream, where, volume (dB) and pitch scale.
+	using SpatialFn = std::function<void(const godot::Ref<godot::AudioStream> &, godot::Vector3, float, float)>;
 
 	void build(godot::Node *parent) {
 		for (auto &p : pool_) {
@@ -261,6 +293,94 @@ public:
 		primed_ = true;
 	}
 
+	// Combat sounds for the hits since the last frame and the projectiles that left
+	// or landed since then (see the file comment).
+	void tick_combat(const Simulation *sim, uint8_t me, const std::vector<Simulation::AttackedEvent> &hits,
+			const std::vector<Simulation::FaunaStrikeEvent> &strikes, double t) {
+		if (!sim || !spatial_) return;
+		if (t - combat_window_start_ >= 0.25 || combat_window_start_ > t) {
+			combat_window_start_ = t;
+			combat_in_window_ = 0;
+		}
+		const auto uv = sim->units();
+		unit_index_.clear();
+		auto unit_at = [&](uint32_t id) -> int64_t {
+			if (unit_index_.empty())
+				for (size_t i = 0; i < uv.count; ++i) unit_index_[uv.id[i]] = i;
+			auto it = unit_index_.find(id);
+			return it == unit_index_.end() ? -1 : (int64_t)it->second;
+		};
+		const auto &blds = sim->buildings();
+		bld_index_.clear();
+		auto building_at = [&](uint32_t id) -> int64_t {
+			if (bld_index_.empty())
+				for (size_t i = 0; i < blds.size(); ++i) bld_index_[blds[i].id] = i;
+			auto it = bld_index_.find(id);
+			return it == bld_index_.end() ? -1 : (int64_t)it->second;
+		};
+
+		// attack_melee: the actor's attack animation sounds on the swing that hits; an
+		// animal's bite plays its own template's.
+		Simulation::FaunaView fv{};
+		bool fauna_read = false;
+		for (const auto &h : hits) {
+			if (!h.melee) continue;
+			if (const int64_t u = unit_at(h.attacker_id); u >= 0) {
+				const uint8_t g = unit_attack_sounds(uv.tmpl[u], uv.unit_type[u]).a;
+				play_combat(sim, me, g, uv.pos_x[u], 1.0f, uv.pos_z[u], uv.team[u]);
+				continue;
+			}
+			if (!fauna_read) fv = sim->fauna(), fauna_read = true;
+			for (size_t f = 0; f < fv.count; ++f)
+				if (fv.id[f] == h.attacker_id) {
+					play_combat(sim, me, fauna_attack_sound(fv.fauna_type[f]), fv.pos_x[f], 1.0f, fv.pos_z[f], GAIA_PLAYER);
+					break;
+				}
+		}
+		// A hunter's melee or Slaughter strike on an animal: attack_melee or attack_slaughter.
+		for (const auto &st : strikes) {
+			const int64_t u = unit_at(st.attacker_id);
+			if (u < 0) continue;
+			const EntityAttackSounds snd = unit_attack_sounds(uv.tmpl[u], uv.unit_type[u]);
+			play_combat(sim, me, st.slaughter ? snd.d : snd.a, uv.pos_x[u], 1.0f, uv.pos_z[u], uv.team[u]);
+		}
+
+		// attack_ranged as a projectile leaves, attack_impact_ranged where it lands.
+		std::unordered_map<uint32_t, Flight> flights;
+		for (const auto &p : sim->projectiles()) {
+			if (!p.alive) continue;
+			auto it = flights_.find(p.id);
+			Flight f = it != flights_.end() ? it->second : Flight{};
+			if (it == flights_.end() && primed_combat_) {
+				uint8_t launch = ATTACK_SOUND_NONE;
+				if (const int64_t u = unit_at(p.source_id); u >= 0) {
+					const EntityAttackSounds snd = unit_attack_sounds(uv.tmpl[u], uv.unit_type[u]);
+					launch = snd.b;
+					f.impact = snd.c;
+				} else if (const int64_t b = building_at(p.source_id); b >= 0) {
+					const EntityAttackSounds snd = building_attack_sounds(blds[b].type);
+					f.impact = snd.b;
+					// BuildingAI.js FireArrows plays attack_ranged once per round, not per arrow.
+					auto last = round_sound_.find(p.source_id);
+					if (last == round_sound_.end() || t - last->second > 0.3 || last->second > t) {
+						launch = snd.a;
+						round_sound_[p.source_id] = t;
+					}
+				}
+				play_combat(sim, me, launch, p.start_x, p.start_y, p.start_z, p.team);
+			}
+			f.x = p.target_x, f.y = p.target_y, f.z = p.target_z;
+			f.team = p.team;
+			flights[p.id] = f;
+		}
+		for (const auto &e : flights_)
+			if (!flights.count(e.first)) play_combat(sim, me, e.second.impact, e.second.x, e.second.y, e.second.z, e.second.team);
+		flights_.swap(flights);
+		if (round_sound_.size() > 256) round_sound_.clear();
+		primed_combat_ = true;
+	}
+	int combat_sounds_played() const { return combat_sounds_; }
+
 	// Where the camera looks; work sounds play only near it.
 	void set_listener(float x, float z) {
 		listener_x_ = x;
@@ -368,7 +488,7 @@ private:
 					if (!g.empty()) {
 						godot::Ref<godot::AudioStream> snd = stream(g[rng_() % g.size()]);
 						if (snd.is_valid()) {
-							spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f);
+							spatial_(snd, godot::Vector3(uv.pos_x[i], 0.5f, uv.pos_z[i]), -8.0f, 1.0f);
 							++work_in_window_;
 							++work_sounds_;
 						}
@@ -390,6 +510,37 @@ private:
 	int work_sounds_ = 0;
 	int workers_at_work_ = 0;
 	int workers_heard_ = 0;
+
+	// A combat sound heard at (x, y, z) when `me` sees that spot, at most
+	// kMaxCombatPerWindow every quarter second so a battle doesn't drown the rest.
+	void play_combat(const Simulation *sim, uint8_t me, uint8_t g, float x, float y, float z, uint8_t team) {
+		static constexpr int kMaxCombatPerWindow = 6;
+		if (g == ATTACK_SOUND_NONE || combat_in_window_ >= kMaxCombatPerWindow) return;
+		if (!sim->is_entity_visible_to_viewer(x, z, team, me)) return;
+		float pitch = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		if (path.is_empty()) return;
+		godot::Ref<godot::AudioStream> s = stream(path);
+		if (s.is_null()) return;
+		const float gain = attack_sound_group(g).gain;
+		spatial_(s, godot::Vector3(x, y, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		++combat_in_window_;
+		++combat_sounds_;
+		last_played_ = path;
+	}
+
+	struct Flight {
+		float x = 0.0f, y = 0.0f, z = 0.0f; // where it is aimed
+		uint8_t impact = ATTACK_SOUND_NONE;
+		uint8_t team = 0;
+	};
+	std::unordered_map<uint32_t, Flight> flights_;
+	std::unordered_map<uint32_t, double> round_sound_; // structure id -> its last round's sound
+	std::unordered_map<uint32_t, size_t> unit_index_, bld_index_;
+	double combat_window_start_ = 0.0;
+	int combat_in_window_ = 0;
+	int combat_sounds_ = 0;
+	bool primed_combat_ = false;
 
 	struct Seen {
 		float hp;
@@ -442,7 +593,7 @@ private:
 		const auto &g = sound_group(dir, pre);
 		if (g.empty()) return;
 		godot::Ref<godot::AudioStream> s = stream(g[rng_() % g.size()]);
-		if (s.is_valid()) spatial_(s, godot::Vector3(x, 0.5f, z), -3.0f);
+		if (s.is_valid()) spatial_(s, godot::Vector3(x, 0.5f, z), -3.0f, 1.0f);
 	}
 
 	godot::AudioStreamPlayer *pool_[kPool] = {};
