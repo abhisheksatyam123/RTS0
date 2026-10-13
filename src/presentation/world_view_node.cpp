@@ -3253,6 +3253,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 	int f_written[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
+	size_t rings_used = 0;
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
@@ -3275,5 +3276,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
 		}
+		if (!sel_set.empty() && sel_set.count((int32_t)fview.id[f])) {
+			// The player's own selected livestock (0 A.D. livestock are units).
+			if (rings_used == fauna_rings_.size()) {
+				MeshInstance3D *r = memnew(MeshInstance3D);
+				r->set_mesh(ring_mesh);
+				r->set_material_override(ring_sel_mat);
+				add_child(r);
+				fauna_rings_.push_back(r);
+			}
+			MeshInstance3D *r = fauna_rings_[rings_used++];
+			const float rs = std::max(1.0f, fsc * 1.4f);
+			r->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(fx, fy + 0.04f, fz)));
+			r->set_visible(true);
+		}
 	}
+	for (size_t k = rings_used; k < fauna_rings_.size(); ++k) fauna_rings_[k]->set_visible(false);
 }

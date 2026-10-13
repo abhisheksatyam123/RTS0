@@ -6797,6 +6797,52 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	return true;
 }
 
+bool Simulation::fauna_selectable_by(uint8_t player, uint32_t fauna_id) const {
+	auto it = fauna_id_to_idx_.find(fauna_id);
+	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS) return false;
+	const size_t f = it->second;
+	return fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_owner_[f] == player && fauna_.behavior[f] != FAUNA_CORRALLED &&
+	       fauna_.behavior[f] != FAUNA_CARCASS;
+}
+
+void Simulation::order_fauna_walk(uint8_t player, const uint32_t *ids, size_t count, float x, float z, uint32_t corral_id) {
+	// "garrison": the player's own finished corral with room, else a plain walk to it.
+	auto bit = building_id_to_idx_.find(corral_id);
+	if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != player || buildings_[bit->second].type != BLD_CORRAL ||
+	    buildings_[bit->second].build_progress < 1.0f || buildings_[bit->second].hp <= 0.0f)
+		corral_id = 0;
+	x = std::clamp(x, -map_half_ + 2.0f, map_half_ - 2.0f);
+	z = std::clamp(z, -map_half_ + 2.0f, map_half_ - 2.0f);
+	int k = 0;
+	for (size_t n = 0; n < count; ++n) {
+		if (!fauna_selectable_by(player, ids[n])) continue;
+		const size_t f = fauna_id_to_idx_.at(ids[n]);
+		// A loose square around the point, so a herd doesn't stand on one spot.
+		const int side = (int)std::ceil(std::sqrt((double)count));
+		const float ox = (float)(k % side) - 0.5f * (float)(side - 1), oz = (float)(k / side) - 0.5f * (float)(side - 1);
+		++k;
+		fauna_.behavior[f] = FAUNA_MOVING;
+		fauna_.target_unit_id[f] = 0;
+		fauna_.corral_id[f] = corral_id;
+		fauna_.home_x[f] = corral_id ? x : x + ox * 1.5f;
+		fauna_.home_z[f] = corral_id ? z : z + oz * 1.5f;
+	}
+}
+
+void Simulation::order_fauna_stop(uint8_t player, const uint32_t *ids, size_t count) {
+	for (size_t n = 0; n < count; ++n) {
+		if (!fauna_selectable_by(player, ids[n])) continue;
+		const size_t f = fauna_id_to_idx_.at(ids[n]);
+		if (fauna_.behavior[f] != FAUNA_MOVING && fauna_.behavior[f] != FAUNA_HERDED) continue;
+		fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+		fauna_.target_unit_id[f] = 0;
+		fauna_.corral_id[f] = 0;
+		fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
+		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+		fauna_.state_timer[f] = info.feed_time_min;
+	}
+}
+
 void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
@@ -15925,7 +15971,7 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_naval() || (info.flags & FAUNA_F_FISH)) continue; // isHuntable skips SeaCreatures
 		// Herded or corralled (garrisoned) livestock is nobody's to hunt.
-		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED) continue;
+		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED || fauna_.behavior[f] == FAUNA_MOVING) continue;
 		auto git = scan.on_animal.find(fauna_.id[f]);
 		consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers,
 		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(), -1, true);
@@ -24303,6 +24349,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (const LosSource &want : units) s.los_.update(s.los_unit_src_.emplace_back(), want);
 		for (const LosSource &want : blds) s.los_.update(s.los_bld_src_.emplace_back(), want);
 		for (size_t c = 0; c < explored.size(); ++c) s.los_.set_explored((int)c, explored[c]);
+		s.update_fauna_los(); // owned livestock's circles are rebuilt, not stored
 	}
 }
 
@@ -24616,6 +24663,35 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 				return sees ? unit_vision_at(u) : 0.0f;
 			},
 			[&](const Building &b) { return shares_vision(b.team) ? building_vision_range(b) : 0.0f; });
+	// A player's own livestock sees too (0 A.D. livestock are units with Vision); penned
+	// (garrisoned) animals don't.
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		const float vr = owned_fauna_vision(f);
+		if (vr > 0.0f && shares_vision(fauna_owner_[f])) reveal_fow(grid, fauna_.pos_x[f], fauna_.pos_z[f], vr, nullptr);
+	}
+}
+
+float Simulation::owned_fauna_vision(size_t f) const {
+	if (f >= fauna_.count || !fauna_.alive[f] || fauna_owner_[f] >= MAX_PLAYERS || fauna_.hp[f] <= 0.0f ||
+	    fauna_.behavior[f] == FAUNA_CORRALLED || fauna_.behavior[f] == FAUNA_CARCASS)
+		return 0.0f;
+	return fauna_type_info(fauna_.fauna_type[f]).vision;
+}
+
+void Simulation::update_fauna_los() {
+	// Each slot's circle from where its animal stands now (no hysteresis), so a loaded
+	// game rebuilds the same circles and they need no save.
+	const size_t nf = fauna_.count;
+	if (los_fauna_src_.size() < nf) los_fauna_src_.resize(nf);
+	for (size_t f = 0; f < los_fauna_src_.size(); ++f) {
+		LosSource want;
+		if (f < nf) {
+			const float vr = owned_fauna_vision(f);
+			if (vr > 0.0f) want = los_.source_at(fauna_.pos_x[f], fauna_.pos_z[f], vr, fauna_owner_[f]);
+		}
+		los_.update(los_fauna_src_[f], want);
+	}
+	los_fauna_src_.resize(nf);
 }
 
 float Simulation::building_vision_range(const Building &b) const {
@@ -24639,6 +24715,7 @@ void Simulation::reset_los() {
 	los_.init(grid_res_, map_half_);
 	los_unit_src_.clear();
 	los_bld_src_.clear();
+	los_fauna_src_.clear();
 }
 
 void Simulation::tick_los() {
@@ -24669,6 +24746,7 @@ void Simulation::tick_los() {
 		los_.update(los_bld_src_[i], want);
 	}
 	los_bld_src_.resize(nb);
+	update_fauna_los();
 }
 
 bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {
@@ -24776,7 +24854,7 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2) 
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
 		const uint8_t b = fauna_.behavior[f];
-		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED) continue;
+		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED || b == FAUNA_MOVING) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_dangerous() || info.is_naval() != ship) continue;
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
@@ -25256,6 +25334,58 @@ void Simulation::tick_fauna(float dt) {
 			}
 
 			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			continue;
+		}
+
+		// 2b. An owned animal walking where its owner sent it (UnitAI WALKING), or into one of
+		// its owner's corrals (garrison); it feeds where it stops.
+		if (fauna_.behavior[i] == FAUNA_MOVING) {
+			float tx = fauna_.home_x[i], tz = fauna_.home_z[i];
+			const Building *corral = nullptr;
+			if (fauna_.corral_id[i] != 0) {
+				auto bit = building_id_to_idx_.find(fauna_.corral_id[i]);
+				if (bit != building_id_to_idx_.end() && buildings_[bit->second].hp > 0.0f) {
+					corral = &buildings_[bit->second];
+					tx = corral->x;
+					tz = corral->z;
+				}
+			}
+			const float dx = tx - fx, dz = tz - fz;
+			const float len = std::hypot(dx, dz);
+			if (corral && len <= 3.8f) {
+				if (corral_count(corral->id) < CORRAL_GARRISON_MAX && structure_has_enough_health(*corral)) {
+					fauna_.behavior[i] = FAUNA_CORRALLED;
+					fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+					continue;
+				}
+				corral = nullptr; // full: it stops beside it
+			}
+			bool stop = len <= (corral ? 0.0f : 0.4f) || info.speed <= 0.0f;
+			if (!stop) {
+				// Straight on; round a pond or cliff 45 or 90 degrees to either side.
+				static const float kTurn[5] = {0.0f, 0.7853982f, -0.7853982f, 1.5707963f, -1.5707963f};
+				const float sp = std::min(info.speed, len / std::max(dt, 1e-3f));
+				stop = true;
+				for (float a : kTurn) {
+					const float c = std::cos(a), sn = std::sin(a);
+					const float vx = (dx * c - dz * sn) / len * sp, vz = (dx * sn + dz * c) / len * sp;
+					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
+					fauna_.vel_x[i] = vx;
+					fauna_.vel_z[i] = vz;
+					fauna_.rot_y[i] = std::atan2(vx, vz);
+					step(i, vx, vz);
+					stop = false;
+					break;
+				}
+			}
+			if (stop) {
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				fauna_.corral_id[i] = 0;
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				fauna_.home_x[i] = fauna_.pos_x[i];
+				fauna_.home_z[i] = fauna_.pos_z[i];
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+			}
 			continue;
 		}
 

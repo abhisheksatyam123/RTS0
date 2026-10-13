@@ -775,6 +775,12 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	// 0 A.D. owned livestock is a unit its owner selects and orders (UnitAI "walk",
+	// "garrison" into a corral, "stop"). Ids that aren't player's living, unpenned
+	// animals are ignored, so a command's whole selection can be passed.
+	void order_fauna_walk(uint8_t player, const uint32_t *ids, size_t count, float x, float z, uint32_t corral_id = 0);
+	void order_fauna_stop(uint8_t player, const uint32_t *ids, size_t count);
+	bool fauna_selectable_by(uint8_t player, uint32_t fauna_id) const;
 	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE, int count = 1);
 	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
 	float livestock_train_time(uint8_t player, uint8_t ftype) const;
@@ -2752,6 +2758,9 @@ private:
 	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v42)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
+	std::vector<LosSource> los_fauna_src_; // the circle each fauna_ index's owned animal adds (rebuilt on load)
+	float owned_fauna_vision(size_t f) const;
+	void update_fauna_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
