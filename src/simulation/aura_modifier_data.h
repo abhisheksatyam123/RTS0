@@ -27,10 +27,10 @@ struct RelicGlobalAura {
 	uint16_t mod_count;
 };
 
-constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 32;
+constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 33;
 
 inline const RelicAuraModifier *relic_aura_modifiers() {
-	static const RelicAuraModifier kMods[102] = {
+	static const RelicAuraModifier kMods[104] = {
 		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
@@ -114,6 +114,8 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_COST_WOOD, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_STONE, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_METAL, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_COST_WOOD, TOP_ADD, -50.0f, 1, {{TC_ARROWSHIP, 0}}}, // kush_hero_nastasen_2
+		{TSTAT_COST_METAL, TOP_ADD, -50.0f, 1, {{TC_ARROWSHIP, 0}}}, // kush_hero_nastasen_2
 		{TSTAT_BUILD_TIME, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
 		{TSTAT_COST_WOOD, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
 		{TSTAT_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
@@ -167,10 +169,11 @@ inline const RelicGlobalAura *relic_global_auras() {
 		{"athen_hero_themistocles_1", 1, 73, 2},
 		{"athen_hero_themistocles_2", 1, 75, 3},
 		{"iber_hero_indibil", 1, 78, 5},
-		{"maur_hero_ashoka", 1, 83, 8},
-		{"maur_hero_chanakya_1", 1, 91, 5},
-		{"ptol_hero_ptolemy_i_2", 1, 96, 4},
-		{"spart_hero_agis_1", 1, 100, 2},
+		{"kush_hero_nastasen_2", 1, 83, 2},
+		{"maur_hero_ashoka", 1, 85, 8},
+		{"maur_hero_chanakya_1", 1, 93, 5},
+		{"ptol_hero_ptolemy_i_2", 1, 98, 4},
+		{"spart_hero_agis_1", 1, 102, 2},
 	};
 	return kAuras;
 }
@@ -238,6 +241,19 @@ inline const LooterRangeAura *looter_range_auras() {
 	return kAuras;
 }
 
+// Range auras on ResourceGatherer/Rates of the units they reach (AURA_GATHER_RATE sources,
+// value = row): a gather rate x multiply per GatherKind (grain, fruit, meat, fish, wood,
+// stone, metal); radius in 0 A.D. metres.
+struct GatherRateRangeAura { const char *id; float multiply[7]; float radius; uint8_t players; };
+constexpr uint16_t GATHER_RATE_RANGE_AURA_COUNT = 2;
+inline const GatherRateRangeAura *gather_rate_range_auras() {
+	static const GatherRateRangeAura kAuras[2] = {
+		{"farmstead_60", {1.75f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, 60.0f, 1},
+		{"spart_catafalque_3", {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.15f}, 80.0f, 1},
+	};
+	return kAuras;
+}
+
 // Range auras replacing Loot (xp and resources) with 0 on the entities they reach
 // (AURA_NO_LOOT sources): those give their killer nothing.
 struct NoLootRangeAura { const char *id; float radius; uint8_t players; };
@@ -300,6 +316,17 @@ inline const BuilderRateRangeAura *builder_rate_range_auras() {
 		{"han_minister_building", 1.1f, false},
 		{"pers_hero_xerxes_i_1", 1.25f, false},
 		{"ptol_hero_ptolemy_i_1", 1.1f, false},
+	};
+	return kAuras;
+}
+
+// Garrison auras on BuildingAI: while a unit carrying one is garrisoned, the structure or
+// siege tower holding it multiplies GarrisonArrowMultiplier and MaxArrowCount.
+struct GarrisonArrowAura { const char *id; float arrow_multiply; float max_multiply; };
+constexpr uint16_t GARRISON_ARROW_AURA_COUNT = 1;
+inline const GarrisonArrowAura *garrison_arrow_auras() {
+	static const GarrisonArrowAura kAuras[1] = {
+		{"iber_hero_caros_1", 1.75f, 1.75f},
 	};
 	return kAuras;
 }

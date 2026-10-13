@@ -109,8 +109,8 @@ public:
 		panel_->set_anchor(SIDE_RIGHT, 0.5f);
 		panel_->set_anchor(SIDE_TOP, 0.5f);
 		panel_->set_anchor(SIDE_BOTTOM, 0.5f);
-		panel_->set_offset(SIDE_LEFT, -400.0f);
-		panel_->set_offset(SIDE_RIGHT, 400.0f);
+		panel_->set_offset(SIDE_LEFT, -430.0f);
+		panel_->set_offset(SIDE_RIGHT, 430.0f);
 		panel_->set_offset(SIDE_TOP, -200.0f);
 		panel_->set_offset(SIDE_BOTTOM, 200.0f);
 		Ref<StyleBoxFlat> style;
@@ -140,9 +140,9 @@ public:
 		// DiplomacyDialog.xml header: Name, Civilization, Team, Theirs, A, N, E, Tribute.
 		HBoxContainer *head = memnew(HBoxContainer);
 		head->add_theme_constant_override("separation", 6);
-		const char *heads[] = {"Name", "Civilization", "Team", "Theirs", "A", "N", "E", "Tribute", ""};
-		const float widths[] = {NAME_W, CIV_W, TEAM_W, THEIRS_W, STANCE_W, STANCE_W, STANCE_W, TRIBUTE_W * 4 + 18.0f, SPY_W};
-		for (int i = 0; i < 9; ++i) {
+		const char *heads[] = {"Name", "Civilization", "Team", "Theirs", "A", "N", "E", "Tribute", "", ""};
+		const float widths[] = {NAME_W, CIV_W, TEAM_W, THEIRS_W, STANCE_W, STANCE_W, STANCE_W, TRIBUTE_W * 4 + 18.0f, SPY_W, ATTACK_W};
+		for (int i = 0; i < 10; ++i) {
 			Label *l = memnew(Label);
 			l->set_text(heads[i]);
 			l->set_custom_minimum_size(Vector2(widths[i], 20));
@@ -185,6 +185,13 @@ public:
 			r.spy->add_theme_font_size_override("font_size", 10);
 			r.spy->connect("pressed", Callable(owner, "_on_diplo_spy_pressed").bind(p));
 			r.box->add_child(r.spy);
+			r.attack = memnew(Button);
+			r.attack->set_custom_minimum_size(Vector2(ATTACK_W, 22));
+			r.attack->set_text("Attack");
+			r.attack->add_theme_font_size_override("font_size", 10);
+			r.attack->set_tooltip_text("Request your allies to attack this enemy");
+			r.attack->connect("pressed", Callable(owner, "_on_diplo_attack_request_pressed").bind(p));
+			r.box->add_child(r.attack);
 			r.outcome = add_label(r.box, 70.0f);
 			vbox->add_child(r.box);
 		}
@@ -287,6 +294,11 @@ public:
 										? "Costs " + String::num_int64(sim->bribe_cost(me, p)) + " metal."
 										: String("Requires Espionage (research it at the market).")));
 			}
+			// AttackRequestButton.update: for an enemy, while we have an ally to ask.
+			bool has_ally = false;
+			for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
+				has_ally |= q != me && sim->player(q).active && !sim->is_defeated(q) && sim->is_ally(me, q);
+			r.attack->set_visible(!inactive && has_ally && sim->is_hostile(me, p));
 		}
 		// DiplomacyDialogCeasefireCounter.
 		ceasefire_->set_visible(sim->ceasefire_active());
@@ -348,7 +360,18 @@ public:
 		refresh();
 	}
 
+	// AttackRequestButton.onPress: Commands.js "attack-request" (lockstep cmd 46).
+	void attack_request_pressed(int player_idx) {
+		rtso::Simulation *sim = host_ ? host_->ui_sim() : nullptr;
+		const uint8_t me = host_ ? host_->local_player() : 0xFF;
+		if (!sim || player_idx < 0 || player_idx >= rtso::MAX_PLAYERS || me >= rtso::MAX_PLAYERS || player_idx == me) return;
+		if (host_->turn_cmds()) host_->post_lockstep(46, nullptr, 0, 0, 0, (uint32_t)player_idx, 0);
+		else sim->cmd_attack_request(me, (uint8_t)player_idx);
+		refresh();
+	}
+
 private:
+	static constexpr float ATTACK_W = 50.0f;
 	static constexpr float NAME_W = 150.0f, CIV_W = 100.0f, TEAM_W = 40.0f, THEIRS_W = 56.0f, STANCE_W = 26.0f,
 		TRIBUTE_W = 72.0f, SPY_W = 40.0f;
 	struct Row {
@@ -357,6 +380,7 @@ private:
 		Button *stance[3] = {};
 		Button *tribute[4] = {};
 		Button *spy = nullptr;
+		Button *attack = nullptr;
 		int amount[4] = {};
 	};
 

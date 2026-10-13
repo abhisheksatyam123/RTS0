@@ -18,7 +18,7 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 65;
+inline constexpr uint8_t BUILDING_AI_ROWS = 66;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -85,6 +85,7 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_CRANNOG: structures/brit/crannog (the Civic Center's BuildingAI)
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // none
 	};

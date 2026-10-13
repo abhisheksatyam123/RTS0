@@ -3412,7 +3412,7 @@
     21,
     22,
     34,
-    64
+    65
    ]
   },
   "brit/infantry_slinger_b": {
@@ -3453,7 +3453,7 @@
     21,
     22,
     34,
-    64
+    65
    ]
   },
   "brit/infantry_spearman_b": {
@@ -3494,7 +3494,7 @@
     21,
     22,
     34,
-    64
+    65
    ]
   },
   "brit/ship_arrow": {
@@ -3607,7 +3607,7 @@
     21,
     22,
     34,
-    64
+    65
    ]
   },
   "brit/support_female_citizen_house": {
@@ -3645,7 +3645,7 @@
     21,
     22,
     34,
-    64
+    65
    ]
   },
   "brit/support_healer_b": {
@@ -9091,6 +9091,19 @@
      "SiegeWall"
     ],
     "template": "structures/rome/siege_wall_long"
+   },
+   "64": {
+    "generic_name": "Siege Wall Gate",
+    "specific_name": "Porta Circummūnītiōnis",
+    "tooltip": "Allow units access through Walls. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Wall",
+     "Gate",
+     "SiegeWall"
+    ],
+    "template": "structures/rome/siege_wall_gate"
    }
   },
   "cart": {
@@ -10135,7 +10148,7 @@
     ],
     "template": "structures/palisades_gate"
    },
-   "64": {
+   "65": {
     "generic_name": "Island Settlement",
     "specific_name": "Cranogion",
     "tooltip": "Build upon a shoreline in own, neutral, or allied territory. Acquire large tracts of territory. Territory root. Train Citizens, construct Ships, and research technologies. Garrison Soldiers for additional arrows.",

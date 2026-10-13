@@ -85,17 +85,45 @@ public:
 		parent->add_child(grid_);
 	}
 
+	GridContainer *grid() const { return grid_; }
+	// A right-click on an icon calls owner.method(event, key) (selection_panels.js onPressRight).
+	void set_right_click(const char *method) { right_method_ = method; }
+
+	static String tooltip(const Group &g, const String &tip_suffix) {
+		return group_name(g) + " (" + String::num_int64(g.count) + ")\nHealth: " +
+				String::num(g.hp, 0) + " / " + String::num(g.max_hp, 0) + "\n" + tip_suffix;
+	}
+
+	// Visibility is decided per frame (hide, then show if still wanted) but
+	// only applied when it changes: hiding a Button mid-click drops the
+	// press, so a hide and show in one frame lost every click.
 	void set_visible(bool v) {
-		if (grid_) grid_->set_visible(v);
+		if (grid_ && grid_->is_visible() != v) grid_->set_visible(v);
 	}
 
 	// Shows `groups`; `tip_suffix` ends every tooltip (the click help).
 	void update(const std::vector<Group> &groups, const String &tip_suffix) {
 		if (!grid_) return;
+		// Only the groups and their sizes rebuild the icons; health changes
+		// every hit and is updated in place, so a click is not lost to a
+		// Button replaced between its press and its release.
 		uint64_t sig = groups.size();
 		for (const auto &g : groups)
-			sig = sig * 1000003ull + (uint64_t)g.key * 131ull + (uint64_t)g.count * 7ull + (uint64_t)(g.hp * 4.0f / (g.max_hp > 0 ? g.max_hp : 1.0f));
-		if (sig == sig_ && grid_->get_child_count() == (int)groups.size()) return;
+			sig = sig * 1000003ull + (uint64_t)g.key * 131ull + (uint64_t)g.count * 7ull;
+		if (sig == sig_ && grid_->get_child_count() == (int)groups.size()) {
+			for (size_t i = 0; i < groups.size(); ++i) {
+				Button *b = Object::cast_to<Button>(grid_->get_child((int)i));
+				if (!b) continue;
+				const String tip = tooltip(groups[i], tip_suffix);
+				if (b->get_tooltip_text() != tip) b->set_tooltip_text(tip);
+				for (int c = 0; c < b->get_child_count(); ++c)
+					if (ProgressBar *hp = Object::cast_to<ProgressBar>(b->get_child(c))) {
+						hp->set_max(groups[i].max_hp > 0 ? groups[i].max_hp : 1.0f);
+						hp->set_value(groups[i].hp);
+					}
+			}
+			return;
+		}
 		sig_ = sig;
 		while (grid_->get_child_count() > 0) {
 			Node *c = grid_->get_child(0);
@@ -110,9 +138,9 @@ public:
 			Ref<Texture2D> tex = rtso::load_ui_texture(String("res://assets/textures/ui/portraits/") + rtso::unit_type_portrait(g.unit_type) + ".png");
 			if (tex.is_valid()) b->set_button_icon(tex);
 			else b->set_text(group_name(g).substr(0, 3));
-			b->set_tooltip_text(group_name(g) + " (" + String::num_int64(g.count) + ")\nHealth: " +
-					String::num(g.hp, 0) + " / " + String::num(g.max_hp, 0) + "\n" + tip_suffix);
+			b->set_tooltip_text(tooltip(g, tip_suffix));
 			b->connect("pressed", Callable(owner_, method_).bind(g.key));
+			if (right_method_) b->connect("gui_input", Callable(owner_, right_method_).bind(g.key));
 			if (g.count > 1) {
 				Label *cnt = memnew(Label);
 				cnt->set_text(String::num_int64(g.count));
@@ -144,6 +172,7 @@ private:
 	GridContainer *grid_ = nullptr;
 	Object *owner_ = nullptr;
 	const char *method_ = "";
+	const char *right_method_ = nullptr; // called with (event, key) on a right-click
 	float icon_ = 36.0f;
 	uint64_t sig_ = ~0ull;
 };

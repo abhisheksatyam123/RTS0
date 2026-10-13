@@ -9,7 +9,8 @@
 //  5. Xp per hit: Loot/xp * health taken / max health, nothing for overkill.
 //  6. Healer xp below one point accumulates (Heal.js PerformHeal).
 //  7. Arrows: the shooter's owner loots; an arrow whose shooter died loots nothing.
-//  8. Structures: towers loot, destroyed buildings pay their table row.
+//  8. Structures: towers loot, destroyed buildings pay their table row; the Ptolemaic and
+//     Seleucid wood loot bonuses; Sacrificial Ritual's healers yield no metal.
 //  9. Status-effect deaths (no attacker) pay nothing.
 // 10. Save/load keeps projectile sources and partial xp.
 // Build and run:
@@ -276,6 +277,33 @@ static void test_structures() {
 	s.collect_building_loot(sw, 0, *php);
 	b = res_of(s, 0);
 	check(gained(a, b, 0, 9, 0, 0), "a Ptolemaic house pays wood 9 (x0.6)");
+	// Fertile Crescent (civbonuses/sele_farms.json): Seleucid fields yield Loot/wood x0.75.
+	uint32_t fld = s.spawn_building_world(-20.0f, -20.0f, BLD_FIELD, 1, 1.0f);
+	const Simulation::Building *fp = nullptr;
+	for (const auto &bb : s.buildings_) if (bb.id == fld) fp = &bb;
+	const LootInfo fl = building_loot(BLD_FIELD);
+	s.set_team_civ(1, CIV_ATHENIANS);
+	a = res_of(s, 0);
+	s.collect_building_loot(sw, 0, *fp);
+	b = res_of(s, 0);
+	check(gained(a, b, fl.food, fl.wood, fl.stone, fl.metal), "an Athenian field pays its table row");
+	s.set_team_civ(1, CIV_SELEUCIDS);
+	a = res_of(s, 0);
+	s.collect_building_loot(sw, 0, *fp);
+	b = res_of(s, 0);
+	check(gained(a, b, fl.food, std::floor(fl.wood * 0.75f), fl.stone, fl.metal), "a Seleucid field pays wood x0.75");
+	// Sacrificial Ritual (cost_healer.json): once its owner has it, a healer yields no metal loot.
+	uint32_t heal = s.spawn_unit(30.0f, -30.0f, 1, UNIT_HEALER);
+	const LootInfo hl = unit_loot(s.units_.tmpl[idx_of(s, heal)], UNIT_HEALER);
+	a = res_of(s, 0);
+	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, heal));
+	b = res_of(s, 0);
+	check(hl.metal > 0 && gained(a, b, hl.food, hl.wood, hl.stone, hl.metal), "a healer pays its metal loot");
+	s.players_[1].techs.set(TECH_COST_HEALER);
+	a = res_of(s, 0);
+	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, heal));
+	b = res_of(s, 0);
+	check(gained(a, b, hl.food, hl.wood, hl.stone, 0), "after Sacrificial Ritual it pays no metal");
 }
 
 static void test_status_death() {
