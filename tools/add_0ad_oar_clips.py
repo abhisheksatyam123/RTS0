@@ -17,9 +17,9 @@ and Run. The rams and the Han tower ship were written static, every oar baked
 into the hull's space; their oar nodes get their transforms back first
 (unbake_oars). Keyed nodes are renamed oarx_<k>, so the runtime sine leaves them be.
 Templates that borrow their class model's clips (manifest clips_from) are left
-alone, as are hulls whose actors 0 A.D. trunk no longer has (the German ships).
+alone. The Germans' ships need 0.28's public.zip.
 
-Usage: python3 tools/add_0ad_oar_clips.py --0ad <0 A.D. checkout> [--only id ...]
+Usage: python3 tools/add_0ad_oar_clips.py --0ad <0 A.D. checkout or public.zip> [--only id ...]
 """
 
 import argparse
@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import xml.etree.ElementTree as ET
+import zipfile
 
 import numpy as np
 
@@ -234,7 +235,8 @@ def main():
     ap.add_argument("--0ad", dest="zeroad", required=True)
     ap.add_argument("--only", nargs="+")
     args = ap.parse_args()
-    vfs = Vfs(ColladaArchive(args.zeroad))
+    # A release public.zip (0.28 has the Germans' ships) or a git checkout.
+    vfs = Vfs(zipfile.ZipFile(args.zeroad) if os.path.isfile(args.zeroad) else ColladaArchive(args.zeroad))
     with open(MANIFEST) as fh:
         man = json.load(fh)
     models = man["models"]

@@ -74,14 +74,9 @@ struct PetraConfig {
 	float emergency_struct_factor = 0.60f;
 	float emergency_root_factor   = 0.50f;
 
-	// queueManager.js Config.priorities
-	int prio_emergency = 1000;
-	int prio_villager  = 600;
-	int prio_military  = 600;
-	int prio_tech      = 700;
-	int prio_trade     = 1;
-	int prio_naval     = 90;
-	static constexpr int PRIO_MINOR_TECH = 250; // config.js priorities.minorTech (prio_tech is majorTech)
+	// Saves before v60 held the six coarse queue priorities here; the queues' priorities now
+	// come from Config.priorities (petra_queue_base_priority).
+	int reserved_[6] = {};
 
 	// config.js setConfig. `seed` != 0 draws the personality as 0 A.D. does (randFloat within
 	// the behaviour's range, cooperative anywhere in [0, 1]); 0 keeps each behaviour's middle.
@@ -147,13 +142,6 @@ struct PetraConfig {
 		// aggressive personality goes to the town phase at 50. Below Easy it never cities.
 		pop_phase2 = (d >= PETRA_MEDIUM && aggressive > 0.70f) ? 50 : 150;
 		work_phase3 = d < PETRA_EASY ? 999 : 180;
-		prio_emergency = 1000;
-		prio_villager  = 600;
-		prio_military  = (aggressive > 0.70f) ? 720 : 600;
-		prio_tech      = 700;
-		prio_trade     = 1;
-		prio_naval     = 90;
-		if (defensive > 0.70f) prio_emergency += 200;
 	}
 };
 
@@ -165,23 +153,64 @@ struct PetraQueueAccount {
 	float stone = 0.0f;
 };
 
-// queueManager.js only funds queues that hold a plan, and only up to that
-// plan's cost. A queue "wants" the cost of the item it last failed to pay for;
-// the want lapses after WANT_TTL seconds without a retry and the account's
-// reserve returns to the free pool, so idle queues cannot hoard income.
+// queueManager.js queues, Config.priorities order. RTS0 keeps one upcoming attack plan,
+// so the "plan_<name>" queues an attackPlan.js adds are three fixed ones here.
+enum PetraQueue : uint8_t {
+	PETRA_Q_VILLAGER = 0,
+	PETRA_Q_CITIZEN_SOLDIER,
+	PETRA_Q_TRADER,
+	PETRA_Q_HEALER,
+	PETRA_Q_SHIPS,
+	PETRA_Q_HOUSE,
+	PETRA_Q_DROPSITES,
+	PETRA_Q_FIELD,
+	PETRA_Q_DOCK,
+	PETRA_Q_CORRAL,
+	PETRA_Q_ECONOMIC_BUILDING,
+	PETRA_Q_MILITARY_BUILDING,
+	PETRA_Q_DEFENSE_BUILDING,
+	PETRA_Q_CIVIL_CENTRE,
+	PETRA_Q_MAJOR_TECH,
+	PETRA_Q_MINOR_TECH,
+	PETRA_Q_WONDER,
+	PETRA_Q_EMERGENCY,
+	PETRA_Q_PLAN,        // plan_<name>
+	PETRA_Q_PLAN_CHAMP,  // plan_<name>_champ
+	PETRA_Q_PLAN_SIEGE,  // plan_<name>_siege
+	PETRA_Q_COUNT
+};
+
+// queueManager.js funds the queues that hold a plan, by priority, up to that plan's cost.
+// RTS0's Petra pays where it decides rather than queueing plans: a queue "wants" the cost
+// of the item it last failed to pay for, and the want lapses after WANT_TTL seconds without
+// a retry, when the account's reserve returns to the free pool (queue emptied).
 struct PetraQueueManager {
-	static constexpr int QUEUE_COUNT = 6;
+	static constexpr int QUEUE_COUNT = PETRA_Q_COUNT;
 	static constexpr float WANT_TTL = 5.0f;
 	PetraQueueAccount accounts[QUEUE_COUNT] = {};
 	PetraQueueAccount wants[QUEUE_COUNT] = {};
 	float want_age[QUEUE_COUNT] = {};
+	int16_t priority[QUEUE_COUNT] = {};  // changePriority; 0 = the queue's Config.priorities value
+	uint8_t paused[QUEUE_COUNT] = {};    // checkPausedQueues
+	uint8_t switched[QUEUE_COUNT] = {};  // switchResource: drawn on once until it starts an item
+	uint8_t reset_on_start[QUEUE_COUNT] = {}; // queueToReset: 1 + the queue whose priority resets when this one starts its item
+	uint8_t pad[3] = {};
 	void reset() {
 		for (int i = 0; i < QUEUE_COUNT; ++i) {
 			accounts[i] = PetraQueueAccount{};
 			wants[i] = PetraQueueAccount{};
 			want_age[i] = WANT_TTL + 1.0f;
+			priority[i] = 0;
+			paused[i] = switched[i] = reset_on_start[i] = 0;
 		}
 	}
+};
+static_assert(sizeof(PetraQueueManager) == 864, "no hidden padding: saved raw");
+// The six-queue layout of saves before v60 (emergency, villager, military, tech, trade, naval).
+struct PetraQueueManagerV59 {
+	PetraQueueAccount accounts[6];
+	PetraQueueAccount wants[6];
+	float want_age[6];
 };
 
 // transportPlan.js — land-sea-land boarding FSM

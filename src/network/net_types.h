@@ -321,7 +321,7 @@ struct GameStartMsg {
 //   "map=<map_id>;seed=<u32>"  (extra keys ignored on parse)
 // Full game setup rides as extra keys (0 A.D. NetServer game-start
 // attributes broadcast before the first turn, NetMessages.h NMT_GAME_START):
-//   victory=<0..6>;waves=<0|1>;lms=<0|1>;popcap=<0..1000>;ceasefire=<0..60 min>;mapsize=<128..512>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
+//   victory=<0..6 or 128..255>;waves=<0|1>;lms=<0|1>;popcap=<0..1000>;ceasefire=<0..60 min>;mapsize=<128..512>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
 //   civ0=<civ>;civ1=<civ>;teams=<t0,t1,...> (+ up to 8 slots: civ2..civ7,
 //   types=<ht,ht,...> with h=human a=ai x=closed, slots count = teams len)
 // Old peers parse map+seed and ignore the rest.
@@ -329,7 +329,8 @@ struct GameSetupParams {
 	std::string map_id;
 	uint32_t seed = 0;
 	uint8_t victory = 0;    // rtso::VictoryCondition: 0 conquest, 1 wonder, 2 relic, 3 endless,
-	                        // 4 conquest units, 5 conquest structures, 6 regicide
+	                        // 4 conquest units, 5 conquest structures, 6 regicide; 0x80|mask a
+	                        // combination (VICTORY_COMBINED, sim_types.h)
 	uint8_t waves = 0;      // 1 = legacy wave-defense mode on
 	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
 	uint16_t pop_cap = 200;  // per-player population limit, 0 = unlimited
@@ -525,7 +526,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				out.seed = val;
 				have_seed = true;
 			}
-			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 6, x)) out.victory = x; }
+			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 255, x) && (x <= 6 || x >= 0x80)) out.victory = x; }
 			else if (k == "waves") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.waves = x; }
 			else if (k == "lms") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lms = x; }
 			else if (k == "ceasefire") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.ceasefire = x; }

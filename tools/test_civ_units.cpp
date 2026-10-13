@@ -346,13 +346,13 @@ int main() {
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen_house")).trainers);
 		CHECK(std::strcmp(civ_unit_template(roster_id("athen/support_civilian")).name, "Athenian Artisan") == 0);
 		// 0.28's Germans (civ 15, after Gaia's 14): rows appended after the Civilians, the Great
-		// Hall trains the noble cavalry, the Fortress the three heroes; Gallic art meanwhile.
+		// Hall trains the noble cavalry, the Fortress the three heroes; they draw their own models.
 		CHECK(civ_unit_template(roster_id("germ/champion_cavalry")).trainers == bld_bit(BLD_GREAT_HALL));
 		CHECK(civ_can_build(CIV_GERMANS, BLD_GREAT_HALL) && !civ_can_build(CIV_GAULS, BLD_GREAT_HALL));
 		CHECK(civ_can_train(CIV_GERMANS, UNIT_HERO) && civ_unit_template(roster_id("germ/hero_teutobod")).civ == CIV_GERMANS);
 		CHECK(std::strstr(civ_unit_template(civ_default_template(CIV_GERMANS, UNIT_FEMALE_CITIZEN)).id, "germ/support_civilian"));
 		CHECK(civ_unit_template(roster_id("germ/support_civilian")).tech_classes & TC_CIVILIAN); // Bovine Tradition
-		CHECK(std::strcmp(civ_art_code(CIV_GERMANS), "gaul") == 0 && std::strcmp(civ_art_code(CIV_GAULS), "gaul") == 0);
+		CHECK(std::strcmp(civ_unit_model(CIV_GERMANS, UNIT_SPEARMAN), "germ_spearman") == 0);
 		CHECK(tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GERMANS) && !tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GAULS));
 		CHECK(!tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GERMANS) && tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GAULS));
 		CHECK((civ_unit_template(roster_id("athen/support_civilian")).flags & ROSTER_CIVILIAN) &&

@@ -124,11 +124,13 @@ func run() -> void:
 	await process_frame
 	check(not paused, "Stay goes back to the replay")
 	check(int(st.turns) >= turns_recorded, "the replay holds every recorded turn")
-	check(int(st.view) == -1, "a replay starts in the observer view")
+	check(int(st.view) == -1 and int(st.hud_player) == -1, "a replay starts in the observer view, with no player's counters")
 	m.set_replay_view(1)
-	check(int(m.get_replay_status().view) == 1, "the player view follows player 2")
+	st = m.get_replay_status()
+	check(int(st.view) == 1 and int(st.hud_player) == 1, "the player view follows player 2, counters and time notifications too")
 	m.set_replay_view(-1)
-	check(int(m.get_replay_status().view) == -1, "and goes back to the observer")
+	st = m.get_replay_status()
+	check(int(st.view) == -1 and int(st.hud_player) == -1, "and goes back to the observer, hiding the counters (CounterManager)")
 
 	print("3. load the save from the menu")
 	ms.load_save_path = "user://saves/e2e_test.rts0sav"
