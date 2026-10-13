@@ -15658,8 +15658,9 @@ void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
 // phase, within 180 m), animals and fields left out. With no field yet it lays one once that
 // food is under 600; after that it keeps provisionFields foundations going (2, 1 below Medium,
 // one fewer past 300 food or 5 fields). A civ that can't build fields lays a corral when the
-// food is under 900 (needCorral) and manageCorral breeds an animal while it has no more than
-// one per corral (counted near it until corral animals have owners).
+// food is under 900 (needCorral); manageCorral then lays another corral while it has fewer
+// than its phase number and over 30 population per corral, and breeds an animal of a kind
+// while it owns no more of that kind than it has corrals.
 void Simulation::petra_manage_fields() {
 	std::vector<std::pair<float, float>> drops;
 	const Building *farmstead = nullptr, *tc = nullptr;
@@ -15723,14 +15724,17 @@ void Simulation::petra_manage_fields() {
 		return;
 	}
 	if (ticks_ % 16 != 12) return; // manageCorral, every fourth played turn
+	if (corrals < (int)petra_ps().phase && pop_current(petra_pid_) > 30 * corrals && anchor && can_build(BLD_CORRAL)) {
+		const float at[2] = {anchor->x, anchor->z};
+		if (petra_place_generic(BLD_CORRAL, PETRA_QUEUE_VILLAGER, nullptr, at)) return;
+	}
 	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.type != BLD_CORRAL || b.build_progress < 1.0f || b.hp <= 0.0f || !b.queue.empty()) continue;
 		for (uint8_t k = 0; k < ct.count; ++k) {
-			int have = 0; // countEntitiesByType: the corral's own animals around it
+			int have = 0; // countEntitiesByType: our own animals of that kind
 			for (size_t f = 0; f < fauna_.count; ++f)
-				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] &&
-				    std::hypot(fauna_.pos_x[f] - b.x, fauna_.pos_z[f] - b.z) < 20.0f) ++have;
+				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] && fauna_owner_[f] == petra_pid_) ++have;
 			if (have > corrals) continue;
 			cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1);
 			return;
