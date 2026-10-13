@@ -17,6 +17,7 @@ extends Control
 
 const REPLAY_ROOT := "user://replays"
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
+const SummaryPage = preload("res://scenes/session/summary_screen.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 ## compatibilityColor: incompatible replays are greyed out.
 const INCOMPATIBLE := Color8(96, 96, 96)
@@ -70,11 +71,17 @@ var _confirm: ConfirmationDialog
 var _message: AcceptDialog
 var _hotkeys = null
 static var _map_info_cache := {}
+## replaySelectionData: what start_replay leaves for the menu that opens after
+## the replay (or its summary), which restores it once.
+static var selection_data := {}
+var _restore := {}
 
 func _ready() -> void:
 	if ClassDB.class_exists("RtsoHotkeyConfig"):
 		_hotkeys = ClassDB.instantiate("RtsoHotkeyConfig")
 	_build()
+	_restore = selection_data
+	selection_data = {}
 	load_replays()
 
 # --- Data ----------------------------------------------------------------------
@@ -146,7 +153,7 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 		"map": str(meta.get("map_name", map_id)), "map_id": map_id, "map_type": info["type"], "desc": info["desc"],
 		"size": size, "pop": pop, "pop_type": pop_type,
 		"duration": float(meta.get("start_time", 0.0)) + float(meta.get("duration", 0.0)),
-		"victory": victory, "multiplayer": humans > 1 or str(meta.get("kind", "sp")) == "mp",
+		"victory": victory, "multiplayer": humans > 1, # replay_menu.js isMultiplayer
 		"campaign": str(settings.get("campaign_run", "")) != ""}
 
 ## loadReplays: read every replay folder, then refill the filters.
@@ -172,13 +179,42 @@ func load_replays() -> void:
 				_player_names.append(n)
 	_map_names.sort()
 	_init_filters()
+	if not _restore.is_empty():
+		_apply_selection_data(_restore)
+		_restore = {}
 	display_replay_list()
+
+## createReplaySelectionData.
+func create_selection_data(directory: String) -> Dictionary:
+	var filters := {"playernames": _players_filter.text, "compatibility": _compatibility_filter.button_pressed}
+	for k in _dropdown_filters():
+		var dd: OptionButton = _dropdown_filters()[k]
+		filters[k] = dd.get_item_text(dd.selected) if dd.selected >= 0 else ""
+	return {"directory": directory, "column": sort_column, "columnOrder": sort_order, "filters": filters}
+
+func _dropdown_filters() -> Dictionary:
+	return {"date": _date_filter, "mapName": _map_filter, "mapSize": _size_filter, "popCap": _pop_filter,
+		"duration": _duration_filter, "singleplayer": _singleplayer_filter, "victoryCondition": _victory_filter}
+
+## loadReplays' "Restore user selection" and initFilters(replaySelectionData.filters).
+func _apply_selection_data(d: Dictionary) -> void:
+	var filters: Dictionary = d.get("filters", {})
+	for k in _dropdown_filters():
+		var dd: OptionButton = _dropdown_filters()[k]
+		for i in dd.item_count:
+			if dd.get_item_text(i) == str(filters.get(k, "")):
+				dd.select(i)
+	_players_filter.text = str(filters.get("playernames", ""))
+	_compatibility_filter.set_pressed_no_signal(bool(filters.get("compatibility", _compatibility_filter.button_pressed)))
+	_selected_dir = str(d.get("directory", ""))
+	sort_column = str(d.get("column", sort_column))
+	sort_order = int(d.get("columnOrder", sort_order))
 
 static func map_size_name(size: int) -> String:
 	for s in MAP_SIZES:
 		if s[0] == size:
 			return s[1]
-	return "%d m" % size if size > 0 else "Default"
+	return "Default"
 
 static func victory_name(v: int) -> String:
 	return SetupPage.VICTORIES[v].get_slice(" — ", 0) if v >= 0 and v < SetupPage.VICTORIES.size() else "Unknown"
@@ -241,10 +277,10 @@ func passes(r: Dictionary) -> bool:
 		return false
 	match _singleplayer_filter.selected:
 		1:
-			if r["multiplayer"]:
+			if r["multiplayer"] or r["campaign"]:
 				return false
 		2:
-			if not r["multiplayer"]:
+			if not r["multiplayer"] or r["campaign"]:
 				return false
 		3:
 			if not r["campaign"]:
@@ -340,39 +376,37 @@ func sort_by(column: String) -> void:
 		sort_order = 1
 	display_replay_list()
 
-## formatPlayerInfo: the players by team, each in its colour with its civ,
-## with the outcome when spoilers are shown.
+## formatPlayerInfo: a line per player, "Name (Civ)" or "Name (Civ, Medium
+## Balanced Petra Bot)", with ", won" or ", defeated" when spoilers are shown,
+## under "Team N:" / "No Team:" captions when there is more than one team.
 static func player_info(r: Dictionary, spoiler: bool) -> String:
+	var all: Array = r["players"]
 	var teams := {}
-	for p in r["players"]:
-		var t := int(p.get("team", 0))
+	for p in all:
+		var t: int = SummaryPage.setup_team(p, all)
 		if not teams.has(t):
 			teams[t] = []
-		teams[t].append(p)
-	var no_teams := teams.values().all(func(m): return m.size() < 2)
-	var lines: PackedStringArray = []
+		teams[t].append(_player_description(p, spoiler))
 	var keys := teams.keys()
 	keys.sort()
-	for t in keys:
-		if not no_teams:
-			lines.append("[b]Team %d[/b]" % t)
-		for p in teams[t]:
-			var c: Variant = p.get("color", null)
-			var color := Color(float(c["r"]), float(c["g"]), float(c["b"])) if c is Dictionary else Color.WHITE
-			var name := "[color=#%s]%s[/color]" % [color.lightened(0.3).to_html(false), str(p.get("name", "?")).replace("[", "[lb]")]
-			var line := "%s (%s)" % [name, p.get("civ_name", "?")]
-			if p.get("ai", false):
-				line += " AI"
-			if spoiler:
-				var state := str(p.get("state", "won" if p.get("winner", false) else ("defeated" if p.get("defeated", false) else "")))
-				if state == "won":
-					line += ", [color=#6fdc6f]won[/color]"
-				elif state == "defeated":
-					line += ", [color=#e06060]defeated[/color]"
-			lines.append(line)
-		if not no_teams:
-			lines.append("")
-	return "\n".join(lines).strip_edges()
+	if keys.has(-1): # Object.keys order: the teams, then -1
+		keys.erase(-1)
+		keys.append(-1)
+	if keys.size() == 1:
+		return "\n".join(teams[keys[0]])
+	return "\n\n".join(keys.map(func(t): return "[b]%s:[/b]\n%s" % [
+		"No Team" if t == -1 else "Team %d" % (t + 1), "\n".join(teams[t])]))
+
+static func _player_description(p: Dictionary, spoiler: bool) -> String:
+	var c: Variant = p.get("color", null)
+	var color := Color(float(c["r"]), float(c["g"]), float(c["b"])) if c is Dictionary else Color.WHITE
+	var parts := [str(p.get("civ_name", "Unknown Civilization"))]
+	if p.get("ai", false):
+		parts.append(SummaryPage.ai_description(p))
+	var state := str(p.get("state", "won" if p.get("winner", false) else ("defeated" if p.get("defeated", false) else "active")))
+	if spoiler and state != "active" and state != "":
+		parts.append("defeated" if state == "defeated" else "won")
+	return "[color=#%s]%s[/color] (%s)" % [color.to_html(false), str(p.get("name", "?")).replace("[", "[lb]"), ", ".join(parts)]
 
 ## displayReplayDetails.
 func display_replay_details() -> void:
@@ -383,7 +417,7 @@ func display_replay_details() -> void:
 	_btn_start.disabled = not picked
 	_btn_delete.disabled = not picked
 	_filename.visible = picked
-	_btn_summary.visible = picked and r["meta"].has("summary")
+	_btn_summary.visible = picked
 	if not picked:
 		return
 	_info_labels["name"].text = r["map"]
@@ -413,22 +447,35 @@ func start_replay() -> void:
 	if r.is_empty():
 		return
 	if not r["compatible"]:
-		_message.title = "Incompatible replay"
-		_message.dialog_text = "This replay cannot be watched with this build of RTS0.\n\n" + r["why"]
-		_message.popup_centered()
+		_compatibility_error(r)
 		return
+	selection_data = create_selection_data(r["dir"])
 	MatchSettings.replay_dir = r["dir"]
 	MatchSettings.load_save_path = ""
 	MatchSettings.go("res://scenes/main.tscn")
 
+## displayReplayCompatibilityError.
+func _compatibility_error(r: Dictionary) -> void:
+	_message.title = "Incompatible replay"
+	_message.dialog_text = "This replay is not compatible with your version of the game!\n" + r["why"]
+	_message.popup_centered()
+
 ## showReplaySummary.
 func show_summary() -> void:
 	var r := _selected()
-	if r.is_empty() or not r["meta"].has("summary"):
+	if r.is_empty():
+		return
+	if not r["compatible"]:
+		_compatibility_error(r)
+		return
+	if not r["meta"].has("summary"):
+		_message.title = "Error"
+		_message.dialog_text = "No summary data available."
+		_message.popup_centered()
 		return
 	var s = load("res://scenes/session/summary_screen.tscn").instantiate()
 	add_child(s)
-	s.configure({"isReplay": true, "replayDirectory": r["dir"]})
+	s.configure({"isReplay": true, "replayDirectory": r["dir"], "selectionOwner": "replay menu"})
 	s.close_only()
 	var summary: Dictionary = r["meta"]["summary"]
 	s.show_summary(summary.get("victory", false), summary, float(r["meta"].get("duration", 0.0)))
@@ -453,8 +500,10 @@ func delete_selected() -> void:
 		for f in dir.get_files():
 			dir.remove(f)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(r["dir"]))
+	var index := selected_index()
 	_selected_dir = ""
 	load_replays()
+	select_replay(mini(index, _replays.size() - 1)) # the replay that took its place
 
 ## Tab in the player filter: complete the last word from the players' names.
 func autocomplete_player() -> void:
@@ -527,21 +576,21 @@ func _build() -> void:
 	filters.name = "FilterPanel"
 	filters.add_theme_constant_override("separation", 5)
 	left.add_child(_anchor(filters, 0, 0, 1, 0, 0, 0, -13, 26))
-	_date_filter = _dropdown("DateTimeFilter", "Filter replays by month.")
+	_date_filter = _dropdown("DateTimeFilter", "")
 	_players_filter = LineEdit.new()
 	_players_filter.name = "PlayersFilter"
 	_players_filter.placeholder_text = "Search for Player"
-	_players_filter.tooltip_text = "Filter replays by typing one or more, partial or complete player names. Press Tab to complete a name."
+	_players_filter.tooltip_text = "Filter replays by typing one or more, partial or complete player names. Press [Tab] to autocomplete player names."
 	_players_filter.add_theme_font_size_override("font_size", 13)
-	_players_filter.text_changed.connect(func(_t): display_replay_list())
+	_players_filter.text_submitted.connect(func(_t): display_replay_list()) # replay_menu.xml: the Press action
 	_players_filter.gui_input.connect(func(e):
 		if e is InputEventKey and e.pressed and e.keycode == KEY_TAB:
 			_players_filter.accept_event()
 			autocomplete_player())
-	_map_filter = _dropdown("MapNameFilter", "Filter replays by map.")
-	_size_filter = _dropdown("MapSizeFilter", "Filter replays by map size.")
-	_pop_filter = _dropdown("PopulationFilter", "Filter replays by population capacity.")
-	_duration_filter = _dropdown("DurationFilter", "Filter replays by length.")
+	_map_filter = _dropdown("MapNameFilter", "")
+	_size_filter = _dropdown("MapSizeFilter", "")
+	_pop_filter = _dropdown("PopulationFilter", "")
+	_duration_filter = _dropdown("DurationFilter", "")
 	for pair in [[_date_filter, 12], [_players_filter, 44], [_map_filter, 14], [_size_filter, 10], [_pop_filter, 10], [_duration_filter, 10]]:
 		pair[0].size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		pair[0].size_flags_stretch_ratio = pair[1]
@@ -582,9 +631,9 @@ func _build() -> void:
 	_compatibility_filter.flat = true
 	_compatibility_filter.toggled.connect(func(_on): display_replay_list())
 	right.add_child(_anchor(_compatibility_filter, 0, 0, 1, 0, 0, 0, 0, 26))
-	_singleplayer_filter = _dropdown("SingleplayerFilter", "Filter single-player or multiplayer replays.")
+	_singleplayer_filter = _dropdown("SingleplayerFilter", "")
 	right.add_child(_anchor(_singleplayer_filter, 0, 0, 1, 0, 0, 30, 0, 55))
-	_victory_filter = _dropdown("VictoryConditionFilter", "Filter replays by victory condition.")
+	_victory_filter = _dropdown("VictoryConditionFilter", "")
 	right.add_child(_anchor(_victory_filter, 0, 0, 1, 0, 0, 60, 0, 85))
 	var frame := StyleBoxFlat.new()
 	frame.bg_color = Color(0, 0, 0, 0.35)
@@ -593,11 +642,11 @@ func _build() -> void:
 	_info_empty = PanelContainer.new()
 	_info_empty.name = "ReplayInfoEmpty"
 	_info_empty.add_theme_stylebox_override("panel", frame)
-	var empty := _label("Select a replay to see its map and players.", 14, Color(0.8, 0.8, 0.8))
-	empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	empty.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_info_empty.add_child(empty)
+	var logo := TextureRect.new() # replayInfoEmpty: the logo, no text
+	logo.texture = load("res://assets/textures/ui/pregame/logo/0ad_logo.png")
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_info_empty.add_child(logo)
 	right.add_child(_anchor(_info_empty, 0, 0, 1, 1, 0, 92, 0, 0))
 	_info = PanelContainer.new()
 	_info.name = "ReplayInfo"
@@ -649,7 +698,6 @@ func _build() -> void:
 	_spoiler.name = "ShowSpoiler"
 	_spoiler.text = "Spoiler"
 	_spoiler.flat = true
-	_spoiler.tooltip_text = "Show who won and who was defeated."
 	_spoiler.toggled.connect(func(_on): display_replay_details())
 	box.add_child(_spoiler)
 	# Bottom panel: buttons.
@@ -657,9 +705,9 @@ func _build() -> void:
 	bottom.name = "BottomPanel"
 	bottom.add_theme_constant_override("separation", 12)
 	add_child(_anchor(bottom, 0, 1, 1, 1, 25, -60, -25, -22))
-	var buttons := [["Main Menu", _on_back_pressed, ""], ["Delete", delete_pressed, "Delete the selected replay using Delete.\nHold Shift to skip the confirmation dialog while deleting."],
+	var buttons := [["Main Menu", _on_back_pressed, ""], ["Delete", delete_pressed, _delete_tooltip()],
 		["Rebuild Cache", load_replays, "Rebuild the replay cache from scratch. Potentially slow!"],
-		["Summary", show_summary, "Ctrl+Tab: show the selected replay's summary."], ["Start Replay", start_replay, ""]]
+		["Summary", show_summary, ""], ["Start Replay", start_replay, ""]]
 	for b in buttons:
 		var btn := Button.new()
 		btn.name = str(b[0]).replace(" ", "") + "Button"
@@ -672,13 +720,41 @@ func _build() -> void:
 	_btn_summary = bottom.get_node("SummaryButton")
 	_btn_start = bottom.get_node("StartReplayButton")
 	_confirm = ConfirmationDialog.new()
-	_confirm.title = "Delete"
+	_confirm.title = "Delete replay"
+	_confirm.ok_button_text = "Yes" # messageBox buttons No, Yes
+	_confirm.cancel_button_text = "No"
 	_confirm.confirmed.connect(delete_selected)
 	add_child(_confirm)
 	_message = AcceptDialog.new()
 	add_child(_message)
 	_singleplayer_filter.clear()
 	_refill(_singleplayer_filter, SINGLEPLAYER)
+
+## initHotkeyTooltips: the keys bound to session.savedgames.delete and .noconfirmation.
+func _delete_tooltip() -> String:
+	var del := _hotkey_combos("session.savedgames.delete")
+	if del.is_empty():
+		return ""
+	var tip := "Delete the selected replay using [%s]." % del[0]
+	var skip := _hotkey_combos("session.savedgames.noconfirmation")
+	if not skip.is_empty():
+		tip += "\nHold [%s] to skip the confirmation dialog while deleting." % skip[0]
+	return tip
+
+func _hotkey_combos(hotkey: String) -> PackedStringArray:
+	return _hotkeys.call("get_hotkey_map").get(hotkey, PackedStringArray()) if _hotkeys else PackedStringArray()
+
+## session.savedgames.noconfirmation held, from the key event's own modifiers when it names one.
+func _skip_confirmation(event: InputEventKey) -> bool:
+	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
+	for combo in keys.get("session.savedgames.noconfirmation", PackedStringArray(["Shift"])):
+		var c := str(combo).to_lower()
+		if (c == "shift" and event.shift_pressed) or (c == "ctrl" and event.ctrl_pressed) or (c == "alt" and event.alt_pressed):
+			return true
+	return _held("session.savedgames.noconfirmation")
+
+func _held(hotkey: String) -> bool:
+	return _hotkeys.call("is_held", hotkey) if _hotkeys else Input.is_key_pressed(KEY_SHIFT)
 
 func _fired(event: InputEvent, hotkey: String) -> bool:
 	if _hotkeys == null or not (event is InputEventKey) or not event.pressed or event.echo:
@@ -698,12 +774,22 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or find_child("SummaryScreen", false, false):
 		return
-	if event.keycode == KEY_DELETE and not _players_filter.has_focus():
+	if _fired_ignoring_modifiers(event, "session.savedgames.delete") and not _players_filter.has_focus():
 		get_viewport().set_input_as_handled()
-		delete_pressed(event.shift_pressed) # session.savedgames.delete / .noconfirmation
+		delete_pressed(_skip_confirmation(event))
 	elif _fired(event, "summary"):
 		get_viewport().set_input_as_handled()
 		show_summary()
+
+## A delete key still deletes while the no-confirmation modifier is held.
+func _fired_ignoring_modifiers(event: InputEvent, hotkey: String) -> bool:
+	if _hotkeys == null or not (event is InputEventKey) or not event.pressed or event.echo:
+		return event is InputEventKey and event.pressed and _hotkeys == null and event.keycode == KEY_DELETE
+	var key := str(_hotkeys.call("event_key_name", event)).to_lower()
+	for combo in _hotkey_combos(hotkey):
+		if str(combo).to_lower() == key:
+			return true
+	return false
 
 func _read_json(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):

@@ -39,7 +39,7 @@ const char *const kSetupKeys[] = {
 	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "ceasefire_min",
 	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
-	"player_civ", "ai_civ", "campaign_run", "campaign_level",
+	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -163,6 +163,10 @@ void RtsoMain::apply_settings_snapshot(const Dictionary &settings) {
 Array RtsoMain::player_list() const {
 	Array players;
 	if (!sim) return players;
+	// 0 A.D. playerState.team: the Game Setup team (-1 = none, 0-3 = Team 1-4).
+	// RTS0's sim team is its lowest member's id, so the setup slot is kept too.
+	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
+	const Array slot_teams = ms ? (Array)ms->get("slot_teams") : Array();
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
 		const rtso::PlayerState &ps = sim->player(p);
@@ -172,6 +176,7 @@ Array RtsoMain::player_list() const {
 		d["civ"] = (int)ps.civ;
 		d["civ_name"] = String(rtso::civ_info(ps.civ).name);
 		d["team"] = (int)ps.team + 1;
+		d["setup_team"] = p < slot_teams.size() && (int)slot_teams[p] > 0 ? (int)slot_teams[p] - 1 : -1;
 		d["ai"] = sim->petra_runs_for(p);
 		if (sim->petra_runs_for(p)) {
 			d["ai_difficulty"] = (int)sim->petra_config_for(p).difficulty;
@@ -215,6 +220,7 @@ Dictionary RtsoMain::statistics_summary() const {
 	out["game_time"] = (double)sim->stats().ticks * rtso::Simulation::FIXED_STEP;
 	out["victory"] = sim->is_victory_for(me);
 	out["map_size"] = replay_meta_.get("map_size", random_map_size);
+	out["lock_teams"] = sim->teams_locked(); // summary.js initTeamData: mapSettings.LockTeams
 
 	Array players = player_list();
 	for (int i = 0; i < players.size(); ++i) {
@@ -271,6 +277,8 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	const bool replay = turn_mgr_.is_replaying();
 	const uint8_t me = local_player();
 	g["isInGame"] = in_game;
+	// MenuButtons keeps summarySelection for the match; the summary after it starts afresh.
+	if (in_game) g["selectionOwner"] = "match " + String::num_uint64(get_instance_id());
 	g["dialog"] = in_game;
 	g["isReplay"] = replay;
 	g["networked"] = net_lockstep();
@@ -280,7 +288,7 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	g["victory"] = !replay && me < rtso::MAX_PLAYERS && sim->is_victory_for(me);
 	g["isObserver"] = replay || me >= rtso::MAX_PLAYERS || sim->is_defeated(me) || sim->is_victory_for(me);
 	g["assignedPlayer"] = replay || me >= rtso::MAX_PLAYERS ? -1 : (int)me;
-	g["replayDirectory"] = !replay && !replay_dir_.is_empty() && FileAccess::file_exists(replay_dir_ + String("metadata.json"))
+	g["replayDirectory"] = replay ? watched_replay_dir_ : !replay_dir_.is_empty() && FileAccess::file_exists(replay_dir_ + String("metadata.json"))
 		? replay_dir_ : String();
 	// MenuButtons.js openGameSummary: during the game a player sees itself, and its
 	// mutual allies once it shares their sight (Cartography); observers and players
@@ -430,6 +438,7 @@ bool RtsoMain::start_pending_replay() {
 	const String dir = ms->get("replay_dir");
 	if (dir.is_empty()) return false;
 	ms->set("replay_dir", String());
+	watched_replay_dir_ = dir;
 	Dictionary meta = read_json(dir.path_join("metadata.json"));
 	const String cmd_path = ProjectSettings::get_singleton()->globalize_path(dir.path_join("commands.rts0rec"));
 	if (meta.is_empty() || !FileAccess::file_exists(dir.path_join("commands.rts0rec"))) {
