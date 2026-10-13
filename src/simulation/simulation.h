@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 70; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 71; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
@@ -173,6 +173,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr uint32_t SAVE_VERSION_STATISTICS_COUNTS = 65; // resource and population counts, livestock, bribes
+	static constexpr uint32_t SAVE_VERSION_UNITS_CAPTURED = 71; // StatisticsTracker unitsCaptured and its value
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -2143,6 +2144,7 @@ private:
 	void stat_building_constructed(const Building &b);
 	void stat_building_lost(const Building &b, uint8_t killer);
 	void stat_building_captured(const Building &b, uint8_t from);
+	void stat_unit_captured(size_t idx, uint8_t from); // unit idx now belongs to its captor
 	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
 	void tick_statistics();
 	void update_statistics_explored();
