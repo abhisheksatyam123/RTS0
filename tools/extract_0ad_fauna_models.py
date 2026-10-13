@@ -548,6 +548,20 @@ def convert(art, model_id, actor, size, out_dir, fit="height"):
         animations.append({"name": clip, "times": times,
                            "tracks": {1 + i: tr for i, tr in enumerate(tracks)}})
         used[clip] = f
+    # 0 A.D. plays one of an actor's same-named clips at random; world_view_node
+    # gives some animals the next most frequent idle and death (Idle2, Death2).
+    for clip, name in (("Idle2", "idle"), ("Death2", "death")):
+        first = used.get(clip[:-1])
+        rest_c = [c for c in sorted(a["anims"].get(name) or [], key=lambda c: -c[1]) if c[0] != first]
+        if not order or not first or not rest_c:
+            continue
+        anim = read_clip(art, rest_c[0][0], nodes, order, bone_pose)
+        if anim is None:
+            continue
+        times, tracks = anim
+        animations.append({"name": clip, "times": times,
+                           "tracks": {1 + i: tr for i, tr in enumerate(tracks)}})
+        used[clip] = rest_c[0][0]
     skins = None
     if order:
         ibm = [np.linalg.inv(trs_mat(*p)).tolist() for p in rest]

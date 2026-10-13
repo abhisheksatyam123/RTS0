@@ -585,6 +585,46 @@ static void check_tutorials() {
 	if (failures == before) std::printf("tutorials: Ready, gather, training and rally goals advance; state survives a save: ok\n");
 }
 
+static void check_gallic_fields() {
+	// skirmishes/gallic_fields_3p.js: a Roman champion at each B or C point after a minute,
+	// attack-walking to its owner's A point; each wave waits 1-3 times longer and grows as much.
+	const int before = failures;
+	static Simulation s;
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) {
+		const float side = p ? 1.0f : -1.0f;
+		s.add_trigger_point('A', side * 20.0f, 0.0f, p);
+		s.add_trigger_point('B', side * 40.0f, 30.0f, p);
+		s.add_trigger_point('C', side * 40.0f, -30.0f, p);
+	}
+	CHECK(s.register_trigger_script("gallic_fields_3p"), "gallic_fields_3p not registered");
+	const uint16_t champion = civ_unit_template_by_id("rome/champion_infantry_swordsman");
+	auto romans = [&](int *ordered) {
+		int n = 0;
+		if (ordered) *ordered = 0;
+		for (size_t i = 0; i < s.units_.count; ++i)
+			if (s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER && s.units_.tmpl[i] == champion) {
+				++n;
+				if (ordered) *ordered += s.units_.order_kind[i] != ORDER_NONE;
+			}
+		return n;
+	};
+	run_to(s, 59.9f);
+	CHECK(romans(nullptr) == 0, "%d Romans before a minute", romans(nullptr));
+	run_to(s, 60.1f);
+	int ordered = 0;
+	CHECK(romans(&ordered) == 2 && ordered == 2, "first wave: %d Romans, %d with orders", romans(nullptr), ordered);
+	const int32_t size = s.triggers_.vars[0], wait = s.triggers_.vars[1];
+	CHECK(size >= 1 && size <= 3 && wait >= 60000 && wait <= 180000, "next wave of %d after %d ms", size, wait);
+	const int alive = romans(nullptr);
+	run_to(s, 60.0f + (float)wait / 1000.0f + 0.1f);
+	CHECK(romans(nullptr) >= 2 * size && romans(nullptr) <= alive + 2 * size, "second wave: %d Romans, want %d more", romans(nullptr), 2 * size);
+	if (failures == before) std::printf("Gallic Fields: a Roman at each point after a minute, %d each after %d ms more: ok\n", size, wait);
+}
+
 static void check_death_canyon() {
 	const int before = failures;
 	static Simulation s;
@@ -855,6 +895,7 @@ int main() {
 	check_save_load(tm, MAP_SURVIVAL_OF_THE_FITTEST, 200.0f, 420.0f, Simulation::WATER_LEVEL_RISING, 25, "Survival of the Fittest across the first wave");
 	check_polar_sea();
 	check_treasure_islands();
+	check_gallic_fields();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_flood();

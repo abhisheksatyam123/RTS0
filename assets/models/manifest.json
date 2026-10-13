@@ -13053,6 +13053,18 @@
     "actor:art/actors/props/structures/hellenes/trireme_blanket.xml",
     "actor:art/actors/props/structures/hellenes/trireme_fore_sail.xml",
     "actor:art/actors/structures/athenians/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/athen_trireme_main_sail.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/hele_trireme_blanket.dae",
@@ -13505,6 +13517,14 @@
     "actor:art/actors/props/units/shields/kart_csw_round_a.xml",
     "actor:art/actors/props/units/shields/kart_csw_round_b_back.xml",
     "actor:art/actors/structures/carthaginians/bireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
     "mesh:props/kart_bireme_main_sail.dae",
     "mesh:props/shield/round_b_f.dae",
     "mesh:props/shield/round_s_b.dae",
@@ -13569,6 +13589,14 @@
     "actor:art/actors/props/units/shields/rome_parma_b.xml",
     "actor:art/actors/props/units/shields/round_back.xml",
     "actor:art/actors/structures/romans/bireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
     "mesh:props/rome_bireme_main_sail.dae",
     "mesh:props/rome_bridge.dae",
     "mesh:props/rome_bridge_base.dae",
@@ -17193,6 +17221,10 @@
     "actor:art/actors/props/units/shields/props/aspis_back_bronze_01.xml",
     "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
     "actor:art/actors/structures/carthaginians/quinquereme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
     "mesh:props/kart_quinquereme_main_sail.dae",
     "mesh:props/kart_ship_standard.dae",
     "mesh:props/shield/aspis_01_back.dae",
@@ -17527,6 +17559,14 @@
     "actor:art/actors/props/units/shields/kart_leather_large_e.xml",
     "actor:art/actors/props/units/shields/round_noboss_back_wicker.xml",
     "actor:art/actors/structures/carthaginians/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/kart_ship_standard.dae",
     "mesh:props/kart_trireme_fore_sail.dae",
     "mesh:props/kart_trireme_main_sail.dae",
@@ -18527,7 +18567,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 32,
    "file": "models/units/fauna_arctic_wolf.glb",
@@ -18544,7 +18586,9 @@
     "actor:art/actors/fauna/arctic_wolf.xml",
     "anim:quadraped/wolf_attack_01.dae",
     "anim:quadraped/wolf_death_01.dae",
+    "anim:quadraped/wolf_death_02.dae",
     "anim:quadraped/wolf_idle_01.dae",
+    "anim:quadraped/wolf_idle_02.dae",
     "anim:quadraped/wolf_run.dae",
     "anim:quadraped/wolf_walk.dae",
     "mesh:skeletal/wolf.dae",
@@ -18559,7 +18603,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 75,
    "file": "models/units/fauna_bear_black.glb",
@@ -18577,6 +18622,7 @@
     "anim:quadraped/bear_attack_01.dae",
     "anim:quadraped/bear_death_01.dae",
     "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_idle_02.dae",
     "anim:quadraped/bear_run.dae",
     "anim:quadraped/bear_walk.dae",
     "mesh:skeletal/bear.dae",
@@ -18591,7 +18637,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 75,
    "file": "models/units/fauna_bear_white.glb",
@@ -18609,6 +18656,7 @@
     "anim:quadraped/bear_attack_01.dae",
     "anim:quadraped/bear_death_01.dae",
     "anim:quadraped/bear_idle_01.dae",
+    "anim:quadraped/bear_idle_02.dae",
     "anim:quadraped/bear_run.dae",
     "anim:quadraped/bear_walk.dae",
     "mesh:skeletal/bear_polar.dae",
@@ -18623,7 +18671,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_bull.glb",
@@ -18640,7 +18690,9 @@
     "actor:art/actors/fauna/bull.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/bull_a.dae",
@@ -18655,7 +18707,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 90,
    "file": "models/units/fauna_camel.glb",
@@ -18674,6 +18727,7 @@
     "anim:quadraped/camel_attack_melee_01.dae",
     "anim:quadraped/camel_death.dae",
     "anim:quadraped/camel_idle_01.dae",
+    "anim:quadraped/camel_idle_02.dae",
     "anim:quadraped/camel_trot.dae",
     "anim:quadraped/camel_walk.dae",
     "mesh:props/camel_teeths.dae",
@@ -18689,7 +18743,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 72,
    "file": "models/units/fauna_elephant_african_baby.glb",
@@ -18706,6 +18761,7 @@
     "actor:art/actors/fauna/elephant_african_baby.xml",
     "anim:quadraped/elephant_infant_death.dae",
     "anim:quadraped/elephant_infant_idle_01.dae",
+    "anim:quadraped/elephant_infant_idle_03.dae",
     "anim:quadraped/elephant_infant_run.dae",
     "anim:quadraped/elephant_infant_walk.dae",
     "mesh:skeletal/elephant_african_baby.dae",
@@ -18720,7 +18776,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 73,
    "file": "models/units/fauna_elephant_asian.glb",
@@ -18738,6 +18795,7 @@
     "anim:quadraped/elephant_asian_attack_melee_01.dae",
     "anim:quadraped/elephant_asian_death.dae",
     "anim:quadraped/elephant_asian_idle_01.dae",
+    "anim:quadraped/elephant_asian_idle_02.dae",
     "anim:quadraped/elephant_asian_run.dae",
     "anim:quadraped/elephant_asian_walk.dae",
     "mesh:skeletal/elephant_asian_male.dae",
@@ -18781,7 +18839,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 31,
    "file": "models/units/fauna_giraffe_baby.glb",
@@ -18798,6 +18857,7 @@
     "actor:art/actors/fauna/giraffe_baby.xml",
     "anim:quadraped/giraffe_infant_death.dae",
     "anim:quadraped/giraffe_infant_idle_01.dae",
+    "anim:quadraped/giraffe_infant_idle_02.dae",
     "anim:quadraped/giraffe_infant_run.dae",
     "anim:quadraped/giraffe_infant_walk.dae",
     "mesh:skeletal/giraffe_infant.dae",
@@ -18812,7 +18872,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 64,
    "file": "models/units/fauna_hippopotamus.glb",
@@ -18830,6 +18891,7 @@
     "anim:quadraped/hippopotamus_attack.dae",
     "anim:quadraped/hippopotamus_death.dae",
     "anim:quadraped/hippopotamus_idle_01.dae",
+    "anim:quadraped/hippopotamus_idle_02.dae",
     "anim:quadraped/hippopotamus_trot.dae",
     "anim:quadraped/hippopotamus_walk.dae",
     "mesh:skeletal/fauna_hippopotamus.dae",
@@ -18843,7 +18905,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse.glb",
@@ -18861,8 +18925,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -18878,7 +18944,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 95,
    "file": "models/units/fauna_horse_breed.glb",
@@ -18898,6 +18965,7 @@
     "anim:quadraped/horse_breed_death.dae",
     "anim:quadraped/horse_breed_gallop.dae",
     "anim:quadraped/horse_breed_idle_01.dae",
+    "anim:quadraped/horse_breed_idle_02.dae",
     "anim:quadraped/horse_breed_walk.dae",
     "mesh:props/horse/hair_mane_01_breed.dae",
     "mesh:props/horse/hair_tail_01_breed.dae",
@@ -18913,7 +18981,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse_lusitano.glb",
@@ -18931,8 +19001,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_gray_black.xml",
     "actor:art/actors/props/horse/horse_hair_tail_gray_black.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -18948,7 +19020,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse_marwari.glb",
@@ -18966,8 +19040,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -18983,7 +19059,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 86,
    "file": "models/units/fauna_horse_persian.glb",
@@ -19001,8 +19079,10 @@
     "actor:art/actors/props/horse/horse_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/horse_hair_tail_black_brown.xml",
     "anim:quadraped/horse_death_01.dae",
+    "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_gallop.dae",
     "anim:quadraped/horse_idle_01.dae",
+    "anim:quadraped/horse_idle_04.dae",
     "anim:quadraped/horse_walk.dae",
     "mesh:props/horse/hair_mane_01.dae",
     "mesh:props/horse/hair_tail_01.dae",
@@ -19069,7 +19149,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 26,
    "file": "models/units/fauna_pig_flaming.glb",
@@ -19087,6 +19168,7 @@
     "anim:quadraped/animal_pig_attack_01.dae",
     "anim:quadraped/animal_pig_death_01.dae",
     "anim:quadraped/animal_pig_idle_01.dae",
+    "anim:quadraped/animal_pig_idle_03.dae",
     "anim:quadraped/animal_pig_run_01.dae",
     "anim:quadraped/animal_pig_walk_01.dae",
     "mesh:skeletal/pig.dae",
@@ -19100,7 +19182,8 @@
     "Idle",
     "Walk",
     "Run",
-    "Attack"
+    "Attack",
+    "Idle2"
    ],
    "bones": 26,
    "file": "models/units/fauna_piglet.glb",
@@ -19117,6 +19200,7 @@
     "actor:art/actors/fauna/piglet.xml",
     "anim:quadraped/animal_piglet_attack_01.dae",
     "anim:quadraped/animal_piglet_idle_01.dae",
+    "anim:quadraped/animal_piglet_idle_02.dae",
     "anim:quadraped/animal_piglet_run_01.dae",
     "anim:quadraped/animal_piglet_walk_01.dae",
     "mesh:skeletal/animal_piglet.dae",
@@ -19130,7 +19214,9 @@
     "Idle",
     "Walk",
     "Run",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 95,
    "file": "models/units/fauna_pony.glb",
@@ -19147,9 +19233,11 @@
     "actor:art/actors/fauna/pony.xml",
     "actor:art/actors/props/horse/fauna/pony_hair_mane_black_brown.xml",
     "actor:art/actors/props/horse/fauna/pony_hair_tail_black_brown.xml",
+    "anim:quadraped/pony_death.dae",
     "anim:quadraped/pony_death_a.dae",
     "anim:quadraped/pony_gallop.dae",
     "anim:quadraped/pony_idle_a.dae",
+    "anim:quadraped/pony_idle_c.dae",
     "anim:quadraped/pony_walk.dae",
     "mesh:props/horse/pony_hair_mane_01.dae",
     "mesh:props/horse/pony_hair_tail_01.dae",
@@ -19166,7 +19254,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 24,
    "file": "models/units/fauna_rhino.glb",
@@ -19184,6 +19273,7 @@
     "anim:quadraped/rhino_attack.dae",
     "anim:quadraped/rhino_death.dae",
     "anim:quadraped/rhino_idle.dae",
+    "anim:quadraped/rhino_idle2.dae",
     "anim:quadraped/rhino_run.dae",
     "anim:quadraped/rhino_walk.dae",
     "mesh:skeletal/rhino.dae",
@@ -19198,7 +19288,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_sanga_cattle.glb",
@@ -19215,7 +19307,9 @@
     "actor:art/actors/fauna/sanga_cattle.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/sanga_cattle_a.dae",
@@ -19258,7 +19352,8 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2"
    ],
    "bones": 34,
    "file": "models/units/fauna_tiger.glb",
@@ -19276,6 +19371,7 @@
     "anim:quadraped/feline_attack.dae",
     "anim:quadraped/feline_death.dae",
     "anim:quadraped/feline_idle_01.dae",
+    "anim:quadraped/feline_idle_02.dae",
     "anim:quadraped/feline_run.dae",
     "anim:quadraped/feline_walk.dae",
     "mesh:skeletal/tiger.dae",
@@ -19328,7 +19424,8 @@
   "fauna_whale_fin": {
    "animated": true,
    "animations": [
-    "Idle"
+    "Idle",
+    "Idle2"
    ],
    "bones": 8,
    "file": "models/units/fauna_whale_fin.glb",
@@ -19344,6 +19441,7 @@
    "sources": [
     "actor:art/actors/fauna/whale_fin.xml",
     "anim:other/whale_fin_idle_a.dae",
+    "anim:other/whale_fin_idle_b.dae",
     "mesh:skeletal/whale_fin.dae",
     "skin:skeletal/animal_whale_fin.png"
    ],
@@ -19356,7 +19454,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_wildebeest.glb",
@@ -19373,7 +19473,9 @@
     "actor:art/actors/fauna/wildebeest.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/wildebeest_adult.dae",
@@ -19388,7 +19490,9 @@
     "Walk",
     "Run",
     "Attack",
-    "Death"
+    "Death",
+    "Idle2",
+    "Death2"
    ],
    "bones": 31,
    "file": "models/units/fauna_zebu_wild.glb",
@@ -19405,7 +19509,9 @@
     "actor:art/actors/fauna/zebu_wild.xml",
     "anim:quadraped/bovidae_attack.dae",
     "anim:quadraped/bovidae_death_a.dae",
+    "anim:quadraped/bovidae_death_b.dae",
     "anim:quadraped/bovidae_idle_a.dae",
+    "anim:quadraped/bovidae_idle_b.dae",
     "anim:quadraped/bovidae_run.dae",
     "anim:quadraped/bovidae_walk_relax.dae",
     "mesh:skeletal/zebu.dae",
@@ -22291,11 +22397,11 @@
    "bones": 49,
    "file": "models/units/han_cavalry_archer.glb",
    "origin": "ground-center",
-   "parts": 21,
+   "parts": 13,
    "size_meters": [
-    0.898,
+    0.724,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22312,6 +22418,8 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/cavalry_archer_b_m.xml",
     "actor:art/actors/units/han/cavalry_archer_b_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_bandana.dae",
@@ -22359,9 +22467,9 @@
    "origin": "ground-center",
    "parts": 19,
    "size_meters": [
-    0.755,
+    0.742,
     2.2,
-    1.86
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22379,6 +22487,8 @@
     "actor:art/actors/props/units/weapons/dagger.xml",
     "actor:art/actors/units/han/cavalry_crossbowman_c_m.xml",
     "actor:art/actors/units/han/cavalry_crossbowman_c_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/crossbowman/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_cavalry_swordsman_helmet.dae",
@@ -22428,9 +22538,9 @@
    "origin": "ground-center",
    "parts": 12,
    "size_meters": [
-    0.536,
+    0.787,
     2.2,
-    2.702
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22446,6 +22556,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_d.xml",
     "actor:art/actors/units/han/cavalry_spearman_c_m.xml",
     "actor:art/actors/units/han/cavalry_spearman_c_r.xml",
+    "anim:biped/rider/cavalry/spearman/death_2h_02.dae",
+    "anim:biped/rider/cavalry/spearman/idle_relax_2h_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_heavy_cavalry_helmet.dae",
@@ -22555,11 +22667,11 @@
    "bones": 49,
    "file": "models/units/han_cavalry_swordsman.glb",
    "origin": "ground-center",
-   "parts": 19,
+   "parts": 12,
    "size_meters": [
-    1.017,
+    0.724,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -22575,6 +22687,8 @@
     "actor:art/actors/props/units/weapons/sword/han_curved_dao.xml",
     "actor:art/actors/units/han/cavalry_swordsman_b_m.xml",
     "actor:art/actors/units/han/cavalry_swordsman_b_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_bandana.dae",
@@ -23255,9 +23369,9 @@
    "origin": "ground-center",
    "parts": 13,
    "size_meters": [
-    0.637,
+    0.742,
     2.2,
-    2.308
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -23274,6 +23388,8 @@
     "actor:art/actors/props/units/weapons/sword/han_sword_han_xin.xml",
     "actor:art/actors/units/han/hero_cavalry_spearman_han_xin_m.xml",
     "actor:art/actors/units/han/hero_cavalry_spearman_han_xin_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_ready_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
@@ -23322,9 +23438,9 @@
    "origin": "ground-center",
    "parts": 11,
    "size_meters": [
-    0.531,
+    0.742,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -23339,6 +23455,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_c.xml",
     "actor:art/actors/units/han/hero_cavalry_swordsman_liu_bang_m.xml",
     "actor:art/actors/units/han/hero_cavalry_swordsman_liu_bang_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_ready_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
@@ -23383,9 +23501,9 @@
    "origin": "ground-center",
    "parts": 21,
    "size_meters": [
-    0.758,
+    0.742,
     2.2,
-    1.867
+    2.764
    ],
    "skeleton": "horse",
    "sources": [
@@ -23405,6 +23523,8 @@
     "actor:art/actors/props/units/weapons/sword/han_jian_d.xml",
     "actor:art/actors/units/han/hero_cavalry_crossbowman_wei_qing_m.xml",
     "actor:art/actors/units/han/hero_cavalry_crossbowman_wei_qing_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/crossbowman/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/han_hairbun.dae",
@@ -27161,6 +27281,10 @@
     "actor:art/actors/props/structures/kushites/ship_oar_left.xml",
     "actor:art/actors/props/structures/kushites/ship_oar_right.xml",
     "actor:art/actors/structures/kushites/bireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
     "mesh:props/kush_bireme_main_sail.dae",
     "mesh:props/kush_oar.dae",
     "mesh:structural/kush_bireme.dae",
@@ -27267,11 +27391,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_jav_a.glb",
    "origin": "ground-center",
-   "parts": 29,
+   "parts": 18,
    "size_meters": [
-    0.991,
+    0.746,
     2.2,
-    1.916
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27290,6 +27414,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_a_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_a_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -27337,11 +27463,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_jav_b.glb",
    "origin": "ground-center",
-   "parts": 26,
+   "parts": 16,
    "size_meters": [
-    0.91,
+    0.7,
     2.2,
-    1.916
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27358,6 +27484,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_b_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_b_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -27401,11 +27529,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_jav_e.glb",
    "origin": "ground-center",
-   "parts": 33,
+   "parts": 20,
    "size_meters": [
-    0.979,
+    0.746,
     2.2,
-    1.893
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27425,6 +27553,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_e_m.xml",
     "actor:art/actors/units/kushites/cavalry_javelinist_e_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -27474,11 +27604,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_spear_a.glb",
    "origin": "ground-center",
-   "parts": 19,
+   "parts": 13,
    "size_meters": [
-    0.999,
+    0.746,
     2.2,
-    2.04
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27495,6 +27625,8 @@
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_a_m.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_a_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_kush.dae",
@@ -27539,11 +27671,11 @@
    "bones": 49,
    "file": "models/units/kush_cav_spear_e.glb",
    "origin": "ground-center",
-   "parts": 27,
+   "parts": 17,
    "size_meters": [
-    0.987,
+    0.746,
     2.2,
-    2.016
+    2.799
    ],
    "skeleton": "horse",
    "sources": [
@@ -27562,6 +27694,8 @@
     "actor:art/actors/props/units/weapons/spear.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_e_m.xml",
     "actor:art/actors/units/kushites/cavalry_spearman_e_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_earrings_fem_1.dae",
@@ -28143,9 +28277,9 @@
    "origin": "ground-center",
    "parts": 16,
    "size_meters": [
-    0.608,
+    0.64,
     2.2,
-    1.964
+    2.401
    ],
    "skeleton": "horse",
    "sources": [
@@ -28165,6 +28299,8 @@
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_harsiotef_m.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_harsiotef_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry_crown.dae",
@@ -28217,9 +28353,9 @@
    "origin": "ground-center",
    "parts": 16,
    "size_meters": [
-    0.608,
+    0.64,
     2.2,
-    1.964
+    2.401
    ],
    "skeleton": "horse",
    "sources": [
@@ -28239,6 +28375,8 @@
     "actor:art/actors/props/units/weapons/kush_spear.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_nastasen_m.xml",
     "actor:art/actors/units/kushites/hero_cavalry_spearman_nastasen_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/kush_skull_cap_cavalry_crown.dae",
@@ -28366,8 +28504,8 @@
    "origin": "ground-center",
    "parts": 15,
    "size_meters": [
-    1.411,
-    4.124,
+    1.425,
+    3.64,
     3.4
    ],
    "skeleton": "elephant",
@@ -32037,6 +32175,18 @@
     "actor:art/actors/props/structures/macedonians/trireme_main_sail.xml",
     "actor:art/actors/props/structures/macedonians/trireme_shields.xml",
     "actor:art/actors/structures/macedonians/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/mace_trireme_main_sail.dae",
     "mesh:props/mace_trireme_shields.dae",
@@ -32751,11 +32901,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_jav_a.glb",
    "origin": "ground-center",
-   "parts": 25,
+   "parts": 15,
    "size_meters": [
-    0.952,
+    0.733,
     2.2,
-    1.87
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32771,6 +32921,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_a_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_a_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
@@ -32812,11 +32964,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_jav_b.glb",
    "origin": "ground-center",
-   "parts": 25,
+   "parts": 15,
    "size_meters": [
-    0.952,
+    0.733,
     2.2,
-    1.87
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32832,6 +32984,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_b_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_b_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
@@ -32873,11 +33027,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_jav_e.glb",
    "origin": "ground-center",
-   "parts": 25,
+   "parts": 15,
    "size_meters": [
-    0.952,
+    0.733,
     2.2,
-    1.87
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32893,6 +33047,8 @@
     "actor:art/actors/props/units/weapons/jav_ammo.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_e_m.xml",
     "actor:art/actors/units/mauryas/cavalry_javelinist_e_r.xml",
+    "anim:biped/rider/cavalry/archer/death_02.dae",
+    "anim:biped/rider/cavalry/javelin/idle_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/horse/blanket_short.dae",
@@ -32934,11 +33090,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_sword_a.glb",
    "origin": "ground-center",
-   "parts": 17,
+   "parts": 11,
    "size_meters": [
-    1.014,
+    0.733,
     2.2,
-    1.875
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -32953,6 +33109,8 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_a_m.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_a_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
@@ -32994,11 +33152,11 @@
    "bones": 49,
    "file": "models/units/maur_cav_sword_e.glb",
    "origin": "ground-center",
-   "parts": 17,
+   "parts": 11,
    "size_meters": [
-    1.014,
+    0.733,
     2.2,
-    1.875
+    2.73
    ],
    "skeleton": "horse",
    "sources": [
@@ -33013,6 +33171,8 @@
     "actor:art/actors/props/units/weapons/longsword_mauryan.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_e_m.xml",
     "actor:art/actors/units/mauryas/cavalry_swordsman_e_r.xml",
+    "anim:biped/rider/cavalry/generic/death_shield_02.dae",
+    "anim:biped/rider/cavalry/generic/idle_shield_relax_04.dae",
     "anim:quadraped/horse_death_02.dae",
     "anim:quadraped/horse_idle_04.dae",
     "mesh:props/helmet/maur_inf_turban_a.dae",
@@ -33365,7 +33525,7 @@
    "parts": 23,
    "size_meters": [
     1.341,
-    3.834,
+    2.566,
     3.2
    ],
    "skeleton": "elephant",
@@ -33423,7 +33583,7 @@
    "parts": 17,
    "size_meters": [
     1.341,
-    3.817,
+    2.566,
     3.2
    ],
    "skeleton": "elephant",
@@ -34283,7 +34443,7 @@
    "parts": 10,
    "size_meters": [
     1.608,
-    4.278,
+    4.247,
     3.6
    ],
    "skeleton": "elephant",
@@ -38015,6 +38175,10 @@
     "actor:art/actors/props/units/shields/celt_buckler_c_back.xml",
     "actor:art/actors/props/units/shields/pers_buckler_1.xml",
     "actor:art/actors/structures/persians/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
     "mesh:props/pers_trireme_sail.dae",
     "mesh:props/shield/round_t_b.dae",
     "mesh:props/shield/round_t_f.dae",
@@ -40573,6 +40737,10 @@
     "actor:art/actors/props/units/shields/props/aspis_back_bronze_01.xml",
     "actor:art/actors/props/units/shields/props/aspis_handgrip_bronze_01.xml",
     "actor:art/actors/structures/carthaginians/quinquereme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
     "mesh:props/kart_quinquereme_main_sail.dae",
     "mesh:props/kart_ship_standard.dae",
     "mesh:props/shield/aspis_01_back.dae",
@@ -40616,6 +40784,10 @@
     "actor:art/actors/props/units/shields/props/scutum_rome_imp_back_01.xml",
     "actor:art/actors/props/units/shields/scutum_rome_marian_02.xml",
     "actor:art/actors/structures/romans/quinquereme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
     "mesh:props/rome_quinquereme_main_sail.dae",
     "mesh:props/shield/props/scutum_03_b.dae",
     "mesh:props/shield/props/scutum_boss_b.dae",
@@ -43034,6 +43206,18 @@
     "actor:art/actors/props/units/shields/scutum_rome_isp_02.xml",
     "actor:art/actors/props/units/shields/scutum_rome_isp_09.xml",
     "actor:art/actors/structures/romans/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/rome_trireme_fore_sail.dae",
     "mesh:props/rome_trireme_main_sail.dae",
     "mesh:props/shield/props/scutum_01_b.dae",
@@ -48957,6 +49141,18 @@
     "actor:art/actors/props/structures/seleucids/trireme_main_sail.xml",
     "actor:art/actors/props/structures/seleucids/trireme_shields.xml",
     "actor:art/actors/structures/seleucids/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/mace_trireme_main_sail.dae",
     "mesh:props/mace_trireme_shields.dae",
@@ -51424,6 +51620,18 @@
     "actor:art/actors/props/structures/spartans/trireme_blanket.xml",
     "actor:art/actors/props/structures/spartans/trireme_main_sail.xml",
     "actor:art/actors/structures/spartans/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/ship_oar_a.dae",
     "mesh:props/ship_oar_b.dae",
@@ -52221,6 +52429,18 @@
     "actor:art/actors/props/structures/hellenes/trireme_blanket.xml",
     "actor:art/actors/props/structures/hellenes/trireme_fore_sail.xml",
     "actor:art/actors/structures/athenians/trireme.xml",
+    "anim:other/ship_oar_a_idle_l.dae",
+    "anim:other/ship_oar_a_idle_r.dae",
+    "anim:other/ship_oar_a_move_l.dae",
+    "anim:other/ship_oar_a_move_r.dae",
+    "anim:other/ship_oar_b_idle_l.dae",
+    "anim:other/ship_oar_b_idle_r.dae",
+    "anim:other/ship_oar_b_move_l.dae",
+    "anim:other/ship_oar_b_move_r.dae",
+    "anim:other/ship_oar_c_idle_l.dae",
+    "anim:other/ship_oar_c_idle_r.dae",
+    "anim:other/ship_oar_c_move_l.dae",
+    "anim:other/ship_oar_c_move_r.dae",
     "mesh:props/athen_trireme_main_sail.dae",
     "mesh:props/hele_fore_sail.dae",
     "mesh:props/hele_trireme_blanket.dae",
