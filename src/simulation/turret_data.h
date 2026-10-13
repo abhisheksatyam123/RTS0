@@ -172,10 +172,11 @@ inline constexpr TurretPointSet TURRET_POINTS_WALLSET[14][3] = {
 
 // [0 long siege wall segment, 1 medium segment, 2 tower]: rome/siege_wall_*'s points in
 // the wall's own frame, as TURRET_POINTS_WALLSET (siege_wall_short has none).
-inline constexpr TurretPointSet TURRET_POINTS_SIEGE_WALL[3] = {
+inline constexpr TurretPointSet TURRET_POINTS_SIEGE_WALL[4] = {
 	{7, {{-3.0f, 1.425f, 0.0f}, {-2.0f, 1.425f, 0.0f}, {-1.0f, 1.425f, 0.0f}, {0.0f, 1.425f, 0.0f}, {1.0f, 1.425f, 0.0f}, {2.0f, 1.425f, 0.0f}, {3.0f, 1.425f, 0.0f}}}, // long segment: rome/siege_wall_long
 	{4, {{-1.5f, 1.425f, 0.0f}, {-0.5f, 1.425f, 0.0f}, {0.5f, 1.425f, 0.0f}, {1.5f, 1.425f, 0.0f}}}, // medium segment: rome/siege_wall_medium
 	{4, {{-0.375f, 2.875f, -0.375f}, {0.375f, 2.875f, -0.375f}, {-0.375f, 2.875f, 0.375f}, {0.375f, 2.875f, 0.375f}}}, // tower: rome/siege_wall_tower
+	{8, {{-2.75f, 2.875f, -0.375f}, {-2.0f, 2.875f, -0.375f}, {2.0f, 2.875f, -0.375f}, {2.75f, 2.875f, -0.375f}, {-2.75f, 2.875f, 0.375f}, {-2.0f, 2.875f, 0.375f}, {2.0f, 2.875f, 0.375f}, {2.75f, 2.875f, 0.375f}}}, // gate: rome/siege_wall_gate
 };
 
 } // namespace rtso

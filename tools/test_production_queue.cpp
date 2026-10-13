@@ -353,6 +353,41 @@ int main() {
 		g.order_ungarrison(cc);
 		float gx = 0.0f;
 		CHECK(count_units(g, 0, UNIT_SPEARMAN) == 6 && spread(g, 0, UNIT_SPEARMAN, gx));
+
+		// A round footprint (brit/civil_centre.xml <Circle>) spawns on rings a gap apart, the first
+		// half a gap out, the rally point's side first; the square civic centre's rows are not
+		// rings (their corners stand further out than their sides).
+		for (const uint8_t civ : {(uint8_t)CIV_BRITONS, (uint8_t)CIV_ATHENIANS}) {
+			Simulation r;
+			r.set_player_civ(civ);
+			fresh(r);
+			const uint32_t rc = r.spawn_building_world(30.0f, 30.0f, BLD_TOWN_CENTER, 0, 1.0f);
+			std::vector<uint32_t> ring_men;
+			for (int k = 0; k < 6; ++k) ring_men.push_back(r.spawn_unit(30.0f + (float)k, 40.0f, 0, UNIT_SPEARMAN));
+			r.order_garrison(ring_men.data(), ring_men.size(), rc);
+			run(r, 15.0f);
+			CHECK(bld(r, rc).garrisoned_units.size() == 6);
+			r.cmd_set_rally_point(0, rc, 0.0f, 30.0f); // due west
+			r.order_ungarrison(rc);
+			const Simulation::Building rb = bld(r, rc);
+			const float gap = 3.0f * unit_collision_radius(UNIT_SPEARMAN);
+			const float first = std::max(rb.hu, rb.hv) + 0.5f * gap;
+			auto u = r.units();
+			float rx = 0.0f;
+			int on_rings = 0;
+			for (size_t i = 0; i < u.count; ++i) {
+				if (!u.alive[i] || u.unit_type[i] != UNIT_SPEARMAN) continue;
+				const float d = std::hypot(u.pos_x[i] - rb.x, u.pos_z[i] - rb.z);
+				if (std::fabs(d - first) < 1e-3f || std::fabs(d - first - gap) < 1e-3f) ++on_rings;
+				rx += (u.pos_x[i] - rb.x) / 6.0f;
+			}
+			float spread_x = 0.0f;
+			CHECK(count_units(r, 0, UNIT_SPEARMAN) == 6 && spread(r, 0, UNIT_SPEARMAN, spread_x));
+			CHECK(rx < -rb.hu); // the rally point's side
+			CHECK(civ == CIV_BRITONS ? on_rings == 6 : on_rings < 6);
+			std::printf("spawn points: %s civic centre unloads 6 west of it, %d on rings %.2f and %.2f out\n",
+					civ == CIV_BRITONS ? "a round Briton" : "a square Athenian", on_rings, first, first + gap);
+		}
 	}
 
 	// 11. With no room outside: a rally point on the trainer itself puts the batch straight
