@@ -1432,7 +1432,7 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 		const uint32_t id = (uint32_t)(int64_t)selected_ids[s];
 		for (size_t i = 0; i < uv.count; ++i) {
 			if (uv.id[i] != id) continue;
-			// getActionInfo: a land market for Organic traders, a dock for ships, not an enemy's.
+			// getActionInfo: a market or dock for Organic traders, a dock for ships, not an enemy's.
 			if (uv.alive[i] && uv.team[i] == me && rtso::unit_is_trader(uv.unit_type[i]) &&
 					sim->can_trade_at(me, b, uv.unit_type[i])) {
 				traders.push_back(id);
