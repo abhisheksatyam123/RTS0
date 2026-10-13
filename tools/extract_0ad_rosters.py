@@ -205,12 +205,12 @@ UNIQUE_BUILDINGS = [
     ("BLD_ICE_HOUSE", ["ice_house"], "ice_house", "ice_house"),
     ("BLD_SUPER_DOCK", ["super_dock"], "super_dock", "super_dock"),
     # Reached only by an Upgrade (UPGRADE_ONLY): the Tachara's four tribute forms and
-    # the Carthaginian apartment (drawn with the house until it has its own model).
+    # the Carthaginian apartment.
     ("BLD_TACHARA_FOOD", ["tachara_food"], "tachara", "tachara"),
     ("BLD_TACHARA_WOOD", ["tachara_wood"], "tachara", "tachara"),
     ("BLD_TACHARA_STONE", ["tachara_stone"], "tachara", "tachara"),
     ("BLD_TACHARA_METAL", ["tachara_metal"], "tachara", "tachara"),
-    ("BLD_APARTMENT", ["apartment"], "house", "house"),
+    ("BLD_APARTMENT", ["apartment"], "apartment", "house"),
     # The Han Imperial Court (a Civic Center upgrade) and Great Archery Tower (a defense
     # tower upgrade): RTS0 treats them as their base type wherever the role matters
     # (is_civic_centre, is_defense_tower).
@@ -220,9 +220,9 @@ UNIQUE_BUILDINGS = [
     # palisade until it has its own model). Generic: every civ that lays palisades has it.
     ("BLD_PALISADE_GATE", ["palisades_gate"], "palisade", "palisade"),
     # Carthage's Iberian and Italic embassies (BLD_EMBASSY is the Celtic one), each training
-    # its own mercenaries; drawn with the embassy until they have their own models.
-    ("BLD_EMBASSY_IBERIAN", ["embassy_iberian"], "embassy", "embassy"),
-    ("BLD_EMBASSY_ITALIC", ["embassy_italic"], "embassy", "embassy"),
+    # its own mercenaries.
+    ("BLD_EMBASSY_IBERIAN", ["embassy_iberian"], "embassy_iberian", "embassy"),
+    ("BLD_EMBASSY_ITALIC", ["embassy_italic"], "embassy_italic", "embassy"),
     # The Roman siege wall (rome/wallset_siege): its segments and towers are one type, read from
     # siege_wall_long (sim_types.h wallset_info has each piece's values); drawn with the stone
     # wall until it has its own model.
