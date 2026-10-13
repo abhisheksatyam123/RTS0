@@ -87,6 +87,7 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL = 29,  // JebelBarkal_SpawnCityPatrolGroups
 	TRIGGER_ACTION_JEBEL_BARKAL_ATTACK = 30,       // JebelBarkal_SpawnAttackerGroups
 	TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP = 31,    // JebelBarkal_OwnershipChange
+	TRIGGER_ACTION_GALLIC_FIELDS = 32,             // skirmishes/gallic_fields_3p.js: arg 0 init, 1 SpawnAndAttack
 	TRIGGER_ACTION_COUNT
 };
 
@@ -201,10 +202,10 @@ struct TriggerState {
 	// cmpPlayer.SetDisabledTechnologies, per player: a 256-bit set of tech ids.
 	uint64_t disabled_techs[8][4] = {};
 	std::vector<TriggerAttackOrder> attack_orders;
-	// cmpPlayer.SetDisabledTemplates: structures (bit per BuildingType below 64; saved, so
-	// ids 64 and up need a save bump to widen) and unit roster
+	// cmpPlayer.SetDisabledTemplates: structures (bld_bit per BuildingType, save v63
+	// widened it past 64 ids) and unit roster
 	// templates each player may not build or train.
-	uint64_t disabled_buildings[8] = {};
+	BldMask disabled_buildings[8] = {}; // per player, bld_bit() of each BuildingType it cannot build
 	std::vector<uint16_t> disabled_templates; // for every player (the ported scripts disable the same ones for all)
 	std::vector<uint32_t> invulnerable;       // Resistance.SetInvulnerability(true): unit ids
 	std::vector<TriggerWatch> watched;
@@ -276,7 +277,7 @@ struct TriggerState {
 		return player < 8 && ((disabled_techs[player][tech >> 6] >> (tech & 63)) & 1u);
 	}
 	bool building_disabled(uint8_t player, uint8_t type) const {
-		return player < 8 && type < 64 && ((disabled_buildings[player] >> type) & 1u);
+		return player < 8 && disabled_buildings[player].test(type);
 	}
 	bool template_disabled(uint16_t tmpl) const {
 		for (uint16_t t : disabled_templates) if (t == tmpl) return true;
@@ -316,7 +317,8 @@ struct TriggerState {
 		for (int32_t v : vars) mix((uint32_t)v);
 		for (const auto &p : disabled_techs)
 			for (uint64_t w : p) { mix((uint32_t)w); mix((uint32_t)(w >> 32)); }
-		for (uint64_t w : disabled_buildings) { mix((uint32_t)w); mix((uint32_t)(w >> 32)); }
+		for (const BldMask &m : disabled_buildings)
+			for (uint64_t w : m.w) { mix((uint32_t)w); mix((uint32_t)(w >> 32)); }
 		mix((uint32_t)disabled_templates.size());
 		for (uint16_t t : disabled_templates) mix(t);
 		mix((uint32_t)invulnerable.size());

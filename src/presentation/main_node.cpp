@@ -2150,7 +2150,10 @@ void RtsoMain::update_cursor() {
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					// A penned animal is garrisoned in its corral: nothing to do with it.
 					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
+					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
+					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
+					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
+					want = herd ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want && scenery_at(at.x, at.z) != 0) want = "action-attack";
@@ -2590,6 +2593,18 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 		try_breed(selected_building_id, (uint8_t)(meta & 0xFF), train_batch());
 		return;
 	}
+	if (selected_building_id == 0 && trainer_unit_id_ != 0) {
+		if (meta & ROSTER_TECH) {
+			const uint8_t tech = (uint8_t)(meta & 0xFF);
+			if (turn_cmds())
+				post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_FROM_UNIT, nullptr, 0, (float)tech, 0, trainer_unit_id_, 2);
+			else
+				sim->cmd_research_from_unit(local_player(), trainer_unit_id_, tech);
+			return;
+		}
+		try_train_from_unit(trainer_unit_id_, (uint16_t)meta, train_batch());
+		return;
+	}
 	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
 }
 
@@ -2603,6 +2618,18 @@ uint32_t RtsoMain::scenery_at(float x, float z) const {
 		if (std::fabs(lu) <= sc.half_w + 0.5f && std::fabs(lv) <= sc.half_d + 0.5f) return sc.id;
 	}
 	return 0;
+}
+
+// A unit's Trainer (triremes, Cyrus II): lockstep NET_CMD_TRAIN_FROM_UNIT.
+void RtsoMain::try_train_from_unit(uint32_t unit_id, uint16_t tmpl, int count) {
+	if (unit_id == 0 || tmpl >= rtso::CIV_UNIT_TEMPLATE_COUNT) return;
+	if (turn_cmds()) {
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_FROM_UNIT, nullptr, 0, (float)tmpl, (float)count, unit_id, 0);
+		play_civ_voice("select");
+		return;
+	}
+	if (sim->cmd_train_from_unit(local_player(), unit_id, tmpl, count))
+		play_civ_voice("select");
 }
 
 // Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
@@ -4000,9 +4027,12 @@ void RtsoMain::update_command_panel() {
 						"Barter & Trade\nOpen the dialog for managing resource trading and bartering.", "economics.png");
 		}
 	} else {
-		// Non-building selected: clear visual queue slots
-		production_queue_.update(nullptr);
-		update_roster_list(nullptr);
+		// Non-building selected: clear visual queue slots, or show a training unit's (one selected).
+		trainer_unit_id_ = 0;
+		if (selected_ids.size() != 1 || !update_unit_roster((uint32_t)selected_ids[0])) {
+			production_queue_.update(nullptr);
+			update_roster_list(nullptr);
+		}
 
 		if (!selected_ids.is_empty()) {
 			auto uview = sim->units();
@@ -4446,27 +4476,8 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
 		// 0 A.D. has no such unit, so players don't see it.
 		if (std::strstr(u.id, "/rts0_")) continue;
-		float cost[rtso::RES_COUNT];
-		sim->unit_train_cost(pid, i, rtso::civ_template_unit_info(i, u.unit_type), cost);
-		String costs;
-		auto add_cost = [&](float v, const char *suffix) {
-			if (v <= 0.0f) return;
-			if (!costs.is_empty()) costs += " ";
-			costs += String::num_int64((int64_t)v) + suffix;
-		};
-		add_cost(cost[rtso::RES_FOOD], "f");
-		add_cost(cost[rtso::RES_WOOD], "w");
-		add_cost(cost[rtso::RES_STONE], "s");
-		add_cost(cost[rtso::RES_GOLD], "m");
-		String label = String::utf8(u.name);
-		if (u.flags & rtso::ROSTER_HERO) label = String::utf8("\u2605 ") + label;
-		label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
-		int idx = roster_list->add_item(label);
-		roster_list->set_item_metadata(idx, (int)i);
-		String tip = String::utf8(u.name);
-		if (u.specific_name && u.specific_name[0]) tip += String::utf8(" \u2014 ") + String::utf8(u.specific_name);
-		tip += "\nHP " + String::num_int64((int64_t)u.hp) + ", attack " + String::num(u.attack_damage, 1) +
-			", train " + String::num(u.train_time, 0) + " s, pop " + String::num_int64(u.pop_cost);
+		String tip;
+		const int idx = add_roster_item(pid, i, tip);
 		if (u.phase > phase) {
 			roster_list->set_item_disabled(idx, true);
 			tip += u.phase >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase";
@@ -4478,6 +4489,96 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		roster_list->set_item_tooltip(idx, tip);
 	}
 	roster_list->set_visible(roster_list->get_item_count() > 0);
+}
+
+// A selected unit that trains (0 A.D. Trainer on triremes and Cyrus II): its Trainer list,
+// the ones whose requirements aren't met yet disabled, and its queue. False when the
+// selection is not one of the local player's training units.
+bool RtsoMain::update_unit_roster(uint32_t unit_id) {
+	if (!roster_list || unit_id == 0) return false;
+	const uint8_t pid = local_player();
+	const uint16_t tmpl = sim->unit_template(unit_id);
+	if (!rtso::Simulation::unit_is_trainer(tmpl)) return false;
+	auto uview = sim->units();
+	size_t i = 0;
+	while (i < uview.count && uview.id[i] != unit_id) ++i;
+	if (i == uview.count || uview.team[i] != pid) return false;
+	trainer_unit_id_ = unit_id;
+	production_queue_.update_unit(unit_id, sim->unit_queue(unit_id));
+	const std::vector<uint16_t> can = sim->unit_trainables(pid, tmpl);
+	uint64_t can_mask = 0;
+	const std::vector<uint16_t> all = sim->unit_trainables(pid, tmpl, true);
+	for (size_t k = 0; k < all.size() && k < 64; ++k)
+		if (std::find(can.begin(), can.end(), all[k]) != can.end()) can_mask |= 1ull << k;
+	// Researcher on a unit: each technology's research_check result (researched ones drop out).
+	const std::vector<uint8_t> techs = rtso::Simulation::unit_researchables(tmpl);
+	uint64_t tech_key = 0;
+	for (uint8_t t : techs) tech_key = tech_key * 31 + (uint64_t)sim->research_check(pid, t) + 1;
+	const uint64_t key = ((uint64_t)unit_id << 32) ^ (can_mask << 8) ^ (tech_key << 20) ^ 0x80ull ^ sim->ally_civ_mask(pid);
+	if (key == roster_list_key_) return true;
+	roster_list_key_ = key;
+	roster_list->clear();
+	for (size_t k = 0; k < all.size(); ++k) {
+		String tip;
+		const int idx = add_roster_item(pid, all[k], tip);
+		if (!(can_mask & (1ull << k))) {
+			roster_list->set_item_disabled(idx, true);
+			tip += "\nRequirements not met";
+		}
+		roster_list->set_item_tooltip(idx, tip);
+	}
+	for (uint8_t t : techs) {
+		const auto check = sim->research_check(pid, t);
+		if (check == rtso::Simulation::TECH_ERR_RESEARCHED) continue;
+		const rtso::TechInfo &ti = rtso::tech_info(t);
+		String costs;
+		auto add_cost = [&](int v, const char *suffix) {
+			if (v <= 0) return;
+			if (!costs.is_empty()) costs += " ";
+			costs += String::num_int64(v) + suffix;
+		};
+		add_cost(ti.food_cost, "f");
+		add_cost(ti.wood_cost, "w");
+		add_cost(ti.stone_cost, "s");
+		add_cost(ti.gold_cost, "m");
+		const int idx = roster_list->add_item(String::utf8(ti.name) + " (" + costs + ")");
+		roster_list->set_item_metadata(idx, ROSTER_TECH | (int)t);
+		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\nResearch " + String::num(ti.research_time, 0) + " s";
+		if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
+			roster_list->set_item_disabled(idx, true);
+			tip += "\nRequirements not met";
+		}
+		roster_list->set_item_tooltip(idx, tip);
+	}
+	roster_list->set_visible(roster_list->get_item_count() > 0);
+	return true;
+}
+
+// One roster row: the 0 A.D. name and cost after team bonuses; `tip` gets its tooltip.
+int RtsoMain::add_roster_item(uint8_t pid, uint16_t i, String &tip) {
+	const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
+	float cost[rtso::RES_COUNT];
+	sim->unit_train_cost(pid, i, rtso::civ_template_unit_info(i, u.unit_type), cost);
+	String costs;
+	auto add_cost = [&](float v, const char *suffix) {
+		if (v <= 0.0f) return;
+		if (!costs.is_empty()) costs += " ";
+		costs += String::num_int64((int64_t)v) + suffix;
+	};
+	add_cost(cost[rtso::RES_FOOD], "f");
+	add_cost(cost[rtso::RES_WOOD], "w");
+	add_cost(cost[rtso::RES_STONE], "s");
+	add_cost(cost[rtso::RES_GOLD], "m");
+	String label = String::utf8(u.name);
+	if (u.flags & rtso::ROSTER_HERO) label = String::utf8("\u2605 ") + label;
+	label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
+	int idx = roster_list->add_item(label);
+	roster_list->set_item_metadata(idx, (int)i);
+	tip = String::utf8(u.name);
+	if (u.specific_name && u.specific_name[0]) tip += String::utf8(" \u2014 ") + String::utf8(u.specific_name);
+	tip += "\nHP " + String::num_int64((int64_t)u.hp) + ", attack " + String::num(u.attack_damage, 1) +
+		", train " + String::num(u.train_time, 0) + " s, pop " + String::num_int64(u.pop_cost);
+	return idx;
 }
 
 void RtsoMain::clear_selection() {
@@ -5415,7 +5516,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_fauna_id != 0) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
-				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
+				// 0 A.D.: a right-click on livestock slaughters it, whoever owns it. RTS0 can't select
+				// animals, so Alt+right-click on your own livestock herds it to your corral instead.
+				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED &&
+				               fview.owner[best_f] == local_player() && Input::get_singleton()->is_key_pressed(KEY_ALT) ? 1 : 0;
 				if (turn_cmds())
 					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
 				else if (herd)
@@ -5806,6 +5910,7 @@ void RtsoMain::apply_map_player_overrides() {
 		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
 		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
 	}
+	if (map_pop_limit_ > 0) sim->set_pop_cap(map_pop_limit_);
 	if (map_has_teams_) {
 		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
 		sim->set_setup_teams(map_team_);
@@ -5822,6 +5927,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		map_team_[p] = 0;
 	}
 	map_has_teams_ = false;
+	map_pop_limit_ = -1;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
@@ -5904,6 +6010,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 	sim->set_sim_seed(seed);
 	sim->reset();
+	map_pop_limit_ = (int)d.get("pop_limit", -1);
 	{
 		Array pl = d.get("players", Array());
 		for (int i = 0; i < pl.size(); ++i) {
@@ -6102,6 +6209,16 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
+	// TriggerPoint.js markers the scripts spawn at or aim for (owner 0 is Gaia).
+	Array tp_arr = d.get("trigger_points", Array());
+	for (int i = 0; i < tp_arr.size(); ++i) {
+		Dictionary tp = tp_arr[i];
+		const String ref = tp.get("ref", "A");
+		const int owner = (int)tp.get("owner", 0);
+		if (ref.is_empty()) continue;
+		sim->add_trigger_point((uint8_t)ref.unicode_at(0), (float)tp.get("x", 0.0), (float)tp.get("z", 0.0),
+				owner <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(owner - 1, rtso::MAX_PLAYERS - 1));
+	}
 	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
 	Array trig_arr = d.get("trigger_scripts", Array());
 	for (int i = 0; i < trig_arr.size(); ++i) {

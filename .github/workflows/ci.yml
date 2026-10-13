@@ -358,6 +358,13 @@ jobs:
             src/network/net_host.cpp -lpthread -o /tmp/test_promotion
           /tmp/test_promotion
 
+      - name: Units that train
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_unit_trainers.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
+            src/network/net_host.cpp -lpthread -o /tmp/test_unit_trainers
+          /tmp/test_unit_trainers
+
       - name: Turret points on walls and outposts
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_turrets.cpp src/simulation/simulation.cpp \
