@@ -23028,6 +23028,31 @@ uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
 
 // UnitAI Order.CollectTreasure: walk to the treasure. Ships, war dogs and animals have no
 // TreasureCollector (template_unit_ship.xml, template_unit_dog.xml disable it).
+// 0.28 TreasureCollector MaxDistance: template_unit.xml 2 m; template_unit_ship.xml 12 m for
+// every ship (merchants, arrow and ram warships, fire ships), fishing boats 5, scout ships 7,
+// siege warships 24; template_unit_dog, template_unit_siege (siege towers too) and
+// template_unit_catafalque disable it. A contact reach, x0.6 like melee ranges, plus 1 for
+// the treasure's footprint.
+float Simulation::treasure_reach(size_t i) const {
+	const uint8_t ut = units_.unit_type[i];
+	if (ut == UNIT_WAR_DOG || ut == UNIT_CATAFALQUE || unit_is_siege_engine(ut)) return -1.0f;
+	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(units_.tmpl[i]).flags & ROSTER_SIEGE_TOWER)) return -1.0f;
+	float m = 2.0f;
+	if (ut == UNIT_FISHING_BOAT) m = 5.0f;
+	else if (unit_is_ship(ut)) {
+		m = 12.0f;
+		const uint16_t tmpl = units_.tmpl[i];
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+			const char *id = civ_unit_template(tmpl).id;
+			const char *slash = std::strrchr(id, '/');
+			const char *name = slash ? slash + 1 : id;
+			if (std::strcmp(name, "ship_scout") == 0) m = 7.0f;
+			else if (std::strcmp(name, "ship_siege") == 0) m = 24.0f;
+		}
+	}
+	return m * 0.6f + 1.0f;
+}
+
 void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued) {
 	const Treasure *t = nullptr;
 	for (const auto &tr : treasures_) if (tr.id == treasure_id) t = &tr;
@@ -23036,8 +23061,7 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 	for (size_t k = 0; k < count; ++k) {
 		int32_t u = lookup_unit(unit_ids[k]);
 		if (u < 0 || !units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
-		const uint8_t ut = units_.unit_type[u];
-		if (unit_is_ship(ut) || ut == UNIT_WAR_DOG || units_.action_state[u] == ACTION_GARRISONED) continue;
+		if (treasure_reach((size_t)u) < 0.0f || units_.action_state[u] == ACTION_GARRISONED) continue;
 		collectors.push_back(unit_ids[k]);
 	}
 	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.target = treasure_id; o.x = t->x; o.z = t->z;
@@ -23060,7 +23084,6 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 // CollectTime to collect; Treasure.Reward gives its owner the resources and the treasure is gone.
 void Simulation::tick_treasures(float dt) {
 	if (treasures_.empty()) return;
-	const float reach = 2.0f * 0.6f + 1.0f;
 	const size_t n = units_.count;
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
 	struct NextTreasure { uint32_t uid; float x, z; };
@@ -23074,7 +23097,8 @@ void Simulation::tick_treasures(float dt) {
 			Treasure &t = treasures_[k];
 			if (t.id != tid) continue;
 			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
-			if (dx * dx + dz * dz > reach * reach) break;
+			const float reach = treasure_reach(i);
+			if (reach < 0.0f || dx * dx + dz * dz > reach * reach) break;
 			// One collector at a time; another in range takes over if it stops.
 			if (t.collector_id == 0 || lookup_unit(t.collector_id) < 0 || !units_.alive[lookup_unit(t.collector_id)] ||
 			    units_.target_unit_id[lookup_unit(t.collector_id)] != t.id) {
