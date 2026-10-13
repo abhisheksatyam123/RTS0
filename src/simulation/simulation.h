@@ -1288,6 +1288,7 @@ public:
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
 	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
+	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
@@ -2093,6 +2094,8 @@ private:
 	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
 			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
 			const std::vector<std::pair<int, int>> *ignore_cells) const;
+	// survivalofthefittest.js's placement obstructors: whether one covers part of [x0, x1] x [z0, z1].
+	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
@@ -2556,6 +2559,23 @@ private:
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
 	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
+	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
+	struct PetraBasesMap {
+		struct Anchor { float x, z; uint16_t land; };
+		std::vector<Anchor> anchors;
+		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
+		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
+		bool naval = false;
+		int at(float x, float z, float half) const;
+		// Off naval maps all land is one: RTS0's land regions, unlike 0 A.D.'s, are cut by structures.
+		uint16_t land(uint16_t l) const { return naval || !l ? l : 1; }
+	};
+	void petra_bases_map(PetraBasesMap &m) const;
+	int petra_military_base(const PetraBasesMap &m) const;
+	bool petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base, int &out_cx,
+	                         int &out_cz);
+	uint32_t petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at = nullptr, const float *favor_at = nullptr,
+	                             bool military_base = false);
 
 	bool bulk_spawn_ = false;
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
