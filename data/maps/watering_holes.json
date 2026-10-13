@@ -6819,43 +6819,43 @@
       "max_gatherers": 9
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": 5.65,
       "z": -5.25,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -7.19,
       "z": 13.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": 14.14,
       "z": 15.21,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": 24.77,
       "z": -85.74,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -25.32,
       "z": -92.29,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": -81.34,
       "z": 19.1,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": 53.76,
       "z": 29.66,
       "amount": 200
