@@ -5438,6 +5438,26 @@ int Simulation::siege_garrison_capacity(size_t i) const {
 	return 0;
 }
 
+void Simulation::garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8_t owner, float &arrows,
+		float &max_arrows) const {
+	arrows = max_arrows = 1.0f;
+	if (GARRISON_ARROW_AURA_COUNT == 0) return;
+	uint32_t seen = 0; // garrison_arrow_auras() rows applied: one aura counts once, not per carrier
+	for (uint32_t uid : ids) {
+		const int32_t g = lookup_unit(uid);
+		if (g < 0 || units_.team[g] != owner || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		for (int16_t a : civ_unit_template(units_.tmpl[g]).auras) {
+			const int row = garrison_arrow_aura_index(a);
+			if (row < 0 || row >= 32 || (seen & (1u << row))) continue;
+			seen |= 1u << row;
+			arrows *= garrison_arrow_auras()[row].arrow_multiply;
+			max_arrows *= garrison_arrow_auras()[row].max_multiply;
+		}
+	}
+}
+
+// BuildingAI.js GetArrowCount on a siege tower: one arrow per garrisoned Infantry
+// (GarrisonArrowMultiplier 1), at most MaxArrowCount 10, both after garrison auras.
 int Simulation::siege_tower_arrows(size_t i) const {
 	auto pit = transport_passengers_.find(units_.id[i]);
 	if (pit == transport_passengers_.end()) return 0;
@@ -5446,12 +5466,14 @@ int Simulation::siege_tower_arrows(size_t i) const {
 		int32_t p = lookup_unit(puid);
 		if (p >= 0 && (unit_tech_classes(units_.unit_type[p]) & TC_INFANTRY)) ++infantry;
 	}
-	return std::min(infantry, SIEGE_TOWER_MAX_ARROWS);
+	float mul, max_mul;
+	garrison_arrow_auras_of(pit->second, units_.team[i], mul, max_mul);
+	return std::min((int)std::lround(infantry * mul), (int)std::lround(SIEGE_TOWER_MAX_ARROWS * max_mul));
 }
 
 // BuildingAI.js GetArrowCount: DefaultArrowCount (with technologies: multiplied, then
 // added, then rounded) + round(garrisoned GarrisonArrowClasses units x
-// GarrisonArrowMultiplier), at most MaxArrowCount.
+// GarrisonArrowMultiplier), at most MaxArrowCount; a garrisoned Caros multiplies both.
 int Simulation::building_arrow_count(const Building &b) const {
 	const BuildingAIInfo &ai = building_ai_info(b.type);
 	if (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER) return 0;
@@ -5467,9 +5489,12 @@ int Simulation::building_arrow_count(const Building &b) const {
 			if (g >= 0 && (unit_classes(units_.tmpl[g], units_.unit_type[g]) & ai.garrison_arrow_classes)) ++garrisoned;
 		}
 	}
-	const float per_unit = ai.garrison_arrow_multiplier * (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_garrison_arrows[b.type] : 1.0f);
+	float aura = 1.0f, max_aura = 1.0f;
+	if (b.team < MAX_PLAYERS) garrison_arrow_auras_of(b.garrisoned_units, b.team, aura, max_aura);
+	const float per_unit = ai.garrison_arrow_multiplier * aura
+		* (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_garrison_arrows[b.type] : 1.0f);
 	int count = (int)std::lround(def) + (int)std::lround(garrisoned * per_unit);
-	if (ai.max_arrows > 0) count = std::min(count, (int)ai.max_arrows);
+	if (ai.max_arrows > 0) count = std::min(count, (int)std::lround(ai.max_arrows * max_aura));
 	return std::max(count, 0);
 }
 
@@ -15186,17 +15211,26 @@ void Simulation::petra_manage_fields() {
 	const Building *anchor = farmstead ? farmstead : tc;
 	if (can_build(BLD_FIELD)) {
 		if (fields == 0) {
-			if (count < 600.0f && anchor) petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+			if (count < 600.0f && anchor) {
+				const float at[2] = {anchor->x, anchor->z}; // favoredBase: the base doing the check
+				petra_place_generic(BLD_FIELD, PETRA_QUEUE_VILLAGER, nullptr, at);
+			}
 			return;
 		}
 		int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
 		if (count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
-		if (field_foundations < goal && anchor) petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+		if (field_foundations < goal && anchor) {
+			const float at[2] = {anchor->x, anchor->z};
+			petra_place_generic(BLD_FIELD, PETRA_QUEUE_VILLAGER, nullptr, at);
+		}
 		return;
 	}
 	if (corrals == 0) {
 		if (count < 900.0f && anchor && can_build(BLD_CORRAL))
-			petra_place_building(BLD_CORRAL, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+		{
+			const float at[2] = {anchor->x, anchor->z};
+			petra_place_generic(BLD_CORRAL, PETRA_QUEUE_VILLAGER, nullptr, at);
+		}
 		return;
 	}
 	if (ticks_ % 16 != 12) return; // manageCorral, every fourth played turn
@@ -16298,12 +16332,8 @@ void Simulation::petra_manage_buildings(float dt) {
 			}
 			const int needed_at = pop > 55 ? 21 : pop > 30 ? 15 : 10;
 			if (free_slots <= needed_at && planned < (pop > 80 ? 5 : 3)) {
-				float base_x = 36.0f, base_z = 36.0f;
-				if (const auto *pbase = get_primary_petra_base()) {
-					base_x = pbase->x; base_z = pbase->z;
-				}
 				// buildMoreHouses: no room to place a house, so try a population technology.
-				if (!petra_place_building(BLD_HOUSE, base_x, base_z, 3, 16, PETRA_QUEUE_VILLAGER) && petra_place_no_room_ &&
+				if (!petra_place_generic(BLD_HOUSE, PETRA_QUEUE_VILLAGER) && petra_place_no_room_ &&
 				    (int)petra_timer_ != (int)(petra_timer_ - dt))
 					petra_research_population_bonus();
 			}
@@ -16346,7 +16376,7 @@ void Simulation::petra_manage_buildings(float dt) {
 				want = can_barracks ? BLD_BARRACKS : can_stable ? BLD_STABLE : can_range ? BLD_RANGE : BLD_TYPE_COUNT;
 		}
 		if (want != BLD_TYPE_COUNT) {
-			if (const uint32_t bid = petra_place_building(want, home->x, home->z, 3, 16, PETRA_QUEUE_MILITARY)) {
+			if (const uint32_t bid = petra_place_generic(want, PETRA_QUEUE_MILITARY, nullptr, nullptr, true)) { // militaryBase
 				auto idle = get_idle_workers(petra_pid_);
 				if (!idle.empty()) petra_order_builders(idle, 3, bid);
 			}
@@ -16396,7 +16426,7 @@ void Simulation::petra_build_advanced() {
 		return n;
 	};
 	auto build = [&](uint8_t t) {
-		const uint32_t bid = petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_MILITARY);
+		const uint32_t bid = petra_place_generic(t, PETRA_QUEUE_MILITARY, nullptr, nullptr, true); // militaryBase
 		if (!bid) return;
 		auto idle = get_idle_workers(petra_pid_);
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
@@ -17108,7 +17138,7 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 		// No free researcher: lay one out if we have none at all.
 		const PetraBase *home = get_primary_petra_base();
 		if (!have && home && !is_civic_centre(tinfo.researcher) && building_phase_class(tinfo.researcher) <= petra_ps().phase)
-			petra_place_building(tinfo.researcher, home->x, home->z, 4, 14, PETRA_QUEUE_TECH);
+			petra_place_generic(tinfo.researcher, PETRA_QUEUE_TECH);
 		return false;
 	}
 	const float *tc = tech_mods(petra_pid_).bld_tech_cost[at->type];
@@ -17183,13 +17213,13 @@ void Simulation::petra_manage_research(float dt) {
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_FORGE, BLD_TEMPLE, BLD_MARKET};
 		if (cls == 1) {
-			for (uint8_t t : kVillage) if (petra_place_building(t, home->x, home->z, 3, 16, PETRA_QUEUE_TECH)) return;
+			for (uint8_t t : kVillage) if (petra_place_generic(t, PETRA_QUEUE_TECH)) return;
 		} else {
 			for (uint8_t t : kTown)
 				if (!have_building(t) && (t == BLD_MARKET ? petra_build_market(home->x, home->z, PETRA_QUEUE_TECH)
-				                                          : petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_TECH)))
+				                                          : petra_place_generic(t, PETRA_QUEUE_TECH)))
 					return;
-			petra_place_building(BLD_TEMPLE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
+			petra_place_generic(BLD_TEMPLE, PETRA_QUEUE_TECH);
 		}
 	};
 
@@ -17205,7 +17235,7 @@ void Simulation::petra_manage_research(float dt) {
 		if (!have_building(BLD_MARKET))
 			petra_build_market(home->x, home->z, PETRA_QUEUE_TECH);
 		else if (pop >= pop_for_forge && !have_building(BLD_FORGE))
-			petra_place_building(BLD_FORGE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
+			petra_place_generic(BLD_FORGE, PETRA_QUEUE_TECH);
 	}
 
 	// checkPhase, then checkPhaseRequirements while phasing. A phase in the majorTech
@@ -18741,7 +18771,8 @@ void Simulation::petra_manage_opening(float dt) {
 		return;
 	}
 
-	uint32_t bid = petra_place_building(want, bx, bz, 2, 9, queue);
+	const float first_base[2] = {bx, bz}; // startingStrategy.js: metadata.base of the first base
+	uint32_t bid = petra_place_generic(want, queue, first_base);
 	if (!bid) return;
 	auto idle = get_idle_workers(petra_pid_);
 	if (!idle.empty())
@@ -19256,6 +19287,198 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
 		}
 	}
+}
+
+// The structures whose 0 A.D. template derives from template_structure_military (class Military).
+static inline bool petra_military_structure(uint8_t t) {
+	switch (building_research_base(t)) {
+		case BLD_BARRACKS: case BLD_FORTRESS: case BLD_DOCK: case BLD_STABLE: case BLD_RANGE: case BLD_FORGE:
+		case BLD_ARSENAL: case BLD_ELEPHANT_STABLE: case BLD_EMBASSY: case BLD_ARMY_CAMP: case BLD_MERCENARY_CAMP:
+		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA:
+			return true;
+		default:
+			return false;
+	}
+}
+
+// Structures that take food (ResourceDropsite food): civic centres, farmsteads, docks, colonies.
+static inline bool petra_food_dropsite(uint8_t t) {
+	return is_civic_centre(t) || t == BLD_FARMSTEAD || t == BLD_DOCK || civ_building_is_dropsite(t);
+}
+
+// basesManager.js basesMap: each tile of our territory belongs to the nearest base anchor (a
+// civic centre or military colony, foundations too) on its land; 0 for none. Bases are numbered
+// from 1 in building order. Tiles are 0 A.D.'s territory tiles (8 m, one placement cell).
+void Simulation::petra_bases_map(PetraBasesMap &m) const {
+	m.anchors.clear();
+	uint16_t home = 0;
+	m.naval = petra_classified_topo(home).naval_map;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY))
+			m.anchors.push_back({b.x, b.z, m.land(petra_land_at(b.x, b.z))});
+	m.w = std::max(1, (int)std::floor(2.0f * map_half_ / GRID));
+	m.x0 = m.z0 = 0;
+	m.x1 = m.z1 = -1;
+	m.base.clear();
+	if (m.anchors.empty()) return;
+	auto centre = [&](int i) { return ((float)i + 0.5f) * GRID - map_half_; };
+	int x0 = m.w, z0 = m.w, x1 = -1, z1 = -1;
+	for (int iz = 0; iz < m.w; ++iz)
+		for (int ix = 0; ix < m.w; ++ix)
+			if (territory_owner_at(centre(ix), centre(iz)) == (int)petra_pid_) {
+				x0 = std::min(x0, ix); x1 = std::max(x1, ix);
+				z0 = std::min(z0, iz); z1 = std::max(z1, iz);
+			}
+	if (x1 < 0) return;
+	m.x0 = x0; m.z0 = z0; m.x1 = x1; m.z1 = z1;
+	const int bw = x1 - x0 + 1;
+	m.base.assign((size_t)bw * (size_t)(z1 - z0 + 1), 0);
+	for (int iz = z0; iz <= z1; ++iz)
+		for (int ix = x0; ix <= x1; ++ix) {
+			const float x = centre(ix), z = centre(iz);
+			if (territory_owner_at(x, z) != (int)petra_pid_) continue;
+			// The tile's land (getLandAccess): a tile under a structure takes the land around it.
+			const uint16_t land = m.land(petra_land_at(x, z));
+			if (!land) continue;
+			float best = 1e30f;
+			for (size_t a = 0; a < m.anchors.size(); ++a) {
+				if (m.anchors[a].land != land) continue;
+				const float d = (m.anchors[a].x - x) * (m.anchors[a].x - x) + (m.anchors[a].z - z) * (m.anchors[a].z - z);
+				if (d < best) { best = d; m.base[(size_t)(iz - z0) * bw + (ix - x0)] = (uint8_t)std::min<size_t>(a + 1, 255); }
+			}
+		}
+}
+
+int Simulation::PetraBasesMap::at(float x, float z, float half) const {
+	const int ix = (int)std::floor((x + half) / GRID), iz = (int)std::floor((z + half) / GRID);
+	if (ix < x0 || ix > x1 || iz < z0 || iz > z1) return 0;
+	return base[(size_t)(iz - z0) * (x1 - x0 + 1) + (ix - x0)];
+}
+
+// headquarters.js findBestBaseForMilitary: our base nearest an enemy civic centre on its land
+// (else a neutral one's).
+int Simulation::petra_military_base(const PetraBasesMap &m) const {
+	int best = 0;
+	bool enemy_found = false;
+	float dist_min = 1e30f;
+	for (const Building &e : buildings_) {
+		if (e.hp <= 0.0f || e.wrecked || !(is_civic_centre(e.type) || e.type == BLD_MILITARY_COLONY) || e.team >= MAX_PLAYERS ||
+		    is_ally(petra_pid_, e.team))
+			continue;
+		const bool enemy = petra_foe(e.team);
+		if (enemy_found && !enemy) continue;
+		const uint16_t land = m.land(petra_land_at(e.x, e.z));
+		for (size_t a = 0; a < m.anchors.size(); ++a) {
+			if (m.anchors[a].land != land) continue;
+			const float d = (m.anchors[a].x - e.x) * (m.anchors[a].x - e.x) + (m.anchors[a].z - e.z) * (m.anchors[a].z - e.z);
+			if (!enemy_found && enemy) enemy_found = true;
+			else if (d > dist_min) continue;
+			best = (int)a + 1;
+			dist_min = d;
+		}
+	}
+	return best;
+}
+
+// queueplanBuilding.js findPosition for a structure without a position of its own: a value per
+// territory tile, 45 on our bases' tiles (only `base`'s when given), then by each of our
+// structures (foundations too) within linear reach: fields and corrals +50 within 80 m of a
+// food dropsite, everything else -20 there; a house +40 within 60 m of a house; a fortress
+// -50 within 120 m of a house; another military structure -40 within 40 m of anything. From the
+// town phase a structure that doesn't shoot gets +10 away from the map border, `favored`'s
+// tiles +100, and tiles near an invading army are left out. `base_at` restricts it to the base
+// of that point (metadata.base), `favor_at` favours that point's base (metadata.favoredBase). The best tile that the structure
+// fits on (petra_can_place: footprint and its ring free) wins; a first house looks for room
+// for several. 8-bit values, as 0 A.D.'s maps.
+bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base,
+                                     int &out_cx, int &out_cz) {
+	PetraBasesMap m;
+	petra_bases_map(m);
+	if (m.base.empty()) return false;
+	const int base = base_at ? m.at(base_at[0], base_at[1], map_half_) : -1;
+	if (base == 0) return false;
+	int favored = favor_at ? m.at(favor_at[0], favor_at[1], map_half_) : 0;
+	if (military_base) favored = petra_military_base(m);
+	const int bw = m.x1 - m.x0 + 1, bh = m.z1 - m.z0 + 1;
+	std::vector<uint8_t> v(m.base.size(), 0);
+	for (size_t j = 0; j < v.size(); ++j)
+		if (base > 0 ? m.base[j] == base : m.base[j] != 0) v[j] = 45;
+	const bool house = btype == BLD_HOUSE || btype == BLD_APARTMENT;
+	const bool field = btype == BLD_FIELD || btype == BLD_CORRAL;
+	const bool military = petra_military_structure(btype);
+	bool has_houses = false;
+	// Map.addInfluence, linear: strength * (1 - r / reach), each step clamped to 0..255.
+	auto influence = [&](float wx, float wz, float reach_m, float strength) {
+		const float cx = std::round((wx + map_half_) / GRID) - (float)m.x0, cy = std::round((wz + map_half_) / GRID) - (float)m.z0;
+		const float md = reach_m / 4.0f / GRID, md2 = md * md, str = strength / md;
+		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
+		const int x1 = (int)std::floor(std::min((float)(bw - 1), cx + md)), y1 = (int)std::floor(std::min((float)(bh - 1), cy + md));
+		for (int y = y0; y < y1; ++y)
+			for (int x = x0; x < x1; ++x) {
+				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
+				if (r2 >= md2) continue;
+				uint8_t &c = v[(size_t)y * bw + x];
+				c = (uint8_t)std::clamp((float)c + str * (md - std::sqrt(r2)), 0.0f, 255.0f);
+			}
+	};
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
+		if (petra_food_dropsite(b.type)) influence(b.x, b.z, 80.0f, field ? 50.0f : -20.0f);
+		else if (house) {
+			if (b.type == BLD_HOUSE || b.type == BLD_APARTMENT) { influence(b.x, b.z, 60.0f, 40.0f); has_houses = true; }
+		} else if (btype == BLD_FORTRESS && (b.type == BLD_HOUSE || b.type == BLD_APARTMENT)) influence(b.x, b.z, 120.0f, -50.0f);
+		else if (military) influence(b.x, b.z, 40.0f, -40.0f);
+	}
+	const bool disfavor_border = petra_ps().phase > 1 && !building_ai_info(btype).shoots();
+	const float border = 80.0f / 4.0f;
+	for (int iz = 0; iz < bh; ++iz)
+		for (int ix = 0; ix < bw; ++ix) {
+			const size_t j = (size_t)iz * bw + ix;
+			if (base > 0 ? m.base[j] != base : m.base[j] == 0) { v[j] = 0; continue; }
+			if (v[j] == 0) continue;
+			const float x = ((float)(ix + m.x0) + 0.5f) * GRID - map_half_, z = ((float)(iz + m.z0) + 0.5f) * GRID - map_half_;
+			if (disfavor_border && std::abs(x) < map_half_ - border && std::abs(z) < map_half_ - border)
+				v[j] = (uint8_t)std::min(255, v[j] + 10);
+			if (!is_position_safe(x, z, 5.0f)) v[j] = 0; // isNearInvadingArmy
+			else if (base <= 0 && favored > 0 && m.base[j] == favored) v[j] = (uint8_t)std::min(255, v[j] + 100);
+		}
+	// Map.findBestTile: the first tile of the highest value the structure fits on.
+	const int foot = building_type_info(btype).footprint;
+	auto best_tile = [&](int ring) -> bool {
+		int best = 0;
+		for (int iz = 0; iz < bh; ++iz)
+			for (int ix = 0; ix < bw; ++ix) {
+				const int val = v[(size_t)iz * bw + ix];
+				if (val <= best) continue;
+				const int gx = ix + m.x0 - (int)(map_half_ / GRID), gz = iz + m.z0 - (int)(map_half_ / GRID);
+				const int cx = gx - foot / 2, cz = gz - foot / 2;
+				if (ring > 0 ? !petra_can_place(cx - ring, cz - ring, foot + 2 * ring, BLD_TYPE_COUNT) : false) continue;
+				if (!petra_can_place(cx, cz, foot, btype)) continue;
+				best = val;
+				out_cx = cx;
+				out_cz = cz;
+			}
+		return best > 0;
+	};
+	// A first house: try with room for a few more around it (3 * radius in 0 A.D.).
+	if (house && !has_houses && best_tile(foot)) return true;
+	return best_tile(0);
+}
+
+// A structure placed by petra_find_position and paid from `queue`.
+uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at, const float *favor_at,
+                                         bool military_base) {
+	petra_place_no_room_ = false;
+	if (btype >= BLD_TYPE_COUNT || !petra_limit_allows_building(btype)) return 0;
+	int cx = 0, cz = 0;
+	if (!petra_find_position(btype, base_at, favor_at, military_base, cx, cz)) {
+		petra_place_no_room_ = true;
+		return 0;
+	}
+	const BuildingTypeInfo &info = building_type_info(btype);
+	if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
+		return 0;
+	return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 }
 
 uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue) {
@@ -19947,10 +20170,6 @@ void Simulation::petra_manage_victory(float dt) {
 	// update(): the rest every 10 AI turns.
 	if ((int)(petra_timer_ / 2.0f) == (int)((petra_timer_ - 0.5f) / 2.0f)) return;
 
-	const PetraBase *pbase = get_primary_petra_base();
-	float bx = pbase ? pbase->x : 36.0f;
-	float bz = pbase ? pbase->z : 36.0f;
-
 	if (victory_condition_ == VICTORY_WONDER && petra_ps().phase >= 3) {
 		uint32_t wonder_id = 0;
 		bool complete = false;
@@ -19961,7 +20180,7 @@ void Simulation::petra_manage_victory(float dt) {
 			break;
 		}
 		if (wonder_id == 0) {
-			uint32_t bid = petra_place_building(BLD_WONDER, bx, bz, 3, 10, PETRA_QUEUE_TECH);
+			uint32_t bid = petra_place_generic(BLD_WONDER, PETRA_QUEUE_TECH);
 			if (bid != 0) {
 				auto builders = get_idle_workers(petra_pid_);
 				if (builders.size() < 4) {

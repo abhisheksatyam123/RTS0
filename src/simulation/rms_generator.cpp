@@ -9652,6 +9652,13 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 				else if (n3 > 0.86f) v = pick(b.dirt, 2, tx, tz, 10);
 				else v = pick(b.main, 4, tx, tz, 11);
 			}
+			// The script's own height bands, unless a road, forest floor or mine dirt took the tile.
+			if (own && road[j] == 0 && forest[j] == 0 && mine[j] == 0) {
+				const float m = (h - water) / metre;
+				for (const HeightBand &band : own->bands)
+					if (band.terrain[0] && m >= band.lo && m < band.hi)
+						v = pick(band.terrain, 2, tx, tz, 12);
+			}
 			t.tiles[j] = v;
 		}
 	// A tile's terrain blends over neighbours of lower priority, which the renderer
@@ -9659,7 +9666,10 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	// so paint order decides: the main terrain first, then water and shores, player
 	// bases, cliffs and hills, forests and the patches on top.
 	std::vector<const char *> order(b.main, b.main + 4);
-	for (const char *n : {b.water, b.shore_blend, b.shore, b.road_wild, b.road}) order.push_back(n);
+	for (const char *n : {b.water, b.shore_blend, b.shore}) order.push_back(n);
+	if (own)
+		for (const HeightBand &band : own->bands) order.insert(order.end(), band.terrain, band.terrain + 2);
+	for (const char *n : {b.road_wild, b.road}) order.push_back(n);
 	for (const char *const *l : {b.cliff, b.hill, b.forest}) order.insert(order.end(), l, l + 2);
 	order.insert(order.end(), b.tier, b.tier + 4);
 	order.insert(order.end(), b.dirt, b.dirt + 2);

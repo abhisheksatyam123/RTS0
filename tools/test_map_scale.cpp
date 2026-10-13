@@ -555,6 +555,7 @@ int main() {
 		add(b.main, 4); add(b.forest, 2); add(b.tier, 4); add(b.cliff, 2); add(b.hill, 2); add(b.dirt, 2);
 		for (const char *n : {b.road, b.road_wild, b.shore_blend, b.shore, b.water})
 			if (n) own.insert(n);
+		for (const HeightBand &band : st->bands) add(band.terrain, 2);
 		int foreign = 0;
 		for (const auto &n : sim.terrain_tiles().names) foreign += !own.count(n);
 		CHECK(foreign == 0, "%s paints %d terrains outside its script's set", st->map_id, foreign);
@@ -585,6 +586,33 @@ int main() {
 		      "%s with the savanna biome chosen paints savanna", st->map_id);
 	}
 	CHECK(scripts >= 30, "%d maps have their 0 A.D. script's own terrains", scripts);
+	{
+		// paintTerrainBasedOnHeight bands: Aegean Sea's corals under the sea, Arctic Summer's
+		// polar cliffs from 4 m and snow from 15 m.
+		auto count = [](MapType type, const char *name, float lo_m, float hi_m) {
+			Simulation sim;
+			sim.generate_random_map(type, 7, 2, 256.0f);
+			const auto &t = sim.terrain_tiles();
+			int in_band = 0, named = 0;
+			const float half = sim.map_half(), cell = 2.0f * half / (float)t.res;
+			for (int tz = 0; tz < t.res; ++tz)
+				for (int tx = 0; tx < t.res; ++tx) {
+					const float h = sim.get_terrain_height(-half + ((float)tx + 0.5f) * cell, -half + ((float)tz + 0.5f) * cell);
+					const float m = (h - sim.water_height()) / HEIGHT_PER_METRE;
+					if (m < lo_m || m >= hi_m) continue;
+					++in_band;
+					named += t.names[t.tiles[(size_t)tz * (size_t)t.res + (size_t)tx]] == name;
+				}
+			return std::make_pair(named, in_band);
+		};
+		const auto coral = count(MAP_AEGEAN_SEA, "medit_sea_coral_deep", -3.0f, -2.0f);
+		CHECK(coral.second > 0 && coral.first * 10 >= coral.second * 9, "aegean_sea: %d of %d tiles at -3..-2 m are coral",
+		      coral.first, coral.second);
+		const auto snow = count(MAP_ARCTIC_SUMMER, "polar_snow_rocks", 15.0f, 100.0f);
+		const auto ice = count(MAP_ARCTIC_SUMMER, "polar_ice", 15.0f, 100.0f);
+		CHECK(snow.second > 0 && (snow.first + ice.first) * 10 >= snow.second * 9, "arctic_summer: %d of %d tiles over 15 m are snow",
+		      snow.first + ice.first, snow.second);
+	}
 	{
 		Simulation sim;
 		sim.set_biome_override(BIOME_TEMPERATE);
