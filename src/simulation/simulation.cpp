@@ -6526,8 +6526,14 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 
 void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim) {
 	if (victim >= units_.count) return;
-	collect_loot(looter_id, looter_player, loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
-			loot_rank_multiplier(units_.rank[victim]), units_.res_type_carried[victim], units_.carry[victim]);
+	LootInfo loot = loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]);
+	// Sacrificial Ritual (cost_healer.json): the victim's owner's healers yield Loot/metal 0.
+	const uint8_t owner = units_.team[victim];
+	if (owner < MAX_PLAYERS && players_[owner].has_tech(TECH_COST_HEALER) &&
+			unit_is_healer(units_.tmpl[victim], units_.unit_type[victim]))
+		loot.metal = 0;
+	collect_loot(looter_id, looter_player, loot, loot_rank_multiplier(units_.rank[victim]),
+			units_.res_type_carried[victim], units_.carry[victim]);
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
