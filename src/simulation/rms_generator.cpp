@@ -6,6 +6,7 @@
 #include "heightmap_images.h"
 #include <cmath>
 #include <algorithm>
+#include <bit>
 #include <vector>
 #include <cstring>
 #include <functional>
@@ -16,6 +17,18 @@
 namespace rtso {
 
 namespace {
+// The Team Placement of the map being generated (generate() sets it from
+// Config::team_placement and map_team_placements): the pattern_locs pattern,
+// or -1 for the map's own layout (Circle, or a map without the setting).
+struct TeamPlacementContext {
+	int pattern = -1;
+	uint8_t teams[8] = {};
+};
+thread_local TeamPlacementContext t_team_placement;
+
+std::vector<std::pair<float, float>> pattern_locs(const HeightmapGrid &hm, RmsRng &rng, int pattern, int n,
+		const uint8_t *teams, float distance, float grouped, float start);
+
 
 // Perlin / Gradient Noise Implementation
 class PerlinNoise {
@@ -1013,10 +1026,15 @@ void RmsGenerator::synth_anatolian_plateau(HeightmapGrid &hm, RmsRng &rng, float
 	// 4. Steppe Player Bases on the high plateau
 	spawns.clear();
 	float spawn_r = half * 0.48f;
+	std::vector<std::pair<float, float>> locs;
+	if (t_team_placement.pattern >= 0)
+		locs = pattern_locs(hm, rng, t_team_placement.pattern, num_players, t_team_placement.teams, spawn_r, 0.2f * half,
+		                    rng.range_float(0.0f, 6.2831853f));
 	for (int i = 0; i < num_players; ++i) {
 		float angle = (6.2831853f * i) / (float)num_players + 0.52f;
 		float sx = std::cos(angle) * spawn_r;
 		float sz = std::sin(angle) * spawn_r;
+		if (!locs.empty()) { sx = locs[(size_t)i].first; sz = locs[(size_t)i].second; angle = std::atan2(sz, sx); }
 		float fx = -std::cos(angle);
 		float fz = -std::sin(angle);
 		float bh = std::max(6.0f, hm.sample_world(sx, sz));
@@ -1054,6 +1072,29 @@ void place_ring_spawns(HeightmapGrid &hm, std::vector<RmsGenerator::PlayerSpawn>
 	}
 }
 
+// playerPlacementByPattern for the maps with Team Placement: Circle keeps the
+// map's ring (place_ring_spawns over the full circle); the other patterns come
+// from pattern_locs with the ring's radius as the distance (river_distance for
+// River when set) and teammates 0.1 of the map apart, each base levelled at max(terrain, min_h) and facing the centre.
+void place_team_spawns(HeightmapGrid &hm, RmsRng &rng, std::vector<RmsGenerator::PlayerSpawn> &spawns, int num_players,
+		float radius, float start_angle, float min_h, float river_distance = 0.0f) {
+	if (t_team_placement.pattern < 0) {
+		place_ring_spawns(hm, spawns, num_players, radius, start_angle, 6.2831853f, min_h);
+		return;
+	}
+	// Some scripts set the two River lines further apart (teamDist) than their ring.
+	const float distance = t_team_placement.pattern == 4 && river_distance > 0.0f ? river_distance : radius;
+	const auto locs = pattern_locs(hm, rng, t_team_placement.pattern, num_players, t_team_placement.teams, distance,
+	                               0.2f * hm.map_half, start_angle);
+	spawns.clear();
+	for (int i = 0; i < num_players; ++i) {
+		const float sx = locs[(size_t)i].first, sz = locs[(size_t)i].second, r = std::hypot(sx, sz);
+		const float bh = std::max(min_h, hm.sample_world(sx, sz));
+		spawns.push_back({(uint8_t)i, sx, sz, bh, r > 1e-3f ? -sx / r : 1.0f, r > 1e-3f ? -sz / r : 0.0f});
+		hm.level_area(sx, sz, 14.0f, 6.0f, bh);
+	}
+}
+
 // Raises terrain near (x, z) back up to at least h (undoing a lake or canyon
 // that cut into a base), with a smooth edge.
 void lift_area(HeightmapGrid &hm, float cx, float cz, float radius, float blend, float h) {
@@ -1078,7 +1119,7 @@ void RmsGenerator::synth_mainland(HeightmapGrid &hm, RmsRng &rng, float &water_h
 	hm.init(hm.res, hm.map_half, 2.0f);
 	hm.apply_fbm(rng, 4, 0.018f, 0.5f, 2.0f, 3.0f);
 	hm.blur(2, 0.4f);
-	place_ring_spawns(hm, spawns, num_players, hm.map_half * 0.62f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	place_team_spawns(hm, rng, spawns, num_players, hm.map_half * 0.62f, rng.range_float(0.0f, 6.2831853f), 0.0f);
 }
 
 void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -1088,16 +1129,22 @@ void RmsGenerator::synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &wat
 	const float half = hm.map_half;
 	hm.apply_ridged_noise(rng, 4, 0.020f, 0.5f, 2.1f, 12.0f);
 	hm.apply_fbm(rng, 3, 0.035f, 0.5f, 2.0f, 2.5f);
+	// The bases first, so the lakes keep clear of them (alpine_lakes.js: lakes avoid clPlayer).
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), 4.0f);
 	const int lakes = scale_by_map_size(3, 9, half);
-	for (int i = 0; i < lakes; ++i) {
+	for (int i = 0, tries = 0; i < lakes && tries < lakes * 20; ++tries) {
 		// Lakes sit between the bases: off the spawn ring, inside the border.
-		float a = rng.range_float(0.0f, 6.2831853f);
-		float r = rng.next_float() < 0.5f ? rng.range_float(0.0f, half * 0.35f) : rng.range_float(half * 0.80f, half * 0.88f);
-		hm.carve_crater_lake(std::cos(a) * r, std::sin(a) * r, half * rng.range_float(0.07f, 0.11f), 6.0f, 3.0f, water_h);
+		const float a = rng.range_float(0.0f, 6.2831853f);
+		const float r = rng.next_float() < 0.5f ? rng.range_float(0.0f, half * 0.35f) : rng.range_float(half * 0.80f, half * 0.88f);
+		const float lr = half * rng.range_float(0.07f, 0.11f), lx = std::cos(a) * r, lz = std::sin(a) * r;
+		bool clear = true;
+		for (const auto &sp : spawns) clear &= std::hypot(lx - sp.x, lz - sp.z) > lr + 6.0f + 20.0f;
+		if (!clear) continue;
+		hm.carve_crater_lake(lx, lz, lr, 6.0f, 3.0f, water_h);
+		++i;
 	}
 	hm.thermal_erosion(6, 0.7f, 0.2f);
 	hm.blur(1, 0.35f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 4.0f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
@@ -1109,7 +1156,8 @@ void RmsGenerator::synth_lake(HeightmapGrid &hm, RmsRng &rng, float &water_h, st
 	hm.apply_fbm(rng, 4, 0.022f, 0.5f, 2.0f, 2.5f);
 	hm.carve_crater_lake(0.0f, 0.0f, half * 0.34f, half * 0.10f, 4.0f, water_h);
 	hm.blur(1, 0.4f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.68f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+	// lake.js: River puts the two banks 0.55 of the map apart, clear of the lake.
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.68f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f, 1.1f * half);
 }
 
 void RmsGenerator::synth_gulf_of_bothnia(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
@@ -1137,13 +1185,10 @@ void RmsGenerator::synth_ardennes_forest(HeightmapGrid &hm, RmsRng &rng, float &
 	hm.init(hm.res, hm.map_half, 3.0f);
 	const float half = hm.map_half;
 	hm.apply_fbm(rng, 5, 0.026f, 0.55f, 2.0f, 6.0f);
-	// A brook winding across the map, fordable in the middle.
-	std::vector<std::pair<float, float>> brook = {
-		{-half * 1.05f, rng.range_float(-0.3f, 0.3f) * half}, {-half * 0.3f, rng.range_float(-0.2f, 0.2f) * half},
-		{half * 0.3f, rng.range_float(-0.2f, 0.2f) * half}, {half * 1.05f, rng.range_float(-0.3f, 0.3f) * half}};
-	hm.carve_spline_path(brook, 3.0f, 1.5f, water_h, half * 0.9f, 10.0f);
+	// No water: 0.28's script has none, and the brook RTS0 carved here cut bases
+	// off from each other once Team Placement put them on both sides of it.
 	hm.blur(1, 0.4f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
@@ -1162,7 +1207,7 @@ void RmsGenerator::synth_nearestern_badlands(HeightmapGrid &hm, RmsRng &rng, flo
 	}
 	hm.terrace(2.0f, 0.3f);
 	hm.blur(1, 0.35f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 4.0f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.60f, rng.range_float(0.0f, 6.2831853f), 4.0f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
 
@@ -1545,7 +1590,7 @@ void RmsGenerator::synth_sahel(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	hm.init(hm.res, hm.map_half, 2.0f);
 	const float half = hm.map_half;
 	hm.apply_fbm(rng, 3, 0.02f, 0.5f, 2.0f, 1.0f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f);
 	scatter_ponds(hm, rng, spawns, scale_by_map_size(1, 3, half), half * 0.07f + 2.0f, 24.0f, 20.0f, half * 0.60f, 3.0f, water_h);
 	hm.blur(1, 0.4f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
@@ -1558,7 +1603,7 @@ void RmsGenerator::synth_african_plains(HeightmapGrid &hm, RmsRng &rng, float &w
 	hm.init(hm.res, hm.map_half, 3.0f);
 	const float half = hm.map_half;
 	hm.apply_fbm(rng, 3, 0.022f, 0.5f, 2.0f, 1.5f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f);
 	const int hills = scale_by_map_size(6, 16, half);
 	for (int i = 0, tries = 0; i < hills && tries < hills * 40; ++tries) {
 		const float a = rng.range_float(0.0f, 6.2831853f);
@@ -1638,7 +1683,7 @@ void RmsGenerator::synth_syria(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 	hm.init(hm.res, hm.map_half, 2.0f);
 	const float half = hm.map_half;
 	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.5f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 0.0f);
 	scatter_hills(hm, rng, spawns, scale_by_map_size(1, 3, half) * 3 * std::max(1, num_players),
 	              half * 0.03f + 2.0f, half * 0.06f + 3.0f, 3.0f, 8.0f, 20.0f);
 	hm.blur(1, 0.35f);
@@ -1657,12 +1702,38 @@ void RmsGenerator::synth_cantabrian_highlands(HeightmapGrid &hm, RmsRng &rng, fl
 	const float ring_r = half * 0.70f;
 	// Bases are levelled before the hills go up: levelling a base on its hill (14 units and a
 	// 6-unit blend) would fill the upper half of its ramp back in, leaving a cliff.
-	place_ring_spawns(hm, spawns, num_players, ring_r, start, 6.2831853f, water_h + 1.5f);
-	for (int i = 0; i < num_players; ++i) {
-		const float a = start + 6.2831853f * (float)i / (float)std::max(1, num_players);
+	place_team_spawns(hm, rng, spawns, num_players, ring_r, start, water_h + 1.5f);
+	// One hill per base, or with Stronghold one per team round its members
+	// (cantabrian_highlands.js: teamPosition and strongholdRadius + the base radius).
+	struct Hill { float x, z, r, a; };
+	std::vector<Hill> hills;
+	if (t_team_placement.pattern == 3) {
+		std::vector<int> group(num_players);
+		for (int i = 0; i < num_players; ++i) group[i] = t_team_placement.teams[i] ? t_team_placement.teams[i] : 100 + i;
+		for (int i = 0; i < num_players; ++i) {
+			bool first = true;
+			for (int k = 0; k < i; ++k) first &= group[k] != group[i];
+			if (!first) continue;
+			float cx = 0.0f, cz = 0.0f, n = 0.0f, r = 0.0f;
+			for (int k = 0; k < num_players; ++k)
+				if (group[k] == group[i]) { cx += spawns[k].x; cz += spawns[k].z; n += 1.0f; }
+			cx /= n; cz /= n;
+			for (int k = 0; k < num_players; ++k)
+				if (group[k] == group[i]) r = std::max(r, std::hypot(spawns[k].x - cx, spawns[k].z - cz));
+			hills.push_back({cx, cz, 19.0f + r, std::atan2(cz, cx)});
+		}
+	} else {
+		for (int i = 0; i < num_players; ++i) {
+			// Each hill under its base: on the ring, or where Team Placement put it.
+			const bool ring = t_team_placement.pattern < 0;
+			const float a = ring ? start + 6.2831853f * (float)i / (float)std::max(1, num_players) : std::atan2(spawns[i].z, spawns[i].x);
+			hills.push_back({ring ? std::cos(a) * ring_r : spawns[i].x, ring ? std::sin(a) * ring_r : spawns[i].z, 19.0f, a});
+		}
+	}
+	for (const Hill &h : hills) {
 		// The ramp points back towards the centre, give or take pi / 8.
-		const float ramp = a + 3.14159265f * (1.0f + rng.range_float(-1.0f, 1.0f) / 8.0f);
-		hm.raise_plateau(std::cos(a) * ring_r, std::sin(a) * ring_r, 19.0f, ramp, 0.3f, 7.0f, 6.0f);
+		const float ramp = h.a + 3.14159265f * (1.0f + rng.range_float(-1.0f, 1.0f) / 8.0f);
+		hm.raise_plateau(h.x, h.z, h.r, ramp, 0.3f, 7.0f, 6.0f);
 	}
 	scatter_ponds(hm, rng, spawns, scale_by_map_size(1, 4, half) * std::max(1, num_players) / 2,
 	              half * 0.05f + 3.0f, 30.0f, 12.0f, half * 0.95f, 3.0f, water_h);
@@ -1728,7 +1799,8 @@ void RmsGenerator::synth_persian_highlands(HeightmapGrid &hm, RmsRng &rng, float
 	const float half = hm.map_half;
 	hm.apply_fbm(rng, 4, 0.03f, 0.5f, 2.0f, 1.5f);
 	hm.level_area(0.0f, 0.0f, half * 0.26f, half * 0.12f, 3.0f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 0.0f,
+	                  1.0f * half); // persian_highlands.js: River banks 0.5 of the map apart
 	scatter_hills(hm, rng, spawns, scale_by_map_size(20, 80, half) / 2, 2.5f, 4.5f, 3.0f, 6.0f, 18.0f);
 	hm.blur(1, 0.35f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
@@ -1756,7 +1828,7 @@ void RmsGenerator::synth_volcanic_lands(HeightmapGrid &hm, RmsRng &rng, float &w
 			hm.add(x, z, h);
 		}
 	}
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 0.0f);
 	scatter_hills(hm, rng, spawns, scale_by_map_size(2, 8, half) * std::max(1, num_players) / 2,
 	              half * 0.03f + 2.0f, half * 0.05f + 3.0f, 3.0f, 7.0f, 22.0f);
 	hm.blur(1, 0.35f);
@@ -1923,7 +1995,7 @@ void RmsGenerator::synth_india(HeightmapGrid &hm, RmsRng &rng, float &water_h, s
 		const auto c = polar(rng.range_float(0.0f, 6.2831853f), lake_r * std::sqrt(rng.next_float()) * 0.7f);
 		hm.carve_crater_lake(c.first, c.second, lake_r * rng.range_float(0.35f, 0.6f) + 2.0f, 4.0f, 3.0f, water_h);
 	}
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, water_h + 1.5f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), water_h + 1.5f);
 	hm.blur(1, 0.4f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
 }
@@ -2096,7 +2168,7 @@ void RmsGenerator::synth_atlas_mountains(HeightmapGrid &hm, RmsRng &rng, float &
 	hm.init(hm.res, hm.map_half, 1.0f);
 	const float half = hm.map_half;
 	hm.apply_fbm(rng, 4, 0.05f, 0.5f, 2.0f, 1.2f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 0.0f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 0.0f);
 	scatter_hills(hm, rng, spawns, scale_by_map_size(20, 120, half), 3.0f, 6.5f, 6.0f, 10.5f, 20.0f);
 	hm.blur(1, 0.3f);
 	for (const auto &sp : spawns) lift_area(hm, sp.x, sp.z, 16.0f, 6.0f, sp.base_height);
@@ -2286,7 +2358,7 @@ void RmsGenerator::synth_rhine_marshlands(HeightmapGrid &hm, RmsRng &rng, float 
 	hm.init(hm.res, hm.map_half, line + 0.25f);
 	const float half = hm.map_half;
 	hm.apply_fbm(rng, 3, 0.06f, 0.5f, 2.0f, 0.25f);
-	place_ring_spawns(hm, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), 6.2831853f, line + 0.25f);
+	place_team_spawns(hm, rng, spawns, num_players, half * 0.70f, rng.range_float(0.0f, 6.2831853f), line + 0.25f);
 	std::vector<std::pair<float, float>> marshes;
 	const float gap = (float)scale_by_map_size(7, 16, half);
 	const int per_round = scale_by_map_size(4, 20, half);
@@ -3293,7 +3365,7 @@ void RmsGenerator::synth_extinct_volcano(HeightmapGrid &hm, RmsRng &rng, float &
 	hm.init(hm.res, hm.map_half, 1.0f * k);
 	const float half = hm.map_half;
 	const float player_r = (float)scale_by_map_size(15, 25, half); // defaultPlayerBaseRadius()
-	place_ring_spawns(hm, spawns, num_players, 0.35f * 2.0f * half, rng.range_float(0.0f, 6.2831853f), 6.2831853f, 25.0f * k);
+	place_team_spawns(hm, rng, spawns, num_players, 0.35f * 2.0f * half, rng.range_float(0.0f, 6.2831853f), 25.0f * k);
 	for (auto &sp : spawns) {
 		sp.base_height = 25.0f * k;
 		// createMountain's omnidirectional ramp, then the flattened Civic Centre area.
@@ -5175,7 +5247,10 @@ void RmsGenerator::synth_archipelago_0ad(HeightmapGrid &hm, RmsRng &rng, float &
 	const float land = metres(water_h, 3.0f);
 	hm.init(hm.res, hm.map_half, metres(water_h, -5.0f));
 	const float island_r = seas_scale(22, 31, half);
-	const auto locs = seas_circle_players(num_players, rng.range_float(0.0f, 2.0f * kSeasPi), 0.35f * size, teams);
+	const float start = rng.range_float(0.0f, 2.0f * kSeasPi);
+	const auto locs = t_team_placement.pattern >= 0
+		? pattern_locs(hm, rng, t_team_placement.pattern, num_players, teams, 0.35f * size, 0.1f * size, start)
+		: seas_circle_players(num_players, start, 0.35f * size, teams);
 	std::vector<uint8_t> land_mask(hm.data.size(), 0);
 	auto in_map = [&](int i) { return seas_in_circle(hm, i); };
 	for (const auto &l : locs) {
@@ -6280,7 +6355,10 @@ void RmsGenerator::synth_botswanan_haven(HeightmapGrid &hm, RmsRng &rng, float &
 	const float start = rng.range_float(0.0f, 6.2831853f);
 	const auto order = coast_team_order(num_players, teams);
 	std::vector<std::pair<float, float>> locs(num_players);
-	for (int i = 0; i < num_players; ++i) locs[order[i]] = polar(start + 6.2831853f * (float)i / (float)num_players, 0.35f * size);
+	if (t_team_placement.pattern >= 0)
+		locs = pattern_locs(hm, rng, t_team_placement.pattern, num_players, teams, 0.35f * size, 0.1f * size, start);
+	else
+		for (int i = 0; i < num_players; ++i) locs[order[i]] = polar(start + 6.2831853f * (float)i / (float)num_players, 0.35f * size);
 	coast_bumps(hm, rng, water_h, scale_by_map_size(300, 800, half), coast_sbms(20.0f, 50.0f, half), 2.0f, 2.0f,
 	            [&](float x, float z, float r) { return !coast_near(locs, x, z, 18.0f + r); });
 	const size_t cells = hm.data.size();
@@ -6655,14 +6733,35 @@ void spread_locs(std::vector<std::pair<float, float>> &locs, float min_d, float 
 	}
 }
 
+// playerPlacementRiver(angle, width): players alternate between two lines
+// `width` apart, spaced along them, the whole turned by `angle`.
+std::vector<std::pair<float, float>> river_locs(int n, float width, float angle, float size) {
+	std::vector<std::pair<float, float>> locs;
+	const bool even = n % 2 == 0;
+	const float s = std::sin(angle), c = std::cos(angle);
+	for (int i = 0; i < n; ++i) {
+		const bool cur_even = i % 2 == 0;
+		const int dividend = (even || cur_even) ? (i + 1) % 2 : 0;
+		const int divisor = even ? 0 : cur_even ? 1 : -1;
+		const float x = width * (float)(i % 2) - 0.5f * width;
+		const float y = (((float)(i - 1 + dividend) / 2.0f + 1.0f) / ((float)(n + divisor) / 2.0f + 1.0f) - 0.5f) * size;
+		locs.push_back({x * c + y * s, -x * s + y * c}); // Vector2D.rotate
+	}
+	return locs;
+}
+
 // playerPlacementByPattern(pattern: 0 line, 1 radial, 2 randomGroup,
-// 3 stronghold), then spread to RTS0's base size.
+// 3 stronghold, 4 river), then spread to RTS0's base size.
 std::vector<std::pair<float, float>> pattern_locs(const HeightmapGrid &hm, RmsRng &rng, int pattern, int n,
 		const uint8_t *teams, float distance, float grouped, float start) {
 	const float size = 2.0f * hm.map_half;
 	const auto ta = teams_array(n, teams);
 	std::vector<std::pair<float, float>> locs;
 	if (pattern == 0) locs = line_locs(ta, n, distance, grouped, start, size);
+	else if (pattern == 4) {
+		locs = river_locs(n, distance, start, size);
+		group_players_by_area(locs, n, teams);
+	}
 	else if (pattern == 3) locs = stronghold_locs(ta, n, distance, grouped, start, size);
 	else if (pattern == 2) {
 		std::vector<uint8_t> anywhere(hm.data.size(), 1);
@@ -6692,6 +6791,7 @@ int placement_pattern(uint8_t team_placement, int random_pick) {
 		case TEAM_PLACEMENT_LINE: return g_placement_pattern = 0;
 		case TEAM_PLACEMENT_RANDOM_GROUP: return g_placement_pattern = 2;
 		case TEAM_PLACEMENT_STRONGHOLD: return g_placement_pattern = 3;
+		case TEAM_PLACEMENT_RIVER: return g_placement_pattern = 4;
 		default: return g_placement_pattern = random_pick;
 	}
 }
@@ -7050,7 +7150,7 @@ void RmsGenerator::synth_arctic_summer(HeightmapGrid &hm, RmsRng &rng, float &wa
 	const float half = hm.map_half;
 	const float land = metres(water_h, 2.0f);
 	hm.init(hm.res, half, land);
-	place_ring_spawns(hm, spawns, num_players, 0.7f * half, rng.range_float(0.0f, kTwoPi), kTwoPi, land);
+	place_team_spawns(hm, rng, spawns, num_players, 0.7f * half, rng.range_float(0.0f, kTwoPi), land);
 	const size_t N = hm.data.size();
 	std::vector<uint8_t> players(N, 0), hills(N, 0);
 	std::vector<std::pair<float, float>> pts;
@@ -10647,6 +10747,20 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	t_map_areas.clear();
 	RmsRng rng(config.seed ? config.seed : 1337);
+	// Team Placement: Random, or a pattern this map doesn't offer, takes one it
+	// does (gamesettings pickRandomItems), drawn apart from the map's own stream.
+	uint8_t team_placement = config.team_placement;
+	t_team_placement = {};
+	if (const uint8_t offered = map_team_placements(config.map_type)) {
+		if (team_placement >= TEAM_PLACEMENT_COUNT || !((offered >> team_placement) & 1)) {
+			RmsRng pick((config.seed ? config.seed : 1337) ^ 0x7EA3B1A5u);
+			int k = pick.range_int(0, std::popcount(offered) - 1);
+			for (uint8_t t = 0; t < TEAM_PLACEMENT_COUNT; ++t)
+				if (((offered >> t) & 1) && k-- == 0) { team_placement = t; break; }
+		}
+		t_team_placement.pattern = team_placement == TEAM_PLACEMENT_RADIAL ? -1 : placement_pattern(team_placement, 0);
+		std::copy(std::begin(config.teams), std::end(config.teams), t_team_placement.teams);
+	}
 	HeightmapGrid hm;
 	hm.init(config.heightmap_res, config.map_half, 0.0f);
 
@@ -10800,7 +10914,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_atlas_mountains(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_FRONTIER:
-			synth_frontier(hm, rng, water_h, spawns, config.num_players, config.teams, config.team_placement);
+			synth_frontier(hm, rng, water_h, spawns, config.num_players, config.teams, team_placement);
 			break;
 		case MAP_WILD_LAKE:
 			synth_wild_lake(hm, rng, water_h, spawns, config.num_players);
@@ -10881,7 +10995,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_scythian_rivulet(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
 		case MAP_AMBUSH:
-			synth_ambush(hm, rng, water_h, spawns, config.num_players, config.teams, config.team_placement);
+			synth_ambush(hm, rng, water_h, spawns, config.num_players, config.teams, team_placement);
 			break;
 		case MAP_ARCTIC_SUMMER:
 			synth_arctic_summer(hm, rng, water_h, spawns, config.num_players);
