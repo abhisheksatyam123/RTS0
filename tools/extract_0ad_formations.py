@@ -192,11 +192,12 @@ def emit(forms, civs, rows, generic):
     w("")
     w("// Player.js GetFormations: template_player.xml plus special/players/<civ>.xml, bit = UnitFormation.")
     w("inline uint32_t civ_formation_mask(uint8_t civ) {")
-    w("\tstatic const uint32_t kMasks[%d] = {" % len(civs))
-    for civ, enum, m in zip(roster.CIVS, roster.CIV_ENUM, civs):
-        w("\t\t0x%05xu, // %s" % (m, enum))
+    w("\tstatic const uint32_t kMasks[%d] = {" % roster.CIV_COUNT)
+    by_civ = dict(zip(roster.CIVS, civs))
+    for civ in roster.CIV_SLOTS:
+        w("\t\t0x%05xu, // %s" % ((by_civ[civ], roster.CIV_ENUM_OF[civ]) if civ else (0, "CIV_GAIA")))
     w("\t};")
-    w("\treturn civ < %d ? kMasks[civ] : 0u;" % len(civs))
+    w("\treturn civ < %d ? kMasks[civ] : 0u;" % roster.CIV_COUNT)
     w("}")
     w("")
     w("// Per civ roster row (civ_unit_template_table order): UnitAI/Formations as UnitFormation bits,")

@@ -741,13 +741,13 @@ func _player_row(p: Dictionary, counters: Array, headings: Array, index: int, po
 	name.clip_text = true
 	name.tooltip_text = p["tooltip"]
 	_place(name, box, Vector2(46, 2), Vector2(168, BOX_H - 2))
-	var civs: Array = Ref.ref().get_civs()
-	if p["civ"] >= 0 and p["civ"] < civs.size():
+	var civ_info: Dictionary = Ref.ref().get_civ_info(p["civ"])
+	if not civ_info.is_empty():
 		var emblem := TextureRect.new()
-		emblem.texture = Ref.texture(str(civs[p["civ"]].get("emblem", "")))
+		emblem.texture = Ref.texture(str(civ_info.get("emblem", "")))
 		emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		emblem.tooltip_text = str(civs[p["civ"]].get("name", ""))
+		emblem.tooltip_text = str(civ_info.get("name", ""))
 		_place(emblem, box, Vector2(214, 5), Vector2(32, 32))
 	var x := 240
 	for ci in counters.size():

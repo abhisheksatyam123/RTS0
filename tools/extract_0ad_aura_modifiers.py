@@ -143,7 +143,7 @@ def main() -> int:
 
     names = []
     for civ in ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
-                "iber", "maur", "kush", "ptol", "sele", "han"]:
+                "iber", "maur", "kush", "ptol", "sele", "han", "germ"]:
         for suffix in ["", "_1", "_2", "_3"]:
             if src.read(f"{AURA_DIR}/{civ}_catafalque{suffix}.json"):
                 names.append(f"{civ}_catafalque{suffix}")

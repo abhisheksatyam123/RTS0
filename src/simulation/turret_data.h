@@ -22,7 +22,7 @@ struct TurretPointSet {
 };
 
 // [civ][0 wall segment, 1 gate, 2 outpost]
-inline constexpr TurretPointSet TURRET_POINTS[14][3] = {
+inline constexpr TurretPointSet TURRET_POINTS[16][3] = {
 	{ // CIV_ATHENIANS
 		{4, {{-0.42f, 3.22f, -0.28f}, {0.42f, 3.22f, -0.28f}, {-0.42f, 3.22f, 0.28f}, {0.42f, 3.22f, 0.28f}}}, // BLD_WALL_SEGMENT: athen/wall_long
 		{2, {{-0.42f, 4.06f, 0.0f}, {0.42f, 4.06f, 0.0f}}}, // BLD_GATE: athen/wall_gate
@@ -93,11 +93,17 @@ inline constexpr TurretPointSet TURRET_POINTS[14][3] = {
 		{2, {{-0.42f, 3.36f, 0.0f}, {0.42f, 3.36f, 0.0f}}}, // BLD_GATE: han/wall_gate
 		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: han/outpost
 	},
+	{}, // CIV_GAIA
+	{ // CIV_GERMANS
+		{4, {{-0.42f, 2.66f, -0.28f}, {0.42f, 2.66f, -0.28f}, {-0.42f, 2.66f, 0.28f}, {0.42f, 2.66f, 0.28f}}}, // BLD_WALL_SEGMENT: germ/wall_long
+		{2, {{-0.84f, 2.66f, 0.56f}, {0.84f, 2.66f, 0.56f}}}, // BLD_GATE: germ/wall_gate
+		{1, {{0.0f, 2.24f, 0.0f}}}, // BLD_OUTPOST: germ/outpost
+	},
 };
 
 // [civ][0 long WallSet segment, 1 medium segment, 2 gate]: every TurretPoint, x along the
 // wall and z across it (0 A.D.'s own frame), for pieces laid by the WallSet.
-inline constexpr TurretPointSet TURRET_POINTS_WALLSET[14][3] = {
+inline constexpr TurretPointSet TURRET_POINTS_WALLSET[16][3] = {
 	{ // CIV_ATHENIANS
 		{16, {{-2.625f, 2.875f, -0.25f}, {-1.875f, 2.875f, -0.25f}, {-1.125f, 2.875f, -0.25f}, {-0.375f, 2.875f, -0.25f}, {0.375f, 2.875f, -0.25f}, {1.125f, 2.875f, -0.25f}, {1.875f, 2.875f, -0.25f}, {2.625f, 2.875f, -0.25f}, {-2.625f, 2.875f, 0.25f}, {-1.875f, 2.875f, 0.25f}, {-1.125f, 2.875f, 0.25f}, {-0.375f, 2.875f, 0.25f}, {0.375f, 2.875f, 0.25f}, {1.125f, 2.875f, 0.25f}, {1.875f, 2.875f, 0.25f}, {2.625f, 2.875f, 0.25f}}}, // long segment: athen/wall_long
 		{8, {{-1.125f, 2.875f, -0.25f}, {-0.375f, 2.875f, -0.25f}, {0.375f, 2.875f, -0.25f}, {1.125f, 2.875f, -0.25f}, {-1.125f, 2.875f, 0.25f}, {-0.375f, 2.875f, 0.25f}, {0.375f, 2.875f, 0.25f}, {1.125f, 2.875f, 0.25f}}}, // medium segment: athen/wall_medium
@@ -167,6 +173,12 @@ inline constexpr TurretPointSet TURRET_POINTS_WALLSET[14][3] = {
 		{16, {{-2.625f, 2.5f, -0.25f}, {-1.875f, 2.5f, -0.25f}, {-1.125f, 2.5f, -0.25f}, {-0.375f, 2.5f, -0.25f}, {0.375f, 2.5f, -0.25f}, {1.125f, 2.5f, -0.25f}, {1.875f, 2.5f, -0.25f}, {2.625f, 2.5f, -0.25f}, {-2.625f, 2.5f, 0.25f}, {-1.875f, 2.5f, 0.25f}, {-1.125f, 2.5f, 0.25f}, {-0.375f, 2.5f, 0.25f}, {0.375f, 2.5f, 0.25f}, {1.125f, 2.5f, 0.25f}, {1.875f, 2.5f, 0.25f}, {2.625f, 2.5f, 0.25f}}}, // long segment: han/wall_long
 		{8, {{-1.125f, 2.5f, -0.25f}, {-0.375f, 2.5f, -0.25f}, {0.375f, 2.5f, -0.25f}, {1.125f, 2.5f, -0.25f}, {-1.125f, 2.5f, 0.25f}, {-0.375f, 2.5f, 0.25f}, {0.375f, 2.5f, 0.25f}, {1.125f, 2.5f, 0.25f}}}, // medium segment: han/wall_medium
 		{4, {{-1.125f, 3.0f, 0.0f}, {-0.375f, 3.0f, 0.0f}, {0.375f, 3.0f, 0.0f}, {1.125f, 3.0f, 0.0f}}}, // gate: han/wall_gate
+	},
+	{}, // CIV_GAIA
+	{ // CIV_GERMANS
+		{16, {{-2.625f, 2.375f, -0.25f}, {-1.875f, 2.375f, -0.25f}, {-1.125f, 2.375f, -0.25f}, {-0.375f, 2.375f, -0.25f}, {0.375f, 2.375f, -0.25f}, {1.125f, 2.375f, -0.25f}, {1.875f, 2.375f, -0.25f}, {2.625f, 2.375f, -0.25f}, {-2.625f, 2.375f, 0.25f}, {-1.875f, 2.375f, 0.25f}, {-1.125f, 2.375f, 0.25f}, {-0.375f, 2.375f, 0.25f}, {0.375f, 2.375f, 0.25f}, {1.125f, 2.375f, 0.25f}, {1.875f, 2.375f, 0.25f}, {2.625f, 2.375f, 0.25f}}}, // long segment: germ/wall_long
+		{8, {{-1.125f, 2.375f, -0.25f}, {-0.375f, 2.375f, -0.25f}, {0.375f, 2.375f, -0.25f}, {1.125f, 2.375f, -0.25f}, {-1.125f, 2.375f, 0.25f}, {-0.375f, 2.375f, 0.25f}, {0.375f, 2.375f, 0.25f}, {1.125f, 2.375f, 0.25f}}}, // medium segment: germ/wall_medium
+		{4, {{-2.0f, 2.375f, 0.0f}, {2.0f, 2.375f, 0.0f}, {-0.75f, 2.375f, 0.5f}, {0.75f, 2.375f, 0.5f}}}, // gate: germ/wall_gate
 	},
 };
 
