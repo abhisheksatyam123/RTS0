@@ -1355,7 +1355,7 @@ public:
 	void petra_build_defenses();
 	void petra_check_resource_levels(int32_t turn);
 	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
-	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 6000.0f, bool *no_site = nullptr);
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -2674,6 +2674,7 @@ private:
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
 	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
+	void petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
