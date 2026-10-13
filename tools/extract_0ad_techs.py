@@ -40,9 +40,12 @@ SPY_TECHS = ("unlock_spies", "spy_counter")
 # (unit_trainer_data.h: the Persian triremes' cavalry require it).
 NAMED_TECHS = SPY_TECHS + ("unlock_shared_los", "wonder_population_cap", "long_walls", "equine_transports")
 
-# RTS0 civ id order (sim_types.h Civilization) by 0 A.D. civ code.
+# RTS0's playable civs in Civilization order (sim_types.h) by 0 A.D. civ code; civ id 14 is
+# CIV_GAIA, so the Germans are bit 15.
 CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
-        "iber", "maur", "kush", "ptol", "sele", "han"]
+        "iber", "maur", "kush", "ptol", "sele", "han", "germ"]
+CIV_BIT = {c: (i if i < 14 else i + 1) for i, c in enumerate(CIVS)}
+ALL_CIVS = sum(1 << b for b in CIV_BIT.values())
 
 # RTS0 BuildingType -> 0 A.D. generic structure template.
 BUILDINGS = [
@@ -309,7 +312,7 @@ def unit_unlock_techs(src: Source) -> set[str]:
 
 def civ_mask(req) -> int:
     """Civs (bitmask over CIVS) for which a requirements tree can hold."""
-    full = (1 << len(CIVS)) - 1
+    full = ALL_CIVS
     if req is None:
         return full
     if isinstance(req, list):
@@ -325,9 +328,9 @@ def civ_mask(req) -> int:
             m |= civ_mask(r)
         return m
     if "civ" in req:
-        return 1 << CIVS.index(req["civ"]) if req["civ"] in CIVS else 0
+        return 1 << CIV_BIT[req["civ"]] if req["civ"] in CIVS else 0
     if "notciv" in req:
-        return full & ~(1 << CIVS.index(req["notciv"])) if req["notciv"] in CIVS else full
+        return full & ~(1 << CIV_BIT[req["notciv"]]) if req["notciv"] in CIVS else full
     return full
 
 
@@ -393,7 +396,7 @@ def main() -> int:
         order.append(name)
     # Civ-only technologies of civ-specific structures (and of civ variants of
     # the generic ones), appended so the ids above stay the same.
-    full = (1 << len(CIVS)) - 1
+    full = ALL_CIVS
     unlockers = unit_unlock_techs(src)
     civ_researcher = civ_structure_researchers(src)
     civ_only: list[str] = []

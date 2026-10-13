@@ -568,13 +568,13 @@ static void check_tutorials() {
 	fire(TRIGGER_ON_PLAYER_COMMAND, TRIGGER_CMD_CONSTRUCT, BLD_STOREHOUSE);
 	fire(TRIGGER_ON_STRUCTURE_BUILT, BLD_STOREHOUSE);
 	CHECK(e.tutorial_goal_index() == 13, "storehouse built: at %d", e.tutorial_goal_index());
-	tut_queued(e, 0, "athen/support_female_citizen", 5);
+	tut_queued(e, 0, "athen/support_civilian", 5);
 	CHECK(e.tutorial_goal_index() == 13, "civilians trained before the rally point went: at %d", e.tutorial_goal_index());
 	fire(TRIGGER_ON_PLAYER_COMMAND, TRIGGER_CMD_UNSET_RALLY);
 	CHECK(e.tutorial_goal_index() == 14, "rally point removed: at %d", e.tutorial_goal_index());
-	tut_queued(e, 0, "athen/support_female_citizen", 1);
+	tut_queued(e, 0, "athen/support_civilian", 1);
 	CHECK(e.tutorial_warning() == TUTORIAL_WARN_HOLD_SHIFT_FEMALE, "single civilian: warning %d", e.tutorial_warning());
-	tut_queued(e, 0, "athen/support_female_citizen", 5);
+	tut_queued(e, 0, "athen/support_civilian", 5);
 	CHECK(e.tutorial_goal_index() == 15, "civilian batch: at %d", e.tutorial_goal_index());
 	fire(TRIGGER_ON_TRAINING_FINISHED, 0);
 	CHECK(e.tutorial_goal_index() == 16, "civilians trained: at %d", e.tutorial_goal_index());

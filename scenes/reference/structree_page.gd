@@ -49,14 +49,15 @@ func _ready() -> void:
 	set_civ(civ)
 
 func _on_civ_selected(index: int) -> void:
-	set_civ(index)
-	civ_changed.emit(index)
+	var id: int = _select.get_item_id(index)
+	set_civ(id)
+	civ_changed.emit(id)
 
 func set_civ(index: int) -> void:
 	civ = index
 	if _rows == null:
 		return
-	_select.select(index)
+	_select.select(_select.get_item_index(index))
 	for c in _rows.get_children():
 		_rows.remove_child(c)
 		c.queue_free()

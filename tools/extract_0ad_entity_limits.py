@@ -165,8 +165,10 @@ def emit(cats, rows, changers, removers, units, generic, buildings):
     w("")
     w("// EntityLimits/Limits per civ (template_player.xml plus special/players/<civ>.xml); -1 = none.")
     w("inline constexpr int16_t CIV_ENTITY_LIMITS[CIV_COUNT][LIMIT_CATEGORY_COUNT] = {")
-    for civ, row in zip(ex.CIV_ENUM, rows):
-        w(f"\t{{-1, {', '.join(str(v) for v in row)}}}, // {civ}")
+    by_civ = dict(zip(ex.CIVS, rows))
+    for civ in ex.CIV_SLOTS:  # CIV_GAIA's row has no limits
+        row = by_civ[civ] if civ else [-1] * len(rows[0])
+        w(f"\t{{-1, {', '.join(str(v) for v in row)}}}, // {ex.CIV_ENUM_OF[civ] if civ else 'CIV_GAIA'}")
     w("};")
     w("")
     w("// EntityLimits/LimitChangers: each finished entity of `civ` that is building `bld` (or")

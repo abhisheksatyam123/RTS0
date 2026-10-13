@@ -1084,7 +1084,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.rally_z = wz + half + 2.0f;
 	b.rally_target_res_id = 0;
 	b.rally_target_bld_id = 0;
-	b.civ = team < MAX_PLAYERS ? (uint8_t)civ_of(team) : (uint8_t)CIV_COUNT;
+	b.civ = team < MAX_PLAYERS ? (uint8_t)civ_of(team) : (uint8_t)CIV_GAIA;
 	b.garrison_cap = structure_garrison_cap(b);
 	b.capture_points = 0.0f;
 	// 0 A.D. Capturable/TerritoryDecay template values.
@@ -1116,8 +1116,8 @@ uint32_t Simulation::spawn_relic(float x, float z, int civ_pick) {
 	// CaptureTheRelic.js gives each relic its own catafalque from a shuffled list
 	// (apply_relic_count passes it); otherwise the id the unit will get picks one, so
 	// every peer and replay places the same one.
-	const uint8_t civ = civ_pick >= 0 ? (uint8_t)(civ_pick % CIV_COUNT)
-	                                  : (uint8_t)(((next_id_ * 2654435761u) >> 16) % CIV_COUNT);
+	const uint8_t civ = civ_pick >= 0 ? playable_civ((uint32_t)civ_pick)
+	                                  : playable_civ((next_id_ * 2654435761u) >> 16);
 	const uint32_t id = spawn_unit(x, z, GAIA_PLAYER, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(civ));
 	const int32_t i = lookup_unit(id);
 	if (i < 0) return 0;
@@ -6080,7 +6080,7 @@ bool Simulation::structure_accepts_classes(const Building &b, TechClasses classe
 }
 
 void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
-	if (team >= MAX_PLAYERS || civ >= CIV_COUNT) return;
+	if (team >= MAX_PLAYERS || !is_playable_civ(civ)) return;
 	const uint8_t was = (uint8_t)players_[team].civ;
 	players_[team].civ = (Civilization)civ;
 	for (Building &b : buildings_) {
@@ -9228,6 +9228,11 @@ void Simulation::tick_gather(float dt) {
 						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
 								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
 							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+						// Germanic Bovine Tradition (civbonuses/germ_meat.json): Civilians
+						// ResourceGatherer/Rates/food.meat x2.
+						if (kind == GK_MEAT && civ == CIV_GERMANS &&
+								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_CIVILIAN))
+							rate *= 2.0f;
 					}
 					// Auras on ResourceGatherer/BaseSpeed (Xerxes, Viridomarus, the Kushite small
 					// pyramid, catafalques, Han ministers): the strongest one in reach.
@@ -11543,9 +11548,9 @@ void Simulation::apply_relic_count() {
 		relics_.pop_back();
 	}
 	if (relics_.size() >= want) return;
-	uint8_t civs[CIV_COUNT];
-	for (uint8_t c = 0; c < CIV_COUNT; ++c) civs[c] = c;
-	for (int c = CIV_COUNT - 1; c > 0; --c) std::swap(civs[c], civs[sim_rng_.range_int(0, c)]);
+	uint8_t civs[PLAYABLE_CIV_COUNT];
+	for (uint8_t c = 0; c < PLAYABLE_CIV_COUNT; ++c) civs[c] = playable_civ(c);
+	for (int c = PLAYABLE_CIV_COUNT - 1; c > 0; --c) std::swap(civs[c], civs[sim_rng_.range_int(0, c)]);
 	const std::vector<std::pair<float, float>> points = relic_spawn_points();
 	for (size_t k = 0; relics_.size() < want; ++k) {
 		float x, z;
@@ -11587,7 +11592,7 @@ void Simulation::apply_relic_count() {
 			x = cosf(a) * map_half_ * 0.45f;
 			z = sinf(a) * map_half_ * 0.45f;
 		}
-		spawn_relic(x, z, civs[k % CIV_COUNT]);
+		spawn_relic(x, z, civs[k % PLAYABLE_CIV_COUNT]);
 	}
 }
 
@@ -22866,7 +22871,7 @@ bool Simulation::load_state(const char *filepath) {
 		if (version >= SAVE_VERSION_TEMPLATE_CIV) {
 			in.read((char *)&bld.civ, sizeof(bld.civ));
 		} else { // older saves: the owner's civ, and the GarrisonHolder Max of today's templates
-			bld.civ = bld.team < MAX_PLAYERS ? (uint8_t)civ_of(bld.team) : (uint8_t)CIV_COUNT;
+			bld.civ = bld.team < MAX_PLAYERS ? (uint8_t)civ_of(bld.team) : (uint8_t)CIV_GAIA;
 			bld.garrison_cap = structure_garrison_cap(bld);
 		}
 		const auto &bi = building_type_info(bld.type);
@@ -25214,7 +25219,7 @@ void Simulation::tick_relics() {
 		if (!is_relic_unit(r)) {
 			// A save from before relics were catafalques: put one where the relic lay.
 			const uint8_t owner = rel.claimed && rel.owner_team < MAX_PLAYERS ? rel.owner_team : GAIA_PLAYER;
-			rel.civ = (uint8_t)(rel.id % CIV_COUNT);
+			rel.civ = playable_civ(rel.id);
 			rel.id = spawn_unit(rel.x, rel.z, owner, UNIT_CATAFALQUE, 0.0f, civ_catafalque_template(rel.civ));
 			rel.capture_cp = RELIC_CAPTURE_POINTS * 100;
 			rel.cp.fill(0.0f);
@@ -26149,10 +26154,10 @@ void Simulation::trigger_survival_wave() {
 	// StartAnEnemyWave: champions, siege and now and then a hero of one random civ
 	// (LoadAttackerTemplates), more every minute, spawned as Gaia at each living player's
 	// attacker point and sent to attack-walk to its civic centre. RTS0's roster has no
-	// Gaia civ, so the wave is always one of the 14 civs.
+	// Gaia civ, so the wave is always one of the playable civs.
 	const float minutes = (float)triggers_.time_ms / 60000.0f;
 	const float next_wave = sim_rng_.range_float(0.5f, 1.0f) * kSurvivalMaxWaveTime;
-	const uint8_t civ = (uint8_t)sim_rng_.range_int(0, CIV_COUNT - 1);
+	const uint8_t civ = playable_civ((uint32_t)sim_rng_.range_int(0, PLAYABLE_CIV_COUNT - 1));
 	const int total = (int)std::ceil(std::min(kSurvivalAttackerLimit,
 			kSurvivalInitialAttackers * std::pow(kSurvivalPercentPerMinute, minutes) * next_wave / kSurvivalMaxWaveTime));
 	const float siege_ratio = sim_rng_.range_float(kSurvivalSiegeMin, kSurvivalSiegeMax);
