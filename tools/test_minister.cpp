@@ -176,6 +176,73 @@ int main() {
 		std::remove(path);
 	}
 
+	// 7. Builder/Rate range auras (builder_rate): each minister within 40 m multiplies its
+	//    owner's Workers' build rate by 1.02 (han_minister_building.json, stackable);
+	//    Xerxes' Administrator x1.15 (60 m, Workers) and Ptolemy I's Patron of Construction
+	//    x1.1 (60 m, Builders) count once however many reach.
+	{
+		auto tmpl_of = [](const char *id) {
+			for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+				if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+			return (uint16_t)CIV_UNIT_TEMPLATE_NONE;
+		};
+		auto rate = [&](uint32_t id) { return s.builder_rate((size_t)s.lookup_unit(id)); };
+		const float r40 = 40.0f * COMBAT_DISTANCE_SCALE;
+		fresh(s);
+		const uint32_t worker = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("han/infantry_spearman_b"));
+		const uint32_t enemy = s.spawn_unit(1.0f, 0.0f, 1, UNIT_SPEARMAN, 0.0f, tmpl_of("athen/infantry_spearman_b"));
+		const uint32_t far_worker = s.spawn_unit(r40 + 3.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("han/infantry_spearman_b"));
+		run(s, 0.5f);
+		CHECK(near(rate(worker), 1.0f));
+		spawn_minister(s, 0.0f, 2.0f);
+		spawn_minister(s, 0.0f, -2.0f);
+		run(s, 0.5f);
+		std::printf("two ministers nearby: build rate x%.4f (want 1.0404)\n", rate(worker));
+		CHECK(near(rate(worker), 1.02f * 1.02f));
+		CHECK(near(rate(enemy), 1.0f));
+		CHECK(near(rate(far_worker), 1.0f)); // 40 m (11.2 units) reaches 2 units past the edge only
+		// A worker builds a house faster by the same factor.
+		fresh(s);
+		uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("han/infantry_spearman_b"));
+		spawn_minister(s, -2.0f, 2.0f);
+		spawn_minister(s, -2.0f, -2.0f);
+		const uint32_t house = s.spawn_building_world(4.0f, 0.0f, BLD_HOUSE, 0, 0.0f);
+		s.order_build_or_repair(&w, 1, house);
+		auto hb = [&]() -> const Simulation::Building & { return s.buildings_[s.building_id_to_idx_.at(house)]; };
+		run(s, 2.0f);
+		const float p0 = hb().build_progress;
+		run(s, 4.0f);
+		const float with = hb().build_progress - p0;
+		const float bt = s.structure_build_time(hb());
+		std::printf("house: %.4f of it in 4 s (want %.4f)\n", with, 4.0f * 1.0404f / bt);
+		CHECK(std::fabs(with - 4.0f * 1.0404f / bt) < 0.01f);
+
+		// Xerxes once, even beside a second aura source of the same name.
+		fresh(s);
+		s.players_[0].civ = CIV_PERSIANS;
+		const uint32_t pw = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, tmpl_of("pers/infantry_spearman_b"));
+		s.spawn_unit(0.0f, 3.0f, 0, UNIT_HERO, 0.0f, tmpl_of("pers/hero_xerxes_i"));
+		s.spawn_unit(0.0f, -3.0f, 0, UNIT_HERO, 0.0f, tmpl_of("pers/hero_xerxes_i"));
+		run(s, 0.5f);
+		std::printf("Xerxes: build rate x%.3f (want 1.15)\n", rate(pw));
+		CHECK(near(rate(pw), 1.15f));
+
+		fresh(s);
+		s.players_[0].civ = CIV_PTOLEMIES;
+		uint16_t ptb = CIV_UNIT_TEMPLATE_NONE;
+		int16_t patron = -1;
+		for (int16_t a = 0; a < (int16_t)CIV_HERO_AURA_COUNT; ++a)
+			if (std::strcmp(civ_hero_aura(a).id, "ptol_hero_ptolemy_i_1") == 0) patron = a;
+		for (uint16_t t : civ_roster_ids(CIV_PTOLEMIES))
+			if (ptb == CIV_UNIT_TEMPLATE_NONE && civ_aura_affects(patron, t) && civ_unit_template(t).unit_type == UNIT_SPEARMAN) ptb = t;
+		CHECK(ptb != CIV_UNIT_TEMPLATE_NONE);
+		const uint32_t tw = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, ptb);
+		s.spawn_unit(0.0f, 3.0f, 0, UNIT_HERO, 0.0f, tmpl_of("ptol/hero_ptolemy_i"));
+		run(s, 0.5f);
+		std::printf("Ptolemy I: build rate x%.3f (want 1.1)\n", rate(tw));
+		CHECK(near(rate(tw), 1.1f));
+	}
+
 	if (failures) {
 		std::printf("test_minister: %d failure(s)\n", failures);
 		return 1;
