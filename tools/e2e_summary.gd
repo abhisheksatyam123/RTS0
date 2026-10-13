@@ -6,7 +6,9 @@ extends SceneTree
 #   2. the counters follow counters.js (scores, units, percentages, ratios);
 #   3. the Charts tab charts any counter per player or per team;
 #   4. Ctrl+Tab goes back to the game;
-#   5. the replay menu's Summary shows "Scores at the end of the game." with
+#   5. Exit asks QuitConfirmation's question; Stay goes back, Quit and View
+#      Summary leaves for the summary page and Continue for the main menu;
+#   6. the replay menu's Summary shows "Scores at the end of the game." with
 #      Watch Replay, and Continue closes it.
 #
 #   godot --headless --path . --fixed-fps 60 -s tools/e2e_summary.gd
@@ -137,7 +139,49 @@ func run() -> void:
 	await frames(2)
 	check(not paused, "Continue resumes the game")
 
-	print("5. replay menu summary")
+	print("5. Exit asks first, then leaves for the summary page")
+	var QuitConfirmation: GDScript = load("res://scenes/session/quit_confirmation.gd")
+	var pm = m.get_node("PauseMenu")
+	pm.toggle()
+	pm._on_exit_pressed()
+	await frames(1)
+	var q = m.get_children().filter(func(c): return c.get_script() == QuitConfirmation)
+	check(q.size() == 1 and not pm.visible and paused, "Exit closes the menu and asks, with the game paused")
+	if q.size() == 1:
+		check(q[0].title == "Confirmation" and q[0].caption == "The game has finished, what do you want to do?"
+			and q[0].button_texts() == ["Stay", "Quit and View Summary", "Quit"], "QuitConfirmation's question and buttons")
+		await shot("quit_confirmation")
+		q[0].press(0)
+	await frames(1)
+	check(not paused and m.get_children().filter(func(c): return c.get_script() == QuitConfirmation).is_empty(), "Stay goes back to the game")
+	var d = QuitConfirmation.defeat(m, false, true)
+	await frames(1)
+	check(d.title == "DEFEATED!" and d.caption == "You have been defeated!\nDo you want to quit?", "a defeat asks whether to quit")
+	d.press(0)
+	d = QuitConfirmation.defeat(m, true, false)
+	await frames(1)
+	check(d.title == "VICTORIOUS!" and d.caption == "You have won!" and d.button_texts() == ["OK"], "a host with humans still playing is only told")
+	d.press(0)
+	await frames(1)
+	pm._on_exit_pressed()
+	await frames(1)
+	q = m.get_children().filter(func(c): return c.get_script() == QuitConfirmation)
+	if q.size() == 1:
+		q[0].press(1)
+	for i in 600:
+		await process_frame
+		if current_scene != m and current_scene != null and current_scene.has_method("summary_text"):
+			break
+	var page = current_scene
+	check(page != null and page.has_method("summary_text") and page.is_open() and not paused, "Quit and View Summary opens the summary page")
+	if page and page.has_method("summary_text"):
+		check(page.find_child("SummaryText", true, false).text == "You have abandoned the game.", "it reads You have abandoned the game.")
+		check(page.players.size() == 4 and page.find_child("ReplayButton", true, false).visible, "every player, with Watch Replay")
+		page.continue_pressed()
+		await frames(5)
+		check(current_scene != null and current_scene.scene_file_path == "res://scenes/menu/main_menu.tscn", "Continue goes to the main menu")
+
+	print("6. replay menu summary")
 	change_scene_to_file("res://scenes/menu/replay_browser.tscn")
 	await frames(5)
 	var browser = current_scene

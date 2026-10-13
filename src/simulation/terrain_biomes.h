@@ -98,34 +98,34 @@ inline const BiomeFlora *biome_flora(const char *biome) {
 	static const BiomeFlora kFlora[] = {
 		// cypress_wild, pine_maritime_short; olive, juniper_prickly, date_palm, cretan_date_palm_short,
 		// medit_fan_palm; poplar_lombardy, carob; berry_01 or grapes.
-		{"aegean", {{FLORA_PINE, FLORA_PINE}}, {FLORA_BROADLEAF, FLORA_PINE, FLORA_PALM, FLORA_PALM, FLORA_PALM},
-		 {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, FLORA_BERRY,
+		{"aegean", {{FLORA_CYPRESS, FLORA_ALEPPO_PINE}}, {FLORA_OLIVE, FLORA_JUNIPER, FLORA_PALM, FLORA_PALM, FLORA_FAN_PALM},
+		 {{FLORA_POPLAR, FLORA_CAROB}}, FLORA_BERRY,
 		 {{200, 200}}, {400, 200, 200, 100, 200}, {{200, 200}}},
 		// pine, fir; oak_hungarian_autumn; fir_sapling, elm.
-		{"alpine", {{FLORA_PINE, FLORA_PINE}}, {FLORA_OAK}, {{FLORA_BUSH, FLORA_BROADLEAF}}, FLORA_BERRY,
+		{"alpine", {{FLORA_PINE, FLORA_FIR}}, {FLORA_OAK}, {{FLORA_BUSH, FLORA_BROADLEAF}}, FLORA_BERRY,
 		 {{200, 200}}, {200}, {{50, 200}}},
 		// arctic: fir_winter, pine_w.
-		{"polar", {{FLORA_PINE, FLORA_PINE}}, {FLORA_PINE}, {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY,
+		{"polar", {{FLORA_FIR, FLORA_FIR}}, {FLORA_FIR}, {{FLORA_FIR, FLORA_FIR}}, FLORA_BERRY,
 		 {{200, 200}}, {200}, {{200, 200}}},
 		// sahara: cretan_date_palm_short + date_palm or date_palm + cretan_date_palm_tall; juniper_prickly;
 		// date_palm or cretan_date_palm_patch in both tree4 and tree5.
-		{"oasis", {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_PALM}}, {FLORA_PINE},
+		{"oasis", {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_PALM}}, {FLORA_JUNIPER},
 		 {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_PALM}}, FLORA_DATE,
 		 {{100, 200}, {200, 200}}, {200}, {{200, 200}, {300, 300}}},
 		// oak + oak_hungarian, oak_holly + maple or oak_hungarian + oak_holly; apple (a fruit tree,
 		// drawn here as a leafy tree; gaia/fruit/apple holds food, not wood, so it keeps TREE_WOOD_SUPPLY);
 		// pine and pine_maritime.
-		{"temperate", {{FLORA_OAK, FLORA_OAK}, {FLORA_OAK, FLORA_BROADLEAF}, {FLORA_OAK, FLORA_OAK}}, {FLORA_BROADLEAF},
-		 {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY,
+		{"temperate", {{FLORA_OAK, FLORA_OAK}, {FLORA_OAK, FLORA_MAPLE}, {FLORA_OAK, FLORA_OAK}}, {FLORA_BROADLEAF},
+		 {{FLORA_PINE, FLORA_ALEPPO_PINE}}, FLORA_BERRY,
 		 {{200, 200}, {200, 300}, {200, 200}}, {0}, {{200, 200}}},
 		// bush_steppe_01-03.
 		{"steppe", {{FLORA_BUSH, FLORA_BUSH}}, {FLORA_BUSH}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
 		 {{100, 100}}, {100}, {{100, 100}}},
 		// baobab, acacia; acacia; bush_tropic, bush_temperate.
-		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
+		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_TROPIC_BUSH, FLORA_BUSH}}, FLORA_BERRY,
 		 {{400, 200}}, {200}, {{50, 100}}},
 		// banyan, strangler; teak; palm_palmyra, palm_tropical; date.
-		{"india", {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, {FLORA_BROADLEAF}, {{FLORA_PALM, FLORA_PALM}}, FLORA_DATE,
+		{"india", {{FLORA_BANYAN, FLORA_BANYAN}}, {FLORA_TEAK}, {{FLORA_TROPIC_PALM, FLORA_TROPIC_PALM}}, FLORA_DATE,
 		 {{600, 500}}, {500}, {{200, 200}}},
 	};
 	static const struct { const char *from, *to; } kAliases[] = {

@@ -105,6 +105,15 @@ func run() -> void:
 	m.set_game_speed(1.0)
 	check(st.finished, "the replay reaches its last turn")
 	check(not st.out_of_sync, "every replayed turn matches its recorded hash")
+	await process_frame
+	var q = m.get_children().filter(func(c): return c.has_method("button_texts"))
+	check(q.size() == 1 and q[0].caption == "The replay has finished. What do you want to do?" and paused,
+		"the end of the replay asks what to do and pauses (QuitConfirmationReplay)")
+	if q.size() == 1:
+		check(q[0].button_texts() == ["Stay", "Quit and View Summary", "Quit"], "Stay, Quit and View Summary or Quit")
+		q[0].press(0)
+	await process_frame
+	check(not paused, "Stay goes back to the replay")
 	check(int(st.turns) >= turns_recorded, "the replay holds every recorded turn")
 	check(int(st.view) == -1, "a replay starts in the observer view")
 	m.set_replay_view(1)

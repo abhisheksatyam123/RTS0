@@ -81,6 +81,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
 	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
+	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
 	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
@@ -2900,12 +2901,8 @@ void RtsoMain::_process(double delta) {
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;
 		write_replay(); // the finished match, with its final statistics
-		Node *summary = get_node_or_null(NodePath("SummaryScreen"));
-		if (summary) {
-			summary->call("configure", summary_gui(false));
-			summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(), (float)match_elapsed_time);
-		}
 	}
+	tick_quit_confirmation();
 
 	// Check Victory / Defeat Condition, from the local player's seat
 	if (sim->is_victory_for(local_player())) {

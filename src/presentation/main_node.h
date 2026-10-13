@@ -512,6 +512,7 @@ private:
 	// ---- Match archive: replays, saves and statistics (match_archive.cpp) ----
 	bool local_turns_ = true;
 	bool summary_shown_ = false; // per match (was a function static: only the first match got one)
+	bool finished_asked_ = false; // QuitConfirmationDefeat shown for the local player
 	uint32_t match_seed_ = 0;
 	bool replay_recording_ = false;
 	bool replay_finished_ = false;
@@ -541,6 +542,8 @@ private:
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
 	Dictionary summary_gui(bool in_game) const;
+	void quit_confirmation(const String &kind, bool won = false, bool ask_exit = true);
+	void tick_quit_confirmation();
 	bool write_save_metadata(const String &path, const String &description) const;
 	void write_save_thumbnail(const String &path);
 };
