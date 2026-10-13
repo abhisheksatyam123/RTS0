@@ -15335,7 +15335,24 @@ void Simulation::petra_manage_trading(float dt) {
 			if (units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
 			const uint16_t access = ship ? petra_ship_sea(i) : (topo.naval_map ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 1);
 			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
-			if (r && !ship && r->land != access) r = nullptr; // needs a transport (not ported)
+			if (r && !ship && r->land != access) {
+				// updateTrader: a land trader with no route on its own land asks the navalManager
+				// for a ship to the nearer end of the best route (requireTransport).
+				// RTS0's idle traders take any route on their own (order_trade_auto), one they
+				// can't walk here: that counts as idle too.
+				if ((units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_TRADE) && !petra_passenger(uid)) {
+					auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
+					if (ita != building_id_to_idx_.end() && itb != building_id_to_idx_.end()) {
+						const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
+						const float px = units_.pos_x[i], pz = units_.pos_z[i];
+						const Building &end = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz) <=
+						                      (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz) ? s : t;
+						const uint16_t sea = topo.sea_between(access, r->land);
+						if (sea) petra_start_transport({uid}, px, pz, end.x, end.z, sea, PETRA_TRANSPORT_TRADER);
+					}
+				}
+				continue;
+			}
 			auto cur = trader_routes_.find(uid);
 			const bool has_route = cur != trader_routes_.end();
 			const bool idle = units_.action_state[i] == ACTION_IDLE;
