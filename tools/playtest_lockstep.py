@@ -595,12 +595,17 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     want = {"0:alice:0:0", "1:bob:1:0", "2:watcher:255:1"}
     rosters = {r: set(lines(r, "roster").get("list", "-").split(",")) for r in roles}
     observer_flags = {r: lines(r, "roster").get("observer") for r in roles}
-    ok = (all(rc == 0 for rc in rcs.values()) and rep.get("player") == "255" and t0 > 0
-          and len(h) == turns and len(j) == turns and pair_bad is None
-          and after == list(range(t0 + 1, turns + 1)) and bad is None
-          and all("2" not in w for w in waited.values())
-          and all(r == want for r in rosters.values())
-          and observer_flags == {"host": "0", "join": "0", "obs": "1"} and refused)
+    checks = {
+        "exit codes": all(rc == 0 for rc in rcs.values()),
+        "observer joined with no seat": rep.get("player") == "255" and t0 > 0,
+        "players ran every turn in sync": len(h) == turns and len(j) == turns and pair_bad is None,
+        "observer matched the host after joining": after == list(range(t0 + 1, turns + 1)) and bad is None,
+        "nobody waited on the observer": all("2" not in w for w in waited.values()),
+        "every player list": all(r == want for r in rosters.values()),
+        "observer flags": observer_flags == {"host": "0", "join": "0", "obs": "1"},
+        "second observer refused (reason 7)": refused,
+    }
+    ok = all(checks.values())
     if ok:
         print(f"[net] PASS observer: joined at turn {t0} as an observer, matched the host on turns {t0 + 1}-{turns}, "
               f"never waited on; every player list shows {sorted(want)}; a second observer past the limit "
@@ -610,7 +615,8 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
             for line in (outs[role] or "").splitlines():
                 if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
                     print(f"   [{role}] " + line)
-        print(f"[net] FAIL observer: rc={rcs} rejoin={rep} turns host/join/obs={len(h)}/{len(j)}/{len(o)} "
+        failed = ", ".join(k for k, v in checks.items() if not v)
+        print(f"[net] FAIL observer ({failed}): rc={rcs} rejoin={rep} turns host/join/obs={len(h)}/{len(j)}/{len(o)} "
               f"first_bad={bad} pair_bad={pair_bad} waited={waited} rosters={rosters} flags={observer_flags} "
               f"extra_rc={extra.returncode} extra={(extra_out or '').strip().splitlines()[-1:]}")
     return ok
