@@ -2421,6 +2421,8 @@ private:
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields();
+	float petra_gather_rate(size_t i, uint8_t kind) const;
+	uint8_t petra_gather_kind(size_t r) const;
 	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
 	struct PetraHuntScan {
 		std::vector<std::pair<float, float>> food_drops;
