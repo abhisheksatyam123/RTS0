@@ -7294,6 +7294,7 @@ void RtsoMain::store_net_setup_in_match_settings(const rtso::GameSetupParams &se
 	ms->set("start_res", (int)setup.start_res);
 	ms->set("game_speed", setup.speed / 100.0);
 	ms->set("map_locks_players", setup.lock_players != 0);
+	ms->set("rated", setup.rated != 0);
 	Array types, civs, teams, diffs, behs, colors, names;
 	for (uint8_t i = 0; i < setup.slot_count && i < 8; ++i) {
 		types.push_back(setup.slot_types[i] == 'h' ? 0 : setup.slot_types[i] == 'a' ? 1 : 2);
@@ -7532,6 +7533,7 @@ void RtsoMain::match_settings_setup(rtso::GameSetupParams &setup) {
 			setup.colors[i] = (uint8_t)std::clamp((int)scolors[i], 0, rtso::PLAYER_COLOR_COUNT - 1);
 		setup.speed = (uint16_t)std::clamp((int)std::lround(100.0 * (double)ms->get("game_speed")), 25, 300);
 		setup.lock_players = (bool)ms->get("map_locks_players") ? 1 : 0;
+		setup.rated = (bool)ms->get("rated") ? 1 : 0;
 		setup.nomad = (bool)ms->get("nomad") ? 1 : 0;
 		setup.regicide_garrison = (bool)ms->get("regicide_garrison") ? 1 : 0;
 		setup.lock_teams = (bool)ms->get("lock_teams") ? 1 : 0;

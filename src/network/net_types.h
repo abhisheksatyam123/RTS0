@@ -393,6 +393,7 @@ struct GameSetupParams {
 	// 1 = the map sets every slot's civ, team and colour (a scenario), so
 	// clients may not ask to change theirs.
 	uint8_t lock_players = 0;
+	uint8_t rated = 0; // 1 = 0 A.D. RatingEnabled: the lobby rates the result
 };
 namespace detail {
 // Player names ride in the attribute string, so the separators are %-escaped; at most
@@ -484,6 +485,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	if (p.observers) s += ";obs=" + std::to_string((unsigned)p.observers);
 	if (p.speed != 100) s += ";speed=" + std::to_string((unsigned)p.speed);
 	if (p.lock_players) s += ";lockplayers=1";
+	if (p.rated) s += ";rated=1";
 	{
 		std::string seats(8, '-');
 		bool any = false;
@@ -618,6 +620,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				if (x >= 25 && x <= 300) out.speed = (uint16_t)x;
 			}
 			else if (k == "lockplayers") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lock_players = x; }
+			else if (k == "rated") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.rated = x; }
 			else if (k == "seats" && v.size() == 8) {
 				for (int c = 0; c < 8; ++c) out.seats[c] = (v[c] >= '0' && v[c] <= '7') ? (uint8_t)(v[c] - '0') : 0xFF;
 			}

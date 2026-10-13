@@ -726,6 +726,7 @@ static bool run_game_setup_wire(const char *ph) {
 	n.setup.civs[1] = RANDOM_CIV_WIRE;
 	n.setup.speed = 150;
 	n.setup.lock_players = 1;
+	n.setup.rated = 1;
 	n.setup.slot_types[2] = 'h';
 	n.settings_version = 7;
 	n.seq = 12;
@@ -741,7 +742,8 @@ static bool run_game_setup_wire(const char *ph) {
 	NetSetupState back;
 	CHECK(parse_net_setup(format_net_setup(n), back), "a setup parses back", ph);
 	CHECK(back.setup.civs[0] == 15 && back.setup.civs[1] == RANDOM_CIV_WIRE, "Germans and Random civs survive", ph);
-	CHECK(back.setup.speed == 150 && back.setup.lock_players == 1, "game speed and the scenario lock survive", ph);
+	CHECK(back.setup.speed == 150 && back.setup.lock_players == 1 && back.setup.rated == 1,
+	      "game speed, the scenario lock and Rated Game survive", ph);
 	CHECK(back.settings_version == 7 && back.seq == 12, "versions survive", ph);
 	CHECK(back.slot_client[0] == 0 && back.slot_client[1] == -1 && back.slot_client[2] == 1, "seats survive", ph);
 	CHECK(back.clients == 0x7 && back.ready == 0x2 && back.stay_ready == 0x1 && back.observers == 0x4,

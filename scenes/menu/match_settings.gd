@@ -56,6 +56,8 @@ var game_speed: float = 1.0
 # The map sets every slot's civ, team and colour (a scenario): in a networked
 # game setup, clients may not ask to change theirs.
 var map_locks_players: bool = false
+# 0 A.D. RatingEnabled: a rated lobby game (the host sets it; clients get it with the setup).
+var rated: bool = false
 # Map trigger options (0 A.D. WaterLevel, SeaLevelRiseTime): Flood water level
 # 0 rising, 1 shallow, 2 deep; Extinct Volcano minutes until the water rises.
 var water_level: int = 0
