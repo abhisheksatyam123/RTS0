@@ -1659,7 +1659,7 @@ inline int relic_global_aura_index(int16_t aura) {
 	}();
 	return aura >= 0 && aura < CIV_HERO_AURA_COUNT ? kIndex[(size_t)aura] : -1;
 }
-static_assert(RELIC_GLOBAL_AURA_COUNT <= 32, "relic aura masks are uint32_t");
+static_assert(RELIC_GLOBAL_AURA_COUNT <= 64, "global aura masks are uint64_t");
 
 // Does an entity with these TechClass bits match relic aura modifier `m`?
 inline bool relic_modifier_applies(const RelicAuraModifier &m, uint64_t classes) {
