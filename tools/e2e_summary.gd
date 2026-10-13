@@ -55,6 +55,7 @@ func run() -> void:
 	ms.slot_types = [0, 1, 1, 1]
 	ms.slot_civs = [0, 1, 2, 3]
 	ms.slot_teams = [1, 1, 2, 2]
+	ms.lock_teams = true # summary.js groups teams only when they are locked
 	ms.victory = 3 # endless
 	ms.replay_dir = ""
 	ms.load_save_path = ""
@@ -62,7 +63,9 @@ func run() -> void:
 	await frames(3)
 	var m = current_scene
 	var replay_dir: String = m.get_replay_status().replay_dir
-	await frames(60 * 75) # 75 s of game time: three 30 s rows
+	# 75 s of game time (three 30 s rows), at whatever --fixed-fps the run uses.
+	while float(m.get_match_statistics().get("game_time", 0.0)) < 75.0:
+		await frames(10)
 
 	print("1. Ctrl+Tab opens the summary over the game")
 	var s = m.get_node("SummaryScreen")
@@ -75,11 +78,26 @@ func run() -> void:
 	# As 0 A.D.: allies show once the player shares their sight (Cartography).
 	check(s.players.map(func(p): return p.id) == [0], "a player sees only itself during the game")
 	# The rest checks every player's counters, as the page shows them once the game is over.
-	s.configure({"isInGame": true, "dialog": true})
+	s.configure({"isInGame": true, "dialog": true, "selectionOwner": m.get_summary_gui(true).selectionOwner})
 	s.show_summary(false, m.get_match_statistics(), 0.0)
 	await frames(2)
-	check(s.players.size() == 4 and s.teams.size() == 2 and s.teams[1].size() == 2, "every player, the two allies as one team")
-	check(s.find_child("Team total", true, false) != null or s.find_child("TeamHeading1", true, false) != null, "with a team heading")
+	check(s.players.size() == 4 and s.teams.size() == 2 and s.teams[0].size() == 2 and s.teams[1].size() == 2, "every player, the two allies as one team")
+	check(s.find_child("TeamHeading0", true, false) != null and s.find_child("TeamHeading0", true, false).text == "Team 1"
+		and s.find_child("TeamHeading1", true, false).text == "Team 2", "headed Team 1 and Team 2, the Game Setup teams")
+	check(s.find_child("Heading0", true, false).get_parsed_text() == "", "no Player name heading when everyone has a team")
+	var loose: Dictionary = m.get_match_statistics()
+	for p in loose.players:
+		p.setup_team = -1 if p.id >= 2 else 0
+	s.show_summary(false, loose, 0.0)
+	await frames(2)
+	check(s.teams.keys() == [0, -1] and s.find_child("TeamHeading-1", true, false) == null
+		and s.find_child("Heading0", true, false).get_parsed_text() == "Player name", "players without a team come first, untitled, under Player name")
+	loose.lock_teams = false
+	s.show_summary(false, loose, 0.0)
+	await frames(2)
+	check(s.teams.is_empty(), "no teams when they were not locked")
+	s.show_summary(false, m.get_match_statistics(), 0.0)
+	await frames(2)
 	check(s._tab_buttons.map(func(b): return b.text) == ["Score", "Structures", "Units", "Resources", "Market", "Miscellaneous", "Charts"],
 		"0 A.D.'s tabs")
 	check(not s.find_child("ReplayButton", true, false).visible, "no Watch Replay in game")
@@ -92,9 +110,9 @@ func run() -> void:
 	check(expl % 10 == 0 and expl > 0, "exploration score is ten per whole percent explored")
 	var units: Dictionary = s.player_value(1, 2, 0)
 	check(units.keys() == ["trained", "killed", "lost"] and units.trained > 0, "units count trained / killed / lost: " + str(units))
-	var team_units: Dictionary = s.team_value(1, 2, 0)
+	var team_units: Dictionary = s.team_value(0, 2, 0)
 	check(team_units.trained == int(s.player_value(0, 2, 0).trained) + units.trained, "the team total adds its players")
-	var team_score: int = s.team_value(1, 0, 0)
+	var team_score: int = s.team_value(0, 0, 0)
 	check(team_score > 0, "team score %d" % team_score)
 	check(s.format_value({"trained": 3, "killed": 1, "lost": 2}).contains("3[/color] / ") and
 		s.format_value({"trained": 3, "killed": 1, "lost": 2}).contains("1[/color]\n"), "trained / killed, then lost on the next line")
@@ -140,6 +158,9 @@ func run() -> void:
 	m.toggle_summary()
 	await frames(2)
 	check(s.is_open() and s.panel_index == 6 and s.selection["teamCharts"] and s.players.size() == 1, "it reopens on the last tab and remembers team charts, with only the player")
+	s.configure({"dialog": false})
+	check(s.selection["panel"] == 0, "a summary outside the match starts on the Score tab (summarySelection is the match's)")
+	s.configure(m.get_summary_gui(true))
 	s.continue_pressed()
 	await frames(2)
 	check(not paused, "Continue resumes the game")
