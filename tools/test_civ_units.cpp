@@ -346,6 +346,8 @@ int main() {
 		CHECK(std::strcmp(civ_art_code(CIV_GERMANS), "gaul") == 0 && std::strcmp(civ_art_code(CIV_GAULS), "gaul") == 0);
 		CHECK(tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GERMANS) && !tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GAULS));
 		CHECK(!tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GERMANS) && tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GAULS));
+		CHECK((civ_unit_template(roster_id("athen/support_civilian")).flags & ROSTER_CIVILIAN) &&
+		      !(civ_unit_template(roster_id("athen/support_female_citizen")).flags & ROSTER_CIVILIAN));
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));

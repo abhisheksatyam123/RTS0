@@ -21335,7 +21335,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -21384,7 +21386,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -21433,7 +21437,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -21482,7 +21488,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -21531,7 +21539,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -21585,7 +21595,9 @@
     "inn",
     "warehouse"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -21634,7 +21646,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -21683,7 +21697,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -21732,7 +21748,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -21783,7 +21801,9 @@
     "apartment",
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -21832,7 +21852,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -21881,7 +21903,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -21932,7 +21956,9 @@
     "civil_centre",
     "crannog"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -21981,7 +22007,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -22030,7 +22058,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -22080,7 +22110,9 @@
     "house",
     "tavern"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -22129,7 +22161,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -22178,7 +22212,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -22227,7 +22263,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -22276,7 +22314,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -22325,7 +22365,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -22374,7 +22416,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_KUSH",
    "auras": [],
    "civ_bonuses": [],
@@ -22423,7 +22467,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -22472,7 +22518,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -22523,7 +22571,9 @@
     "civil_centre",
     "military_colony"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -22572,7 +22622,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -22623,7 +22675,9 @@
     "civil_centre",
     "civil_centre_court"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [],
@@ -22672,7 +22726,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [],
@@ -23789,7 +23845,9 @@
    "trained_at_0ad": [
     "civil_centre"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_NONE",
    "auras": [],
    "civ_bonuses": [
@@ -23840,7 +23898,9 @@
    "trained_at_0ad": [
     "house"
    ],
-   "flags": [],
+   "flags": [
+    "ROSTER_CIVILIAN"
+   ],
    "unlock_tech": "TECH_UNLOCK_CIVILIANS_HOUSE_GENERIC",
    "auras": [],
    "civ_bonuses": [
