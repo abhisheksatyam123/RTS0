@@ -138,6 +138,9 @@ int main() {
 		}
 		CHECK(heroes[0] == 1 && heroes[1] == 1);
 		CHECK(!sim->is_game_over());
+		// Regicide.js: only the spawned hero counts; a second hero the enemy trained
+		// doesn't keep it in the game.
+		sim->spawn_unit(u.pos_x[enemy_hero] + 6.0f, u.pos_z[enemy_hero], 1, UNIT_HERO);
 		kill_unit(*sim, enemy_hero);
 		run(*sim, 1.0f);
 		CHECK(sim->is_victory());
@@ -691,10 +694,12 @@ int main() {
 		sim.apply_team_diplomacy();
 		CHECK(sim.is_ally(0, 1) && sim.is_ally(0, 3) && !sim.is_hostile(1, 0) && sim.is_hostile(0, 2));
 		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ENEMY));
-		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && !sim.is_hostile(1, 0));
+		// Diplomacy.js mutual worsening: war on the old teammate is war back.
+		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && sim.is_hostile(1, 0));
 		CHECK(sim.is_ally(0, 3) && sim.is_ally(1, 3) && sim.same_team(1, 3) && !sim.same_team(0, 1));
 		CHECK(sim.player_team(1) == 1 && sim.player_team(0) == 0);
-		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && !sim.is_ally(0, 1)); // allying is one-sided
+		CHECK(sim.cmd_set_diplomacy(1, 0, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
 		sim.set_lock_teams(true);
 		CHECK(!sim.cmd_set_diplomacy(1, 3, Simulation::DIPLO_ENEMY) && sim.is_ally(1, 3));
 	}

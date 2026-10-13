@@ -95,9 +95,11 @@ int main()
 		bool rows_ok = true;
 		for (uint16_t i : ids) {
 			const CivUnitTemplate &u = civ_unit_template(i);
+			// A row 0.28 no longer trains: retired, or reached only by promotion (Marian Legionaries).
 			const bool retired = is_retired(u.id);
 			if (u.civ != c || u.unit_type >= UNIT_TYPE_COUNT || u.hp <= 0.0f || u.speed <= 0.0f ||
-					u.phase < 1 || u.phase > 3 || !u.trainers != retired || u.train_time <= 0.0f) {
+					u.phase < 1 || u.phase > 3 || (!u.trainers && !retired && !is_promotion_target(u.id)) ||
+					(u.trainers && retired) || u.train_time <= 0.0f) {
 				rows_ok = false;
 				std::printf("      bad row %u %s\n", i, u.id);
 			}
