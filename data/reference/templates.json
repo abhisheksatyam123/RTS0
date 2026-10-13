@@ -7574,6 +7574,51 @@
     "Immortal"
    ],
    "builds": []
+  },
+  "brit/ship_fire_fire": {
+   "generic_name": "Fire Ship",
+   "specific_name": "Briton Fire Ship",
+   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "Fireship",
+    "Melee",
+    "Fire",
+    "Ignited"
+   ],
+   "builds": []
+  },
+  "gaul/ship_fire_fire": {
+   "generic_name": "Fire Ship",
+   "specific_name": "Gallic Fire Ship",
+   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "Fireship",
+    "Melee",
+    "Fire",
+    "Ignited"
+   ],
+   "builds": []
+  },
+  "iber/ship_fire_fire": {
+   "generic_name": "Fire Ship",
+   "specific_name": "Iberian Fire Ship",
+   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "Fireship",
+    "Melee",
+    "Fire",
+    "Ignited"
+   ],
+   "builds": []
   }
  },
  "structures": {
