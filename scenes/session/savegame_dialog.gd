@@ -104,8 +104,13 @@ func refresh() -> void:
 				# Saves from before metadata existed still list, by file date.
 				meta = {"timestamp": FileAccess.get_modified_time(path), "map_name": "?"}
 			var e := _entry(path, meta)
-			if e.compatible or not compatibility_filter.button_pressed:
-				saves.append(e)
+			if compatibility_filter.button_pressed and not e.compatible:
+				continue
+			# SavegameList campaignFilter: a campaign's saves only inside that run, the others only outside one.
+			if (compatibility_filter.button_pressed or MatchSettings.campaign_run != "") \
+					and str(meta.get("settings", {}).get("campaign_run", "")) != MatchSettings.campaign_run:
+				continue
+			saves.append(e)
 	saves.sort_custom(func(a, b):
 		var ka = _sort_key(a)
 		var kb = _sort_key(b)
@@ -319,6 +324,30 @@ func _fired(event: InputEvent, hotkey: String) -> bool:
 			return true
 	return false
 
+## SavegameDeleter deleteButtonTooltip: the keys bound to the delete hotkeys.
+func _delete_tooltip() -> String:
+	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
+	var del: PackedStringArray = keys.get("session.savedgames.delete", PackedStringArray())
+	if del.is_empty():
+		return ""
+	var tip := "Delete the selected savegame using [%s]." % del[0]
+	var skip: PackedStringArray = keys.get("session.savedgames.noconfirmation", PackedStringArray())
+	if not skip.is_empty():
+		tip += "\nHold [%s] to skip the confirmation dialog while deleting." % skip[0]
+	return tip
+
+## session.savedgames.noconfirmation held, from the key event's own modifiers when it names one.
+func _skip_confirmation(event: InputEventKey) -> bool:
+	var keys: Dictionary = _hotkeys.call("get_hotkey_map") if _hotkeys else {}
+	for combo in keys.get("session.savedgames.noconfirmation", PackedStringArray(["Shift"])):
+		var c := str(combo).to_lower()
+		if (c == "shift" and event.shift_pressed) or (c == "ctrl" and event.ctrl_pressed) or (c == "alt" and event.alt_pressed):
+			return true
+	return _held("session.savedgames.noconfirmation")
+
+func _held(hotkey: String) -> bool:
+	return _hotkeys.call("is_held", hotkey) if _hotkeys else Input.is_key_pressed(KEY_SHIFT)
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or confirm.visible or message.visible:
 		return
@@ -327,7 +356,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		close()
 	elif (event.keycode == KEY_DELETE or _fired(event, "session.savedgames.delete")) and not description.has_focus():
 		get_viewport().set_input_as_handled()
-		delete_pressed(event.shift_pressed) # session.savedgames.noconfirmation
+		delete_pressed(_skip_confirmation(event))
 
 # --- Page (load.xml) -------------------------------------------------------------------
 
@@ -424,8 +453,6 @@ func _build() -> void:
 	list_box.add_child(feedback)
 	description = LineEdit.new()
 	description.name = "SaveGameDesc"
-	description.placeholder_text = "Description"
-	description.max_length = 80
 	description.visible = mode == "save"
 	MatchSettings.prepare_line_edit(description)
 	description.text_changed.connect(func(_t): _description_changed = true)
@@ -435,8 +462,8 @@ func _build() -> void:
 	buttons.add_theme_constant_override("separation", 12)
 	left.add_child(buttons)
 	_button(buttons, "Cancel", close)
-	btn_delete = _button(buttons, "Delete", func(): delete_pressed(Input.is_key_pressed(KEY_SHIFT)))
-	btn_delete.tooltip_text = "Delete the selected savegame using Delete.\nHold Shift to skip the confirmation dialog while deleting."
+	btn_delete = _button(buttons, "Delete", func(): delete_pressed(_held("session.savedgames.noconfirmation")))
+	btn_delete.tooltip_text = _delete_tooltip()
 	btn_ok = _button(buttons, "Save" if mode == "save" else "Load", confirm_pressed)
 
 	# Right: the filter and the details.

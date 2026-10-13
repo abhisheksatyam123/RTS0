@@ -872,6 +872,68 @@ static void test_petra_small_land_fields() {
 	CHECK(count(BLD_FIELD) == 2);
 }
 
+// worker.js startGathering asks navalManager.requireTransport for a supply near one of our
+// bases on another land: a woodcutter on an island with no dropsite of ours sails home, and
+// with wood only by the overseas base, north workers cross to cut it there.
+static void test_petra_workers_across_water() {
+	static Simulation s;
+	fresh(s);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 0, 0, 0, 0);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
+	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-44.0f + 3.0f * k, 54.0f, RES_WOOD, 600);
+	// A woodcutter stranded on the south land, no dropsite of ours there.
+	const uint32_t tree = s.spawn_resource_world(30.0f, -44.0f, RES_WOOD, 600);
+	const uint32_t w = s.spawn_unit(30.0f, -40.0f, 1, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&w, 1, tree);
+	const uint16_t north = s.petra_land_at(-30.0f, 40.0f), south = s.petra_land_at(30.0f, -40.0f);
+	bool planned = false;
+	float home_at = -1.0f;
+	for (int k = 0; k < 240 && home_at < 0.0f; ++k) {
+		run(s, 1.0f);
+		for (const auto &p : s.petra_transport_plans())
+			planned |= p.owner == PETRA_TRANSPORT_WORKERS && std::find(p.passenger_ids.begin(), p.passenger_ids.end(), w) != p.passenger_ids.end();
+		const int32_t i = idx(s, w);
+		if (i >= 0 && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == north) home_at = (float)k;
+	}
+	std::printf("Petra workers across water: stranded woodcutter %s, home at %.0fs\n", planned ? "booked a crossing" : "never booked", home_at);
+	CHECK(north && south && north != south);
+	CHECK(planned && home_at >= 0.0f);
+
+	// Wood only by the overseas base: north workers cross to it.
+	static Simulation t;
+	fresh(t);
+	t.set_victory_condition(VICTORY_ENDLESS);
+	t.set_player_active(1, true, true);
+	t.set_player_resources(1, 0, 0, 0, 0);
+	t.players_[1].phase = 2;
+	t.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	t.spawn_building_world(30.0f, -40.0f, BLD_TOWN_CENTER, 1);
+	t.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	t.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
+	for (int k = 0; k < 6; ++k) t.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_FEMALE_CITIZEN);
+	for (int k = 0; k < 8; ++k) t.spawn_resource_world(18.0f + 3.0f * k, -52.0f, RES_WOOD, 600);
+	bool crossing = false;
+	for (int k = 0; k < 240; ++k) {
+		run(t, 1.0f);
+		for (const auto &p : t.petra_transport_plans()) crossing |= p.owner == PETRA_TRANSPORT_WORKERS;
+	}
+	int south_cutters = 0;
+	for (size_t i = 0; i < t.units().count; ++i) {
+		if (!t.units().alive[i] || t.units().team[i] != 1 || t.units().unit_type[i] != UNIT_FEMALE_CITIZEN) continue;
+		if (t.petra_land_at(t.units().pos_x[i], t.units().pos_z[i]) != south) continue;
+		auto it = t.res_id_to_idx_.find(t.units().target_resource_id[i]);
+		south_cutters += it != t.res_id_to_idx_.end() && t.resources_.type[it->second] == RES_WOOD;
+	}
+	std::printf("Petra workers across water: crossing %s, %d cutting wood by the south base, wood %d\n",
+	            crossing ? "yes" : "no", south_cutters, t.player_resource(1, RES_WOOD));
+	CHECK(crossing && south_cutters >= 1 && t.player_resource(1, RES_WOOD) > 0);
+}
+
 static void test_fire_ship() {
 	static Simulation s;
 	fresh(s);
@@ -1084,6 +1146,7 @@ int main() {
 	test_ship_treasure();
 	test_petra_ship_treasure();
 	test_petra_small_land_fields();
+	test_petra_workers_across_water();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
