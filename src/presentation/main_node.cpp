@@ -2947,10 +2947,11 @@ void RtsoMain::_process(double delta) {
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
 				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
 				ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
-				ghost_mesh->set_rotation(Vector3(0.0f,
-						placement_angle_at(current_build_type, gx, gz) - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
+				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
+				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
-				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type) == rtso::Simulation::PLACE_OK;
+				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle) ==
+						rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
 			}
 		}
