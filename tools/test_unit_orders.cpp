@@ -1984,6 +1984,42 @@ static void test_capture_owner_change() {
 	check(std::fabs(hb->max_capture_points - hmax * 1.1f) < 0.01f, "and takes its new Athenian owner's +10% capture points");
 }
 
+static void test_capture_attack_auras() {
+	std::printf("53. capture attack auras: Leonidas adds 1, the carnyx takes 10%% once (Auras.js, ModifiersManager)\n");
+	Simulation s;
+	setup(s);
+	const uint16_t spear = roster_named("spart/infantry_spearman_b"), leo = roster_named("spart/hero_leonidas"),
+		horn = roster_named("gaul/champion_infantry_trumpeter");
+	check(spear != CIV_UNIT_TEMPLATE_NONE && leo != CIV_UNIT_TEMPLATE_NONE && horn != CIV_UNIT_TEMPLATE_NONE,
+			"roster has the Spartan spearman, Leonidas and the trumpeter");
+	const uint32_t u = s.spawn_unit(-20, -20, 0, (UnitType)civ_unit_template(spear).unit_type, 0.0f, spear);
+	const int ui = idx_of(s, u);
+	const float c0 = s.unit_capture_attack_at((size_t)ui);
+	check(c0 > 0.0f, "a spearman captures");
+	// Last Stand: Spearmen within 30 m (8.4 units) +1 capture attack strength.
+	const uint32_t hero = s.spawn_unit(-20, -15, 0, UNIT_HERO, 0.0f, leo);
+	run(s, 0.5f);
+	std::printf("  spearman capture %.2f alone, %.2f beside Leonidas\n", c0, s.unit_capture_attack_at((size_t)ui));
+	check(std::fabs(s.unit_capture_attack_at((size_t)ui) - (c0 + 1.0f)) < 1e-4f, "Leonidas: a spearman beside him +1");
+	const int hi = idx_of(s, hero);
+	s.units_.pos_x[hi] = -20.0f; s.units_.pos_z[hi] = -5.0f; // 15 units off
+	run(s, 0.5f);
+	check(std::fabs(s.unit_capture_attack_at((size_t)ui) - c0) < 1e-4f, "out of his 30 m the spearman's own again");
+	s.units_.pos_z[hi] = -15.0f;
+	// Intimidating Sound: enemy Soldiers within 20 m (5.6 units) x0.9, applied before the add,
+	// and two trumpeters weaken no more than one.
+	s.spawn_unit(-16, -20, 1, UNIT_CARNYX, 0.0f, horn);
+	s.spawn_unit(-16, -21, 1, UNIT_CARNYX, 0.0f, horn);
+	run(s, 0.5f);
+	check(std::fabs(s.unit_capture_attack_at((size_t)ui) - (c0 * 0.9f + 1.0f)) < 1e-4f,
+			"two enemy trumpeters: x0.9 once, then Leonidas' +1");
+	// A garrisoned unit is out of every range aura.
+	const uint32_t bar = s.spawn_building_world(-30, -30, BLD_BARRACKS, 0, 1.0f);
+	s.garrison_now((size_t)ui, *bld_mut(s, bar));
+	run(s, 0.5f);
+	check(std::fabs(s.unit_capture_attack_at((size_t)idx_of(s, u)) - c0) < 1e-4f, "garrisoned: its own capture strength");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2039,6 +2075,7 @@ int main(int argc, char **argv) {
 	test_capture_regen();
 	test_capture_auras();
 	test_capture_owner_change();
+	test_capture_attack_auras();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

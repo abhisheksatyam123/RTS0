@@ -9804,8 +9804,18 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 	float c = unit_capture_attack(units_.tmpl[i], units_.unit_type[i]);
 	if (c > 0.0f)
 		for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) c += rank_bonus(r).capture_add;
-	if (c > 0.0f && units_.team[i] < MAX_PLAYERS)
+	if (c > 0.0f && units_.team[i] < MAX_PLAYERS) {
 		c *= unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).capture;
+		// Range auras reaching the unit: ModifiersManager's value x multiply + add. A garrisoned
+		// unit is out of the world, where no range aura reaches it.
+		if ((aura_mgr_.has(AURA_CAPTURE_MUL) || aura_mgr_.has(AURA_CAPTURE_ADD)) &&
+				units_.action_state[i] != ACTION_GARRISONED) {
+			const CombatClasses *cls = &unit_combat_at(i).classes;
+			c = c * aura_mgr_.query_stacked(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_CAPTURE_MUL,
+				units_.tmpl[i], cls) + aura_mgr_.query_stacked(units_.pos_x[i], units_.pos_z[i], units_.team[i],
+				AURA_CAPTURE_ADD, units_.tmpl[i], cls);
+		}
+	}
 	return c;
 }
 
@@ -23113,6 +23123,15 @@ void Simulation::rebuild_auras() {
 							required_xp_range_auras()[k].multiply, aura_affected_players(team, aura.players), x, z, a);
 				for (uint16_t k = 0; k < CAPTURE_RANGE_AURA_COUNT; ++k) // Pericles, Alexander
 					if (std::strcmp(aura.id, capture_range_auras()[k].id) == 0) register_capture_aura(id, team, k, x, z);
+				// Range auras on Attack/Capture/Capture (Leonidas, Boudicca, the carnyx...).
+				for (uint16_t k = 0; k < CAPTURE_ATTACK_RANGE_AURA_COUNT; ++k) {
+					const CaptureAttackRangeAura &c = capture_attack_range_auras()[k];
+					if (std::strcmp(aura.id, c.id) != 0) continue;
+					const float r = c.radius * COMBAT_DISTANCE_SCALE;
+					const uint16_t pl = aura_affected_players(team, c.players);
+					if (c.multiply != 1.0f) aura_mgr_.register_source(id, AURA_CAPTURE_MUL, r, c.multiply, pl, x, z, a);
+					if (c.add != 0.0f) aura_mgr_.register_source(id, AURA_CAPTURE_ADD, r, c.add, pl, x, z, a);
+				}
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
 				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
