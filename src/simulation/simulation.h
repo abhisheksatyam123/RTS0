@@ -1505,6 +1505,9 @@ public:
 	};
 	uint32_t spawn_treasure(float x, float z, uint8_t type);
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
+	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
+	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
+	float treasure_reach(size_t i) const;
 	const std::vector<Treasure> &treasures() const { return treasures_; }
 	bool is_treasure_id(uint32_t id) const {
 		for (const auto &t : treasures_) if (t.id == id) return true;
@@ -1728,6 +1731,7 @@ private:
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
+			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;

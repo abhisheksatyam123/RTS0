@@ -13,6 +13,8 @@ extends Control
 ##   still spawn (base+units) but have no AI economy; teams beyond 2 share
 ##   teams 0/1 via diplomacy defaults. Slot cap is 8 like 0 A.D.
 
+const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
+
 const CIVS := [
 	{"code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
 	{"code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png", "blurb": "Agoge: +35% HP and +25% melee for citizen-soldiers and champions."},
@@ -211,7 +213,10 @@ func _load_maps() -> void:
 		var file_name := dir.get_next()
 		var scenario_ids: Array = []
 		while file_name != "":
-			if not dir.current_is_dir() and file_name.ends_with(".json"):
+			# 0 A.D.'s tutorials (maps/tutorials) start from Learn to Play and the
+			# Tutorial campaign; its Scenario type lists maps/scenarios only.
+			if not dir.current_is_dir() and file_name.ends_with(".json") \
+					and not ScenarioStart.TUTORIAL_MAPS.has(file_name.get_basename()):
 				scenario_ids.append(file_name.get_basename())
 			file_name = dir.get_next()
 		scenario_ids.sort()
