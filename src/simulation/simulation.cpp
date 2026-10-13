@@ -18123,11 +18123,16 @@ void Simulation::petra_build_defenses() {
 	}
 	const int pop = pop_current(petra_pid_);
 	const uint8_t phase = petra_ps().phase;
+	// A structure with no frontier spot is not queued, so its plan doesn't hold resources it
+	// can't spend; the next try waits 90 s (buildManager.js setUnbuildable "room").
+	auto has_spot = [&](uint8_t t) { int sx = 0, sz = 0; return petra_find_defensive_location(t, sx, sz); };
+	constexpr float kNoRoomWait = 90.0f;
 
 	if (!saving && (phase > 2 || (phase == 2 && petra_phasing()))) {
 		if (can_build(BLD_FORTRESS) &&
 		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
-		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2) {
+		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2 &&
+		    (n_fortresses == 0 || has_spot(BLD_FORTRESS))) {
 			d.fortress_start = now;
 			d.pending = BLD_FORTRESS + 1;
 			return;
@@ -18137,6 +18142,10 @@ void Simulation::petra_build_defenses() {
 		// saveResources (little starting wood) spaces them out further.
 		const float lapse = petra_attack_mgr_.save_resources ? (1.0f + 0.5f * (float)n_towers) * tower_lapse : tower_lapse;
 		if (n_towers < num_sentry && now > lapse + d.fort_start) {
+			if (!has_spot(BLD_SENTRY_TOWER)) {
+				d.fort_start = now + kNoRoomWait - lapse;
+				return;
+			}
 			d.fort_start = now;
 			d.pending = BLD_SENTRY_TOWER + 1;
 		}
@@ -18146,6 +18155,10 @@ void Simulation::petra_build_defenses() {
 	const float stone_lapse = petra_attack_mgr_.save_resources ? (1.0f + (float)n_stone) * tower_lapse : tower_lapse;
 	if ((n_stone == 0 || now > (1.0f + 0.1f * (float)n_stone) * stone_lapse + d.tower_start) &&
 	    n_stone < 2 * n_bases + 3 + extra_towers && n_stone < pop / 8 && n_tower_fnd < 3) {
+		if (!has_spot(BLD_TOWER)) {
+			if (n_stone > 0) d.tower_start = now + kNoRoomWait - (1.0f + 0.1f * (float)n_stone) * stone_lapse;
+			return;
+		}
 		d.tower_start = now;
 		d.pending = BLD_TOWER + 1;
 	}

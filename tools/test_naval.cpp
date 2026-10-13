@@ -638,6 +638,10 @@ static void test_petra_overseas_base() {
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
+	// Room to spare for the transport ship: without it the ship waits on worker training
+	// filling every new population slot.
+	s.spawn_building_world(-12.0f, 30.0f, BLD_HOUSE, 1);
+	s.spawn_building_world(-4.0f, 30.0f, BLD_HOUSE, 1);
 	for (int k = 0; k < 10; ++k) s.spawn_unit(-40.0f + 2.0f * k, 52.0f, 1, UNIT_VILLAGER);
 	// Wood on the south land only.
 	for (int k = 0; k < 8; ++k) s.spawn_resource_world(-36.0f + 3.0f * k, -44.0f, RES_WOOD, 600);
