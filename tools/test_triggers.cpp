@@ -597,6 +597,11 @@ static void check_elephantine() {
 	int gaia_units = 0;
 	for (size_t i = 0; i < s.units_.count; ++i) gaia_units += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER;
 	CHECK(gaia_units >= 8, "only %d Kushites on the island", gaia_units);
+	// 0.28's fish: scaleByMapSize(125, 200) groups of 1-2 in the Nile, 12 tiles apart.
+	int fish = 0;
+	const auto res = s.resources();
+	for (size_t i = 0; i < res.count; ++i) fish += res.alive[i] && res.subtype[i] == RES_SUB_FISH;
+	CHECK(fish >= 40, "only %d fish in the Nile", fish);
 	run_to(s, 1.0f);
 	for (const Simulation::Building &b : s.buildings_) {
 		if (b.team != GAIA_PLAYER) continue;
@@ -608,6 +613,14 @@ static void check_elephantine() {
 	CHECK(holders > 0 && full == holders, "%d of %d Gaia structures garrisoned to capacity", full, holders);
 	std::vector<uint32_t> inside;
 	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
+	// "CitizenSoldier+Infantry" and "Civilian Healer": no other class inside.
+	int odd = 0;
+	for (uint32_t id : inside) {
+		const int32_t u = s.lookup_unit(id);
+		const uint64_t c = u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).tech_classes : 0;
+		odd += !((c & TC_HEALER) || ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY)) || ((c & TC_CIVILIAN) && (c & TC_WORKER)));
+	}
+	CHECK(odd == 0, "%d of %zu garrisoned Kushites neither infantry, civilians nor healers", odd, inside.size());
 	int defensive = 0, soldiers = 0;
 	for (size_t i = 0; i < s.units_.count; ++i) {
 		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER) continue;
@@ -619,7 +632,7 @@ static void check_elephantine() {
 	}
 	CHECK(soldiers > 0 && defensive == soldiers, "%d of %d island soldiers defensive", defensive, soldiers);
 	if (failures == before)
-		std::printf("Elephantine: temple, pyramid, %d uncapturable towers, %d Kushites, %d structures garrisoned: ok\n", towers, gaia_units, holders);
+		std::printf("Elephantine: temple, pyramid, %d uncapturable towers, %d Kushites, %d structures garrisoned, %d fish: ok\n", towers, gaia_units, holders, fish);
 }
 
 static void check_danubius() {

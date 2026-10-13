@@ -3517,6 +3517,47 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 		}
 	} else if (config.map_type == MAP_ELEPHANTINE) {
 		place_elephantine_entities(sim, hm, water_h, spawns, rng);
+		place_elephantine_fish(sim, hm, water_h, config);
+	}
+}
+
+void RmsGenerator::place_elephantine_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config) {
+	// elephantine.js (0.28) "Creating fish": scaleByMapSize(125, 200) groups of 1-2 tilapia (0-1
+	// tiles apart), stayClasses(clWater, 2) and avoidClasses(clFood, 12), retry factor 50. clFood
+	// holds the berries, the animals and the fish placed so far. Its own stream keeps every other
+	// placement on the map unchanged.
+	const float half = hm.map_half;
+	const int groups = scale_by_map_size(125, 200, half);
+	RmsRng rng(config.seed ^ 0x54494C41u); // 'TILA'
+	auto deep = [&](float x, float z) { // a water tile with water 2 tiles round it
+		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
+		for (int dz = -2; dz <= 2; ++dz)
+			for (int dx = -2; dx <= 2; ++dx)
+				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h) return false;
+		return true;
+	};
+	std::vector<std::pair<float, float>> food;
+	const auto res = sim.resources();
+	for (size_t i = 0; i < res.count; ++i)
+		if (res.alive[i] && res.type[i] == RES_FOOD) food.push_back({res.x[i], res.z[i]});
+	const auto fauna = sim.fauna();
+	for (size_t i = 0; i < fauna.count; ++i)
+		if (fauna.alive[i]) food.push_back({fauna.pos_x[i], fauna.pos_z[i]});
+	int placed = 0;
+	for (int attempt = 0; attempt < groups * 50 && placed < groups; ++attempt) {
+		const float x = std::floor(rng.range_float(-half, half)) + 0.5f, z = std::floor(rng.range_float(-half, half)) + 0.5f;
+		if (!deep(x, z)) continue;
+		bool crowded = false;
+		for (const auto &[fx, fz] : food)
+			if ((fx - x) * (fx - x) + (fz - z) * (fz - z) < 12.0f * 12.0f) { crowded = true; break; }
+		if (crowded) continue;
+		++placed;
+		const int n = rng.range_int(1, 2);
+		for (int k = 0; k < n; ++k) {
+			const float a = rng.range_float(0.0f, 6.2831853f), d = k ? rng.range_float(0.0f, 1.0f) : 0.0f;
+			sim.spawn_resource_world(x + std::cos(a) * d, z + std::sin(a) * d, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+		}
+		food.push_back({x, z});
 	}
 }
 
@@ -9429,8 +9470,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// Distribute sacred relics
 	distribute_relics(sim, hm, water_h, spawns, rng, config);
 
-	// Fish in open water, for fishing boats
-	distribute_fish(sim, hm, water_h, config);
+	// Fish in open water, for fishing boats (Elephantine places its own, place_elephantine_fish)
+	if (config.map_type != MAP_ELEPHANTINE) distribute_fish(sim, hm, water_h, config);
 
 	// Entities only the trigger maps have (Gaia towers, central mines)
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);

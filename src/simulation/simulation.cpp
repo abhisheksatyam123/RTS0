@@ -24718,7 +24718,7 @@ void Simulation::random_template_composition(const std::vector<uint16_t> &names,
 void Simulation::trigger_elephantine_init() {
 	// elephantine_triggers.js InitElephantine: the Gaia soldiers hold a defensive stance, the
 	// towers fill with elite Kushite citizen infantry and the wonder, temples and pyramids
-	// with those and Kushite women and elite priests (SpawnAndGarrisonAtClasses at 100%).
+	// with those and Kushite civilians and elite priests (SpawnAndGarrisonAtClasses at 100%).
 	std::vector<uint32_t> soldiers;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != GAIA_PLAYER) continue;
@@ -24728,8 +24728,9 @@ void Simulation::trigger_elephantine_init() {
 	}
 	if (!soldiers.empty()) order_set_stance(soldiers.data(), soldiers.size(), STANCE_DEFENSIVE);
 	// GetTemplateNamesByClasses("CitizenSoldier+Infantry", "kush", , "Elite", true) and
-	// ("FemaleCitizen Healer", "kush", , "Elite", true): the elite rank of each _b row.
+	// ("Civilian Healer", "kush", , "Elite", true): the elite rank of each _b row.
 	std::vector<uint16_t> infantry, support;
+	std::vector<std::pair<uint16_t, uint64_t>> civilian_rows;
 	for (uint16_t t : civ_roster_ids(CIV_KUSHITES)) {
 		const CivUnitTemplate &u = civ_unit_template(t);
 		if (std::strstr(u.id, "rts0_")) continue;
@@ -24738,12 +24739,13 @@ void Simulation::trigger_elephantine_init() {
 		const bool basic = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0;
 		if ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY) && !std::strstr(u.id, "_merc")) {
 			if (basic) infantry.push_back(t);
-		} else if (c & TC_FEMALECITIZEN) {
-			support.push_back(t);
 		} else if ((c & TC_HEALER) && std::strstr(u.id, "_e")) {
 			support.push_back(t);
 		}
+		civilian_rows.push_back({t, c});
 	}
+	const std::vector<uint16_t> civilians = trigger_civilians(civilian_rows);
+	support.insert(support.begin(), civilians.begin(), civilians.end());
 	std::vector<uint16_t> temple = infantry;
 	temple.insert(temple.end(), support.begin(), support.end());
 	auto elite = [&](uint16_t t) {
