@@ -298,10 +298,15 @@ def unit_class(ltpl):
 # (FloraKind in sim_types.h, models in assets/models/vegetation).
 def flora_kind(ltpl):
     name = ltpl.rsplit("/", 1)[-1]
-    for keys, kind in ((["bush", "sapling", "shrub"], "bush"), (["baobab"], "baobab"), (["acacia"], "acacia"),
-                       (["bamboo"], "bamboo"), (["palm", "date"], "palm"),
-                       (["pine", "fir", "cedar", "cypress", "juniper", "spruce", "larch", "yew"], "pine"),
-                       (["oak"], "oak")):
+    # First match wins: the specific species before the families they share words with.
+    for keys, kind in ((["dead"], "dead"), (["bush_tropic"], "tropic_bush"), (["bush", "sapling", "shrub"], "bush"),
+                       (["baobab"], "baobab"), (["acacia"], "acacia"), (["bamboo"], "bamboo"),
+                       (["fan_palm"], "fan_palm"), (["palm_tropic", "palmyra", "palm_doum", "senegal_date"], "tropic_palm"),
+                       (["palm", "date"], "palm"), (["aleppo", "pine_maritime", "pine_black"], "aleppo_pine"),
+                       (["fir", "pine_w"], "fir"), (["cypress"], "cypress"), (["juniper"], "juniper"),
+                       (["pine", "cedar", "spruce", "larch", "yew"], "pine"), (["oak"], "oak"), (["carob"], "carob"),
+                       (["poplar"], "poplar"), (["beech"], "beech"), (["olive"], "olive"),
+                       (["banyan", "strangler"], "banyan"), (["maple"], "maple"), (["teak", "toona"], "teak")):
         if any(k in name for k in keys):
             return kind
     return "broadleaf"

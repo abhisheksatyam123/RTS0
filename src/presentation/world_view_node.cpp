@@ -330,14 +330,19 @@ void RtsoWorldView::_ready() {
 	}
 	pick_tree_kinds("mediterranean");
 	{
-		// FloraKind -> vegetation model. Bushes and saplings are small leafy trees; a date
-		// fruit supply is a short date palm. Scales as in pick_tree_kinds.
+		// FloraKind -> vegetation model (tools/fetch_0ad_trees.py ports one per 0 A.D. species
+		// family). Bushes and saplings are small leafy trees; a date fruit supply is a short
+		// date palm. Scales as in pick_tree_kinds.
 		static_assert(FLORA_KINDS == rtso::FLORA_COUNT, "one batch per FloraKind");
 		struct Kind { const char *id; float scale; bool tree; };
 		static const Kind kKinds[FLORA_KINDS] = {
 			{ nullptr, 1.0f, true }, { "tree", 1.0f, true }, { "pine", 1.0f, true }, { "palm", 1.0f, true },
 			{ "oak", 1.15f, true }, { "baobab", 0.45f, true }, { "acacia", 0.6f, true }, { "bamboo", 1.0f, true },
 			{ "tree", 0.45f, true }, { "fruit_bush", 1.0f, false }, { "apple", 1.0f, false }, { "palm", 0.7f, false },
+			{ "carob", 0.75f, true }, { "poplar", 1.0f, true }, { "fan_palm", 0.6f, true }, { "beech", 0.8f, true },
+			{ "dead_tree", 0.7f, true }, { "cypress", 1.0f, true }, { "aleppo_pine", 0.9f, true }, { "fir", 1.0f, true },
+			{ "tropic_bush", 0.35f, true }, { "olive", 0.6f, true }, { "banyan", 0.9f, true }, { "tropic_palm", 0.9f, true },
+			{ "maple", 0.8f, true }, { "juniper", 0.5f, true }, { "teak", 0.85f, true },
 		};
 		for (int k = 1; k < FLORA_KINDS; ++k) {
 			auto e = rtso::ModelLibrary::get("vegetation", kKinds[k].id);

@@ -534,9 +534,13 @@ int main() {
 		sim.set_biome_override(BIOME_TEMPERATE);
 		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
 		const auto rv = sim.resources();
-		bool oak = false, pine = false;
-		for (size_t i = 0; i < rv.count; ++i) { oak |= rv.flora[i] == FLORA_OAK; pine |= rv.flora[i] == FLORA_PINE; }
-		CHECK(oak && pine, "temperate mixes oak (tree1/tree2) and pine (tree4/tree5) forests");
+		bool oak = false, pine = false, aleppo = false;
+		for (size_t i = 0; i < rv.count; ++i) {
+			oak |= rv.flora[i] == FLORA_OAK; pine |= rv.flora[i] == FLORA_PINE; aleppo |= rv.flora[i] == FLORA_ALEPPO_PINE;
+		}
+		CHECK(oak && pine && aleppo, "temperate mixes oak (tree1/tree2) and pine and maritime pine (tree4/tree5) forests");
+		CHECK(flora_kind_by_name("aleppo_pine") == FLORA_ALEPPO_PINE && flora_kind_by_name("teak") == FLORA_TEAK &&
+		      flora_kind_by_name("dead") == FLORA_DEAD, "0 A.D. species families resolve");
 		CHECK(flora_kind_by_name("pine") == FLORA_PINE && flora_kind_by_name("berry") == FLORA_BERRY &&
 		      flora_kind_by_name("tree") == FLORA_DEFAULT && flora_kind_by_name("food") == FLORA_DEFAULT &&
 		      flora_kind_by_name("stone") == FLORA_COUNT && flora_is_fruit(FLORA_DATE) && !flora_is_fruit(FLORA_PALM),
