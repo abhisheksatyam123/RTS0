@@ -13522,6 +13522,8 @@ void Simulation::update_petra_bases(float dt) {
 			// A civic centre we lay out or capture trains 3 + 2 (difficulty - 3) defenders from Medium.
 			const uint8_t diff = petra_difficulty();
 			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
+			// handleNewBase: a further base should end a resource shortage, so stop saving.
+			if (!petra_bases_.empty()) petra_attack_mgr_.save_resources = 0;
 			petra_bases_.push_back(new_base);
 		}
 	}
@@ -14239,6 +14241,7 @@ int Simulation::petra_train_more_workers() {
 	const int target = petra_target_workers();
 	const int shortfall = std::max(0, target - total);
 	if (total > target) return 0;
+	if (petra_attack_mgr_.save_resources && total > petra_pop_phase2() + 10) return shortfall;
 	const bool researching_town = research_check(petra_pid_, TECH_PHASE_TOWN) == TECH_ERR_IN_PROGRESS;
 	if (total >= petra_pop_phase2() && petra_ps().phase == 1 && !researching_town) return shortfall;
 	if (in_training > 15) return shortfall;
@@ -15425,7 +15428,7 @@ void Simulation::petra_manage_fields() {
 			return;
 		}
 		int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
-		if (count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
+		if (petra_attack_mgr_.save_resources || count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
 		if (field_foundations < goal && anchor) {
 			const float at[2] = {anchor->x, anchor->z};
 			petra_place_generic(BLD_FIELD, PETRA_QUEUE_VILLAGER, nullptr, at);
@@ -16510,6 +16513,7 @@ void Simulation::petra_manage_naval(float dt) {
 }
 
 void Simulation::petra_manage_buildings(float dt) {
+	const bool saving = petra_attack_mgr_.save_resources != 0; // headquarters.js saveResources
 	// (0 A.D.'s defenseManager builds no towers under attack: buildDefenses alone places them.)
 
 	// 2. headquarters.js update: checkBaseExpansion every 10th played turn (2 s).
@@ -16522,7 +16526,7 @@ void Simulation::petra_manage_buildings(float dt) {
 	// foundation restarts the counts. headquarters.js buildFarmstead: one farmstead, once there is
 	// a storehouse and a house.
 	if (ticks_ % 4 == 0) petra_check_resource_levels((int32_t)(ticks_ / 4));
-	if (ticks_ % 16 == 8) petra_build_farmstead();
+	if (ticks_ % 16 == 8 && (!saving || can_barter(petra_pid_))) petra_build_farmstead();
 
 	// 3. headquarters.js buildMoreHouses with queueplanBuilding.js houseNeeded: a house goes up
 	// once the free slots, counting the houses already laid down, fall to 10 (15 above 30 pop,
@@ -16537,7 +16541,7 @@ void Simulation::petra_manage_buildings(float dt) {
 				free_slots += structure_pop_bonus(b.type, petra_pid_);
 				if (b.type == BLD_HOUSE) ++planned;
 			}
-			const int needed_at = pop > 55 ? 21 : pop > 30 ? 15 : 10;
+			const int needed_at = saving || pop <= 30 ? 10 : pop > 55 ? 21 : 15;
 			if (free_slots <= needed_at && planned < (pop > 80 ? 5 : 3)) {
 				// buildMoreHouses: no room to place a house, so try a population technology.
 				if (!petra_place_generic(BLD_HOUSE, PETRA_QUEUE_VILLAGER) && petra_place_no_room_ &&
@@ -16568,6 +16572,8 @@ void Simulation::petra_manage_buildings(float dt) {
 		const bool phasing_town = petra_ps().phase == 1 && petra_phasing();
 		const PetraBase *home = get_primary_petra_base();
 		uint8_t want = BLD_TYPE_COUNT;
+		// While saving resources: nothing without barter, and no more than the first barracks.
+		if (saving && (!can_barter(petra_pid_) || n_barracks != 0)) home = nullptr;
 		if (home && (pop > petra_pop_for_barracks1() || (phasing_town && n_village < 5))) {
 			const int pfb2 = petra_pop_for_barracks2();
 			if (n_barracks + n_ranges == 0)
@@ -16598,7 +16604,7 @@ void Simulation::petra_manage_buildings(float dt) {
 	// 6. headquarters.js constructTrainingBuildings, city phase: an elephant
 	// stable and an arsenal, then (from 80 pop) the civ's own advanced
 	// structures from config.js buildings, the next one only past 110 pop.
-	if (petra_ps().phase >= 3) petra_build_advanced();
+	if (petra_ps().phase >= 3 && !saving) petra_build_advanced();
 }
 
 // config.js `buildings`: each civ's advanced structures, in Petra's order
@@ -17212,8 +17218,8 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 
 // headquarters.js buildDefenses. The defenseBuilding queue holds one plan at a time
 // (petra_defense_build_.pending); its start time is taken when it is queued, as in 0 A.D.
-// RTS0 has no saveResources/barter pause and no queue priority changes: the plan is paid
-// from the military queue. The structure goes up around the primary base, not on the frontier
+// While saving resources it waits for barter and builds no fortress. RTS0 has no queue
+// priority changes: the plan is paid from the military queue. The structure goes up around the primary base, not on the frontier
 // (findDefensiveLocation): on RTS0's maps a frontier tower lands about 20 tiles from the enemy
 // civic centre, and two Petras then bled each other to near zero population in 12 of 12 seeds.
 void Simulation::petra_build_defenses() {
@@ -17241,6 +17247,8 @@ void Simulation::petra_build_defenses() {
 		return;
 	}
 
+	const bool saving = petra_attack_mgr_.save_resources != 0;
+	if (saving && !can_barter(petra_pid_)) return;
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
 		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
@@ -17271,7 +17279,7 @@ void Simulation::petra_build_defenses() {
 	const int pop = pop_current(petra_pid_);
 	const uint8_t phase = petra_ps().phase;
 
-	if (phase > 2 || (phase == 2 && petra_phasing())) {
+	if (!saving && (phase > 2 || (phase == 2 && petra_phasing()))) {
 		if (can_build(BLD_FORTRESS) &&
 		    (n_fortresses == 0 || now > (1.0f + 0.1f * (float)n_fortresses) * fortress_lapse + d.fortress_start) &&
 		    n_fortresses < n_bases + 1 + extra_fortresses && n_fortresses < pop / 25 && n_fortress_fnd < 2) {
@@ -17439,10 +17447,37 @@ void Simulation::petra_manage_research(float dt) {
 	if (petra_ps().phase >= 2 && home) {
 		const int cap = pop_cap_ > 0 ? pop_cap_ : 200;
 		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_config_.pop_scaling), 30), cap / 2);
+		const bool saving = petra_attack_mgr_.save_resources != 0;
+		const uint8_t civ = petra_ps().civ;
+		auto can_build = [&](uint8_t t) {
+			return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+		};
 		if (!have_building(BLD_MARKET))
 			petra_build_market(home->x, home->z, PETRA_QUEUE_TECH);
-		else if (pop >= pop_for_forge && !have_building(BLD_FORGE))
+		else if (!saving && pop >= pop_for_forge && !have_building(BLD_FORGE))
 			petra_place_generic(BLD_FORGE, PETRA_QUEUE_TECH);
+		// buildTemple (not while saving resources): one temple, after a market, from the city
+		// phase (the town phase in regicide, for healer guards); Rome's is the Temple of Vesta.
+		if (!saving && have_building(BLD_MARKET) && !have_building(BLD_TEMPLE) && !have_building(BLD_TEMPLE_VESTA) &&
+		    (petra_ps().phase >= 3 || victory_condition_ == VICTORY_REGICIDE)) {
+			if (can_build(BLD_TEMPLE_VESTA)) petra_place_generic(BLD_TEMPLE_VESTA, PETRA_QUEUE_TECH);
+			else if (can_build(BLD_TEMPLE)) petra_place_generic(BLD_TEMPLE, PETRA_QUEUE_TECH);
+		}
+		// buildWonder, every 30th AI turn near the population cap: once the stock holds over 70%
+		// of the wonder's cost in one resource and under 30% in at most one.
+		const bool wonder_turn = (int)(petra_timer_ / 6.0f) != (int)((petra_timer_ - dt) / 6.0f); // 30 AI turns
+		if (wonder_turn && (float)pop > 0.9f * (float)pop_max(petra_pid_) &&
+		    !have_building(BLD_WONDER) && can_build(BLD_WONDER)) {
+			const BuildingTypeInfo &w = building_type_info(BLD_WONDER);
+			const float cost[4] = {(float)w.food_cost, (float)w.wood_cost, (float)w.gold_cost, (float)w.stone_cost};
+			const float stock[4] = {petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()};
+			int high = 0, low = 0;
+			for (int r = 0; r < 4; ++r) {
+				if (stock[r] > 0.0f && stock[r] > 0.7f * cost[r]) ++high;
+				else if (stock[r] <= 0.0f || stock[r] < 0.3f * cost[r]) ++low;
+			}
+			if (high > 0 && low <= 1) petra_place_generic(BLD_WONDER, PETRA_QUEUE_TECH);
+		}
 	}
 
 	// checkPhase, then checkPhaseRequirements while phasing. A phase in the majorTech
@@ -20680,7 +20715,7 @@ void Simulation::petra_manage_critical_ent_healers() {
 		++guards;
 	}
 	const auto fewest = std::min_element(heroes.begin(), heroes.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
-	if (fewest->second >= want) return;
+	if (fewest->second >= want || petra_attack_mgr_.save_resources) return;
 	if ((float)guards > std::min((float)pop_max(petra_pid_) / 10.0f, (float)pop_current(petra_pid_) / 4.0f)) return;
 	const uint16_t tmpl = civ_default_template(players_[petra_pid_].civ, UNIT_HEALER);
 	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return;
@@ -20932,7 +20967,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			}
 		}
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70) continue;
+			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
+			    petra_attack_mgr_.save_resources) continue;
 			petra_say(sd.sent_type[p] == 1 ? PETRA_CHAT_ALLY_EXPIRED : PETRA_CHAT_NEUTRAL_EXPIRED, 0.0f, 0.0f, p);
 			sd.sent_type[p] = 0;
 		}
@@ -20940,8 +20976,8 @@ void Simulation::petra_manage_diplomacy(float dt) {
 
 	// tributes(), every 30 s: help allies that are short of a resource we have
 	// plenty of. We give when we are the stronger one, or always under allied
-	// victory, and never a resource our own queues are short of.
-	if (dip.elapsed < dip.next_tribute) return;
+	// victory, and never a resource our own queues are short of; none while saving resources.
+	if (dip.elapsed < dip.next_tribute || petra_attack_mgr_.save_resources) return;
 	dip.next_tribute = dip.elapsed + 30.0f;
 	float available[RES_COUNT];
 	for (uint8_t r = 0; r < RES_COUNT; ++r) available[r] = petra_ps().res[r];
