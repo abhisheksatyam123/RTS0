@@ -90,6 +90,7 @@ CLASSES = [
     # Appended for civ-only technologies (bits 57..62).
     "Javelineer", "Immortal", "Crossbowman", "Mercenary", "SiegeTower", "Minister",
     "IceHouse",  # bit 63 (Subterranean Aqueducts)
+    "Wagon",  # bit 64 (Wagon Trains)
 ]
 assert len(CLASSES) <= 128, "TechClasses is a 128-bit mask"
 

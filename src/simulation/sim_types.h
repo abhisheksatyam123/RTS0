@@ -1406,7 +1406,7 @@ inline TechClasses unit_tech_classes(uint8_t type) {
 		case UNIT_CARNYX: return org | TC_SOLDIER | TC_INFANTRY | TC_MELEE;
 		case UNIT_ARCHER_MAIDEN: return org | TC_SOLDIER | TC_INFANTRY | TC_RANGED | TC_ARCHER | TC_CHAMPION;
 		case UNIT_WORKER_ELEPHANT: return org | TC_WORKER | TC_ELEPHANT;
-		case UNIT_WAGON: return org | TC_CIVILIAN; // Support (Civilian) Wagon
+		case UNIT_WAGON: return org | TC_CIVILIAN | TC_WAGON; // Support (Civilian) Wagon
 		case UNIT_CATAPULT: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_STONETHROWER;
 		case UNIT_BOLT_SHOOTER: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_BOLTSHOOTER;
 		case UNIT_SIEGE_RAM: return TC_UNIT | TC_SIEGE | TC_MELEE | TC_RAM;

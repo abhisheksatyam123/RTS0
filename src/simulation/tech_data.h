@@ -230,6 +230,7 @@ enum TechClass : uint64_t {
 	TC_MINISTER = 1ull << 62,
 	TC_ICEHOUSE = 1ull << 63,
 };
+inline constexpr TechClasses TC_WAGON = tc_bit(64);
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
 struct TechClassExpr { TechClasses need; TechClasses forbid; };

@@ -557,6 +557,8 @@ def rts0_class(name, t, civ):
         return "UNIT_MINISTER"  # units/han/support_minister
     if "Relic" in c:
         return "UNIT_CATAFALQUE"  # template_unit_catafalque (Capture the Relic)
+    if "Wagon" in c:
+        return "UNIT_WAGON"  # template_unit_support_wagon (Germans)
     if "Hero" in c:
         return "UNIT_HERO"
     if "FemaleCitizen" in c:
