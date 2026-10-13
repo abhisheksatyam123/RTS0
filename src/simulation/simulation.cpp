@@ -1515,13 +1515,21 @@ void Simulation::ensure_territory_regions() {
 	territory_region_.resize(W, Hh, 0);
 	territory_region_.fill(0);
 	if (W <= 0 || Hh <= 0) return;
-	// Label 4-connected patches of one owner (region ids from 1; 0 = no territory).
+	// Label 8-connected patches of one owner (CCmpTerritoryManager FLOODFILL; region ids from
+	// 1, 0 = no territory), keeping each region's bordering tiles once each (GetNeighbours).
+	static constexpr int NX[8] = {1, -1, 0, 0, 1, -1, 1, -1};
+	static constexpr int NZ[8] = {0, 0, 1, -1, 1, -1, -1, 1};
 	std::vector<int> stack;
+	std::vector<std::vector<int>> border;
+	Grid<uint16_t> seen; // the region that last listed a tile as its border
+	seen.resize(W, Hh, 0);
+	seen.fill(0);
 	for (int y = 0; y < Hh; ++y) {
 		for (int x = 0; x < W; ++x) {
 			const uint8_t v = territory_grid_.at(x, y);
 			if (v == 0 || territory_region_.at(x, y) != 0) continue;
-			territory_regions_.push_back(TerritoryRegion{(uint8_t)(v - 1), false, {}});
+			territory_regions_.push_back(TerritoryRegion{(uint8_t)(v - 1), false, {}, 0});
+			border.emplace_back();
 			const uint16_t id = (uint16_t)territory_regions_.size();
 			territory_region_.at(x, y) = id;
 			stack.assign(1, y * W + x);
@@ -1529,13 +1537,16 @@ void Simulation::ensure_territory_regions() {
 				const int c = stack.back();
 				stack.pop_back();
 				const int cx = c % W, cy = c / W;
-				const int nx[4] = {cx - 1, cx + 1, cx, cx};
-				const int ny[4] = {cy, cy, cy - 1, cy + 1};
-				for (int k = 0; k < 4; ++k) {
-					if (nx[k] < 0 || ny[k] < 0 || nx[k] >= W || ny[k] >= Hh) continue;
-					if (territory_grid_.at(nx[k], ny[k]) != v || territory_region_.at(nx[k], ny[k]) != 0) continue;
-					territory_region_.at(nx[k], ny[k]) = id;
-					stack.push_back(ny[k] * W + nx[k]);
+				for (int k = 0; k < 8; ++k) {
+					const int nx = cx + NX[k], ny = cy + NZ[k];
+					if (nx < 0 || ny < 0 || nx >= W || ny >= Hh) continue;
+					if (territory_grid_.at(nx, ny) != v) {
+						if (seen.at(nx, ny) != id) { seen.at(nx, ny) = id; border.back().push_back(ny * W + nx); }
+						continue;
+					}
+					if (territory_region_.at(nx, ny) != 0) continue;
+					territory_region_.at(nx, ny) = id;
+					stack.push_back(ny * W + nx);
 				}
 			}
 		}
@@ -1549,23 +1560,29 @@ void Simulation::ensure_territory_regions() {
 		const uint16_t id = territory_region_.at(tx, tz);
 		if (id && territory_regions_[id - 1].owner == b.team) territory_regions_[id - 1].connected = true;
 	}
-	// Bordering tiles of connected foreign regions, for each unconnected region.
-	for (int y = 0; y < Hh; ++y) {
-		for (int x = 0; x < W; ++x) {
-			const uint16_t id = territory_region_.at(x, y);
-			if (!id || territory_regions_[id - 1].connected) continue;
-			TerritoryRegion &r = territory_regions_[id - 1];
-			const int nx[4] = {x - 1, x + 1, x, x};
-			const int ny[4] = {y, y, y - 1, y + 1};
-			for (int k = 0; k < 4; ++k) {
-				if (nx[k] < 0 || ny[k] < 0 || nx[k] >= W || ny[k] >= Hh) continue;
-				const uint16_t n = territory_region_.at(nx[k], ny[k]);
-				if (!n || n == id || !territory_regions_[n - 1].connected) continue;
-				const uint8_t o = territory_regions_[n - 1].owner;
-				if (o != r.owner && o < MAX_PLAYERS) r.neighbours[o]++;
-			}
+	// GetNeighbours(filterConnected) of each unconnected region: its bordering neutral tiles
+	// (Gaia's) and those of connected regions, one count per tile.
+	for (size_t r = 0; r < territory_regions_.size(); ++r) {
+		TerritoryRegion &reg = territory_regions_[r];
+		if (reg.connected) continue;
+		for (int c : border[r]) {
+			const uint16_t n = territory_region_.at(c % W, c / W);
+			if (!n) { ++reg.neutral; continue; }
+			const TerritoryRegion &o = territory_regions_[n - 1];
+			if (o.connected && o.owner < MAX_PLAYERS) reg.neighbours[o.owner]++;
 		}
 	}
+}
+
+bool Simulation::territory_connected_at(float x, float z) const {
+	if (territory_grid_.blank()) return true;
+	const_cast<Simulation *>(this)->ensure_territory_regions();
+	const int W = territory_grid_.w, Hh = territory_grid_.h;
+	if (W <= 0 || Hh <= 0) return true;
+	const int tx = std::clamp((int)((x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
+	const int tz = std::clamp((int)((z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
+	const uint16_t id = territory_region_.at(tx, tz);
+	return !id || territory_regions_[id - 1].connected;
 }
 
 bool Simulation::territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia) {
@@ -1602,20 +1619,18 @@ bool Simulation::territory_decay_targets(float x, float z, uint8_t team, bool ne
 		return true;
 	}
 	if (r.connected) return false;
-	if (gaia || r.owner != b.team) { // unconnected foreign territory: towards Gaia
-		if (gaia) return false;
-		to_gaia = 1.0f;
-		return true;
-	}
-	// Own unconnected territory: safe next to a connected ally, else towards the neighbours.
-	uint32_t total = 0;
+	// Unconnected territory, anyone's: safe next to a connected mutual ally (or the owner's own
+	// connected land), else towards the region's neighbours by bordering tiles, the neutral ones
+	// Gaia's (Capturable.js TimerTick), all to Gaia when it borders nobody.
+	uint32_t total = r.neutral;
 	for (int p = 0; p < MAX_PLAYERS; ++p) {
 		if (!r.neighbours[p]) continue;
-		if (is_ally(b.team, (uint8_t)p)) return false;
+		if (!gaia && is_ally(b.team, (uint8_t)p)) return false;
 		total += r.neighbours[p];
 	}
 	if (!total) { to_gaia = 1.0f; return true; }
 	for (int p = 0; p < MAX_PLAYERS; ++p) to[p] = (float)r.neighbours[p] / (float)total;
+	to_gaia = (float)r.neutral / (float)total;
 	return true;
 }
 
@@ -1987,9 +2002,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		return PLACE_SHORE;
 	}
 
-	// 3. Territory at the centre. Every RTS0 territory cell comes from a root
-	// building, so none is unconnected. Before the first territory pass sizes the
-	// grid (a scenario still being set up) there is nothing to check against.
+	// 3. Territory at the centre: own and allied land cut off from every root ("unconnected",
+	// IsTerritoryBlinking) takes only what may also go on neutral land. Before the first
+	// territory pass sizes the grid (a scenario still being set up) there is nothing to check.
 	if (!territory_grid_.blank()) {
 		const int owner = territory_owner_at(cxw, czw);
 		uint8_t kind;
@@ -1998,6 +2013,8 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		else if (is_ally(player, (uint8_t)owner) && is_ally((uint8_t)owner, player)) kind = TERR_ALLY;
 		else kind = TERR_ENEMY;
 		if (!(rule.territory & kind)) return PLACE_TERRITORY;
+		if ((kind == TERR_OWN || kind == TERR_ALLY) && !(rule.territory & TERR_NEUTRAL) && !territory_connected_at(cxw, czw))
+			return PLACE_TERRITORY;
 	}
 
 	// 4. Distance from the player's own structures (foundations included) of the
