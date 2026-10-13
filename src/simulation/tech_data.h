@@ -601,7 +601,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Krypteia", "Champion Hoplites +10% melee attack damage, but Citizen Infantry Javelineers +30% training time.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 150, 3, "krypteia"},
 		{"Ostracism", "Citizen soldiers +5% health, but Heroes −40% health.", 300, 0, 300, 0, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 153, 2, "ostracism"},
 		{"Parade of Daphne", "Champions −20% training time.", 500, 0, 300, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1000, 155, 1, "parade_of_daphne"},
-		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1000, 0, 800, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 156, 0, "roman_reforms"},
+		{"Marian Reforms", "Convert Infantry to Marian Legionaries, and cavalry to Auxiliaries, and citizen spearmen to conscript infantry. Unlock Onagers and Centurions.", 1000, 0, 800, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 156, 0, "roman_reforms"},
 		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 100, 0, 30.0f, 1, BLD_SYSSITON, TECH_NONE, 0x0002, 156, 1, "tyrtean_paeans"},
 		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 157, 0, "unlock_neodamodes"},
 		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x3fff, 157, 1, "health_regen_units"},
