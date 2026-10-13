@@ -1663,6 +1663,8 @@ struct BuildRestriction {
 	float min_distance; // world units (one tile, 4 m)
 };
 BuildRestriction build_restriction(uint8_t type) {
+	// brit/crannog: a civil centre (200 m from a CivilCentre) laid on the shore, own ally neutral.
+	if (type == BLD_CRANNOG) return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	switch (building_research_base(type)) {
 	case BLD_TOWN_CENTER: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
@@ -25415,11 +25417,11 @@ constexpr uint8_t kSurvivalCivicCentre = 1, kSurvivalTreasureFemale = 2;
 constexpr uint8_t kSurvivalTreasures[] = {TREASURE_FOOD_BARREL, TREASURE_FOOD_BIN, TREASURE_FOOD_CRATE,
 	TREASURE_FOOD_JARS, TREASURE_METAL, TREASURE_STONE, TREASURE_WOOD, TREASURE_WOOD, TREASURE_WOOD};
 // disabledTemplates: economic structures, expansions, walls and shoreline (RTS0 has no
-// rotary mill, crannog or super dock; a stone wallset is its segments, towers and gates, and
-// the Roman siege wallset its BLD_SIEGE_WALL pieces).
+// rotary mill; a stone wallset is its segments, towers and gates, and the Roman siege wallset
+// its BLD_SIEGE_WALL pieces).
 constexpr uint8_t kSurvivalDisabledBuildings[] = {BLD_CORRAL, BLD_FARMSTEAD, BLD_FIELD, BLD_STOREHOUSE,
 	BLD_TOWN_CENTER, BLD_MILITARY_COLONY, BLD_WALL_SEGMENT, BLD_WALL_TOWER, BLD_GATE, BLD_PALISADE,
-	BLD_SIEGE_WALL, BLD_DOCK, BLD_LIGHTHOUSE};
+	BLD_SIEGE_WALL, BLD_DOCK, BLD_LIGHTHOUSE, BLD_SUPER_DOCK, BLD_CRANNOG};
 const char *const kSurvivalDisabledUnits[] = {"maur/support_elephant"};
 // survivalofthefittest.js (0.28) "Forbid placing foundations at the center": an
 // obstructors/placement_24x24 (Obstruction/Static 24 m, BlockFoundation only) every 6 m of the
@@ -27292,10 +27294,11 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			fauna_.hp[f] = 0.0f;
 		}
 	// Structures and resources under water become decorative actors in 0 A.D.:
-	// here they are gone. Docks float with the water.
+	// here they are gone. Docks and the crannog (Position/Floating) float with the water.
 	bool lost_building = false;
 	for (Building &b : buildings_) {
-		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || !submerged(b.x, b.z)) continue;
+		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || b.type == BLD_CRANNOG ||
+				!submerged(b.x, b.z)) continue;
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t u = lookup_unit(uid);
 			if (u < 0) continue;
