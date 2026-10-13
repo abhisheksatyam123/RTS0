@@ -1459,7 +1459,8 @@ static void test_placement_miss_memory_exact() {
 
 // headquarters.js findEconomicCCLocation reads resource density, not single
 // nodes: with 0 A.D.'s 200-wood trees and nothing bigger, Petra still finds a
-// site for a second civic centre and lays out storehouses by its forests.
+// site for a second civic centre and lays out storehouses by its forests. The
+// town phase and 80 more units pass checkBaseExpansion's population threshold.
 static void test_expansion_small_nodes() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -1472,6 +1473,10 @@ static void test_expansion_small_nodes() {
 		if (r.alive[i] && r.amount[i] > 200) r.amount[i] = 200;
 	s->players_[1].phase = 2;
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	for (const auto &b : std::vector<Simulation::Building>(s->buildings()))
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER)
+			for (int k = 0; k < 80; ++k)
+				s->spawn_unit(b.x - 8.0f + (float)(k % 10) * 0.8f, b.z + 8.0f + (float)(k / 10) * 0.8f, 1, UNIT_VILLAGER);
 	const size_t stores_before = std::count_if(s->buildings().begin(), s->buildings().end(),
 		[](const Simulation::Building &b) { return b.team == 1 && b.type == BLD_STOREHOUSE; });
 	int ccs = 0;
