@@ -4034,7 +4034,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 
 void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued, bool force) {
 	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return;
+	if (bit == building_id_to_idx_.end()) { order_repair_unit(unit_ids_in, count_in, building_id, queued, force); return; }
 	const Building &b = buildings_[bit->second];
 	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = building_id; o.x = b.x; o.z = b.z;
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
@@ -8898,6 +8898,29 @@ void Simulation::tick_repair(float dt) {
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
 		}
 	}
+
+	// The same Repair on Repairable units, with the unit's Cost/BuildTime (its training time);
+	// tick_repair_unit stops the repairers once the unit is whole.
+	std::unordered_map<uint32_t, int> repairers_per_unit;
+	auto repairing = [&](size_t i) -> int32_t {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_REPAIR) return -1;
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		return can_repair_unit(i, t) && repair_unit_in_range(i, (size_t)t) ? t : -1;
+	};
+	for (size_t i = 0; i < n; ++i)
+		if (repairing(i) >= 0) repairers_per_unit[units_.target_unit_id[i]]++;
+	for (size_t i = 0; i < n && !repairers_per_unit.empty(); ++i) {
+		const int32_t t = repairing(i);
+		if (t < 0) continue;
+		const uint8_t owner = units_.team[t];
+		const float train = civ_template_unit_info(units_.tmpl[t], units_.unit_type[t]).train_time *
+				(owner < MAX_PLAYERS ? unit_tech_mods(owner, units_.unit_type[t], units_.tmpl[t]).train_time : 1.0f);
+		const float repair_time = unit_repair_time_ratio((size_t)t) * train;
+		const float repair_rate = repair_time > 0.0f ? units_.max_hp[t] / repair_time : 1.0f;
+		const float work = foundation_build_multiplier(repairers_per_unit[units_.id[t]]) * builder_rate(i);
+		enter_repairing(i);
+		units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + work * repair_rate * dt);
+	}
 }
 
 void Simulation::tick_production(float dt) {
@@ -9147,7 +9170,7 @@ void Simulation::tick_combat(float dt) {
 			if (c >= 0 && units_.alive[c] && units_.team[c] == units_.team[i]) return;
 		}
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
-				st == ACTION_FLEE || st == ACTION_GARRISONED)
+				st == ACTION_FLEE || st == ACTION_GARRISONED || st == ACTION_REPAIR)
 			return;
 		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
 			return;
@@ -11651,6 +11674,8 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			return it != res_id_to_idx_.end() && resources_.alive[it->second] && resources_.amount[it->second] > 0;
 		}
 		case ORDER_BUILD: {
+			const int32_t t = lookup_unit(o.target);
+			if (t >= 0) return can_repair_unit(i, t);
 			const Building *b = building(o.target);
 			return b && (b->team == team || is_ally(team, b->team)) && (b->build_progress < 1.0f || b->hp < b->max_hp ||
 					b->type == BLD_FIELD);
@@ -12240,6 +12265,7 @@ void Simulation::tick_unit_ai(float dt) {
 		const uint8_t now = units_.action_state[i];
 		const bool interrupted = (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) != 0;
 		if (now == ACTION_HEAL) { tick_heal(i); continue; }
+		if (now == ACTION_REPAIR) { tick_repair_unit(i); continue; }
 		if (now == ACTION_CHEER) {
 			if (units_.attack_timer[i] <= 0.0f) units_.action_state[i] = ACTION_IDLE;
 			continue;
@@ -12853,6 +12879,90 @@ void Simulation::tick_heal(size_t h) {
 	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp (GetXp, floored).
 	if (units_.max_hp[t] > 0.0f)
 		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] * unit_loot_xp((size_t)t));
+}
+
+// Repairable on units: template_unit_siege and template_unit_ship (RepairTimeRatio 4); fire
+// ships (template_unit_ship_fire) disable it.
+float Simulation::unit_repair_time_ratio(size_t t) const {
+	const uint16_t tmpl = units_.tmpl[t];
+	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(units_.unit_type[t]);
+	if (!(c & (TC_SIEGE | TC_SHIP)) || is_fire_ship(tmpl)) return 0.0f;
+	return UNIT_REPAIR_TIME_RATIO;
+}
+
+bool Simulation::is_repairable_unit(uint32_t unit_id) const {
+	const int32_t t = lookup_unit(unit_id);
+	return t >= 0 && units_.alive[t] && unit_repair_time_ratio((size_t)t) > 0.0f;
+}
+
+// Builder.js CanRepair (a Repairable target of the builder's own or an ally) for a damaged unit
+// (Repairable.Repair does nothing at full health); a garrisoned one is out of reach.
+bool Simulation::can_repair_unit(size_t i, int32_t t) const {
+	if (t < 0 || (size_t)t == i || !units_.alive[t] || units_.hp[t] <= 0.0f || units_.hp[t] >= units_.max_hp[t]) return false;
+	if (units_.action_state[t] == ACTION_GARRISONED || unit_repair_time_ratio((size_t)t) <= 0.0f) return false;
+	if (!unit_can_build(units_.unit_type[i], units_.tmpl[i])) return false;
+	const uint8_t a = units_.team[i], b = units_.team[t];
+	return a == b || is_ally(a, b);
+}
+
+// Builder.js GetRange: 2 m beyond the builder's obstruction, to the target's obstruction.
+bool Simulation::repair_unit_in_range(size_t i, size_t t) const {
+	const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
+	return std::hypot(dx, dz) - unit_collision_radius(units_.unit_type[i]) - unit_collision_radius(units_.unit_type[t]) <= kBuildReach;
+}
+
+void Simulation::order_repair_unit(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued, bool force) {
+	const int32_t t = lookup_unit(target_unit_id);
+	if (t < 0 || !units_.alive[t]) return;
+	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = target_unit_id;
+	o.x = units_.pos_x[t]; o.z = units_.pos_z[t];
+	// Formation controllers repair structures only (FTASK_REPAIR): members go one by one.
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	for (uint32_t uid : now) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !units_.alive[i] || !can_repair_unit((size_t)i, t)) continue;
+		start_repair_unit((size_t)i, target_unit_id, o.flags);
+	}
+}
+
+void Simulation::start_repair_unit(size_t i, uint32_t target, uint8_t flags) {
+	const int32_t t = lookup_unit(target);
+	if (t < 0) return;
+	set_order(i, ORDER_BUILD, flags, target, units_.pos_x[t], units_.pos_z[t]);
+	units_.action_state[i] = ACTION_REPAIR;
+	units_.target_unit_id[i] = target;
+	units_.target_building_id[i] = 0;
+	units_.target_resource_id[i] = 0;
+	units_.target_x[i] = units_.pos_x[t];
+	units_.target_z[i] = units_.pos_z[t];
+	units_.waypoint_count[i] = 0;
+	units_.has_order[i] = 1;
+}
+
+// UnitAI INDIVIDUAL.REPAIR on a unit: follow it until in Builder range, then stand and repair
+// (tick_repair adds the health). A target that is whole, gone or no longer repairable ends the
+// order (ConstructionFinished / TargetInvalidated -> FinishOrder).
+void Simulation::tick_repair_unit(size_t i) {
+	const int32_t t = lookup_unit(units_.target_unit_id[i]);
+	if (!can_repair_unit(i, t)) {
+		units_.target_unit_id[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		auto q = order_queues_.find(units_.id[i]);
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); return; }
+		set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+		return;
+	}
+	units_.order_x[i] = units_.pos_x[t];
+	units_.order_z[i] = units_.pos_z[t];
+	if (!repair_unit_in_range(i, (size_t)t)) { // APPROACHING
+		units_.has_order[i] = 1;
+		units_.target_x[i] = units_.pos_x[t];
+		units_.target_z[i] = units_.pos_z[t];
+		return;
+	}
+	units_.has_order[i] = 0; // REPAIRING
+	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
 // UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
