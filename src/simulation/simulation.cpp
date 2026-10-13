@@ -4900,9 +4900,23 @@ void Simulation::tick_formations(float dt) {
 				continue;
 			}
 			if (fc.patrol_wait < FORMATION_PATROL_WAIT_S) { ++fc.patrol_wait; continue; }
+			fc.patrol_wait = 0;
+			if (!fc.queue.empty()) {
+				// CHECKINGWAYPOINT Timer with more orders queued: this leg goes to the back of
+				// the queue and the next order starts (FinishOrder above), so queued patrol
+				// points loop and other queued orders run in turn.
+				UnitOrder leg;
+				leg.kind = ORDER_PATROL;
+				leg.flags = ORDER_FLAG_FORCE;
+				leg.x = fc.goal_x;
+				leg.z = fc.goal_z;
+				if (fc.queue.size() < 64) fc.queue.push_back(leg);
+				fc.order = FORDER_IDLE;
+				continue;
+			}
+			// Alone in the queue it patrols back to where it started (patrolStartPosOrder).
 			std::swap(fc.goal_x, fc.patrol_x);
 			std::swap(fc.goal_z, fc.patrol_z);
-			fc.patrol_wait = 0;
 			fc.order = FORDER_PATROL;
 			formation_move_members_into(ci, true, true);
 			continue;
