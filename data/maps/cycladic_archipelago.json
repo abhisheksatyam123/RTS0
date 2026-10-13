@@ -4121,349 +4121,349 @@
   ],
   "resources": [
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -63.71,
       "z": -45.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -63.87,
       "z": -43.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -63.42,
       "z": -44.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -62.99,
       "z": -45.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -62.3,
       "z": -44.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -62.16,
       "z": -45.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -56.91,
       "z": -56.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -59.6,
       "z": -54.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -61.65,
       "z": -45.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -61.15,
       "z": -45.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -58.7,
       "z": -55.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -44.95,
       "z": -57.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -45.42,
       "z": -58.35,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -46.65,
       "z": -58.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -48.03,
       "z": -58.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -48.46,
       "z": -58.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -48.81,
       "z": -58.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -48.26,
       "z": -57.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -47.92,
       "z": -57.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -46.34,
       "z": -57.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -46.33,
       "z": -58.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -34.25,
       "z": -41.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -32.42,
       "z": -41.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -34.44,
       "z": -39.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -34.55,
       "z": -38.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -36.0,
       "z": -40.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -35.51,
       "z": -41.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -35.62,
       "z": -42.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -35.67,
       "z": -43.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -34.64,
       "z": -42.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -34.79,
       "z": -41.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -35.28,
       "z": -40.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -33.65,
       "z": -40.43,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -43.51,
       "z": -32.4,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -45.29,
       "z": -31.65,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -47.65,
       "z": -29.07,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -47.82,
       "z": -30.63,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -47.74,
       "z": -32.52,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -46.54,
       "z": -32.54,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -44.91,
       "z": -35.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -44.21,
       "z": -35.54,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -43.89,
       "z": -33.98,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -42.46,
       "z": -34.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -36.78,
       "z": -46.08,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -37.49,
       "z": -47.96,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -37.09,
       "z": -60.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -38.08,
       "z": -60.33,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -38.78,
       "z": -61.52,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -36.31,
       "z": -62.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -30.63,
       "z": -54.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -29.24,
       "z": -44.95,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -41.65,
       "z": -59.54,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -63.51,
       "z": -38.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -64.7,
       "z": -41.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -69.12,
       "z": -32.04,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -73.47,
       "z": -26.24,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -60.58,
       "z": -22.8,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -64.83,
       "z": -43.75,
       "amount": 200
@@ -4589,79 +4589,79 @@
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -52.92,
       "z": -51.92,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -53.6,
       "z": -26.23,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -53.51,
       "z": -26.4,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -53.13,
       "z": -27.85,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -53.21,
       "z": -25.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -45.26,
       "z": -53.86,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -44.57,
       "z": -55.14,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -44.32,
       "z": -53.39,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -49.75,
       "z": -49.08,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -42.07,
       "z": -38.08,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -48.02,
       "z": -34.52,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -49.36,
       "z": -34.22,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -54.72,
       "z": -53.97,
       "amount": 200
@@ -4727,463 +4727,463 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 35.28,
       "z": -5.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 36.2,
       "z": -5.71,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 37.34,
       "z": -6.35,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 37.96,
       "z": -8.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 36.42,
       "z": -8.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 38.78,
       "z": -7.9,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 48.66,
       "z": 5.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 50.22,
       "z": 5.83,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 49.45,
       "z": 2.78,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 50.63,
       "z": 3.15,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 51.12,
       "z": 1.31,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 49.91,
       "z": 1.2,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 36.97,
       "z": 1.14,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 40.9,
       "z": -8.21,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 41.52,
       "z": -9.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 41.52,
       "z": -10.41,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 42.03,
       "z": -11.43,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 39.85,
       "z": -8.9,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 50.19,
       "z": -0.45,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 50.98,
       "z": 0.19,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 52.15,
       "z": 0.82,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 52.18,
       "z": -0.03,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 53.04,
       "z": 1.66,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 53.54,
       "z": 3.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 33.6,
       "z": 19.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 34.42,
       "z": 19.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 36.07,
       "z": 20.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 36.22,
       "z": 19.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 36.69,
       "z": 16.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 36.88,
       "z": 15.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 37.14,
       "z": 18.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 35.91,
       "z": 18.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 34.06,
       "z": 17.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 34.1,
       "z": 15.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 35.45,
       "z": 16.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 35.31,
       "z": 15.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 36.01,
       "z": 15.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 36.75,
       "z": 2.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 36.25,
       "z": -1.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 35.17,
       "z": -3.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 49.79,
       "z": -6.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 52.36,
       "z": -3.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 54.45,
       "z": 2.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 54.64,
       "z": -11.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 55.96,
       "z": -11.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 55.15,
       "z": -12.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 54.47,
       "z": -11.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 56.41,
       "z": -12.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 57.11,
       "z": -12.05,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 55.96,
       "z": -13.62,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 57.1,
       "z": -13.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 39.67,
       "z": -13.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 39.11,
       "z": -14.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 39.1,
       "z": -15.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 39.83,
       "z": -14.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 40.39,
       "z": -13.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 40.32,
       "z": -15.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 33.81,
       "z": -11.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 33.63,
       "z": -13.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 32.45,
       "z": -12.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 34.52,
       "z": -13.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 34.53,
       "z": -11.84,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 35.23,
       "z": -11.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 35.26,
       "z": -12.6,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 31.66,
       "z": 6.47,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 34.75,
       "z": 8.8,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 51.62,
       "z": 9.86,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 53.65,
       "z": 15.13,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 37.25,
       "z": 12.99,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 35.38,
       "z": -14.9,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 36.07,
       "z": -14.32,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 57.41,
       "z": 4.29,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 55.17,
       "z": 5.07,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -38.41,
       "z": -44.88,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -36.86,
       "z": -39.6,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -36.38,
       "z": -35.72,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -36.38,
       "z": -33.36,
       "amount": 200
@@ -5249,289 +5249,289 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -12.78,
       "z": -7.49,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -11.63,
       "z": -8.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -10.67,
       "z": -5.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -10.51,
       "z": -1.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -7.81,
       "z": -0.94,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -7.53,
       "z": -3.86,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 1.97,
       "z": -6.99,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -0.35,
       "z": -2.72,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -0.31,
       "z": -4.49,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -0.66,
       "z": 0.04,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 0.49,
       "z": 0.43,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 0.95,
       "z": -6.3,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -4.43,
       "z": 0.69,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -1.84,
       "z": 1.81,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -13.54,
       "z": -10.06,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -13.7,
       "z": -5.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -11.23,
       "z": -10.35,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -9.73,
       "z": -7.8,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -9.72,
       "z": -7.61,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -8.61,
       "z": -5.45,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -8.89,
       "z": -7.75,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -9.64,
       "z": -9.02,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -11.07,
       "z": -11.41,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -0.16,
       "z": -7.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -1.53,
       "z": -7.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -0.14,
       "z": -8.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -14.9,
       "z": -8.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 2.3,
       "z": 1.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 0.82,
       "z": 2.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 1.82,
       "z": 2.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 2.85,
       "z": 2.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 3.51,
       "z": 2.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 2.07,
       "z": 3.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -8.3,
       "z": 2.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -18.73,
       "z": -9.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -17.46,
       "z": 1.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -22.12,
       "z": -6.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -1.43,
       "z": -8.79,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -10.2,
       "z": -6.8,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -9.42,
       "z": -5.82,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -9.32,
       "z": -4.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -8.93,
       "z": -1.94,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -9.15,
       "z": -1.41,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -7.1,
       "z": 1.14,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -0.84,
       "z": -7.27,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -10.23,
       "z": -8.96,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -10.27,
       "z": -10.42,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -11.77,
       "z": -9.81,
       "amount": 200
@@ -5561,25 +5561,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 4.77,
       "z": -48.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 11.5,
       "z": -45.1,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 9.78,
       "z": -63.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 18.27,
       "z": -57.59,
       "amount": 200
@@ -5609,175 +5609,175 @@
       "amount": 1000
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 50.54,
       "z": -55.81,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 54.2,
       "z": -64.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 46.96,
       "z": -56.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 50.42,
       "z": -58.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 50.33,
       "z": -57.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 51.18,
       "z": -58.91,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 50.75,
       "z": -67.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 47.73,
       "z": -52.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 81.1,
       "z": -18.74,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 82.66,
       "z": -16.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 83.04,
       "z": -17.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 85.7,
       "z": -12.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 86.5,
       "z": -11.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 87.24,
       "z": -9.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 88.3,
       "z": -10.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 94.14,
       "z": -6.9,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 94.14,
       "z": -9.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 93.1,
       "z": -9.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 88.69,
       "z": -1.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 92.64,
       "z": -15.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 92.75,
       "z": -15.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 94.0,
       "z": -13.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 93.74,
       "z": -10.81,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 94.58,
       "z": -9.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 91.38,
       "z": -17.42,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 91.29,
       "z": -16.1,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 91.47,
       "z": -14.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 92.7,
       "z": -13.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 90.86,
       "z": -11.15,
       "amount": 200
@@ -5897,1183 +5897,1183 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -47.23,
       "z": 31.93,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -46.01,
       "z": 30.74,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -45.59,
       "z": 32.96,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -46.71,
       "z": 34.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -45.8,
       "z": 35.73,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -44.81,
       "z": 34.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -44.07,
       "z": 36.28,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -43.29,
       "z": 34.74,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -42.42,
       "z": 36.32,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -42.22,
       "z": 34.31,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -40.96,
       "z": 35.46,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -40.96,
       "z": 33.77,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -44.36,
       "z": 25.93,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -43.83,
       "z": 27.26,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -43.0,
       "z": 26.65,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -42.37,
       "z": 25.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -41.83,
       "z": 27.34,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -40.68,
       "z": 26.46,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -40.61,
       "z": 28.44,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -39.43,
       "z": 27.44,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -43.24,
       "z": 32.1,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -45.09,
       "z": 31.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -25.1,
       "z": 30.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -26.37,
       "z": 32.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -26.13,
       "z": 32.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -25.21,
       "z": 33.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -24.61,
       "z": 31.22,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -24.69,
       "z": 30.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -24.61,
       "z": 28.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -25.12,
       "z": 27.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -25.71,
       "z": 26.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -26.83,
       "z": 26.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -27.01,
       "z": 26.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -26.86,
       "z": 27.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -25.54,
       "z": 28.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -25.49,
       "z": 28.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -26.07,
       "z": 30.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -27.06,
       "z": 31.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -25.99,
       "z": 26.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -27.5,
       "z": 27.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -27.56,
       "z": 25.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -59.63,
       "z": 20.27,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -59.51,
       "z": 19.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -60.91,
       "z": 20.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -60.86,
       "z": 19.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -62.05,
       "z": 19.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -62.41,
       "z": 20.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -61.75,
       "z": 20.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -63.62,
       "z": 20.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -64.22,
       "z": 18.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -62.56,
       "z": 18.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -63.34,
       "z": 19.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -64.77,
       "z": 19.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -65.64,
       "z": 19.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -66.18,
       "z": 18.84,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -65.26,
       "z": 18.27,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -56.18,
       "z": 34.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -57.54,
       "z": 34.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -42.94,
       "z": 22.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -40.48,
       "z": 23.08,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -63.99,
       "z": 27.17,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -28.92,
       "z": 35.85,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -67.7,
       "z": 23.81,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -67.97,
       "z": 22.53,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -66.64,
       "z": 19.42,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -60.53,
       "z": 23.6,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -59.32,
       "z": 22.72,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -58.42,
       "z": 24.97,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -58.17,
       "z": 26.59,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 55.55,
       "z": -64.73,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 54.54,
       "z": -67.95,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 47.4,
       "z": -69.16,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 44.79,
       "z": -71.46,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 45.59,
       "z": -51.27,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 46.82,
       "z": -51.15,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 89.41,
       "z": -21.53,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 90.1,
       "z": -20.25,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 90.49,
       "z": -18.85,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 90.88,
       "z": -17.93,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 90.96,
       "z": -17.12,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 91.35,
       "z": -16.41,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 92.04,
       "z": -17.47,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 91.43,
       "z": -17.99,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 91.16,
       "z": -18.92,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 91.03,
       "z": -19.7,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -20.7,
       "z": 67.38,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -20.11,
       "z": 68.59,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -19.72,
       "z": 68.06,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -19.86,
       "z": 66.94,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -19.24,
       "z": 67.47,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -19.26,
       "z": 68.54,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -19.46,
       "z": 70.03,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -19.62,
       "z": 72.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -13.69,
       "z": 60.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -14.21,
       "z": 60.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -12.31,
       "z": 59.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -12.95,
       "z": 61.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -12.74,
       "z": 62.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -13.01,
       "z": 60.27,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -3.06,
       "z": 56.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -9.01,
       "z": 58.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -9.09,
       "z": 58.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -9.49,
       "z": 57.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 1.34,
       "z": 61.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 0.68,
       "z": 62.11,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 0.23,
       "z": 62.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -0.12,
       "z": 62.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 0.97,
       "z": 62.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 1.63,
       "z": 53.74,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "poplar",
       "x": -11.93,
       "z": 64.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 48.86,
       "z": 69.58,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 44.8,
       "z": 74.37,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 44.68,
       "z": 73.33,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 48.08,
       "z": 70.3,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 45.43,
       "z": 72.1,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 45.99,
       "z": 72.28,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 46.31,
       "z": 70.51,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 47.11,
       "z": 69.08,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 47.8,
       "z": 69.35,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 47.05,
       "z": 71.34,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 26.42,
       "z": 66.35,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 37.45,
       "z": 65.24,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 28.51,
       "z": 65.2,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 35.64,
       "z": 69.27,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 35.41,
       "z": 68.47,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 35.57,
       "z": 67.6,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 37.18,
       "z": 65.95,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 38.04,
       "z": 64.87,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 38.17,
       "z": 64.39,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 38.05,
       "z": 66.06,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 36.54,
       "z": 68.63,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 36.44,
       "z": 67.01,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 29.41,
       "z": 72.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -18.78,
       "z": -88.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -18.18,
       "z": -88.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -20.56,
       "z": -87.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -17.02,
       "z": -87.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -17.47,
       "z": -88.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -16.95,
       "z": -89.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -16.57,
       "z": -88.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -16.08,
       "z": -87.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -19.83,
       "z": -88.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -19.97,
       "z": -86.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -13.06,
       "z": -86.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -15.0,
       "z": -86.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -15.47,
       "z": -88.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -14.88,
       "z": -89.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -19.22,
       "z": -89.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -19.92,
       "z": -88.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -19.44,
       "z": -86.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -19.02,
       "z": -85.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -18.96,
       "z": -84.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -20.81,
       "z": -86.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -14.23,
       "z": -84.78,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -14.22,
       "z": -85.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -14.35,
       "z": -87.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -13.91,
       "z": -88.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 81.74,
       "z": 38.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 77.25,
       "z": 38.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 76.54,
       "z": 37.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 75.63,
       "z": 36.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 77.47,
       "z": 35.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 77.72,
       "z": 34.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 76.84,
       "z": 34.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 76.95,
       "z": 36.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 77.91,
       "z": 38.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 84.78,
       "z": 29.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 80.84,
       "z": 39.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 81.78,
       "z": 40.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 82.54,
       "z": 38.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 83.22,
       "z": 37.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 83.0,
       "z": 35.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 86.7,
       "z": 32.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 77.97,
       "z": 32.91,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 80.27,
       "z": 31.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 79.92,
       "z": 32.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 79.14,
       "z": 32.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 75.76,
       "z": 34.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 76.8,
       "z": 35.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 76.74,
       "z": 33.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 83.47,
       "z": 34.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 86.46,
       "z": 34.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 81.96,
       "z": 32.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 81.76,
       "z": 31.74,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 81.76,
       "z": 31.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 82.93,
       "z": 32.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 83.78,
       "z": 33.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 84.63,
       "z": 34.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 84.88,
       "z": 35.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 83.84,
       "z": 37.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 83.6,
       "z": 39.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 85.47,
       "z": 33.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 85.16,
       "z": 35.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 84.79,
       "z": 37.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 76.65,
       "z": 38.28,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": 5.15,
       "z": -58.86,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "dead",
       "x": 16.94,
       "z": -45.78,
       "amount": 200
@@ -7215,253 +7215,253 @@
       "max_gatherers": 12
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -65.38,
       "z": 65.13,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -64.91,
       "z": 66.32,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -64.37,
       "z": 66.56,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -62.48,
       "z": 66.95,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -61.66,
       "z": 66.99,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -60.18,
       "z": 66.96,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -59.43,
       "z": 67.62,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -58.35,
       "z": 68.34,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -57.82,
       "z": 69.53,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -57.02,
       "z": 70.43,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -54.94,
       "z": 69.16,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -56.43,
       "z": 69.69,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -63.11,
       "z": 66.13,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -61.1,
       "z": 66.07,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -64.35,
       "z": 64.75,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -63.58,
       "z": 65.31,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -57.29,
       "z": 69.04,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -55.93,
       "z": 71.07,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -60.64,
       "z": 68.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -58.78,
       "z": 67.52,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -55.81,
       "z": 69.39,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -55.14,
       "z": 71.4,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -58.79,
       "z": 70.56,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -59.9,
       "z": 69.35,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -63.12,
       "z": 64.62,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -64.13,
       "z": 64.1,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -62.04,
       "z": 65.86,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -54.35,
       "z": 77.11,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -67.11,
       "z": 27.85,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -61.2,
       "z": 28.85,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -66.64,
       "z": 28.74,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -65.01,
       "z": 29.61,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -65.36,
       "z": 28.34,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -64.45,
       "z": 29.57,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -64.52,
       "z": 31.14,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -63.33,
       "z": 29.84,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -63.16,
       "z": 31.6,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -63.61,
       "z": 32.38,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -62.35,
       "z": 31.27,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -61.46,
       "z": 31.97,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -64.3,
       "z": 28.56,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 92.77,
       "z": -5.31,
       "amount": 200
@@ -8307,229 +8307,229 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -114.72,
       "z": -9.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -109.22,
       "z": -6.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -112.85,
       "z": -8.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -108.66,
       "z": -9.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -114.75,
       "z": -2.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -110.7,
       "z": -4.91,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -112.4,
       "z": -6.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -113.1,
       "z": -6.84,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -114.02,
       "z": -8.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -114.98,
       "z": -8.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -112.81,
       "z": -9.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -112.7,
       "z": -7.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -111.74,
       "z": -5.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -111.15,
       "z": -5.66,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -111.6,
       "z": -3.98,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -110.66,
       "z": -3.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -109.9,
       "z": -4.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -110.1,
       "z": -7.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -110.97,
       "z": -8.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -111.09,
       "z": -9.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -111.25,
       "z": -10.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -112.52,
       "z": -11.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -113.31,
       "z": -10.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -113.89,
       "z": -9.74,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -111.88,
       "z": -8.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -108.98,
       "z": -8.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -110.23,
       "z": -9.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -110.48,
       "z": -11.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -110.68,
       "z": -12.11,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -72.43,
       "z": -82.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -109.51,
       "z": -11.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -107.82,
       "z": -9.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -107.56,
       "z": -8.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -108.61,
       "z": -6.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -108.84,
       "z": -4.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -106.97,
       "z": -10.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -107.28,
       "z": -8.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": -107.65,
       "z": -6.68,
       "amount": 200
@@ -9975,85 +9975,85 @@
       "amount": 1000
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -22.12,
       "z": 66.93,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -15.18,
       "z": 69.85,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -20.63,
       "z": 68.05,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -19.97,
       "z": 69.03,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -19.96,
       "z": 71.17,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -16.61,
       "z": 73.44,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -8.41,
       "z": 49.8,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -2.75,
       "z": 49.79,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -2.84,
       "z": 64.02,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -7.45,
       "z": 51.05,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -6.28,
       "z": 50.48,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -5.12,
       "z": 48.3,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -3.73,
       "z": 52.04,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -0.73,
       "z": 63.93,
       "amount": 200
@@ -10125,91 +10125,91 @@
       "amount": 50
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -70.32,
       "z": 67.94,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -70.03,
       "z": 70.36,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -68.35,
       "z": 72.12,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -67.24,
       "z": 72.88,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -68.51,
       "z": 27.08,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -63.54,
       "z": -42.05,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -45.76,
       "z": -59.61,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": -38.89,
       "z": -63.28,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 37.42,
       "z": -13.59,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 40.22,
       "z": 26.36,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 43.35,
       "z": 23.83,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 29.92,
       "z": 10.72,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 31.88,
       "z": 10.3,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 54.43,
       "z": 76.73,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 55.29,
       "z": 75.37,
       "amount": 200
@@ -10677,109 +10677,109 @@
       "amount": 5000
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 51.0,
       "z": -14.98,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 50.62,
       "z": -16.65,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 49.29,
       "z": -15.53,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 49.84,
       "z": -14.01,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 51.77,
       "z": -17.24,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 51.63,
       "z": -15.97,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 52.31,
       "z": -13.21,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 49.34,
       "z": -16.31,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 49.88,
       "z": -17.77,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 50.92,
       "z": -17.62,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 51.28,
       "z": -19.33,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 53.05,
       "z": -15.41,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 49.78,
       "z": -14.02,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 47.59,
       "z": -14.73,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 51.58,
       "z": -12.72,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": 47.84,
       "z": -16.63,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 36.71,
       "z": 4.75,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 37.4,
       "z": 5.36,
       "amount": 200
@@ -10791,283 +10791,283 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 35.82,
       "z": 3.59,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "fan_palm",
       "x": 49.55,
       "z": 16.97,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 37.69,
       "z": 3.56,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 36.46,
       "z": 4.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 38.48,
       "z": 3.59,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 38.43,
       "z": 5.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 39.25,
       "z": 4.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 39.19,
       "z": 3.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 36.36,
       "z": 2.76,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 38.8,
       "z": 2.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 36.05,
       "z": 4.95,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 38.84,
       "z": 4.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 36.54,
       "z": 6.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 37.62,
       "z": 7.21,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 48.71,
       "z": 22.56,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 47.18,
       "z": 21.92,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 46.85,
       "z": 20.91,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 43.86,
       "z": 24.08,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 44.56,
       "z": 22.93,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 46.59,
       "z": 24.35,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 43.87,
       "z": 21.42,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 47.48,
       "z": 21.8,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 45.94,
       "z": 19.2,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 47.18,
       "z": 20.24,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "cypress",
       "x": 48.42,
       "z": 19.1,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 46.58,
       "z": 22.27,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 44.92,
       "z": 24.63,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 45.33,
       "z": 20.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 47.95,
       "z": 19.48,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 48.44,
       "z": 21.27,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 47.51,
       "z": 23.65,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 45.59,
       "z": 22.28,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 48.21,
       "z": 22.84,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.6,
       "z": -28.11,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.05,
       "z": -27.73,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -57.17,
       "z": -29.15,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -57.93,
       "z": -26.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -56.46,
       "z": -25.78,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -56.81,
       "z": -26.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.26,
       "z": -30.5,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.92,
       "z": -24.37,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -58.0,
       "z": -28.66,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.85,
       "z": -30.07,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -54.65,
       "z": -28.97,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.2,
       "z": -26.27,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -53.5,
       "z": -49.51,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -57.22,
       "z": -50.15,
       "amount": 200
@@ -11079,7 +11079,7 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -56.17,
       "z": -47.92,
       "amount": 200
@@ -11091,157 +11091,157 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -56.74,
       "z": -49.15,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -54.96,
       "z": -49.81,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.25,
       "z": -46.44,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -53.47,
       "z": -47.26,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -54.17,
       "z": -48.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -57.62,
       "z": -49.06,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -56.05,
       "z": -51.07,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -55.54,
       "z": -48.28,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": -54.28,
       "z": -51.09,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -39.64,
       "z": -50.15,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -42.28,
       "z": -51.69,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -39.41,
       "z": -48.71,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -39.23,
       "z": -50.76,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -39.94,
       "z": -51.22,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -41.11,
       "z": -51.01,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -38.47,
       "z": -50.21,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -37.55,
       "z": -49.58,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -40.59,
       "z": -49.77,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -40.2,
       "z": -52.16,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -42.31,
       "z": -52.52,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -45.14,
       "z": -52.24,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -38.27,
       "z": -49.2,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -41.74,
       "z": -51.63,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -36.76,
       "z": -48.62,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -40.89,
       "z": -52.49,
       "amount": 200
     },
     {
-      "type": "pine",
+      "type": "aleppo_pine",
       "x": -42.86,
       "z": -52.55,
       "amount": 200
@@ -11775,133 +11775,133 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 27.88,
       "z": 72.79,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 26.85,
       "z": 71.62,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 26.17,
       "z": 70.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 28.24,
       "z": 70.11,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 29.26,
       "z": 71.18,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 30.66,
       "z": 70.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 29.38,
       "z": 70.11,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 29.37,
       "z": 68.79,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 29.15,
       "z": 67.85,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 27.57,
       "z": 67.39,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 27.32,
       "z": 68.55,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 27.12,
       "z": 69.79,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 25.51,
       "z": 68.68,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 26.2,
       "z": 67.28,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 27.82,
       "z": 66.22,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 27.99,
       "z": 71.36,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 30.3,
       "z": 73.7,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 29.21,
       "z": 74.15,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 28.47,
       "z": 74.25,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 27.23,
       "z": 74.28,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 26.44,
       "z": 73.89,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "carob",
       "x": 26.2,
       "z": 73.13,
       "amount": 200

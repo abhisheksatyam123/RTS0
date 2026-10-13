@@ -160,6 +160,36 @@ static void test_petra_sea_trade() {
 	CHECK(ships <= s.petra_target_traders() + 1);
 }
 
+// tradeManager.js updateTrader: a land trader whose land has no route asks for a ship
+// (navalManager.requireTransport) to the nearer end of the best route on another land.
+static void test_petra_trader_transport() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-50.0f, 52.0f, BLD_MARKET, 1);
+	s.spawn_building_world(30.0f, 52.0f, BLD_MARKET, 1);
+	const uint32_t trader = s.spawn_unit(-30.0f, -40.0f, 1, UNIT_TRADER);
+	s.spawn_unit(-30.0f, -10.0f, 1, UNIT_TRIREME);
+	bool planned = false;
+	for (int t = 0; t < 40 && !planned; ++t) {
+		run(s, 1.0f);
+		for (const auto &tp : s.petra_transports_)
+			if (tp.owner == PETRA_TRANSPORT_TRADER && std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), trader) != tp.passenger_ids.end())
+				planned = true;
+	}
+	bool routed = false;
+	for (int t = 0; t < 120 && !routed; ++t) {
+		run(s, 1.0f);
+		routed = s.trader_routes_.count(trader) && s.units_.action_state[s.lookup_unit(trader)] == ACTION_TRADE;
+	}
+	std::printf("Petra trader on the other land: transport %s, trading %s\n", planned ? "yes" : "no", routed ? "yes" : "no");
+	CHECK(planned);
+	CHECK(routed);
+}
+
 static const uint8_t *subtype_of(const Simulation &s, uint32_t rid, int32_t *amount = nullptr) {
 	const auto r = s.resources();
 	for (size_t i = 0; i < r.count; ++i)
@@ -359,6 +389,26 @@ static void test_transport() {
 	const int32_t iar = idx(s, archer);
 	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
 	CHECK(s.units().pos_z[idx(s, ship3)] < 16.0f); // the ship stayed on the water
+	// A full load comes ashore spread out: PickSpawnPoint gives each passenger a spot nobody
+	// stands on, so no two bodies overlap as they land.
+	uint32_t crew[8];
+	for (int k = 0; k < 8; ++k) crew[k] = s.spawn_unit(36.0f + (float)k, 18.0f, 0, UNIT_SPEARMAN);
+	s.order_board_transport(crew, 8, ship3);
+	run(s, 10.0f);
+	CHECK(s.get_transport_passenger_count(ship3) == 8);
+	s.order_disembark_all(ship3);
+	int overlaps = 0, wet = 0;
+	for (int a = 0; a < 8; ++a) {
+		const int32_t ia2 = idx(s, crew[a]);
+		if (s.get_terrain_height(s.units().pos_x[ia2], s.units().pos_z[ia2]) <= 0.15f) ++wet;
+		for (int b = a + 1; b < 8; ++b) {
+			const int32_t ib = idx(s, crew[b]);
+			const float d = std::hypot(s.units().pos_x[ia2] - s.units().pos_x[ib], s.units().pos_z[ia2] - s.units().pos_z[ib]);
+			if (d < 2.0f * unit_collision_radius(UNIT_SPEARMAN) - 1e-3f) ++overlaps;
+		}
+	}
+	std::printf("  8 passengers ashore: %d overlapping pairs, %d in the water\n", overlaps, wet);
+	CHECK(overlaps == 0 && wet == 0);
 	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
 }
 
@@ -886,6 +936,7 @@ int main() {
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
+	test_petra_trader_transport();
 	test_ship_height();
 	test_ship_leaves_shore_house();
 	test_petra_navy();
