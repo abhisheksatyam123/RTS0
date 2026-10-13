@@ -6364,9 +6364,32 @@ void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float dama
 	if (a < 0 || !units_.alive[a]) return;
 	float lost = std::min(damage, std::max(0.0f, units_.hp[victim]));
 	if (!(lost > 0.0f) || !(units_.max_hp[victim] > 0.0f)) return;
-	// Loot.js GetXp floors the modified value.
-	float xp = std::floor(unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]));
-	gain_xp((size_t)a, xp * lost / units_.max_hp[victim]);
+	gain_xp((size_t)a, unit_loot_xp(victim) * lost / units_.max_hp[victim]);
+}
+
+// A no-loot range aura (Pericles' Inspired Defense: Loot replaced by 0) reaches the unit
+// or structure. A garrisoned unit is out of every range aura.
+bool Simulation::loot_denied_unit(size_t i) const {
+	if (!aura_mgr_.has(AURA_NO_LOOT) || units_.action_state[i] == ACTION_GARRISONED) return false;
+	bool denied = false;
+	aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_NO_LOOT, units_.tmpl[i],
+		&unit_combat_at(i).classes, false, [&](const AuraSource &) { denied = true; });
+	return denied;
+}
+
+bool Simulation::loot_denied_building(const Building &b) const {
+	if (!aura_mgr_.has(AURA_NO_LOOT)) return false;
+	bool denied = false;
+	aura_mgr_.for_each_reaching(b.x, b.z, b.team, AURA_NO_LOOT, CIV_UNIT_TEMPLATE_NONE, nullptr, true,
+		[&](const AuraSource &) { denied = true; });
+	return denied;
+}
+
+// Loot.js GetXp: the victim's Loot/xp with its rank's modifiers, floored; 0 under a
+// no-loot aura.
+float Simulation::unit_loot_xp(size_t victim) const {
+	if (loot_denied_unit(victim)) return 0.0f;
+	return std::floor(unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]));
 }
 
 // 0 A.D. Attack.js HandleAttackEffects: loot goes to the attacking entity's Looter, so
@@ -6398,6 +6421,18 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 	res[RES_WOOD] = std::floor(loot.wood * mult);
 	res[RES_STONE] = std::floor(loot.stone * mult);
 	res[RES_GOLD] = std::floor(loot.metal * mult);
+	// Looter/Resource range auras on the looting unit: x multiply + add (Looter.js Collect).
+	if (const int32_t u = looter_id ? lookup_unit(looter_id) : -1;
+			u >= 0 && aura_mgr_.has(AURA_LOOTER) && units_.action_state[u] != ACTION_GARRISONED) {
+		static constexpr int kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD}; // the table's order
+		float mul[4] = {1.0f, 1.0f, 1.0f, 1.0f}, add[4] = {};
+		aura_mgr_.for_each_reaching(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_LOOTER, units_.tmpl[u],
+			&unit_combat_at((size_t)u).classes, false, [&](const AuraSource &s) {
+				const LooterRangeAura &a = looter_range_auras()[(size_t)s.value];
+				for (int r = 0; r < 4; ++r) { mul[r] *= a.multiply[r]; add[r] += a.add[r]; }
+			});
+		for (int r = 0; r < 4; ++r) res[kRes[r]] = res[kRes[r]] * mul[r] + add[r];
+	}
 	if (infantry && civ_of(looter_player) == CIV_BRITONS)
 		for (float &r : res) r += 1.0f;
 	for (int r = 0; r < RES_COUNT; ++r) res[r] += tech_mods(looter_player).loot_add[r]; // Looter/Resource modifiers
@@ -6414,12 +6449,12 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 
 void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim) {
 	if (victim >= units_.count) return;
-	collect_loot(looter_id, looter_player, unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
+	collect_loot(looter_id, looter_player, loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
 			loot_rank_multiplier(units_.rank[victim]), units_.res_type_carried[victim], units_.carry[victim]);
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
-	LootInfo loot = building_loot(b.type);
+	LootInfo loot = loot_denied_building(b) ? LootInfo{} : building_loot(b.type);
 	loot.wood *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_LOOT_WOOD, b.type); // ptol_structures, sele_farms
 	collect_loot(looter_id, looter_player, loot, 1.0f, RES_COUNT, 0);
 }
@@ -12806,8 +12841,7 @@ void Simulation::tick_heal(size_t h) {
 	units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + heal_amount_of(h));
 	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp (GetXp, floored).
 	if (units_.max_hp[t] > 0.0f)
-		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] *
-				std::floor(unit_loot(units_.tmpl[t], units_.unit_type[t]).xp * loot_rank_multiplier(units_.rank[t])));
+		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] * unit_loot_xp((size_t)t));
 }
 
 // UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
@@ -23135,6 +23169,15 @@ void Simulation::rebuild_auras() {
 					if (c.multiply != 1.0f) aura_mgr_.register_source(id, AURA_CAPTURE_MUL, r, c.multiply, pl, x, z, a);
 					if (c.add != 0.0f) aura_mgr_.register_source(id, AURA_CAPTURE_ADD, r, c.add, pl, x, z, a);
 				}
+				// Range auras on Looter/Resource (Brennus, Nastasen, Viriato) and on Loot (Pericles).
+				for (uint16_t k = 0; k < LOOTER_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, looter_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_LOOTER, looter_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
+							(float)k, aura_affected_players(team, looter_range_auras()[k].players), x, z, a);
+				for (uint16_t k = 0; k < NO_LOOT_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, no_loot_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
+							0.0f, aura_affected_players(team, no_loot_range_auras()[k].players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
 				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
