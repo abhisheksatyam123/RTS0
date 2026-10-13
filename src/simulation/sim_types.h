@@ -177,7 +177,10 @@ enum MapType : uint8_t {
 	MAP_RIVER_ARCHIPELAGO = 87,
 	MAP_LAND_GRAB = 88,
 	MAP_THE_NILE = 89,
-	MAP_TYPE_COUNT = 90
+	MAP_CONTINENT = 90,
+	MAP_FOOTHILLS = 91,
+	MAP_COAST_RANGE = 92,
+	MAP_TYPE_COUNT = 93
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -215,10 +218,12 @@ inline uint8_t map_team_placements(uint8_t type) {
 			return C | R | L | G | S;
 		case MAP_ARDENNES_FOREST: return C | R | L | G;
 		case MAP_CANTABRIAN_HIGHLANDS: return C | S;
+		case MAP_COAST_RANGE: return C | R | S;
 		case MAP_EXTINCT_VOLCANO: return C | R | G;
-		case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
+		case MAP_CONTINENT: case MAP_INDIA: case MAP_MIGRATION: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS:
+			return C | R | S;
 		case MAP_LAKE: case MAP_NEARESTERN_BADLANDS: return C | R;
-		case MAP_SYRIA: return C | R | G | S;
+		case MAP_FOOTHILLS: case MAP_SYRIA: return C | R | G | S;
 		default: return 0;
 	}
 }
@@ -315,7 +320,10 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
 		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."},
 		{MAP_LAND_GRAB, "land_grab", "Land Grab (RMS)", "temperate", true, "Players start in small islands in the eastern part of the map. There is a big continent in the west ready for expansion."},
-		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."}
+		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."},
+		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
+		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
+		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
