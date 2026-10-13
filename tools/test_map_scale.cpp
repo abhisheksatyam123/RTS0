@@ -35,6 +35,7 @@
 #include "simulation/script_terrains.h"
 
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <set>
@@ -447,6 +448,17 @@ int main() {
 		CHECK(under_water > 0 && water_ok == under_water, "size %d: %d of %d tiles under water painted %s", size, water_ok, under_water, tb.water);
 		CHECK(forest > 0 && forest_ok >= forest * 9 / 10, "size %d: %d of %d trees stand on forest floor", size, forest_ok, forest);
 		CHECK(roads == 2, "size %d: %d civic centres on the road terrain", size, roads);
+		// Names in rmgen paint order (the renderer's blend priority): main terrain under
+		// water, roads, cliffs and forests.
+		auto index_of = [&](const char *n) {
+			const auto it = n ? std::find(t.names.begin(), t.names.end(), std::string(n)) : t.names.end();
+			return it == t.names.end() ? -1 : (int)(it - t.names.begin());
+		};
+		const int main_i = index_of(tb.main[0]);
+		bool ordered = main_i >= 0;
+		for (const char *n : {tb.water, tb.road, tb.cliff[0], tb.forest[0]})
+			if (index_of(n) >= 0 && n && std::strcmp(n, tb.main[0]) != 0) ordered = ordered && index_of(n) > main_i;
+		CHECK(ordered, "size %d: the main terrain has the lowest blend priority", size);
 		Simulation again;
 		again.generate_random_map(MAP_RANDOM_ARCHIPELAGO, 12, 2, size * 0.5f);
 		CHECK(again.terrain_tiles().tiles == t.tiles && again.terrain_tiles().names == t.names, "size %d: terrain differs for one seed", size);
