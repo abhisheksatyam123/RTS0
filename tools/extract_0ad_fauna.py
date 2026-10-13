@@ -208,6 +208,16 @@ def ruins_rows(loader):
     return rows
 
 
+# Scenery types are saved by index (Simulation::scenery_, save v29), so the ones RTS0 shipped
+# keep their place and templates new in a later 0 A.D. release go after them.
+SCENERY_ORDER = [
+    "bench", "column_doric", "column_doric_fallen", "column_doric_fallen_b", "fence_long",
+    "fence_rock_long", "fence_rock_medium", "fence_rock_short", "fence_rock_stub", "fence_short",
+    "fence_stone", "fence_stone_long", "fence_stone_medium", "fence_stone_short", "fence_stone_stub",
+    "obelisk", "sele_colonnade", "table_rectangle", "table_square",
+]
+
+
 def scenery_rows(loader):
     rows = []
     for p in sorted(glob.glob(os.path.join(loader.root, "structures", "*.xml"))):
@@ -229,9 +239,10 @@ def scenery_rows(loader):
             "height": t.num("Footprint/Height", 4.0),
             "loot": [amounts.get(k, 0) for k in ("food", "wood", "stone", "metal")],
             "capture": 0 if cap is None or "disable" in cap.attrs else int(cap.num("CapturePoints")),
-            "wooden": amounts.get("wood", 0) > 0 or stem in ("bench", "fence_long", "fence_short"),
+            "wooden": amounts.get("wood", 0) > 0 or stem in ("bench", "fence_long", "fence_short") or stem.startswith("fence_wicker"),
         })
-    return rows
+    rank = {n: i for i, n in enumerate(SCENERY_ORDER)}
+    return sorted(rows, key=lambda r: (rank.get(r["stem"], len(SCENERY_ORDER)), r["stem"]))
 
 
 def footprint_radius(t):
