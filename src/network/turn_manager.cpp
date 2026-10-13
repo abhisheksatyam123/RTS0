@@ -572,17 +572,17 @@ bool TurnManager::apply_pending_rejoin(Simulation &sim) {
 	return true;
 }
 
-void TurnManager::assign_slot_players(const GameSetupParams &setup) {
-	// 0 A.D. gamesetup: observers take no slot, a client the host assigned a human
-	// slot takes it, and the rest take the free human slots in slot order.
-	client_player_.clear();
+// 0 A.D. gamesetup: observers take no slot, a client the host assigned a human
+// slot takes it, and the rest take the free human slots in slot order.
+void TurnManager::seat_clients(const GameSetupParams &setup, uint8_t out[8]) {
 	bool taken[8] = {};
 	bool seated[8] = {};
 	for (uint32_t client = 0; client < 8; ++client) {
 		const uint8_t slot = setup.seats[client];
-		if ((setup.observers >> client) & 1) { client_player_[client] = 0xFF; seated[client] = true; }
+		out[client] = 0xFF;
+		if ((setup.observers >> client) & 1) seated[client] = true;
 		else if (slot < setup.slot_count && slot < 8 && setup.slot_types[slot] == 'h' && !taken[slot]) {
-			client_player_[client] = slot;
+			out[client] = slot;
 			taken[slot] = seated[client] = true;
 		}
 	}
@@ -590,9 +590,15 @@ void TurnManager::assign_slot_players(const GameSetupParams &setup) {
 	for (uint32_t client = 0; client < 8; ++client) {
 		if (seated[client]) continue;
 		while (slot < setup.slot_count && slot < 8 && (setup.slot_types[slot] != 'h' || taken[slot])) ++slot;
-		if (slot < setup.slot_count && slot < 8) { client_player_[client] = slot; taken[slot] = true; }
-		else client_player_[client] = 0xFF;
+		if (slot < setup.slot_count && slot < 8) { out[client] = slot; taken[slot] = true; }
 	}
+}
+
+void TurnManager::assign_slot_players(const GameSetupParams &setup) {
+	uint8_t seats[8];
+	seat_clients(setup, seats);
+	client_player_.clear();
+	for (uint32_t client = 0; client < 8; ++client) client_player_[client] = seats[client];
 }
 
 void TurnManager::reset() {

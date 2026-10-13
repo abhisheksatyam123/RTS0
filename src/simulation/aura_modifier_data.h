@@ -7,6 +7,9 @@
 
 constexpr int RELIC_AURA_MAX_ALTS = 5;
 
+// Global auras whose modifications are player modifiers (Simulation::compute_tech_mods):
+// Capture the Relic catafalques while a relic is owned, and heroes' cost and research
+// auras while the hero lives.
 // One modification of a global relic aura: an entity matches when its classes
 // match any alternative (none = every entity of the affected players).
 struct RelicAuraModifier {
@@ -24,10 +27,10 @@ struct RelicGlobalAura {
 	uint16_t mod_count;
 };
 
-constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 24;
+constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 32;
 
 inline const RelicAuraModifier *relic_aura_modifiers() {
-	static const RelicAuraModifier kMods[68] = {
+	static const RelicAuraModifier kMods[102] = {
 		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
@@ -96,6 +99,40 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // han_catafalque_2
 		{TSTAT_TECH_COST_METAL, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // han_catafalque_2
 		{TSTAT_RESEARCH_TIME, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // han_catafalque_2
+		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
+		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
+		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
+		{TSTAT_TECH_COST_METAL, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
+		{TSTAT_RESEARCH_TIME, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
+		{TSTAT_BUILD_TIME, TOP_MUL, 0.5f, 1, {{TC_SHIP, 0}}}, // athen_hero_themistocles_1
+		{TSTAT_COST_METAL, TOP_MUL, 0.5f, 1, {{TC_SHIP, 0}}}, // athen_hero_themistocles_1
+		{TSTAT_BUILD_TIME, TOP_MUL, 0.8f, 1, {{TC_WALL, 0}}}, // athen_hero_themistocles_2
+		{TSTAT_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_WALL, 0}}}, // athen_hero_themistocles_2
+		{TSTAT_COST_WOOD, TOP_MUL, 0.5f, 1, {{TC_WALL, 0}}}, // athen_hero_themistocles_2
+		{TSTAT_BUILD_TIME, TOP_MUL, 0.8f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_COST_FOOD, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_COST_WOOD, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_COST_STONE, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_COST_METAL, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_BUILD_TIME, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_COST_WOOD, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_TECH_COST_METAL, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_RESEARCH_TIME, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
+		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.8f, 1, {{TC_STRUCTURE, 0}}}, // maur_hero_chanakya_1
+		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.8f, 1, {{TC_STRUCTURE, 0}}}, // maur_hero_chanakya_1
+		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.8f, 1, {{TC_STRUCTURE, 0}}}, // maur_hero_chanakya_1
+		{TSTAT_TECH_COST_METAL, TOP_MUL, 0.8f, 1, {{TC_STRUCTURE, 0}}}, // maur_hero_chanakya_1
+		{TSTAT_RESEARCH_TIME, TOP_MUL, 0.7f, 1, {{TC_STRUCTURE, 0}}}, // maur_hero_chanakya_1
+		{TSTAT_COST_FOOD, TOP_MUL, 0.65f, 1, {{TC_MERCENARY, 0}}}, // ptol_hero_ptolemy_i_2
+		{TSTAT_COST_WOOD, TOP_MUL, 0.65f, 1, {{TC_MERCENARY, 0}}}, // ptol_hero_ptolemy_i_2
+		{TSTAT_COST_STONE, TOP_MUL, 0.65f, 1, {{TC_MERCENARY, 0}}}, // ptol_hero_ptolemy_i_2
+		{TSTAT_COST_METAL, TOP_MUL, 0.65f, 1, {{TC_MERCENARY, 0}}}, // ptol_hero_ptolemy_i_2
+		{TSTAT_BUILD_TIME, TOP_MUL, 0.75f, 1, {{TC_SOLDIER, 0}}}, // spart_hero_agis_1
+		{TSTAT_COST_METAL, TOP_MUL, 0.75f, 1, {{TC_SOLDIER, 0}}}, // spart_hero_agis_1
 	};
 	return kMods;
 }
@@ -126,6 +163,14 @@ inline const RelicGlobalAura *relic_global_auras() {
 		{"sele_catafalque_3", 1, 58, 4},
 		{"han_catafalque_1", 1, 62, 1},
 		{"han_catafalque_2", 1, 63, 5},
+		{"athen_hero_pericles_2", 1, 68, 5},
+		{"athen_hero_themistocles_1", 1, 73, 2},
+		{"athen_hero_themistocles_2", 1, 75, 3},
+		{"iber_hero_indibil", 1, 78, 5},
+		{"maur_hero_ashoka", 1, 83, 8},
+		{"maur_hero_chanakya_1", 1, 91, 5},
+		{"ptol_hero_ptolemy_i_2", 1, 96, 4},
+		{"spart_hero_agis_1", 1, 100, 2},
 	};
 	return kAuras;
 }
@@ -210,6 +255,19 @@ constexpr uint16_t CAPTURE_STRUCTURE_AURA_COUNT = 1;
 inline const CaptureStructureAura *capture_structure_auras() {
 	static const CaptureStructureAura kAuras[1] = {
 		{BLD_TEMPLE_VESTA, 0}, // structures/rome/temple_vesta
+	};
+	return kAuras;
+}
+
+// Range auras multiplying Builder/Rate (AURA_BUILD sources). A stackable one
+// applies once per source (Auras.js "stackable"), the others once however many reach.
+struct BuilderRateRangeAura { const char *id; float multiply; bool stackable; };
+constexpr uint16_t BUILDER_RATE_RANGE_AURA_COUNT = 3;
+inline const BuilderRateRangeAura *builder_rate_range_auras() {
+	static const BuilderRateRangeAura kAuras[3] = {
+		{"han_minister_building", 1.02f, true},
+		{"pers_hero_xerxes_i", 1.15f, false},
+		{"ptol_hero_ptolemy_i_1", 1.1f, false},
 	};
 	return kAuras;
 }
