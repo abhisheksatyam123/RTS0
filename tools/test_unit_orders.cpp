@@ -2159,7 +2159,7 @@ static void test_nastasen_warships() {
 }
 
 static void test_arakamani_temples() {
-	std::printf("60. Arakamani's Follower of Apedemak: the Kushite temple and Apedemak guard -30%% cost and time\n");
+	std::printf("61. Arakamani's Follower of Apedemak: the Kushite temple and Apedemak guard -30%% cost and time\n");
 	auto near1 = [](float a, float b) { return std::fabs(a - b) < 1e-5f; };
 	Simulation s;
 	setup(s);
@@ -2242,6 +2242,25 @@ static void test_attack_preference_switch() {
 	check(hit2 && !switched2, "a house it was ordered to attack keeps it busy");
 }
 
+static void test_healer_attack_order() {
+	std::printf("60. a healer told to attack walks into heal range of the target (0.28 WalkToTargetRange)\n");
+	Simulation s;
+	setup(s);
+	uint32_t h = s.spawn_unit(-20, 0, 0, UNIT_HEALER);
+	const uint32_t e = post(s, 10, 0, UNIT_SPEARMAN, 5000.0f);
+	s.order_attack(&h, 1, e);
+	check(s.unit_order(h).kind == ORDER_WALK && (s.unit_order(h).flags & ORDER_FLAG_FORCE), "it takes a forced walk");
+	const float range = s.healer_range_of(s.lookup_unit(h));
+	run(s, 20.0f);
+	const float d = dist(s, h, 10, 0);
+	check(d <= range && d > 0.5f * range, "and stops in heal range, short of the enemy");
+	// One already in range stays where it is.
+	const float hx = s.units().pos_x[s.lookup_unit(h)];
+	s.order_attack(&h, 1, e);
+	run(s, 2.0f);
+	check(std::fabs(s.units().pos_x[s.lookup_unit(h)] - hx) < 0.5f, "one already in range stays put");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2304,6 +2323,7 @@ int main(int argc, char **argv) {
 	test_nastasen_warships();
 	test_gather_rate_auras();
 	test_attack_preference_switch();
+	test_healer_attack_order();
 	test_arakamani_temples();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
