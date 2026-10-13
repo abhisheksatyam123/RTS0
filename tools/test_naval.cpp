@@ -754,14 +754,62 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
-// DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
-// deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
-// Other ships and structures deal nothing when they die.
+// DeathDamage.js: a fire ship ignited (Upgrade/Ignition to ship_fire_fire, mixins/fireship.xml)
+// burns down at RegenRate -5 and, dying, deals 500 Fire over 20 m to everyone, its own side
+// too, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
+// structures deal nothing when they die.
+// TreasureCollector (0.28 template_unit_ship): ships collect treasures within 12 m, a shipwreck
+// out at sea and one on the shore alike; warships too, rams and siege engines on land not.
+static void test_ship_treasure() {
+	static Simulation s;
+	fresh(s);
+	const uint32_t merchant = s.spawn_unit(-30.0f, 0.0f, 0, UNIT_MERCHANT_SHIP);
+	const uint32_t war = s.spawn_unit(-30.0f, 6.0f, 0, UNIT_TRIREME);
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	const uint32_t shore = s.spawn_treasure(10.0f, 19.0f, TREASURE_SHIPWRECK_DEBRIS); // on land past the water's edge
+	const uint32_t ram = s.spawn_unit(10.0f, 30.0f, 0, UNIT_SIEGE_RAM);
+	s.order_collect_treasure(&ram, 1, shore);
+	CHECK(s.unit_order(ram).kind != ORDER_COLLECT_TREASURE);
+	s.order_collect_treasure(&war, 1, wreck);
+	CHECK(s.unit_order(war).kind == ORDER_COLLECT_TREASURE);
+	s.cmd_stop(&war, 1);
+	const float wood0 = s.player(0).wood(), food0 = s.player(0).food();
+	s.order_collect_treasure(&merchant, 1, wreck);
+	CHECK(s.unit_order(merchant).kind == ORDER_COLLECT_TREASURE);
+	run(s, 30.0f);
+	std::printf("merchant ship treasure: wood %+.0f\n", s.player(0).wood() - wood0);
+	CHECK(s.player(0).wood() - wood0 == 500.0f);
+	s.order_collect_treasure(&merchant, 1, shore);
+	run(s, 40.0f);
+	std::printf("merchant ship shore treasure: food %+.0f\n", s.player(0).food() - food0);
+	CHECK(s.player(0).food() - food0 == 200.0f);
+	CHECK(s.treasures().empty());
+}
+
 static void test_fire_ship() {
 	static Simulation s;
 	fresh(s);
 	s.set_victory_condition(VICTORY_ENDLESS);
+	{
+		const uint32_t cold = s.spawn_unit(0.0f, 30.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+		const uint32_t near = s.spawn_unit(3.0f, 30.0f, 1, UNIT_TRIREME);
+		uint32_t both[2] = {cold, near};
+		s.order_set_stance(both, 1, STANCE_PASSIVE);
+		s.order_set_stance(&both[1], 1, STANCE_PASSIVE);
+		const float c0 = s.units().hp[idx(s, cold)], n0 = s.units().hp[idx(s, near)];
+		run(s, 10.0f);
+		CHECK(s.units().hp[idx(s, cold)] == c0); // not burning before ignition
+		s.set_unit_hp(cold, 1.0f);
+		s.cmd_delete(0, &cold, 1);
+		run(s, 1.0f);
+		CHECK(s.units().hp[idx(s, near)] == n0); // no blast either
+		s.cmd_delete(1, &near, 1);
+		run(s, 1.0f);
+	}
 	const uint32_t fire = s.spawn_unit(0.0f, 12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	CHECK(s.cmd_upgrade_units(0, &fire, 1, tmpl_of("brit/ship_fire_fire"))); // Ignition
+	run(s, 0.1f);
+	CHECK(s.units().tmpl[idx(s, fire)] == tmpl_of("brit/ship_fire_fire"));
 	const uint32_t enemy = s.spawn_unit(3.0f, 12.0f, 1, UNIT_TRIREME);
 	const uint32_t own = s.spawn_unit(-3.5f, 12.0f, 0, UNIT_TRIREME);
 	const uint32_t far_enemy = s.spawn_unit(16.0f, 12.0f, 1, UNIT_TRIREME);
@@ -947,6 +995,7 @@ int main() {
 	test_petra_concurrent_transports();
 	test_petra_transport_ship_lost();
 	test_petra_cothon();
+	test_ship_treasure();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
