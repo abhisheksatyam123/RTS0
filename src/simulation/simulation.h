@@ -1506,6 +1506,18 @@ public:
 		uint8_t pad[3];
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
+	// The scenery_ index of entity `id`, or -1.
+	int32_t scenery_index(uint32_t id) const {
+		for (size_t k = 0; k < scenery_.size(); ++k) if (scenery_[k].id == id) return (int32_t)k;
+		return -1;
+	}
+	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
+	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
+	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	float unit_damage_to_scenery(size_t i) const;
+	void tick_scenery_attackers();
+	void destroy_scenery(size_t k, int32_t killer);
 	// The grain supply of a finished field (0 if none): a Gaia field is farmed through it.
 	uint32_t field_resource_id(uint32_t building_id) const {
 		auto it = field_res_by_bld_.find(building_id);
@@ -1518,6 +1530,15 @@ public:
 	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
 	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
 	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
+	// An "uncapturable|" template (elephantine.js's Kushite towers): no capture points at all.
+	void set_structure_uncapturable(uint32_t building_id) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		Building &b = buildings_[it->second];
+		b.max_capture_points = 0.0f;
+		b.capture_points = 0.0f;
+		b.capture_points_by_team.fill(0.0f);
+	}
 	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
@@ -2098,6 +2119,8 @@ private:
 	void trigger_flood_rise_step(float final_level);
 	void trigger_volcano_rise_step();
 	void trigger_volcano_garrison_towers();
+	void trigger_elephantine_init();
+	void random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts);
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
