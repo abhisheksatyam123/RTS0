@@ -202,8 +202,8 @@ struct TriggerState {
 	// cmpPlayer.SetDisabledTechnologies, per player: a 256-bit set of tech ids.
 	uint64_t disabled_techs[8][4] = {};
 	std::vector<TriggerAttackOrder> attack_orders;
-	// cmpPlayer.SetDisabledTemplates: structures (bit per BuildingType below 64; saved, so
-	// ids 64 and up need a save bump to widen) and unit roster
+	// cmpPlayer.SetDisabledTemplates: structures (bld_bit per BuildingType, save v63
+	// widened it past 64 ids) and unit roster
 	// templates each player may not build or train.
 	BldMask disabled_buildings[8] = {}; // per player, bld_bit() of each BuildingType it cannot build
 	std::vector<uint16_t> disabled_templates; // for every player (the ported scripts disable the same ones for all)
