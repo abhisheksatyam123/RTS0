@@ -3692,6 +3692,147 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 			sim.add_trigger_point('A', x, z);
 			points.push_back({x, z});
 		}
+	} else if (config.map_type == MAP_ELEPHANTINE) {
+		place_elephantine_entities(sim, hm, water_h, spawns, rng);
+	}
+}
+
+void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng) {
+	// elephantine.js: the island between the banks (clIsland, the river band 0.27 of the map
+	// wide at the edges and 0.35 at the centre, turned by riverAngle) holds a Gaia temple (a
+	// wonder from 320 tiles), a large pyramid, Kushite towers near them, treasures in their
+	// city patches, a Kushite hero and soldiers; elephantine_triggers.js garrisons the towers
+	// and temples. Left out: the statues and city-patch paths (actors and terrain only).
+	const float half = hm.map_half, size = 2.0f * half;
+	auto scale_f = [&](float lo, float hi) { return lo + (hi - lo) * std::max(0.0f, size - 128.0f) / 384.0f; };
+	const float angle = 0.22f * 3.14159265f, c = std::cos(angle), sn = std::sin(angle);
+	// synth_elephantine's frame: x across the river, z along it (rmgen's z mirrored).
+	auto across = [&](float x, float z) { return x * c + z * sn; };
+	auto along = [&](float x, float z) { return x * sn - z * c; };
+	auto band = [&](float x, float z) {
+		const float t = std::min(1.0f, std::fabs(along(x, z)) / half);
+		return (0.35f + (0.27f - 0.35f) * t) * size * 0.5f;
+	};
+	auto land = [&](float x, float z) { return std::fabs(across(x, z)) <= band(x, z) && hm.sample_world(x, z) > water_h + 0.25f; };
+	// stayClasses(clIsland, d): the island all round, d tiles in.
+	auto inside = [&](float x, float z, float d) {
+		if (!land(x, z) || std::fabs(across(x, z)) > band(x, z) - d) return false;
+		for (int k = 0; k < 8; ++k) {
+			const float a = 0.7853982f * (float)k;
+			for (float r : {d * 0.5f, d})
+				if (!land(x + std::cos(a) * r, z + std::sin(a) * r)) return false;
+		}
+		return true;
+	};
+	auto far_from_players = [&](float x, float z, float d) {
+		for (const auto &sp : spawns)
+			if (std::hypot(x - sp.x, z - sp.z) < d) return false;
+		return true;
+	};
+	auto random_island_spot = [&](float &x, float &z) {
+		const float t = rng.range_float(-half * 0.95f, half * 0.95f), w = rng.range_float(-0.175f * size, 0.175f * size);
+		x = w * c + t * sn;
+		z = w * sn - t * c;
+	};
+	struct Placed { float x, z, r; };
+	std::vector<Placed> temples, towers, units;
+	auto clear_of = [](const std::vector<Placed> &v, float x, float z, float d) {
+		for (const Placed &p : v)
+			if (std::hypot(x - p.x, z - p.z) < d + p.r) return false;
+		return true;
+	};
+	// Distance from the nearest temple-class footprint (NearTileClassConstraint(clTemple, d)).
+	auto near_temple = [&](float x, float z, float d) {
+		for (const Placed &p : temples)
+			if (std::hypot(x - p.x, z - p.z) <= d + p.r) return true;
+		return false;
+	};
+	auto spawn = [&](float x, float z, uint8_t type, std::vector<Placed> &into) {
+		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
+		if (!id) return 0u;
+		for (const auto &b : sim.buildings())
+			if (b.id == id) { into.push_back({b.x, b.z, b.half_size}); break; }
+		return id;
+	};
+	const float stay = scale_f(10.0f, 20.0f);
+	// "Creating temple": a wonder on 320-tile maps and larger, else one of the two temples.
+	const uint8_t temple = size >= 320.0f ? BLD_WONDER : (rng.next_float() < 0.5f ? BLD_TEMPLE_AMUN : BLD_TEMPLE);
+	for (int tries = 0; tries < 200 && temples.empty(); ++tries) {
+		float x, z;
+		random_island_spot(x, z);
+		if (inside(x, z, stay) && far_from_players(x, z, 40.0f)) spawn(x, z, temple, temples);
+	}
+	// "Creating pyramid": scaleByMapSize(20, 50) from the temple.
+	const float apart = scale_f(20.0f, 50.0f);
+	for (int tries = 0, placed = 0; tries < 200 && !placed; ++tries) {
+		float x, z;
+		random_island_spot(x, z);
+		if (!inside(x, z, stay) || !clear_of(temples, x, z, apart) || !far_from_players(x, z, 40.0f)) continue;
+		placed = spawn(x, z, BLD_PYRAMID_LARGE, temples) != 0;
+	}
+	if (temples.empty()) return;
+	// "Creating kushite towers": scaleByMapSize(4, 12), two sentry towers to one defence tower,
+	// uncapturable, within 25 of a temple, 12 apart and 30 from the bases.
+	const int tower_count = scale_by_map_size(4, 12, half);
+	for (int tries = 0, placed = 0; tries < tower_count * 200 && placed < tower_count; ++tries) {
+		float x, z;
+		random_island_spot(x, z);
+		if (!inside(x, z, scale_f(4.0f, 8.0f)) || !near_temple(x, z, 25.0f) || !clear_of(temples, x, z, 11.0f) ||
+				!clear_of(towers, x, z, 12.0f) || !far_from_players(x, z, 30.0f + 20.0f)) continue;
+		const uint8_t type = rng.range_int(0, 2) < 2 ? BLD_SENTRY_TOWER : BLD_TOWER;
+		if (const uint32_t id = spawn(x, z, type, towers)) {
+			sim.set_structure_uncapturable(id);
+			++placed;
+		}
+	}
+	// "Creating treasure": scaleByMapSize(4, 10) groups of 1-2 in the city patches (10 round
+	// the temple, 6 round the pyramid).
+	static const uint8_t kTreasures[] = {TREASURE_FOOD_BARREL, TREASURE_FOOD_BIN, TREASURE_WOOD, TREASURE_METAL, TREASURE_STONE};
+	const int groups = scale_by_map_size(4, 10, half);
+	for (int g = 0, tries = 0; g < groups && tries < groups * 100; ++tries) {
+		const Placed &patch = temples[(size_t)rng.range_int(0, (int)temples.size() - 1)];
+		const float radius = &patch == &temples[0] ? 10.0f : 6.0f;
+		const float r = (patch.r + radius) * std::sqrt(rng.next_float()), a = rng.range_float(0.0f, 6.2831853f);
+		const float x = patch.x + std::cos(a) * r, z = patch.z + std::sin(a) * r;
+		if (!land(x, z) || !clear_of(temples, x, z, 1.0f) || !clear_of(towers, x, z, 1.0f)) continue;
+		const int n = rng.range_int(1, 2);
+		for (int i = 0; i < n; ++i)
+			sim.spawn_treasure(x + (float)i, z, kTreasures[rng.range_int(0, 4)]);
+		++g;
+	}
+	// The Kushite hero (within 14 of a temple) and scaleByMapSize(12, 60) soldiers, healers and
+	// women (within 20), each from the units/kush/ templates (FindTemplates), every rank.
+	std::vector<const char *> heroes;
+	std::vector<std::pair<const char *, int>> people;
+	for (uint16_t t : civ_roster_ids(CIV_KUSHITES)) {
+		const CivUnitTemplate &u = civ_unit_template(t);
+		if (std::strstr(u.id, "rts0_")) continue;
+		if (u.tech_classes & TC_HERO) {
+			heroes.push_back(u.id);
+			continue;
+		}
+		if (!(u.tech_classes & (TC_SOLDIER | TC_HEALER | TC_FEMALECITIZEN)) || (u.tech_classes & (TC_SHIP | TC_SIEGE))) continue;
+		const size_t len = std::strlen(u.id);
+		const bool ranked = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0;
+		for (int rank = 1; rank <= (ranked ? 3 : 1); ++rank) people.push_back({u.id, rank});
+	}
+	auto place_unit = [&](const char *id, int rank, float stay_d, float near_d) {
+		for (int tries = 0; tries < 500; ++tries) {
+			float x, z;
+			random_island_spot(x, z);
+			if (!inside(x, z, stay_d) || !near_temple(x, z, near_d) || !clear_of(temples, x, z, 11.0f) ||
+					!clear_of(towers, x, z, 2.0f) || !clear_of(units, x, z, 3.0f)) continue;
+			const CivUnitTemplate &u = civ_unit_template(civ_unit_template_by_id(id));
+			if (sim.spawn_gaia_unit(x, z, (UnitType)u.unit_type, id, rank)) units.push_back({x, z, 0.0f});
+			return;
+		}
+	};
+	const float unit_stay = scale_f(2.0f, 24.0f);
+	if (!heroes.empty()) place_unit(heroes[(size_t)rng.range_int(0, (int)heroes.size() - 1)], 1, unit_stay, 14.0f);
+	const int soldiers = scale_by_map_size(12, 60, half);
+	for (int i = 0; i < soldiers && !people.empty(); ++i) {
+		const auto &p = people[(size_t)rng.range_int(0, (int)people.size() - 1)];
+		place_unit(p.first, p.second, unit_stay, 20.0f);
 	}
 }
 
@@ -7177,11 +7318,10 @@ void RmsGenerator::synth_elephantine(HeightmapGrid &hm, RmsRng &rng, float &wate
 	// with a 4-tile blend, SmoothingPainter(1, scaleByMapSize(0.1, 0.5), 1),
 	// players on both banks (playerPlacementRiver(0.22 pi, 0.62 of the
 	// map)) and bumps. Crossing needs ships. RTS0 keeps the land at least 3 m
-	// up (the image's 2 m scale to under RTS0's shore on small maps) and
-	// leaves out the gaia Kushite temple, pyramid, towers, soldiers and
-	// treasures on the island (RTS0 has no gaia player; the trigger script
-	// that garrisons them is out of scope). rmgen's z runs up the image, so
-	// the script's angles are mirrored in z here.
+	// up (the image's 2 m scale to under RTS0's shore on small maps). The
+	// island's Gaia temple, pyramid, towers, soldiers and treasures are
+	// place_elephantine_entities'. rmgen's z runs up the image, so the
+	// script's angles are mirrored in z here.
 	using namespace misc_maps;
 	water_h = 1.0f;
 	const float half = hm.map_half, size = 2.0f * half;
