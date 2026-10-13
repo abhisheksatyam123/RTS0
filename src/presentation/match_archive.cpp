@@ -36,7 +36,7 @@ namespace {
 
 // Game Setup keys a match is rebuilt from (scenes/menu/match_settings.gd).
 const char *const kSetupKeys[] = {
-	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "ceasefire_min",
+	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "team_pop", "ceasefire_min",
 	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
 	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",

@@ -218,7 +218,7 @@ public:
 		const int cur_pop = sim->pop_current(me);
 		const int max_pop = sim->pop_max(me);
 		pop_label_->set_text(String::num_int64(cur_pop) + "/" + String::num_int64(max_pop) + " (" +
-				String::num_int64(sim->pop_cap()) + ")");
+				String::num_int64(sim->pop_cap(me)) + ")");
 		// CounterPopulation flashes orange while training is blocked; RTS0 refuses to
 		// queue past the limit instead, so a full house shows orange.
 		pop_label_->add_theme_color_override("font_color", cur_pop >= max_pop ? Color(1.0f, 0.65f, 0.0f) : Color(1, 1, 1));
