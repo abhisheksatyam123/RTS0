@@ -326,7 +326,7 @@ int main() {
 				CHECK(mate < foe, "%s placement %d: teammates %.1f apart, nearest enemies %.1f", name, tp, mate, foe);
 			}
 			// Every base reaches every other on foot, except on the island maps.
-			if (mt != MAP_ARCHIPELAGO_0AD)
+			if (!map_is_naval(mt))
 				for (int a = 1; a < 4; ++a)
 					CHECK(can_reach(sim.nav_grid(), tx[0], tz[0], tx[a], tz[a], PASS_INFANTRY),
 					      "%s placement %d: player %d can't walk to player 1", name, tp, a + 1);
@@ -336,7 +336,7 @@ int main() {
 		}
 		CHECK((int)layouts.size() == patterns, "%s: the %d placements gave %zu layouts", name, patterns, layouts.size());
 	}
-	CHECK(placement_maps == 24, "%d random maps offer Team Placement", placement_maps);
+	CHECK(placement_maps == 25, "%d random maps offer Team Placement", placement_maps);
 	{
 		GameSetupParams p, q;
 		p.map_id = "random_frontier";
