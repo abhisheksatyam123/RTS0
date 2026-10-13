@@ -4110,25 +4110,29 @@
       "id": 1,
       "team": 0,
       "start_x": 55.44,
-      "start_z": 47.67
+      "start_z": 47.67,
+      "civ": 4
     },
     {
       "id": 2,
       "team": 1,
       "start_x": -54.05,
-      "start_z": -55.79
+      "start_z": -55.79,
+      "civ": 6
     },
     {
       "id": 3,
       "team": 2,
       "start_x": -60.24,
-      "start_z": 47.67
+      "start_z": 47.67,
+      "civ": 5
     },
     {
       "id": 4,
       "team": 3,
       "start_x": 53.03,
-      "start_z": -50.85
+      "start_z": -50.85,
+      "civ": 8
     }
   ],
   "resources": [

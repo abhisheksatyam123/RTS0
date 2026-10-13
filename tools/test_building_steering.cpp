@@ -49,6 +49,10 @@
 //     across the sea after it or climbing a cliff. A player's attack on a unit or a house across the
 //     sea ends at the shore; a soldier's own fight with an enemy across a channel is dropped at the
 //     water's edge; a player's attack on a unit up a cliff goes round by the ramp and gets there.
+// 17. Large units through a narrow gap: chariots, elephant heroes and catafalques take 0 A.D.'s
+//     "large" class (3 m clearance) like siege and elephants, by their template's classes. A
+//     swordsman walks straight through a 1.2-unit (4.8 m) gap between houses; an elephant hero
+//     and a scythed chariot can't fit and walk round the houses instead.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -60,6 +64,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <vector>
 
 using namespace rtso;
@@ -92,7 +97,7 @@ static float max_penetration(const Simulation &s) {
 	float worst = 0.0f;
 	for (size_t i = 0; i < u.count; ++i) {
 		if (!u.alive[i] || u.team[i] != 0) continue;
-		const float r = unit_building_clearance(u.unit_type[i]);
+		const float r = unit_building_clearance(u.tmpl[i], u.unit_type[i]);
 		for (const auto &b : s.buildings()) {
 			if (b.wrecked || !Simulation::blocks_movement_now(b)) continue; // an uncommitted foundation blocks nothing
 			// In the footprint's own axes, u = (cos a, -sin a) and v = (sin a, cos a) (0 A.D.
@@ -747,6 +752,60 @@ static void chases() {
 	}
 }
 
+// 17. Large units through a narrow gap.
+static uint16_t roster(const char *id) {
+	for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k)
+		if (std::strcmp(civ_unit_template(k).id, id) == 0) return k;
+	return CIV_UNIT_TEMPLATE_NONE;
+}
+
+static void large_units_through_gap() {
+	const uint16_t elephant_hero = roster("maur/hero_chandragupta"), foot_hero = roster("athen/hero_pericles");
+	const uint16_t chariot_hero = roster("brit/hero_boudicca"), cavalry = roster("athen/cavalry_javelineer_b");
+	check(elephant_hero != CIV_UNIT_TEMPLATE_NONE && foot_hero != CIV_UNIT_TEMPLATE_NONE &&
+			chariot_hero != CIV_UNIT_TEMPLATE_NONE && cavalry != CIV_UNIT_TEMPLATE_NONE, "roster rows missing");
+	check(unit_building_clearance(elephant_hero, UNIT_HERO) == CLEARANCE_LARGE, "an elephant hero is not large");
+	check(unit_building_clearance(chariot_hero, UNIT_HERO) == CLEARANCE_LARGE, "a chariot hero is not large");
+	check(unit_building_clearance(foot_hero, UNIT_HERO) == CLEARANCE_DEFAULT, "a hero on foot is large");
+	check(unit_building_clearance(cavalry, UNIT_CAVALRY) == CLEARANCE_DEFAULT, "cavalry is large");
+	for (uint8_t type : {UNIT_CATAPULT, UNIT_SIEGE_RAM, UNIT_BOLT_SHOOTER, UNIT_ELEPHANT, UNIT_WORKER_ELEPHANT,
+			UNIT_CHARIOT, UNIT_SCYTHED_CHARIOT, UNIT_CATAFALQUE})
+		check(unit_building_clearance(CIV_UNIT_TEMPLATE_NONE, type) == CLEARANCE_LARGE, "a large unit type is not large");
+
+	struct Walker { uint8_t type; uint16_t tmpl; bool large; const char *name; };
+	for (const Walker w : {Walker{UNIT_SWORDSMAN, CIV_UNIT_TEMPLATE_NONE, false, "swordsman"},
+			Walker{UNIT_HERO, elephant_hero, true, "elephant hero"},
+			Walker{UNIT_SCYTHED_CHARIOT, CIV_UNIT_TEMPLATE_NONE, true, "scythed chariot"}}) {
+		Simulation s;
+		setup(s);
+		// Houses at z = 1 +- (1.6 + 2k): edges at z 0.4 and 1.6, a 1.2-unit gap round the middle of
+		// the navcell row z in [0, 2], which no house covers, so long paths may take it.
+		for (int k = 0; k < 2; ++k) {
+			s.spawn_building_world(0.0f, 2.6f + 2.0f * k, BLD_HOUSE, 0, 1.0f);
+			s.spawn_building_world(0.0f, -0.6f - 2.0f * k, BLD_HOUSE, 0, 1.0f);
+		}
+		const uint32_t id = s.spawn_unit(-6.0f, 1.0f, 0, (UnitType)w.type, 0.0f, w.tmpl);
+		s.cmd_move(&id, 1, 6.0f, 1.0f);
+		int arrived = -1;
+		float pen = 0.0f, max_dev = 0.0f;
+		for (int t = 0; t < 1600 && arrived < 0; ++t) {
+			s.tick(DT);
+			pen = std::max(pen, max_penetration(s));
+			const int i = index_of(s, id);
+			if (i < 0) break;
+			const Simulation::UnitView u = s.units();
+			if (std::fabs(u.pos_x[i]) < 1.0f) max_dev = std::max(max_dev, std::fabs(u.pos_z[i] - 1.0f));
+			if (std::hypot(u.pos_x[i] - 6.0f, u.pos_z[i] - 1.0f) <= 1.0f) arrived = t;
+		}
+		std::printf("  large units through a gap: %s arrived after %d ticks (-1 = never in 1600), "
+				"%.2f off the gap's middle passing the houses, max penetration %.3f\n", w.name, arrived, max_dev, pen);
+		check(arrived >= 0, "a unit never got past the houses");
+		if (w.large) check(max_dev > 2.0f, "a large unit squeezed through a gap narrower than its clearance");
+		else check(max_dev < 0.4f, "a swordsman went round the houses instead of through the gap");
+		check(pen <= MAX_PENETRATION, "a unit overlapped a house");
+	}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -765,6 +824,7 @@ int main() {
 	crowds_at_the_shore();
 	cliffs();
 	chases();
+	large_units_through_gap();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

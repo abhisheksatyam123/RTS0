@@ -375,7 +375,8 @@ static void check_survival() {
 	for (size_t i = 0; i < res.count; ++i) mines += res.alive[i] && (res.type[i] == RES_GOLD || res.type[i] == RES_STONE);
 	CHECK(mines == 0 && s.fauna().count == 0, "%d mines and %zu animals on Survival", mines, s.fauna().count);
 	CHECK(s.buildings().size() == (size_t)PLAYERS, "%zu structures at the start", s.buildings().size());
-	for (uint8_t b : {BLD_STOREHOUSE, BLD_FARMSTEAD, BLD_FIELD, BLD_CORRAL, BLD_TOWN_CENTER, BLD_DOCK, BLD_WALL_SEGMENT, BLD_PALISADE})
+	for (uint8_t b : {BLD_STOREHOUSE, BLD_FARMSTEAD, BLD_FIELD, BLD_CORRAL, BLD_TOWN_CENTER, BLD_DOCK, BLD_WALL_SEGMENT, BLD_PALISADE,
+			BLD_SUPER_DOCK, BLD_CRANNOG})
 		CHECK(s.building_disabled_by_trigger(0, b) && s.building_disabled_by_trigger(1, b), "structure %d not disabled", b);
 	CHECK(!s.building_disabled_by_trigger(0, BLD_HOUSE) && !s.building_disabled_by_trigger(0, BLD_BARRACKS), "houses or barracks disabled");
 	// The seeker stands in the valley, below her plateau, and takes no damage.
@@ -633,8 +634,6 @@ static void check_death_canyon() {
 	s.set_waves_enabled(false);
 	CHECK(s.register_trigger_script("death_canyon_invasion_force_triggers"), "death_canyon_invasion_force_triggers not registered");
 	run_to(s, 0.5f);
-	// disabled_buildings is a 64-bit mask; a full one also disables the types past it (the siege
-	// wall gate, the crannog: Triggers::building_disabled).
 	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
 		CHECK(s.building_disabled_by_trigger(1, t) && s.building_disabled_by_trigger(3, t), "Invasion Force may build type %d", t);
 		CHECK(!s.building_disabled_by_trigger(0, t) && !s.building_disabled_by_trigger(2, t), "a base player may not build type %d", t);
@@ -888,6 +887,26 @@ static void check_jebel_barkal() {
 		            houses, ccs, forts, walls, gates, spawns, patrols, attackers);
 }
 
+static void check_disabled_buildings_128() {
+	// disabled_buildings holds every BuildingType id, past 64 too, through a save.
+	const int before = failures;
+	static Simulation a, b;
+	build(a, MAP_SURVIVAL_OF_THE_FITTEST);
+	run_to(a, 2.0f);
+	a.triggers_.disabled_buildings[2] |= bld_bit(100);
+	a.triggers_.disabled_buildings[2] |= bld_bit(65);
+	CHECK(a.triggers_.building_disabled(2, 100) && a.triggers_.building_disabled(2, 65) && !a.triggers_.building_disabled(2, 64),
+	      "ids 65 and 100 disabled, 64 not");
+	const char *path = "/tmp/rts0_test_triggers_mask.sav";
+	CHECK(a.save_state(path), "save");
+	build(b, MAP_SURVIVAL_OF_THE_FITTEST);
+	CHECK(b.load_state(path), "load");
+	CHECK(b.triggers_.building_disabled(2, 100) && b.triggers_.building_disabled(2, 65) && !b.triggers_.building_disabled(2, 64),
+	      "ids past 64 lost across a save");
+	CHECK(b.trigger_hash() == a.trigger_hash(), "trigger state differs after loading");
+	if (failures == before) std::printf("Disabled buildings past id 64 survive a save: ok\n");
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -904,6 +923,7 @@ int main() {
 	check_save_load(tm, MAP_FLOOD, 261.0f, 264.0f, Simulation::WATER_LEVEL_RISING, 25, "Flood mid-rise");
 	check_save_load(tm, MAP_EXTINCT_VOLCANO, 90.0f, 200.0f, Simulation::WATER_LEVEL_RISING, 2, "Extinct Volcano before and during the rise");
 	check_identical_saves();
+	check_disabled_buildings_128();
 	check_tutorials();
 	check_death_canyon();
 	check_elephantine();
