@@ -2866,19 +2866,22 @@ private:
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
 	// CCmpTerritoryManager connectivity, derived from territory_grid_ and the territory roots
-	// (civic centres and wonders): each 4-connected patch of one player's territory is a region,
+	// (civic centres and wonders): each 8-connected patch of one player's territory is a region,
 	// connected when it holds one of that player's roots. Unconnected regions keep the count of
-	// tiles of connected foreign regions bordering them (GetNeighbours(filterConnected)).
+	// bordering tiles of connected foreign regions and of neutral land (GetNeighbours(filterConnected)).
 	// Rebuilt on demand after the grid changes; not saved or hashed.
 	struct TerritoryRegion {
 		uint8_t owner;
 		bool connected;
 		std::array<uint32_t, MAX_PLAYERS> neighbours;
+		uint32_t neutral; // bordering neutral tiles (Gaia's share of the decay)
 	};
 	Grid<uint16_t> territory_region_;
 	std::vector<TerritoryRegion> territory_regions_;
 	bool territory_regions_dirty_ = true;
 	void ensure_territory_regions();
+	// !IsTerritoryBlinking: the tile at (x, z) is neutral or in a region holding one of its owner's roots.
+	bool territory_connected_at(float x, float z) const;
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
