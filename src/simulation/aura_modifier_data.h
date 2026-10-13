@@ -307,4 +307,15 @@ inline const BuilderRateRangeAura *builder_rate_range_auras() {
 	return kAuras;
 }
 
+// Garrison auras on BuildingAI: while a unit carrying one is garrisoned, the structure or
+// siege tower holding it multiplies GarrisonArrowMultiplier and MaxArrowCount.
+struct GarrisonArrowAura { const char *id; float arrow_multiply; float max_multiply; };
+constexpr uint16_t GARRISON_ARROW_AURA_COUNT = 1;
+inline const GarrisonArrowAura *garrison_arrow_auras() {
+	static const GarrisonArrowAura kAuras[1] = {
+		{"iber_hero_caros_1", 1.75f, 1.75f},
+	};
+	return kAuras;
+}
+
 #endif // RTSO_AURA_MODIFIER_DATA_H
