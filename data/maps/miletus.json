@@ -4110,13 +4110,22 @@
       "id": 1,
       "team": 0,
       "start_x": -40.63,
-      "start_z": -33.81
+      "start_z": -33.81,
+      "civ": 0,
+      "resources": {
+        "food": 1000,
+        "metal": 1000,
+        "stone": 1000,
+        "wood": 1000
+      },
+      "pop_limit": 1000
     },
     {
       "id": 2,
       "team": 1,
       "start_x": 88.86,
-      "start_z": 57.02
+      "start_z": 57.02,
+      "civ": 3
     }
   ],
   "resources": [

@@ -556,6 +556,69 @@ int main() {
 		std::remove(path);
 	}
 
+	// 14. Animals keep their 0 A.D. passability class Clearance from structures (pathfinder.xml):
+	//     "default" 0.8 m, "large" 3 m for the bull and the adult elephants. A step that comes
+	//     closer is refused; a step away is not. Through a 1.2-unit (4.8 m) gap in a row of houses
+	//     a fleeing deer runs on, while a bush elephant charging a soldier on the far side is held
+	//     back, and neither ever comes closer to a house than its clearance.
+	{
+		CHECK(fauna_type_info(FAUNA_CATTLE_BULL).is_large() && fauna_type_info(FAUNA_ELEPHANT_AFRICAN_BUSH).is_large());
+		CHECK(fauna_type_info(FAUNA_ELEPHANT_ASIAN).is_large() && fauna_type_info(FAUNA_ELEPHANT_NORTH_AFRICAN).is_large());
+		int large = 0;
+		for (int f = 0; f < FAUNA_COUNT; ++f) large += fauna_type_info((uint8_t)f).is_large();
+		CHECK(large == 4); // not the infants, the cows or the trainable cattle
+		fresh(s);
+		s.spawn_building_world(0.0f, 20.0f, BLD_HOUSE, 0, 1.0f); // half 1: x and z in [-1, 1] round its centre
+		s.tick(Simulation::FIXED_STEP);
+		const uint32_t deer = s.spawn_fauna(-1.5f, 20.0f, FAUNA_DEER);
+		const uint32_t ele = s.spawn_fauna(-2.0f, 20.0f, FAUNA_ELEPHANT_AFRICAN_BUSH);
+		CHECK(!s.fauna_can_step(fidx(s, deer), -1.15f, 20.0f) && s.fauna_can_step(fidx(s, deer), -1.25f, 20.0f));
+		CHECK(!s.fauna_can_step(fidx(s, ele), -1.7f, 20.0f) && s.fauna_can_step(fidx(s, ele), -1.8f, 20.0f));
+		s.fauna_.pos_x[fidx(s, ele)] = -1.5f; // too close already: it may step away, not closer
+		CHECK(s.fauna_can_step(fidx(s, ele), -1.6f, 20.0f) && !s.fauna_can_step(fidx(s, ele), -1.4f, 20.0f));
+		CHECK(s.fauna_can_step(fidx(s, ele), -1.5f, 20.1f)); // along the wall
+
+		fresh(s);
+		// Houses at z = 1 +- (1.6 + 2k): edges at z 0.4 and 1.6, a 1.2-unit gap round the middle of
+		// the navcell row z in [0, 2], which no house covers, so the nav grid leaves it open.
+		for (int k = 0; k < 6; ++k) {
+			s.spawn_building_world(0.0f, 2.6f + 2.0f * k, BLD_HOUSE, 0, 1.0f);
+			s.spawn_building_world(0.0f, -0.6f - 2.0f * k, BLD_HOUSE, 0, 1.0f);
+		}
+		const uint32_t chaser = s.spawn_unit(-9.0f, 1.0f, 0, UNIT_SPEARMAN);
+		const uint32_t d2 = s.spawn_fauna(-5.0f, 1.0f, FAUNA_DEER);
+		const uint32_t e2 = s.spawn_fauna(-5.0f, 0.95f, FAUNA_ELEPHANT_AFRICAN_BUSH);
+		const uint32_t bait = s.spawn_unit(6.0f, 1.0f, 1, UNIT_SPEARMAN);
+		for (uint32_t id : {chaser, bait}) s.units_.stance[s.lookup_unit(id)] = STANCE_PASSIVE; // they stay put
+		s.tick(Simulation::FIXED_STEP);
+		s.fauna_attacked(fidx(s, d2), chaser);
+		s.fauna_attacked(fidx(s, e2), bait);
+		auto closest = [&](uint32_t id) {
+			const int32_t f = fidx(s, id);
+			float g = 1e9f;
+			for (const auto &b : s.buildings_) {
+				if (b.type != BLD_HOUSE) continue;
+				const float lx = std::fabs(s.fauna_.pos_x[f] - b.x) - b.hu, lz = std::fabs(s.fauna_.pos_z[f] - b.z) - b.hv;
+				g = std::min(g, std::max(lx, lz));
+			}
+			return g;
+		};
+		float deer_gap = 1e9f, ele_gap = 1e9f, deer_x = -1e9f, ele_x = -1e9f;
+		for (int t = 0; t < 200; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			deer_gap = std::min(deer_gap, closest(d2));
+			ele_gap = std::min(ele_gap, closest(e2));
+			deer_x = std::max(deer_x, s.fauna_.pos_x[fidx(s, d2)]);
+			ele_x = std::max(ele_x, s.fauna_.pos_x[fidx(s, e2)]);
+		}
+		std::printf("fauna clearance: deer reached x %.2f (closest %.2f), bush elephant x %.2f (closest %.2f)\n",
+				deer_x, deer_gap, ele_x, ele_gap);
+		CHECK(deer_x > 1.0f);                     // through the gap
+		CHECK(ele_x < -1.0f - CLEARANCE_LARGE + 0.01f && ele_x > -1.0f - CLEARANCE_LARGE - 0.2f); // held at its clearance
+		CHECK(deer_gap >= CLEARANCE_DEFAULT - 1e-4f);
+		CHECK(ele_gap >= CLEARANCE_LARGE - 1e-4f);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;
