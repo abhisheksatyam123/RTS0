@@ -357,6 +357,7 @@ int main() {
 		// A round footprint (brit/civil_centre.xml <Circle>) spawns on rings a gap apart, the first
 		// half a gap out, the rally point's side first; the square civic centre's rows are not
 		// rings (their corners stand further out than their sides).
+		CHECK(building_footprint_round(CIV_BRITONS, BLD_CRANNOG)); // brit/crannog.xml <Circle radius="17"/>
 		for (const uint8_t civ : {(uint8_t)CIV_BRITONS, (uint8_t)CIV_ATHENIANS}) {
 			Simulation r;
 			r.set_player_civ(civ);

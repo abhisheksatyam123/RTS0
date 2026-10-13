@@ -98,6 +98,8 @@ SLOTS = {
                       [["cretan_date_palm_short", "date_palm"]]),
     "sahel": ([["baobab", "baobab"]], ["baobab"], [["baobab", "baobab"]]),
     "sahel_watering_holes": ([["baobab", "baobab"]], ["baobab"], [["baobab", "baobab"]]),
+    "the_nile": ([["date_palm", "cretan_date_palm_short"]], ["date_palm", "cretan_date_palm_short"],
+                 [["date_palm", "cretan_date_palm_short"]]),
     "scythian_rivulet": ([["dead", "oak_dead"]], ["dead", "oak_dead", "pine", "bush_badlands"], [["dead", "dead"]]),
     "syria": ([["date_palm", "date_palm"]], ["date_palm", "tamarix", "aleppo_pine"], [["tamarix", "tamarix"]]),
     "volcanic_lands": ([["dead", "dead"]], ["dead"], [["dead", "dead"]]),

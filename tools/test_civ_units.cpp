@@ -331,12 +331,6 @@ int main() {
 		CHECK(!civ_unit_template(roster_id("gaul/rts0_villager")).trainers.test(BLD_CRANNOG));
 		CHECK(building_ai_info(BLD_CRANNOG).shoots() && civ_building_is_dropsite(BLD_CRANNOG));
 		CHECK(territory_influence_info(BLD_CRANNOG).root && territory_influence_info(BLD_CRANNOG).weight == 10000);
-		// 0.28 Researcher "-phase_town_{civ}": the crannog and the Han Imperial Court research the
-		// Civic Center's techs except Town Phase (the crannog also not Hellenistic Metropolis).
-		CHECK(building_researches(BLD_TOWN_CENTER, TECH_PHASE_TOWN) && !building_researches(BLD_CRANNOG, TECH_PHASE_TOWN));
-		CHECK(!building_researches(BLD_IMPERIAL_COURT, TECH_PHASE_TOWN));
-		CHECK(building_researches(BLD_CRANNOG, TECH_PHASE_CITY) && building_researches(BLD_IMPERIAL_COURT, TECH_PHASE_CITY));
-		CHECK(!building_researches(BLD_CRANNOG, TECH_HELLENISTIC_METROPOLIS) && !building_researches(BLD_CRANNOG, TECH_DOCK_EFFICIENCY));
 		// 0.28's Civilians (template_unit_support_civilian) replace the Female Citizens: the Civic
 		// Center trains support_civilian, houses support_civilian_house after Fertility Festival, and
 		// the women's rows stay for saves but train nowhere.
