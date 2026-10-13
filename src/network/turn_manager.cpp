@@ -348,7 +348,9 @@ void TurnManager::send_player_assignment() {
 		e.client = p.id;
 		e.name = p.player_name;
 		if (pl < MAX_PLAYERS && peer_active(p.id)) { e.player = pl; e.status = PlayerAssignmentMsg::PLAYING; }
-		else if (pl >= MAX_PLAYERS && client_player_.count(p.id)) e.status = PlayerAssignmentMsg::OBSERVER;
+		// An observer once the host let it watch (game setup or a served late
+		// join); a client still waiting on its rejoin answer is not listed yet.
+		else if (pl >= MAX_PLAYERS && client_player_.count(p.id) && p.is_observer) e.status = PlayerAssignmentMsg::OBSERVER;
 		else continue; // still joining
 		list.push_back(e);
 		listed.insert(p.id);

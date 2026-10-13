@@ -273,8 +273,27 @@ private:
 	static void synth_island_stronghold(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_pompeii(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_latium(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
+	static void synth_lower_nubia(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams,
 	                          uint8_t landscape = 0);
+	static void synth_migration(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams,
+	                            uint8_t team_placement);
+	static void synth_ngorongoro(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
+	// What river_archipelago.js's terrain pass hands its entity pass: the Gaia Mauryans it placed
+	// on the outermost strips before the hills, and the tile classes the later objects keep
+	// away from (per heightmap vertex).
+	struct RiverArchipelagoLayout {
+		struct GaiaUnit {
+			float x, z;
+			uint8_t kind; // 0 spearman, 1 archer, 2 elephant archer
+		};
+		std::vector<GaiaUnit> gaia;
+		std::vector<uint8_t> territory, hill;
+	};
+	static void synth_river_archipelago(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+	                                    const uint8_t *teams, RiverArchipelagoLayout &out);
+	static void place_river_archipelago_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+	                                             RmsRng &rng, const RiverArchipelagoLayout &layout);
 
 	// Fair entity & resource distribution
 	static void distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
@@ -285,8 +304,12 @@ private:
 	static void place_survival_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void place_trigger_map_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void place_elephantine_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng);
+	// Ngorongoro's lowland, highland and eden mines, hunt and baobabs.
+	static void place_ngorongoro_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void distribute_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config);
 	static void place_elephantine_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config);
+	// lower_nubia.js's mines, pyramid, Nile palms and straggler trees (in place of the generic groves and mines).
+	static void place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng);
 	// Map-specific wood and mines of the Ambush, Schwarzwald and Oasis ports.
 	static void distribute_land_extras(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 };

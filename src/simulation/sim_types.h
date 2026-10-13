@@ -157,7 +157,11 @@ enum MapType : uint8_t {
 	MAP_LATIUM = 81,
 	MAP_UNKNOWN = 82,
 	MAP_SURVIVAL_OF_THE_FITTEST = 83,
-	MAP_TYPE_COUNT = 84
+	MAP_LOWER_NUBIA = 84,
+	MAP_MIGRATION = 85,
+	MAP_NGORONGORO = 86,
+	MAP_RIVER_ARCHIPELAGO = 87,
+	MAP_TYPE_COUNT = 88
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -270,7 +274,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_POMPEII, "pompeii", "Pompeii (RMS)", "volcanic", true, "Pompeii, an ancient Roman coastal city in Campania, buried under ash and pumice when Mount Vesuvius erupted in AD 79."},
 		{MAP_LATIUM, "latium", "Latium (RMS)", "latium", true, "The Italian peninsula: the fertile volcanic region of central western Italy where Rome was founded."},
 		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."},
-		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."}
+		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."},
+		{MAP_LOWER_NUBIA, "lower_nubia", "Lower Nubia (RMS)", "savanna", true, "Known in the Greco-Roman world as the Triakontaschoinos, Lower Nubia was the area between the first and second cataracts of the Nile and formed the traditional border region between Kush and Egypt. The scorching desert, steep valleys and towering cliffs of the area make this an inhospitable place to live, but the control of this ancient corridor was vital for any power seeking to control the lucrative trade routes on the Nile and affords access to the rich goldfields of the Nubian desert."},
+		{MAP_MIGRATION, "migration", "Migration (RMS)", "temperate", true, "Players start on islands towards the outside of the map and must move to take advantage of the middle island before their resources run out."},
+		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
+		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -289,6 +297,8 @@ inline bool map_is_naval(int type) {
 		case MAP_AEGEAN_SEA: case MAP_ARCHIPELAGO_0AD: case MAP_ISLANDS: case MAP_CYCLADIC_ARCHIPELAGO:
 		case MAP_CORSICA: case MAP_BAHRAIN:
 		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN: case MAP_DANUBIUS:
+		case MAP_MIGRATION:
+		case MAP_RIVER_ARCHIPELAGO:
 			return true;
 		default:
 			return false;
@@ -631,8 +641,8 @@ inline constexpr int RELIC_REGEN_RATE = 10;
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
 inline constexpr float HEAL_HP = 5.0f;
-// template_unit_hero_healer.xml Heal: Health 6, Range 20 (m, before COMBAT_DISTANCE_SCALE).
-inline constexpr float HERO_HEAL_HP = 6.0f;
+// 0.28 template_unit_hero_healer.xml Heal: Health 15, Range 20 (m, before COMBAT_DISTANCE_SCALE).
+inline constexpr float HERO_HEAL_HP = 15.0f;
 inline constexpr float HERO_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;

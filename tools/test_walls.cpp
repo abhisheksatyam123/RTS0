@@ -5,13 +5,14 @@
 // upgrades to a gate. A wall snaps onto the player's towers and stops at the first piece it can't
 // pay for. Palisades are a WallSet of their own (wallset_palisade), and a long one upgrades to a
 // palisade gate; so are the Roman siege walls (rome/wallset_siege), which go in enemy land too,
-// and their long segments become siege wall gates.
+// and their long segments become siege wall gates. An Iberian base starts walled on large maps.
 //   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
 #define private public // rebuild_territory, territory_owner_at
 #include "simulation/simulation.h"
 #undef private
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -415,6 +416,49 @@ int main() {
 		// Not for other civs.
 		s.player(0).civ = CIV_ATHENIANS;
 		CHECK(s.cmd_build_wall(0, -6.0f, 40.0f, 6.0f, 40.0f, nullptr, 0, false, WALLSET_SIEGE) == 0);
+	}
+
+	// 11. The Iberians' Starting Walls (player.js placeStartingWalls): on a map over 128 tiles an
+	// Iberian base gets built stone walls, a ring of long walls, gates and towers round the Civic
+	// Centre (placeGenericFortress, radius 20), or only seven towers where the map script asks for
+	// "towers"; other civs and Tiny maps get none.
+	{
+		auto walls_of = [&](uint8_t civ, MapType map, float half, int &towers, int &longs, int &gates, float &rmin, float &rmax) {
+			s.reset();
+			for (int p = 0; p < MAX_PLAYERS; ++p) s.player(p).civ = (Civilization)civ;
+			s.generate_random_map(map, 7, 2, half);
+			towers = longs = gates = 0;
+			rmin = 1e9f;
+			rmax = 0.0f;
+			float cx = 0.0f, cz = 0.0f;
+			for (const auto &b : s.buildings())
+				if (b.type == BLD_TOWN_CENTER && b.team == 0) cx = b.x, cz = b.z;
+			for (const auto &b : s.buildings()) {
+				if (b.team != 0) continue;
+				if (b.type != BLD_WALL_TOWER && b.type != BLD_WALL_SEGMENT && b.type != BLD_GATE) continue;
+				towers += b.type == BLD_WALL_TOWER;
+				longs += b.type == BLD_WALL_SEGMENT;
+				gates += b.type == BLD_GATE;
+				CHECK(b.build_progress >= 1.0f && b.hp == b.max_hp);
+				const float r = std::hypot(b.x - cx, b.z - cz);
+				rmin = std::min(rmin, r);
+				rmax = std::max(rmax, r);
+			}
+		};
+		int tw, lw, gt;
+		float rmin, rmax;
+		walls_of(CIV_IBERIANS, MAP_MAINLAND, 128.0f, tw, lw, gt, rmin, rmax);
+		std::printf("  iberian mainland 256: %d towers, %d long walls, %d gates, %.1f..%.1f from the CC\n", tw, lw, gt, rmin, rmax);
+		CHECK(tw >= 8 && tw == lw + gt && gt == tw / 3 && rmin > 8.0f && rmax < 32.0f);
+		walls_of(CIV_IBERIANS, MAP_GEAR, 128.0f, tw, lw, gt, rmin, rmax);
+		std::printf("  iberian gear 256: %d towers, %d long walls, %d gates\n", tw, lw, gt);
+		CHECK(tw <= 7 && tw >= 5 && lw == 0 && gt == 0 && std::fabs(rmin - 15.0f) < 0.1f && std::fabs(rmax - 15.0f) < 0.1f);
+		walls_of(CIV_IBERIANS, MAP_MAINLAND, 64.0f, tw, lw, gt, rmin, rmax);
+		CHECK(tw == 0 && lw == 0 && gt == 0);
+		walls_of(CIV_IBERIANS, MAP_SCHWARZWALD, 128.0f, tw, lw, gt, rmin, rmax);
+		CHECK(tw == 0 && lw == 0 && gt == 0);
+		walls_of(CIV_ATHENIANS, MAP_MAINLAND, 128.0f, tw, lw, gt, rmin, rmax);
+		CHECK(tw == 0 && lw == 0 && gt == 0);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

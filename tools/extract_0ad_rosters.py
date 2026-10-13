@@ -38,6 +38,7 @@ src/simulation/civ_roster_data.h and data/civs/rosters.json.
 """
 
 import argparse
+import fnmatch
 import json
 import math
 import os
@@ -559,8 +560,8 @@ def rts0_class(name, t, civ):
         return "UNIT_CATAFALQUE"  # template_unit_catafalque (Capture the Relic)
     if "Hero" in c:
         return "UNIT_HERO"
-    if "FemaleCitizen" in c:
-        return "UNIT_FEMALE_CITIZEN"
+    if "FemaleCitizen" in c or ("Civilian" in c and stem.startswith("support_civilian")):
+        return "UNIT_FEMALE_CITIZEN"  # 0.28's Civilians take the Female Citizens' place
     if "Ship" in c:
         if "FishingBoat" in c or "fishing" in stem:
             return "UNIT_FISHING_BOAT"
@@ -1014,6 +1015,10 @@ PREVIOUS_SIM_ROOT = None
 KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
+# --retire: kept rows (fnmatch patterns) the release no longer trains: they keep their ids for
+# saves but lose their trainers (0.28's Civilians replace the Female Citizens).
+RETIRE_ROWS = []
+PREVIOUS_PROMOTION_ONLY_FIRST = None  # set from the checked-in header with --keep-trainers
 
 
 def previous_layout():
@@ -1027,6 +1032,14 @@ def previous_layout():
                          text, re.M):
         out[m.group(1)] = (re.findall(r"bld_bit\((BLD_[A-Z_0-9]+)\)", m.group(3)), int(m.group(2)))
     return out
+
+
+def previous_promotion_only_first():
+    if not os.path.exists(OUT_HEADER):
+        return None
+    with open(OUT_HEADER, encoding="utf-8") as fh:
+        m = re.search(r"CIV_ROSTER_PROMOTION_ONLY_FIRST = (\d+);", fh.read())
+    return int(m.group(1)) if m else None
 
 
 def keep_previous_ids(rows):
@@ -1192,6 +1205,8 @@ def collect(sim_root):
                 flags.append("ROSTER_CITIZEN")
             if "Mercenary" in c:
                 flags.append("ROSTER_MERCENARY")
+            if "Civilian" in c:
+                flags.append("ROSTER_CIVILIAN")  # 0.28's template_unit_support_civilian
             if "Citizen" in c and not t.value("ResourceGatherer/MaxDistance", ""):
                 flags.append("ROSTER_NO_GATHER")  # mixins/mercenary.xml, Neodamodes: ResourceGatherer disabled
             if t.value("Pack/Time", ""):
@@ -1241,6 +1256,8 @@ def collect(sim_root):
                         kept.append(b)
                 blds = kept
                 blds, phase = sorted(blds, key=BUILDING_BITS.index), prev_layout[rid][1]
+            if KEEP_TRAINERS and any(fnmatch.fnmatchcase(rid, pat) for pat in RETIRE_ROWS):
+                blds = []
             rows.append({
                 "id": rid,
                 "civ": civ,
@@ -1501,6 +1518,9 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("// never moves a trainable row's template id. Trainable rows added later follow them")
     w("// (template ids never move); civ_roster_ids() gives a civ's block and its added rows.")
     trainable = next((i for i, r in enumerate(rows) if not r["trainers"]), len(rows))
+    if KEEP_TRAINERS and PREVIOUS_PROMOTION_ONLY_FIRST is not None:
+        # Retired rows (--retire) lose their trainers but stay in their civ's block.
+        trainable = PREVIOUS_PROMOTION_ONLY_FIRST
     for i in range(1, trainable):
         assert CIVS.index(rows[i]["civ"]) >= CIVS.index(rows[i - 1]["civ"]), "civ blocks out of order"
     w("inline constexpr uint16_t CIV_ROSTER_PROMOTION_ONLY_FIRST = %d;" % trainable)
@@ -1770,13 +1790,18 @@ def main():
                     help="refresh stats only: keep every row's trainers and phase, add no rows")
     ap.add_argument("--append", default="",
                     help="with --keep-trainers: comma-separated new row ids to add after the existing rows")
+    ap.add_argument("--retire", default="",
+                    help="with --keep-trainers: comma-separated row id patterns (fnmatch) the release no longer trains")
     ap.add_argument("--previous-0ad", dest="prev_zad",
                     help="older 0 A.D. tree for templates the release dropped (with --keep-trainers)")
     args = ap.parse_args()
-    global RENUMBER, KEEP_TRAINERS, PREVIOUS_SIM_ROOT, APPEND_ROWS
+    global RENUMBER, KEEP_TRAINERS, PREVIOUS_SIM_ROOT, APPEND_ROWS, RETIRE_ROWS, PREVIOUS_PROMOTION_ONLY_FIRST
     RENUMBER = args.renumber
     KEEP_TRAINERS = args.keep_trainers
     APPEND_ROWS = {x for x in args.append.split(",") if x}
+    RETIRE_ROWS = [x for x in args.retire.split(",") if x]
+    if args.keep_trainers:
+        PREVIOUS_PROMOTION_ONLY_FIRST = previous_promotion_only_first()
     if args.prev_zad:
         PREVIOUS_SIM_ROOT = os.path.join(args.prev_zad, "binaries", "data", "mods", "public", "simulation")
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")

@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 64; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 65; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -170,6 +170,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
 	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
+	static constexpr uint32_t SAVE_VERSION_STATISTICS_COUNTS = 65; // resource and population counts, livestock, bribes
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -1556,7 +1557,7 @@ public:
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	uint32_t find_nearby_prey(size_t i, float x, float z) const;
+	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -1651,6 +1652,21 @@ public:
 	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
 	// built and uncapturable.
 	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
+	// rmgen-common player.js placeStartingWalls, the Iberian "Starting Walls" civ bonus: on a map
+	// over 128 tiles across (`map_tiles`), an Iberian player's base at (x, z) gets built stone
+	// walls, either a ring of long walls, gates and towers (STARTING_WALLS_FORTRESS,
+	// placeGenericFortress at radius 20, its shape drawn from `seed`) or only seven towers
+	// (STARTING_WALLS_TOWERS, placePolygonalWall at radius 15 facing `orientation`). Other civs
+	// and smaller maps get none. Returns the number of pieces placed.
+	enum StartingWalls : uint8_t { STARTING_WALLS_NONE, STARTING_WALLS_FORTRESS, STARTING_WALLS_TOWERS };
+	size_t place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
+			uint32_t seed);
+	// wall_builder.js placeGenericFortress: `player`'s built stone walls round (x, z) at about
+	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
+	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
+	// `max_tries` tries). Pieces in water or off the map are left out.
+	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
+			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -2019,6 +2035,7 @@ private:
 	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
 	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
 	uint32_t spawn_carcass(size_t f);
+	void award_fauna_xp(size_t i, size_t f, float damage);
 	bool projectile_lands_in(const Projectile &p, const Building &b) const;
 	int32_t projectile_hit_structure(const Projectile &p) const;
 	void projectile_hits_structure(const Projectile &p, Building &b);
