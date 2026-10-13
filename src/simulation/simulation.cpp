@@ -18124,6 +18124,19 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 		}
 		if (best >= 0) return (uint8_t)best;
 	}
+	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics. Gaia's
+	// relics (tryCaptureGaiaRelic) are left to petra_capture_gaia_relics.
+	if (victory_condition_ == VICTORY_RELIC) {
+		int held[MAX_PLAYERS] = {};
+		for (const auto &rel : relics_) {
+			const int32_t r = lookup_unit(rel.id);
+			if (is_relic_unit(r) && units_.team[r] < MAX_PLAYERS) ++held[units_.team[r]];
+		}
+		int best = -1, most = 0;
+		for (int p = 0; p < MAX_PLAYERS; ++p)
+			if (!veto[p] && held[p] > most) { most = held[p]; best = p; }
+		if (best >= 0) return (uint8_t)best;
+	}
 	int entities[MAX_PLAYERS] = {};
 	bool has_cc[MAX_PLAYERS] = {};
 	int defense[MAX_PLAYERS] = {};
@@ -21744,7 +21757,25 @@ int Simulation::petra_player_entities(uint8_t player) const {
 
 void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 	// diplomacyManager.js changePlayerDiplomacy: the AI only writes its own row.
+	if (stance != DIPLO_ENEMY && player < MAX_PLAYERS && petra_foe(player)) petra_cancel_attacks_against(player);
 	cmd_set_diplomacy(petra_pid_, player, stance);
+}
+
+// attackManager.js cancelAttacksAgainstPlayer: the plan in preparation forgets the
+// player as its target, and every started attack on that player is aborted (its army
+// walks home).
+void Simulation::petra_cancel_attacks_against(uint8_t player) {
+	if (petra_attack_plan_.target_player == player) {
+		petra_attack_plan_.target_player = 0xFF;
+		if (auto it = building_id_to_idx_.find(petra_attack_plan_.target_building_id);
+		    it != building_id_to_idx_.end() && buildings_[it->second].team == player)
+			petra_attack_plan_.target_building_id = 0;
+	}
+	for (AttackPlan &plan : petra_started_attacks_)
+		if (plan.target_player == player && plan.state != AttackPlan::REGROUP && plan.state != AttackPlan::UNEXECUTED) {
+			plan.state = AttackPlan::ABORT;
+			plan.state_timer = 0.0f;
+		}
 }
 
 // diplomacyManager.js sendDiplomacyRequest: ask the player we share the most
