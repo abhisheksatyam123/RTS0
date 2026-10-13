@@ -20,6 +20,9 @@ var last_man_standing: bool = false
 # 0 A.D. population limit per player (0 = unlimited, negative = World Population shared by
 # the players still in the game) and ceasefire length in minutes.
 var pop_cap: int = 300
+# 0 A.D. 0.28 Team Population: a positive pop_cap is each team's limit, shared by its
+# players still in the game (a teamless player keeps all of it).
+var team_pop: bool = false
 var ceasefire_min: int = 0
 # 0 A.D. map visibility: everything visible, or terrain known from the start.
 var reveal_map: bool = false

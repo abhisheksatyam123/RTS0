@@ -206,33 +206,38 @@ struct PetraTransportPlan {
 enum PetraTransportOwner : uint8_t { PETRA_TRANSPORT_ATTACK = 0, PETRA_TRANSPORT_RAID = 1, PETRA_TRANSPORT_BUILDERS = 2, PETRA_TRANSPORT_TRADER = 3,
                                       PETRA_TRANSPORT_WORKERS = 4 };
 
+// chatHelper.js: what a Petra line says; petra_chat.h holds each kind's lines.
 enum PetraChatKind : uint8_t {
-	PETRA_CHAT_ATTACK    = 0,
-	PETRA_CHAT_TRIBUTE   = 1,
-	PETRA_CHAT_BETRAYAL  = 2,
-	PETRA_CHAT_EMERGENCY = 3,
-	// diplomacyManager.js answers to a player who changed its stance toward us
-	PETRA_CHAT_DIPLO_ACCEPT   = 4,
-	PETRA_CHAT_DIPLO_DECLINE  = 5,
-	PETRA_CHAT_DIPLO_TRIBUTE  = 6, // accept once the player pays a tribute
-	PETRA_CHAT_DIPLO_WARNING  = 7, // the tribute has not arrived yet
-	PETRA_CHAT_DIPLO_LAPSED   = 8,
-	PETRA_CHAT_WAR_DECLARED   = 9, // answering a declaration of war
-	// diplomacyManager.js sendDiplomacyRequest / checkSentDiplomacyRequests, tributes()
-	PETRA_CHAT_ALLY_REQUEST     = 10,
-	PETRA_CHAT_NEUTRAL_REQUEST  = 11,
-	PETRA_CHAT_ALLY_EXPIRED     = 12,
-	PETRA_CHAT_NEUTRAL_EXPIRED  = 13,
-	PETRA_CHAT_TRIBUTE_REQUEST  = 14, // to an ally: "I am in need of <res>"
-	PETRA_CHAT_EMERGENCY_EXIT   = 15, // emergencyManager.js: the emergency is over
-	// Commands.js "attack-request" notice and chatHelper.js answerRequestAttackMessages.
-	// Their text names players as {P<id>}, which the chat window replaces with names.
-	PETRA_CHAT_ATTACK_REQUESTED = 16, // from the player asking, human or AI
-	PETRA_CHAT_ATTACK_JOIN      = 17,
-	PETRA_CHAT_ATTACK_DECLINE   = 18
+	PETRA_CHAT_ATTACK = 0,           // launchAttackMessages.other, player = the target (to allies)
+	PETRA_CHAT_HUGE_ATTACK,          // launchAttackMessages.hugeAttack
+	PETRA_CHAT_ATTACK_JOIN,          // answerRequestAttackMessages.join, player = the target asked for
+	PETRA_CHAT_ATTACK_DECLINE,       // answerRequestAttackMessages.decline
+	PETRA_CHAT_ATTACK_OTHER,         // answerRequestAttackMessages.other, player2 = our own target
+	PETRA_CHAT_TRIBUTE,              // sentTributeMessages, player = who got it (to allies)
+	PETRA_CHAT_TRIBUTE_REQUEST,      // requestTributeMessages, resource (to allies)
+	PETRA_CHAT_TRADE_ROUTE,          // newTradeRouteMessages, player = the route's other owner (to allies)
+	PETRA_CHAT_NEW_DIPLOMACY,        // newDiplomacyMessages[sub: PetraChatStance] (to everyone)
+	// answerDiplomacyRequestMessages[sub: 0 ally, 1 neutral][...], to the player who asked
+	PETRA_CHAT_ANSWER_DECLINE,
+	PETRA_CHAT_ANSWER_DECLINE_SUGGEST_NEUTRAL, // ally only
+	PETRA_CHAT_ANSWER_DECLINE_REPEATED,
+	PETRA_CHAT_ANSWER_ACCEPT,
+	PETRA_CHAT_ANSWER_ACCEPT_WITH_TRIBUTE,     // amount, resource
+	PETRA_CHAT_ANSWER_WAITING_FOR_TRIBUTE,     // amount, resource
+	// sendDiplomacyRequestMessages[sub][...], to the player asked
+	PETRA_CHAT_SEND_REQUEST,
+	PETRA_CHAT_REQUEST_EXPIRED,
+	PETRA_CHAT_EMERGENCY,            // emergencyMessages.enter (to allies)
+	PETRA_CHAT_EMERGENCY_EXIT,       // emergencyMessages.exit
+	// Commands.js "attack-request": from the player asking, human or AI, player = the target (to allies)
+	PETRA_CHAT_ATTACK_REQUESTED,
+	PETRA_CHAT_KIND_COUNT
 };
-// PetraChatLine::to for a line addressed to the speaker's allies ("/allies").
-static constexpr uint8_t PETRA_CHAT_TO_ALLIES = 0xFE;
+enum PetraChatStance : uint8_t { PETRA_STANCE_ALLY = 0, PETRA_STANCE_NEUTRAL = 1, PETRA_STANCE_ENEMY = 2 };
+// PetraChatLine::to besides a player id: "/allies" and the everyone chat.
+static constexpr uint8_t PETRA_CHAT_ALLIES = 0xFE;
+static constexpr uint8_t PETRA_CHAT_EVERYONE = 0xFF;
+
 
 // diplomacyManager.js receivedDiplomacyRequests: what one AI decided about a
 // player that changed its stance toward it (one entry per player).
@@ -241,7 +246,8 @@ struct PetraReceivedRequest {
 		NONE = 0,
 		DECLINED_FOREVER = 1,
 		WAITING_FOR_TRIBUTE = 2,
-		ACCEPTED = 3
+		ACCEPTED = 3,
+		ALLIANCE_BROKEN = 4 // allianceBroken: it left the alliance we accepted
 	} status = NONE;
 	uint8_t type = 0;        // 0 = ally, 1 = neutral
 	uint8_t resource = 0;
@@ -270,8 +276,10 @@ struct PetraSentDiplomacy {
 	float next_tribute_request_all = 240.0f;
 	float next_tribute_request[4] = {};  // per resource
 	uint8_t sent_type[8] = {};        // 0 none, 1 ally, 2 neutral
+	uint8_t warned_trade = 0;         // tradeManager.js warnedAllies: players told of a route with them, by bit
+	uint8_t pad[7] = {};
 };
-static_assert(sizeof(PetraSentDiplomacy) == 64, "PetraSentDiplomacy is saved raw: keep it padding-free");
+static_assert(sizeof(PetraSentDiplomacy) == 72, "PetraSentDiplomacy is saved raw: keep it padding-free");
 
 // chatHelper.js — short English taunts (no i18n)
 struct PetraDiplomacyRequest {
@@ -289,12 +297,18 @@ struct PetraDiplomacyRequest {
 
 struct PetraChatLine {
 	uint8_t kind = PETRA_CHAT_ATTACK;
-	uint8_t from = 1;    // the AI player speaking
-	uint8_t to = 0xFF;   // addressee, 0xFF = everyone
-	float x = 0.0f;
+	uint8_t from = 1;                   // the AI player speaking
+	uint8_t to = PETRA_CHAT_EVERYONE;   // a player ("/msg"), PETRA_CHAT_ALLIES or PETRA_CHAT_EVERYONE
+	uint8_t variant = 0;                // which of the kind's lines (chatHelper.js pickRandom)
+	uint8_t player = 0xFF;              // %(_player_)s
+	uint8_t player2 = 0xFF;             // %(_player_2)s
+	uint8_t sub = 0;                    // request type (0 ally, 1 neutral) or PetraChatStance
+	uint8_t resource = 0;               // %(resource)s / %(_resource_)s, a ResourceType
+	int32_t amount = 0;                 // %(_amount_)s
+	float x = 0.0f;                     // where a ping points (a tribute, an attack)
 	float z = 0.0f;
-	char text[96] = {};
 };
+static_assert(sizeof(PetraChatLine) == 20, "PetraChatLine is saved field by field: list a new one in tick_state_io");
 
 // defenseArmy.js: one group of foes close together and the defenders sent against it.
 // Its position (foePosition) and strengths are computed from the live units when used.

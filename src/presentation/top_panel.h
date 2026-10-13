@@ -312,7 +312,7 @@ private:
 	static godot::String pop_caption(rtso::Simulation *sim, uint8_t p) {
 		using godot::String;
 		return rtso::sprintf0(rtso::tr0("%(popCount)s/%(popLimit)s (%(popMax)s)"), {{"popCount", String::num_int64(sim->pop_current(p))},
-				{"popLimit", String::num_int64(sim->pop_max(p))}, {"popMax", String::num_int64(sim->pop_cap())}});
+				{"popLimit", String::num_int64(sim->pop_max(p))}, {"popMax", String::num_int64(sim->pop_cap(p))}});
 	}
 
 	// CounterManager.getAllyStatTooltip: for observers (and defeated players), and
