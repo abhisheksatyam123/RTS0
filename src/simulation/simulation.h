@@ -1765,7 +1765,10 @@ private:
 	struct TechMods {
 		float gather[UNIT_TYPE_COUNT][GK_COUNT];
 		int16_t carry[UNIT_TYPE_COUNT][RES_COUNT];
+		// The unit's damage total after technologies over its template's (attack_damage's scale);
+		// each damage type is its own value, x atk_mul + atk_add (Attack/<type>/Damage/<kind>).
 		float attack[UNIT_TYPE_COUNT];
+		float atk_mul[UNIT_TYPE_COUNT][3], atk_add[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
 		float health[UNIT_TYPE_COUNT];
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
@@ -1814,6 +1817,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
+			float atk_mul[3], atk_add[3];
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
@@ -1834,7 +1838,7 @@ private:
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather, *atk_mul, *atk_add; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
@@ -1904,6 +1908,7 @@ private:
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	void unit_attack_effects(size_t i, float out[3]) const;
+	void unit_tech_damage(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
