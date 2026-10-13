@@ -965,6 +965,13 @@ void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	if (it != res_id_to_idx_.end()) resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 }
 
+void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it == res_id_to_idx_.end()) return;
+	resources_.amount[it->second] = amount;
+	if (resources_.max_amount[it->second] > 0) resources_.max_amount[it->second] = amount;
+}
+
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress) {
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
@@ -4024,7 +4031,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 
 void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count_in, uint32_t building_id, bool queued, bool force) {
 	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return;
+	if (bit == building_id_to_idx_.end()) { order_repair_unit(unit_ids_in, count_in, building_id, queued, force); return; }
 	const Building &b = buildings_[bit->second];
 	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = building_id; o.x = b.x; o.z = b.z;
 	std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
@@ -6364,9 +6371,32 @@ void Simulation::award_damage_xp(uint32_t attacker_id, size_t victim, float dama
 	if (a < 0 || !units_.alive[a]) return;
 	float lost = std::min(damage, std::max(0.0f, units_.hp[victim]));
 	if (!(lost > 0.0f) || !(units_.max_hp[victim] > 0.0f)) return;
-	// Loot.js GetXp floors the modified value.
-	float xp = std::floor(unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]));
-	gain_xp((size_t)a, xp * lost / units_.max_hp[victim]);
+	gain_xp((size_t)a, unit_loot_xp(victim) * lost / units_.max_hp[victim]);
+}
+
+// A no-loot range aura (Pericles' Inspired Defense: Loot replaced by 0) reaches the unit
+// or structure. A garrisoned unit is out of every range aura.
+bool Simulation::loot_denied_unit(size_t i) const {
+	if (!aura_mgr_.has(AURA_NO_LOOT) || units_.action_state[i] == ACTION_GARRISONED) return false;
+	bool denied = false;
+	aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_NO_LOOT, units_.tmpl[i],
+		&unit_combat_at(i).classes, false, [&](const AuraSource &) { denied = true; });
+	return denied;
+}
+
+bool Simulation::loot_denied_building(const Building &b) const {
+	if (!aura_mgr_.has(AURA_NO_LOOT)) return false;
+	bool denied = false;
+	aura_mgr_.for_each_reaching(b.x, b.z, b.team, AURA_NO_LOOT, CIV_UNIT_TEMPLATE_NONE, nullptr, true,
+		[&](const AuraSource &) { denied = true; });
+	return denied;
+}
+
+// Loot.js GetXp: the victim's Loot/xp with its rank's modifiers, floored; 0 under a
+// no-loot aura.
+float Simulation::unit_loot_xp(size_t victim) const {
+	if (loot_denied_unit(victim)) return 0.0f;
+	return std::floor(unit_loot(units_.tmpl[victim], units_.unit_type[victim]).xp * loot_rank_multiplier(units_.rank[victim]));
 }
 
 // 0 A.D. Attack.js HandleAttackEffects: loot goes to the attacking entity's Looter, so
@@ -6398,6 +6428,18 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 	res[RES_WOOD] = std::floor(loot.wood * mult);
 	res[RES_STONE] = std::floor(loot.stone * mult);
 	res[RES_GOLD] = std::floor(loot.metal * mult);
+	// Looter/Resource range auras on the looting unit: x multiply + add (Looter.js Collect).
+	if (const int32_t u = looter_id ? lookup_unit(looter_id) : -1;
+			u >= 0 && aura_mgr_.has(AURA_LOOTER) && units_.action_state[u] != ACTION_GARRISONED) {
+		static constexpr int kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD}; // the table's order
+		float mul[4] = {1.0f, 1.0f, 1.0f, 1.0f}, add[4] = {};
+		aura_mgr_.for_each_reaching(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_LOOTER, units_.tmpl[u],
+			&unit_combat_at((size_t)u).classes, false, [&](const AuraSource &s) {
+				const LooterRangeAura &a = looter_range_auras()[(size_t)s.value];
+				for (int r = 0; r < 4; ++r) { mul[r] *= a.multiply[r]; add[r] += a.add[r]; }
+			});
+		for (int r = 0; r < 4; ++r) res[kRes[r]] = res[kRes[r]] * mul[r] + add[r];
+	}
 	if (infantry && civ_of(looter_player) == CIV_BRITONS)
 		for (float &r : res) r += 1.0f;
 	for (int r = 0; r < RES_COUNT; ++r) res[r] += tech_mods(looter_player).loot_add[r]; // Looter/Resource modifiers
@@ -6414,12 +6456,12 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 
 void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim) {
 	if (victim >= units_.count) return;
-	collect_loot(looter_id, looter_player, unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
+	collect_loot(looter_id, looter_player, loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
 			loot_rank_multiplier(units_.rank[victim]), units_.res_type_carried[victim], units_.carry[victim]);
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
-	LootInfo loot = building_loot(b.type);
+	LootInfo loot = loot_denied_building(b) ? LootInfo{} : building_loot(b.type);
 	loot.wood *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_LOOT_WOOD, b.type); // ptol_structures, sele_farms
 	collect_loot(looter_id, looter_player, loot, 1.0f, RES_COUNT, 0);
 }
@@ -8251,7 +8293,7 @@ uint32_t Simulation::find_free_fish(uint16_t sea, float x, float z, float max_d,
 		if (resources_.subtype[r] != RES_SUB_FISH || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
 		if (resources_.id[r] == skip) continue;
 		auto git = fish_gatherers_.find(resources_.id[r]);
-		if (git != fish_gatherers_.end() && git->second.total >= FISH_MAX_GATHERERS) continue;
+		if (git != fish_gatherers_.end() && git->second.total >= resources_.max_gatherers[r]) continue;
 		const float dx = resources_.x[r] - x, dz = resources_.z[r] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 >= best_d2) continue;
@@ -8479,7 +8521,7 @@ void Simulation::tick_gather(float dt) {
 			}
 			if (fish) {
 				FieldGatherers &fg = fish_gatherers_[units_.target_resource_id[i]];
-				if (fg.slots_taken >= FISH_MAX_GATHERERS) {
+				if (fg.slots_taken >= resources_.max_gatherers[ridx]) { // ResourceSupply/MaxGatherers
 					fg.total--;
 					next_fish();
 					continue;
@@ -8608,7 +8650,8 @@ void Simulation::tick_gather(float dt) {
 		const float interval = regrow_interval(resources_.type[r], resources_.subtype[r]);
 		if (interval <= 0.0f || !resources_.alive[r] || resources_.amount[r] <= 0) continue;
 		const bool fish = resources_.subtype[r] == RES_SUB_FISH;
-		const int32_t max = fish ? FISH_FOOD_SUPPLY : resources_.max_amount[r];
+		// A shoal regrows to FISH_FOOD_SUPPLY; a whale carcass (max_amount -1) does not.
+		const int32_t max = fish ? (resources_.max_amount[r] < 0 ? 0 : FISH_FOOD_SUPPLY) : resources_.max_amount[r];
 		float &left = resources_.regrow_left[r];
 		if (fish && std::find(fished.begin(), fished.end(), resources_.id[r]) != fished.end()) { left = -1.0f; continue; }
 		if (left < 0.0f) {
@@ -8851,6 +8894,29 @@ void Simulation::tick_repair(float dt) {
 			// Repairable sends ConstructionFinished too: the repairers move on to nearby work.
 			if (b.hp >= b.max_hp) on_construction_finished(b, i);
 		}
+	}
+
+	// The same Repair on Repairable units, with the unit's Cost/BuildTime (its training time);
+	// tick_repair_unit stops the repairers once the unit is whole.
+	std::unordered_map<uint32_t, int> repairers_per_unit;
+	auto repairing = [&](size_t i) -> int32_t {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_REPAIR) return -1;
+		const int32_t t = lookup_unit(units_.target_unit_id[i]);
+		return can_repair_unit(i, t) && repair_unit_in_range(i, (size_t)t) ? t : -1;
+	};
+	for (size_t i = 0; i < n; ++i)
+		if (repairing(i) >= 0) repairers_per_unit[units_.target_unit_id[i]]++;
+	for (size_t i = 0; i < n && !repairers_per_unit.empty(); ++i) {
+		const int32_t t = repairing(i);
+		if (t < 0) continue;
+		const uint8_t owner = units_.team[t];
+		const float train = civ_template_unit_info(units_.tmpl[t], units_.unit_type[t]).train_time *
+				(owner < MAX_PLAYERS ? unit_tech_mods(owner, units_.unit_type[t], units_.tmpl[t]).train_time : 1.0f);
+		const float repair_time = unit_repair_time_ratio((size_t)t) * train;
+		const float repair_rate = repair_time > 0.0f ? units_.max_hp[t] / repair_time : 1.0f;
+		const float work = foundation_build_multiplier(repairers_per_unit[units_.id[t]]) * builder_rate(i);
+		enter_repairing(i);
+		units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + work * repair_rate * dt);
 	}
 }
 
@@ -9101,7 +9167,7 @@ void Simulation::tick_combat(float dt) {
 			if (c >= 0 && units_.alive[c] && units_.team[c] == units_.team[i]) return;
 		}
 		if (st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE ||
-				st == ACTION_FLEE || st == ACTION_GARRISONED)
+				st == ACTION_FLEE || st == ACTION_GARRISONED || st == ACTION_REPAIR)
 			return;
 		if (st == ACTION_MOVE && (units_.order_kind[i] == ORDER_WALK || units_.order_kind[i] == ORDER_GARRISON))
 			return;
@@ -10175,7 +10241,7 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 		}
 	}
 	fauna_.hp[f] -= dmg;
-	fauna_attacked(f, src >= 0 ? p.source_id : 0);
+	fauna_attacked(f, p.source_id); // a unit, or the structure that shot
 	if (fauna_.hp[f] <= 0.0f && src >= 0) fauna_killed(f, (size_t)src);
 }
 
@@ -11605,6 +11671,8 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 			return it != res_id_to_idx_.end() && resources_.alive[it->second] && resources_.amount[it->second] > 0;
 		}
 		case ORDER_BUILD: {
+			const int32_t t = lookup_unit(o.target);
+			if (t >= 0) return can_repair_unit(i, t);
 			const Building *b = building(o.target);
 			return b && (b->team == team || is_ally(team, b->team)) && (b->build_progress < 1.0f || b->hp < b->max_hp ||
 					b->type == BLD_FIELD);
@@ -12194,6 +12262,7 @@ void Simulation::tick_unit_ai(float dt) {
 		const uint8_t now = units_.action_state[i];
 		const bool interrupted = (units_.order_flags[i] & ORDER_FLAG_INTERRUPTED) != 0;
 		if (now == ACTION_HEAL) { tick_heal(i); continue; }
+		if (now == ACTION_REPAIR) { tick_repair_unit(i); continue; }
 		if (now == ACTION_CHEER) {
 			if (units_.attack_timer[i] <= 0.0f) units_.action_state[i] = ACTION_IDLE;
 			continue;
@@ -12806,8 +12875,91 @@ void Simulation::tick_heal(size_t h) {
 	units_.hp[t] = std::min(units_.max_hp[t], units_.hp[t] + heal_amount_of(h));
 	// Heal.js PerformHeal: health healed / max health * the target's Loot/xp (GetXp, floored).
 	if (units_.max_hp[t] > 0.0f)
-		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] *
-				std::floor(unit_loot(units_.tmpl[t], units_.unit_type[t]).xp * loot_rank_multiplier(units_.rank[t])));
+		gain_xp(h, (units_.hp[t] - before) / units_.max_hp[t] * unit_loot_xp((size_t)t));
+}
+
+// Repairable on units: template_unit_siege and template_unit_ship (RepairTimeRatio 4); fire
+// ships (template_unit_ship_fire) disable it.
+float Simulation::unit_repair_time_ratio(size_t t) const {
+	const uint16_t tmpl = units_.tmpl[t];
+	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(units_.unit_type[t]);
+	if (!(c & (TC_SIEGE | TC_SHIP)) || is_fire_ship(tmpl)) return 0.0f;
+	return UNIT_REPAIR_TIME_RATIO;
+}
+
+bool Simulation::is_repairable_unit(uint32_t unit_id) const {
+	const int32_t t = lookup_unit(unit_id);
+	return t >= 0 && units_.alive[t] && unit_repair_time_ratio((size_t)t) > 0.0f;
+}
+
+// Builder.js CanRepair (a Repairable target of the builder's own or an ally) for a damaged unit
+// (Repairable.Repair does nothing at full health); a garrisoned one is out of reach.
+bool Simulation::can_repair_unit(size_t i, int32_t t) const {
+	if (t < 0 || (size_t)t == i || !units_.alive[t] || units_.hp[t] <= 0.0f || units_.hp[t] >= units_.max_hp[t]) return false;
+	if (units_.action_state[t] == ACTION_GARRISONED || unit_repair_time_ratio((size_t)t) <= 0.0f) return false;
+	if (!unit_can_build(units_.unit_type[i], units_.tmpl[i])) return false;
+	const uint8_t a = units_.team[i], b = units_.team[t];
+	return a == b || is_ally(a, b);
+}
+
+// Builder.js GetRange: 2 m beyond the builder's obstruction, to the target's obstruction.
+bool Simulation::repair_unit_in_range(size_t i, size_t t) const {
+	const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
+	return std::hypot(dx, dz) - unit_collision_radius(units_.unit_type[i]) - unit_collision_radius(units_.unit_type[t]) <= kBuildReach;
+}
+
+void Simulation::order_repair_unit(const uint32_t *unit_ids_in, size_t count_in, uint32_t target_unit_id, bool queued, bool force) {
+	const int32_t t = lookup_unit(target_unit_id);
+	if (t < 0 || !units_.alive[t]) return;
+	UnitOrder o; o.kind = ORDER_BUILD; o.flags = force ? ORDER_FLAG_FORCE : 0; o.target = target_unit_id;
+	o.x = units_.pos_x[t]; o.z = units_.pos_z[t];
+	// Formation controllers repair structures only (FTASK_REPAIR): members go one by one.
+	const std::vector<uint32_t> now = split_queued(unit_ids_in, count_in, o, queued);
+	for (uint32_t uid : now) {
+		const int32_t i = lookup_unit(uid);
+		if (i < 0 || !units_.alive[i] || !can_repair_unit((size_t)i, t)) continue;
+		start_repair_unit((size_t)i, target_unit_id, o.flags);
+	}
+}
+
+void Simulation::start_repair_unit(size_t i, uint32_t target, uint8_t flags) {
+	const int32_t t = lookup_unit(target);
+	if (t < 0) return;
+	set_order(i, ORDER_BUILD, flags, target, units_.pos_x[t], units_.pos_z[t]);
+	units_.action_state[i] = ACTION_REPAIR;
+	units_.target_unit_id[i] = target;
+	units_.target_building_id[i] = 0;
+	units_.target_resource_id[i] = 0;
+	units_.target_x[i] = units_.pos_x[t];
+	units_.target_z[i] = units_.pos_z[t];
+	units_.waypoint_count[i] = 0;
+	units_.has_order[i] = 1;
+}
+
+// UnitAI INDIVIDUAL.REPAIR on a unit: follow it until in Builder range, then stand and repair
+// (tick_repair adds the health). A target that is whole, gone or no longer repairable ends the
+// order (ConstructionFinished / TargetInvalidated -> FinishOrder).
+void Simulation::tick_repair_unit(size_t i) {
+	const int32_t t = lookup_unit(units_.target_unit_id[i]);
+	if (!can_repair_unit(i, t)) {
+		units_.target_unit_id[i] = 0;
+		units_.action_state[i] = ACTION_IDLE;
+		units_.has_order[i] = 0;
+		auto q = order_queues_.find(units_.id[i]);
+		if (q != order_queues_.end() && !q->second.empty()) { finish_order(i); return; }
+		set_order(i, ORDER_NONE, 0, 0, units_.pos_x[i], units_.pos_z[i]);
+		return;
+	}
+	units_.order_x[i] = units_.pos_x[t];
+	units_.order_z[i] = units_.pos_z[t];
+	if (!repair_unit_in_range(i, (size_t)t)) { // APPROACHING
+		units_.has_order[i] = 1;
+		units_.target_x[i] = units_.pos_x[t];
+		units_.target_z[i] = units_.pos_z[t];
+		return;
+	}
+	units_.has_order[i] = 0; // REPAIRING
+	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
 // UnitAI CHEERING: CheeringTime standing still after a kill; idle units of the same
@@ -14411,6 +14563,9 @@ void Simulation::petra_manage_economy(float dt) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			if (resources_.subtype[r] == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
 			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
+			// worker.js gatherNearestSupply: not in enemy territory.
+			const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
+			if (terr >= 0 && !is_ally(petra_pid_, (uint8_t)terr)) continue;
 			int slots;
 			auto fit = field_bld_by_res_.find(resources_.id[r]);
 			if (fit != field_bld_by_res_.end()) {
@@ -22017,11 +22172,10 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z) const {
 	return best;
 }
 
-// Attack.js GetBestAttackAgainst: a Domestic animal gets Slaughter from infantry, cavalry and
-// women (not ships or siege), whatever their other attacks.
+// Attack.js GetBestAttackAgainst: a Domestic animal gets Slaughter from those that have it
+// (unit_has_slaughter), whatever their other attacks.
 bool Simulation::slaughters_target(size_t i) const {
-	const uint8_t ut = units_.unit_type[i];
-	if (unit_is_ship(ut) || unit_is_siege_engine(ut)) return false;
+	if (!unit_has_slaughter(units_.unit_type[i], units_.tmpl[i])) return false;
 	auto it = fauna_id_to_idx_.find(units_.target_unit_id[i]);
 	if (it == fauna_id_to_idx_.end() || !fauna_.alive[it->second]) return false;
 	return fauna_type_info(fauna_.fauna_type[it->second]).is_domestic();
@@ -22061,9 +22215,26 @@ bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 	return nav_grid_.is_passable_for(cx, cy, naval ? PASS_SHIP : PASS_INFANTRY);
 }
 
-// UnitAI "Attacked" for an animal: passive and skittish animals flee (respondFlee),
-// the rest fight back (respondHoldGround / respondChase).
-void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
+bool Simulation::fauna_threat_pos(uint32_t id, float &x, float &z) const {
+	const int32_t u = lookup_unit(id);
+	if (u >= 0) {
+		if (!units_.alive[u]) return false;
+		x = units_.pos_x[u];
+		z = units_.pos_z[u];
+		return true;
+	}
+	const auto bit = building_id_to_idx_.find(id);
+	if (id == 0 || bit == building_id_to_idx_.end() || buildings_[bit->second].wrecked) return false;
+	x = buildings_[bit->second].x;
+	z = buildings_[bit->second].z;
+	return true;
+}
+
+// UnitAI "Attacked" for an animal: passive and skittish animals flee (respondFlee), from a
+// tower's arrows too; the rest fight back (respondHoldGround / respondChase) at a unit they
+// can bite (a structure is a RestrictedClass, so they ignore its arrows). In COMBAT a melee
+// attacker takes over the fight (it may be blocking the way to the target).
+void Simulation::fauna_attacked(size_t f, uint32_t attacker_id, bool melee) {
 	if (!fauna_.alive[f]) return;
 	const uint8_t b = fauna_.behavior[f];
 	// Penned livestock is garrisoned in its corral (GarrisonHolder), so it stays put; herded
@@ -22071,25 +22242,31 @@ void Simulation::fauna_attacked(size_t f, uint32_t attacker_id) {
 	if (b == FAUNA_CORRALLED) return;
 	const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 	if (info.attack_damage() > 0.0f && info.stance != FAUNA_STANCE_PASSIVE && info.stance != FAUNA_STANCE_SKITTISH) {
+		const int32_t a = lookup_unit(attacker_id);
+		const bool biteable = a >= 0 && units_.alive[a] && units_.team[a] < MAX_PLAYERS &&
+		                      !unit_is_ship(units_.unit_type[a]) && !unit_is_siege_engine(units_.unit_type[a]);
+		if (!biteable) return;
 		if (b != FAUNA_ATTACK) {
 			fauna_start_attack(f, attacker_id);
+		} else if (melee && fauna_.target_unit_id[f] != attacker_id) {
+			fauna_.target_unit_id[f] = attacker_id;
 		}
 		return;
 	}
 	// INDIVIDUAL.FLEEING: run until FleeDistance further away than the attacker was, so a
 	// ranged hunter is fled from too. A new attacker takes over only if it is nearer.
-	const int32_t a = lookup_unit(attacker_id);
-	auto dist_to = [&](int32_t u) {
-		return u < 0 ? 1e9f : std::hypot(units_.pos_x[u] - fauna_.pos_x[f], units_.pos_z[u] - fauna_.pos_z[f]);
+	auto dist_to = [&](uint32_t id) {
+		float x, z;
+		return fauna_threat_pos(id, x, z) ? std::hypot(x - fauna_.pos_x[f], z - fauna_.pos_z[f]) : 1e9f;
 	};
 	if (b == FAUNA_FLEE) {
 		if (attacker_id == fauna_.target_unit_id[f]) return;
-		const int32_t cur = lookup_unit(fauna_.target_unit_id[f]);
-		if (cur >= 0 && units_.alive[cur] && dist_to(a) > dist_to(cur)) return;
+		if (dist_to(attacker_id) > dist_to(fauna_.target_unit_id[f])) return;
 	}
+	const float d = dist_to(attacker_id);
 	fauna_.behavior[f] = FAUNA_FLEE;
 	fauna_.target_unit_id[f] = attacker_id;
-	fauna_.flee_distance[f] = (a >= 0 ? dist_to(a) : 0.0f) + info.flee_distance;
+	fauna_.flee_distance[f] = (d < 1e9f ? d : 0.0f) + info.flee_distance;
 }
 
 // UnitAI COMBAT for an animal: it goes for `target` from where it stands, and its first bite
@@ -22152,13 +22329,14 @@ void Simulation::tick_hunters() {
 		if (!pack_state_can_attack(units_.pack_state[i])) continue;
 		const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
 		const uint8_t ut = units_.unit_type[i];
-		// Attack/Slaughter (infantry, cavalry, women): 1000 hack at 2 m, every second, Domestic animals only.
-		const bool slaughter = finfo.is_domestic() && !unit_is_ship(ut) && !unit_is_siege_engine(ut);
+		// Attack/Slaughter (citizen infantry and cavalry, women): 1000 hack at 2 m, PrepareTime 0.9 s,
+		// RepeatTime 1 s, Domestic animals only.
+		const bool slaughter = finfo.is_domestic() && unit_has_slaughter(ut, units_.tmpl[i]);
 		const float dx = units_.pos_x[i] - fx, dz = units_.pos_z[i] - fz;
 		// The animal's footprint. Slaughter's MaxRange is 2 m even for archers, who walk up to it.
 		const float reach = (slaughter ? SLAUGHTER_RANGE : units_.attack_range[i]) + 1.0f;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
-		if (!attack_ready(i, in_reach, slaughter ? 0.0f : unit_combat_at(i).prepare)) continue;
+		if (!attack_ready(i, in_reach, slaughter ? SLAUGHTER_PREPARE : unit_combat_at(i).prepare)) continue;
 
 		float dmg;
 		if (slaughter) {
@@ -22176,7 +22354,7 @@ void Simulation::tick_hunters() {
 			dmg = unit_damage_to_fauna(i, f);
 		}
 		fauna_.hp[f] -= dmg;
-		fauna_attacked(f, units_.id[i]);
+		fauna_attacked(f, units_.id[i], slaughter || units_.attack_range[i] <= 3.0f);
 		if (fauna_.hp[f] > 0.0f) continue;
 		fauna_killed(f, i);
 	}
@@ -22203,6 +22381,16 @@ void Simulation::fire_at_fauna(size_t i, size_t f) {
 // Animal f killed by unit i: Looter.js grants the animal's Loot xp, the carcass becomes a
 // meat supply, and everyone hunting it goes on: gatherers to the carcass, the killer of a
 // dangerous animal to a cheer.
+uint32_t Simulation::spawn_carcass(size_t f) {
+	if (fauna_.food_amount[f] <= 0) return 0;
+	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
+	const bool fish = (finfo.flags & FAUNA_F_FISH) != 0;
+	const uint32_t rid = spawn_resource_world(fauna_.pos_x[f], fauna_.pos_z[f], RES_FOOD, fauna_.food_amount[f],
+			fish ? RES_SUB_FISH : RES_SUB_MEAT, finfo.max_gatherers);
+	if (fish) resources_.max_amount[res_id_to_idx_[rid]] = -1; // no ResourceSupply/Change: it never regrows
+	return rid;
+}
+
 void Simulation::fauna_killed(size_t f, size_t i) {
 	const size_t n = units_.count;
 	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
@@ -22211,9 +22399,7 @@ void Simulation::fauna_killed(size_t f, size_t i) {
 	units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
 	fauna_.alive[f] = 0;
 	fauna_.behavior[f] = FAUNA_CARCASS;
-	uint32_t rid = 0;
-	if (fauna_.food_amount[f] > 0)
-		rid = spawn_resource_world(fx, fz, RES_FOOD, fauna_.food_amount[f], RES_SUB_MEAT, finfo.max_gatherers);
+	const uint32_t rid = spawn_carcass(f);
 	for (size_t h = 0; h < n; ++h) {
 		if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
 		units_.target_unit_id[h] = 0;
@@ -22278,6 +22464,21 @@ void Simulation::tick_fauna(float dt) {
 		return lo + (float)sim_rng_.range_int(0, (int)std::max(0.0f, hi - lo));
 	};
 
+	// UnitAI MoveRandomly: animals roam in polygons that approximate circles, to keep from
+	// drifting across the map. Each side turns 1/4 to 3/4 of roamAngle twice (+-30 degrees, its
+	// sign fixed per animal here) and is 0.5-1.5 x RoamDistance long; the leg left is kept in
+	// flee_distance while roaming.
+	auto roam_leg = [&](size_t i) {
+		const auto &ri = fauna_type_info(fauna_.fauna_type[i]);
+		const float roam_angle = (fauna_.id[i] & 1u) ? 0.5235988f : -0.5235988f;
+		const float half = roam_angle * (0.25f + 0.5f * (float)sim_rng_.range_int(0, 1000) / 1000.0f);
+		const float ang = fauna_.rot_y[i] + 2.0f * half;
+		fauna_.rot_y[i] = ang;
+		fauna_.vel_x[i] = std::sin(ang) * ri.speed;
+		fauna_.vel_z[i] = std::cos(ang) * ri.speed;
+		fauna_.flee_distance[i] = ri.roam_distance * (0.5f + (float)sim_rng_.range_int(0, 1000) / 1000.0f);
+	};
+
 	bool any_dead = false;
 	for (size_t i = 0; i < fauna_.count; ++i) {
 		if (!fauna_.alive[i]) { any_dead = true; continue; }
@@ -22285,8 +22486,7 @@ void Simulation::tick_fauna(float dt) {
 
 		// Killed by something other than a hunter (splash, a status effect): leave the carcass.
 		if (fauna_.hp[i] <= 0.0f) {
-			if (fauna_.food_amount[i] > 0)
-				spawn_resource_world(fauna_.pos_x[i], fauna_.pos_z[i], RES_FOOD, fauna_.food_amount[i], RES_SUB_MEAT, info.max_gatherers);
+			spawn_carcass(i);
 			fauna_.behavior[i] = FAUNA_CARCASS;
 			fauna_.alive[i] = 0;
 			any_dead = true;
@@ -22465,11 +22665,10 @@ void Simulation::tick_fauna(float dt) {
 
 		// 4. Fleeing (INDIVIDUAL.FLEEING): run from the attacker until distanceToFlee away.
 		if (fauna_.behavior[i] == FAUNA_FLEE) {
-			const int32_t t = lookup_unit(fauna_.target_unit_id[i]);
-			float away_x = 0.0f, away_z = 0.0f, dist = 1e9f;
-			if (t >= 0 && units_.alive[t]) {
-				away_x = fx - units_.pos_x[t];
-				away_z = fz - units_.pos_z[t];
+			float away_x = 0.0f, away_z = 0.0f, dist = 1e9f, tx, tz;
+			if (fauna_threat_pos(fauna_.target_unit_id[i], tx, tz)) {
+				away_x = fx - tx;
+				away_z = fz - tz;
 				dist = std::sqrt(away_x * away_x + away_z * away_z);
 			}
 			if (dist >= fauna_.flee_distance[i]) {
@@ -22527,18 +22726,19 @@ void Simulation::tick_fauna(float dt) {
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
 			} else {
-				// LINGERING Timer -> ROAMING: MoveRandomly(RoamDistance) for RoamTime.
+				// LINGERING Timer -> ROAMING: MoveRandomly(RoamDistance) legs for RoamTime.
 				fauna_.behavior[i] = FAUNA_ROAMING;
-				const float angle = (float)sim_rng_.range_int(0, 359) * 0.0174533f;
-				const float roam_t = timer(info.roam_time_min, info.roam_time_max);
-				const float sp = info.speed;
-				fauna_.vel_x[i] = std::sin(angle) * sp;
-				fauna_.vel_z[i] = std::cos(angle) * sp;
-				fauna_.rot_y[i] = angle;
-				fauna_.state_timer[i] = sp > 0.0f ? std::min(roam_t, info.roam_distance / sp) : roam_t;
+				fauna_.state_timer[i] = timer(info.roam_time_min, info.roam_time_max);
+				roam_leg(i);
 			}
 		}
-		if (fauna_.behavior[i] == FAUNA_ROAMING) step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+		if (fauna_.behavior[i] == FAUNA_ROAMING && info.speed > 0.0f) {
+			// MovementUpdate (the leg is walked, or blocked): MoveRandomly again.
+			const float before_x = fauna_.pos_x[i], before_z = fauna_.pos_z[i];
+			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			fauna_.flee_distance[i] -= info.speed * dt;
+			if (fauna_.flee_distance[i] <= 0.0f || (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z)) roam_leg(i);
+		}
 	}
 
 	// Compact dead animals out (their carcasses live on as resources); keeps spawn order.
@@ -23132,6 +23332,15 @@ void Simulation::rebuild_auras() {
 					if (c.multiply != 1.0f) aura_mgr_.register_source(id, AURA_CAPTURE_MUL, r, c.multiply, pl, x, z, a);
 					if (c.add != 0.0f) aura_mgr_.register_source(id, AURA_CAPTURE_ADD, r, c.add, pl, x, z, a);
 				}
+				// Range auras on Looter/Resource (Brennus, Nastasen, Viriato) and on Loot (Pericles).
+				for (uint16_t k = 0; k < LOOTER_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, looter_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_LOOTER, looter_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
+							(float)k, aura_affected_players(team, looter_range_auras()[k].players), x, z, a);
+				for (uint16_t k = 0; k < NO_LOOT_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, no_loot_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
+							0.0f, aura_affected_players(team, no_loot_range_auras()[k].players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
 				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
