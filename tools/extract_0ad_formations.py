@@ -55,6 +55,13 @@ FORMATIONS = [
 ]
 FORMATION_INDEX = {path: i for i, (_, path) in enumerate(FORMATIONS)}
 
+# Roster rows whose template 0.28 split up, read from the 0.28 template that took their
+# place so they keep forming up (0.28 split rome/cavalry_auxiliary_b into a javelin and a
+# spear auxiliary; the row is ranged, like extract_0ad_promotion.py's INTERIM_TARGETS).
+STAND_INS = {
+    "rome/cavalry_auxiliary_b": "rome/cavalry_javelineer_auxiliary_b",
+}
+
 # Classes Formation.js sorts by (template SortingClasses, plus the columnar
 # order "Cavalry Infantry"). Bit i of a unit's class mask = CLASSES[i].
 CLASSES = ["Hero", "Champion", "Cavalry", "Melee", "Ranged", "Infantry",
@@ -143,6 +150,8 @@ def collect(sim_root):
     rows = []
     for rid in roster_ids():
         name = "units/" + rid
+        if not loader.exists(name) and rid in STAND_INS and loader.exists("units/" + STAND_INS[rid]):
+            name = "units/" + STAND_INS[rid]
         if not loader.exists(name):  # RTS0-only rows (rts0_villager)
             rows.append((rid, 0, 0, "RTS0-only"))
             continue
@@ -151,11 +160,11 @@ def collect(sim_root):
 
     generic = []
     for cls in atk.UNIT_TYPES:  # kGeneric is indexed by UnitType
-        tmpl = roster.GENERIC[cls]
+        tmpl = roster.GENERIC[cls] or "no template"
         if cls in roster.RTS0_ONLY:
             generic.append((cls, 0, 0, tmpl))
             continue
-        t = loader.load(tmpl)
+        t = roster.generic_template(loader, cls)
         generic.append((cls, formation_mask(t.tokens("UnitAI/Formations")), class_mask(t), tmpl))
     return forms, civs, rows, generic
 
