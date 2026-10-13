@@ -1042,7 +1042,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	}
 	if (progress >= 0.99f && !bulk_spawn_) {
 		rebuild_nav_grid();
-		if (is_territory_root(b.type)) {
+		if (has_territory_influence(b.type)) {
 			rebuild_territory();
 		}
 	}
@@ -1290,59 +1290,102 @@ void Simulation::rebuild_territory_grids() {
 	const int R = grid_res_;
 	auto &roots = territory_roots_scratch_;
 	roots.clear();
-	// structures/theater.json (stackable): each finished theater widens its owner's
-	// territory roots by 20%.
+	// structures/theater.json (global, stackable): each finished theater widens its owner's
+	// structures' territory influence by 20%.
 	float theater[MAX_PLAYERS];
 	std::fill(theater, theater + MAX_PLAYERS, 1.0f);
 	for (const auto &b : buildings_)
 		if (b.type == BLD_THEATER && b.build_progress >= 0.99f && b.team < MAX_PLAYERS && !b.wrecked)
 			theater[b.team] *= 1.2f;
 	for (const auto &b : buildings_) {
-		if (b.build_progress < 0.99f) continue;
-		float radius = 0.0f;
-		if (is_civic_centre(b.type)) radius = 32.0f;
-		else if (b.type == BLD_FORTRESS) radius = 28.0f;
-		else if (is_defense_tower(b.type)) radius = 18.0f;
-		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
-		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
-		roots.push_back({b.x, b.z, radius * theater[b.team] * tech_mods(b.team).bld_territory[b.type], b.team});
+		// Foundations claim nothing; Gaia holds no territory (CalculateTerritories skips owner 0).
+		if (b.build_progress < 0.99f || b.wrecked || b.team >= MAX_PLAYERS) continue;
+		const TerritoryInfluenceInfo &ti = territory_influence_info(b.type);
+		if (ti.radius <= 0.0f) continue;
+		roots.push_back({b.x, b.z, ti.radius * theater[b.team] * tech_mods(b.team).bld_territory[b.type], b.team, ti.weight});
 	}
-	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
+	// The grids depend on nothing else but the cost grid's terrain and water (set_water_level
+	// clears the roots to redo them), so unchanged inputs (most 1 Hz refreshes) keep them.
 	if (roots == territory_roots_ && territory_roots_res_ == R && territory_roots_half_ == map_half_ &&
-			influence_grid_.w == R && influence_grid_.h == R && territory_grid_.w == R && territory_grid_.h == R)
+			influence_grid_.w == R && influence_grid_.h == R &&
+			territory_grid_.w == R && territory_grid_.h == R)
 		return;
 	territory_roots_.swap(roots);
 	territory_roots_res_ = R;
 	territory_roots_half_ = map_half_;
-
-	influence_grid_.resize(R, R, 0);
-	territory_grid_.resize(R, R, 0);
-	influence_grid_.fill(0);
-	territory_grid_.fill(0);
 	territory_regions_dirty_ = true;
-	for (const TerritoryRoot &b : territory_roots_) {
-		const float radius = b.radius;
-		float r2 = radius * radius;
-		// Only cells whose centre can fall inside the radius (one-cell margin
-		// keeps the exact distance test below authoritative).
-		const float to_cell = static_cast<float>(R) / (map_half_ * 2.0f);
-		const int x0 = std::max(0, static_cast<int>((b.x - radius + map_half_) * to_cell) - 1);
-		const int x1 = std::min(R - 1, static_cast<int>((b.x + radius + map_half_) * to_cell) + 1);
-		const int y0 = std::max(0, static_cast<int>((b.z - radius + map_half_) * to_cell) - 1);
-		const int y1 = std::min(R - 1, static_cast<int>((b.z + radius + map_half_) * to_cell) + 1);
-		for (int y = y0; y <= y1; ++y) {
-			for (int x = x0; x <= x1; ++x) {
-				float wx = ((static_cast<float>(x) + 0.5f) / static_cast<float>(R)) * (map_half_ * 2.0f) - map_half_;
-				float wz = ((static_cast<float>(y) + 0.5f) / static_cast<float>(R)) * (map_half_ * 2.0f) - map_half_;
-				float dx = wx - b.x;
-				float dz = wz - b.z;
-				if (dx * dx + dz * dz <= r2) {
-					influence_grid_.at(x, y) = static_cast<uint8_t>(b.team + 1);
+
+	// CCmpTerritoryManager::CalculateCostGrid: 1 a tile, ImpassableCost (4) where a land unit
+	// can't stand (default-terrain-only: deep water or a slope over MaxTerrainSlope).
+	const float cell = map_half_ * 2.0f / (float)R;
+	territory_cost_.resize(R, R, 1);
+	territory_cost_.fill(1);
+	if (!nav_grid_.cells.blank())
+		for (int y = 0; y < R; ++y)
+			for (int x = 0; x < R; ++x) {
+				auto [cx, cy] = nav_grid_.world_to_cell(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_);
+				if (nav_grid_.cells.inside(cx, cy) && (nav_grid_.cells.at(cx, cy) == NAV_WATER || nav_grid_.is_steep(cx, cy)))
+					territory_cost_.at(x, y) = TERRITORY_IMPASSABLE_COST;
+			}
+
+	// CalculateTerritories: each structure's weight floods outwards over the tiles, losing
+	// weight x tile / radius per tile (times the tile's cost, x362/256 diagonally); a player's
+	// weights add up and each tile goes to the player with the most.
+	const size_t N = (size_t)R * R;
+	auto &entity = territory_entity_w_, &player = territory_player_w_, &best = territory_best_w_;
+	entity.assign(N, 0);
+	player.assign(N, 0);
+	best.assign(N, 0);
+	influence_grid_.resize(R, R, 0);
+	influence_grid_.fill(0);
+	auto &open = territory_open_;
+	auto &touched = territory_touched_;
+	static constexpr int DX[8] = {1, -1, 0, 0, 1, -1, 1, -1};
+	static constexpr int DZ[8] = {0, 0, 1, -1, 1, -1, -1, 1};
+	for (uint8_t team = 0; team < MAX_PLAYERS; ++team) {
+		bool any = false;
+		for (const TerritoryRoot &r : territory_roots_) any |= r.team == team;
+		if (!any) continue;
+		std::fill(player.begin(), player.end(), 0u);
+		for (const TerritoryRoot &r : territory_roots_) {
+			if (r.team != team || r.radius <= 0.0f) continue;
+			const uint32_t falloff_rel = (uint32_t)((float)r.weight * cell / r.radius);
+			const int ox = std::clamp((int)((r.x + map_half_) / cell), 0, R - 1);
+			const int oz = std::clamp((int)((r.z + map_half_) / cell), 0, R - 1);
+			// The origin tile takes the structure's weight alone (its decider has no predecessor).
+			auto claim = [&](int x, int z, uint32_t w, bool origin) {
+				const size_t k = (size_t)z * R + x;
+				const uint32_t total = origin ? w : w + player[k] - entity[k];
+				player[k] = total;
+				if (entity[k] == 0) touched.push_back((uint32_t)k);
+				entity[k] = w;
+				if (total > best[k]) {
+					best[k] = total;
+					influence_grid_.data[k] = (uint8_t)(team + 1);
+				}
+			};
+			open.clear();
+			touched.clear();
+			claim(ox, oz, r.weight, true);
+			open.push_back((uint32_t)(oz * R + ox));
+			for (size_t head = 0; head < open.size(); ++head) {
+				const int cx = (int)(open[head] % (uint32_t)R), cz = (int)(open[head] / (uint32_t)R);
+				const uint32_t here = entity[(size_t)cz * R + cx];
+				for (int d = 0; d < 8; ++d) {
+					const int nx = cx + DX[d], nz = cz + DZ[d];
+					if (nx < 0 || nz < 0 || nx >= R || nz >= R) continue;
+					const uint32_t per_tile = falloff_rel * territory_cost_.at(nx, nz);
+					const uint32_t fall = d >= 4 ? per_tile * 362 / 256 : per_tile;
+					const size_t k = (size_t)nz * R + nx;
+					if (here <= entity[k] + fall) continue; // no better than what it has
+					claim(nx, nz, here - fall, false);
+					open.push_back((uint32_t)k);
 				}
 			}
+			for (uint32_t k : touched) entity[k] = 0;
 		}
 	}
-	nav_grid_.blur_territory(influence_grid_, territory_grid_);
+	territory_grid_ = influence_grid_;
 }
 
 // Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell no land unit can cross:
@@ -1403,11 +1446,10 @@ void Simulation::ensure_territory_regions() {
 			}
 		}
 	}
-	// Roots: template_structure_civic_civil_centre.xml and template_structure_wonder.xml
-	// TerritoryInfluence/Root.
+	// Roots: TerritoryInfluence/Root (civic centres, wonders and a few civ structures).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f || b.team >= MAX_PLAYERS || b.wrecked) continue;
-		if (!is_civic_centre(b.type) && b.type != BLD_WONDER) continue;
+		if (!is_territory_root(b.type)) continue;
 		const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
 		const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
 		const uint16_t id = territory_region_.at(tx, tz);
@@ -1445,11 +1487,7 @@ bool Simulation::territory_decay_targets(const Building &b, std::array<float, MA
 	const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
 	const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
 	const uint16_t id = territory_region_.at(tx, tz);
-	if (!id) { // neutral ground: Gaia's own structures don't decay there
-		// 0 A.D. only lets outposts (which don't decay there) and military colonies be placed in
-		// neutral land (BuildRestrictions/Territory). Until RTS0's placement follows those rules
-		// (gap U5), structures standing there keep their points rather than all turning Gaia.
-		if (!TERRITORY_DECAY_IN_NEUTRAL_LAND) return false;
+	if (!id) { // neutral ground: Gaia's own structures don't decay there, nor outposts and docks
 		if (gaia || !neutral) return false;
 		to_gaia = 1.0f;
 		return true;
@@ -2800,8 +2838,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
 	b.upgrade_duration = 0.0f;
-	if (is_territory_root(to) || civ_building_territory_radius(to) > 0.0f ||
-	    civ_building_territory_radius(from) > 0.0f)
+	if (has_territory_influence(to) || has_territory_influence(from))
 		rebuild_territory();
 	if (is_gate_type(to)) {
 		b.gate_open = false;
@@ -8682,7 +8719,7 @@ void Simulation::tick_construction(float dt) {
 				b.hp = std::max(b.hp, b.max_hp);
 				on_construction_finished(b, i); // 0 A.D. UnitAI ConstructionFinished
 				rebuild_nav_grid();
-				if (is_territory_root(b.type)) {
+				if (has_territory_influence(b.type)) {
 					rebuild_territory();
 				}
 				if (!triggers_.triggers.empty()) { // Foundation.js: OnStructureBuilt
@@ -9464,7 +9501,7 @@ void Simulation::tick_combat(float dt) {
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
 				rebuild_nav_grid();
-				if (is_territory_root(b.type)) {
+				if (has_territory_influence(b.type)) {
 					rebuild_territory();
 				}
 			}
@@ -10043,7 +10080,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		owner = best;
 		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) cc_captures_.push_back({b.id, from, b.team});
-		if (is_territory_root(b.type)) rebuild_territory();
+		if (has_territory_influence(b.type)) rebuild_territory();
 		return true;
 	};
 	check_owner(); // territory decay (tick_capture) may have emptied the owner
@@ -10193,7 +10230,7 @@ void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
 	collect_building_loot(p.source_id, p.team, b);
 	mark_building_wreck(b, p.team);
 	rebuild_nav_grid();
-	if (is_territory_root(b.type))
+	if (has_territory_influence(b.type))
 		rebuild_territory();
 }
 
@@ -10677,7 +10714,7 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.rally_more.clear();
 		b.team = GAIA_PLAYER;
 		b.capture_points = 0.0f;
-		roots |= is_territory_root(b.type);
+		roots |= has_territory_influence(b.type);
 	}
 	// Capturable.js OnOwnershipChanged: the old owner's points become the new owner's
 	// (Gaia's pool is what no player holds), and OnGlobalPlayerDefeated: what the defeated
@@ -11215,7 +11252,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		collect_building_loot(attacker_id, attacker_team, b);
 		mark_building_wreck(b, attacker_team);
 		nav_changed = true;
-		if (is_territory_root(b.type)) territory_changed = true;
+		if (has_territory_influence(b.type)) territory_changed = true;
 	}
 	if (nav_changed) rebuild_nav_grid();
 	if (territory_changed) rebuild_territory();
@@ -12274,7 +12311,7 @@ void Simulation::destroy_building(Building &b) {
 	b.build_progress = 0.0f;
 	record_death((float)b.cell_x, (float)b.cell_y, b.team, b.team, b.type, true); // no killer, no loot
 	rebuild_nav_grid();
-	if (is_territory_root(b.type)) rebuild_territory();
+	if (has_territory_influence(b.type)) rebuild_territory();
 }
 
 void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
@@ -12509,7 +12546,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		b.team = to;
 		refresh_capture_max(b);
 		b.capture_points = to < MAX_PLAYERS ? b.capture_points_by_team[to] : 0.0f;
-		roots |= is_territory_root(b.type);
+		roots |= has_territory_influence(b.type);
 	}
 	if (roots) rebuild_territory();
 }
@@ -13265,7 +13302,7 @@ void Simulation::petra_manage_workers(float dt) {
 
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
-		if (is_territory_root(b.type) || b.type == BLD_STOREHOUSE) {
+		if (is_civic_centre(b.type) || b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_STOREHOUSE) {
 			float b_threat = get_threat_at(b.x, b.z);
 			if (b_threat < best_shelter_score) {
 				best_shelter_score = b_threat;
@@ -14091,6 +14128,20 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 	out[RES_STONE] = demand_stone;
 }
 
+// ResourceGatherer/Rates of unit i for a supply kind (entity.js currentGatherRate), with its
+// technologies and the AI difficulty's gather rate.
+float Simulation::petra_gather_rate(size_t i, uint8_t kind) const {
+	const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+	return gather_class_rate(gcls, kind) * unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).gather[kind] *
+		ai_gather_mult(units_.team[i]);
+}
+
+uint8_t Simulation::petra_gather_kind(size_t r) const {
+	const uint8_t rt = resources_.type[r], sub = resources_.subtype[r];
+	return rt == RES_WOOD ? GK_WOOD : rt == RES_STONE ? GK_STONE : rt == RES_GOLD ? GK_METAL
+		: sub == RES_SUB_FISH ? GK_FISH : sub == RES_SUB_GRAIN ? GK_GRAIN : sub == RES_SUB_MEAT ? GK_MEAT : GK_FRUIT;
+}
+
 void Simulation::petra_manage_economy(float dt) {
 	petra_econ_timer_ += dt;
 	if (petra_econ_timer_ < 1.0f) return;
@@ -14105,12 +14156,13 @@ void Simulation::petra_manage_economy(float dt) {
 	// headquarters.js update: trainMoreWorkers (every 4th AI turn there, every second here).
 	const int worker_shortfall = petra_train_more_workers();
 
-	// 2. Count workers currently on each resource
-	// Gatherers per resource weighted by their rate (pickMostNeededResources compares
-	// gather rates): a citizen soldier farms at half a woman's rate, so it counts as half.
-	float workers_food = 0, workers_wood = 0, workers_gold = 0, workers_stone = 0;
-	auto food_weight = [&](size_t i) {
-		return unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_INFANTRY ? 0.5f : 1.0f;
+	// 2. headquarters.js GetCurrentGatherRates (basesManager.addGatherRates): every gatherer
+	// that is not idle adds log(1 + rate) / 1.1 to its resource, the rate being its
+	// ResourceGatherer rate for the supply it is after; hunters and fishing boats count for food.
+	float cur_rate[RES_COUNT] = {};
+	auto add_rate = [&](size_t i, uint8_t kind, uint8_t res) {
+		const float r = petra_gather_rate(i, kind);
+		if (r > 0.0f) cur_rate[res] += std::log(1.0f + r) / 1.1f;
 	};
 	std::vector<size_t> reassignable_workers;
 
@@ -14125,6 +14177,16 @@ void Simulation::petra_manage_economy(float dt) {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls == GATHER_CAVALRY || gcls == GATHER_FISHING) {
+			if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
+				add_rate(i, GK_MEAT, RES_FOOD);
+			} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit != res_id_to_idx_.end() && resources_.type[rit->second] == RES_FOOD)
+					add_rate(i, petra_gather_kind(rit->second), RES_FOOD);
+			}
+			continue;
+		}
 		if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 		if (units_.action_state[i] == ACTION_IDLE) {
 			// Standing at a treasure is collecting it (UnitAI COLLECTTREASURE), not idling;
@@ -14154,16 +14216,16 @@ void Simulation::petra_manage_economy(float dt) {
 			}
 			reassignable_workers.push_back(i);
 		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
-			workers_food++; // hunting: the carcass is gathered next
+			add_rate(i, GK_MEAT, RES_FOOD); // hunting: the carcass is gathered next
 		} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
-			if (units_.target_resource_id[i] != 0) {
-				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				if (rit != res_id_to_idx_.end()) {
-					uint8_t rtype = resources_.type[rit->second];
-					if (rtype == RES_FOOD) workers_food += food_weight(i);
-					else if (rtype == RES_WOOD) workers_wood++;
-					else if (rtype == RES_GOLD) workers_gold++;
-					else if (rtype == RES_STONE) workers_stone++;
+			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+			if (rit != res_id_to_idx_.end()) {
+				const size_t r = rit->second;
+				if (resources_.subtype[r] == RES_SUB_RUINS) {
+					const float rr = gather_class_ruins_rate(gcls, resources_.type[r]) * ai_gather_mult(petra_pid_);
+					if (rr > 0.0f) cur_rate[resources_.type[r]] += std::log(1.0f + rr) / 1.1f;
+				} else {
+					add_rate(i, petra_gather_kind(r), resources_.type[r]);
 				}
 			}
 		}
@@ -14188,55 +14250,112 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
-	// Compute Resource Deficits & Proportions:
-	float need_food  = std::max(40.0f, demand_food - petra_ps().food());
-	float need_wood  = std::max(40.0f, demand_wood - petra_ps().wood());
-	float need_gold  = std::max(30.0f, demand_gold - petra_ps().gold());
-	float need_stone = (petra_ps().phase >= 2) ? std::max(40.0f, demand_stone - petra_ps().stone()) : 20.0f;
+	// queueManager.js wantedGatherRates: what the queues' next plans cost (with config.js
+	// queues.short) less what we have, wanted within 30 s.
+	float want_rate[RES_COUNT];
+	want_rate[RES_FOOD] = std::max(0.0f, demand_food - petra_ps().food()) / 30.0f;
+	want_rate[RES_WOOD] = std::max(0.0f, demand_wood - petra_ps().wood()) / 30.0f;
+	want_rate[RES_STONE] = std::max(0.0f, demand_stone - petra_ps().stone()) / 30.0f;
+	want_rate[RES_GOLD] = std::max(0.0f, demand_gold - petra_ps().gold()) / 30.0f;
 
-	float total_need = need_food + need_wood + need_gold + need_stone;
-	float pct_food  = need_food / total_need;
-	float pct_wood  = need_wood / total_need;
-	float pct_gold  = need_gold / total_need;
-	float pct_stone = need_stone / total_need;
-
-	const float total_workers = std::max(1.0f, workers_food + workers_wood + workers_gold + workers_stone + (float)reassignable_workers.size());
-	const float target_food  = std::max(1.0f, std::round(pct_food * total_workers));
-	const float target_wood  = std::max(1.0f, std::round(pct_wood * total_workers));
-	const float target_gold  = std::max(1.0f, std::round(pct_gold * total_workers));
-	const float target_stone = std::max(0.0f, std::round(pct_stone * total_workers));
-
-	// baseManager.js setWorkersIdleByPriority (every 8 s, one switch at a time): a gatherer moves
-	// from the resource least in need to the one most in need when the gap is wide enough;
-	// citizen soldiers leave food first and support workers (Civilian) go to food first.
-	if ((ticks_ / (uint64_t)std::lround(1.0f / FIXED_STEP)) % 8 == 0) {
-		const float cur[RES_COUNT] = {workers_wood, workers_gold, workers_stone, workers_food};
-		const float want[RES_COUNT] = {target_wood, target_gold, target_stone, target_food};
-		int more = -1, less = -1;
-		for (int r = 0; r < RES_COUNT; ++r) {
-			if (more < 0 || want[r] - cur[r] > want[more] - cur[more]) more = r;
-			if (cur[r] > 0 && (less < 0 || cur[r] - want[r] > cur[less] - want[less])) less = r;
+	// basesManager.isResourceExhausted: no supply of it within maxDistResourceSquare (360 m)
+	// of one of our dropsites for it.
+	bool exhausted[RES_COUNT] = {};
+	{
+		std::vector<std::pair<float, float>> drops[RES_COUNT];
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD})
+				if (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE) drops[r].push_back({b.x, b.z});
 		}
-		if (more >= 0 && less >= 0 && more != less && (want[more] - cur[more]) - (want[less] - cur[less]) > 3) {
+		for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
+			bool any = false;
+			for (size_t k = 0; k < resources_.count && !any; ++k) {
+				if (!resources_.alive[k] || resources_.type[k] != r || resources_.amount[k] <= 0) continue;
+				for (const auto &d : drops[r]) {
+					const float dx = resources_.x[k] - d.first, dz = resources_.z[k] - d.second;
+					if (dx * dx + dz * dz < 90.0f * 90.0f) { any = true; break; }
+				}
+			}
+			exhausted[r] = !any;
+		}
+	}
+
+	// headquarters.js pickMostNeededResources: short of what we want first, the furthest short
+	// (wanted over current) first; then by how far over it we are.
+	auto most_needed = [&](uint8_t out[RES_COUNT]) {
+		const uint8_t codes[RES_COUNT] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+		auto cmp = [&](uint8_t a, uint8_t b) -> float {
+			const float aw = want_rate[a], ac = cur_rate[a], bw = want_rate[b], bc = cur_rate[b];
+			if (ac < aw && bc < bw) {
+				if (ac > 0.0f && bc > 0.0f) return bw / bc - aw / ac;
+				if (ac > 0.0f) return 1.0f;
+				if (bc > 0.0f) return -1.0f;
+				return bw - aw;
+			}
+			if (ac < aw || (aw > 0.0f && bw <= 0.0f)) return -1.0f;
+			if (bc < bw || (bw > 0.0f && aw <= 0.0f)) return 1.0f;
+			return ac - aw - bc + bw;
+		};
+		for (int r = 0; r < RES_COUNT; ++r) out[r] = codes[r];
+		for (int x = 1; x < RES_COUNT; ++x)
+			for (int y = x; y > 0 && cmp(out[y - 1], out[y]) > 0.0f; --y) std::swap(out[y - 1], out[y]);
+	};
+
+	// baseManager.js setWorkersIdleByPriority (every 8 s, one switch at most): a gatherer moves
+	// from a less needed resource to a more needed one when, with the wanted rates scaled to the
+	// current total, the gap passes 1.5, or the less needed one is exhausted. switchGatherer
+	// takes a citizen soldier off food and a woman onto it when there is one.
+	std::vector<uint8_t> gather_type(reassignable_workers.size(), (uint8_t)RES_COUNT); // RES_COUNT: none yet
+	if ((ticks_ / (uint64_t)std::lround(1.0f / FIXED_STEP)) % 8 == 0) {
+		uint8_t order[RES_COUNT];
+		most_needed(order);
+		float sum_want = 0.0f, sum_cur = 0.0f;
+		for (int r = 0; r < RES_COUNT; ++r) { sum_want += want_rate[r]; sum_cur += cur_rate[r]; }
+		const float scale = sum_want > 0.0f ? sum_cur / sum_want : 1.0f;
+		auto switch_gatherer = [&](uint8_t from, uint8_t to) -> bool {
 			size_t pick = SIZE_MAX;
+			bool only_soldier = false, only_woman = false;
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
-				const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-				if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != less) continue;
-				const bool preferred = (less == RES_FOOD && gcls == GATHER_INFANTRY) || (more == RES_FOOD && gcls == GATHER_SUPPORT);
-				if (pick == SIZE_MAX || preferred) pick = i;
-				if (preferred) break;
+				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != from) continue;
+				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+				if (from == RES_FOOD && g == GATHER_INFANTRY) only_soldier = true;
+				else if (to == RES_FOOD && g == GATHER_SUPPORT) only_woman = true;
 			}
-			if (pick != SIZE_MAX) {
-				uint32_t uid = units_.id[pick];
-				cmd_stop(&uid, 1);
-				reassignable_workers.push_back(pick);
-				if (less == RES_FOOD) workers_food -= food_weight(pick);
-				else if (less == RES_WOOD) workers_wood--;
-				else if (less == RES_GOLD) workers_gold--;
-				else workers_stone--;
+			for (size_t i = 0; i < units_.count && pick == SIZE_MAX; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
+				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+				if (g != GATHER_INFANTRY && g != GATHER_SUPPORT) continue;
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != from) continue;
+				if (only_soldier && g != GATHER_INFANTRY) continue;
+				if (only_woman && g != GATHER_SUPPORT) continue;
+				if (petra_gather_rate(i, to == RES_FOOD ? GK_FRUIT : to == RES_WOOD ? GK_WOOD : to == RES_STONE ? GK_STONE : GK_METAL) <= 0.0f &&
+				    !(to == RES_FOOD && petra_gather_rate(i, GK_GRAIN) > 0.0f)) continue; // canGather
+				pick = i;
+			}
+			if (pick == SIZE_MAX) return false;
+			uint32_t uid = units_.id[pick];
+			cmd_stop(&uid, 1);
+			reassignable_workers.push_back(pick);
+			gather_type.push_back(to);
+			cur_rate[to] += 0.5f; // AddTCResGatherer
+			return true;
+		};
+		bool done = false;
+		for (int a = RES_COUNT - 1; a > 0 && !done; --a) {
+			const uint8_t less = order[a];
+			for (int b = 0; b < a && !done; ++b) {
+				const uint8_t more = order[b];
+				if (more != RES_FOOD && exhausted[more]) {
+					if (less != RES_FOOD && exhausted[less]) continue;
+					if (switch_gatherer(more, less)) { done = true; break; }
+				}
+				if (scale * want_rate[more] - cur_rate[more] - scale * want_rate[less] + cur_rate[less] > 1.5f ||
+				    (less != RES_FOOD && exhausted[less]))
+					if (switch_gatherer(less, more)) done = true;
 			}
 		}
 	}
@@ -14315,34 +14434,24 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// Assign reassignable workers to nearest safe dropsite and resource
-	for (size_t widx : reassignable_workers) {
-		uint8_t chosen_res_type = RES_FOOD;
-		float max_deficit = target_food - workers_food;
-
-		if (target_wood - workers_wood > max_deficit) {
-			max_deficit = target_wood - workers_wood;
-			chosen_res_type = RES_WOOD;
+	for (size_t w = 0; w < reassignable_workers.size(); ++w) {
+		const size_t widx = reassignable_workers[w];
+		// baseManager.js reassignIdleWorkers: the most needed resource that is not (food aside)
+		// exhausted; a switched gatherer keeps the type it was switched to.
+		uint8_t needed[RES_COUNT];
+		most_needed(needed);
+		uint8_t chosen_res_type = gather_type[w];
+		if (chosen_res_type == RES_COUNT) {
+			chosen_res_type = needed[0];
+			for (uint8_t r : needed)
+				if (r == RES_FOOD || !exhausted[r]) { chosen_res_type = r; break; }
 		}
-		if (target_gold - workers_gold > max_deficit) {
-			max_deficit = target_gold - workers_gold;
-			chosen_res_type = RES_GOLD;
-		}
-		if (target_stone - workers_stone > max_deficit) {
-			max_deficit = target_stone - workers_stone;
-			chosen_res_type = RES_STONE;
-		}
-
-		// baseManager.js prefers female citizens for food (setWorkersIdleByPriority): a support
-		// worker gathers food while it is short.
-		if (chosen_res_type != RES_FOOD && target_food > workers_food &&
-		    unit_gather_class(units_.unit_type[widx], units_.tmpl[widx]) == GATHER_SUPPORT)
-			chosen_res_type = RES_FOOD;
 
 		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
 		// gatherer hunts next (livestock and carcasses near a dropsite).
 		if (petra_gather_treasure(widx, hunt_scan)) continue;
 		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) {
-			workers_food += 1.0f; // hunting: meat at the same rate for all
+			cur_rate[RES_FOOD] += 0.5f; // AddTCResGatherer
 			continue;
 		}
 
@@ -14350,22 +14459,12 @@ void Simulation::petra_manage_economy(float dt) {
 		float wz = units_.pos_z[widx];
 		const uint16_t wland = naval_map ? petra_land_at(wx, wz) : 0;
 
-		// Fall back to the other resource types, neediest first, when the
-		// chosen one has nothing safe left (a depleted map left workers idle).
-		uint8_t order[4] = {chosen_res_type, RES_WOOD, RES_FOOD, RES_GOLD};
-		float deficits[RES_COUNT] = {};
-		deficits[RES_FOOD] = target_food - workers_food;
-		deficits[RES_WOOD] = target_wood - workers_wood;
-		deficits[RES_GOLD] = target_gold - workers_gold;
-		deficits[RES_STONE] = target_stone - workers_stone;
-		{
-			int n = 0;
-			uint8_t rest[3];
-			for (uint8_t rt : {RES_FOOD, RES_WOOD, RES_GOLD, RES_STONE})
-				if (rt != chosen_res_type) rest[n++] = rt;
-			std::stable_sort(rest, rest + 3, [&](uint8_t a, uint8_t b) { return deficits[a] > deficits[b]; });
-			order[1] = rest[0]; order[2] = rest[1]; order[3] = rest[2];
-		}
+		// Fall back to the other resource types, most needed first, when the chosen one has
+		// nothing safe left (worker.js: the worker fails and the next pass picks another).
+		uint8_t order[RES_COUNT];
+		order[0] = chosen_res_type;
+		for (int r = 0, n = 1; r < RES_COUNT; ++r)
+			if (needed[r] != chosen_res_type) order[n++] = needed[r];
 
 		uint32_t best_rid = 0;
 		Candidate *best_c = nullptr;
@@ -14407,17 +14506,14 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 		if (best_c) best_c->slots--;
 		if (best_rid == 0 && got_type == RES_FOOD && units_.action_state[widx] == ACTION_BUILD) {
-			workers_food += food_weight(widx);
+			cur_rate[RES_FOOD] += 0.5f; // AddTCResGatherer
 			continue;
 		}
 
 		if (best_rid != 0) {
 			uint32_t uid = units_.id[widx];
 			order_gather(&uid, 1, best_rid);
-			if (got_type == RES_FOOD) workers_food += food_weight(widx);
-			else if (got_type == RES_WOOD) workers_wood++;
-			else if (got_type == RES_GOLD) workers_gold++;
-			else if (got_type == RES_STONE) workers_stone++;
+			cur_rate[got_type] += 0.5f; // AddTCResGatherer
 		}
 	}
 
@@ -20768,7 +20864,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	};
 	static_assert(sizeof(S::TerritoryRoot) == 16, "list the new TerritoryRoot field below");
 	auto root = [&](S::TerritoryRoot &r) {
-		ar.padded(r, [&](S::TerritoryRoot &d, const S::TerritoryRoot &v) { d.x = v.x; d.z = v.z; d.radius = v.radius; d.team = v.team; });
+		ar.padded(r, [&](S::TerritoryRoot &d, const S::TerritoryRoot &v) { d.x = v.x; d.z = v.z; d.radius = v.radius; d.team = v.team; d.weight = v.weight; });
 	};
 	static_assert(sizeof(S::PetraBase) == 36, "list the new PetraBase field below");
 	auto base = [&](S::PetraBase &b) {
@@ -24891,7 +24987,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		}
 	// Structures and resources under water become decorative actors in 0 A.D.:
 	// here they are gone. Docks float with the water.
-	bool lost_building = false, lost_root = false;
+	bool lost_building = false;
 	for (Building &b : buildings_) {
 		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || !submerged(b.x, b.z)) continue;
 		for (uint32_t uid : b.garrisoned_units) {
@@ -24912,7 +25008,6 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		b.build_progress = 0.0f;
 		record_death(b.x, b.z, b.team, b.team, b.type, true);
 		lost_building = true;
-		lost_root |= is_territory_root(b.type);
 	}
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.subtype[r] == RES_SUB_FISH) continue;
@@ -24922,7 +25017,9 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	}
 	(void)lost_building;
 	rebuild_nav_grid(); // new water cells, and the drowned structures' footprints
-	if (lost_root) rebuild_territory();
+	// The territory cost grid follows the water (CCmpTerritoryManager::OnWaterChanged).
+	territory_roots_.clear();
+	rebuild_territory();
 }
 
 } // namespace rtso

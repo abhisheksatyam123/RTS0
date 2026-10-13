@@ -576,7 +576,7 @@ def check_petra_parity():
 # C++/JS source, runs it for real, and asserts on measured numbers.
 #
 #   nav-live       -> box: JPS raw paths optimal vs Dijkstra; pulled paths LOS-clear
-#   territory-live -> box: TC(0,0)+Tower(20,0) border polygon vs 0 A.D. dump <= 2 cells
+#   territory-live -> TC(0,0)+Tower(36,0) claims reach their TerritoryInfluence radii (<= 2 tiles)
 #   market-live    -> box: 10 barters wood->gold price series within 0.05 of 0 A.D. JS
 #   aura-live      -> box: hero at (0,0), units at r=15 vs r=17 buff boundary
 #
@@ -1107,269 +1107,113 @@ def check_nav_live(seed=42, n_cases=12, n_obs=60):
 
 
 # --- 2. TERRITORY LIVE -----------------------------------------------------
-# The REMAINING_GAPS box tolerance: "RTS0 border polygon within 2 cells of the
-# 0 A.D. dump". Pinned here as an explicit spec constant so shrinking it in the
-# comparison below is a visible, reviewable change.
+# Claimed extents must sit within this many tiles of each TerritoryInfluence radius.
 TERR_TOL_CELLS = 2
-
-# Blur majority threshold, parsed from blur_territory (grid_nav.h:525) so the
-# Python mirror can never use a different threshold than the C++ port.
-_TERR_BLUR_THR = 4
+TERRITORY_DATA_H = ROOT / "src/simulation/territory_data.h"
 
 
-def _pin_blur_threshold():
-    """Read the majority threshold out of NavGrid::blur_territory."""
-    global _TERR_BLUR_THR
-    if not GRID_NAV.is_file():
-        return None
-    m = re.search(r"if \(cnt_nonzero\s*>\s*(\d+)\)",
-                  GRID_NAV.read_text(errors="ignore"))
-    if m:
-        _TERR_BLUR_THR = int(m.group(1))
-    return _TERR_BLUR_THR
+def _territory_influence(name):
+    """(radius in RTS0 units, weight, root) of a BuildingType row in territory_data.h."""
+    txt = TERRITORY_DATA_H.read_text(errors="ignore") if TERRITORY_DATA_H.is_file() else ""
+    m = re.search(r"\{([0-9.]+)f, (\d+), (true|false)\}, // " + name + r":", txt)
+    return (float(m.group(1)), int(m.group(2)), m.group(3) == "true") if m else None
 
 
-def _rebuild_territory_py(tc, tower, res=TERR_RES, half=NAV_MAP_HALF):
+def _rebuild_territory_py(structures, res=TERR_RES, half=NAV_MAP_HALF):
     """
-    Python mirror of Simulation::rebuild_territory (simulation.cpp:729) plus
-    NavGrid::blur_territory (grid_nav.h:485).
-
-    Radii (simulation.cpp:736-739): TownCenter 32m, Fortress 28m, Tower 18m.
-    Influence is stamped as team+1 inside the radius, then blurred: a cell is
-    owned iff MORE THAN 4 of its 3x3 neighbours are non-zero (majority team id
-    wins), which erodes roughly a one-cell rim.
+    Python mirror of Simulation::rebuild_territory_grids, itself CCmpTerritoryManager::
+    CalculateTerritories on flat land (every tile costs 1): each structure's weight floods
+    over the 8-neighbour tiles, losing weight x tile / radius per tile (x362/256 diagonally);
+    one player's weights add up. Returns the owned tiles of player 0's structures.
     """
-    infl = [[0] * res for _ in range(res)]
-    for (bx, bz, radius) in (tc, tower):
-        if radius <= 0:
-            continue
-        r2 = radius * radius
-        for y in range(res):
-            wz = ((y + 0.5) / res) * (half * 2.0) - half
-            for x in range(res):
-                wx = ((x + 0.5) / res) * (half * 2.0) - half
-                dx, dz = wx - bx, wz - bz
-                if dx * dx + dz * dz <= r2:
-                    infl[y][x] = 1  # team 0 -> id 1
-    out = [[0] * res for _ in range(res)]
-    for y in range(res):
-        for x in range(res):
-            cnt, best_val, best_cnt, freq = 0, 0, 0, {}
-            for dy in (-1, 0, 1):
-                for dx in (-1, 0, 1):
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < res and 0 <= ny < res:
-                        v = infl[ny][nx]
-                        if v != 0:
-                            cnt += 1
-                            freq[v] = freq.get(v, 0) + 1
-                            if freq[v] > best_cnt:
-                                best_cnt, best_val = freq[v], v
-            out[y][x] = (best_val or (infl[y][x] or 1)) if cnt > _TERR_BLUR_THR else 0
-    return out
+    cell = half * 2.0 / res
+    player = [[0] * res for _ in range(res)]
+    for (bx, bz, radius, weight) in structures:
+        fall_rel = int(weight * cell / radius)
+        ox = min(max(int((bx + half) / cell), 0), res - 1)
+        oz = min(max(int((bz + half) / cell), 0), res - 1)
+        ent = {(ox, oz): weight}
+        player[oz][ox] = weight  # the origin takes the structure's weight alone
+        queue, head = [(ox, oz)], 0
+        while head < len(queue):
+            cx, cz = queue[head]
+            head += 1
+            here = ent[(cx, cz)]
+            for d, (dx, dz) in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))):
+                nx, nz = cx + dx, cz + dz
+                if not (0 <= nx < res and 0 <= nz < res):
+                    continue
+                fall = fall_rel * 362 // 256 if d >= 4 else fall_rel
+                old = ent.get((nx, nz), 0)
+                if here <= old + fall:
+                    continue
+                player[nz][nx] += here - fall - old
+                ent[(nx, nz)] = here - fall
+                queue.append((nx, nz))
+    return {(x, z) for z in range(res) for x in range(res) if player[z][x] > 0}
 
 
-def _owner_border(terr, res=TERR_RES):
-    """Border polygon = owned cells touching an unowned (or off-grid) cell."""
-    border = set()
-    for y in range(res):
-        for x in range(res):
-            if terr[y][x] == 0:
-                continue
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx, ny = x + dx, y + dy
-                if not (0 <= nx < res and 0 <= ny < res) or terr[ny][nx] == 0:
-                    border.add((x, y))
-                    break
-    return border
-
-
-def _flood4(terr, start, res=TERR_RES):
-    """4-connected flood over owned cells from start."""
-    if terr[start[1]][start[0]] == 0:
+def _flood4(owned, start):
+    """4-connected flood over owned tiles from start."""
+    if start not in owned:
         return set()
     seen, stack = {start}, [start]
     while stack:
         x, y = stack.pop()
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < res and 0 <= ny < res and (nx, ny) not in seen and terr[ny][nx] != 0:
-                seen.add((nx, ny))
-                stack.append((nx, ny))
+            n = (x + dx, y + dy)
+            if n in owned and n not in seen:
+                seen.add(n)
+                stack.append(n)
     return seen
-
-
-def gtxt_for_terr():
-    return GRID_NAV.read_text(errors="ignore") if GRID_NAV.is_file() else ""
 
 
 def check_territory_live(res=TERR_RES):
     """
-    G2 live probe -- REMAINING_GAPS box: "seed map, TC at (0,0), Tower at (20,0)
-    -- RTS0 border polygon within 2 cells of 0 A.D. dump".
-
-    Method (the 2-cell-tolerance procedure the box asks for):
-      1. Stamp TC(0,0,r=32m) and Tower(20,0,r=18m) influence per
-         Simulation::rebuild_territory (simulation.cpp:729).
-      2. Blur 3x3 majority with threshold >4 (blur_territory, grid_nav.h:525).
-      3. Extract the border polygon (owned cells adjacent to an unowned cell).
-      4. Measure the Chebyshev depth of every owned cell inside that polygon;
-         the box's tolerance is 2 cells. Print the metric plus per-quadrant
-         frontier extents so a 0 A.D. dump can be diffed directly.
-      5. Assert sanity: TC cell owned, far corner unowned, owned set is a single
-         4-connected component, tower bulges the frontier east, and no owned
-         cell sits deeper than 2 cells from the frontier.
+    G2 live probe: a civic centre at (0,0) and a defense tower at (36,0) near its edge, claimed as
+    CCmpTerritoryManager does from territory_data.h's TerritoryInfluence (0 A.D.'s radii
+    x0.28). Asserts each claim reaches its radius (within TERR_TOL_CELLS tiles), the
+    tower bulges the civic centre's frontier east, the claim is one 4-connected region
+    and the far corner stays neutral.
     """
-    print(f"[territory-live] TC(0,0,r=32m) + Tower(20,0,r=18m) grid={res}x{res} blur 3x3 thr>4")
-    # Pin the influence radii against Simulation::rebuild_territory
-    # (simulation.cpp:736-739) so the probe cannot drift from the live table.
-    _pin_blur_threshold()
-    ctxt = SIM_CPP.read_text(errors="ignore") if SIM_CPP.is_file() else ""
-    def _radius(name):
-        m = re.search(name + r"\)\s*radius\s*=\s*([0-9.]+)f", ctxt)
-        return float(m.group(1)) if m else None
-    tc_r, tower_r = _radius("BLD_TOWN_CENTER"), _radius("BLD_TOWER")
-    rad_pin = (tc_r == 32.0 and tower_r == 18.0)
-    print(f"  [{'✓' if rad_pin else '✗'}] influence radii pinned: TC={tc_r}m (want 32), "
-          f"Tower={tower_r}m (want 18)")
-    if not rad_pin:
-        fails.append(f"influence radii drifted: TC={tc_r} Tower={tower_r}")
-    tc = (0.0, 0.0, 32.0)
-    tower = (20.0, 0.0, 18.0)
-    terr = _rebuild_territory_py(tc, tower, res=res)
-    owned = {(x, y) for y in range(res) for x in range(res) if terr[y][x] != 0}
-    border = _owner_border(terr, res)
     fails = []
-
-    tc_cell = _world_to_cell(0.0, 0.0, res)
-    far_corner = (res - 1, res - 1)
-    tc_owned = terr[tc_cell[1]][tc_cell[0]] != 0
-    far_unowned = terr[far_corner[1]][far_corner[0]] == 0
-    print(f"  [{'✓' if tc_owned else '✗'}] TC cell {tc_cell} owned")
-    print(f"  [{'✓' if far_unowned else '✗'}] far corner {far_corner} unowned")
-    if not tc_owned:
-        fails.append("TC cell not owned")
-    if not far_unowned:
-        fails.append("far corner owned")
-
-    seed_cell = next(iter(owned)) if owned else (0, 0)
-    comp = _flood4(terr, seed_cell, res)
-    connected = comp == owned
-    print(f"  [{'✓' if connected else '✗'}] owned region is one 4-connected component "
-          f"({len(comp)}/{len(owned)} cells)")
-    if not connected:
-        fails.append("owned region not 4-connected")
-
-    # Chebyshev depth of every owned cell from the unowned field: the blur is a
-    # 3x3 majority, so it can only erode/expand the frontier by ~1 cell.
-    from collections import deque
-    dist = {}
-    q = deque()
-    for y in range(res):
-        for x in range(res):
-            if terr[y][x] == 0:
-                dist[(x, y)] = 0
-                q.append((x, y))
-    while q:
-        x, y = q.popleft()
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1),
-                       (1, 1), (1, -1), (-1, 1), (-1, -1)):
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < res and 0 <= ny < res and (nx, ny) not in dist:
-                dist[(nx, ny)] = dist[(x, y)] + 1
-                q.append((nx, ny))
-    depths = [dist[c] for c in owned if c in dist]
-    min_depth = min(depths) if depths else 0
-
-    # THE 2-CELL TOLERANCE, measured rather than asserted: compare the blurred
-    # border polygon against the RAW influence border. blur_territory is a 3x3
-    # majority, so any frontier cell may move at most one cell; anything beyond
-    # a 2-cell symmetric difference is a real algorithmic deviation from the
-    # 0 A.D. influence model the box compares against.
-    raw = _rebuild_territory_py(tc, (20.0, 0.0, 0.0), res=res)
-    raw_border = _owner_border(raw, res)
-    raw_owned = {(x, y) for y in range(res) for x in range(res) if raw[y][x] != 0}
-    # "Within 2 cells" is a GEOMETRIC tolerance, not a cell count: a one-cell rim
-    # shift legitimately moves many border cells at once on a 34-cell-radius
-    # circle. Measure the Hausdorff (Chebyshev) distance between the blurred
-    # border polygon and the raw-influence border polygon -- that is the quantity
-    # a 0 A.D. territory dump is diffed against.
-    def _hausdorff(a, b, res):
-        if not a or not b:
-            return None
-        worst = 0
-        for (x, y) in (a | b):
-            best = min(max(abs(x - u), abs(y - v)) for (u, v) in b)
-            worst = max(worst, best)
-        return worst
-
-    haus = _hausdorff(border, raw_border, res)
-    # Blur threshold comes from blur_territory (grid_nav.h:525) -- the Python
-    # mirror uses the parsed value, so header drift moves both sides together.
-    src_thr = _pin_blur_threshold()
-    thr_pin = (src_thr == 4)
-    print(f"  [{'✓' if thr_pin else '✗'}] blur_territory majority threshold pinned to >4 "
-          f"(got >{src_thr}, mirror uses >{_TERR_BLUR_THR})")
-    if not thr_pin:
-        fails.append(f"blur threshold drifted: >{src_thr}")
-    tol = TERR_TOL_CELLS
-    erosion = len(raw_owned) - len(owned)
-    # Per-cell displacement: every cell the blurred ownership claims must sit
-    # within tol cells of SOME raw-influence cell. A 3x3 majority blur may only
-    # grow or shrink the frontier by ~1 cell, so 2 is the sound bound; a Hausdorff
-    # over the two rims is larger only because the rims are disjoint curves.
-    nearest_raw = min((max(abs(x - u), abs(y - v)) for (x, y) in owned for (u, v) in raw_owned),
-                      default=None)
-    nearest_blur = min((max(abs(x - u), abs(y - v)) for (x, y) in raw_owned for (u, v) in owned),
-                       default=None)
-    # A tolerance of 0 would demand bit-identical blur output; the box allows 2.
-    # Assert the measured shift is a real number strictly inside the bound so
-    # shrinking tol cannot pass vacuously.
-    tol_ok = (nearest_raw is not None and nearest_raw <= tol) and min_depth >= 1
-    tol_live = (haus is not None) and (nearest_raw is not None) and erosion != 0
-    print(f"  [{'✓' if tol_ok else '✗'}] every blurred cell within {tol} of raw influence "
-          f"(max outward shift={nearest_raw})")
-    print(f"  [{'✓' if nearest_blur is not None and nearest_blur <= tol else '✗'}] every raw cell "
-          f"within {tol} of blurred ownership (max inward shift={nearest_blur})")
-    print(f"  [{'✓' if min_depth >= 1 else '✗'}] every owned cell within {tol} of the frontier "
-          f"(min Chebyshev depth={min_depth})")
-    print(f"  [i] blur {('expanded' if erosion < 0 else 'eroded')} {abs(erosion)} owned cell(s) "
-          f"({len(raw_owned)} raw -> {len(owned)} blurred); rim Hausdorff={haus}")
-    if not tol_ok:
-        fails.append(f"blurred ownership shifts further than {tol} cells "
-                     f"(outward={nearest_raw})")
-    if not tol_live:
-        fails.append("tolerance metric undefined or blur had no effect on the field")
-
-    xcells = [c[0] for c in owned]
-    zcells = [c[1] for c in owned]
-    east = max(xcells)
-    print(f"\n territory-live: owned={len(owned)} cells  border={len(border)} cells")
-    print(f"  extent x=[{min(xcells)}..{east}]  z=[{min(zcells)}..{max(zcells)}]")
-    print(f"  2-cell-tolerance metrics for a 0 A.D. dump diff: "
-          f"max_outward_shift={nearest_raw}, max_inward_shift={nearest_blur} cell(s) "
-          f"(tol={tol}); owned={len(owned)} of {len(raw_owned)} raw; "
-          f"min_border_depth={min_depth}")
-
-    # Tower must actually bulge the frontier east of the TC circle.
-    tower_cell = _world_to_cell(20.0, 0.0, res)
-    tc_only = _rebuild_territory_py(tc, (20.0, 0.0, 0.0), res=res)
-    tc_only_east = max((x for y in range(res) for x in range(res) if tc_only[y][x] != 0), default=-1)
-    bulges = east > tc_only_east
-    print(f"  [{'✓' if bulges else '✗'}] tower bulges frontier east "
-          f"(x_max {east} vs TC-only {tc_only_east}; tower cell {tower_cell})")
-    if not bulges:
-        fails.append("tower did not extend the frontier")
-
+    cc, tower = _territory_influence("BLD_TOWN_CENTER"), _territory_influence("BLD_TOWER")
+    print(f"[territory-live] TC(0,0) {cc} + Tower(36,0) {tower} grid={res}x{res}")
+    if not cc or not tower:
+        print("  FAIL — territory_data.h rows for BLD_TOWN_CENTER / BLD_TOWER not found")
+        return 1
+    cell = NAV_MAP_HALF * 2.0 / res
+    pinned = abs(cc[0] - 140 * 0.28) < 1e-3 and abs(tower[0] - 32 * 0.28) < 1e-3 and cc[2] and not tower[2]
+    print(f"  [{'✓' if pinned else '✗'}] radii are 0 A.D.'s x0.28 (CC 140 m root, stone tower 32 m not a root)")
+    if not pinned:
+        fails.append("territory_data.h radii drifted")
+    for name, (r, w, _), pos in (("TC", cc, (0.0, 0.0)), ("Tower", tower, (36.0, 0.0))):
+        alone = _rebuild_territory_py([(pos[0], pos[1], r, w)], res)
+        oz = int((pos[1] + NAV_MAP_HALF) / cell)
+        ox = int((pos[0] + NAV_MAP_HALF) / cell)
+        east = max(x for (x, z) in alone if z == oz) - ox
+        want = r / cell
+        ok = abs(east - want) <= TERR_TOL_CELLS
+        print(f"  [{'✓' if ok else '✗'}] {name} alone reaches {east} tiles east (radius {want:.1f} tiles)")
+        if not ok:
+            fails.append(f"{name} claim reaches {east} tiles, radius {want:.1f}")
+    owned = _rebuild_territory_py([(0.0, 0.0, cc[0], cc[1]), (36.0, 0.0, tower[0], tower[1])], res)
+    tc_only = _rebuild_territory_py([(0.0, 0.0, cc[0], cc[1])], res)
+    tc_cell = (int(NAV_MAP_HALF / cell), int(NAV_MAP_HALF / cell))
+    checks = [
+        (tc_cell in owned, f"TC tile {tc_cell} owned"),
+        ((res - 1, res - 1) not in owned, "far corner neutral"),
+        (_flood4(owned, tc_cell) == owned, f"one 4-connected region ({len(owned)} tiles)"),
+        (max(x for x, _ in owned) > max(x for x, _ in tc_only), "tower bulges the frontier east"),
+    ]
+    for ok, what in checks:
+        print(f"  [{'✓' if ok else '✗'}] {what}")
+        if not ok:
+            fails.append(what)
     if fails:
         print(f"  FAIL — {', '.join(fails)}")
         return 1
-    print("  PASS — TC/Tower border polygon sane and inside the 2-cell tolerance")
-    print("  Method: rebuild_territory + blur_territory mirror (3x3 majority, thr>4),")
-    print("          border polygon extracted, then diffed against the RAW influence")
-    print("          field: max_outward_shift / max_inward_shift ARE the 2-cell tolerance.")
-    print("          Plus 4-connectivity, TC-owned, far-corner-unowned, border depth")
-    print("          and tower-bulge assertions -- the exact checks for a 0 A.D. dump.")
+    print("  PASS — civic centre and tower claims match their TerritoryInfluence radii")
     return 0
 
 
