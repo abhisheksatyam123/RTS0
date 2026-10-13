@@ -11,7 +11,8 @@
 # metres, the root mesh's origin at the scene origin. 0 A.D. sinks trunks and
 # roots below the terrain, but RTS0 sits a model on the ground by its lowest
 # point, so vertices below y = 0 are pressed up onto it. info.json gets the
-# bounds ({"size": [x, y, z], "position": [x, y, z]}).
+# bounds ({"size": [x, y, z], "position": [x, y, z]}). A plan's optional "scale"
+# scales the whole tree (variants of a tree whose first model was resized).
 extends SceneTree
 
 func _init():
@@ -26,7 +27,8 @@ func _init():
 		quit(2)
 		return
 	var composed := Node3D.new()
-	_add_actor(composed, plan, Transform3D())
+	var s := float(plan.get("scale", 1.0))
+	_add_actor(composed, plan, Transform3D(Basis.from_scale(Vector3(s, s, s)), Vector3.ZERO))
 	var root := Node3D.new()
 	root.name = String(plan.get("actor", "tree")).get_file().get_basename()
 	_bake(composed, root)
