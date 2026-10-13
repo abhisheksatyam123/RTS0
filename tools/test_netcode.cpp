@@ -598,6 +598,7 @@ struct PeerOpts {
     uint32_t kick_turn = 0;     // host: kicks the client named kick_name after this turn
     std::string kick_name;
     bool ban = false;           // ... and bans it
+    int observer_limit = 8;     // host: network.observerlimit
     uint32_t humans = 2;        // human seats (the host and humans-1 joiners); 3+ takes the AI slot
     std::string oos_dir;        // where each peer writes its OOS dump
 };
@@ -699,6 +700,7 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     TurnManager tm;
     uint32_t me = host ? 0u : 1u;
     tm.set_net_host(&net, me);
+    tm.set_observer_limit(opt.observer_limit);
     Arena arena(1 << 16);
 
     // Chat (0 A.D. NMT_CHAT): what reached this peer, as "sender: text".
@@ -1198,6 +1200,7 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--kick-turn") == 0) opt.kick_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--kick-name") == 0) opt.kick_name = v;
             else if (std::strcmp(k, "--ban") == 0) opt.ban = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--observer-limit") == 0) opt.observer_limit = std::atoi(v);
             else if (std::strcmp(k, "--humans") == 0) opt.humans = (uint32_t)std::max(2, std::min(3, std::atoi(v)));
         }
         return netpeer::run(std::strcmp(argv[2], "host") == 0, (uint16_t)std::atoi(argv[3]),

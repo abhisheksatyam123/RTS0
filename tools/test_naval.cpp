@@ -409,6 +409,31 @@ static void test_transport() {
 	}
 	std::printf("  8 passengers ashore: %d overlapping pairs, %d in the water\n", overlaps, wet);
 	CHECK(overlaps == 0 && wet == 0);
+	// A crowded shore: PickSpawnPoint finds no free spot, so the passengers stay aboard (the
+	// unforced Eject), and when the ship sinks EjectOrKill drowns the ones it could not eject.
+	const uint32_t pair[] = {crew[0], crew[1]};
+	s.order_board_transport(pair, 2, ship3);
+	run(s, 10.0f);
+	CHECK(s.get_transport_passenger_count(ship3) == 2);
+	const float sx3 = s.units().pos_x[idx(s, ship3)], sz3 = s.units().pos_z[idx(s, ship3)];
+	const float crowd_r = Simulation::SHIP_LOADING_RANGE + unit_collision_radius(UNIT_TRIREME) + 2.0f;
+	int crowd = 0;
+	for (float dx = -crowd_r; dx <= crowd_r; dx += 0.75f)
+		for (float dz = -crowd_r; dz <= crowd_r; dz += 0.75f) {
+			if (dx * dx + dz * dz > crowd_r * crowd_r) continue;
+			s.spawn_unit(sx3 + dx, sz3 + dz, 0, UNIT_SPEARMAN);
+			++crowd;
+		}
+	s.order_disembark_all(ship3);
+	std::printf("  crowded shore (%d units): %zu passengers stay aboard\n", crowd, s.get_transport_passenger_count(ship3));
+	CHECK(s.get_transport_passenger_count(ship3) == 2);
+	s.order_disembark_single(ship3, crew[0]);
+	CHECK(aboard(s, ship3, crew[0]));
+	s.units_.hp[idx(s, ship3)] = 0.0f;
+	s.units_.alive[idx(s, ship3)] = 0;
+	run(s, 0.1f);
+	CHECK(s.get_transport_passengers(ship3) == nullptr);
+	CHECK(!s.units().alive[idx(s, crew[0])] && !s.units().alive[idx(s, crew[1])]);
 	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
 }
 
@@ -786,6 +811,67 @@ static void test_ship_treasure() {
 	CHECK(s.treasures().empty());
 }
 
+// navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
+// for the nearest treasure on its own sea, not a nearer one on land.
+static void test_petra_ship_treasure() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t tri = s.spawn_unit(0.0f, 10.0f, 1, UNIT_TRIREME);
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	s.spawn_treasure(10.0f, 19.0f, TREASURE_SHIPWRECK_DEBRIS); // nearer, but on land
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(2.0f); // one naval update (every 2 s)
+	const auto o = s.unit_order(tri);
+	std::printf("Petra ship treasure: order %d target %u (wreck %u)\n", (int)o.kind, o.target, wreck);
+	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
+}
+
+// startingStrategy.js configFirstBase: on a starting land under 25000 m² Petra keeps to one
+// field and lays a corral as well (saveSpace, maxFields 1, needCorral); a finished market
+// lifts the field cap.
+static void test_petra_small_land_fields() {
+	static Simulation s;
+	s.set_sim_seed(7);
+	s.reset();
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			h[(size_t)j * RES + i] = x * x + z * z < 16.0f * 16.0f ? 3.0f : -3.0f; // an island of about 13000 m²
+		}
+	s.set_terrain_data(h, RES, 0.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+	s.set_player_active(0, true, false);
+	s.set_player_active(1, true, true);
+	s.set_team_civ(1, CIV_ATHENIANS);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-8.0f, 0.0f, BLD_FIELD, 1);
+	s.petra_pid_ = 1;
+	auto count = [&](uint8_t type) {
+		int n = 0;
+		for (const auto &b : s.buildings()) n += b.team == 1 && b.type == type && b.hp > 0.0f;
+		return n;
+	};
+	auto manage = [&] {
+		for (auto &a : s.petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+		s.petra_class_topo_pid_ = -1; // a new AI turn: the classified topology is looked up again
+		s.petra_manage_fields();
+	};
+	manage();
+	manage();
+	std::printf("Petra small land: %d fields, %d corrals\n", count(BLD_FIELD), count(BLD_CORRAL));
+	CHECK(count(BLD_FIELD) == 1);
+	CHECK(count(BLD_CORRAL) == 1);
+	s.spawn_building_world(8.0f, 0.0f, BLD_MARKET, 1);
+	manage();
+	CHECK(count(BLD_FIELD) == 2);
+}
+
 static void test_fire_ship() {
 	static Simulation s;
 	fresh(s);
@@ -996,6 +1082,8 @@ int main() {
 	test_petra_transport_ship_lost();
 	test_petra_cothon();
 	test_ship_treasure();
+	test_petra_ship_treasure();
+	test_petra_small_land_fields();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

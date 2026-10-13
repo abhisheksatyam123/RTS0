@@ -16,6 +16,7 @@
 #include "tutorial_data.h"
 #include "turret_data.h"
 #include <cstdint>
+#include <map>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -161,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 63; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 64; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -555,6 +556,30 @@ public:
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
+	// Units that train (0 A.D. Trainer on a unit: Athenian and Persian triremes, Cyrus II;
+	// unit_trainer_data.h). Each trainer unit keeps its own production queue; the units it
+	// trains step out beside it (Footprint.PickSpawnPoint).
+	bool cmd_train_from_unit(uint8_t player, uint32_t unit_id, uint16_t tmpl, int count = 1);
+	bool cmd_cancel_unit_train(uint8_t player, uint32_t unit_id, size_t queue_idx);
+	// Roster templates the unit `tmpl` trains for `player` now (Trainer/Entities with their
+	// requirements met), and every one it could train (`all`).
+	std::vector<uint16_t> unit_trainables(uint8_t player, uint16_t tmpl, bool all = false) const;
+	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
+	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
+	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).
+	static std::vector<uint8_t> unit_researchables(uint16_t tmpl);
+	bool cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_t tech);
+	// A training unit's queue. `player` paid; Trainer.js OnOwnershipChanged refunds them when
+	// the unit dies or changes hands.
+	struct UnitQueue {
+		uint8_t player = 0;
+		std::vector<ProductionOrder> orders; // never empty
+	};
+	const std::map<uint32_t, UnitQueue> &unit_queues() const { return unit_queues_; }
+	const std::vector<ProductionOrder> *unit_queue(uint32_t unit_id) const {
+		auto it = unit_queues_.find(unit_id);
+		return it == unit_queues_.end() ? nullptr : &it->second.orders;
+	}
 	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
 	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
 			bool queued = false);
@@ -783,10 +808,15 @@ public:
 	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
 	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
-	// this unload are in `taken`); without a passenger, the nearest dry ground.
+	// this unload are in `taken`), false when there is none; without a passenger, the nearest dry ground.
 	struct SpawnSpot { float x, z, r; };
 	bool ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger = SIZE_MAX,
 			std::vector<SpawnSpot> *taken = nullptr) const;
+	// PickSpawnPoint for one passenger of `type` leaving a siege tower or ram: the spots round the
+	// engine's square footprint, its front toward (toward_x, toward_z), dry ground only. skip_uid is
+	// the passenger itself. With no spot the caller keeps it aboard or, forced, puts it at the centre.
+	bool siege_spawn_point(size_t holder, uint8_t type, uint32_t skip_uid, float toward_x, float toward_z,
+			float &out_x, float &out_z) const;
 	bool nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const;
 	void unload_sunk_ship(size_t ship);
 
@@ -1038,7 +1068,8 @@ public:
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
 	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
-	// footprint, the front (or the side facing the rally point) first; skip_uid is ignored.
+	// footprint, the front (or the side facing the rally point) first; skip_uid is the unit left out
+	// of the overlap check (the one being placed).
 	bool pick_spawn_point(const Building &b, uint8_t type, uint32_t skip_uid, float &out_x, float &out_z) const;
 	void order_trade(const uint32_t *unit_ids, size_t count, uint32_t market_a_id, uint32_t market_b_id,
 			bool queued = false);
@@ -1828,6 +1859,7 @@ private:
 	void formation_delete_twins(FormationController &fc); // Formation.js DeleteTwinFormations
 	void formation_size(const FormationController &fc, float &width, float &depth) const; // GetSize
 	void attack_unit_one_by_one(const uint32_t *ids, size_t count, uint32_t target_unit_id);
+	void walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz);
 	void attack_building_one_by_one(const uint32_t *ids, size_t count, uint32_t target_building_id, bool allow_capture);
 	void cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz);
 	void tick_promotion(float dt);
@@ -1864,11 +1896,21 @@ private:
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
+	void tick_unit_production(float dt); // units' Trainer queues (unit_queues_)
+	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
+	// Production queues of units that train, by unit id (saved SAVE_VERSION_UNIT_TRAINERS).
+	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
+	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
+	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
+	bool pick_spawn_point_box(float cx, float cz, float rot, float along_u, float along_v, float circle_r,
+			bool has_rally, float rally_x, float rally_z, uint8_t type, uint32_t skip_uid, bool dry_ground,
+			float &out_x, float &out_z) const;
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).
 	void tick_garrison_holders();
 	bool can_board(size_t transport_idx, size_t unit_idx) const;
@@ -2498,6 +2540,8 @@ private:
 	bool petra_is_critical_wonder(uint32_t building_id) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
+	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
+	float petra_enemy_capture_points(const Building &b) const;
 	bool petra_near_invading_army(float x, float z, float dist2) const;
 	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
@@ -2531,7 +2575,8 @@ private:
 	PetraHuntScan petra_hunt_scan() const;
 	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
-	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
+	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
+	void petra_treasures_taken(PetraHuntScan &scan) const;
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
 	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion

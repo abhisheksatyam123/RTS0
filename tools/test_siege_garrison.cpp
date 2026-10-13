@@ -1,7 +1,9 @@
 // 0 A.D. GarrisonHolder on land siege: siege towers (20) and rams (10) carry
 // Support and Infantry, a siege tower fires one arrow per garrisoned Infantry
 // (none when empty), and both unload below 10% health or when destroyed.
-// Passengers survive save/load and are in the lockstep hash. Military Engineers
+// Passengers survive save/load and are in the lockstep hash. A tower or ram sets each
+// passenger down on its own free spot round the engine (PickSpawnPoint); one with no spot
+// stays aboard, and a forced eject puts it at the engine's centre. Military Engineers
 // cuts siege pack and unpack time by 40%.
 //   g++ -std=c++20 -O2 -Isrc tools/test_siege_garrison.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -74,6 +76,19 @@ static float tower_damage(int archers, float secs) {
 			if (p.source_id == tower && std::find(seen.begin(), seen.end(), p.id) == seen.end()) seen.push_back(p.id);
 	}
 	return (float)seen.size();
+}
+
+// A crowd of idle units round a ram at (0, 0): a grid 1 wu apart over 12 wu, so every spot the
+// search scans is within a unit's collision radii of one of them, except a corridor kept open in
+// front (+z) of the engine.
+static std::vector<uint32_t> crowd_round_ram(Simulation &s) {
+	std::vector<uint32_t> crowd;
+	for (float x = -6.0f; x <= 6.0f; x += 1.0f)
+		for (float z = -6.0f; z <= 6.0f; z += 1.0f) {
+			if (std::fabs(x) < 1.6f && z > 0.5f) continue;
+			crowd.push_back(s.spawn_unit(x, z, 0, UNIT_FEMALE_CITIZEN));
+		}
+	return crowd;
 }
 
 int main() {
@@ -223,6 +238,115 @@ int main() {
 		CHECK(s.units().pack_state[idx_of(s, cat)] != PACK_UNPACKED);
 		run(s, 1.0f);
 		CHECK(s.units().pack_state[idx_of(s, cat)] == PACK_UNPACKED);
+	}
+
+	// 8. Siege passengers set down on their own free spots (0 A.D. Footprint PickSpawnPoint round the
+	// engine): each on a spot of its own, clear of the engine and of the others, outside the engine's
+	// footprint box. A ram is 8 m by 12 m, 2 by 3 world units, here with its front toward +z.
+	{
+		fresh(s);
+		uint32_t ram = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM);
+		std::vector<uint32_t> ids;
+		for (int a = 0; a < 6; ++a) ids.push_back(s.spawn_unit(0.5f, 0.5f, 0, UNIT_SWORDSMAN));
+		s.order_board_transport(ids.data(), ids.size(), ram);
+		CHECK(s.get_transport_passenger_count(ram) == 6);
+		s.order_disembark_all(ram);
+		CHECK(s.get_transport_passenger_count(ram) == 0);
+		const int32_t ri = idx_of(s, ram);
+		const float rr = unit_collision_radius(UNIT_SIEGE_RAM), ru = unit_collision_radius(UNIT_SWORDSMAN);
+		const float rx = s.units().pos_x[ri], rz = s.units().pos_z[ri];
+		int landed = 0, outside = 0;
+		float worst = 1e9f; // smallest margin over the radii sum, to the engine and to each other unit
+		std::vector<int32_t> at;
+		for (uint32_t id : ids) {
+			int32_t i = idx_of(s, id);
+			if (i < 0 || !s.units().alive[i]) continue;
+			++landed;
+			at.push_back(i);
+			const float dx = s.units().pos_x[i] - rx, dz = s.units().pos_z[i] - rz;
+			if (!(std::fabs(dx) < 1.0f && std::fabs(dz) < 1.5f)) ++outside; // half width 1 wu, half depth 1.5 wu
+			worst = std::min(worst, std::hypot(dx, dz) - (rr + ru));
+		}
+		for (size_t a = 0; a < at.size(); ++a)
+			for (size_t b = a + 1; b < at.size(); ++b) {
+				const float dx = s.units().pos_x[at[a]] - s.units().pos_x[at[b]];
+				const float dz = s.units().pos_z[at[a]] - s.units().pos_z[at[b]];
+				worst = std::min(worst, std::hypot(dx, dz) - 2.0f * ru);
+			}
+		std::printf("siege ram unload: %d of 6 landed on their own spots, %d outside the footprint, smallest clearance %.4f wu\n",
+			landed, outside, worst);
+		CHECK(landed == 6);
+		CHECK(outside == landed);
+		CHECK(worst >= -1e-4f);
+	}
+
+	// 8b. A target to the engine's side (within 6 m) turns the front toward it: the first passenger
+	// lands on that side, past the tower's 1.5 wu half width.
+	{
+		fresh(s);
+		uint32_t tower = s.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, st_t);
+		std::vector<uint32_t> ids;
+		for (int a = 0; a < 4; ++a) ids.push_back(s.spawn_unit(0.5f, 0.5f, 0, UNIT_SWORDSMAN));
+		s.order_board_transport(ids.data(), ids.size(), tower);
+		CHECK(s.get_transport_passenger_count(tower) == 4);
+		s.order_disembark(tower, 1.0f, 0.0f);
+		CHECK(s.get_transport_passenger_count(tower) == 0);
+		int landed = 0;
+		for (uint32_t id : ids) landed += alive(s, id) ? 1 : 0;
+		const int32_t first = idx_of(s, ids[0]);
+		const float fx = s.units().pos_x[first], fz = s.units().pos_z[first];
+		std::printf("siege tower unload toward +x: %d of 4 landed, the first at (%.3f, %.3f) wu from the tower's centre\n",
+			landed, fx, fz);
+		CHECK(landed == 4);
+		CHECK(fx > 1.5f);
+	}
+
+	// 9. A crowd round the engine leaves few spots free. A normal unload leaves the passengers with
+	// none aboard; a forced eject (EjectHealth) puts everyone out, those without a spot at the centre.
+	{
+		fresh(s);
+		uint32_t ram = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM);
+		std::vector<uint32_t> ids;
+		for (int a = 0; a < 5; ++a) ids.push_back(s.spawn_unit(0.5f, 0.5f, 0, UNIT_SWORDSMAN));
+		s.order_board_transport(ids.data(), ids.size(), ram);
+		CHECK(s.get_transport_passenger_count(ram) == 5);
+		crowd_round_ram(s);
+		s.order_disembark_all(ram);
+		int landed = 0;
+		for (uint32_t id : ids) landed += alive(s, id) ? 1 : 0;
+		const size_t aboard = s.get_transport_passenger_count(ram);
+		std::printf("siege ram crowded unload: %d of 5 landed, %zu stay aboard\n", landed, aboard);
+		CHECK(landed >= 1 && landed < 5);
+		CHECK(aboard == (size_t)(5 - landed));
+	}
+	{
+		fresh(s);
+		uint32_t ram = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM);
+		std::vector<uint32_t> ids;
+		for (int a = 0; a < 5; ++a) ids.push_back(s.spawn_unit(0.5f, 0.5f, 0, UNIT_SWORDSMAN));
+		s.order_board_transport(ids.data(), ids.size(), ram);
+		crowd_round_ram(s);
+		const int32_t ri = idx_of(s, ram);
+		const_cast<float *>(s.units().hp)[ri] = s.units().max_hp[ri] * 0.05f;
+		s.tick(Simulation::FIXED_STEP);
+		CHECK(s.get_transport_passenger_count(ram) == 0);
+		int out = 0, at_centre = 0, on_spot = 0, outside = 0;
+		for (uint32_t id : ids) {
+			int32_t i = idx_of(s, id);
+			if (i < 0 || !s.units().alive[i] || s.units().action_state[i] == ACTION_GARRISONED) continue;
+			++out;
+			const float dx = s.units().pos_x[i] - s.units().pos_x[ri], dz = s.units().pos_z[i] - s.units().pos_z[ri];
+			if (std::hypot(dx, dz) < 1e-4f) ++at_centre;
+			else {
+				++on_spot;
+				if (!(std::fabs(dx) < 1.0f && std::fabs(dz) < 1.5f)) ++outside;
+			}
+		}
+		std::printf("siege ram forced eject in a crowd: %d out, %d on spots, %d at the engine centre\n",
+			out, on_spot, at_centre);
+		CHECK(out == 5);
+		CHECK(on_spot >= 1 && at_centre >= 1 && on_spot + at_centre == 5);
+		CHECK(outside == on_spot);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
