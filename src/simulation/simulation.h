@@ -2543,6 +2543,20 @@ private:
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
 	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
+	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
+	struct PetraBasesMap {
+		struct Anchor { float x, z; uint16_t land; };
+		std::vector<Anchor> anchors;
+		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
+		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
+		int at(float x, float z, float half) const;
+	};
+	void petra_bases_map(PetraBasesMap &m) const;
+	int petra_military_base(const PetraBasesMap &m) const;
+	bool petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base, int &out_cx,
+	                         int &out_cz);
+	uint32_t petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at = nullptr, const float *favor_at = nullptr,
+	                             bool military_base = false);
 
 	bool bulk_spawn_ = false;
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
