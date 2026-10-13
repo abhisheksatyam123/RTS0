@@ -559,7 +559,9 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     # 0 A.D. network.observerlimit: the host takes one observer, so a second is refused.
     host = peer("host", logs["host"], "--name", "alice", "--observer-limit", "1")
     time.sleep(0.3)
-    join = peer("join", logs["join"], "--name", "bob")
+    # bob asks to rejoin again at turn 60, as a slow loader repeats its setup-time
+    # request; the host must keep him seated (his row stays '1:bob:1:0').
+    join = peer("join", logs["join"], "--name", "bob", "--stale-rejoin-turn", "60")
     # Join once the match is well under way.
     deadline = time.time() + timeout
     while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:
@@ -995,6 +997,12 @@ def main() -> int:
                                    args.net_port + 5, out_dir, args.timeout) and net_ok
         net_ok = run_host_gone_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                     args.net_port + 6, out_dir, args.timeout) and net_ok
+        # The observer case again on a link that loses 45% of its datagrams: every
+        # reliable packet (turn batches, the rejoin world's chunks) must still
+        # arrive, as ENet's do, or the late observer stalls or never gets in.
+        print("\n---- heavy loss: the observer case with 45% of datagrams lost ----")
+        net_ok = run_observer_case(binary_path, args.seeds[0], args.net_speed, 0.45,
+                                   args.net_port + 7, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:
