@@ -2498,7 +2498,8 @@ private:
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
 	int petra_pop_room() const; // population left after Petra's queued batches
-	float petra_template_strength(const UnitTypeInfo &ui) const;
+	float petra_template_strength(const UnitTypeInfo &ui, float attack_mult = 1.0f) const;
+	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved

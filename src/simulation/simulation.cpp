@@ -13663,146 +13663,83 @@ void Simulation::petra_manage_military_production(float dt) {
 		return;
 	}
 
-	// 2. Military Strike Force Production (Priority Queue 2) — Counter-Units to supply AttackPlan squads
-	// A mustering rush or raid trains its own units (attackPlan.js
-	// trainMoreUnits); a raid wants cavalry citizen soldiers.
-	const bool rush_wants = petra_attack_plan_.state == AttackPlan::MUSTER &&
-		petra_attack_mgr_.kind == PETRA_ATTACK_RUSH &&
-		petra_attack_plan_.squad.size() < (size_t)std::max(1, petra_attack_mgr_.target_size);
-	const bool raid_wants = petra_raid_plan_.state == AttackPlan::MUSTER && petra_raid_plan_.squad.size() < 4 &&
+	// 2. attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
+	// plan whose queue has the higher priority first (Rush 250, Raid 150, HugeAttack 90, Attack 70).
+	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER;
+	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
 		petra_raid_target_ok(petra_raid_plan_.target_building_id);
+	if (!attack_musters && !raid_musters) return;
+	const bool rush_wants = attack_musters && petra_attack_mgr_.kind == PETRA_ATTACK_RUSH;
 	// The army otherwise waits until the economy is mostly staffed (workers counted as
 	// trainMoreWorkers does); else the village phase never reaches popPhase2.
-	if (!rush_wants && !raid_wants) {
+	if (!rush_wants && !raid_musters) {
 		const float staffed = (phase == 1) ? 0.8f : 0.5f;
 		if ((float)petra_accounted_workers() < staffed * (float)petra_target_workers()) return;
 	}
 
-	int enemy_infantry = 0;
-	int enemy_spearmen = 0;
-	int enemy_archers = 0;
-	int enemy_cavalry = 0;
-	int enemy_siege = 0;
-	int enemy_champions = 0;
-	int enemy_forts = 0;
-
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
-		switch (units_.unit_type[i]) {
-			case UNIT_SWORDSMAN: enemy_infantry++; break;
-			case UNIT_SPEARMAN: enemy_spearmen++; break;
-			case UNIT_ARCHER: enemy_archers++; break;
-			case UNIT_CAVALRY: enemy_cavalry++; break;
-			case UNIT_CATAPULT: case UNIT_SIEGE_RAM: enemy_siege++; break;
-			case UNIT_HERO: case UNIT_ELEPHANT: enemy_champions++; break;
-			default: break;
-		}
-	}
-
-	for (const auto &b : buildings_) {
-		if (!petra_foe(b.team) || b.build_progress < 0.5f) continue;
-		if (b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_GATE || b.type == BLD_WALL_SEGMENT) {
-			enemy_forts++;
-		}
-	}
-
-	// What we field already, queued orders included (attackPlan.js unitStat
-	// targetSize: one hero, a few siege engines).
-	int own_heroes = 0, own_siege = 0, own_towers = 0;
-	auto is_tower = [](uint16_t tmpl) {
-		return tmpl < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(tmpl).flags & ROSTER_SIEGE_TOWER);
+	// The classes a template carries (FastMoving is RTS0's TC_CAVALRY: cavalry, camels, chariots).
+	auto classes_of = [](uint16_t tmpl, uint8_t type) {
+		return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	};
-	auto is_siege = [](uint8_t t) { return t == UNIT_CATAPULT || t == UNIT_SIEGE_RAM || t == UNIT_BOLT_SHOOTER; };
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
-		if (units_.unit_type[i] == UNIT_HERO) ++own_heroes;
-		if (is_siege(units_.unit_type[i])) ++own_siege;
-		if (is_tower(units_.tmpl[i])) ++own_towers;
-	}
-	for (const auto &b : buildings_) {
-		if (b.team != petra_pid_) continue;
-		for (const auto &o : b.queue) {
-			if (o.unit_type == UNIT_HERO) ++own_heroes;
-			if (is_siege(o.unit_type)) ++own_siege;
-			if (is_tower(o.tmpl)) ++own_towers;
-		}
-	}
-	const int siege_cap = (phase >= 3) ? 4 : 2;
-
-	int total_enemy_mil = enemy_infantry + enemy_spearmen + enemy_archers + enemy_cavalry + enemy_siege + enemy_champions;
-	float norm = 1.0f / (float)std::max(1, total_enemy_mil);
-
-	// Dynamic Counter-Unit Utility Scores (0 A.D. Petra combat counters)
-	float spearman_score = 1.2f + (enemy_cavalry * 4.5f + enemy_champions * 3.5f) * norm;
-	float archer_score   = 1.0f + (enemy_infantry * 3.0f + enemy_spearmen * 3.5f) * norm;
-	float swordsman_score = 1.0f + (enemy_spearmen * 1.8f) * norm;
-	float cavalry_score  = 0.8f + (enemy_archers * 4.0f + enemy_siege * 3.0f) * norm;
-	if (raid_wants) cavalry_score += 4.0f;
-	float siege_score    = (phase >= 2) ? (1.5f + (float)enemy_forts * 2.5f) : 0.2f;
-	if (petra_attack_plan_.type == AttackPlan::PLAN_SIEGE && phase >= 2) {
-		siege_score += 5.0f; // Prioritize siege engines before assault
-	}
-	float champion_score = (phase >= 3) ? 2.5f : 0.0f;
-	auto class_score = [&](uint8_t t) -> float {
-		switch (t) {
-			case UNIT_SPEARMAN: return spearman_score;
-			case UNIT_ARCHER: case UNIT_ARCHER_MAIDEN: return archer_score;
-			case UNIT_SWORDSMAN: case UNIT_WAR_DOG: return swordsman_score;
-			case UNIT_CAVALRY: case UNIT_CAMEL: return cavalry_score;
-			case UNIT_CHARIOT: return cavalry_score * 0.95f;
-			case UNIT_ELEPHANT: case UNIT_SCYTHED_CHARIOT: return champion_score;
-			case UNIT_CATAPULT: return siege_score;
-			case UNIT_SIEGE_RAM: return siege_score * 0.95f;
-			case UNIT_BOLT_SHOOTER: return siege_score * 0.85f;
-			default: return -1.0f; // support units, ships, healers: trained elsewhere
-		}
+	struct UnitStat {
+		uint64_t classes;
+		float priority;
+		int min, target, batch;
+		float strength, siege_strength, stone, metal; // interests; 1 = no costsResource penalty
+		int count = 0;
 	};
-
-	// Score every roster unit our buildings can train now: citizen soldiers by
-	// counters, champions and the hero in the city phase, siege up to a cap.
-	struct Option {
-		uint16_t tmpl;
-		float score;
-		uint32_t bld_id;
-	};
-	std::vector<Option> options;
-	for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
-		const CivUnitTemplate &t = civ_unit_template(tmpl);
-		if (t.phase > phase) continue;
-		float score;
-		if (t.flags & ROSTER_HERO) {
-			if (own_heroes > 0 || phase < 3) continue;
-			score = champion_score * 1.2f;
-		} else if (t.flags & ROSTER_SIEGE_TOWER) {
-			// One tower to carry soldiers over walls, whether or not the siege engines
-			// already reached their cap (training order alone decided that before).
-			if (own_towers > 0) continue;
-			score = siege_score * (own_siege > 0 ? 1.1f : 0.8f);
-		} else {
-			score = class_score(t.unit_type);
-			if (score < 0.0f) continue;
-			// Village-phase armies stay infantry; mounted units come with the town phase.
-			if (phase < 2 && !raid_wants && (t.unit_type == UNIT_CAVALRY || t.unit_type == UNIT_CAMEL || t.unit_type == UNIT_CHARIOT)) continue;
-			if (is_siege(t.unit_type) && own_siege >= siege_cap) continue;
-			if (t.flags & ROSTER_CHAMPION) {
-				if (phase < 3) continue;
-				score = champion_score + 0.3f * score;
+	// Petra's resource levels for findBestTrainableUnit, counted once on first use.
+	bool levels_counted = false;
+	float remaining[RES_COUNT] = {};
+	// HQ.findBestTrainableUnit: of the templates matching the classes that a building of ours
+	// trains now (no hero unless asked for, never a siege tower), the best value per cost, the
+	// value 0.1 plus strength (getMaxStrength, against Structure for siegeStrength) times its
+	// weight, multiplied by each costsResource weight for a template costing that resource. A
+	// resource with under 800 in stock and under 800 left in our territory adds a penalty of
+	// 0.6 (over 400 left) or 0.2.
+	auto best_trainable = [&](const UnitStat &st) -> uint16_t {
+		if (!levels_counted) {
+			levels_counted = true;
+			for (size_t r = 0; r < resources_.count; ++r)
+				if (resources_.alive[r] && resources_.type[r] < RES_COUNT && resources_.amount[r] > 0 &&
+				    territory_owner_at(resources_.x[r], resources_.z[r]) == (int)petra_pid_)
+					remaining[resources_.type[r]] += (float)resources_.amount[r];
+		}
+		float penalty[RES_COUNT] = {1.0f, 1.0f, 1.0f, 1.0f};
+		penalty[RES_STONE] = st.stone;
+		penalty[RES_GOLD] = st.metal;
+		for (int r = 0; r < RES_COUNT; ++r) {
+			if ((float)petra_ps().res[r] > 800.0f || remaining[r] > 800.0f) continue;
+			const float scarce = remaining[r] > 400.0f ? 0.6f : 0.2f;
+			penalty[r] = std::min(penalty[r], scarce);
+		}
+		const bool hero_wanted = (st.classes & TC_HERO) != 0;
+		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
+		float best_value = 0.0f;
+		for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			const uint64_t c = classes_of(tmpl, t.unit_type);
+			if ((c & st.classes) != st.classes || t.phase > phase) continue;
+			if (!hero_wanted && (t.flags & ROSTER_HERO)) continue;
+			if ((t.flags & ROSTER_SIEGE_TOWER) || (c & TC_SIEGETOWER)) continue;
+			if (!trainer_for(tmpl)) continue;
+			const UnitTypeInfo &ui = civ_template_unit_info(tmpl, t.unit_type);
+			float cost[RES_COUNT];
+			unit_train_cost(petra_pid_, tmpl, ui, cost);
+			float value = 0.1f;
+			if (st.strength > 0.0f) value += petra_template_strength(ui) * st.strength;
+			if (st.siege_strength > 0.0f) {
+				const float vs = combat_bonus(unit_combat(tmpl, t.unit_type), building_combat(BLD_BARRACKS), 255);
+				value += petra_template_strength(ui, vs) * st.siege_strength;
 			}
-			if (t.flags & ROSTER_MERCENARY) score *= 0.9f;
-			// Among units of one class, the civ's standard one first.
-			if (tmpl == civ_default_template(ai_civ, t.unit_type)) score += 0.05f;
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (cost[r] > 0.0f) value *= penalty[r];
+			value /= 1.0f + cost[RES_FOOD] + cost[RES_WOOD] + cost[RES_GOLD] + cost[RES_STONE];
+			if (best == CIV_UNIT_TEMPLATE_NONE || value > best_value) { best = tmpl; best_value = value; }
 		}
-		const uint32_t bid = trainer_for(tmpl);
-		if (bid) options.push_back({tmpl, score, bid});
-	}
+		return best;
+	};
 
-	std::stable_sort(options.begin(), options.end(), [](const Option &a, const Option &b) {
-		return a.score > b.score;
-	});
-
-	// A siege tower we cannot pay for yet holds the siege slot: cheaper siege
-	// engines don't take it in the meantime (queueManager waits for its plan).
-	bool siege_waiting = false;
 	// Petra raises what it is waiting on above its soldiers: phasing up (researchManager.js
 	// checkPhase, headquarters.js checkPhaseRequirements at priority 1000) and the first fortress
 	// (defenseBuilding doubled). Here soldiers train only from what that price leaves.
@@ -13820,69 +13757,128 @@ void Simulation::petra_manage_military_production(float dt) {
 			if (b.team == petra_pid_ && b.type == BLD_FORTRESS) { fortress = true; break; }
 		if (!fortress) for (int r = 0; r < RES_COUNT; ++r) reserve[r] = PETRA_FORTRESS_COST[r];
 	}
-	bool reserving = reserve[RES_FOOD] + reserve[RES_WOOD] + reserve[RES_GOLD] + reserve[RES_STONE] > 0.0f;
-	bool champion_waiting = false;
-	float champion_cost[RES_COUNT] = {};
-	for (const auto &opt : options) {
-		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
-		const bool siege_opt = is_siege(civ_unit_template(opt.tmpl).unit_type);
-		if (siege_opt && siege_waiting) continue;
-		if (reserving && !(civ_unit_template(opt.tmpl).flags & ROSTER_HERO)) {
-			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
-			float cost[RES_COUNT];
-			unit_train_cost(petra_pid_, opt.tmpl, ui, cost);
-			bool leaves = true;
-			for (int r = 0; r < RES_COUNT; ++r)
-				if (cost[r] > 0.0f && petra_ps().res[r] - cost[r] < reserve[r]) leaves = false;
-			if (!leaves) {
-				// A tower waiting behind the reserve still holds the siege slot, or cheaper
-				// engines fill the cap first and it is never trained.
-				if (is_tower(opt.tmpl)) siege_waiting = true;
-				continue;
+
+	const uint8_t d = petra_config_.difficulty;
+	const float pop_scaling = petra_plan_pop_scaling();
+	auto train_for = [&](const AttackPlan &plan, uint8_t kind) {
+		// attackPlan.js constructor unitStat: {classes, priority, minSize, targetSize, batchSize,
+		// strength, costsResource stone, costsResource metal}. RTS0's rushes march with infantry only.
+		std::vector<UnitStat> stats;
+		const uint64_t CS = TC_CITIZENSOLDIER, INF = TC_INFANTRY, FM = TC_CAVALRY, CH = TC_CHAMPION;
+		if (kind == PETRA_ATTACK_RUSH) {
+			stats = {{INF, 1.0f, 10, 20, 2, 1.0f, 0.0f, 0.5f, 0.6f}};
+		} else if (kind == PETRA_ATTACK_RAID) {
+			stats = {{FM | CS, 1.0f, 3, 4, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
+		} else if (kind == PETRA_ATTACK_HUGE) {
+			stats = {{INF | TC_RANGED | CS, 0.7f, 5, 20, 5, 3.0f, 0.0f, 1.0f, 1.0f},
+			         {INF | TC_MELEE | CS, 0.7f, 5, 20, 5, 3.0f, 0.0f, 1.0f, 1.0f},
+			         {INF | TC_RANGED | CH, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f},
+			         {INF | TC_MELEE | CH, 1.0f, 3, 18, 3, 3.0f, 0.0f, 1.0f, 1.0f},
+			         {FM | TC_RANGED | CS, 0.7f, 4, 20, 4, 2.0f, 0.0f, 1.0f, 1.0f},
+			         {FM | TC_MELEE | CS, 0.7f, 4, 20, 4, 2.0f, 0.0f, 1.0f, 1.0f},
+			         {FM | TC_RANGED | CH, 1.0f, 3, 15, 3, 3.0f, 0.0f, 1.0f, 1.0f},
+			         {FM | TC_MELEE | CH, 1.0f, 3, 15, 3, 2.0f, 0.0f, 1.0f, 1.0f},
+			         {TC_HERO, 1.0f, 0, 1, 1, 2.0f, 0.0f, 1.0f, 1.0f}};
+		} else {
+			stats = {{INF | TC_RANGED, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f},
+			         {INF | TC_MELEE, 1.0f, 6, 16, 3, 1.6f, 0.0f, 0.3f, 0.3f},
+			         {FM | CS, 1.0f, 2, 6, 2, 1.0f, 0.0f, 1.0f, 1.0f}};
+		}
+		// The sizes petra_plan_sizes drew for the plan, split back over its classes: the same
+		// variation for each (below Easy the batch is the minimum size), then popScaling.
+		if (kind == PETRA_ATTACK_RAID) {
+			stats[0].target = 4; // RTS0's raid squad
+		} else if (kind == PETRA_ATTACK_RUSH) {
+			stats[0].target = std::max(1, petra_attack_mgr_.target_size);
+		} else {
+			int raw = 0;
+			for (const UnitStat &st : stats) raw += st.target;
+			const float variation = (float)petra_attack_mgr_.target_size / (pop_scaling * (float)raw);
+			for (UnitStat &st : stats) {
+				const int target = (int)std::ceil(variation * (float)st.target);
+				const int min = d < PETRA_EASY ? std::min(target, std::min(st.min, 2)) : std::min(st.min, target);
+				if (d < PETRA_EASY) st.batch = min;
+				st.target = std::max(1, (int)std::ceil(pop_scaling * (float)target));
+				st.min = (int)std::ceil(pop_scaling * (float)min);
 			}
 		}
-		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
-		if ((civ_unit_template(opt.tmpl).flags & ROSTER_CHAMPION) && !champion_waiting) {
-			// HugeAttack's champion unitStat waits in its queue for its price (queueManager), so
-			// cheaper soldiers that also cost metal (mercenaries) do not spend it first each pass.
-			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
-			unit_train_cost(petra_pid_, opt.tmpl, ui, champion_cost);
-			bool short_of = false;
-			for (int r = 0; r < RES_COUNT; ++r)
-				if (champion_cost[r] > 0.0f && petra_ps().res[r] - reserve[r] < champion_cost[r]) short_of = true;
-			if (short_of) {
-				champion_waiting = true;
-				for (int r = 0; r < RES_COUNT; ++r) reserve[r] += champion_cost[r];
-				reserving = true;
+		// addSiegeUnits: an Attack or HugeAttack adds siege engines of one class a building of ours
+		// trains (Siege+Melee, Siege+Ranged, Elephant+Melee, starting from the plan's number), as
+		// many as its difficulty allows, picked by siegeStrength.
+		if (kind == PETRA_ATTACK_ATTACK || kind == PETRA_ATTACK_HUGE) {
+			const uint64_t siege_classes[3] = {TC_SIEGE | TC_MELEE, TC_SIEGE | TC_RANGED, TC_ELEPHANT | TC_MELEE};
+			bool has_trainer[3] = {};
+			for (uint16_t tmpl : civ_roster_ids(ai_civ)) {
+				const CivUnitTemplate &t = civ_unit_template(tmpl);
+				if (t.phase > phase || !trainer_for(tmpl)) continue;
+				const uint64_t c = classes_of(tmpl, t.unit_type);
+				for (int k = 0; k < 3; ++k)
+					if ((c & siege_classes[k]) == siege_classes[k]) has_trainer[k] = true;
 			}
-			continue;
+			int k = petra_attack_mgr_.attack_number % 3;
+			for (int n = 0; n < 3 && !has_trainer[k]; ++n) k = (k + 1) % 3;
+			const bool huge = kind == PETRA_ATTACK_HUGE;
+			int target = d < PETRA_MEDIUM ? (huge ? std::max<int>(d, 1) : std::max(d - 1, 0)) : (huge ? d + 1 : d - 1);
+			target = std::max((int)std::lround(pop_scaling * (float)target), huge ? 1 : 0);
+			if (has_trainer[k] && target > 0)
+				stats.push_back({siege_classes[k], 1.0f, 0, target, std::min(target, 2), 0.0f, 3.0f, 1.0f, 1.0f});
 		}
-		if (civ_unit_template(opt.tmpl).flags & ROSTER_HERO) {
-			// The hero leads the HugeAttack's unitStat (priority over champions): soldiers train
-			// only from what its price leaves, or cheaper units would always spend it first.
-			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
+
+		// What the plan has, each unit counted once in the first class it matches, plus what is
+		// in training for it (at a building other than a civic centre, where Petra trains its
+		// workers; heroes anywhere).
+		auto tally = [&](uint64_t c, int n) {
+			for (UnitStat &st : stats)
+				if ((c & st.classes) == st.classes) { st.count += n; return; }
+		};
+		for (uint32_t uid : plan.squad) {
+			const int32_t i = lookup_unit(uid);
+			if (i >= 0 && units_.alive[i]) tally(classes_of(units_.tmpl[i], units_.unit_type[i]), 1);
+		}
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_) continue;
+			for (const auto &o : b.queue) {
+				const uint64_t c = classes_of(o.tmpl, o.unit_type);
+				if (is_civic_centre(b.type) && !(c & TC_HERO)) continue;
+				tally(c, o.count);
+			}
+		}
+		// The class furthest behind its target size, less its priority, trains first.
+		std::stable_sort(stats.begin(), stats.end(), [](const UnitStat &a, const UnitStat &b) {
+			const float va = (float)a.count / (float)a.target - a.priority + (a.count >= a.target ? 1000.0f : 0.0f);
+			const float vb = (float)b.count / (float)b.target - b.priority + (b.count >= b.target ? 1000.0f : 0.0f);
+			return va < vb;
+		});
+		for (const UnitStat &st : stats) {
+			if (st.count >= st.target) return;
+			const uint16_t tmpl = best_trainable(st);
+			if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue; // no template: the class drops out of the plan
+			const CivUnitTemplate &t = civ_unit_template(tmpl);
+			const int batch = std::min(st.batch, std::max(1, petra_pop_room()));
+			const UnitTypeInfo &ui = civ_template_unit_info(tmpl, t.unit_type);
 			float cost[RES_COUNT];
-			unit_train_cost(petra_pid_, opt.tmpl, ui, cost);
+			unit_train_cost(petra_pid_, tmpl, ui, cost);
+			// The military queue's account seldom holds a whole batch while the other queues draw
+			// on the same income, so a smaller batch goes when the full one cannot (RTS0).
+			for (int n = batch; n >= 1; --n) {
+				bool leaves = true;
+				for (int r = 0; r < RES_COUNT; ++r)
+					if (cost[r] > 0.0f && petra_ps().res[r] - std::floor(cost[r] * (float)n) < reserve[r]) leaves = false;
+				if (leaves && petra_train_template(PETRA_QUEUE_MILITARY, trainer_for(tmpl), tmpl, n)) return;
+			}
+			// The unit the plan's queue waits on (queueManager) keeps its price from the lower
+			// queues, and the military queue asks for one unit's price: asking for the whole
+			// batch would draw the villager queue's food away too (the tries above asked for it).
+			PetraQueueAccount &w = petra_queues_.wants[PETRA_QUEUE_MILITARY];
 			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
-			reserving = true;
-			continue;
+			w.food = cost[RES_FOOD]; w.wood = cost[RES_WOOD]; w.gold = cost[RES_GOLD]; w.stone = cost[RES_STONE];
+			return;
 		}
-		if (is_tower(opt.tmpl)) {
-			// The plan's queue trains in order: what comes after the tower leaves it its price.
-			siege_waiting = true;
-			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
-			float cost[RES_COUNT];
-			unit_train_cost(petra_pid_, opt.tmpl, ui, cost);
-			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
-			reserving = true;
-		}
-	}
-	if (champion_waiting) {
-		// A cheaper soldier queued after it cleared the queue's wants: the champion still waits.
-		PetraQueueAccount &w = petra_queues_.wants[PETRA_QUEUE_MILITARY];
-		w.food = std::max(w.food, champion_cost[RES_FOOD]); w.wood = std::max(w.wood, champion_cost[RES_WOOD]);
-		w.gold = std::max(w.gold, champion_cost[RES_GOLD]); w.stone = std::max(w.stone, champion_cost[RES_STONE]);
-	}
+	};
+	if (rush_wants) train_for(petra_attack_plan_, PETRA_ATTACK_RUSH);
+	if (raid_musters) train_for(petra_raid_plan_, PETRA_ATTACK_RAID);
+	if (attack_musters && !rush_wants && pop_current(petra_pid_) < pop_max(petra_pid_))
+		train_for(petra_attack_plan_, petra_attack_mgr_.kind);
 }
 
 // Queue roster unit `tmpl` at one of our buildings, paid from Petra's queue
@@ -14054,11 +14050,12 @@ int Simulation::petra_train_more_workers() {
 	return shortfall;
 }
 
-// PETRA.getMaxStrength for a template at its base stats (petra_unit_strength reads a unit).
-float Simulation::petra_template_strength(const UnitTypeInfo &ui) const {
+// PETRA.getMaxStrength for a template at its base stats (petra_unit_strength reads a unit),
+// its damage times `attack_mult` (getMultiplierAgainst for a class it is measured against).
+float Simulation::petra_template_strength(const UnitTypeInfo &ui, float attack_mult) const {
 	float s = 0.0f;
 	if (ui.attack_damage > 0.0f) {
-		s += (0.085f * ui.hack_damage + 0.075f * ui.pierce_damage + 0.065f * ui.crush_damage) / 4.0f;
+		s += (0.085f * ui.hack_damage + 0.075f * ui.pierce_damage + 0.065f * ui.crush_damage) * attack_mult / 4.0f;
 		s += ui.attack_range / (ui.attack_range > 4.0f ? 0.28f : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
 	}
@@ -17257,6 +17254,15 @@ void Simulation::petra_set_rushes() {
 
 // attackPlan.js constructor: the plan's unitStat totals for its type, varied
 // by +/-20% and shrunk at the lower difficulties.
+// config.js popScaling: 0.5 below Easy, 0.7 below Medium, times sqrt(maxPop / 300) under 300.
+float Simulation::petra_plan_pop_scaling() const {
+	const uint8_t d = petra_config_.difficulty;
+	float pop_scaling = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.7f : 1.0f;
+	const int max_pop = pop_limit(petra_pid_);
+	if (max_pop > 0 && max_pop < 300) pop_scaling *= std::sqrt((float)max_pop / 300.0f);
+	return pop_scaling;
+}
+
 void Simulation::petra_plan_sizes(uint8_t kind) {
 	auto &m = petra_attack_mgr_;
 	// attackPlan.js unitStat as {minSize, targetSize} per class. RTS0's rushes march with
@@ -17279,10 +17285,7 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 	const uint8_t d = petra_config_.difficulty;
 	if (d < PETRA_EASY) variation *= 0.2f;
 	else if (d < PETRA_MEDIUM) variation *= 0.6f;
-	// config.js popScaling: 0.5 below Easy, 0.7 below Medium, times sqrt(maxPop / 300) under 300.
-	float pop_scaling = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.7f : 1.0f;
-	const int max_pop = pop_limit(petra_pid_);
-	if (max_pop > 0 && max_pop < 300) pop_scaling *= std::sqrt((float)max_pop / 300.0f);
+	const float pop_scaling = petra_plan_pop_scaling();
 	int target = 0, minimum = 0;
 	for (Stat st : stats) {
 		st.target = (int)std::ceil(variation * (float)st.target);
@@ -17691,8 +17694,11 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				kind = mgr.attack_number < 2 || huge_started ? PETRA_ATTACK_ATTACK : PETRA_ATTACK_HUGE;
 				plan.kind = kind;
 				plan.target_building_id = 0;
+				// An Attack musters (and trains) without a target; it picks one when it must
+				// start and fails if there is none (attackPlan.js updatePreparation).
 				target_id = find_petra_attack_target(tx, tz, 0, &plan);
-				if (target_id == 0) return;
+				if (target_id == 0)
+					if (const auto *base = get_primary_petra_base()) { tx = base->x; tz = base->z; }
 			}
 			petra_plan_sizes(kind);
 			if (kind == PETRA_ATTACK_RUSH) ++mgr.rush_number;
