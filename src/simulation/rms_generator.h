@@ -309,6 +309,11 @@ private:
 	// Ngorongoro's lowland, highland and eden mines, hunt and baobabs.
 	static void place_ngorongoro_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config);
 	static void distribute_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config);
+	// Adds Gaia mines, fruit and hunt outside the bases until the map has the counts its
+	// 0 A.D. script places (resource_counts_data.h); base_resources and base_fauna are the
+	// resource and animal counts once the player bases were placed.
+	static void top_up_resources(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+			const Config &config, size_t base_resources, size_t base_fauna);
 	static void place_elephantine_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config);
 	// lower_nubia.js's mines, pyramid, Nile palms and straggler trees (in place of the generic groves and mines).
 	static void place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng);

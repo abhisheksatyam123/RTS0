@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 67; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 68; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -456,6 +456,9 @@ public:
 	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
 	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
 	void set_resource_amount(uint32_t res_id, int32_t amount);
+	// Sets a resource's ResourceSupply/MaxGatherers, as map generation does for a tree whose 0 A.D.
+	// template allows other than 8 (tree_slot_gatherers.h).
+	void set_resource_max_gatherers(uint32_t res_id, int max_gatherers);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);
@@ -782,6 +785,12 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	// 0 A.D. owned livestock is a unit its owner selects and orders (UnitAI "walk",
+	// "garrison" into a corral, "stop"). Ids that aren't player's living, unpenned
+	// animals are ignored, so a command's whole selection can be passed.
+	void order_fauna_walk(uint8_t player, const uint32_t *ids, size_t count, float x, float z, uint32_t corral_id = 0);
+	void order_fauna_stop(uint8_t player, const uint32_t *ids, size_t count);
+	bool fauna_selectable_by(uint8_t player, uint32_t fauna_id) const;
 	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE, int count = 1);
 	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
 	float livestock_train_time(uint8_t player, uint8_t ftype) const;
@@ -841,6 +850,9 @@ public:
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)
 	uint8_t victory_condition() const { return (uint8_t)victory_condition_; }
 	void set_victory_condition(uint8_t vc) { victory_condition_ = (VictoryCondition)vc; }
+	uint8_t victory_conditions() const { return victory_mask(victory_condition_); }
+	void set_victory_conditions(uint8_t mask) { victory_condition_ = (VictoryCondition)victory_code(mask); }
+	bool has_victory(uint8_t kind) const { return (victory_mask(victory_condition_) & kind) != 0; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
@@ -1473,16 +1485,6 @@ public:
 		uint8_t needed_defenders = 0;
 	};
 
-	enum PetraPriorityQueue : uint8_t {
-		PETRA_QUEUE_EMERGENCY = 0, // Threat >= 7.0f: Emergency spearmen, archers, towers
-		PETRA_QUEUE_VILLAGER  = 1, // Economic boom: 35% of total pop
-		PETRA_QUEUE_MILITARY  = 2, // Military strike force: Counter-units for AttackPlan
-		PETRA_QUEUE_TECH      = 3, // Technology & Phase research
-		PETRA_QUEUE_TRADE     = 4, // Market and trader caravans
-		PETRA_QUEUE_NAVAL     = 5, // Dock and triremes on coastal/water maps
-		PETRA_QUEUE_COUNT     = 6
-	};
-
 	const std::vector<PetraBase> &petra_bases() const { return petra_bases_; }
 	const PetraBase *get_primary_petra_base() const;
 	const PetraBase *get_nearest_petra_base(float x, float z) const;
@@ -1852,6 +1854,7 @@ private:
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
 		float bld_garrison_regen_add[BLD_TYPE_COUNT]; // added to Capturable/GarrisonRegenRate (the phases)
+		float bld_decay[BLD_TYPE_COUNT];              // TerritoryDecay/DecayRate multiplier (Migratory Resettlement)
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
@@ -2073,6 +2076,8 @@ private:
 	void register_capture_aura(uint32_t id, uint8_t team, uint16_t k, float x, float z);
 	float unit_base_vision(size_t i) const; // the template's Vision/Range x0.28 (class default if none)
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
+	float structure_decay_rate(const Building &b) const; // TerritoryDecay/DecayRate with the owner's techs
+	float attack_reach(size_t i) const; // Attack MaxRange with MaxRange auras (Boiorix's High Ground)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
 	void fire_arrow(float sx, float sy, float sz, float tx, float ty, float tz, float damage, uint8_t team, uint32_t target_id, uint8_t effect = 0, uint8_t dmg_type = 1, bool hits_building = false, uint8_t visual = 0, uint32_t source_id = 0, uint8_t splash = 0);
 	static float projectile_speed(uint8_t visual);
@@ -2657,6 +2662,13 @@ private:
 	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
 	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
+	int petra_queue_base_priority(uint8_t q) const; // config.js priorities after setConfig (attackPlan.js for plan queues)
+	int petra_queue_priority(uint8_t q) const;      // with changePriority's
+	// queueManager.changePriority; `reset_when` names the queue whose next started item resets
+	// it to Config.priorities (a plan's queueToReset), PETRA_Q_COUNT for none.
+	void petra_change_priority(uint8_t q, int priority, uint8_t reset_when = PETRA_Q_COUNT);
+	void petra_check_paused_queues();               // queueManager.checkPausedQueues
+	void petra_fund_queue(uint8_t q, const float cost[RES_COUNT]); // setAccounts, then transferAccounts from the others
 	void petra_staff_foundations();
 	void petra_manage_fields();
 	float petra_gather_rate(size_t i, uint8_t kind) const;
@@ -2766,6 +2778,9 @@ private:
 	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v42)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
+	std::vector<LosSource> los_fauna_src_; // the circle each fauna_ index's owned animal adds (rebuilt on load)
+	float owned_fauna_vision(size_t f) const;
+	void update_fauna_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here

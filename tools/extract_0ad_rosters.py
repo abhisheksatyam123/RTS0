@@ -927,7 +927,7 @@ def load_team_bonuses(sim_root, rows):
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
 AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
-             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7}
+             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7, "AURA_VISION_ADD": 18}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
@@ -993,6 +993,8 @@ def aura_modifications(a):
             kind, value = "AURA_HEALTH", m["multiply"]
         elif v == "Vision/Range" and "multiply" in m:
             kind, value = "AURA_VISION", m["multiply"]
+        elif v == "Vision/Range" and "add" in m:
+            kind, value = "AURA_VISION_ADD", m["add"]
         elif v.startswith("Resistance/Entity/Damage/") and "add" in m:
             kind, value = "AURA_ARMOR", m["add"]
         elif v in ("Health/IdleRegenRate", "Health/RegenRate") and "add" in m:
@@ -1004,7 +1006,7 @@ def aura_modifications(a):
         if kind is None:
             continue
         gain = value - 1.0 if kind in MULTIPLY_AURAS else value
-        if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR",):
+        if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR", "AURA_HEAL", "AURA_HEAL_AMOUNT", "AURA_VISION_ADD"):
             gain = -gain
         out.append((kind, value, gain))
     return out
@@ -1254,7 +1256,10 @@ def collect(sim_root):
                     "radius": float(a.get("radius", 0)),
                     "affects": a.get("affects", []),
                     "players": a.get("affectedPlayers", ["Player"]),
-                    "modifications": a.get("modifications", []),
+                    # Auras.js: an aura whose requiredTechnology is not researched stays off; 0.28's
+                    # Seeress' Human Sacrifice names "healer_aura", which no technology is.
+                    "modifications": [] if a.get("requiredTechnology") and not os.path.exists(os.path.join(
+                        sim_root, "data", "technologies", a["requiredTechnology"] + ".json")) else a.get("modifications", []),
                 })
                 auras[-1]["rts0"] = rts0_aura_effect(auras[-1])
             if len(hero_auras) > 3:  # three slots: range auras before garrison ones (the minister has four)

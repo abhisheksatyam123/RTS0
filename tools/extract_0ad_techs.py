@@ -178,6 +178,7 @@ def stat_of(path: str):
         "Attack/Ranged/Projectile/Spread": "TSTAT_SPREAD",
         "BuildingAI/GarrisonArrowMultiplier": "TSTAT_GARRISON_ARROWS",
         "Attack/Ranged/MinRange": "TSTAT_MIN_RANGE",
+        "TerritoryDecay/DecayRate": "TSTAT_TERRITORY_DECAY",
     }.get(path)
 
 
@@ -419,7 +420,7 @@ def main() -> int:
         def block(start: str) -> list[str]:
             body = text.split(start, 1)[1].split("\n\t};", 1)[0]
             return [l for l in body.split("\n")[2:] if l.strip()]  # skip the header and fixed first row
-        kept_ids = re.findall(r"^\t(TECH_[A-Z0-9_]+) = \d+, // (\S+)$", text, re.M)
+        kept_ids = re.findall(r"^\t(TECH_[A-Z0-9_]+) = \d+, // (\S+)(?: .*)?$", text, re.M)
         kept_affects = block("static const TechClassExpr kAffects[] = {")
         kept_effects = block("static const TechEffect kEffects[] = {")
         kept_techs = block("static const TechInfo kTable[TECH_COUNT] = {")
@@ -531,6 +532,9 @@ def main() -> int:
         rebuilt_techs: list[str] = []
         row_re = re.compile(r", (\d+), (\d+), (\"[^\"]*\")\},$")
         for row in k_techs:
+            if row.strip().startswith("//"):  # hand-written notes stay where they are
+                rebuilt_techs.append(row)
+                continue
             mo = row_re.search(row)
             begin, count, tname = int(mo.group(1)), int(mo.group(2)), mo.group(3)[1:-1]
             nb = len(rebuilt_effects)

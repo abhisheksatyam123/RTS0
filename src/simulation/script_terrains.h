@@ -147,7 +147,7 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "savanna_riparian_wet", "savanna_mud_a"},
 		 {"botswanan_haven", {{FLORA_TEAK, FLORA_BAOBAB}}, {FLORA_TEAK, FLORA_BAOBAB, FLORA_BUSH},
 		  {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
-		  {{200, 400}}, {200, 400, 100}, {{100, 100}}},
+		  {{200, 600}}, {200, 600, 100}, {{100, 100}}},
 		 {},
 		 {{AREA_HILL, {{"savanna_cliff_a"}, {"savanna_grass_a_wetseason"}}, {2}},
 		  {AREA_MARSH, {{"savanna_grass_b_wetseason"}, {"savanna_riparian_wet"}, {"savanna_mud_a"}}, {1, 1}}}},
@@ -241,7 +241,7 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"desert_farmland"}, "savanna_tile_a", "desert_city_tile", "desert_grass_a", "savanna_riparian_wet", "savanna_riparian_wet"},
 		 {"fields_of_meroe", {{FLORA_ACACIA, FLORA_ACACIA}}, {FLORA_BAOBAB, FLORA_ACACIA}, {{FLORA_PALM, FLORA_PALM}},
 		  FLORA_DEFAULT,
-		  {{200, 200}}, {400, 200}, {{200, 100}}}},
+		  {{200, 200}}, {600, 200}, {{200, 100}}}},
 		// fortress.js: beech and oak forests, pine forests; no dirt or shore blend, so they reuse tGrassC and tGrassPatch.
 		{"fortress",
 		 {"fortress", {"temperate_grass_04", "temperate_grass_03", "temperate_grass_04"}, {"temperate_forestfloor_01"},
@@ -334,7 +334,7 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"sahara_rock_01"}, {"aegean_grass_02"}, "road2", "savanna_riparian_dry", "steppe_grass_04", "steppe_grass_04",
 		  "india_sand_01"},
 		 {"ngorongoro", {{FLORA_BAOBAB, FLORA_BAOBAB}}, {FLORA_BAOBAB}, {{FLORA_BAOBAB, FLORA_BAOBAB}}, FLORA_BERRY,
-		  {{400, 400}}, {400}, {{400, 400}}},
+		  {{600, 600}}, {600}, {{600, 600}}},
 		 {},
 		 {{AREA_HIGHLANDS, {{"savanna_grass_01", "savanna_grass_01", "savanna_grass_a_wetseason", "savanna_grass_b_wetseason",
 		                     "savanna_shrubs_a_wetseason", "savanna_shrubs_b"}}, {}}}},
@@ -420,7 +420,7 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"savanna_dirt_rocks_b", "savanna_dirt_rocks_c"}, {"savanna_dirt_rocks_a", "savanna_dirt_b"}, "savanna_tile_a",
 		  "savanna_tile_a", "savanna_grass_b", "savanna_riparian_bank", "savanna_riparian_wet"},
 		 {"sahel", {{FLORA_BAOBAB, FLORA_BAOBAB}}, {FLORA_BAOBAB}, {{FLORA_BAOBAB, FLORA_BAOBAB}}, FLORA_BERRY,
-		  {{400, 400}}, {400}, {{400, 400}}}},
+		  {{600, 600}}, {600}, {{600, 600}}}},
 		// sahel_watering_holes.js: baobab forests; no shore blend, so it reuses tGrassPatch.
 		{"sahel_watering_holes",
 		 {"sahel_watering_holes", {"savanna_grass_a"}, {"savanna_forestfloor_a"},
@@ -428,7 +428,7 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"savanna_cliff_a"}, {"savanna_dirt_rocks_c", "savanna_dirt_rocks_a"}, "savanna_tile_a_red", "savanna_tile_a_red",
 		  "savanna_grass_b", "savanna_riparian_bank", "savanna_riparian_wet"},
 		 {"sahel_watering_holes", {{FLORA_BAOBAB, FLORA_BAOBAB}}, {FLORA_BAOBAB}, {{FLORA_BAOBAB, FLORA_BAOBAB}}, FLORA_BERRY,
-		  {{400, 400}}, {400}, {{400, 400}}}},
+		  {{600, 600}}, {600}, {{600, 600}}}},
 		// scythian_rivulet.js: dead tree and dead oak forests, dead tree forests; no dirt or shore blend, so they reuse
 		// tTier3Terrain and tTier1Terrain.
 		{"scythian_rivulet",

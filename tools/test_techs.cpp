@@ -665,6 +665,32 @@ int main() {
 		std::printf("Glorious Expansion: population limit %d -> %d with two Wonders\n", base, w.pop_limit(0));
 	}
 
+	// Migratory Resettlement (resettlement.json): Germanic structures except walls keep their
+	// capture points off their own territory (TerritoryDecay/DecayRate x0.00001).
+	{
+		static Simulation g;
+		g.set_team_civ(0, CIV_GERMANS);
+		fresh(g);
+		const float far = g.map_half_ * 0.85f;
+		const uint32_t bar = g.spawn_building_world(far, far, BLD_BARRACKS, 0, 1.0f);
+		const uint32_t wall = g.spawn_building_world(-far, far, BLD_WALL_SEGMENT, 0, 1.0f);
+		auto bld = [&](uint32_t id) -> Simulation::Building & { return g.buildings_[g.building_id_to_idx_[id]]; };
+		CHECK(tech_available_to_civ(TECH_RESETTLEMENT, CIV_GERMANS) && !tech_available_to_civ(TECH_RESETTLEMENT, CIV_GAULS));
+		CHECK(tech_info(TECH_RESETTLEMENT).researcher == BLD_TOWN_CENTER && tech_info(TECH_RESETTLEMENT).required_phase == 2);
+		const float base = bld(bar).territory_decay_rate;
+		CHECK(base > 0.0f && g.structure_decay_rate(bld(bar)) == base);
+		run(g, 5.0f);
+		const float lost = bld(bar).max_capture_points - bld(bar).capture_points_by_team[0];
+		CHECK(lost > 0.0f); // decays to Gaia on neutral ground before the tech
+		g.complete_research(0, TECH_RESETTLEMENT);
+		CHECK(std::fabs(g.structure_decay_rate(bld(bar)) - base * 1e-5f) < 1e-9f);
+		CHECK(g.structure_decay_rate(bld(wall)) == bld(wall).territory_decay_rate);
+		const float held = bld(bar).capture_points_by_team[0];
+		run(g, 5.0f);
+		CHECK(bld(bar).capture_points_by_team[0] >= held - 0.01f);
+		std::printf("Migratory Resettlement: barracks decay %.2f -> %.6f points/s\n", base, g.structure_decay_rate(bld(bar)));
+	}
+
 	// Attack technologies change each damage kind on its own (Attack/<type>/Damage/<kind>,
 	// GetTechModifiedProperty_numeric: x every multiply, then + every add): Naval Oxybeles
 	// gives Arrow Ships +10 crush on top of their 32 pierce, and Poison Arrows scales each of

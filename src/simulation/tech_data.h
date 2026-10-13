@@ -141,8 +141,9 @@ enum TechnologyId : uint8_t {
 	TECH_LONG_WALLS = 132, // long_walls
 	TECH_EQUINE_TRANSPORTS = 133, // equine_transports
 	TECH_GROVE_OF_FETTERS = 134, // grove_of_fetters
-	TECH_CELTIC_AUXILIARIES = 135, // celtic_auxiliaries (hand-added: Loot/<res> of the unit)
-	TECH_COUNT = 136
+	TECH_RESETTLEMENT = 135, // resettlement
+	TECH_CELTIC_AUXILIARIES = 136, // celtic_auxiliaries (hand-added: Loot/<res> of the unit)
+	TECH_COUNT = 137
 };
 
 enum TechClass : uint64_t {
@@ -292,6 +293,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_SENTRYTOWER, 0},
 		{TC_STONETOWER, 0},
 		{TC_FORTRESS, 0},
+		{TC_STRUCTURE, TC_WALL},
 		{TC_MERCENARY | TC_SWORDSMAN, 0},
 		{TC_NAVALSIEGE, 0},
 		{TC_IGNITED, 0},
@@ -490,19 +492,20 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_GARRISON_ARROWS, TOP_MUL, 64, 2, 1.4f}, // tower_crenellations
 		{TSTAT_MIN_RANGE, TOP_SET, 72, 3, 0.0f}, // tower_murderholes
 		{TSTAT_HEALTH, TOP_MUL, 15, 1, 1.5f}, // grove_of_fetters
-		{TSTAT_COST_METAL, TOP_MUL, 75, 1, 0.5f}, // celtic_auxiliaries
-		{TSTAT_COST_FOOD, TOP_ADD, 75, 1, 50.0f}, // celtic_auxiliaries
-		{TSTAT_UNIT_LOOT_METAL, TOP_MUL, 75, 1, 0.5f}, // celtic_auxiliaries
-		{TSTAT_UNIT_LOOT_FOOD, TOP_ADD, 75, 1, 5.0f}, // celtic_auxiliaries
-		{TSTAT_VISION, TOP_MUL, 76, 1, 1.2f}, // warship_siege_attack
-		{TSTAT_RANGE, TOP_MUL, 76, 1, 1.2f}, // warship_siege_attack
-		{TSTAT_HEALTH, TOP_MUL, 77, 1, 1.25f}, // warship_fireship_attack
+		{TSTAT_TERRITORY_DECAY, TOP_MUL, 75, 1, 1e-05f}, // resettlement
+		{TSTAT_COST_METAL, TOP_MUL, 76, 1, 0.5f}, // celtic_auxiliaries
+		{TSTAT_COST_FOOD, TOP_ADD, 76, 1, 50.0f}, // celtic_auxiliaries
+		{TSTAT_UNIT_LOOT_METAL, TOP_MUL, 76, 1, 0.5f}, // celtic_auxiliaries
+		{TSTAT_UNIT_LOOT_FOOD, TOP_ADD, 76, 1, 5.0f}, // celtic_auxiliaries
+		{TSTAT_VISION, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
+		{TSTAT_RANGE, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
+		{TSTAT_HEALTH, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack
 		{TSTAT_VISION, TOP_MUL, 71, 1, 1.1f}, // ship_vision
-		{TSTAT_VISION, TOP_MUL, 78, 1, 1.25f}, // ship_vision
+		{TSTAT_VISION, TOP_MUL, 79, 1, 1.25f}, // ship_vision
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 196;
+constexpr int TECH_EFFECT_COUNT = 197;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -586,11 +589,11 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0xbbff, 125, 0, "unlock_civilians_house_generic"},
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 125, 0, "unlock_civilians_house_kush"},
 		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0xbfff, 125, 2, "warship_arrow_attack"},
-		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 193, 1, "warship_fireship_attack"},
+		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 194, 1, "warship_fireship_attack"},
 		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 127, 2, "warship_health"},
 		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 129, 1, "warship_ramming_attack"},
 		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 130, 2, "warship_ranged_attack"},
-		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 191, 2, "warship_siege_attack"},
+		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 192, 2, "warship_siege_attack"},
 		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0xbfff, 132, 1, "garrison_heal"},
 		{"The Agoge", "Champion Hoplites +25% health, but +5% training time.", 500, 0, 200, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 133, 2, "agoge"},
 		{"Monumental Architecture", "Civic Structures +20% build time, +20% health, and +20% capture points.", 0, 0, 0, 600, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0400, 135, 3, "architecture_kush"},
@@ -630,7 +633,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Bolt Accuracy", "Bolt Shooters −20% ranged attack spread.", 0, 250, 250, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x083b, 180, 1, "siege_bolt_accuracy"},
 		{"Exploration", "Traders and Ships +20% vision range.", 100, 0, 100, 0, 40.0f, 1, BLD_DOCK, TECH_SHIP_VISION, 0x2010, 181, 1, "exploration"},
 		{"Carrier Pigeons", "Outposts +33% vision range.", 300, 0, 0, 0, 40.0f, 1, BLD_OUTPOST, TECH_NONE, 0xbfff, 182, 1, "outpost_vision"},
-		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 194, 2, "ship_vision"},
+		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 195, 2, "ship_vision"},
 		{"Crenellations", "Sentry and Stone Towers +40% more arrows per garrisoned Soldier.", 0, 0, 250, 500, 40.0f, 2, BLD_TOWER, TECH_NONE, 0xbfff, 184, 1, "tower_crenellations"},
 		{"Murder Holes", "Fortresses, Sentry Towers, and Stone Towers have 0 minimum attack range.", 0, 250, 0, 150, 40.0f, 3, BLD_TOWER, TECH_NONE, 0xbfff, 185, 1, "tower_murderholes"},
 		{"Cartography", "See what your allies see, browse their summary and check their resources and population count in the top panel.", 100, 0, 100, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 186, 0, "unlock_shared_los"},
@@ -642,9 +645,10 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Glorious Expansion", "Enable the “Glorious Expansion” aura: +20% maximum population limit per Wonder owned.", 2000, 3000, 500, 500, 120.0f, 3, BLD_WONDER, TECH_NONE, 0xbfff, 186, 0, "wonder_population_cap"},
 		{"Athenian Long Walls", "Build Walls in own or neutral territory.", 0, 0, 0, 400, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 186, 0, "long_walls"},
 		{"Equine Transports", "Phoenician Triremes gain the ability to train Cavalry.", 0, 300, 300, 0, 60.0f, 3, BLD_DOCK, TECH_DOCK_EFFICIENCY, 0x0004, 186, 0, "equine_transports"},
-		// The Seeress's Human Sacrifice aura it also unlocks (germ_seer_1_buff) is not modelled yet.
+		// The Human Sacrifice aura it names (germ_seer_1_buff) requires a "healer_aura" tech 0.28 lacks: no effect there either.
 		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 186, 1, "grove_of_fetters"},
-		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 187, 4, "celtic_auxiliaries"},
+		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 187, 1, "resettlement"},
+		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 188, 4, "celtic_auxiliaries"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
