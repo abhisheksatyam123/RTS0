@@ -831,6 +831,8 @@ func _on_start_pressed() -> void:
 		return
 	var ms := get_node("/root/MatchSettings")
 	ms.map_id = str(m["id"])
+	ms.campaign_run = "" # a match from Game Setup is not a campaign level
+	ms.campaign_level = ""
 	ms.seed = int(st["seed"])
 	ms.victory = int(st["victory"])
 	ms.waves_enabled = bool(st["waves"])
