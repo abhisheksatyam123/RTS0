@@ -2799,6 +2799,41 @@ static void test_defensive_location() {
 		      "the next tower keeps 30 m from it");
 }
 
+// attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
+static void test_raid_keeps_hunters() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	uint32_t target = 0;
+	for (const auto &b : s->buildings_) {
+		if (!is_civic_centre(b.type) || b.hp <= 0.0f) continue;
+		if (b.team == 1) { ox = b.x; oz = b.z; }
+	}
+	// An enemy outpost inside our territory is the raid's target (raidTargetEntity).
+	target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	int riders = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 &&
+		    (s->units_.unit_type[i] == UNIT_CAVALRY || s->units_.unit_type[i] == UNIT_CAMEL || s->units_.unit_type[i] == UNIT_CHARIOT))
+			++riders;
+	auto &plan = s->petra_raid_plan_;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.state_timer = 0.0f;
+	plan.target_building_id = target;
+	plan.squad.clear();
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	std::printf("  raid: %d riders, %zu join the raid\n", riders, plan.squad.size());
+	CHECK(s->petra_raid_target_ok(target), "the outpost stands in our territory");
+	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
+}
+
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
 // back lays a storehouse by a forest at least 15 tiles from our dropsites, and its foundation
 // restarts every count; headquarters.js buildFarmstead lays one farmstead once there is a
@@ -3274,6 +3309,7 @@ int main() {
 	test_worker_mix();
 	test_build_defenses();
 	test_defensive_location();
+	test_raid_keeps_hunters();
 	test_dropsites();
 	test_food_fields();
 	test_corral_by_owner();

@@ -20522,7 +20522,9 @@ void Simulation::petra_manage_raid(float dt) {
 			plan.state_timer = 0.0f;
 			return;
 		}
-		// Cavalry citizen soldiers; a raid over water takes any land soldier.
+		// Cavalry citizen soldiers; a raid over water takes any land soldier. As attackPlan.js
+		// addUnits does for a raid, the first two free riders stay home to hunt.
+		int hunters_kept = 0;
 		for (size_t i = 0; i < units_.count && plan.squad.size() < 4; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 			uint8_t ut = units_.unit_type[i];
@@ -20545,6 +20547,7 @@ void Simulation::petra_manage_raid(float dt) {
 				marching |= std::find(p.squad.begin(), p.squad.end(), uid) != p.squad.end();
 			if (marching) continue;
 			if (petra_is_defender(uid)) continue;
+			if (cavalry && hunters_kept < 2) { ++hunters_kept; continue; }
 			plan.squad.push_back(uid);
 		}
 		if (petra_attack_plan_.state == AttackPlan::MUSTER) {
