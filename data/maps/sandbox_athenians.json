@@ -16655,7 +16655,14 @@
       "id": 1,
       "team": 0,
       "start_x": -108.04,
-      "start_z": 101.91
+      "start_z": 101.91,
+      "civ": 0,
+      "resources": {
+        "food": 100000,
+        "metal": 100000,
+        "stone": 100000,
+        "wood": 100000
+      }
     }
   ],
   "resources": [
