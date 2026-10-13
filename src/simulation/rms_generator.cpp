@@ -988,88 +988,6 @@ void RmsGenerator::synth_peloponnese(HeightmapGrid &hm, RmsRng &rng, float &wate
 	synth_continental(hm, rng, water_h, spawns, num_players);
 }
 
-void RmsGenerator::synth_danubius(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
-	water_h = 0.5f;
-	hm.init(hm.res, hm.map_half, 2.6f);
-
-	float half = hm.map_half;
-
-	// 1. Base rolling temperate river valley terrain with fBm
-	hm.apply_fbm(rng, 4, 0.028f, 0.52f, 2.1f, 3.8f);
-	hm.diamond_square(rng, 1.8f, 0.60f);
-
-	// Perimeter gentle falloff and smoothing come before the channels, so the
-	// blur can't sink the fords below wading depth (bases were cut off), and the
-	// valley floor is lifted so the water is the two channels, not a lake.
-	lift_noise_to_land(hm, water_h, 0.95f, 5);
-	hm.apply_radial_falloff(0.85f, 0.98f, 1.0f);
-	hm.blur(2, 0.42f);
-
-	// 2. Dual-channel river branches around central island fortress
-	// Channel 1: North Branch
-	std::vector<std::pair<float, float>> north_branch = {
-		{-half * 0.92f, -half * 0.10f},
-		{-half * 0.55f, -half * 0.24f},
-		{-half * 0.22f, -half * 0.38f},
-		{0.0f,          -half * 0.42f},
-		{half * 0.22f,  -half * 0.38f},
-		{half * 0.55f,  -half * 0.24f},
-		{half * 0.92f,  -half * 0.10f}
-	};
-
-	// Channel 2: South Branch
-	std::vector<std::pair<float, float>> south_branch = {
-		{-half * 0.92f,  half * 0.10f},
-		{-half * 0.55f,  half * 0.24f},
-		{-half * 0.22f,  half * 0.38f},
-		{0.0f,           half * 0.42f},
-		{half * 0.22f,   half * 0.38f},
-		{half * 0.55f,   half * 0.24f},
-		{half * 0.92f,   half * 0.10f}
-	};
-
-	// Carve both channels with central walkable fords
-	float ford_dist_n = half * 0.90f;
-	float ford_dist_s = half * 0.90f;
-	hm.carve_spline_path(north_branch, 4.2f, 2.2f, water_h, ford_dist_n, 8.0f);
-	hm.carve_spline_path(south_branch, 4.2f, 2.2f, water_h, ford_dist_s, 8.0f);
-
-	// 3. Central Fortress Island & Sandbars
-	hm.level_area(0.0f, 0.0f, half * 0.18f, 6.0f, 4.5f);
-	// Sandbars upstream and downstream
-	hm.level_area(-half * 0.30f, 0.0f, 4.5f, 4.0f, 1.2f);
-	hm.level_area( half * 0.30f, 0.0f, 4.5f, 4.0f, 1.2f);
-
-
-	// Re-level central fortress island summit
-	hm.level_area(0.0f, 0.0f, half * 0.14f, 4.0f, 4.5f);
-
-	// 5. Opposing riverbank player spawns
-	spawns.clear();
-	if (num_players == 2) {
-		float sx0 = 0.0f, sz0 = -half * 0.62f;
-		float sx1 = 0.0f, sz1 =  half * 0.62f;
-		float bh0 = std::max(water_h + 1.5f, hm.sample_world(sx0, sz0));
-		float bh1 = std::max(water_h + 1.5f, hm.sample_world(sx1, sz1));
-		hm.level_area(sx0, sz0, 14.0f, 6.0f, bh0);
-		hm.level_area(sx1, sz1, 14.0f, 6.0f, bh1);
-		spawns.push_back({0, sx0, sz0, bh0, 0.0f, 1.0f});
-		spawns.push_back({1, sx1, sz1, bh1, 0.0f, -1.0f});
-	} else {
-		for (int i = 0; i < num_players; ++i) {
-			float side = (i % 2 == 0) ? -1.0f : 1.0f;
-			float col = (float)(i / 2) - (float)(num_players / 4);
-			float sx = col * 24.0f;
-			float sz = side * half * 0.62f;
-			float fx = 0.0f;
-			float fz = -side;
-			float bh = std::max(water_h + 1.5f, hm.sample_world(sx, sz));
-			hm.level_area(sx, sz, 14.0f, 6.0f, bh);
-			spawns.push_back({(uint8_t)i, sx, sz, bh, fx, fz});
-		}
-	}
-}
-
 void RmsGenerator::synth_saharan_oases(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players) {
 	water_h = 0.0f;
 	hm.init(hm.res, hm.map_half, 2.8f);
@@ -4027,21 +3945,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	else if (config.map_type == MAP_OASIS_0AD) num_groves = num_groves / 5;
 
 	// Map-specific landmark resource clusters
-	if (config.map_type == MAP_DANUBIUS) {
-		// Central Island Fortress Resources
-		sim.spawn_resource_world(-2.5f, 0.0f, RES_GOLD, MINE_SUPPLY);
-		sim.spawn_resource_world( 2.5f, 0.0f, RES_GOLD, MINE_SUPPLY);
-		sim.spawn_resource_world(0.0f, -2.5f, RES_STONE, MINE_SUPPLY);
-		sim.spawn_resource_world(0.0f,  2.5f, RES_STONE, MINE_SUPPLY);
-		// Oak grove on fortress island
-		for (int t = 0; t < 8; ++t) {
-			float a = (6.2831853f * t) / 8.0f;
-			spawn_trees(sim, hm, std::cos(a) * 5.0f, std::sin(a) * 5.0f, water_h + 0.3f);
-		}
-		// Sandbar resources
-		sim.spawn_resource_world(-half * 0.30f, 0.0f, RES_STONE, MINE_SUPPLY);
-		sim.spawn_resource_world( half * 0.30f, 0.0f, RES_STONE, MINE_SUPPLY);
-	} else if (config.map_type == MAP_SAHARAN_OASES) {
+	if (config.map_type == MAP_SAHARAN_OASES) {
 		// Date palm tree rings and berry groves around each oasis
 		std::vector<std::pair<float, float>> oases_centers = {
 			{0.0f, 0.0f},
@@ -4317,9 +4221,8 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 		case MAP_DEEP_FOREST: // deep_forest.js: the unfinished Greek temple on the central hill
 			sim.spawn_ruins(0.0f, 0.0f, ruins_type_by_name("unfinished_greek_temple"));
 			break;
-		// RTS0 landmarks: a rich treasure on the summit of Jebel Barkal and on the Danubius island fort.
+		// RTS0 landmark: a rich treasure on the summit of Jebel Barkal.
 		case MAP_JEBEL_BARKAL: sim.spawn_treasure(0.0f, half * 0.06f, TREASURE_METAL_PERSIAN_BIG); break;
-		case MAP_DANUBIUS: sim.spawn_treasure(0.0f, 0.0f, TREASURE_METAL_PERSIAN_BIG); break;
 		default: break;
 	}
 }
@@ -4762,6 +4665,310 @@ void RmsGenerator::synth_aegean_sea(HeightmapGrid &hm, RmsRng &rng, float &water
 		return true;
 	});
 	seas_spawns(hm, spawns, locs, 16.0f, 6.0f, water_h, land);
+}
+
+void RmsGenerator::synth_danubius_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams, DanubiusLayout &out) {
+	// danubius.js: land at 3 m, the Danube 0.3 of the map wide through the centre at a random
+	// angle (paintRiver, -3 m, fade scaleByMapSize(6, 25), meanderShort 30), players on both
+	// banks (playerPlacementRiver, 0.6 of the map apart). From 192 tiles a Gallic village
+	// stands at the map edge on each bank (its city patch 12 tiles round the civic centre),
+	// usually (90%) with a path from its gate down to a meeting place on the shore at 1.5 m.
+	// Bumps and hills or mountains keep off the villages and paths; scaleByMapSize(1, 4) *
+	// players islands of 6 m (ChainPlacer(floor(scaleByMapSize(3, 4)), floor(scaleByMapSize(4,
+	// 8)), floor(scaleByMapSize(50, 80)), 0.5), 30 apart, 10 into the river) carry bumps of
+	// their own. place_danubius_entities puts up the villages, island forts and trigger points.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, land);
+	const float angle = rng.range_float(0.0f, 2.0f * kSeasPi);
+	const float nx = std::cos(angle), nz = std::sin(angle); // across the river: the left bank is negative
+	const float ux = -nz, uz = nx;                          // along it
+	out = DanubiusLayout();
+	out.nx = nx;
+	out.nz = nz;
+	auto at = [&](float across, float along) { return std::make_pair(nx * across + ux * along, nz * across + uz * along); };
+	std::vector<uint8_t> gauls(hm.data.size(), 0), path(hm.data.size(), 0);
+	const float city_r = 12.0f;
+	out.villages = size >= 192.0f;
+	if (out.villages) {
+		const float border = size < 256.0f ? 10.0f : 18.0f;
+		out.ritual = rng.next_float() < 0.9f;
+		const float ritual_r = seas_scale(4, 6, half);
+		out.ritual_r = ritual_r;
+		for (int i = 0; i < 2; ++i) {
+			const float side = i == 0 ? -1.0f : 1.0f;
+			const auto cc = at(side * (half - border), 0.0f);
+			out.village[i][0] = cc.first;
+			out.village[i][1] = cc.second;
+			if (out.ritual) {
+				// The meeting place, off the centre of the bank, and the path from the gate to it.
+				const float off = size * rng.range_float(0.1f, 0.4f) * (rng.range_int(0, 1) ? 1.0f : -1.0f);
+				const auto meet = at(side * (half - 0.3f * size), off);
+				out.ritual_pos[i][0] = meet.first;
+				out.ritual_pos[i][1] = meet.second;
+				const auto gate = at(side * (half - border - city_r), 0.0f);
+				const auto m = seas_path(hm, rng, gate.first, gate.second, meet.first, meet.second, 4.0f, 0.4f, 4.0f, 0.2f, 0.05f, 0.0f,
+				                         [](int) { return true; });
+				paint_mask_elevation(hm, m, metres(water_h, 1.5f), 4.0f);
+				seas_add(path, m);
+				mask_disk(hm, path, meet.first, meet.second, ritual_r);
+			}
+			mask_disk(hm, gauls, cc.first, cc.second, city_r);
+		}
+	}
+	// playerPlacementRiver(angle, 0.6 * size).
+	std::vector<std::pair<float, float>> locs((size_t)num_players);
+	const bool even = num_players % 2 == 0;
+	for (int i = 0; i < num_players; ++i) {
+		const bool cur_even = i % 2 == 0;
+		const int divident = (even || cur_even) ? (i + 1) % 2 : 0;
+		const int divisor = even ? 0 : (cur_even ? 1 : -1);
+		const float f = ((float)(i - 1 + divident) / 2.0f + 1.0f) / ((float)(num_players + divisor) / 2.0f + 1.0f);
+		locs[(size_t)i] = at((i % 2 ? 0.3f : -0.3f) * size, (f - 0.5f) * size);
+	}
+	group_players_by_area(locs, num_players, teams);
+	const float pclass = seas_scale(15, 25, half) / 3.0f;
+	const auto to_player = seas_dist_to_players(hm, locs, pclass);
+	seas_paint_river(hm, rng, ux * half, uz * half, -ux * half, -uz * half, 0.3f * size, seas_scale(6, 25, half),
+	                 metres(water_h, -3.0f), land, 30.0f, 0.0f);
+	// waterFunc: the shore (0 to 1 m) of each bank, 15 tiles clear of the river's ends.
+	out.shore.assign(hm.data.size(), 0);
+	for (size_t i = 0; i < hm.data.size(); ++i) {
+		const float h = hm.data[i];
+		if (!(h > metres(water_h, 0.0f) && h < metres(water_h, 1.0f))) continue;
+		float wx, wz;
+		seas_world(hm, (int)i, wx, wz);
+		if (std::fabs(wx * ux + wz * uz) >= half - 15.0f) continue;
+		out.shore[i] = wx * nx + wz * nz < 0.0f ? 1 : 2;
+	}
+	std::vector<uint8_t> water(hm.data.size());
+	for (size_t i = 0; i < water.size(); ++i) water[i] = hm.data[i] < metres(water_h, 0.7f);
+	const auto to_water = seas_dist_inside(hm, water);
+	const auto in_water = seas_dist_outside(hm, water);
+	const auto to_gauls = seas_dist_inside(hm, gauls);
+	const auto to_path = seas_dist_inside(hm, path);
+	// createBumps(avoidClasses(clPlayer, 6, clWater, 2, clPath, 1, clGauls, 1), scaleByMapSize(30, 300), 1, 8, 4, 0, 3).
+	auto bumps = [&](float amount, const auto &allow) {
+		seas_create_areas(hm, rng, amount, 10, [&](float x, float z) {
+			const auto m = seas_chain(hm, rng, x, z, 1, 8, 4, 0.0f, 0.0f, {}, allow);
+			if (!seas_any(m)) return false;
+			seas_paint_modify(hm, m, 3.0f * kMetre, 2.0f);
+			return true;
+		});
+	};
+	bumps(seas_scale(30, 300, half), [&](int i) {
+		return to_player[(size_t)i] > 6.0f && to_water[(size_t)i] > 2.0f && to_path[(size_t)i] > 1.0f && to_gauls[(size_t)i] > 1.0f;
+	});
+	const bool mountains = rng.range_int(0, 1) == 0;
+	seas_hills(hm, rng, water_h, seas_scale(3, 15, half), mountains, 20.0f, 18.0f, [&](int i) {
+		return to_player[(size_t)i] > 18.0f && to_water[(size_t)i] > 2.0f && to_gauls[(size_t)i] > 5.0f && to_path[(size_t)i] > 1.0f;
+	});
+	// Islands.
+	out.islands.assign(hm.data.size(), 0);
+	std::vector<float> to_island(hm.data.size(), 1e9f);
+	seas_create_areas(hm, rng, seas_scale(1, 4, half) * (float)num_players, 10, [&](float x, float z) {
+		const auto m = seas_chain(hm, rng, x, z, (int)std::floor(seas_scale(3, 4, half)), (int)std::floor(seas_scale(4, 8, half)),
+		                          (int)std::floor(seas_scale(50, 80, half)), 0.5f, 0.0f, {},
+		                          [&](int i) { return to_island[(size_t)i] > 30.0f && in_water[(size_t)i] > 10.0f; });
+		if (!seas_any(m)) return false;
+		paint_mask_elevation(hm, m, metres(water_h, 6.0f), 4.0f);
+		seas_add(out.islands, m);
+		to_island = seas_dist_inside(hm, out.islands);
+		return true;
+	});
+	const auto in_island = seas_dist_outside(hm, out.islands);
+	bumps(seas_scale(50, 400, half), [&](int i) { return in_island[(size_t)i] > 2.0f; });
+	// The villages stand on level ground.
+	if (out.villages)
+		for (const auto &v : out.village) lift_area(hm, v[0], v[1], city_r, 4.0f, land);
+	seas_spawns(hm, spawns, locs, 16.0f, 6.0f, water_h, land);
+}
+
+void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+		RmsRng &rng, const DanubiusLayout &lay) {
+	// danubius.js's entities: the Gallic villages (a Gaia civic centre in a palisade ring of
+	// huts, houses, a longhouse, a tavern, a temple and two towers, 8 to 12 treasures, and the
+	// Celtic ritual at the meeting place), the island mines, towers and outposts, and the
+	// trigger points danubius_triggers.js sends its ships and soldiers to. RTS0 has no celt
+	// hut, longhouse or tavern: they are houses. Left out: the palisade spikes, the actors and
+	// the gates (the village wall leaves their gaps open).
+	const float half = hm.map_half, size = 2.0f * half;
+	const float nx = lay.nx, nz = lay.nz, ux = -nz, uz = nx;
+	const float start_angle = std::atan2(nz, nx);
+	auto across = [&](float x, float z) { return x * nx + z * nz; };
+	auto dry = [&](float x, float z, float m) { return hm.sample_world(x, z) > metres(water_h, m); };
+	struct Spot { float x, z; };
+	auto clear_of = [](const std::vector<Spot> &v, float x, float z, float d) {
+		for (const Spot &s : v)
+			if (std::hypot(x - s.x, z - s.z) < d) return false;
+		return true;
+	};
+	auto building = [&](float x, float z, uint8_t type, bool capturable) {
+		const uint32_t id = sim.spawn_building_world(x, z, type, GAIA_PLAYER, 1.0f);
+		if (!id) return id;
+		if (!capturable) sim.set_structure_uncapturable(id);
+		for (const auto &b : sim.buildings())
+			if (b.id == id) sim.clear_resources_near(x, z, b.half_size + 1.0f);
+		return id;
+	};
+	static const uint8_t kTreasures[] = {TREASURE_FOOD_BARREL, TREASURE_FOOD_BIN, TREASURE_STONE, TREASURE_WOOD, TREASURE_METAL};
+	std::vector<Spot> gauls;
+	if (lay.villages) {
+		const float city_r = 12.0f;
+		const int treasures = rng.range_int(8, 12); // gallicCCTreasureCount
+		// fortressDanubiusVillage, twice round: the structures among its 26 wall elements.
+		enum : uint8_t { V_NONE, V_GATE, V_HOUSE, V_TEMPLE, V_TOWER };
+		static const uint8_t kRing[26] = {V_GATE, V_NONE, V_HOUSE, V_NONE, V_NONE, V_NONE, V_TOWER, V_NONE, V_TEMPLE, V_NONE, V_NONE,
+			V_HOUSE, V_NONE, V_NONE, V_NONE, V_GATE, V_NONE, V_HOUSE, V_NONE, V_NONE, V_NONE, V_TOWER, V_NONE, V_HOUSE, V_NONE, V_NONE};
+		const float ring = kSeasPi / 26.0f;
+		for (int i = 0; i < 2; ++i) {
+			const float cx = lay.village[i][0], cz = lay.village[i][1];
+			gauls.push_back({cx, cz});
+			if (lay.ritual) {
+				// The Celtic ritual: women, warriors and goats in rings round the campfire.
+				const float mx = lay.ritual_pos[i][0], mz = lay.ritual_pos[i][1];
+				sim.clear_resources_near(mx, mz, lay.ritual_r * 1.3f);
+				static const char *const kWarriors[] = {"gaul/infantry_javelineer_b", "gaul/support_healer_b", "gaul/champion_fanatic"};
+				struct Ring { float radius; int count; int kind; };
+				for (const Ring &r : {Ring{0.6f, 9, 0}, Ring{0.8f, 15, 1}, Ring{1.1f, 7, 2}})
+					for (int k = 0; k < r.count; ++k) {
+						const float a = start_angle + 2.0f * kSeasPi * (float)k / (float)r.count;
+						const float x = mx + std::cos(a) * r.radius * lay.ritual_r, z = mz + std::sin(a) * r.radius * lay.ritual_r;
+						if (r.kind == 2) {
+							sim.spawn_fauna(x, z, FAUNA_GOAT);
+							continue;
+						}
+						const char *id = r.kind == 0 ? "gaul/support_female_citizen" : kWarriors[rng.range_int(0, 2)];
+						const uint16_t t = civ_unit_template_by_id(id);
+						if (t != CIV_UNIT_TEMPLATE_NONE) sim.spawn_gaia_unit(x, z, (UnitType)civ_unit_template(t).unit_type, id);
+					}
+			}
+			sim.clear_resources_near(cx, cz, city_r + 2.0f);
+			building(cx, cz, BLD_TOWN_CENTER, true);
+			// placeCustomFortress(..., startAngle + PI): the structures 4 tiles inside the wall.
+			const float base = start_angle + kSeasPi;
+			for (int k = 0; k < 52; ++k) {
+				const uint8_t kind = kRing[k % 26];
+				if (kind == V_NONE || kind == V_GATE) continue;
+				const float a = base + 2.0f * ring * (float)k;
+				const float x = cx + std::cos(a) * (city_r - 4.0f), z = cz + std::sin(a) * (city_r - 4.0f);
+				if (kind == V_HOUSE) building(x, z, BLD_HOUSE, false);
+				else if (kind == V_TEMPLE) building(x, z, BLD_TEMPLE, false);
+				else if (size >= 320.0f) building(x, z, BLD_TOWER, true); // gaul/defense_tower
+				else building(x, z, BLD_SENTRY_TOWER, false);              // palisades_watchtower
+			}
+			// The palisade between the four gates.
+			for (int g = 0; g < 4; ++g) {
+				const int from = (g % 2 ? 15 : 0) + (g / 2) * 26, to = g % 2 ? 26 + (g / 2) * 26 : 15 + (g / 2) * 26;
+				const float a0 = base + 2.0f * ring * (float)from + 0.25f, a1 = base + 2.0f * ring * (float)to - 0.25f;
+				const int chords = std::max(1, (int)std::ceil((a1 - a0) * city_r / 6.0f));
+				for (int c = 0; c < chords; ++c) {
+					const float b0 = a0 + (a1 - a0) * (float)c / (float)chords, b1 = a0 + (a1 - a0) * (float)(c + 1) / (float)chords;
+					sim.spawn_gaia_wall(cx + std::cos(b0) * city_r, cz + std::sin(b0) * city_r, cx + std::cos(b1) * city_r,
+					                    cz + std::sin(b1) * city_r, WALLSET_PALISADE);
+				}
+			}
+			for (int k = 0; k < treasures; ++k) {
+				const float r = rng.range_float(-0.8f, 0.8f) * city_r, a = rng.range_float(0.0f, 2.0f * kSeasPi);
+				sim.spawn_treasure(cx + std::cos(a) * r, cz + std::sin(a) * r, kTreasures[rng.range_int(0, 4)]);
+			}
+		}
+	}
+	// Island mines, towers and outposts (createObjectGroupsByAreas over the islands).
+	const auto in_island = seas_dist_outside(hm, lay.islands);
+	std::vector<size_t> island_cells;
+	for (size_t i = 0; i < in_island.size(); ++i)
+		if (lay.islands[i] && in_island[i] > 5.0f) island_cells.push_back(i);
+	std::vector<Spot> metal, stone, towers, outposts;
+	auto on_islands = [&](int amount, float stay, const auto &ok, const auto &put) {
+		if (island_cells.empty()) return;
+		for (int placed = 0, tries = 0; placed < amount && tries < amount * 20; ++tries) {
+			const size_t i = island_cells[(size_t)rng.range_int(0, (int)island_cells.size() - 1)];
+			if (in_island[i] <= stay) continue;
+			float x, z;
+			seas_world(hm, (int)i, x, z);
+			if (!ok(x, z)) continue;
+			put(x, z);
+			++placed;
+		}
+	};
+	const int island_groups = scale_by_map_size(3, 10, half);
+	on_islands(island_groups, 5.0f, [&](float x, float z) { return clear_of(metal, x, z, 50.0f) && clear_of(stone, x, z, 10.0f); },
+	           [&](float x, float z) { sim.spawn_resource_world(x, z, RES_GOLD, LARGE_MINE_SUPPLY); metal.push_back({x, z}); });
+	on_islands(island_groups, 5.0f, [&](float x, float z) { return clear_of(metal, x, z, 10.0f) && clear_of(stone, x, z, 50.0f); },
+	           [&](float x, float z) { sim.spawn_resource_world(x, z, RES_STONE, LARGE_MINE_SUPPLY); stone.push_back({x, z}); });
+	on_islands(island_groups, 7.0f,
+	           [&](float x, float z) { return clear_of(metal, x, z, 4.0f) && clear_of(stone, x, z, 4.0f) && clear_of(towers, x, z, 20.0f); },
+	           [&](float x, float z) { building(x, z, BLD_TOWER, true); towers.push_back({x, z}); });
+	on_islands(island_groups, 7.0f, [&](float x, float z) {
+		return clear_of(metal, x, z, 4.0f) && clear_of(stone, x, z, 4.0f) && clear_of(towers, x, z, 5.0f) && clear_of(outposts, x, z, 20.0f);
+	}, [&](float x, float z) { building(x, z, BLD_OUTPOST, true); outposts.push_back({x, z}); });
+
+	// Trigger points.
+	std::vector<uint8_t> water(hm.data.size());
+	for (size_t i = 0; i < water.size(); ++i) water[i] = hm.data[i] < metres(water_h, 0.7f);
+	const auto in_water = seas_dist_outside(hm, water);
+	const auto to_water = seas_dist_inside(hm, water);
+	const auto res = sim.resources();
+	auto near_resource = [&](float x, float z, float d, bool wood) {
+		for (size_t r = 0; r < res.count; ++r)
+			if (res.alive[r] && (wood || res.type[r] != RES_WOOD) && std::fabs(res.x[r] - x) < d && std::fabs(res.z[r] - z) < d && std::hypot(res.x[r] - x, res.z[r] - z) < d) return true;
+		return false;
+	};
+	const float base_r = seas_scale(15, 25, half);
+	auto far_from_players = [&](float x, float z, float d) {
+		for (const auto &sp : spawns)
+			if (std::hypot(x - sp.x, z - sp.z) < base_r + d) return false;
+		return true;
+	};
+	auto points = [&](uint8_t ref, int amount, int retry, float spacing, const auto &ok) {
+		std::vector<Spot> placed;
+		for (int tries = 0; (int)placed.size() < amount && tries < amount * retry; ++tries) {
+			const auto p = seas_random_point(hm, rng);
+			const int i = seas_vertex(hm, p.first, p.second);
+			if (!ok(p.first, p.second, i) || !clear_of(placed, p.first, p.second, spacing)) continue;
+			sim.add_trigger_point(ref, p.first, p.second);
+			placed.push_back({p.first, p.second});
+		}
+	};
+	// A: ship spawns, 10 into the river; B: ship patrols, 4 into it.
+	points('A', scale_by_map_size(10, 75, half), 10, 5.0f, [&](float, float, int i) { return in_water[(size_t)i] > 10.0f; });
+	points('B', scale_by_map_size(20, 150, half), 10, 5.0f, [&](float, float, int i) { return in_water[(size_t)i] > 4.0f; });
+	// C and D: where the ships unload, on the left and right shore (at most 200, as the
+	// script's scaleByMapSize(60, 200) never passes it: TriggerWatch keeps the index in a byte).
+	for (int side = 1; side <= 2; ++side) {
+		std::vector<size_t> shore;
+		for (size_t i = 0; i < lay.shore.size(); ++i)
+			if (lay.shore[i] == side) shore.push_back(i);
+		std::vector<Spot> placed;
+		const int amount = std::min(200, scale_by_map_size(60, 200, half));
+		for (int tries = 0; !shore.empty() && (int)placed.size() < amount && tries < amount * 20; ++tries) {
+			float x, z;
+			seas_world(hm, (int)shore[(size_t)rng.range_int(0, (int)shore.size() - 1)], x, z);
+			if (!clear_of(placed, x, z, 4.0f)) continue;
+			sim.add_trigger_point(side == 1 ? 'C' : 'D', x, z);
+			placed.push_back({x, z});
+		}
+	}
+	// I: the river's direction from the centre.
+	sim.add_trigger_point('I', ux, uz);
+	// E and F: the siege engines' patrols on each bank; G and H: the village soldiers'.
+	auto bank = [&](int i, float x, float z, int side) {
+		return !lay.islands[(size_t)i] && (side == 1) == (across(x, z) < 0.0f) && dry(x, z, 0.7f) && hm.compute_slope_world(x, z) < 0.6f;
+	};
+	for (int side = 1; side <= 2; ++side)
+		points(side == 1 ? 'E' : 'F', scale_by_map_size(20, 150, half), 10, 5.0f, [&](float x, float z, int i) {
+			return bank(i, x, z, side) && to_water[(size_t)i] > 5.0f && far_from_players(x, z, 10.0f) && clear_of(gauls, x, z, 12.0f + 5.0f) &&
+			       !near_resource(x, z, 3.0f, true);
+		});
+	if (lay.villages)
+		for (int side = 1; side <= 2; ++side)
+			points(side == 1 ? 'G' : 'H', scale_by_map_size(20, 150, half), 20, 5.0f, [&](float x, float z, int i) {
+				return bank(i, x, z, side) && to_water[(size_t)i] > 5.0f && far_from_players(x, z, 15.0f) && clear_of(gauls, x, z, 12.0f) &&
+				       !near_resource(x, z, 4.0f, false);
+			});
 }
 
 void RmsGenerator::synth_archipelago_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
@@ -7523,7 +7730,7 @@ void RmsGenerator::synth_latium(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 }
 
 void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
-		const uint8_t *teams) {
+		const uint8_t *teams, uint8_t landscape_choice) {
 	// unknown.js: one of its 13 landscapes at random (Archipelago, Continent,
 	// CentralSea, Isthmus, CentralRiverLand, CentralRiverNaval,
 	// RiversAndLake, EdgeSeas, Gulf, Lakes, Passes, Lowlands, Mainland) on a
@@ -7723,7 +7930,16 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			}
 		}
 	};
-	const int landscape = rng.range_int(0, 12);
+	// Game Setup Landscape (unknown.json): a random group picks one of its
+	// items with the map's RNG, so every peer picks the same.
+	static constexpr int kLand[] = {1, 3, 4, 7, 8, 9, 10, 11, 12}; // Continent .. Mainland
+	static constexpr int kNaval[] = {2, 0, 6};                        // Central Sea, Archipelago, Lake and rivers
+	int landscape;
+	if (landscape_choice == UNKNOWN_LANDSCAPE_RANDOM_LAND) landscape = kLand[rng.range_int(0, 8)];
+	else if (landscape_choice == UNKNOWN_LANDSCAPE_RANDOM_NAVAL) landscape = kNaval[rng.range_int(0, 2)];
+	else if (landscape_choice >= UNKNOWN_LANDSCAPE_FIRST && landscape_choice < UNKNOWN_LANDSCAPE_FIRST + UNKNOWN_LANDSCAPE_COUNT)
+		landscape = landscape_choice - UNKNOWN_LANDSCAPE_FIRST;
+	else landscape = rng.range_int(0, 12);
 	switch (landscape) {
 		case 0: { // Archipelago
 			circle(0.35f * size, rng.range_float(0.0f, kTau));
@@ -8111,6 +8327,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	float water_h = -1.0f;
 	std::vector<PlayerSpawn> spawns;
+	DanubiusLayout danubius;
 
 	const auto &minfo = map_type_info(config.map_type);
 	sim.set_map_half(config.map_half);
@@ -8147,7 +8364,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_sahara(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_DANUBIUS:
-			synth_danubius(hm, rng, water_h, spawns, config.num_players);
+			synth_danubius_0ad(hm, rng, water_h, spawns, config.num_players, config.teams, danubius);
 			break;
 		case MAP_SAHARAN_OASES:
 			synth_saharan_oases(hm, rng, water_h, spawns, config.num_players);
@@ -8363,7 +8580,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_latium(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
 		case MAP_UNKNOWN:
-			synth_unknown(hm, rng, water_h, spawns, config.num_players, config.teams);
+			synth_unknown(hm, rng, water_h, spawns, config.num_players, config.teams, config.landscape);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
@@ -8402,6 +8619,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	// Entities only the trigger maps have (Gaia towers, central mines)
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
+	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
 
 	return true;
 }

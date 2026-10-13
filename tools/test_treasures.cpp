@@ -25,6 +25,7 @@ static void run(Simulation &s, float seconds) {
 static void fresh(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
+	for (uint8_t p = 0; p < 2; ++p) s.player(p).active = 1, s.player(p).is_ai = 0; // no Petra field builders
 	s.spawn_building_world(-50.0f, -50.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(50.0f, 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
 }
@@ -221,6 +222,39 @@ int main() {
 		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(l));
 		std::remove(path);
 		std::printf("scenery: 2 fences block the nav grid and a house foundation\n");
+	}
+
+	// 6c2. Scenery is a template_structure with Health: soldiers ordered at it (the lockstep
+	//     hunt command names it) walk up and strike it; it falls, its owner-less Loot goes to
+	//     the killer's player and its navcells open. An archer shoots it down too.
+	{
+		fresh(s);
+		const uint8_t fence = scenery_type_by_name("fence_long");
+		const uint32_t f0 = s.spawn_scenery(0.0f, 0.0f, fence, 0.0f, 0.25f);
+		const uint32_t sw = s.spawn_unit(6.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		const float wood = s.players_[0].res[RES_WOOD];
+		s.order_hunt(&sw, 1, f0);
+		CHECK(s.units_.target_unit_id[s.lookup_unit(sw)] == f0);
+		for (int t = 0; t < 1200 && s.is_scenery_id(f0); ++t) run(s, Simulation::FIXED_STEP);
+		CHECK(!s.is_scenery_id(f0));
+		CHECK(s.players_[0].res[RES_WOOD] - wood == (float)scenery_type_info(fence).loot[1]);
+		auto [cx, cy] = s.nav_grid_.world_to_cell(0.0f, 1.4f);
+		CHECK(s.nav_grid_.cells.at(cx, cy) != NAV_OBSTRUCTED);
+		CHECK(s.units_.target_unit_id[s.lookup_unit(sw)] == 0);
+
+		const uint32_t bench = s.spawn_scenery(-10.0f, 10.0f, scenery_type_by_name("bench"), 0.0f, 0.25f);
+		const uint32_t ar = s.spawn_unit(-10.0f, 3.0f, 0, UNIT_ARCHER);
+		s.order_attack_scenery(&ar, 1, bench);
+		float closest = 1e9f;
+		for (int t = 0; t < 2400 && s.is_scenery_id(bench); ++t) {
+			const int32_t a = s.lookup_unit(ar);
+			closest = std::min(closest, std::hypot(s.units_.pos_x[a] + 10.0f, s.units_.pos_z[a] - 10.0f));
+			run(s, Simulation::FIXED_STEP);
+		}
+		CHECK(!s.is_scenery_id(bench));
+		CHECK(closest > 2.0f); // from bow range
+		std::printf("scenery: a swordsman fells a fence (+%d wood), an archer a bench from %.1f\n",
+		            scenery_type_info(fence).loot[1], closest);
 	}
 
 	// 6d. A Gaia field (a map's structures/*/field owned by Player 0): anyone may farm it.

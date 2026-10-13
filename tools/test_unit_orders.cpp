@@ -238,7 +238,8 @@ static void test_attack_move() {
 	check(killed, "kills the enemy on the way");
 	const bool hit = run_until(s, 20.0f, [&] { const Simulation::Building *b = bld(s, house); return !b || b->hp < house_hp; });
 	check(hit, "then attacks the enemy structure on the way");
-	const bool razed = run_until(s, 200.0f, [&] { const Simulation::Building *b = bld(s, house); return !b || b->wrecked; });
+	// Three swordsmen need more than 200 s on a house at 0.28's hack 24.
+	const bool razed = run_until(s, 400.0f, [&] { const Simulation::Building *b = bld(s, house); return !b || b->wrecked; });
 	check(razed, "destroys it");
 	const bool on = run_until(s, 30.0f, [&] { return dist(s, a[0], 30, 0) < 4.0f; });
 	check(on, "and carries on to its point");
@@ -452,11 +453,16 @@ static void test_back_to_work() {
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "back to the same tree");
 }
 
+// Player 1's territory over a structure at the origin, so it doesn't decay to Gaia on
+// neutral land (TerritoryDecay.js); the civic centre's arrows don't reach the units here.
+static void root_origin(Simulation &s) { s.spawn_building_world(0.0f, 26.0f, BLD_TOWN_CENTER, 1, 1.0f); }
+
 static void test_capture() {
 	std::printf("13. capture is an attack\n");
 	Simulation s;
 	setup(s);
 	const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
+	root_origin(s);
 	const Simulation::Building *b = bld(s, house);
 	const float cp0 = b->capture_points_by_team[1];
 	// Units standing near the structure without orders take no points any more.
@@ -481,6 +487,7 @@ static void test_capture() {
 	Simulation t;
 	setup(t);
 	const uint32_t h2 = t.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
+	root_origin(t);
 	const float h2hp = bld(t, h2)->hp, h2cp = bld(t, h2)->capture_points_by_team[1];
 	uint32_t att[4];
 	for (int k = 0; k < 4; ++k) att[k] = t.spawn_unit(-12.0f, -3.0f + 2.0f * k, 0, UNIT_SWORDSMAN);
@@ -690,6 +697,7 @@ static void test_capture_rules() {
 		Simulation s;
 		setup(s);
 		const uint32_t house = s.spawn_building_world(0, 0, BLD_BARRACKS, 1, 1.0f);
+		root_origin(s);
 		uint32_t g[2] = {s.spawn_unit(0, 6, 1, UNIT_SPEARMAN), s.spawn_unit(1, 6, 1, UNIT_SPEARMAN)};
 		s.order_garrison(g, 2, house);
 		run(s, 10.0f);
@@ -716,6 +724,7 @@ static void test_capture_rules() {
 		Simulation s;
 		setup(s);
 		const uint32_t pal = s.spawn_building_world(0, 0, BLD_PALISADE, 1, 1.0f);
+		root_origin(s);
 		const float cp = bld(s, pal)->capture_points_by_team[1], hp = bld(s, pal)->hp;
 		uint32_t c[3] = {s.spawn_unit(-5, 0, 0, UNIT_SWORDSMAN), s.spawn_unit(-5, 2, 0, UNIT_SWORDSMAN),
 				s.spawn_unit(-5, -2, 0, UNIT_SWORDSMAN)};
@@ -728,6 +737,7 @@ static void test_capture_rules() {
 		Simulation s;
 		setup(s);
 		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		root_origin(s);
 		const float cp = bld(s, house)->capture_points_by_team[1];
 		uint32_t w = s.spawn_unit(-5, 0, 0, UNIT_FEMALE_CITIZEN);
 		s.order_attack_building(&w, 1, house, false, true);
