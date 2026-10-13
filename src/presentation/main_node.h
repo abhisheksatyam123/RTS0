@@ -11,6 +11,8 @@
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
+#include <godot_cpp/classes/h_flow_container.hpp>
+#include <godot_cpp/classes/scroll_container.hpp>
 #include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
@@ -165,7 +167,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Panel *command_panel = nullptr;
 	HBoxContainer *stances_bar = nullptr;
 	HBoxContainer *actions_bar = nullptr;
-	HBoxContainer *production_bar = nullptr;
+	// Wraps its buttons; the scroll keeps a long build menu inside the panel.
+	ScrollContainer *production_scroll = nullptr;
+	HFlowContainer *production_bar = nullptr;
 	HBoxContainer *queue_bar = nullptr;
 	Label *command_title = nullptr;
 	// Every civ roster unit and hero the selected building trains (0 A.D. names,
@@ -415,6 +419,7 @@ public:
 	void toggle_diplomacy();
 	void toggle_objectives();
 	void _on_tutorial_ready_pressed();
+	void resign();
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
@@ -429,6 +434,9 @@ public:
 	Dictionary debug_guard_step(int step);
 	PackedStringArray debug_train_buttons(int btype);
 	Dictionary debug_command_button(const String &prefix);
+	Dictionary debug_selection_grid(bool select_all);
+	Dictionary debug_civic_centre_roof();
+	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
 	Label *cursor_tip_ = nullptr;
