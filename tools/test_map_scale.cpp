@@ -651,6 +651,22 @@ int main() {
 			if (v2.id[i] == id) CHECK(v2.flora[i] == FLORA_DEFAULT, "an out-of-range FloraKind falls back to the default");
 	}
 	{
+		// 0.28's per-map fish passes (latium.js, gulf_of_bothnia.js, corsica.js).
+		auto fish = [](MapType mt) {
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(mt, 7, 2, 128.0f);
+			const auto rv = s.resources();
+			int n = 0;
+			for (size_t i = 0; i < rv.count; ++i) n += rv.subtype[i] == RES_SUB_FISH;
+			return n;
+		};
+		const int latium = fish(MAP_LATIUM), gulf = fish(MAP_GULF_OF_BOTHNIA), corsica = fish(MAP_CORSICA);
+		CHECK(latium >= 40, "latium: %d fish, 0.28 places scaleByMapSize(45, 65) single fish", latium);
+		CHECK(gulf >= 100, "gulf_of_bothnia: %d fish, 0.28 places 4 * scaleByMapSize(5, 30) groups of 2-3", gulf);
+		CHECK(corsica >= 250, "corsica: %d fish, 0.28 places 50 and 70 groups of 2-3 per player", corsica);
+	}
+	{
 		// "AQAAAQAA" is the (run - 1, name) pairs (1, 0) (0, 1) (0, 0): 0, 0, 1, 0.
 		auto t = Simulation::terrain_tiles_from_rle(2, {"a", "b"}, "AQAAAQAA");
 		CHECK(t.res == 2 && t.tiles == std::vector<uint8_t>({0, 0, 1, 0}), "terrain RLE decodes (%d tiles)", (int)t.tiles.size());
