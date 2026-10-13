@@ -3012,6 +3012,7 @@ static void test_missing_room_expansion() {
 	s->players_[1].phase = 2;
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	for (auto &a : s->petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+	for (auto &p : s->petra_queues_.paused) p = 0; // a 2 s old village pauses the civic centre queue
 	auto bases = [&] {
 		int n = 0;
 		for (const auto &b : s->buildings_) n += b.team == 1 && b.hp > 0.0f && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY);
