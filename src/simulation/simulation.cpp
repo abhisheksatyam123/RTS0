@@ -20676,6 +20676,19 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 	auto sail_point = [&](float &x, float &z) {
 		if (!nearest_water_for_ship((size_t)sidx, tp.drop_x, tp.drop_z, x, z)) { x = tp.drop_x; z = tp.drop_z; }
 	};
+	// transportPlan.js onSailing: a unit set down idle by the ship walks 20-25 m inland
+	// to make room for the others; the plan that asked for it takes over from there.
+	auto make_room = [&]() {
+		for (uint32_t uid : tp.passenger_ids) {
+			const int32_t i = lookup_unit(uid);
+			if (i < 0 || !units_.alive[i] || units_.action_state[i] != ACTION_IDLE || units_.has_order[i]) continue;
+			float ux = units_.pos_x[i] - units_.pos_x[sidx], uz = units_.pos_z[i] - units_.pos_z[sidx];
+			const float d = std::sqrt(ux * ux + uz * uz);
+			if (d > 8.0f || d < 1e-3f) continue;
+			const float step = 22.5f / 4.0f;
+			order_walk(&uid, 1, units_.pos_x[i] + ux / d * step, units_.pos_z[i] + uz / d * step, false);
+		}
+	};
 	auto sail = [&]() {
 		// Those not aboard stay behind; their boarding order would pull the ship back.
 		const auto *aboard = get_transport_passengers(tp.ship_id);
@@ -20743,10 +20756,12 @@ void Simulation::petra_step_transport(PetraTransportPlan &tp, float dt) {
 		const bool stopped = units_.action_state[sidx] == ACTION_IDLE && tp.state_timer > 2.0f;
 		if (dx * dx + dz * dz <= 9.0f || stopped || tp.state_timer > 90.0f) {
 			order_disembark(tp.ship_id, units_.pos_x[sidx], units_.pos_z[sidx]);
+			make_room();
 			tp.state = PetraTransportPlan::UNLOADING;
 			tp.state_timer = 0.0f;
 		}
 	} else if (tp.state == PetraTransportPlan::UNLOADING) {
+		make_room();
 		if (get_transport_passenger_count(tp.ship_id) == 0) {
 			tp.state = PetraTransportPlan::IDLE;
 			tp.passenger_ids.clear();
