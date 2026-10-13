@@ -55,6 +55,7 @@ var water_level: int = 0
 var sea_level_rise_min: int = 25
 # 0 A.D. TeamPlacement for Ambush and Frontier: rtso::TeamPlacement, 0 = the map picks.
 var team_placement: int = 0
+var landscape: int = 0 # Unknown map Landscape (RmsGenerator::UNKNOWN_LANDSCAPE_*), 0 = random
 # Random-map width in meters, 0 A.D.'s sizes 128 (Tiny) to 512 (Giant).
 var map_size: int = 128
 # Petra difficulty 0..5 (sandbox..very hard), behavior 0..3.
