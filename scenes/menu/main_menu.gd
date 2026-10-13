@@ -61,6 +61,9 @@ var submenu_data = {
 		"title": "SINGLE-PLAYER",
 		"items": [
 			{"label": "Custom Matches", "tooltip": "Start a custom skirmish with RMS biomes, AI, or 0 A.D. maps.", "action": "open_setup"},
+			{"label": "Continue Campaign", "tooltip": "Relive history through historical military campaigns: go on with the current campaign.", "action": "continue_campaign", "needs_campaign": true},
+			{"label": "New Campaign", "tooltip": "Start a new campaign.", "action": "new_campaign"},
+			{"label": "Load Campaign", "tooltip": "Load a saved campaign game.", "action": "load_campaign"},
 			{"label": "Skirmish Arena", "tooltip": "Direct launch into quick tactical combat match.", "action": "open_skirmish"},
 			{"label": "Load Game", "tooltip": "Continue a saved game.", "action": "open_load"},
 			{"label": "Replays", "tooltip": "Watch the replay of any match you played.", "action": "open_replays"},
@@ -94,6 +97,10 @@ func _ready() -> void:
 		music_player.play()
 
 	submenu_panel.visible = false
+	# Back at the main menu, nothing played next belongs to a campaign until one is started.
+	if has_node("/root/MatchSettings"):
+		get_node("/root/MatchSettings").campaign_run = ""
+		get_node("/root/MatchSettings").campaign_level = ""
 
 	# Connect main navigation buttons
 	$MainPanel/Buttons/BtnLearn.pressed.connect(func(): _toggle_submenu("learn", $MainPanel/Buttons/BtnLearn))
@@ -194,6 +201,8 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 		c.queue_free()
 
 	for item in data["items"]:
+		if item.get("needs_campaign", false) and CampaignRun.current_run() == null:
+			continue
 		var btn = Button.new()
 		btn.text = item["label"]
 		btn.tooltip_text = item.get("tooltip", "")
@@ -244,6 +253,9 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/options.tscn")
 		"open_asset_viewer":
 			_go_to_scene("res://scenes/tools/asset_viewer.tscn")
+		"continue_campaign", "new_campaign", "load_campaign":
+			load("res://scenes/menu/campaigns.gd").open_mode = {"continue_campaign": "menu", "new_campaign": "setup", "load_campaign": "load"}[action]
+			_go_to_scene("res://scenes/menu/campaigns.tscn")
 
 func _on_editor_pressed() -> void:
 	play_click()

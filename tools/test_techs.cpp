@@ -152,8 +152,9 @@ int main() {
 		fresh(s);
 		s.player(0).phase = 2;
 		uint32_t temple = s.spawn_building_world(20.0f, -20.0f, BLD_TEMPLE, 0, 1.0f);
-		uint32_t tc2 = 0;
-		for (const auto &b : s.buildings()) if (b.type == BLD_TOWN_CENTER) tc2 = b.id;
+		// Healers train at the temple (their Trainer list); a Civic Centre trains none.
+		uint32_t tc2 = temple;
+		for (const auto &b : s.buildings()) if (b.type == BLD_TOWN_CENTER) CHECK(!s.cmd_train(0, b.id, UNIT_HEALER));
 		CHECK(s.cmd_train(0, tc2, UNIT_HEALER));
 		float dur0 = queued_duration(s, tc2);
 		CHECK(dur0 > 0.0f);
