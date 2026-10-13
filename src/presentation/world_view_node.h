@@ -98,11 +98,15 @@ class RtsoWorldView : public Node3D {
 	// static resources batched
 	// Up to TREE_KINDS tree models per biome (pick_tree_kinds), chosen per
 	// tree by its id like 0 A.D. random maps mix a biome's forest templates.
+	// Each draws up to TREE_VARIANTS models of its 0 A.D. actor (<id>.glb, <id>_v2.glb
+	// ..., tools/fetch_0ad_trees.py), one per tree by its id as 0 A.D. picks variants.
 	static constexpr int TREE_KINDS = 3;
-	MultiMeshInstance3D *tree_mmi[TREE_KINDS] = {};
-	Ref<MultiMesh> tree_mm[TREE_KINDS];
+	static constexpr int TREE_VARIANTS = 4;
+	MultiMeshInstance3D *tree_mmi[TREE_KINDS][TREE_VARIANTS] = {};
+	Ref<MultiMesh> tree_mm[TREE_KINDS][TREE_VARIANTS];
 	float tree_scale[TREE_KINDS] = { 1.0f, 1.0f, 1.0f };
-	float tree_y[TREE_KINDS] = {};
+	float tree_y[TREE_KINDS][TREE_VARIANTS] = {};
+	int tree_variants[TREE_KINDS] = { 1, 1, 1 };
 	int tree_kind_count = 1;
 	std::string tree_biome_;
 	void pick_tree_kinds(const std::string &biome);
@@ -110,10 +114,11 @@ class RtsoWorldView : public Node3D {
 	// random map's rmbiome trees) draw that plant, one batch per kind; FLORA_DEFAULT
 	// ones take the biome's pick above.
 	static constexpr int FLORA_KINDS = 27; // rtso::FLORA_COUNT
-	MultiMeshInstance3D *flora_mmi[FLORA_KINDS] = {};
-	Ref<MultiMesh> flora_mm[FLORA_KINDS];
+	MultiMeshInstance3D *flora_mmi[FLORA_KINDS][TREE_VARIANTS] = {};
+	Ref<MultiMesh> flora_mm[FLORA_KINDS][TREE_VARIANTS];
 	float flora_scale[FLORA_KINDS] = {};
-	float flora_y[FLORA_KINDS] = {};
+	float flora_y[FLORA_KINDS][TREE_VARIANTS] = {};
+	int flora_variants[FLORA_KINDS] = {};
 	// Swaying copies of tree meshes (shaders/tree_wind.gdshader), by source mesh.
 	std::unordered_map<int64_t, Ref<Mesh>> wind_cache_;
 	// 0 A.D. carry shuttles (art/actors/props/units/shuttle_*.xml) and the
