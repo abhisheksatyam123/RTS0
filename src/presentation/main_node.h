@@ -257,6 +257,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	//   Double-click selects same-type units on screen — input.js:1022.
 	PackedInt32Array selected_groups[10];
 	bool double_click_pending = false;
+	int click_count_ = 1; // 1, 2 (double) or 3 (triple) for the pending left click
+	uint64_t last_double_click_ms_ = 0;
+	Vector2 last_double_click_pos_;
 	// Control-group double press (0 A.D. doublePressTime = 500 ms, input.js:90).
 	int last_group_pressed_ = -1;
 	uint64_t last_group_press_ms_ = 0;
@@ -295,6 +298,8 @@ public:
 	void _unhandled_input(const Ref<InputEvent> &event) override;
 
 	void _on_minimap_clicked(Vector2 world_pos);
+	void _on_minimap_order(Vector2 world_pos);
+	void trigger_flare(float x, float z);
 	void _on_flare_requested(Vector2 world_pos);
 	void _on_idle_worker_clicked();
 	void _on_speed_button_pressed();
@@ -436,6 +441,7 @@ public:
 	Dictionary debug_command_button(const String &prefix);
 	Dictionary debug_selection_grid(bool select_all);
 	Dictionary debug_civic_centre_roof();
+	Dictionary debug_selection_state();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
