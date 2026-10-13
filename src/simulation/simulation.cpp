@@ -162,6 +162,8 @@ static constexpr uint32_t SAVE_VERSION_PETRA_ROLES = 55;
 static constexpr uint32_t SAVE_VERSION_PETRA_DEFENSES = 56;
 // Each unit's gather rate fixed at the start of its gathering, each supply's regrowth timer.
 static constexpr uint32_t SAVE_VERSION_GATHER_TIMERS = 57;
+// Each Petra attack plan's target player and its forced and requested flags.
+static constexpr uint32_t SAVE_VERSION_PETRA_ATTACK_REQUEST = 60;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -456,6 +458,7 @@ int Simulation::terrain_tile_at(float x, float z) const {
 void Simulation::reset() {
 	territory_regions_dirty_ = true;
 	petra_decay_events_.clear();
+	petra_attack_requests_.clear();
 	spies_.clear();
 	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
 	// A new game brings its own terrain (set_terrain_data or load_state); the
@@ -17540,12 +17543,13 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	const uint8_t kind = p.kind;
 	// attackPlan.js: an Attack falls back to defaultTargetFinder with siege engines. RTS0
 	// picks the target before mustering, when the plan has none yet and will train them.
-	const bool forced = siege || kind == PETRA_ATTACK_HUGE || p.state == AttackPlan::UNEXECUTED || p.state == AttackPlan::MUSTER;
+	const bool forced = p.forced || siege || kind == PETRA_ATTACK_HUGE || p.state == AttackPlan::UNEXECUTED || p.state == AttackPlan::MUSTER;
 	uint8_t enemy = 0xFF;
 	if (auto it = building_id_to_idx_.find(p.target_building_id); it != building_id_to_idx_.end() && petra_foe(buildings_[it->second].team))
 		enemy = buildings_[it->second].team;
 	else if (const int32_t t = lookup_unit(p.target_building_id); t >= 0 && units_.alive[t] && petra_foe(units_.team[t]))
 		enemy = units_.team[t];
+	if (enemy == 0xFF && p.target_player < MAX_PLAYERS && petra_foe(p.target_player) && !is_defeated(p.target_player)) enemy = p.target_player;
 	if (enemy == 0xFF) enemy = petra_enemy_player(kind);
 	uint32_t id = petra_nearest_target(kind, forced, enemy, px, pz, same_land, out_tx, out_tz);
 	if (!id) { // attackPlan.js updatePreparation: then the enemy getEnemyPlayer picks now
@@ -17555,6 +17559,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	AttackPlan &w = const_cast<AttackPlan &>(p);
 	if (!id) { w.type = AttackPlan::PLAN_ASSAULT; return 0; }
 	const uint8_t owner = building_id_to_idx_.count(id) ? buildings_[building_id_to_idx_.at(id)].team : units_.team[lookup_unit(id)];
+	w.target_player = owner;
 	bool fortified = false;
 	for (const auto &b : buildings_)
 		if (b.team == owner && b.hp > 0.0f && (b.type == BLD_WONDER || b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_GATE ||
@@ -17649,10 +17654,10 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 
 // attackPlan.js rushTargetFinder for a Rush: the nearest undefended structure of the
 // enemy getEnemyPlayer picks, else of any enemy, on our base's land (a rush takes no ship).
-uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz) const {
+uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	const uint8_t enemy = petra_enemy_player(PETRA_ATTACK_RUSH);
+	const uint8_t enemy = prefer < MAX_PLAYERS && petra_foe(prefer) && !is_defeated(prefer) ? prefer : petra_enemy_player(PETRA_ATTACK_RUSH);
 	if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, enemy, bx, bz, 0, out_tx, out_tz)) return id;
 	for (int p = 0; p < MAX_PLAYERS; ++p) // rushTargetFinder(gameState): any enemy
 		if (p != enemy && petra_foe(p) && !is_defeated((uint8_t)p))
@@ -17989,7 +17994,7 @@ uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &
 			tx = units_.pos_x[u]; tz = units_.pos_z[u]; return plan.target_building_id;
 		}
 	}
-	if (plan.kind == PETRA_ATTACK_RUSH && plan.state != AttackPlan::ATTACKED) return find_petra_rush_target(tx, tz);
+	if (plan.kind == PETRA_ATTACK_RUSH && plan.state != AttackPlan::ATTACKED) return find_petra_rush_target(tx, tz, plan.target_player);
 	return find_petra_attack_target(tx, tz, same_land, &plan);
 }
 
@@ -18021,9 +18026,10 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			uint8_t kind;
 			if (mgr.rush_number < mgr.max_rushes && petra_ps().phase < 2) {
 				kind = PETRA_ATTACK_RUSH;
-				target_id = find_petra_rush_target(tx, tz);
+				target_id = find_petra_rush_target(tx, tz, plan.target_player);
 				// A rush that finds no undefended target fails, and counts as planned.
 				if (target_id == 0) { ++mgr.rush_number; return; }
+				if (auto it = building_id_to_idx_.find(target_id); it != building_id_to_idx_.end()) plan.target_player = buildings_[it->second].team;
 				plan.type = AttackPlan::PLAN_ASSAULT;
 			} else {
 				if (petra_ps().phase < 2) return;
@@ -18058,6 +18064,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			plan.target_x = tx;
 			plan.target_z = tz;
 			plan.squad.clear();
+			plan.forced = plan.requested = false;
 			plan.state = AttackPlan::MUSTER;
 			plan.state_timer = 0.0f;
 			petra_strike_force_.state = PetraStrikeForce::MUSTER;
@@ -18119,7 +18126,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			bool ready = squad.size() >= target ||
 			             (squad.size() >= minimum && (capped || plan.state_timer >= 180.0f));
 			// A siege plan waits for its siege engines in the town phase on.
-			if (ready && plan.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2 &&
+			if (ready && !plan.forced && plan.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2 &&
 			    siege_units == 0 && plan.state_timer < 240.0f)
 				ready = false;
 			// attackPlan.js updatePreparation: a plan that must start keeps on while its units
@@ -18181,6 +18188,8 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 					order_walk(squad.data(), squad.size(), sx, sz, false);
 				}
 				petra_say(PETRA_CHAT_ATTACK, tx, tz);
+				// attackPlan.js updatePreparation: warn our allies so that they can help.
+				if (!plan.requested && plan.target_player < MAX_PLAYERS) petra_attack_requests_.emplace_back(petra_pid_, plan.target_player);
 				++petra_attack_mgr_.launched[petra_attack_mgr_.kind];
 				plan.initial_squad_size = squad.size();
 				plan.state = AttackPlan::WALKING;
@@ -18958,6 +18967,90 @@ void Simulation::petra_say(uint8_t kind, float x, float z, uint8_t to, int amoun
 		std::snprintf(line.text, sizeof(line.text), kLines[kind], kRes[res < RES_COUNT ? res : 0]);
 	else
 		std::snprintf(line.text, sizeof(line.text), kLines[kind], amount, kRes[res < RES_COUNT ? res : 0]);
+	petra_chat_.push_back(line);
+	if (petra_chat_.size() > 16) petra_chat_.erase(petra_chat_.begin());
+}
+
+// Commands.js "attack-request": a notice to the asking player's allies, and an AttackRequest
+// event for the AIs, which their Petras answer at the end of this AI turn.
+void Simulation::cmd_attack_request(uint8_t player, uint8_t target) {
+	if (player >= MAX_PLAYERS || target >= MAX_PLAYERS || player == target || is_defeated(player)) return;
+	PetraChatLine line;
+	line.kind = PETRA_CHAT_ATTACK_REQUESTED;
+	line.from = player;
+	line.to = PETRA_CHAT_TO_ALLIES;
+	std::snprintf(line.text, sizeof(line.text), "Attack against {P%d} requested.", (int)target);
+	petra_chat_.push_back(line);
+	if (petra_chat_.size() > 16) petra_chat_.erase(petra_chat_.begin());
+	petra_attack_requests_.emplace_back(player, target);
+}
+
+// attackManager.js checkEvents: each AI allied to the asker and at war with the target
+// answers the first request of the turn.
+void Simulation::petra_process_attack_requests() {
+	if (petra_attack_requests_.empty()) return;
+	const auto requests = std::move(petra_attack_requests_);
+	petra_attack_requests_.clear();
+	for (uint8_t pid = 0; pid < MAX_PLAYERS; ++pid) {
+		if (!petra_runs_for(pid)) continue;
+		for (const auto &[source, target] : requests) {
+			if (source == pid || target >= MAX_PLAYERS) continue;
+			const bool ally = players_[pid].team == players_[source].team || diplomacy_[pid][source] == DIPLO_ALLY;
+			if (!ally || !is_hostile(pid, target)) continue;
+			const bool parked = pid != PETRA_PLAYER;
+			if (parked) {
+				if (petra_slots_.size() < MAX_PLAYERS || !petra_slots_[pid].initialized) break; // its AI has not run yet
+				petra_swap_slot(pid);
+				petra_pid_ = pid;
+			}
+			petra_answer_attack_request(source, target);
+			if (parked) {
+				petra_swap_slot(pid);
+				petra_pid_ = PETRA_PLAYER;
+			}
+			break; // take only the first attack request into account
+		}
+	}
+}
+
+// attackManager.js checkEvents for one AttackRequest: the plan in preparation turns on the
+// requested enemy, and marches at once when more than 12 soldiers are ready for it.
+// (RTS0 prepares one plan at a time and has no completing state, so "other" never comes.)
+void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
+	(void)source;
+	AttackPlan &plan = petra_attack_plan_;
+	size_t available = 0;
+	if (plan.state == AttackPlan::UNEXECUTED || plan.state == AttackPlan::MUSTER) {
+		plan.target_player = target;
+		if (plan.state == AttackPlan::MUSTER) {
+			float tx = 0.0f, tz = 0.0f;
+			plan.target_building_id = 0;
+			if (const uint32_t id = find_petra_attack_target(tx, tz, 0, &plan)) {
+				plan.target_building_id = id;
+				plan.target_x = tx;
+				plan.target_z = tz;
+			}
+			plan.target_player = target;
+			if (plan.squad.size() > 2) available = plan.squad.size();
+		}
+	}
+	const bool join = available > 12 && plan.target_building_id != 0;
+	if (join) { // forceStart
+		plan.forced = true;
+		plan.requested = true;
+		petra_attack_mgr_.target_size = (int)plan.squad.size();
+		petra_attack_mgr_.min_size = (int)plan.squad.size();
+	}
+	static const char *kJoin[] = { "Let me regroup my army and I will then join you against {P%d}.",
+	                               "I am finishing preparations to attack {P%d}." };
+	static const char *kDecline[] = { "Sorry, I do not have enough soldiers currently; but my next attack will target {P%d}.",
+	                                  "Sorry, I still need to strengthen my army. However, I will attack {P%d} next." };
+	PetraChatLine line;
+	line.kind = join ? PETRA_CHAT_ATTACK_JOIN : PETRA_CHAT_ATTACK_DECLINE;
+	line.from = petra_pid_;
+	line.to = PETRA_CHAT_TO_ALLIES;
+	const int pick = sim_rng_.range_int(0, 1);
+	std::snprintf(line.text, sizeof(line.text), (join ? kJoin : kDecline)[pick], (int)target);
 	petra_chat_.push_back(line);
 	if (petra_chat_.size() > 16) petra_chat_.erase(petra_chat_.begin());
 }
@@ -20668,6 +20761,7 @@ void Simulation::tick_petra_ai(float dt) {
 			petra_pid_ = PETRA_PLAYER;
 		}
 	}
+	petra_process_attack_requests();
 	petra_decay_events_.clear();
 }
 
@@ -20742,7 +20836,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -21788,6 +21882,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(v.abort_threat); ids(v.squad); ar.pod(v.initial_squad_size); ar.pod(v.state_timer);
 		ar.pod(v.retreat_base_id); ar.pod(v.retreat_x); ar.pod(v.retreat_z);
 		if (ar.version >= SAVE_VERSION_PETRA_STARTED_ATTACKS) ar.pod(v.kind);
+		if (ar.version >= SAVE_VERSION_PETRA_ATTACK_REQUEST) { ar.pod(v.target_player); ar.pod(v.forced); ar.pod(v.requested); }
 		if constexpr (Ar::loading)
 			if (v.state > S::AttackPlan::ABORT || v.kind > PETRA_ATTACK_RAID) ar.ok = false;
 	};
