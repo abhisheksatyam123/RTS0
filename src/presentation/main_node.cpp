@@ -2221,7 +2221,7 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 				const bool one = names.size() == 1;
 				const String who = one ? names.back() : list + " and " + names.back();
 				const String reason = n.kind == N::WON && n.tech == N::END_LAST_ALIVE && one ? String("last player alive") : why;
-				line = who + (n.kind == N::WON ? (one ? " has won (" : " have won (") : (one ? " has been defeated (" : " have been defeated (")) +
+				line = who + String(n.kind == N::WON ? (one ? " has won (" : " have won (") : (one ? " has been defeated (" : " have been defeated (")) +
 						reason + ").";
 			}
 		}

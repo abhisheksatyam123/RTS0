@@ -775,7 +775,6 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var civ := _make_option(civ_slot)
 	# 0.28 PlayerCiv.getItems: Random first, then the civs by name.
 	civ.add_item("Random")
-	civ.set_item_tooltip(0, "Picks one civilization at random when the game starts.")
 	for ci in _civ_order():
 		var c: Dictionary = CIVS[ci]
 		var emblem: Texture2D = load(c["emblem"])

@@ -262,7 +262,7 @@ public:
 				const String rest = text.substr(5);
 				for (const auto &t : host_->chat_private_targets()) {
 					const String name = plain(t.second);
-					if (rest.begins_with(name + " ")) {
+					if (rest.begins_with(name + String(" "))) {
 						tag = "[Player-" + String::num_int64(t.first) + "]";
 						text = rest.substr(name.length() + 1).strip_edges();
 						break;
