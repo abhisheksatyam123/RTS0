@@ -5695,6 +5695,16 @@ void Simulation::spawn_gaia_wall(float sx, float sz, float ex, float ez, uint8_t
 	if (!bulk) rebuild_nav_grid();
 }
 
+void Simulation::spawn_gaia_gate(float x, float z, float rot, uint8_t kind) {
+	if (get_terrain_height(x, z) < terrain_water_height_ + 0.15f) return;
+	const bool palisade = kind == WALLSET_PALISADE, bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	set_structure_uncapturable(spawn_wall_piece({palisade ? (uint8_t)BLD_PALISADE_GATE : (uint8_t)BLD_GATE, x, z, rot, (palisade ? 14.0f : 36.0f) / 4.0f * 0.5f},
+	                                            GAIA_PLAYER, 1.0f));
+	bulk_spawn_ = bulk;
+	if (!bulk) rebuild_nav_grid();
+}
+
 void Simulation::clear_resources_near(float x, float z, float r) {
 	for (size_t i = 0; i < resources_.count; ++i) {
 		if (!resources_.alive[i] || resources_.subtype[i] == RES_SUB_FISH) continue;
@@ -9794,8 +9804,18 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 	float c = unit_capture_attack(units_.tmpl[i], units_.unit_type[i]);
 	if (c > 0.0f)
 		for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) c += rank_bonus(r).capture_add;
-	if (c > 0.0f && units_.team[i] < MAX_PLAYERS)
+	if (c > 0.0f && units_.team[i] < MAX_PLAYERS) {
 		c *= unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).capture;
+		// Range auras reaching the unit: ModifiersManager's value x multiply + add. A garrisoned
+		// unit is out of the world, where no range aura reaches it.
+		if ((aura_mgr_.has(AURA_CAPTURE_MUL) || aura_mgr_.has(AURA_CAPTURE_ADD)) &&
+				units_.action_state[i] != ACTION_GARRISONED) {
+			const CombatClasses *cls = &unit_combat_at(i).classes;
+			c = c * aura_mgr_.query_stacked(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_CAPTURE_MUL,
+				units_.tmpl[i], cls) + aura_mgr_.query_stacked(units_.pos_x[i], units_.pos_z[i], units_.team[i],
+				AURA_CAPTURE_ADD, units_.tmpl[i], cls);
+		}
+	}
 	return c;
 }
 
@@ -23109,6 +23129,15 @@ void Simulation::rebuild_auras() {
 							required_xp_range_auras()[k].multiply, aura_affected_players(team, aura.players), x, z, a);
 				for (uint16_t k = 0; k < CAPTURE_RANGE_AURA_COUNT; ++k) // Pericles, Alexander
 					if (std::strcmp(aura.id, capture_range_auras()[k].id) == 0) register_capture_aura(id, team, k, x, z);
+				// Range auras on Attack/Capture/Capture (Leonidas, Boudicca, the carnyx...).
+				for (uint16_t k = 0; k < CAPTURE_ATTACK_RANGE_AURA_COUNT; ++k) {
+					const CaptureAttackRangeAura &c = capture_attack_range_auras()[k];
+					if (std::strcmp(aura.id, c.id) != 0) continue;
+					const float r = c.radius * COMBAT_DISTANCE_SCALE;
+					const uint16_t pl = aura_affected_players(team, c.players);
+					if (c.multiply != 1.0f) aura_mgr_.register_source(id, AURA_CAPTURE_MUL, r, c.multiply, pl, x, z, a);
+					if (c.add != 0.0f) aura_mgr_.register_source(id, AURA_CAPTURE_ADD, r, c.add, pl, x, z, a);
+				}
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
 				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
@@ -23196,6 +23225,7 @@ void Simulation::register_map_triggers(MapType type) {
 		case MAP_SURVIVAL_OF_THE_FITTEST: register_trigger_script("survivalofthefittest_triggers"); break;
 		case MAP_ELEPHANTINE: register_trigger_script("elephantine_triggers"); break;
 		case MAP_DANUBIUS: register_trigger_script("danubius_triggers"); break;
+		case MAP_JEBEL_BARKAL: register_trigger_script("jebel_barkal_triggers"); break;
 		default: break;
 	}
 }
@@ -23211,6 +23241,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"death_canyon_invasion_force_triggers", TRIGGER_ACTION_DEATH_CANYON_INIT, TUTORIAL_NONE},
 		{"elephantine_triggers", TRIGGER_ACTION_ELEPHANTINE_INIT, TUTORIAL_NONE},
 		{"danubius_triggers", TRIGGER_ACTION_DANUBIUS_INIT, TUTORIAL_NONE},
+		{"jebel_barkal_triggers", TRIGGER_ACTION_JEBEL_BARKAL_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -23407,6 +23438,18 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_DANUBIUS_OWNERSHIP:
 			trigger_danubius_ownership(data);
+			break;
+		case TRIGGER_ACTION_JEBEL_BARKAL_INIT:
+			trigger_jebel_barkal_init();
+			break;
+		case TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL:
+			trigger_jebel_barkal_city_patrol();
+			break;
+		case TRIGGER_ACTION_JEBEL_BARKAL_ATTACK:
+			trigger_jebel_barkal_attack();
+			break;
+		case TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP:
+			trigger_jebel_barkal_ownership(data);
 			break;
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
@@ -24637,6 +24680,362 @@ void Simulation::trigger_danubius_ship_range() {
 
 void Simulation::trigger_danubius_ownership(const TriggerEventData &data) {
 	// DanubiusOwnershipChange: a village or ship lost by Gaia is forgotten.
+	if (data.from != GAIA_PLAYER) return;
+	auto &w = triggers_.watched;
+	w.erase(std::remove_if(w.begin(), w.end(), [&](const TriggerWatch &t) { return t.id == data.entity && t.role == data.value; }), w.end());
+}
+
+// ---------------------------------------------------------------------------
+// maps/random/jebel_barkal_triggers.js: Napata's champions patrol its paths in groups that
+// come back when wiped out, and its structures send ever greater waves at the players; each
+// structure the players take or destroy spawns no more. Left out: the healers' ritual
+// animations (RTS0 has no scripted animation), the unit AI's "targetClasses" filter on
+// patrols, and the attack countdown (0 A.D. shows it to observers only).
+namespace {
+// TriggerWatch roles: a structure soldiers spawn at, a patrol soldier (its player byte holds
+// its group) and an attacker.
+constexpr uint8_t kJebelSpawnPoint = 1, kJebelPatrol = 2, kJebelAttacker = 3;
+constexpr int kJebelMaxPopulation = 8 * 150;                        // jebelBarkal_maxPopulation
+constexpr int kJebelPatrolPointCount = 6;                           // jebelBarkal_patrolPointCount
+constexpr uint8_t kJebelFormations[] = {FORMATION_LINE, FORMATION_BOX}; // line_closed, box
+
+// jebelBarkal_templates: TriggerHelper.GetTemplateNamesByClasses over the Kushite roster,
+// rank "Basic" (the _b templates and those without a rank).
+struct JebelTemplates {
+	std::vector<uint16_t> heroes, champions, elephants, champion_infantry, champion_infantry_melee, champion_infantry_ranged, champion_cavalry,
+		champion_cavalry_melee, citizen_soldiers, citizen_infantry, citizen_infantry_melee, citizen_infantry_ranged, citizen_cavalry,
+		citizen_cavalry_melee, healers, females;
+};
+const JebelTemplates &jebel_templates() {
+	static const JebelTemplates t = [] {
+		JebelTemplates j;
+		for (uint16_t id : civ_roster_ids(CIV_KUSHITES)) {
+			const CivUnitTemplate &u = civ_unit_template(id);
+			if (std::strstr(u.id, "rts0_")) continue;
+			const size_t len = std::strlen(u.id);
+			if (len > 2 && (std::strcmp(u.id + len - 2, "_a") == 0 || std::strcmp(u.id + len - 2, "_e") == 0)) continue;
+			const uint64_t c = u.tech_classes;
+			const bool melee = c & TC_MELEE, ranged = c & TC_RANGED, inf = c & TC_INFANTRY, cav = c & TC_CAVALRY;
+			if (c & TC_HERO) j.heroes.push_back(id);
+			if (c & TC_CHAMPION) {
+				((c & TC_ELEPHANT) ? j.elephants : j.champions).push_back(id);
+				if (inf) j.champion_infantry.push_back(id);
+				if (inf && melee) j.champion_infantry_melee.push_back(id);
+				if (inf && ranged) j.champion_infantry_ranged.push_back(id);
+				if (cav) j.champion_cavalry.push_back(id);
+				if (cav && melee) j.champion_cavalry_melee.push_back(id);
+			}
+			if (c & TC_CITIZENSOLDIER) {
+				j.citizen_soldiers.push_back(id);
+				if (inf) j.citizen_infantry.push_back(id);
+				if (inf && melee) j.citizen_infantry_melee.push_back(id);
+				if (inf && ranged) j.citizen_infantry_ranged.push_back(id);
+				if (cav) j.citizen_cavalry.push_back(id);
+				if (cav && melee) j.citizen_cavalry_melee.push_back(id);
+			}
+			if (c & TC_HEALER) j.healers.push_back(id);
+			if (c & TC_FEMALECITIZEN) j.females.push_back(id);
+		}
+		return j;
+	}();
+	return t;
+}
+
+std::vector<uint16_t> jebel_join(const std::vector<uint16_t> &a, const std::vector<uint16_t> &b) {
+	std::vector<uint16_t> r = a;
+	r.insert(r.end(), b.begin(), b.end());
+	return r;
+}
+
+// scaleByTime: min0 at the start, min60 from an hour on, in between proportionally.
+inline float jebel_by_time(float minutes, float min0, float min60) { return min0 + (min60 - min0) * std::min(1.0f, minutes / 60.0f); }
+
+// The building classes of the scripts' spawn and garrison tables.
+enum : uint8_t {
+	JB_WONDER = 1 << 0, JB_TEMPLE = 1 << 1, JB_CIVCENTRE = 1 << 2, JB_FORTRESS = 1 << 3, JB_BARRACKS = 1 << 4, JB_EMBASSY = 1 << 5,
+	JB_STABLE = 1 << 6, JB_ELEPHANT_STABLE = 1 << 7,
+};
+uint8_t jebel_classes(uint8_t type) {
+	const uint64_t c = building_tech_classes(type);
+	uint8_t r = 0;
+	if (c & TC_WONDER) r |= JB_WONDER;
+	if (c & TC_TEMPLE) r |= JB_TEMPLE;
+	if (is_civic_centre(type)) r |= JB_CIVCENTRE;
+	if (c & TC_FORTRESS) r |= JB_FORTRESS;
+	if (c & TC_BARRACKS) r |= JB_BARRACKS;
+	if (type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) r |= JB_EMBASSY;
+	if (type == BLD_STABLE) r |= JB_STABLE; // RTS0's elephant stable is a Stable too; 0 A.D.'s is not
+	if (type == BLD_ELEPHANT_STABLE) r |= JB_ELEPHANT_STABLE;
+	return r;
+}
+constexpr uint8_t kJebelPatrolSpawns = JB_WONDER | JB_TEMPLE | JB_CIVCENTRE | JB_FORTRESS | JB_BARRACKS | JB_EMBASSY;
+} // namespace
+
+std::vector<uint16_t> Simulation::jebel_barkal_free_heroes() const {
+	// unique_entities: a hero of Napata's that is still about is not spawned twice.
+	std::vector<uint16_t> free;
+	for (uint16_t h : jebel_templates().heroes) {
+		bool alive = false;
+		for (size_t i = 0; i < units_.count && !alive; ++i)
+			alive = units_.tmpl[i] == h && units_.team[i] == GAIA_PLAYER && (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED);
+		if (!alive) free.push_back(h);
+	}
+	return free;
+}
+
+void Simulation::trigger_jebel_barkal_init() {
+	// JebelBarkal_Init.
+	const JebelTemplates &t = jebel_templates();
+	bool nomad = true;
+	for (const Building &b : buildings_)
+		if (b.team < MAX_PLAYERS && is_civic_centre(b.type) && b.hp > 0.0f && !b.wrecked) nomad = false;
+	// JebelBarkal_TrackUnits: the structures patrols and attackers spawn at.
+	int attacker_spawns = 0;
+	for (const Building &b : buildings_) {
+		if (b.team != GAIA_PLAYER || b.hp <= 0.0f || b.wrecked || !jebel_classes(b.type)) continue;
+		triggers_.watched.push_back({b.id, GAIA_PLAYER, 1, kJebelSpawnPoint, 0});
+		++attacker_spawns;
+	}
+	triggers_.vars[0] = attacker_spawns; // numInitialSpawnPoints
+	triggers_.register_trigger(TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP, true);
+	// JebelBarkal_SetDefenderStance: every Gaia human.
+	std::vector<uint32_t> people;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == GAIA_PLAYER && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT && !(unit_classes_at(i) & (TC_SIEGE | TC_SHIP)))
+			people.push_back(units_.id[i]);
+	if (!people.empty()) order_set_stance(people.data(), people.size(), STANCE_DEFENSIVE);
+	// JebelBarkal_GarrisonBuildings and JebelBarkal_TurretBuildings (jebelBarkal_buildingGarrison,
+	// jebelBarkal_buildingTurret): each structure filled to its share of its capacity.
+	const int difficulty = triggers_.difficulty;
+	const std::vector<uint16_t> barracks = jebel_join(t.citizen_infantry, t.champion_infantry);
+	const std::vector<uint16_t> stable = jebel_join(t.citizen_cavalry, t.champion_cavalry);
+	const std::vector<uint16_t> house = jebel_join(t.females, t.healers);
+	const std::vector<uint16_t> &wall = difficulty > 3 ? t.champion_infantry_ranged : t.citizen_infantry_ranged;
+	struct Holder {
+		uint32_t id;
+		const std::vector<uint16_t> *templates;
+		float ratio;
+	};
+	std::vector<Holder> holders;
+	for (const Building &b : buildings_) {
+		if (b.team != GAIA_PLAYER || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		const uint8_t jc = jebel_classes(b.type);
+		const uint64_t c = building_tech_classes(b.type);
+		if (jc & (JB_WONDER | JB_TEMPLE | JB_CIVCENTRE | JB_FORTRESS)) holders.push_back({b.id, &t.champions, 1.0f});
+		else if (jc & (JB_BARRACKS | JB_EMBASSY)) holders.push_back({b.id, &barracks, 1.0f});
+		else if (c & TC_TOWER) holders.push_back({b.id, &t.champion_infantry, 1.0f});
+		else if (jc & JB_ELEPHANT_STABLE) holders.push_back({b.id, &t.elephants, 1.0f});
+		else if (jc & JB_STABLE) holders.push_back({b.id, &stable, 1.0f});
+		else if (c & TC_HOUSE) holders.push_back({b.id, &house, 0.5f});
+		else if (b.type == BLD_WALL_TOWER) holders.push_back({b.id, &t.champion_infantry_ranged, difficulty > 3 ? 1.0f : 0.0f});
+		else if (b.type == BLD_WALL_SEGMENT) holders.push_back({b.id, &wall, (float)(difficulty - 2) / 3.0f}); // WallLong/Medium/Short turrets
+	}
+	for (const Holder &h : holders) {
+		auto it = building_id_to_idx_.find(h.id);
+		const int n = (int)std::floor((float)get_garrison_capacity(h.id) * h.ratio);
+		if (n <= 0 || it == building_id_to_idx_.end()) continue;
+		std::vector<std::pair<uint16_t, int>> counts;
+		random_template_composition(*h.templates, n, counts);
+		const float x = buildings_[it->second].x, z = buildings_[it->second].z;
+		for (const auto &[key, k] : counts)
+			for (int j = 0; j < k; ++j)
+				if (const uint32_t uid = danubius_spawn(key, x, z)) garrison_unit_now(uid, h.id);
+	}
+	// The first city patrols (at once, or 7 - difficulty minutes in on Nomad) and the first
+	// attack (attackInterval(0) + 2 per difficulty under Medium, 9 - difficulty minutes more on Nomad).
+	const float first_patrol = nomad ? (float)(7 - difficulty) : 0.0f;
+	triggers_.set_timeout((uint32_t)std::lround(first_patrol * 60000.0f), TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL);
+	const float first_attack = sim_rng_.range_float(5.0f, 7.0f) + 2.0f * (float)std::max(0, 3 - difficulty) + (nomad ? (float)(9 - difficulty) : 0.0f);
+	triggers_.set_timeout((uint32_t)std::lround(first_attack * 60000.0f), TRIGGER_ACTION_JEBEL_BARKAL_ATTACK);
+}
+
+void Simulation::trigger_jebel_barkal_city_patrol() {
+	// JebelBarkal_SpawnCityPatrolGroups: from 192 tiles, up to scaleByTime(3, scaleByMapSize(3,
+	// 10)) groups of min(20, scaleByTime(10, 45)) infantry, champions coming in over the first
+	// hour, each from a random temple, wonder, civic centre, fortress or barracks, in formation
+	// and defensive, patrolling every A point; again every scaleByTime(5, 3) minutes.
+	const JebelTemplates &t = jebel_templates();
+	std::vector<uint32_t> spawn_points;
+	std::vector<uint8_t> groups;
+	for (const TriggerWatch &w : triggers_.watched) {
+		if (w.owner != GAIA_PLAYER) continue;
+		if (w.role == kJebelPatrol && std::find(groups.begin(), groups.end(), w.player) == groups.end()) groups.push_back(w.player);
+		if (w.role != kJebelSpawnPoint) continue;
+		auto it = building_id_to_idx_.find(w.id);
+		if (it != building_id_to_idx_.end() && (jebel_classes(buildings_[it->second].type) & kJebelPatrolSpawns)) spawn_points.push_back(w.id);
+	}
+	if (spawn_points.empty()) return;
+	const float minutes = (float)triggers_.time_ms / 60000.0f, size = 2.0f * map_half_;
+	const float wanted = size > 192.0f ? jebel_by_time(minutes, 3.0f, 3.0f + 7.0f * (size - 128.0f) / 384.0f) : 0.0f;
+	const int spawn = (int)std::floor(std::max(0.0f, wanted) - (float)groups.size());
+	std::vector<const TriggerPoint *> path_points;
+	for (const TriggerPoint &p : triggers_.points)
+		if (p.ref == 'A') path_points.push_back(&p);
+	for (int g = 0; g < spawn; ++g) {
+		uint8_t slot = 0;
+		while (std::find(groups.begin(), groups.end(), slot) != groups.end() && slot < 255) ++slot;
+		groups.push_back(slot);
+		auto it = building_id_to_idx_.find(spawn_points[(size_t)sim_rng_.range_int(0, (int)spawn_points.size() - 1)]);
+		if (it == building_id_to_idx_.end()) continue;
+		const Building &b = buildings_[it->second];
+		std::vector<std::pair<uint16_t, int>> counts;
+		balanced_template_composition({{t.champion_infantry_melee, 0, jebel_by_time(minutes, 0.0f, 2.0f)},
+		                               {t.champion_infantry_ranged, 0, jebel_by_time(minutes, 0.0f, 3.0f)},
+		                               {t.citizen_infantry_melee, 0, jebel_by_time(minutes, 2.0f, 0.0f)},
+		                               {t.citizen_infantry_ranged, 0, jebel_by_time(minutes, 3.0f, 0.0f)}},
+		                              (int)std::ceil(std::min(20.0f, jebel_by_time(minutes, 10.0f, 45.0f))), counts);
+		const auto ids = danubius_spawn_counts(counts, b.x, b.z, b.half_size + 1.5f);
+		if (ids.empty()) continue;
+		for (uint32_t id : ids) triggers_.watched.push_back({id, GAIA_PLAYER, 0, kJebelPatrol, slot});
+		order_set_stance(ids.data(), ids.size(), STANCE_DEFENSIVE);
+		order_set_formation(ids.data(), ids.size(), kJebelFormations[sim_rng_.range_int(0, (int)std::size(kJebelFormations) - 1)]);
+		std::vector<const TriggerPoint *> order = path_points;
+		for (size_t i = order.size(); i > 1; --i) std::swap(order[i - 1], order[(size_t)sim_rng_.range_int(0, (int)i - 1)]);
+		for (const TriggerPoint *p : order) order_patrol(ids.data(), ids.size(), p->x, p->z, true);
+	}
+	triggers_.set_timeout((uint32_t)std::lround(jebel_by_time(minutes, 5.0f, 3.0f) * 60000.0f), TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL);
+}
+
+void Simulation::trigger_jebel_barkal_attack() {
+	// JebelBarkal_SpawnAttackerGroups: the next wave in attackInterval (5 to 7 minutes plus a
+	// tenth of the minutes played per difficulty level); now every remaining structure of each
+	// jebelBarkal_attackerGroup_balancing row spawns its group (sized by the players left per
+	// initial spawn point and difficulty x 0.85, at most 1200 attackers about), which patrols
+	// first to one of up to 10 targets of each player and then to five B points.
+	const JebelTemplates &t = jebel_templates();
+	const float minutes = (float)triggers_.time_ms / 60000.0f;
+	const int difficulty = std::max(1, (int)triggers_.difficulty);
+	triggers_.set_timeout((uint32_t)std::lround((sim_rng_.range_float(5.0f, 7.0f) + minutes / (float)difficulty / 10.0f) * 60000.0f),
+	                      TRIGGER_ACTION_JEBEL_BARKAL_ATTACK);
+	// The active players and their entities.
+	std::vector<uint8_t> players;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (is_defeated(p)) continue;
+		bool present = false;
+		for (const Building &b : buildings_) present |= b.team == p && b.hp > 0.0f && !b.wrecked;
+		for (size_t i = 0; i < units_.count && !present; ++i) present = units_.alive[i] && units_.team[i] == p;
+		if (present) players.push_back(p);
+	}
+	std::vector<std::pair<float, float>> patrol_points;
+	for (const TriggerPoint &p : triggers_.points)
+		if (p.ref == 'B') patrol_points.push_back({p.x, p.z});
+	const float size_factor = (float)players.size() / (float)std::max(1, triggers_.vars[0]) * (float)difficulty * 0.85f;
+	auto attackers = [&] {
+		int n = 0;
+		for (const TriggerWatch &w : triggers_.watched) n += w.role == kJebelAttacker && w.owner == GAIA_PLAYER;
+		return n;
+	};
+	// targetClasses: "Unit+!Ship", or for the elephants "Defensive SiegeEngine Monument Wonder" or "Structure".
+	enum Target : uint8_t { TARGET_UNITS, TARGET_DEFENSIVE, TARGET_STRUCTURES };
+	auto targets_of = [&](Target target) {
+		std::vector<std::pair<float, float>> all;
+		for (uint8_t p : players) {
+			std::vector<std::pair<float, float>> mine;
+			if (target != TARGET_STRUCTURES)
+				for (size_t i = 0; i < units_.count; ++i) {
+					if (!units_.alive[i] || units_.team[i] != p) continue;
+					const uint64_t c = unit_classes_at(i);
+					if (target == TARGET_UNITS ? !unit_is_ship(units_.unit_type[i]) : (c & TC_SIEGE) != 0)
+						mine.push_back({units_.pos_x[i], units_.pos_z[i]});
+				}
+			if (target != TARGET_UNITS)
+				for (const Building &b : buildings_) {
+					if (b.team != p || b.hp <= 0.0f || b.wrecked) continue;
+					const uint64_t c = building_tech_classes(b.type);
+					if (target == TARGET_STRUCTURES || (c & (TC_DEFENSIVE | TC_WONDER)) || b.type == BLD_MONUMENT) mine.push_back({b.x, b.z});
+				}
+			for (size_t i = mine.size(); i > 1; --i) std::swap(mine[i - 1], mine[(size_t)sim_rng_.range_int(0, (int)i - 1)]);
+			if (mine.size() > 10) mine.resize(10);
+			all.insert(all.end(), mine.begin(), mine.end());
+		}
+		return all;
+	};
+	auto chance = [&](float p) { return sim_rng_.range_float(0.0f, 1.0f) < p; }; // randBool
+	struct Row {
+		uint8_t classes;
+		float (*count)(float);
+		bool formation;
+	};
+	static const Row rows[] = {
+		{JB_WONDER, [](float m) { return jebel_by_time(m, 0.0f, 85.0f); }, true},
+		{JB_FORTRESS, [](float m) { return jebel_by_time(m, 0.0f, 45.0f); }, true},
+		{JB_TEMPLE, [](float m) { return std::min(45.0f, jebel_by_time(m, -30.0f, 90.0f)); }, true},
+		{JB_CIVCENTRE, [](float m) { return std::min(40.0f, jebel_by_time(m, 0.0f, 80.0f)); }, true},
+		{JB_STABLE, [](float m) { return std::min(30.0f, jebel_by_time(m, 0.0f, 80.0f)); }, true},
+		{JB_BARRACKS | JB_EMBASSY, [](float m) { return std::min(35.0f, jebel_by_time(m, 0.0f, 70.0f)); }, true},
+		{JB_ELEPHANT_STABLE | JB_WONDER, [](float m) { return jebel_by_time(m, 1.0f, 14.0f); }, false},
+	};
+	auto composition = [&](size_t row, float m) -> std::vector<TemplateBalance> {
+		switch (row) {
+			case 0:
+				return {{jebel_barkal_free_heroes(), chance(jebel_by_time(m, -0.5f, 2.0f)) ? 1 : 0, 0.0f},
+				        {t.healers, 0, sim_rng_.range_float(0.0f, 0.1f)}, {t.champions, 0, jebel_by_time(m, 0.0f, 0.6f)},
+				        {t.champion_infantry_ranged, 0, jebel_by_time(m, 0.0f, 0.4f)}, {t.citizen_soldiers, 0, jebel_by_time(m, 1.0f, 0.0f)},
+				        {t.citizen_infantry_ranged, 0, jebel_by_time(m, 1.0f, 0.0f)}};
+			case 1:
+				return {{jebel_barkal_free_heroes(), chance(jebel_by_time(m, -0.5f, 1.5f)) ? 1 : 0, 0.0f},
+				        {t.champions, 0, jebel_by_time(m, 0.0f, 1.0f)}, {t.citizen_soldiers, 0, jebel_by_time(m, 1.0f, 0.0f)}};
+			case 2:
+				return {{jebel_barkal_free_heroes(), chance(jebel_by_time(m, -0.5f, 1.0f)) ? 1 : 0, 0.0f},
+				        {t.champion_infantry_melee, 0, 0.5f}, {t.champion_infantry_ranged, 0, 0.5f},
+				        {t.healers, 0, sim_rng_.range_float(0.05f, 0.2f)}};
+			case 3:
+				return {{jebel_barkal_free_heroes(), chance(jebel_by_time(m, -0.5f, 0.5f)) ? 1 : 0, 0.0f},
+				        {t.champion_infantry, 0, jebel_by_time(m, 0.0f, 1.0f)}, {t.citizen_soldiers, 0, jebel_by_time(m, 1.0f, 0.0f)}};
+			case 4:
+				return {{t.citizen_cavalry_melee, 0, jebel_by_time(m, 2.0f, 0.0f)}, {t.champion_cavalry_melee, 0, jebel_by_time(m, 0.0f, 1.0f)}};
+			case 5:
+				return {{t.citizen_infantry, 0, 1.0f}};
+			default:
+				return {{t.elephants, 0, 1.0f}};
+		}
+	};
+	int total = 0;
+	for (size_t r = 0; r < std::size(rows); ++r) {
+		const Row &row = rows[r];
+		const Target target = row.formation ? TARGET_UNITS : (sim_rng_.range_int(0, 1) ? TARGET_STRUCTURES : TARGET_DEFENSIVE);
+		const auto targets = targets_of(target);
+		if (targets.empty()) continue;
+		std::vector<uint32_t> sources;
+		for (const TriggerWatch &w : triggers_.watched) {
+			if (w.role != kJebelSpawnPoint || w.owner != GAIA_PLAYER) continue;
+			auto it = building_id_to_idx_.find(w.id);
+			if (it != building_id_to_idx_.end() && (jebel_classes(buildings_[it->second].type) & row.classes)) sources.push_back(w.id);
+		}
+		for (uint32_t src : sources) {
+			auto it = building_id_to_idx_.find(src);
+			if (it == building_id_to_idx_.end()) continue;
+			const float amount = std::min((float)(kJebelMaxPopulation - attackers()), size_factor * row.count(minutes));
+			const float whole = std::floor(amount);
+			const int n = (int)whole + (chance(amount - whole) ? 1 : 0);
+			if (n <= 0) continue;
+			std::vector<std::pair<uint16_t, int>> counts;
+			balanced_template_composition(composition(r, minutes), n, counts);
+			total += n;
+			const Building &b = buildings_[it->second];
+			const auto ids = danubius_spawn_counts(counts, b.x, b.z, b.half_size + 1.5f);
+			if (ids.empty()) continue;
+			for (uint32_t id : ids) triggers_.watched.push_back({id, GAIA_PLAYER, 0, kJebelAttacker, 0});
+			std::vector<std::vector<uint32_t>> groups;
+			if (row.formation) {
+				order_set_formation(ids.data(), ids.size(), kJebelFormations[sim_rng_.range_int(0, (int)std::size(kJebelFormations) - 1)]);
+				groups.push_back(ids);
+			} else {
+				for (uint32_t id : ids) groups.push_back({id});
+			}
+			for (int i = 0; i < kJebelPatrolPointCount; ++i)
+				for (const auto &group : groups) {
+					const auto &from = i == 0 || patrol_points.empty() ? targets : patrol_points;
+					const auto &pos = from[(size_t)sim_rng_.range_int(0, (int)from.size() - 1)];
+					order_patrol(group.data(), group.size(), pos.first, pos.second, true);
+				}
+		}
+	}
+	if (total) triggers_.add_notification("Napata is attacking!", kPushNotificationMs);
+}
+
+void Simulation::trigger_jebel_barkal_ownership(const TriggerEventData &data) {
+	// JebelBarkal_OwnershipChange: whatever Napata loses, it forgets.
 	if (data.from != GAIA_PLAYER) return;
 	auto &w = triggers_.watched;
 	w.erase(std::remove_if(w.begin(), w.end(), [&](const TriggerWatch &t) { return t.id == data.entity && t.role == data.value; }), w.end());
