@@ -9583,6 +9583,14 @@ float Simulation::builder_rate(size_t unit_idx) const {
 // Cost.js GetBuildTime on the foundation, so for its owner: the template time after
 // technologies, civ and team bonuses (Celtic Wooden Construction, ...) and the
 // AI difficulty multiplier. An allied builder works at the owner's rate.
+float Simulation::structure_build_time_for(uint8_t player, uint8_t type) const {
+	Building b;
+	b.type = type < BLD_TYPE_COUNT ? type : 0;
+	b.team = player;
+	b.half_size = 1.0f; // a structure's own row, not a WallSet piece
+	return structure_build_time(b);
+}
+
 float Simulation::structure_build_time(const Building &b) const {
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
 	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
