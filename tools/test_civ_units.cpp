@@ -270,11 +270,19 @@ int main() {
 		CHECK(c.cmd_build(0, px, py, BLD_SYSSITON) != 0);  // Village phase in 0 A.D.
 		const BuildingTypeInfo &sy = building_type_info(BLD_SYSSITON);
 		CHECK(std::strcmp(sy.name, "Military Mess Hall") == 0 && sy.max_hp == 2000.0f && sy.stone_cost == 150 && sy.gold_cost == 150); // 0.28
-		// Spartan champions and heroes train at the Syssiton, as in 0 A.D.
-		int at_syssiton = 0;
-		for (uint16_t i = civ_roster_begin(CIV_SPARTANS); i < civ_roster_end(CIV_SPARTANS); ++i)
-			if (civ_unit_template(i).trainers & bld_bit(BLD_SYSSITON)) ++at_syssiton;
-		CHECK(at_syssiton >= 3);
+		// 0.28: Spartan champions train at the Syssiton, their heroes at the Gerousia.
+		CHECK(civ_unit_template(roster_id("spart/champion_infantry_spear")).trainers == bld_bit(BLD_SYSSITON));
+		for (const char *hero : {"spart/hero_leonidas", "spart/hero_brasidas", "spart/hero_agis"})
+			CHECK(civ_unit_template(roster_id(hero)).trainers == bld_bit(BLD_GEROUSIA));
+		// 0.28's other trainer and phase changes: Marian Legionaries come only by promotion, the
+		// Roman Army Camp trains Antesignani and the onager, Briton boats leave the Civic Center,
+		// the Han minister is a Village phase unit and the bow Immortal trains at the barracks.
+		CHECK(!civ_unit_template(roster_id("rome/infantry_legionary")).trainers);
+		CHECK(civ_unit_template(roster_id("rome/infantry_antesignanus")).trainers == bld_bit(BLD_ARMY_CAMP));
+		CHECK(civ_unit_template(roster_id("rome/siege_onager_packed")).trainers == (bld_bit(BLD_ARSENAL) | bld_bit(BLD_ARMY_CAMP)));
+		CHECK(!(civ_unit_template(roster_id("brit/ship_fishing")).trainers & bld_bit(BLD_TOWN_CENTER)));
+		CHECK(civ_unit_template(roster_id("han/support_minister")).phase == 1);
+		CHECK(civ_unit_template(roster_id("pers/champion_infantry_archer_upgrade")).trainers == bld_bit(BLD_BARRACKS));
 		CHECK(bld_bit(BLD_MINISTRY).test(45));
 		// 0 A.D. Loot of civ-specific structures (Looter.js), metal as gold.
 		CHECK(building_loot(BLD_ARMY_CAMP).wood == 80 && building_loot(BLD_ARMY_CAMP).stone == 30);
