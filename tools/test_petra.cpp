@@ -1864,6 +1864,9 @@ static void test_gather_limits() {
 		if (k != tree && k != mine) r.amount[k] = 0;
 	r.amount[tree] = r.amount[mine] = 5000;
 	for (size_t f = 0; f < s->fauna_.count; ++f) s->fauna_.food_amount[f] = 0;
+	// No foundations: a gatherer with no supply would help build a dropsite for its resource.
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && b.hp > 0.0f && b.build_progress < 1.0f) s->destroy_building(b);
 	const uint32_t tree_id = r.id[tree], mine_id = r.id[mine];
 	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	auto &u = s->units_;

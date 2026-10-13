@@ -9086,6 +9086,19 @@
      "SiegeWall"
     ],
     "template": "structures/rome/siege_wall_long"
+   },
+   "64": {
+    "generic_name": "Siege Wall Gate",
+    "specific_name": "Porta Circummūnītiōnis",
+    "tooltip": "Allow units access through Walls. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Wall",
+     "Gate",
+     "SiegeWall"
+    ],
+    "template": "structures/rome/siege_wall_gate"
    }
   },
   "cart": {
