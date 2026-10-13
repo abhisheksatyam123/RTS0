@@ -312,6 +312,11 @@ func _read_scenario(map_id: String) -> Dictionary:
 	var pl: Array = parsed.get("players", [])
 	if not pl.is_empty():
 		d["players"] = pl.size()
+	# The map's players in player order (the JSON lists them by "id"), whose civs
+	# and teams load_map_seeded applies.
+	pl = pl.filter(func(p): return typeof(p) == TYPE_DICTIONARY)
+	pl.sort_custom(func(a, b): return int(a.get("id", 0)) < int(b.get("id", 0)))
+	d["map_players"] = pl
 	return d
 
 func _make_option(slot: Control) -> RtsoSafeSelect:
@@ -440,12 +445,20 @@ func _on_map_list_selected(idx: int) -> void:
 func _is_scenario() -> bool:
 	return str(_selected_map().get("type", "")) == "scenario"
 
-## The scenario's PlayerData entry for slot i, {} otherwise.
+## The scenario's player entry for slot i from its map JSON (0.28's PlayerData,
+## tools/port_0ad_maps.py), {} otherwise.
 func _map_player(i: int) -> Dictionary:
 	if not _is_scenario():
 		return {}
-	var pl: Array = _selected_map().get("settings", {}).get("players", [])
-	return pl[i] if i < pl.size() and typeof(pl[i]) == TYPE_DICTIONARY else {}
+	var pl: Array = _selected_map().get("map_players", [])
+	return pl[i] if i < pl.size() else {}
+
+## A map player's civ as a civ id (the JSON's civ code or number), -1 when unset.
+func _map_civ(p: Dictionary) -> int:
+	var c: Variant = p.get("civ", -1)
+	if typeof(c) == TYPE_STRING:
+		return _civ_index(c)
+	return int(c) if _civ_pos(int(c)) >= 0 else -1
 
 func _civ_index(code: String) -> int:
 	for c in CIVS:
@@ -509,7 +522,7 @@ func _apply_map_locks() -> void:
 	_ensure_slot_rows(int(_slot_count_node().value))
 	for i in range(_slot_rows.size()):
 		var p := _map_player(i)
-		var c := _civ_index(str(p.get("civ", "")))
+		var c := _map_civ(p)
 		if c >= 0:
 			_slot_rows[i]["civ"] = c
 		if not p.is_empty():
@@ -655,7 +668,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	civ.add_item("Random")
 	var civ_pos := _civ_pos(int(row["civ"]))
 	civ.select(civ_pos if civ_pos >= 0 else CIVS.size())
-	civ.disabled = _civ_index(str(_map_player(i).get("civ", ""))) >= 0
+	civ.disabled = _map_civ(_map_player(i)) >= 0
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
 	var team_slot := Control.new()
