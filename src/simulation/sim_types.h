@@ -201,7 +201,7 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DANUBIUS, "danubius", "Danubius (RMS)", "temperate", true, "Players start along the banks of the river Danube, where Gallic villages and the ships of Celtic reinforcements attack all of them."},
 		{MAP_SAHARAN_OASES, "saharan_oases", "Saharan Oases (RMS)", "oasis", true, "Arid desert with sinusoidal sand dunes, date palm groves, and freshwater oases."},
 		{MAP_ANATOLIAN_PLATEAU, "anatolian_plateau", "Anatolian Plateau (RMS)", "steppe", true, "High plateau steppe surrounded by perimeter canyon ravines and rich mineral outcrops."},
-		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "Iconic central sandstone mesa landmark with high-ground elevation advantage and surrounding savanna quarries."},
+		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "The Nile and the hill of Jebel Barkal: the walled Kushite city of Napata, guarded by archers and siege, sends patrols and attacks against the players."},
 		{MAP_MAINLAND, "mainland", "Mainland (RMS)", "mediterranean", true, "Open rolling land with no water barriers, scattered woods and mines. 0 A.D.'s standard land map."},
 		{MAP_ALPINE_LAKES, "alpine_lakes", "Alpine Lakes (RMS)", "alpine", true, "High mountain ridges cradling cold lakes, with valleys between the player bases."},
 		{MAP_LAKE, "lake", "Lake (RMS)", "temperate", true, "A great lake fills the middle of the map, ringed by the players' lands."},
@@ -1806,6 +1806,18 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 	}
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// 0 A.D. Attack/Slaughter (1000 hack at 2 m on Domestic animals) is on template_unit_infantry,
+// template_unit_cavalry and template_unit_support_female_citizen only: citizen soldiers (and the
+// citizen champions and mercenaries that inherit them) and women. Heroes, champions, dogs,
+// healers, traders, ships and siege use their own attack on livestock.
+inline bool unit_has_slaughter(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER) return true;
+	const bool soldier = unit_type == UNIT_SWORDSMAN || unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER ||
+	                     unit_type == UNIT_CAVALRY || unit_type == UNIT_CAMEL;
+	if (!soldier) return false;
+	return tmpl == CIV_UNIT_TEMPLATE_NONE || (civ_unit_template(tmpl).flags & ROSTER_CITIZEN) != 0;
 }
 
 // 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
