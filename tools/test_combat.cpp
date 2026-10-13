@@ -46,6 +46,10 @@
 // 18. Germanic hero and champion auras: Boiorix gives his own soldiers within 60 m +5 m
 //     ranged and +2 m melee reach, Lugius costs enemy units and structures within 100 m
 //     20 m vision, the Seeress drains enemies within 15 m by 2 hp/s, down to death.
+// 19. Aura stacking (Auras.js, ModifiersManager): different auras stack (the Kushite large
+//     pyramid's +10% attack with Hannibal's +20%), one aura counts once however many
+//     sources project it (two Marcellus, two pyramids), and a battering ram walks
+//     0.15 m/s faster per Infantry unit inside (units/ram_garrison).
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -970,6 +974,58 @@ static void test_germanic_auras() {
 	check(vd < 0 || !h.units_.alive[vd], "Seeress: the drain kills");
 }
 
+static void test_aura_stacking() {
+	std::printf("19. aura stacking\n");
+	Simulation s;
+	setup(s);
+	s.set_team_civ(0, CIV_KUSHITES);
+	const uint16_t spear = template_named("kush/infantry_spearman_b");
+	const uint16_t hannibal = template_named("hero_hannibal");
+	const uint16_t marcellus = template_named("hero_marcellus");
+	check(spear != CIV_UNIT_TEMPLATE_NONE && hannibal != CIV_UNIT_TEMPLATE_NONE && marcellus != CIV_UNIT_TEMPLATE_NONE,
+		"roster has a Kushite spearman, Hannibal and Marcellus");
+	s.spawn_building_world(-20.0f, 20.0f, BLD_PYRAMID_LARGE, 0, 1.0f);
+	s.spawn_building_world(-26.0f, 20.0f, BLD_PYRAMID_LARGE, 0, 1.0f);
+	const uint32_t own = s.spawn_unit(-14.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f, spear);
+	s.rebuild_auras();
+	auto mod = [&](Simulation &m, uint32_t id, AuraType t) {
+		int i = idx(m, id);
+		return m.aura_mgr_.query_modifier(m.units_.pos_x[i], m.units_.pos_z[i], m.units_.team[i], t,
+			m.units_.tmpl[i], &m.unit_combat_at(i).classes);
+	};
+	check(std::fabs(mod(s, own, AURA_ATTACK) - 1.1f) < 1e-4f, "two large pyramids: +10% attack once");
+	check(std::fabs(mod(s, own, AURA_ARMOR) - 1.0f) < 1e-4f, "two large pyramids: +1 resistance once");
+	s.spawn_unit(-14.0f, 22.0f, 0, UNIT_HERO, 0.0f, hannibal);
+	s.rebuild_auras();
+	check(std::fabs(mod(s, own, AURA_ATTACK) - 1.1f * 1.2f) < 1e-4f, "large pyramid and Hannibal stack: x1.1 x1.2");
+
+	Simulation r;
+	setup(r);
+	r.spawn_unit(0.0f, 0.0f, 1, UNIT_HERO, 0.0f, marcellus);
+	r.spawn_unit(0.0f, 4.0f, 1, UNIT_HERO, 0.0f, marcellus);
+	const uint32_t foe = r.spawn_unit(3.0f, 0.0f, 0, UNIT_SWORDSMAN);
+	r.rebuild_auras();
+	check(std::fabs(mod(r, foe, AURA_ATTACK) - 0.9f) < 1e-4f, "two Marcellus: enemy infantry -10% attack once");
+
+	// Battering Team: +0.15 m/s per Infantry unit garrisoned, owner's or a mutual ally's.
+	Simulation g;
+	setup(g);
+	g.set_mutual_ally(0, 2);
+	const uint32_t ram = g.spawn_unit(0.0f, 0.0f, 0, UNIT_SIEGE_RAM);
+	const float empty = g.unit_walk_speed((size_t)idx(g, ram));
+	std::vector<uint32_t> crew;
+	crew.push_back(g.spawn_unit(0.5f, 0.5f, 0, UNIT_SWORDSMAN));
+	crew.push_back(g.spawn_unit(0.5f, -0.5f, 0, UNIT_SPEARMAN));
+	g.order_board_transport(crew.data(), crew.size(), ram);
+	const uint32_t friend_ = g.spawn_unit(-0.5f, 0.5f, 2, UNIT_SWORDSMAN);
+	g.order_board_transport(&friend_, 1, ram);
+	const size_t aboard = g.get_transport_passenger_count(ram);
+	check(aboard >= 2, "infantry board the ram");
+	const float full = g.unit_walk_speed((size_t)idx(g, ram));
+	check(std::fabs(full - empty - 0.15f * FORMATION_METRE * (float)aboard) < 1e-5f,
+		"Battering Team: the ram walks 0.15 m/s faster per infantryman inside");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -989,6 +1045,7 @@ int main() {
 	test_ranged_hunting();
 	test_status_credit();
 	test_germanic_auras();
+	test_aura_stacking();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
