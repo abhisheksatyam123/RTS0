@@ -397,5 +397,23 @@
 			"Liu Bian",
 			"Liu Xie"
 		]
+	},
+	{
+		"code": "germ",
+		"culture": [
+			"germ"
+		],
+		"bonuses": [
+			{
+				"name": "Seeresses",
+				"description": "A unique Champion Healer unit is available in City Phase.",
+				"history": "Seeresses accompanied the Germanic armies and envisioned prophecies of victory from sacrifices."
+			}
+		],
+		"ai_names": [
+			"Claodicus",
+			"Divico",
+			"Caesorix"
+		]
 	}
 ]

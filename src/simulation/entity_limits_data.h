@@ -62,6 +62,8 @@ inline constexpr int16_t CIV_ENTITY_LIMITS[CIV_COUNT][LIMIT_CATEGORY_COUNT] = {
 	{-1, 50, 8, 1, 0, -1, 1, -1, -1, 1, 2, 1, 1, -1, 5, 1, 0, 2, 1, 1, 1, 1, 0, 1, 5}, // CIV_PTOLEMIES
 	{-1, 50, 8, 1, 0, -1, 1, -1, -1, 1, 2, 1, 1, -1, 5, 1, 0, 2, 1, 1, 1, 1, 0, 1, 5}, // CIV_SELEUCIDS
 	{-1, 50, 8, 1, 0, 1, 1, 1, 1, 1, 2, 1, 1, 9, 5, 1, 0, 2, 1, 1, 1, 1, 0, 1, 5}, // CIV_HAN
+	{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}, // CIV_GAIA
+	{-1, 50, 8, 1, 0, -1, 1, -1, -1, 1, 2, 1, 1, -1, 5, 1, 0, 2, 1, 1, 1, 1, 0, 1, 5}, // CIV_GERMANS
 };
 
 // EntityLimits/LimitChangers: each finished entity of `civ` that is building `bld` (or
@@ -105,6 +107,8 @@ inline constexpr LimitChanger LIMIT_CHANGERS[] = {
 	{CIV_SELEUCIDS, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
 	{CIV_HAN, LIMIT_GLADIATOR, BLD_AMPHITHEATER, CIV_UNIT_TEMPLATE_NONE, 15},
 	{CIV_HAN, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
+	{CIV_GERMANS, LIMIT_GLADIATOR, BLD_AMPHITHEATER, CIV_UNIT_TEMPLATE_NONE, 15},
+	{CIV_GERMANS, LIMIT_WAR_DOG, BLD_KENNEL, CIV_UNIT_TEMPLATE_NONE, 10},
 };
 
 // EntityLimits/LimitRemovers: the category's limit is lifted while the player is in
@@ -133,6 +137,7 @@ inline constexpr LimitRemover LIMIT_REMOVERS[] = {
 	{CIV_PTOLEMIES, LIMIT_CIVIL_CENTRE, 2, TECH_NONE, ROSTER_HERO},
 	{CIV_SELEUCIDS, LIMIT_CIVIL_CENTRE, 2, TECH_NONE, ROSTER_HERO},
 	{CIV_HAN, LIMIT_CIVIL_CENTRE, 2, TECH_NONE, 0},
+	{CIV_GERMANS, LIMIT_CIVIL_CENTRE, 2, TECH_NONE, 0},
 };
 
 // TrainingRestrictions per roster row (civ_roster_data.h order): category and
@@ -566,6 +571,33 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // sele/support_civilian_house
 	{LIMIT_NONE, 0}, // han/support_civilian
 	{LIMIT_NONE, 0}, // han/support_civilian_house
+	{LIMIT_NONE, 0}, // germ/cavalry_javelineer_b
+	{LIMIT_NONE, 0}, // germ/cavalry_spearman_b
+	{LIMIT_NONE, 0}, // germ/champion_cavalry
+	{LIMIT_NONE, 0}, // germ/champion_healer
+	{LIMIT_NONE, 0}, // germ/champion_infantry_axeman
+	{LIMIT_NONE, 0}, // germ/champion_infantry_maceman
+	{LIMIT_HERO, 1}, // germ/hero_boiorix
+	{LIMIT_HERO, 1}, // germ/hero_lugius
+	{LIMIT_HERO, 1}, // germ/hero_teutobod
+	{LIMIT_NONE, 0}, // germ/infantry_javelineer_b
+	{LIMIT_NONE, 0}, // germ/infantry_slinger_b
+	{LIMIT_NONE, 0}, // germ/infantry_spearman_b
+	{LIMIT_NONE, 0}, // germ/infantry_swordsman_b
+	{LIMIT_NONE, 0}, // germ/ship_arrow
+	{LIMIT_NONE, 0}, // germ/ship_fire
+	{LIMIT_NONE, 0}, // germ/ship_fishing
+	{LIMIT_NONE, 0}, // germ/ship_merchant
+	{LIMIT_NONE, 0}, // germ/ship_scout
+	{LIMIT_NONE, 0}, // germ/siege_ram
+	{LIMIT_NONE, 0}, // germ/siege_ram_covered
+	{LIMIT_NONE, 0}, // germ/support_civilian
+	{LIMIT_NONE, 0}, // germ/support_civilian_house
+	{LIMIT_NONE, 0}, // germ/support_healer_b
+	{LIMIT_NONE, 0}, // germ/support_trader
+	{LIMIT_NONE, 0}, // germ/rts0_villager
+	{LIMIT_NONE, 0}, // germ/catafalque
+	{LIMIT_NONE, 0}, // germ/ship_fire_fire
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
@@ -669,6 +701,7 @@ inline constexpr uint8_t BUILDING_LIMIT_CATEGORY[BLD_TYPE_COUNT] = {
 	LIMIT_NONE, // BLD_SIEGE_WALL
 	LIMIT_NONE, // BLD_SIEGE_WALL_GATE
 	LIMIT_CIVIL_CENTRE, // BLD_CRANNOG
+	LIMIT_NONE, // BLD_GREAT_HALL
 };
 
 } // namespace rtso

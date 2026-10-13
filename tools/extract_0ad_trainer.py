@@ -81,7 +81,10 @@ def main():
     loader = ex.TemplateLoader(sim_root)
     types = atk.BUILDINGS + atk.civ_buildings()
     table = []
-    for civ in ex.CIVS:
+    for civ in ex.CIV_SLOTS:
+        if civ is None:  # CIV_GAIA trains nothing
+            table.append(("gaia", [1.0] * len(types)))
+            continue
         row = []
         for bld, name in types:
             stem = CIV_STEM.get(bld)
