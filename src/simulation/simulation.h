@@ -757,6 +757,9 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// Auras.js "garrison" auras on BuildingAI (Caros' Valiant Defender) from the units `ids`
+	// that `owner` garrisons: what GarrisonArrowMultiplier and MaxArrowCount are multiplied by.
+	void garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8_t owner, float &arrows, float &max_arrows) const;
 	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
@@ -2557,6 +2560,23 @@ private:
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
 	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
+	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
+	struct PetraBasesMap {
+		struct Anchor { float x, z; uint16_t land; };
+		std::vector<Anchor> anchors;
+		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
+		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
+		bool naval = false;
+		int at(float x, float z, float half) const;
+		// Off naval maps all land is one: RTS0's land regions, unlike 0 A.D.'s, are cut by structures.
+		uint16_t land(uint16_t l) const { return naval || !l ? l : 1; }
+	};
+	void petra_bases_map(PetraBasesMap &m) const;
+	int petra_military_base(const PetraBasesMap &m) const;
+	bool petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base, int &out_cx,
+	                         int &out_cz);
+	uint32_t petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at = nullptr, const float *favor_at = nullptr,
+	                             bool military_base = false);
 
 	bool bulk_spawn_ = false;
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)

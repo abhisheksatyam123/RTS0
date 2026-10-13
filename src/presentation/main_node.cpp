@@ -43,6 +43,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
 	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
 	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
+	ClassDB::bind_method(D_METHOD("_on_minimap_order", "world_pos"), &RtsoMain::_on_minimap_order);
 	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
 	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_speed_selected", "id"), &RtsoMain::_on_speed_selected);
@@ -126,6 +127,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
 	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
+	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
@@ -437,7 +439,7 @@ void RtsoMain::_ready() {
 
 	minimap_view = memnew(RtsoMiniMapView);
 	minimap_view->connect("minimap_clicked", Callable(this, "_on_minimap_clicked"));
-	minimap_view->connect("flare_requested", Callable(this, "_on_flare_requested"));
+	minimap_view->connect("minimap_order", Callable(this, "_on_minimap_order"));
 	ui_layer->add_child(minimap_view);
 
 	// Minimap layer toggles (methods were ClassDB-bound but had no UI driver).
@@ -1506,6 +1508,37 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 	return d;
 }
 
+// Test hook: the selection, the selected structure's rally point, and every own
+// unit with its template, rank, world position and screen position.
+Dictionary RtsoMain::debug_selection_state() {
+	Dictionary d;
+	if (!sim) return d;
+	d["selected"] = selected_ids;
+	d["building"] = (int64_t)selected_building_id;
+	for (const auto &b : sim->buildings())
+		if (b.id == selected_building_id && b.has_rally_point) d["rally"] = Vector2(b.rally_x, b.rally_z);
+	Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+	Array units;
+	auto uview = sim->units();
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || uview.team[i] != local_player()) continue;
+		Dictionary u;
+		u["id"] = (int64_t)uview.id[i];
+		u["tmpl"] = (int64_t)uview.tmpl[i];
+		u["rank"] = (int64_t)uview.rank[i];
+		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
+		if (cam) {
+			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
+			u["behind"] = cam->is_position_behind(wp);
+			u["screen"] = cam->unproject_position(wp);
+		}
+		units.push_back(u);
+	}
+	d["units"] = units;
+	d["viewport"] = get_viewport()->get_visible_rect().size;
+	return d;
+}
+
 // Test hook: step 0 places a barracks with a rally point and selects it; step 1
 // does what a right-click on the barracks itself does; every step reports the
 // rally point and whether the barracks centre / a far spot count as "itself".
@@ -1704,9 +1737,64 @@ void RtsoMain::chat_send_wire(const std::string &wire) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
+	if (rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare hotkey wins
+		trigger_flare(world_pos.x, world_pos.y);
+		return;
+	}
 	if (cam_rig) {
 		cam_rig->set_target_pos(Vector3(world_pos.x, 0.0f, world_pos.y));
 	}
+}
+
+// input.js triggerFlareAction: one flare per g_FlareCooldown (3 s), shown in the
+// world and on the minimap and sent to the other players.
+void RtsoMain::trigger_flare(float x, float z) {
+	const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
+	if (now < last_flare_time_ + 3.0) return;
+	last_flare_time_ = now;
+	range_overlays_.add_marker(x, z, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
+	if (minimap_view) minimap_view->add_ping(Vector2(x, z), Color(1.0f, 0.4f, 0.2f));
+	_on_flare_requested(Vector2(x, z));
+	play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
+}
+
+// MiniMap.js onWorldClick, right button: determineAction with no entity under the
+// cursor, so a structure sets its rally point and units walk there (attack-walk
+// with session.attackmove), queued with session.queue.
+void RtsoMain::_on_minimap_order(Vector2 world_pos) {
+	if (!sim) return;
+	if (rtso::hotkeys::held("session.flare")) {
+		trigger_flare(world_pos.x, world_pos.y);
+		return;
+	}
+	const bool queued = rtso::hotkeys::held("session.queue");
+	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
+	if (selected_building_id != 0) {
+		if (turn_cmds()) {
+			uint32_t extra[2] = {0, 0};
+			post_lockstep(14, extra, 2, world_pos.x, world_pos.y, selected_building_id, qbit);
+		} else {
+			sim->cmd_set_rally_point(local_player(), selected_building_id, world_pos.x, world_pos.y, 0, 0, queued);
+		}
+		return;
+	}
+	if (selected_ids.is_empty()) return;
+	const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
+	const size_t sel_n = selected_ids.size();
+	range_overlays_.add_marker(world_pos.x, world_pos.y, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+	if (rtso::hotkeys::held("session.attackmove")) {
+		if (turn_cmds())
+			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
+		else
+			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, false, true);
+		play_civ_voice("attack");
+		return;
+	}
+	if (turn_cmds())
+		post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
+	else
+		sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
+	play_civ_voice("move");
 }
 
 void RtsoMain::_on_idle_worker_clicked() {
@@ -4087,8 +4175,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		// Control groups (0 A.D. input.js:852-873 and performGroup, input.js:1606):
 		// N selects group N, Ctrl+N saves the selection as group N, Shift+N adds
-		// the selection to group N, and pressing N twice within 500 ms centres the
-		// camera on the group. Groups are disjoint (gui.session.disjointcontrolgroups).
+		// group N to the selection (performGroup "add"), and pressing N twice within
+		// 500 ms centres the camera on the group. Groups are disjoint
+		// (gui.session.disjointcontrolgroups).
 		for (int g = 1; g <= 10; ++g) {
 			const int grp = g % 10;
 			const std::string n = std::to_string(g);
@@ -4096,8 +4185,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const bool save = fired(("selection.group.save." + n).c_str());
 			const bool add = fired(("selection.group.add." + n).c_str());
 			if (!sel && !save && !add) continue;
-			if (save || add) {
-				if (save) selected_groups[grp].clear();
+			if (save) {
+				selected_groups[grp].clear();
 				for (int s = 0; s < selected_ids.size(); ++s) {
 					for (int o = 0; o < 10; ++o) {
 						if (o == grp) continue;
@@ -4125,6 +4214,13 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			selected_groups[grp] = recall;
 			if (recall.is_empty()) return;
+			if (add) {
+				for (int m = 0; m < recall.size(); ++m)
+					if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
+				selected_building_id = 0;
+				play_civ_voice("select");
+				return;
+			}
 			const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
 			if (grp == last_group_pressed_ && now_ms - last_group_press_ms_ < 500 && cam_rig)
 				cam_rig->set_target_pos(first_pos);
@@ -4347,15 +4443,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (mb->is_pressed()) {
 				// Hold K and click to send a flare (0 A.D. session.flare).
 				if (rtso::hotkeys::held("session.flare")) {
-					// input.js triggerFlareAction: one flare per g_FlareCooldown (3 s).
-					const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
-					if (now < last_flare_time_ + 3.0) return;
-					last_flare_time_ = now;
-					Vector3 click_pos = get_ground_click_pos(mouse_pos);
-					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
-					if (minimap_view) minimap_view->add_ping(Vector2(click_pos.x, click_pos.z), Color(1.0f, 0.4f, 0.2f));
-					_on_flare_requested(Vector2(click_pos.x, click_pos.z));
-					play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
+					const Vector3 click_pos = get_ground_click_pos(mouse_pos);
+					trigger_flare(click_pos.x, click_pos.z);
 					return;
 				}
 
@@ -4377,7 +4466,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				// Godot flags the second press of a double-click (0 A.D. ev.clicks == 2,
 				// input.js:893); consumed on release below.
-				double_click_pending = mb->is_double_click();
+				// A third press soon after a double-click is 0 A.D.'s triple-click
+				// (ev.clicks == 3: the exact template and rank).
+				{
+					const uint64_t now = Time::get_singleton()->get_ticks_msec();
+					if (mb->is_double_click()) {
+						click_count_ = 2;
+						last_double_click_ms_ = now;
+						last_double_click_pos_ = mouse_pos;
+					} else if (last_double_click_ms_ != 0 && now - last_double_click_ms_ < 500 &&
+							mouse_pos.distance_to(last_double_click_pos_) < 8.0f) {
+						click_count_ = 3;
+						last_double_click_ms_ = 0;
+					} else {
+						click_count_ = 1;
+					}
+				}
+				double_click_pending = click_count_ >= 2;
 				dragging = true;
 				drag_start = mouse_pos;
 				sel_rect->set_rect(drag_start, mouse_pos, true);
@@ -4498,19 +4603,28 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							if (at >= 0) selected_ids.remove_at(at);
 						} else if (best_uidx != (size_t)-1) {
 							if (dbl_click) {
-								// Double-click selects every same-type player unit on screen, or on
-								// the whole map with selection.offscreen (0 A.D. gui/session/input.js:1022-1042)
+								// Double-click selects the player's units of the clicked one's template
+								// (any rank), triple-click its exact template and rank, on screen or on
+								// the whole map with selection.offscreen; Ctrl removes them instead
+								// (0 A.D. gui/session/input.js:1009-1042, selectionGroupName).
 								const uint8_t same_type = uview.unit_type[best_uidx];
+								const uint16_t same_tmpl = uview.tmpl[best_uidx];
+								const uint8_t same_rank = uview.rank[best_uidx];
+								const bool exact = click_count_ >= 3;
+								auto matches = [&](size_t i) {
+									if (same_tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? uview.tmpl[i] != same_tmpl : uview.unit_type[i] != same_type)
+										return false;
+									return !exact || uview.rank[i] == same_rank;
+								};
 								Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
-								if (!is_shift) {
+								if (!is_shift && !is_ctrl) {
 									selected_ids.clear();
 								}
 								selected_building_id = 0;
 								if (cam) {
 									const Vector2 vp_size = get_viewport()->get_visible_rect().size;
 									for (size_t i = 0; i < uview.count; ++i) {
-										if (!uview.alive[i] || uview.team[i] != local_player() ||
-											uview.unit_type[i] != same_type)
+										if (!uview.alive[i] || uview.team[i] != local_player() || !matches(i))
 											continue;
 										Vector3 world_pos(uview.pos_x[i], 0, uview.pos_z[i]);
 										if (!offscreen && cam->is_position_behind(world_pos)) continue;
@@ -4518,25 +4632,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 										if (offscreen || (screen_pos.x >= 0.0f && screen_pos.x <= vp_size.x &&
 											screen_pos.y >= 0.0f && screen_pos.y <= vp_size.y)) {
 											int32_t uid = (int32_t)uview.id[i];
-											if (!selected_ids.has(uid))
+											const int64_t at = selected_ids.find(uid);
+											if (is_ctrl) {
+												if (at >= 0) selected_ids.remove_at(at);
+											} else if (at < 0) {
 												selected_ids.push_back(uid);
+											}
 										}
 									}
 								}
-								if (selected_ids.is_empty())
+								if (selected_ids.is_empty() && !is_ctrl)
 									selected_ids.push_back((int32_t)uview.id[best_uidx]);
 							} else if (is_shift) {
-								// Shift+click toggles membership of clicked unit
-								int32_t uid = (int32_t)uview.id[best_uidx];
-								int idx = -1;
-								for (int s = 0; s < selected_ids.size(); ++s) {
-									if (selected_ids[s] == uid) { idx = s; break; }
-								}
-								if (idx >= 0) {
-									selected_ids.remove_at(idx);
-								} else {
-									selected_ids.push_back(uid);
-								}
+								// Shift+click adds the unit (selection.add -> addList keeps it if
+								// already selected; Ctrl+click is the removal).
+								const int32_t uid = (int32_t)uview.id[best_uidx];
+								if (!selected_ids.has(uid)) selected_ids.push_back(uid);
 								selected_building_id = 0;
 							} else {
 								selected_ids.clear();
@@ -4612,6 +4723,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
+			// A right-click while band-boxing cancels the box and gives no order
+			// (input.js INPUT_BANDBOXING: right button resets to INPUT_NORMAL).
+			if (dragging && drag_start.distance_to(mouse_pos) > 4.0f) {
+				dragging = false;
+				double_click_pending = false;
+				sel_rect->set_rect(Vector2(), Vector2(), false);
+				return;
+			}
 			if (build_mode) {
 				enter_build_mode(false);
 				return;

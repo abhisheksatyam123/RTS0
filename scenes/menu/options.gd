@@ -12,6 +12,8 @@ extends Control
 ## [min, max] for slider and number, [[label, value], ...] for dropdowns.
 const SCHEMA := [
 	["General", [
+		["string", "playername.singleplayer", "Player name (single-player)", "How you want to be addressed in single-player matches."],
+		["boolean", "persistmatchsettings", "Persist match settings", "Save and restore match settings for quick reuse when hosting another game."],
 		["dropdown", "locale", "Language", "Choose the language of the game.", "locales"],
 		["boolean", "pauseonfocusloss", "Background pause", "Pause single-player games when window loses focus."],
 		["boolean", "overlay.fps", "FPS overlay", "Show frames per second in top right corner."],
@@ -231,6 +233,12 @@ func _add_option(grid: GridContainer, opt: Array) -> void:
 				ob.add_item(item[0])
 			ob.item_selected.connect(func(i): _changed(key, extra[i][1]))
 			c = ob
+		"string":
+			var le := LineEdit.new()
+			le.custom_minimum_size = Vector2(300, 30)
+			MatchSettings.prepare_line_edit(le)
+			le.text_changed.connect(func(t): _changed(key, t.replace("\"", "").strip_edges())) # user.cfg quotes values
+			c = le
 		"color":
 			# options.js "color": the "R G B" value with a swatch of it.
 			var row := HBoxContainer.new()
@@ -294,6 +302,7 @@ func _load_controls() -> void:
 				c.get_child(0).value = float(v)
 				c.get_child(1).text = _fmt(float(v))
 			"number": c.value = float(v)
+			"string": c.text = v
 			"color":
 				c.get_child(0).text = v
 				var col = _parse_color(v)
