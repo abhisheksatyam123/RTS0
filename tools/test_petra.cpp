@@ -600,12 +600,11 @@ static void test_attack_plans() {
 	{
 		// Raid: an enemy outpost in Petra's territory, cavalry and spearmen at hand. (An
 		// outpost claims no territory; a house's TerritoryInfluence would own its own ground.)
+		// Six riders: two stay home to hunt (attackPlan.js addUnits).
 		auto s = match(PETRA_BEHAVIOR_BALANCED);
 		const uint32_t outpost = s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f);
-		for (int i = 0; i < 4; ++i) {
-			s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
-			s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
-		}
+		for (int i = 0; i < 6; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
+		for (int i = 0; i < 4; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
 		bool raided = false, cavalry_only = true;
 		size_t raiders = 0;
 		for (float t = 0.0f; t < 20.0f && !raided; t += Simulation::FIXED_STEP) {
