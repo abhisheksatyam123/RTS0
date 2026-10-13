@@ -13483,6 +13483,7 @@ void Simulation::update_petra_bases(float dt) {
 				base.z = buildings_[it->second].z;
 			} else {
 				base.anchor_building_id = 0;
+				base.needed_defenders = 0; // anchorLost
 			}
 		}
 		if (base.is_primary) {
@@ -13518,6 +13519,9 @@ void Simulation::update_petra_bases(float dt) {
 			new_base.is_primary = false;
 			new_base.radius = 32.0f;
 			new_base.danger_level = get_threat_at(tc.x, tc.z);
+			// A civic centre we lay out or capture trains 3 + 2 (difficulty - 3) defenders from Medium.
+			const uint8_t diff = petra_difficulty();
+			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
 			petra_bases_.push_back(new_base);
 		}
 	}
@@ -13580,6 +13584,15 @@ void Simulation::update_petra_bases(float dt) {
 			}
 		}
 		base.resources_depleted = (safe_nodes <= 2 || total_amount < 1200);
+	}
+
+	// baseManager.js update: once its civic centre stands, a base trains its defenders one at a
+	// time through trainEmergencyUnits.
+	for (auto &base : petra_bases_) {
+		if (!base.needed_defenders || !base.anchor_building_id) continue;
+		auto it = building_id_to_idx_.find(base.anchor_building_id);
+		if (it == building_id_to_idx_.end() || buildings_[it->second].build_progress < 1.0f) continue;
+		if (petra_train_emergency_units({{base.x, base.z}})) --base.needed_defenders;
 	}
 
 	// Idle villagers are not walked to secondary bases here: the economy
@@ -13793,18 +13806,7 @@ void Simulation::petra_manage_workers(float dt) {
 static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
 
 void Simulation::petra_manage_military_production(float dt) {
-	// Priority QueueManager: Priority 1 = Emergency Defense, Priority 3 = Military Strike Force
-	float max_threat = 0.0f;
-	for (const auto &b : petra_bases_) {
-		max_threat = std::max(max_threat, b.danger_level);
-	}
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_VILLAGER) {
-			max_threat = std::max(max_threat, get_threat_at(units_.pos_x[i], units_.pos_z[i]));
-		}
-	}
-	bool is_emergency = (max_threat >= 7.0f);
-
+	// The attack plans' training (emergency units are trainEmergencyUnits, from the defense).
 	// Our finished buildings that train soldiers (roster `trainers`: barracks,
 	// fortress, civ structures such as the gymnasium, and the Town Center and
 	// temple for heroes).
@@ -13838,21 +13840,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		return 0;
 	};
 
-	// 1. Emergency Defense (Priority Queue 0: Threat >= 7.0f): the civ's
-	// spearmen, then its archers, from any barracks.
-	if (is_emergency) {
-		for (UnitType type : { UNIT_SPEARMAN, UNIT_ARCHER }) {
-			const uint16_t tmpl = civ_default_template(ai_civ, type);
-			if (tmpl == CIV_UNIT_TEMPLATE_NONE || civ_unit_template(tmpl).phase > phase) continue;
-			for (int n = 0; n < 4; ++n) {
-				const uint32_t bid = trainer_for(tmpl);
-				if (!bid || !petra_train_template(PETRA_QUEUE_EMERGENCY, bid, tmpl)) break;
-			}
-		}
-		return;
-	}
-
-	// 2. attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
+	// attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
 	// plan whose queue has the higher priority first (Rush 250, Raid 150, HugeAttack 90, Attack 70).
 	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER;
 	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
@@ -14113,6 +14101,110 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	return true;
 }
 
+// headquarters.js trainEmergencyUnits: ranged or melee citizen infantry, at the highest
+// priority, from the civic centre or colony nearest the positions (within 141 m, on their
+// land, with at most 5 s of training already under way), garrisoned there to defend it.
+// 0 A.D. marks the item (metadata garrisonType) and, when it starts, rallies the trainer to
+// itself (TrainingStarted). Here the rally is set as the item is queued and stays while the
+// queue lasts, so a civic centre of ours rallying to itself is training emergency units: its
+// other unstarted items are stopped as 0 A.D. does, and no worker is queued there meanwhile.
+bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions) {
+	uint16_t home = 0;
+	const bool naval = petra_classified_topo(home).naval_map;
+	const uint8_t civ = petra_ps().civ;
+	Building *anchor = nullptr;
+	float dist_min = 0.0f;
+	for (const auto &[px, pz] : positions) {
+		const uint16_t access = naval ? petra_land_at(px, pz) : 0;
+		for (Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			if (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
+			if (naval && petra_building_land(b) != access) continue;
+			// Training already started (or emergency units queued) for over 5 s.
+			const bool emergency = petra_emergency_rally(b);
+			float time = 0.0f;
+			for (const ProductionOrder &o : b.queue)
+				if (o.started || o.timer > 0.0f || emergency) time += o.duration - o.timer;
+			if (time > 5.0f) continue;
+			const float d = (b.x - px) * (b.x - px) + (b.z - pz) * (b.z - pz);
+			if (anchor && d > dist_min) continue;
+			dist_min = d;
+			anchor = &b;
+		}
+	}
+	// distcut 20000 m^2.
+	if (!anchor || dist_min > 20000.0f / 16.0f) return false;
+
+	// Ranged or melee at random, melee when the garrison is full.
+	Building &cc = *anchor;
+	const bool emergency = petra_emergency_rally(cc);
+	int garrisoned = (int)cc.garrisoned_units.size();
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_GARRISON &&
+		    units_.order_target[i] == cc.id)
+			++garrisoned;
+	if (emergency)
+		for (const ProductionOrder &o : cc.queue) garrisoned += o.count;
+	else
+		for (size_t q = cc.queue.size(); q-- > 0;)
+			if (!cc.queue[q].started && cc.queue[q].timer <= 0.0f) cmd_cancel_train(petra_pid_, cc.id, q); // stopProduction
+	const bool autogarrison = garrisoned < structure_garrison_cap(cc) && structure_has_enough_health(cc);
+	const bool ranged_wanted = sim_rng_.range_int(0, 1) == 1 && autogarrison;
+
+	const uint64_t arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
+	uint16_t found = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t tmpl : civ_roster_ids(civ)) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.phase > petra_ps().phase || !can_train_at(petra_pid_, t.unit_type, cc.type, tmpl)) continue;
+		const uint64_t cls = unit_classes(tmpl, t.unit_type);
+		if (!(cls & TC_INFANTRY) || !(cls & TC_CITIZENSOLDIER)) continue;
+		if (autogarrison && arrow_classes && !(cls & arrow_classes)) continue;
+		float cost[RES_COUNT];
+		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
+		if (petra_ps().food() < cost[RES_FOOD] || petra_ps().wood() < cost[RES_WOOD] ||
+		    petra_ps().gold() < cost[RES_GOLD] || petra_ps().stone() < cost[RES_STONE])
+			continue;
+		found = tmpl;
+		if (((cls & TC_RANGED) != 0) == ranged_wanted) break;
+	}
+	if (found == CIV_UNIT_TEMPLATE_NONE) return false;
+
+	// The emergency account takes what is free, then what the other queues hold.
+	float cost[RES_COUNT];
+	unit_train_cost(petra_pid_, found, civ_template_unit_info(found, civ_unit_template(found).unit_type), cost);
+	PetraQueueAccount *acc = petra_queues_.accounts;
+	PetraQueueAccount &em = acc[PETRA_QUEUE_EMERGENCY];
+	auto field = [](PetraQueueAccount &a, int r) -> float & {
+		return r == RES_FOOD ? a.food : r == RES_WOOD ? a.wood : r == RES_GOLD ? a.gold : a.stone;
+	};
+	float stock[RES_COUNT];
+	stock[RES_WOOD] = petra_ps().wood(); stock[RES_GOLD] = petra_ps().gold();
+	stock[RES_STONE] = petra_ps().stone(); stock[RES_FOOD] = petra_ps().food();
+	for (int r = 0; r < RES_COUNT; ++r) {
+		float accounted = 0.0f;
+		for (int q = 0; q < PetraQueueManager::QUEUE_COUNT; ++q) accounted += field(acc[q], r);
+		float &mine = field(em, r);
+		mine += std::max(0.0f, std::min(cost[r] - mine, stock[r] - accounted));
+		for (int q = 0; q < PetraQueueManager::QUEUE_COUNT && mine < cost[r]; ++q) {
+			if (q == PETRA_QUEUE_EMERGENCY) continue;
+			float &other = field(acc[q], r);
+			const float take = std::min(other, cost[r] - mine);
+			other -= take;
+			mine += take;
+		}
+	}
+	if (!petra_train_template(PETRA_QUEUE_EMERGENCY, cc.id, found)) return false;
+	if (autogarrison && !emergency) cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+	return true;
+}
+
+// The emergency units trained: the civic centre forgets its rally to itself (0 A.D. unsets it
+// when an item without garrisonType starts).
+void Simulation::petra_end_emergency_rallies() {
+	for (const Building &b : buildings_)
+		if (b.queue.empty() && petra_emergency_rally(b)) cmd_unset_rally_point(petra_pid_, b.id);
+}
+
 // headquarters.js trainMoreWorkers: workers (support units and citizen infantry not in a
 // plan, queued ones included) up to Economy.targetNumWorkers, in batches of
 // min(5, workers / 10). Support units make up supportRatio of targetNumWorkers at full
@@ -14173,6 +14265,7 @@ int Simulation::petra_train_more_workers() {
 			if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
 			    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= PRODUCTION_QUEUE_MAX) continue;
 			if (cc_only && !is_civic_centre(b.type)) continue;
+			if (petra_emergency_rally(b)) continue; // its queue is for the emergency units
 			if (!can_train_at(petra_pid_, unit_type, b.type, tmpl)) continue;
 			if (!best || b.queue.size() < best_len) { best = b.id; best_len = b.queue.size(); }
 		}
@@ -14575,6 +14668,7 @@ void Simulation::petra_manage_economy(float dt) {
 	PetraHuntScan hunt_scan = petra_hunt_scan();
 
 	// headquarters.js update: trainMoreWorkers (every 4th AI turn there, every second here).
+	petra_end_emergency_rallies();
 	const int worker_shortfall = petra_train_more_workers();
 
 	// 2. headquarters.js GetCurrentGatherRates (basesManager.addGatherRates): every gatherer
@@ -20316,6 +20410,13 @@ void Simulation::petra_manage_defense(float dt) {
 			}
 		}
 	}
+	// defenseManager.js assignDefenders: a shortage of defenders trains infantry garrisoned in the
+	// civic centre nearest the armies still in need (trainEmergencyUnits).
+	if (!needs.empty()) {
+		std::vector<std::pair<float, float>> positions;
+		for (const Need &n : needs) positions.push_back({n.x, n.z});
+		petra_train_emergency_units(positions);
+	}
 
 	// defenseArmy.js assignUnit: a defender with no foe of its army to fight takes the foe
 	// attacking it, else the nearest foe with at most 2 already against it, else the
@@ -22115,6 +22216,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.id = v.id; d.anchor_building_id = v.anchor_building_id; d.x = v.x; d.z = v.z;
 			d.is_primary = v.is_primary; d.assigned_workers = v.assigned_workers; d.radius = v.radius;
 			d.danger_level = v.danger_level; d.resources_depleted = v.resources_depleted;
+			d.needed_defenders = v.needed_defenders;
 		});
 	};
 
