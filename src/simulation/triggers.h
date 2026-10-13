@@ -75,6 +75,14 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_DEATH_CANYON_INIT = 19,         // DisableBuilding
 	// maps/random/elephantine_triggers.js
 	TRIGGER_ACTION_ELEPHANTINE_INIT = 20,          // InitElephantine
+	// maps/random/danubius_triggers.js
+	TRIGGER_ACTION_DANUBIUS_INIT = 21,             // InitDanubius
+	TRIGGER_ACTION_DANUBIUS_CC_ATTACKERS = 22,     // SpawnCCAttackers
+	TRIGGER_ACTION_DANUBIUS_SHIPS = 23,            // SpawnShips
+	TRIGGER_ACTION_DANUBIUS_FILL_SHIPS = 24,       // FillShips
+	TRIGGER_ACTION_DANUBIUS_UNLOAD_ORDER = 25,     // UngarrisonShipsOrder
+	TRIGGER_ACTION_DANUBIUS_SHIP_RANGE = 26,       // CheckShipRange
+	TRIGGER_ACTION_DANUBIUS_OWNERSHIP = 27,        // DanubiusOwnershipChange
 	TRIGGER_ACTION_COUNT
 };
 
