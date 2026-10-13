@@ -339,6 +339,21 @@ static Ref<Texture2D> structure_icon(const char *portrait_id) {
 	return load_tex("res://assets/textures/ui/archive/portraits/structures/" + file + ".png");
 }
 
+// 0.28's Identity text for a civ's structure (generic_name, specific_name, tooltip) from
+// data/reference/templates.json (tools/extract_0ad_reference.py), read once.
+static Dictionary structure_template_text(uint8_t civ, int type) {
+	static Dictionary structures;
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/reference/templates.json", FileAccess::READ);
+		if (f.is_valid()) structures = Dictionary(JSON::parse_string(f->get_as_text())).get("structures", Dictionary());
+	}
+	if (civ >= rtso::CIV_COUNT) return Dictionary();
+	const Dictionary by_civ = structures.get(String(rtso::civ_info(civ).code), Dictionary());
+	return by_civ.get(String::num_int64(type), Dictionary());
+}
+
 // Building names in data/maps/*.json "structures" and "gaia_structures" (tools/port_0ad_maps.py).
 // BLD_TYPE_COUNT for a name it doesn't know.
 static uint8_t map_building_type(const String &n) {
@@ -4824,22 +4839,38 @@ void RtsoMain::update_command_panel() {
 				}), menu.end());
 				for (int bt : menu) {
 					const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(my_civ, (uint8_t)bt); // the big house
+					// The price this player pays (0.28 GetTemplateData: civ, team and technology modifiers).
+					float price[rtso::RES_COUNT];
+					sim->structure_cost_for(local_player(), (uint8_t)bt, price);
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
 						if (amount <= 0) return;
 						if (!cost.is_empty()) cost += ",";
 						cost += String::num_int64(amount) + suffix;
 					};
-					add_cost(bi.food_cost, "f");
-					add_cost(bi.wood_cost, "w");
-					add_cost(bi.gold_cost, "g");
-					add_cost(bi.stone_cost, "s");
+					add_cost((int)price[rtso::RES_FOOD], "f");
+					add_cost((int)price[rtso::RES_WOOD], "w");
+					add_cost((int)price[rtso::RES_GOLD], "g");
+					add_cost((int)price[rtso::RES_STONE], "s");
 					uint8_t need = rtso::building_required_phase((uint8_t)bt);
 					// 0.28's Construction panel: an icon grid, name and cost on the tooltip.
 					Button *bb = memnew(Button);
 					const String label = String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")");
 					bb->set_meta("label", label);
-					String tip = String::utf8(bi.name) + (cost.is_empty() ? String() : "\nCost: " + cost);
+					// 0.28's Construction tooltip: names, Identity/Tooltip, cost and time, garrison,
+					// population bonus (selection_panels.js Construction setupButton).
+					const Dictionary text = structure_template_text(my_civ, bt);
+					const String generic = text.get("generic_name", String::utf8(bi.name));
+					const String specific = text.get("specific_name", String());
+					String tip = specific.is_empty() || specific == generic ? generic : specific + String(" (") + generic + String(")");
+					const String identity_tip = text.get("tooltip", String());
+					if (!identity_tip.is_empty()) tip += "\n" + identity_tip;
+					if (!cost.is_empty()) tip += "\nCost: " + cost;
+					tip += "  Time: " + String::num(std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt) * 10.0f) / 10.0f) + "s";
+					const int garrison = rtso::structure_garrison_max((uint8_t)bt, my_civ);
+					if (garrison > 0) tip += "\nGarrison: " + String::num_int64(garrison);
+					const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
+					if (pop_bonus > 0) tip += "\nPopulation Bonus: " + String::num_int64(pop_bonus);
 					Ref<Texture2D> b_ico = structure_icon(bi.portrait_id);
 					if (b_ico.is_valid()) {
 						bb->set_button_icon(b_ico);

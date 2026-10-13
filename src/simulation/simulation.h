@@ -1322,6 +1322,10 @@ public:
 
 	int order_pop(const ProductionOrder &o, uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
+	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
+	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	float structure_build_time_for(uint8_t player, uint8_t type) const;
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
@@ -2764,6 +2768,9 @@ private:
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
+	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
+	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
+	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
 	// chatHelper.js: queue a line of `kind` (PetraChatKind) to `to` (a player, PETRA_CHAT_ALLIES or
 	// PETRA_CHAT_EVERYONE) about `player`; sub is the request type or PetraChatStance.
 	void petra_say(uint8_t kind, uint8_t to, uint8_t player = 0xFF, uint8_t sub = 0, int amount = 0, uint8_t res = 0,
