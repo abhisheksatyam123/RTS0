@@ -207,7 +207,8 @@ void RtsoAssetViewer::build_ui() {
 
 	civ_box = memnew(RtsoSafeSelect);
 	for (int c = 0; c < rtso::CIV_COUNT; ++c)
-		civ_box->add_item(rtso::civ_info((uint8_t)c).name, c);
+		if (rtso::is_playable_civ((uint8_t)c))
+			civ_box->add_item(rtso::civ_info((uint8_t)c).name, c);
 	civ_box->select(rtso::CIV_ATHENIANS);
 	civ_box->connect("item_selected", Callable(this, "_on_civ_selected"));
 	lv->add_child(civ_box);
@@ -369,7 +370,7 @@ void RtsoAssetViewer::rebuild_item_list() {
 	uint8_t civ = rtso::CIV_ATHENIANS;
 	if (civ_box) {
 		int id = civ_box->get_item_id(civ_box->get_selected());
-		if (id >= 0 && id < rtso::CIV_COUNT)
+		if (rtso::is_playable_civ(id))
 			civ = (uint8_t)id;
 		civ_box->set_disabled(cat != 0 && cat != 2);
 	}
@@ -621,6 +622,7 @@ void RtsoAssetViewer::load_preview() {
 		uint8_t btype = rtso::BLD_HOUSE;
 		String base = cur_id;
 		for (int c = 0; c < rtso::CIV_COUNT; ++c) {
+			if (!rtso::is_playable_civ((uint8_t)c)) continue;
 			String prefix = String(rtso::civ_info((uint8_t)c).code) + "_";
 			if (cur_id.begins_with(prefix)) {
 				base = cur_id.substr(prefix.length());
@@ -1002,6 +1004,7 @@ void RtsoAssetViewer::_on_cat_selected(int index) {
 
 static String unit_id_without_civ(const String &id) {
 	for (int c = 0; c < rtso::CIV_COUNT; ++c) {
+		if (!rtso::is_playable_civ((uint8_t)c)) continue;
 		String prefix = String(rtso::civ_info((uint8_t)c).code) + "_";
 		if (id.begins_with(prefix))
 			return id.substr(prefix.length());

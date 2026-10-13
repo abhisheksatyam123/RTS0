@@ -761,6 +761,75 @@ int main() {
 		gp.trigger_difficulty = 3;
 	}
 
+	// 28. Daytime (danubius.json Day/Night, polar_sea.json Dawn/Daylight): the chosen
+	// option, else the map's own pick from the seed (Danubius mostly by day), none
+	// elsewhere; the map itself is the same by day and by night; daytime= on the wire.
+	{
+		auto daytime = [](MapType map, uint8_t choice, uint32_t seed, float *terrain = nullptr) {
+			static Simulation sim;
+			sim.reset();
+			sim.set_map_daytime_choice(choice);
+			sim.generate_random_map(map, seed, 2, 64.0f);
+			if (terrain) {
+				*terrain = 0.0f;
+				for (float x = -60.0f; x <= 60.0f; x += 4.0f)
+					for (float z = -60.0f; z <= 60.0f; z += 4.0f) *terrain += sim.get_terrain_height(x, z);
+				*terrain += (float)sim.units_.count * 1000.0f;
+			}
+			return sim.map_daytime();
+		};
+		CHECK(daytime(MAP_DANUBIUS, 2, 5) == 2 && daytime(MAP_POLAR_SEA, 1, 5) == 1);
+		CHECK(daytime(MAP_MAINLAND, 2, 5) == 0);
+		int days = 0;
+		for (uint32_t seed = 1; seed <= 30; ++seed) {
+			const uint8_t d = daytime(MAP_DANUBIUS, 0, seed);
+			CHECK(d == 1 || d == 2);
+			days += d == 1;
+		}
+		CHECK(days > 12 && days < 30);
+		float h_day = 0.0f, h_night = 1.0f;
+		daytime(MAP_DANUBIUS, 1, 7, &h_day);
+		daytime(MAP_DANUBIUS, 2, 7, &h_night);
+		CHECK(h_day == h_night);
+		GameSetupParams gp, back;
+		CHECK(format_game_start_full(gp).find("daytime=") == std::string::npos);
+		gp.daytime = 2;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.daytime == 2);
+	}
+
+	// 29. Team Population (0 A.D. 0.28 PopulationCapManager "team"): each team's cap
+	// is split by its members still in the game, a teamless player keeps all of it,
+	// a defeat raises the teammates' share, the setting survives pop_cap_setting()
+	// and peers get it as teampop=.
+	{
+		Simulation sim;
+		for (uint8_t p = 0; p < 4; ++p) sim.set_player_active(p, true, false);
+		const uint8_t teams[MAX_PLAYERS] = {1, 1, 1, 0, 0, 0, 0, 0};
+		sim.set_setup_teams(teams);
+		sim.set_team_pop_cap(400);
+		CHECK(sim.team_pop_cap() == 400 && sim.world_pop_cap() == 0);
+		CHECK(sim.pop_cap(0) == 133 && sim.pop_cap(2) == 133 && sim.pop_cap(3) == 400);
+		CHECK(sim.pop_max(3) <= 400 && sim.pop_max(0) <= 133);
+		sim.defeated_mask_ |= 1u << 2;
+		CHECK(sim.pop_cap(0) == 200 && sim.pop_cap(1) == 200 && sim.pop_cap(3) == 400);
+		const int setting = sim.pop_cap_setting();
+		Simulation copy;
+		copy.set_pop_cap_setting(setting);
+		CHECK(copy.team_pop_cap() == 400 && copy.world_pop_cap() == 0);
+		copy.set_pop_cap_setting(-600);
+		CHECK(copy.world_pop_cap() == 600 && copy.team_pop_cap() == 0);
+		copy.set_pop_cap_setting(250);
+		CHECK(copy.pop_cap(0) == 250 && copy.team_pop_cap() == 0);
+		sim.set_team_pop_cap(99999);
+		CHECK(sim.team_pop_cap() == Simulation::MAX_TEAM_POP);
+		GameSetupParams gp, back;
+		gp.team_pop = 600;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.team_pop == 600);
+		GameSetupParams none;
+		CHECK(format_game_start_full(none).find("teampop=") == std::string::npos);
+		CHECK(parse_game_start_full(format_game_start_full(none), back) && back.team_pop == 0);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 65; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 66; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -841,13 +841,22 @@ public:
 	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
 	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
 	// still in the game (PlayerManager.RedistributeWorldPopulation), so each
-	// defeat raises everyone else's share. Stored in pop_cap_, so no save change.
+	// defeat raises everyone else's share. A setting at or below -TEAM_POP_FLAG is
+	// 0 A.D. 0.28's Team Population (PopulationCapManager "team"): each team gets
+	// the cap, split evenly by its members still in the game, and a teamless
+	// player keeps all of it. Stored in pop_cap_, so no save change.
 	static constexpr int MAX_WORLD_POP = 63000; // 0 A.D. world_population_capacities.json
-	int pop_cap() const;
+	static constexpr int MAX_TEAM_POP = 10000;  // 0 A.D. team_population_capacities.json
+	static constexpr int TEAM_POP_FLAG = 100000;
+	int pop_cap() const { return pop_cap(PETRA_PLAYER); }
+	int pop_cap(uint8_t player) const; // this player's share of the population limit, 0 = unlimited
 	int pop_cap_setting() const { return pop_cap_; }
-	int world_pop_cap() const { return pop_cap_ < 0 ? -pop_cap_ : 0; }
+	void set_pop_cap_setting(int setting); // restores pop_cap_setting(), clamped to a valid one
+	int world_pop_cap() const { return pop_cap_ < 0 && pop_cap_ > -TEAM_POP_FLAG ? -pop_cap_ : 0; }
+	int team_pop_cap() const { return pop_cap_ <= -TEAM_POP_FLAG ? -pop_cap_ - TEAM_POP_FLAG : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
 	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
+	void set_team_pop_cap(int team) { pop_cap_ = team > 0 ? -TEAM_POP_FLAG - std::min(team, MAX_TEAM_POP) : 0; }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
@@ -867,6 +876,14 @@ public:
 	// the map's triggers (TriggerState::difficulty, saved with them).
 	void set_trigger_difficulty(int d) { trigger_difficulty_ = (uint8_t)((d >= 1 && d <= 5) ? d : 3); }
 	uint8_t trigger_difficulty() const { return trigger_difficulty_; }
+	// 0 A.D. Game Setup Daytime for the maps whose json lists one (danubius.json: day,
+	// night; polar_sea.json: dawn, daylight): 0 lets the map pick as its script does
+	// (Danubius day 2/3 of the time, Polar Sea dawn 1/3), else the option, 1-based.
+	// map_daytime() is the option the last random map used (0: the map has none);
+	// presentation only (the renderer's sky, sun and water).
+	void set_map_daytime_choice(int d) { map_daytime_choice_ = (uint8_t)((d >= 0 && d <= 2) ? d : 0); }
+	uint8_t map_daytime_choice() const { return map_daytime_choice_; }
+	uint8_t map_daytime() const { return map_daytime_; }
 	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
@@ -1524,6 +1541,12 @@ public:
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
 	const std::vector<PetraTransportPlan> &petra_transport_plans() const { return petra_transports_; }
 	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
+	// Whether `viewer` reads the line: its addressee, the speaker and its allies for "/allies", or anyone.
+	bool petra_chat_reaches(const PetraChatLine &l, uint8_t viewer) const {
+		if (l.to == PETRA_CHAT_EVERYONE) return true;
+		if (l.to == PETRA_CHAT_ALLIES) return viewer < MAX_PLAYERS && (viewer == l.from || is_ally(l.from, viewer));
+		return l.to == viewer;
+	}
 	const std::unordered_map<uint8_t, PetraDiplomacyRequest> &petra_diplomacy_requests() const { return petra_diplomacy_requests_; }
 	void clear_petra_chat() { petra_chat_.clear(); }
 
@@ -1659,6 +1682,19 @@ public:
 	// `max_tries` tries). Pieces in water or off the map are left out.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
 			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
+	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
+	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
+	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
+	// left) or a structure set into the wall (FORT_BUILDING: 3.5 towers inside the wall line).
+	// The outline is centred on (x, z) and turned so the first element faces the world angle
+	// `facing` from it. Pieces off the map, in water, or where `skip` says are left out.
+	enum FortressElement : uint8_t { FORT_LONG, FORT_GATE, FORT_TOWER, FORT_CORNER_IN, FORT_BUILDING };
+	struct FortressPart {
+		uint8_t element;  // FortressElement
+		uint8_t building; // the BuildingType of a FORT_BUILDING
+	};
+	size_t place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
+			bool (*skip)(float x, float z, const void *ctx) = nullptr, const void *ctx = nullptr);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -1765,7 +1801,10 @@ private:
 	struct TechMods {
 		float gather[UNIT_TYPE_COUNT][GK_COUNT];
 		int16_t carry[UNIT_TYPE_COUNT][RES_COUNT];
+		// The unit's damage total after technologies over its template's (attack_damage's scale);
+		// each damage type is its own value, x atk_mul + atk_add (Attack/<type>/Damage/<kind>).
 		float attack[UNIT_TYPE_COUNT];
+		float atk_mul[UNIT_TYPE_COUNT][3], atk_add[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
 		float health[UNIT_TYPE_COUNT];
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
@@ -1814,6 +1853,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
+			float atk_mul[3], atk_add[3];
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
@@ -1834,7 +1874,7 @@ private:
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather, *atk_mul, *atk_add; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
@@ -1904,6 +1944,7 @@ private:
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	void unit_attack_effects(size_t i, float out[3]) const;
+	void unit_tech_damage(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -2192,6 +2233,9 @@ private:
 	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
+	// A map script's built wall piece for `player` (placeGenericFortress, placeCustomFortress): left
+	// out off the map or in water; the trees and bushes under it go (DeleteUponConstruction).
+	bool place_map_wall_piece(const WallPiece &p, uint8_t player);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
@@ -2256,6 +2300,7 @@ private:
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
+	uint8_t map_daytime_choice_ = 0, map_daytime_ = 0; // setup-time Daytime and the one the map used
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
@@ -2578,6 +2623,7 @@ private:
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
+	void petra_move_dropsites_to_gatherers(); // worker.js moveToGatherer for mobile dropsites
 	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
 	// navalManager.requireTransport for a worker: ship it from its land to a supply's on another.
 	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
@@ -2619,6 +2665,8 @@ private:
 	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
 	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
+	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
+	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
@@ -2652,7 +2700,11 @@ private:
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
-	void petra_say(uint8_t kind, float x = 0.0f, float z = 0.0f, uint8_t to = 0xFF, int amount = 0, uint8_t res = 0);
+	// chatHelper.js: queue a line of `kind` (PetraChatKind) to `to` (a player, PETRA_CHAT_ALLIES or
+	// PETRA_CHAT_EVERYONE) about `player`; sub is the request type or PetraChatStance.
+	void petra_say(uint8_t kind, uint8_t to, uint8_t player = 0xFF, uint8_t sub = 0, int amount = 0, uint8_t res = 0,
+	               float x = 0.0f, float z = 0.0f, uint8_t player2 = 0xFF);
+	uint8_t petra_owner_of(uint32_t id) const; // a building's or unit's owner, 0xFF if gone
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.

@@ -70,19 +70,19 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"pers/support_healer_b", 2, 150, nullptr, 3},
 	{"rome/cavalry_javelineer_b", 1, 150, nullptr, 2},
 	{"rome/cavalry_javelineer_b", 2, 150, nullptr, 3},
-	{"rome/cavalry_javelineer_b", 3, 2000, "rome/cavalry_auxiliary_b", 1},
+	{"rome/cavalry_javelineer_b", 3, 2000, "rome/cavalry_javelineer_auxiliary_b", 1},
 	{"rome/cavalry_spearman_b", 1, 150, nullptr, 2},
 	{"rome/cavalry_spearman_b", 2, 150, nullptr, 3},
-	{"rome/cavalry_spearman_b", 3, 2000, "rome/cavalry_auxiliary_b", 1},
-	{"rome/champion_infantry_swordsman", 1, 3000, "rome/infantry_legionary", 3},
+	{"rome/cavalry_spearman_b", 3, 2000, "rome/cavalry_spearman_auxiliary_b", 1},
+	{"rome/champion_infantry_swordsman", 1, 3000, "rome/champion_infantry_swordsman_first", 1},
 	{"rome/infantry_javelineer_b", 1, 100, nullptr, 2},
 	{"rome/infantry_javelineer_b", 2, 100, nullptr, 3},
 	{"rome/infantry_javelineer_b", 3, 2000, "rome/infantry_antesignanus", 3},
 	{"rome/infantry_spearman_a", 2, 100, nullptr, 3},
-	{"rome/infantry_spearman_a", 3, 2000, "rome/infantry_legionary", 3},
+	{"rome/infantry_spearman_a", 3, 2000, "rome/infantry_spearman_conscript", 1},
 	{"rome/infantry_spearman_b", 1, 100, nullptr, 2},
 	{"rome/infantry_spearman_b", 2, 100, nullptr, 3},
-	{"rome/infantry_spearman_b", 3, 2000, "rome/infantry_legionary", 3},
+	{"rome/infantry_spearman_b", 3, 2000, "rome/infantry_spearman_conscript", 1},
 	{"rome/infantry_swordsman_a", 2, 100, nullptr, 3},
 	{"rome/infantry_swordsman_a", 3, 2000, "rome/infantry_legionary", 3},
 	{"rome/infantry_swordsman_b", 1, 100, nullptr, 2},
@@ -253,16 +253,29 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"han/infantry_spearman_b", 2, 100, nullptr, 3},
 	{"han/support_healer_b", 1, 150, nullptr, 2},
 	{"han/support_healer_b", 2, 150, nullptr, 3},
+	{"germ/cavalry_javelineer_b", 1, 150, nullptr, 2},
+	{"germ/cavalry_javelineer_b", 2, 150, nullptr, 3},
+	{"germ/cavalry_spearman_b", 1, 150, nullptr, 2},
+	{"germ/cavalry_spearman_b", 2, 150, nullptr, 3},
+	{"germ/infantry_javelineer_b", 1, 100, nullptr, 2},
+	{"germ/infantry_javelineer_b", 2, 100, nullptr, 3},
+	{"germ/infantry_slinger_b", 1, 100, nullptr, 2},
+	{"germ/infantry_slinger_b", 2, 100, nullptr, 3},
+	{"germ/infantry_spearman_b", 1, 100, nullptr, 2},
+	{"germ/infantry_spearman_b", 2, 100, nullptr, 3},
+	{"germ/infantry_swordsman_b", 1, 100, nullptr, 2},
+	{"germ/infantry_swordsman_b", 2, 100, nullptr, 3},
+	{"germ/support_healer_b", 1, 150, nullptr, 2},
+	{"germ/support_healer_b", 2, 150, nullptr, 3},
+	{"cart/infantry_spearman_ital_b", 1, 100, nullptr, 2},
+	{"cart/infantry_spearman_ital_b", 2, 100, nullptr, 3},
+	{"rome/cavalry_javelineer_auxiliary_b", 1, 150, nullptr, 2},
+	{"rome/cavalry_javelineer_auxiliary_b", 2, 150, nullptr, 3},
+	{"rome/cavalry_spearman_auxiliary_b", 1, 150, nullptr, 2},
+	{"rome/cavalry_spearman_auxiliary_b", 2, 150, nullptr, 3},
 	{"rome/cavalry_auxiliary_b", 1, 150, nullptr, 2},
 	{"rome/cavalry_auxiliary_b", 2, 150, nullptr, 3},
 };
-
-// 0.28 targets the roster lacks, standing in with the pre-0.28 target (INTERIM_TARGETS):
-//   rome/cavalry_javelineer_b -> rome/cavalry_javelineer_auxiliary_b (as rome/cavalry_auxiliary_b)
-//   rome/cavalry_spearman_b -> rome/cavalry_spearman_auxiliary_b (as rome/cavalry_auxiliary_b)
-//   rome/champion_infantry_swordsman -> rome/champion_infantry_swordsman_first (as rome/infantry_legionary)
-//   rome/infantry_spearman_a -> rome/infantry_spearman_conscript (as rome/infantry_legionary)
-//   rome/infantry_spearman_b -> rome/infantry_spearman_conscript (as rome/infantry_legionary)
 
 // Roster units whose 0 A.D. template starts above Basic (Identity/Rank).
 struct PromotionStart {

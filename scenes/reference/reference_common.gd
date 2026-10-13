@@ -25,8 +25,10 @@ static func text() -> Dictionary:
 	return _text
 
 static func civ_code(civ: int) -> String:
-	var civs: Array = ref().get_civs()
-	return civs[civ]["code"] if civ >= 0 and civ < civs.size() else ""
+	for c in ref().get_civs():
+		if int(c["id"]) == civ:
+			return c["code"]
+	return ""
 
 ## 0 A.D. Identity text of a roster unit ({tooltip, history, classes, builds}).
 static func unit_text(unit_id: String) -> Dictionary:
@@ -90,6 +92,6 @@ static func civ_select(parent_handler: Callable) -> Control:
 	var sel = RtsoSafeSelect.new()
 	sel.custom_minimum_size = Vector2(240, 30)
 	for c in ref().get_civs():
-		sel.add_item(c["name"])
+		sel.add_item(c["name"], int(c["id"]))
 	sel.item_selected.connect(parent_handler)
 	return sel
