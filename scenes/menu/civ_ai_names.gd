@@ -1,5 +1,5 @@
 # 0 A.D. simulation/data/civs/<civ>.json "AINames", indexed by rtso::Civilization
-# (athen, spart, pers, rome, cart, mace, brit, gaul, iber, maur, kush, ptol, sele, han).
+# (athen, spart, pers, rome, cart, mace, brit, gaul, iber, maur, kush, ptol, sele, han, Gaia, germ).
 # Game Setup names each AI slot from its civ (gamesettings/attributes/PlayerName.js pickRandomItems).
 extends RefCounted
 
@@ -18,4 +18,6 @@ const AI_NAMES := [
 	["Ptolemy Philadelphus", "Ptolemy Epigone", "Ptolemy Eurgetes", "Ptolemy Epiphanes", "Ptolemy Philometor", "Ptolemy Eupator", "Ptolemy Alexander", "Ptolemy Neos Dionysos", "Ptolemy Neos Philopater", "Berenice Philopater", "Cleopatra Tryphaena", "Berenice Epiphaneia", "Cleopatra Philopater", "Cleopatra Selene", "Cleopatra II Philometora Soteira", "Arsinoe IV", "Arsinoe II"],
 	["Antiochus I Soter", "Antiochus II Theos", "Seleucus II Callinicus", "Seleucus III Ceraunus", "Seleucus IV Philopator", "Antiochus V Eupator", "Demetrius I Soter", "Alexander I Balas", "Demetrius II Nicator", "Antiochus VI Dionysus", "Diodotus Tryphon", "Antiochus VII Sidetes", "Demetrius II Nicator", "Alexander II Zabinas", "Cleopatra Thea", "Seleucus V Philometor", "Antiochus VIII Grypus", "Antiochus IX Cyzicenus", "Seleucus VI Epiphanes", "Antiochus X Eusebes", "Demetrius III Eucaerus", "Antiochus XI Epiphanes", "Philip I Philadelphus", "Antiochus XII Dionysus", "Seleucus VII Kybiosaktes", "Antiochus XIII Asiaticus", "Philip II Philoromaeus"],
 	["Liu Ying", "Liu Gong", "Liu Hong", "Liu Heng", "Liu Qi", "Liu Che", "Liu Fuling", "Liu He", "Liu Bingyi", "Liu Shi", "Liu Ao", "Liu Xin", "Liu Kan", "Liu Xuan", "Liu Xiu", "Liu Zhuang", "Liu Da", "Liu Zhao", "Liu Long", "Liu Hu", "Liu Yi", "Liu Bao", "Liu Bing", "Liu Zuan", "Liu Zhi", "Liu Hong", "Liu Bian", "Liu Xie"],
+	[],
+	["Claodicus", "Divico", "Caesorix"],
 ]
