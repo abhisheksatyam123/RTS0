@@ -62,6 +62,8 @@ DONE 2026-10-08: two-process UDP session. The in-process harness above gave both
 
 DONE 2026-10-09: observers join a running match (0 A.D. observer late join, `network.lateobservers` "everyone"): the lobby's Observe toggle asks the host for its world like a rejoin, but the client takes no seat, sends no batches and nobody waits on it, and it sees the map revealed. The host sends NMT_PLAYER_ASSIGNMENT (each client's name, player, and playing/observing/left) whenever it changes; the lobby panel shows it as the in-game player list and network warnings use the names. Playtest: observer case (joins near turn 130, matches the host to turn 400, on every peer's list). Open: observer perspective switch, observer limit. Observers in game setup landed with B.
 
+DONE 2026-10-12: the menu lobby (0 A.D. gui/prelobby + gui/lobby over `tools/lobby_server.py` instead of XMPP): sign in by name, players online as available/away/in a game, lobby chat with join and leave notices, and the game list that hosts register and refresh (name, host, map, players, password, waiting or running; a host's address is the one its request came from). Host and Join hand the choice to the match's lobby panel through MatchSettings `net_*`; a running game is joined as an observer. The `LobbySession` autoload keeps the player signed in and the game listed while the match runs, and players or games not heard from for 30 s drop out. Checks: `tools/test_lobby_server.py`. Open: accounts, ratings, the game's settings shown in the list.
+
 Verify: `python3 tools/lobby_server.py` then two `./build/linux/RTS0.x86_64` Host + Join.
 
 ### P2 — Long-path JPS (done)
