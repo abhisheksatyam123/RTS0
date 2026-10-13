@@ -6259,6 +6259,100 @@ size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int ma
 	return placed;
 }
 
+bool Simulation::place_map_wall_piece(const WallPiece &p, uint8_t player) {
+	if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return false;
+	if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return false;
+	// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
+	const float c = std::cos(p.rot), sn = -std::sin(p.rot);
+	for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
+		for (size_t i = 0; i < resources_.count; ++i) {
+			if (!resources_.alive[i]) continue;
+			if (resources_.type[i] != RES_WOOD && !(resources_.type[i] == RES_FOOD && resources_.subtype[i] == RES_SUB_NONE))
+				continue;
+			if (std::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
+			resources_.alive[i] = 0;
+			resources_.amount[i] = 0;
+		}
+	spawn_wall_piece(p, player, 1.0f);
+	return true;
+}
+
+size_t Simulation::place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
+		bool (*skip)(float x, float z, const void *ctx), const void *ctx) {
+	if (n == 0) return 0;
+	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	const float tl = ws.tower_length, overlap = ws.min_overlap * tl, quarter = 1.5707963f;
+	// getWallElement: WallPiece Length, Indent and Bend in tiles (RTS0 units). A cornerIn is a
+	// tower of no length turned 45 degrees and set a quarter of its size in; a structure
+	// (structures/{civ}/<name>) has no length and stands 3.5 towers in.
+	struct El { float length, indent, bend; };
+	auto el = [&](const FortressPart &p) -> El {
+		switch (p.element) {
+			case FORT_LONG: case FORT_GATE: return {ws.lengths[0], 0.0f, 0.0f};
+			case FORT_CORNER_IN: return {0.0f, 0.25f * tl, quarter};
+			case FORT_BUILDING: return {0.0f, 3.5f * tl, 0.0f};
+			default: return {tl, 0.0f, 0.0f};
+		}
+	};
+	// getWallAlignment with 0 A.D.'s Vector2D: rotate(a) turns clockwise, perpendicular() a
+	// quarter counter-clockwise; the wall runs along perpendicular(rotate((1, 0), -o)).
+	struct V { float x, z; };
+	auto rot = [](V v, float a) { return V{v.x * std::cos(a) + v.z * std::sin(a), -v.x * std::sin(a) + v.z * std::cos(a)}; };
+	struct Align { V pos; float run; };
+	std::vector<Align> al(n);
+	V pos{0.0f, 0.0f};
+	float o = 0.0f;
+	for (size_t i = 0; i < n; ++i) {
+		const El e = el(wall[i]);
+		const V in = rot({e.indent, 0.0f}, -o);
+		const V run = rot({1.0f, 0.0f}, -o);
+		al[i] = {{pos.x - in.x, pos.z - in.z}, std::atan2(run.x, -run.z)};
+		if (i + 1 == n) break;
+		o += e.bend;
+		float d = 0.5f * (e.length + el(wall[i + 1]).length) - overlap;
+		if (e.bend != 0.0f && e.indent != 0.0f) {
+			d += e.indent * std::sin(e.bend);
+			const V back = rot({e.indent, 0.0f}, -o);
+			pos = {pos.x + back.x, pos.z + back.z};
+		}
+		const V step = rot({d, 0.0f}, -o);
+		pos = {pos.x - step.z, pos.z + step.x};
+	}
+	// getCenterToFirstElement: the outline's centre is the mean of its elements; then turn it so
+	// the first element lies towards `facing`.
+	V mean{0.0f, 0.0f};
+	for (const Align &a : al) mean = {mean.x + a.pos.x / (float)n, mean.z + a.pos.z / (float)n};
+	const float turn = facing - std::atan2(al[0].pos.z - mean.z, al[0].pos.x - mean.x);
+	const float ct = std::cos(turn), st = std::sin(turn);
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	for (size_t i = 0; i < n; ++i) {
+		const float lx = al[i].pos.x - mean.x, lz = al[i].pos.z - mean.z;
+		const float wx = x + lx * ct - lz * st, wz = z + lx * st + lz * ct;
+		if (skip && skip(wx, wz, ctx)) continue;
+		const float run = al[i].run + turn; // world angle the wall runs at here
+		switch (wall[i].element) {
+			case FORT_BUILDING:
+				if (std::fabs(wx) > map_half_ - 1.0f || std::fabs(wz) > map_half_ - 1.0f) break;
+				spawn_building_world(wx, wz, wall[i].building, player, 1.0f);
+				++placed;
+				break;
+			case FORT_LONG: case FORT_GATE:
+				placed += place_map_wall_piece({wall[i].element == FORT_GATE ? (uint8_t)BLD_GATE : ws.segment, wx, wz, -run,
+						0.5f * ws.lengths[0]}, player);
+				break;
+			default:
+				placed += place_map_wall_piece({ws.tower, wx, wz, -(run + (wall[i].element == FORT_CORNER_IN ? 0.5f * quarter : 0.0f)),
+						ws.tower_half}, player);
+				break;
+		}
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
 size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
 		float irregularity, int gate_every, int max_tries) {
 	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
@@ -6309,23 +6403,7 @@ size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, floa
 	const bool bulk = bulk_spawn_;
 	bulk_spawn_ = true;
 	size_t placed = 0;
-	auto place = [&](const WallPiece &p) {
-		if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return;
-		if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return;
-		// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
-		const float c = std::cos(p.rot), sn = -std::sin(p.rot);
-		for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
-			for (size_t i = 0; i < resources_.count; ++i) {
-				if (!resources_.alive[i]) continue;
-				if (resources_.type[i] != RES_WOOD && !(resources_.type[i] == RES_FOOD && resources_.subtype[i] == RES_SUB_NONE))
-					continue;
-				if (std::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
-				resources_.alive[i] = 0;
-				resources_.amount[i] = 0;
-			}
-		spawn_wall_piece(p, player, 1.0f);
-		++placed;
-	};
+	auto place = [&](const WallPiece &p) { placed += place_map_wall_piece(p, player); };
 	const size_t n = best.size();
 	for (size_t i = 0; i < n; ++i) {
 		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
@@ -19065,6 +19143,38 @@ void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float 
 // on one structure. The bombers on a structure are those whose order targets it, so there
 // is no saved list. (Fields are left alone: 0 A.D. shells only enemy-land fields being
 // worked, and RTS0 doesn't track a field's gatherers here.)
+// worker.js moveToGatherer (baseManager.js update, every mobile dropsite): a worker
+// elephant or supply wagon walks to the nearest of our gatherers at work on its land, so
+// they drop off beside their supply. 0 A.D. waits 12 s after a move and 5 s otherwise
+// (nextMoveToGatherer metadata); here every Petra mobile dropsite looks every 5 s.
+void Simulation::petra_move_dropsites_to_gatherers() {
+	std::vector<size_t> drops;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_is_mobile_dropsite(units_.unit_type[i]) &&
+		    units_.action_state[i] != ACTION_GARRISONED && units_.action_state[i] != ACTION_BUILD &&
+		    units_.order_kind[i] != ORDER_BUILD && !petra_passenger(units_.id[i]))
+			drops.push_back(i);
+	if (drops.empty()) return;
+	for (size_t d : drops) {
+		const float px = units_.pos_x[d], pz = units_.pos_z[d];
+		const uint16_t land = petra_land_at(px, pz);
+		float best = 1e30f, bx = 0.0f, bz = 0.0f;
+		for (size_t g = 0; g < units_.count; ++g) {
+			if (!units_.alive[g] || units_.team[g] != petra_pid_ || g == d || unit_is_ship(units_.unit_type[g])) continue;
+			if (units_.action_state[g] != ACTION_GATHER && units_.action_state[g] != ACTION_RETURN_DROPSITE) continue;
+			if (!petra_is_worker(g) || petra_passenger(units_.id[g])) continue;
+			const float dx = units_.pos_x[g] - px, dz = units_.pos_z[g] - pz, dd = dx * dx + dz * dz;
+			if (dd >= best || petra_land_at(units_.pos_x[g], units_.pos_z[g]) != land) continue;
+			best = dd; bx = units_.pos_x[g]; bz = units_.pos_z[g];
+		}
+		// dist > 10 (m^2)
+		if (best < 1e30f && best > 10.0f / 16.0f) {
+			const uint32_t uid = units_.id[d];
+			order_walk(&uid, 1, bx, bz, false);
+		}
+	}
+}
+
 void Simulation::petra_assign_bombers() {
 	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 	auto bomber = [&](size_t i) {
@@ -22521,6 +22631,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_retake_civic_centres();
 	petra_manage_tactical_attacks(dt);
 	if ((int)(petra_timer_ / 2.5f) != (int)((petra_timer_ - dt) / 2.5f)) petra_assign_bombers();
+	if ((int)(petra_timer_ / 5.0f) != (int)((petra_timer_ - dt) / 5.0f)) petra_move_dropsites_to_gatherers();
 	petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
