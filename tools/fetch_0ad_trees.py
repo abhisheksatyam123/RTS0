@@ -6,12 +6,18 @@ assets/models/manifest.json.
 
   * The actor is the one named by the gaia template's <VisualActor><Actor>
     (simulation/templates/gaia/tree/<name>.xml, TREES below).
-  * Actors are composed the way 0 A.D.'s ObjectBase does it, simplified: the first
-    variant of every <group> is picked (frequencies ignored), and its <mesh>,
-    baseTex <texture> and <props> are merged. A variant's file="..." pulls in
+  * Actors are composed the way 0 A.D.'s ObjectBase does it, simplified: one
+    variant of every <group> is picked and its <mesh>, baseTex <texture> and
+    <props> are merged. <id>.glb takes the first variant of every group. A variant's file="..." pulls in
     art/variants/<file> first. Each prop actor is composed recursively and placed
     at the parent mesh's "prop_<attachpoint>" node ("root" = parent origin).
     Particle, decal and empty props are skipped.
+  * 0 A.D. picks a variant per tree, so --variants N also writes <id>_v2.glb ..
+    <id>_vN.glb, each a different pick drawn as ObjectBase draws them: by
+    frequency (1 when unset), a group taking the variant whose name an earlier
+    group or the parent actor already picked (banyan trunk 1 keeps leaves 1).
+    The renderer gives each tree one of a family's models by its id. LEGACY
+    trees keep their older resized <id>.glb; their variants share its scale.
   * Meshes are the Collada sources (art/meshes/*.dae); skins are DDS/PNG decoded to
     PNG. Skins with transparency become alpha-scissored, double-sided materials.
   * Godot assembles the GLB (tools/compose_tree_glb.gd) from a scratch project in
@@ -21,11 +27,13 @@ The release archive's cached .pmd meshes (extract_0ad_assets.py) are not shipped
 here; raw.githubusercontent.com serves the source files.
 
   python3 tools/fetch_0ad_trees.py <godot 4.3 binary> [--work DIR] [--only ID ...]
+      [--variants N] [--variants-only]
 """
 import argparse
 import http.client
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -63,6 +71,22 @@ TREES = {
     "teak": "teak",
 }
 
+# Trees whose <id>.glb came from the older asset extraction, resized to RTS0's
+# tree height: only their variants are built here, at that model's scale.
+LEGACY = {
+    "tree": "flora/trees/oak_new.xml",
+    "oak": "flora/trees/oak.xml",
+    "pine": "flora/trees/pine.xml",
+    "palm": "flora/trees/palm_cretan_date.xml",
+    "baobab": "flora/trees/baobab.xml",
+    "acacia": "flora/trees/acacia.xml",
+    "bamboo": "flora/trees/bamboo.xml",
+    "apple": "flora/trees/apple.xml",
+    "fruit_bush": "props/flora/berry_bush.xml",
+}
+
+# Models per tree family, the first included (the renderer draws up to this many).
+VARIANTS = 4
 MAX_PROP_DEPTH = 4
 # A skin counts as transparent when this share of its texels is below the
 # scissor threshold (0.5); trunk bark has none, leaf cards have plenty.
@@ -148,19 +172,42 @@ def _merge_props(props, later):
     return [q for q in props if q[1] not in points] + later
 
 
-def compose(src, actor, used, depth=0):
+class Picker:
+    """Chooses one variant per group as ObjectBase does: a variant named in the
+    selections so far wins, else a random one by frequency. rng None picks the
+    first variant of every group."""
+
+    def __init__(self, rng=None):
+        self.rng = rng
+        self.selections = set()
+
+    def pick(self, variants):
+        if self.rng is None:
+            return variants[0]
+        named = [v for v in variants if v.get("name") in self.selections]
+        if named:
+            return named[0]
+        weights = [int(v.get("frequency", "1") or 1) for v in variants]
+        v = self.rng.choices(variants, weights=weights)[0]
+        if v.get("name"):
+            self.selections.add(v.get("name"))
+        return v
+
+
+def compose(src, actor, used, depth=0, picker=None):
     """Plan node for one actor: {"mesh", "skin", "props": [{"attach", "node"}]}.
 
     `used` collects every source path (actor:/mesh:/skin:) for the manifest."""
+    picker = picker or Picker()
     root = src.xml("art/actors/" + actor)
     used.append("actor:art/actors/" + actor)
     mesh = tex = None
     props = []
     for group in root.findall("group"):
-        variant = group.find("variant")
-        if variant is None:
+        variants = group.findall("variant")
+        if not variants:
             continue
-        m, t, p = _variant_parts(src, variant)
+        m, t, p = _variant_parts(src, picker.pick(variants))
         mesh, tex = m or mesh, t or tex
         props = _merge_props(props, p)
     node = {"actor": actor, "mesh": mesh, "skin": tex,
@@ -174,7 +221,7 @@ def compose(src, actor, used, depth=0):
     for prop_actor, point in props:
         if _skipped_prop(src, prop_actor):
             continue
-        node["props"].append({"attach": point, "node": compose(src, prop_actor, used, depth + 1)})
+        node["props"].append({"attach": point, "node": compose(src, prop_actor, used, depth + 1, picker)})
     return node
 
 
@@ -214,11 +261,51 @@ def count_meshes(node):
     return (1 if node["mesh"] else 0) + sum(count_meshes(p["node"]) for p in node["props"])
 
 
+def signature(node):
+    """What a plan draws: its meshes and skins, props included."""
+    return json.dumps(node, sort_keys=True)
+
+
+def variant_plans(src, actor, count):
+    """The first-variant plan, then up to count - 1 other distinct picks, each with
+    the sources it uses. Picks are seeded by the actor, so reruns agree."""
+    used = []
+    first = compose(src, actor, used)
+    plans = [(first, used)]
+    seen = {signature(first)}
+    rng = random.Random(actor)
+    for _ in range(64 * count):
+        if len(plans) >= count:
+            break
+        used = []
+        plan = compose(src, actor, used, picker=Picker(rng))
+        if signature(plan) in seen:
+            continue
+        seen.add(signature(plan))
+        plans.append((plan, used))
+    return plans
+
+
+def build(godot, proj, name, plan):
+    """Writes plan's GLB to OUT_DIR/<name>.glb (None: a scratch file); its size."""
+    plan_path = os.path.join(proj, f"plan_{name}.json")
+    info_path = os.path.join(proj, f"info_{name}.json")
+    with open(plan_path, "w") as fh:
+        json.dump(plan, fh, indent=1)
+    out = os.path.join(OUT_DIR, name + ".glb") if name else os.path.join(proj, "scratch.glb")
+    subprocess.run([godot, "--headless", "--path", proj, "-s", COMPOSER, "--",
+                    plan_path, out, info_path], check=True)
+    with open(info_path) as fh:
+        return out, json.load(fh)["size"]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("godot", help="Godot 4.3 editor binary")
     ap.add_argument("--work", help="scratch directory (downloads + Godot project); default: a temp dir")
-    ap.add_argument("--only", nargs="+", choices=sorted(TREES))
+    ap.add_argument("--only", nargs="+", choices=sorted(list(TREES) + list(LEGACY)))
+    ap.add_argument("--variants", type=int, default=VARIANTS, help="models per tree, the first included")
+    ap.add_argument("--variants-only", action="store_true", help="keep each <id>.glb, write only its variants")
     ap.add_argument("--no-manifest", action="store_true")
     args = ap.parse_args()
 
@@ -228,47 +315,52 @@ def main():
     os.makedirs(proj, exist_ok=True)
     with open(os.path.join(proj, "project.godot"), "w") as fh:
         fh.write('config_version=5\n\n[application]\n\nconfig/name="tree_compose"\n')
+    with open(MANIFEST) as fh:
+        man = json.load(fh)
 
-    ids = args.only or list(TREES)
+    ids = args.only or list(TREES) + list(LEGACY)
     plans = {}
     for tree_id in ids:
-        used = []
-        actor = template_actor(src, TREES[tree_id])
-        plan = compose(src, actor, used)
-        stage(src, plan, proj)
-        plans[tree_id] = (plan, sorted(set(used)))
-        print(f"{tree_id}: {actor}, {count_meshes(plan)} meshes")
+        actor = LEGACY.get(tree_id) or template_actor(src, TREES[tree_id])
+        plans[tree_id] = variant_plans(src, actor, max(1, args.variants))
+        for plan, _ in plans[tree_id]:
+            stage(src, plan, proj)
+        print(f"{tree_id}: {actor}, {len(plans[tree_id])} models, "
+              f"{[count_meshes(p) for p, _ in plans[tree_id]]} meshes")
 
     # Godot imports the .dae/.png files once, then builds each GLB.
     subprocess.run([args.godot, "--headless", "--path", proj, "--import"], check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     os.makedirs(OUT_DIR, exist_ok=True)
     entries = {}
-    for tree_id, (plan, used) in plans.items():
-        plan_path = os.path.join(proj, f"plan_{tree_id}.json")
-        info_path = os.path.join(proj, f"info_{tree_id}.json")
-        with open(plan_path, "w") as fh:
-            json.dump(plan, fh, indent=1)
-        out = os.path.join(OUT_DIR, tree_id + ".glb")
-        subprocess.run([args.godot, "--headless", "--path", proj, "-s", COMPOSER, "--",
-                        plan_path, out, info_path], check=True)
-        with open(info_path) as fh:
-            size = json.load(fh)["size"]
-        if not 1.0 <= size[1] <= 40.0:  # 0 A.D. sizes: bushes ~2 m, teaks ~30 m
-            print(f"warning: {tree_id}: implausible height {size[1]:.2f}", file=sys.stderr)
-        entries[tree_id] = {
-            "file": f"models/vegetation/{tree_id}.glb",
-            "origin": "ground-center",
-            "parts": count_meshes(plan),
-            "size_meters": [round(v, 3) for v in size],
-            "sources": used,
-            "upstream_material": plan["material"],
-        }
-        print(f"{tree_id}: {os.path.getsize(out)} bytes, size {entries[tree_id]['size_meters']}")
+    for tree_id, variants in plans.items():
+        scale = 1.0
+        if tree_id in LEGACY:
+            # The first pick in metres against the resized <id>.glb it stands for.
+            _, size = build(args.godot, proj, None, variants[0][0])
+            scale = man["models"][tree_id]["size_meters"][1] / size[1]
+        for k, (plan, used) in enumerate(variants):
+            if k == 0 and (tree_id in LEGACY or args.variants_only):
+                continue
+            name = tree_id if k == 0 else f"{tree_id}_v{k + 1}"
+            if scale != 1.0:
+                plan["scale"] = scale
+            out, size = build(args.godot, proj, name, plan)
+            if not 0.5 <= size[1] <= 40.0:  # 0 A.D. sizes: bushes ~1 m, teaks ~30 m
+                print(f"warning: {name}: implausible height {size[1]:.2f}", file=sys.stderr)
+            entries[name] = {
+                "file": f"models/vegetation/{name}.glb",
+                "origin": "ground-center",
+                "parts": count_meshes(plan),
+                "size_meters": [round(v, 3) for v in size],
+                "sources": sorted(set(used)),
+                "upstream_material": plan["material"],
+            }
+            if k:
+                entries[name]["variant_of"] = tree_id
+            print(f"{name}: {os.path.getsize(out)} bytes, size {entries[name]['size_meters']}")
 
     if not args.no_manifest and entries:
-        with open(MANIFEST) as fh:
-            man = json.load(fh)
         man["models"].update(entries)
         with open(MANIFEST, "w") as fh:
             json.dump(man, fh, indent=1, sort_keys=True)

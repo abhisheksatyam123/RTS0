@@ -123,6 +123,27 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	void refresh_lobby_seats();
 	void prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit);
 	void lobby_effective_seats(uint8_t out[8]);
+	// Networked game setup before Start (0 A.D. NMT_GAME_SETUP / NMT_READY).
+	// The host's MatchSettings is the setup; the host sends it whenever it
+	// changes and clears every ready flag when a setting or a seat changes.
+	// A client writes the host's setup into its own MatchSettings.
+	rtso::NetSetupState net_setup_;      // host: the setup it sent last; client: the host's latest
+	std::string net_setup_key_;          // host: the settings and seats net_setup_ was versioned for
+	std::string net_setup_sent_;         // host: what it sent last, but for the sequence
+	uint8_t net_ready_ = 0;              // client: 0 not ready, 1 ready for net_ready_version_, 2 stay ready
+	uint32_t net_ready_version_ = 0;
+	void match_settings_setup(rtso::GameSetupParams &setup);
+	void host_net_setup_tick(bool force);
+	void client_net_setup_tick();
+	const char *apply_net_setup_request(uint32_t client, const std::string &request);
+	void store_net_setup_in_match_settings(const rtso::GameSetupParams &setup);
+	void assign_lobby_seat(int client, int choice);
+	void start_net_speed(uint16_t speed);
+	Node *net_setup_overlay_ = nullptr;     // scenes/menu/gamesetup.tscn, networked
+	CanvasLayer *net_setup_layer_ = nullptr;
+	bool net_setup_overlay_unsupported_ = false;
+	Button *lobby_start_btn_ = nullptr;
+	void update_net_setup_overlay();
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -241,6 +262,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool map_has_teams_ = false;
 	// The scenario's PopulationLimit (0 A.D. ScriptSettings, locked in its game setup); -1: none.
 	int map_pop_limit_ = -1;
+	int map_player_pop_limit_[8] = {}; // a scenario player's own PopulationLimit; 0 = none
 	void apply_map_player_overrides();
 
 	bool dragging = false;
@@ -378,6 +400,14 @@ public:
 	void _start_menu_net();
 	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
 	Dictionary get_lobby_state() const;
+	// Networked Game Setup for scenes/menu/gamesetup.gd: see net_setup_.
+	bool is_net_pregame() const;
+	Dictionary get_net_setup_state() const;
+	void push_net_setup();
+	void assign_net_client(int client, int slot);
+	void request_net_player_setting(const String &key, int value);
+	void set_net_ready(int status);
+	void leave_net_game();
 	// The lockstep state hash this client computed for a turn (0 if not kept).
 	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
@@ -567,6 +597,8 @@ private:
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
 	bool over_own_rally_structure(const Vector3 &at) const;
+	// 0 A.D. "focus-fire": the selected arrow-shooting structure aims at the enemy under `at`.
+	bool try_focus_fire(const Vector3 &at);
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
