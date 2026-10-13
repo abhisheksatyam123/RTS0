@@ -35976,6 +35976,91 @@
    ],
    "upstream_material": "no_trans_norm_spec.xml"
   },
+  "palisade_gate": {
+   "file": "models/buildings/palisade_gate.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    4.232,
+    2.636,
+    0.977
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_gate.xml",
+    "mesh:props/palisade_rocks_gate.dae",
+    "skin:props/palisade_main.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "palisade_long": {
+   "file": "models/buildings/palisade_long.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    3.892,
+    2.343,
+    0.763
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_long.xml",
+    "mesh:props/palisade_rocks_long.dae",
+    "skin:props/palisade_main.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "palisade_medium": {
+   "file": "models/buildings/palisade_medium.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    2.785,
+    2.343,
+    0.796
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_medium.xml",
+    "mesh:props/palisade_rocks_medium.dae",
+    "skin:props/palisade_main.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "palisade_short": {
+   "file": "models/buildings/palisade_short.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.554,
+    2.325,
+    0.674
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_short.xml",
+    "mesh:props/palisade_rocks_short.dae",
+    "skin:props/palisade_main.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "palisade_tower": {
+   "file": "models/buildings/palisade_tower.glb",
+   "generator": "tools/extract_0ad_structures.py",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    1.38,
+    3.269,
+    1.346
+   ],
+   "sources": [
+    "actor:art/actors/props/special/palisade_rocks_tower.xml",
+    "mesh:props/palisade_rocks_tower.dae",
+    "skin:props/palisade_main.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
   "palm": {
    "file": "models/vegetation/palm.glb",
    "origin": "ground-center",
