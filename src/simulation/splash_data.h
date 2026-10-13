@@ -31,7 +31,7 @@ inline const SplashProfile *splash_profiles() {
 	return kTable;
 }
 
-inline constexpr uint16_t SPLASH_TEMPLATE_COUNT = 423; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t SPLASH_TEMPLATE_COUNT = 428; // = CIV_UNIT_TEMPLATE_COUNT
 // Splash row of each civ roster template's primary attack.
 inline const uint8_t *splash_template_index() {
 	static const uint8_t kTable[SPLASH_TEMPLATE_COUNT] = {
@@ -400,6 +400,11 @@ inline const uint8_t *splash_template_index() {
 		0,
 		4, // han/ship_siege
 		1, // han/siege_mangonel_packed
+		0,
+		0,
+		0,
+		0,
+		0,
 		0,
 		0,
 		0,

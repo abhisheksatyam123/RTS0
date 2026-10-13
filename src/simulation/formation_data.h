@@ -481,6 +481,11 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // sele/support_civilian_house (RTS0-only)
 		{0x00000u, 0x000u}, // han/support_civilian (RTS0-only)
 		{0x00000u, 0x000u}, // han/support_civilian_house (RTS0-only)
+		{0x00000u, 0x000u}, // rome/infantry_spearman_conscript (RTS0-only)
+		{0x00000u, 0x000u}, // cart/infantry_spearman_ital_b (RTS0-only)
+		{0x00000u, 0x000u}, // rome/cavalry_javelineer_auxiliary_b (RTS0-only)
+		{0x00000u, 0x000u}, // rome/cavalry_spearman_auxiliary_b (RTS0-only)
+		{0x00000u, 0x000u}, // rome/champion_infantry_swordsman_first (RTS0-only)
 	};
 	return kRows;
 }

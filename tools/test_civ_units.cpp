@@ -6,6 +6,7 @@
 //       && /tmp/test_civ_units
 #include "simulation/simulation.h"
 #include "simulation/entity_limits_data.h"
+#include "simulation/promotion_data.h"
 #include <cstdio>
 #include <cstring>
 
@@ -315,8 +316,26 @@ int main() {
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));
 		CHECK(civ_unit_template(roster_id("cart/infantry_slinger_iber_b")).trainers == bld_bit(BLD_EMBASSY_IBERIAN));
-		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_iber_b")).trainers == bld_bit(BLD_EMBASSY_IBERIAN));
-		CHECK(civ_unit_template(roster_id("cart/infantry_swordsman_ital_b")).trainers == bld_bit(BLD_EMBASSY_ITALIC));
+		CHECK(civ_unit_template(roster_id("cart/infantry_spearman_ital_b")).trainers == bld_bit(BLD_EMBASSY_ITALIC));
+		CHECK(civ_unit_template(roster_id("cart/cavalry_spearman_ital_b")).trainers == bld_bit(BLD_EMBASSY_ITALIC));
+		// 0.28 dropped the Iberian heavy cavalry and the Samnite swordsman: their rows stay for saves.
+		CHECK(!civ_unit_template(roster_id("cart/cavalry_swordsman_iber_b")).trainers);
+		CHECK(!civ_unit_template(roster_id("cart/infantry_swordsman_ital_b")).trainers);
+		// Marian Reforms (0.28): the Forum trains Levy Auxiliary Spearmen once researched, and elite
+		// spearmen and cavalry become conscripts and Auxiliaries (Promotion/Entity).
+		{
+			const CivUnitTemplate &levy = civ_unit_template(roster_id("rome/infantry_spearman_conscript"));
+			CHECK(levy.trainers == bld_bit(BLD_TOWN_CENTER) && levy.unlock_tech == TECH_ROMAN_REFORMS);
+			auto promotes_to = [](const char *from, const char *to) {
+				for (const PromotionStep &s : PROMOTION_STEPS)
+					if (std::strcmp(s.id, from) == 0 && s.target && std::strcmp(s.target, to) == 0) return true;
+				return false;
+			};
+			CHECK(promotes_to("rome/infantry_spearman_b", "rome/infantry_spearman_conscript"));
+			CHECK(promotes_to("rome/cavalry_spearman_b", "rome/cavalry_spearman_auxiliary_b"));
+			CHECK(promotes_to("rome/cavalry_javelineer_b", "rome/cavalry_javelineer_auxiliary_b"));
+			CHECK(promotes_to("rome/champion_infantry_swordsman", "rome/champion_infantry_swordsman_first"));
+		}
 		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_gaul_b")).trainers == bld_bit(BLD_EMBASSY));
 		CHECK(std::strcmp(building_type_info(BLD_EMBASSY).name, "Celtic Embassy") == 0 &&
 			building_type_info(BLD_EMBASSY).wood_cost == 200 && building_type_info(BLD_EMBASSY).max_hp == 1200.0f);

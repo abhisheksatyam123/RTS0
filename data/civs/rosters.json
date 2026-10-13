@@ -232,7 +232,11 @@
     "rome/infantry_antesignanus",
     "rome/catafalque",
     "rome/support_civilian",
-    "rome/support_civilian_house"
+    "rome/support_civilian_house",
+    "rome/infantry_spearman_conscript",
+    "rome/cavalry_javelineer_auxiliary_b",
+    "rome/cavalry_spearman_auxiliary_b",
+    "rome/champion_infantry_swordsman_first"
    ],
    "auto_bonuses": [
     {
@@ -293,7 +297,8 @@
     "cart/rts0_villager",
     "cart/catafalque",
     "cart/support_civilian",
-    "cart/support_civilian_house"
+    "cart/support_civilian_house",
+    "cart/infantry_spearman_ital_b"
    ],
    "auto_bonuses": [
     {
@@ -6546,9 +6551,7 @@
    "name": "Iberian Heavy Cavalry",
    "specific_name": "Ḥayyāl Ḥerev Raḫūv",
    "phase": 2,
-   "trainers": [
-    "BLD_EMBASSY_IBERIAN"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN",
@@ -7219,9 +7222,7 @@
    "name": "Samnite Swordsman",
    "specific_name": "Seḫīr Romaḥ",
    "phase": 2,
-   "trainers": [
-    "BLD_EMBASSY_ITALIC"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN",
@@ -22710,6 +22711,271 @@
     "damage": 2.0,
     "range": 1.7999999999999998,
     "carry": 25
+   }
+  },
+  {
+   "id": "rome/infantry_spearman_conscript",
+   "civ": "rome",
+   "class": "UNIT_SPEARMAN",
+   "name": "Levy Auxiliary Spearman",
+   "specific_name": "Peditatus Auxilia",
+   "phase": 3,
+   "trainers": [
+    "BLD_TOWN_CENTER"
+   ],
+   "trained_at_0ad": [
+    "civil_centre"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_ROMAN_REFORMS",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.5,
+    "pierce_dmg": 4.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 50,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 10.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 8.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "cart/infantry_spearman_ital_b",
+   "civ": "cart",
+   "class": "UNIT_SPEARMAN",
+   "name": "Samnite Spearman",
+   "specific_name": "Seḫīr Romaḥ",
+   "phase": 2,
+   "trainers": [
+    "BLD_EMBASSY_ITALIC"
+   ],
+   "trained_at_0ad": [
+    "embassy_italic"
+   ],
+   "flags": [
+    "ROSTER_CITIZEN",
+    "ROSTER_MERCENARY",
+    "ROSTER_NO_GATHER"
+   ],
+   "unlock_tech": "TECH_NONE",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Builder",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Melee",
+    "Mercenary",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit",
+    "Worker"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.0,
+    "hack_dmg": 4.95,
+    "pierce_dmg": 4.4,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 0,
+    "wood": 0,
+    "gold": 60,
+    "stone": 0,
+    "train_time": 7.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 9.350000000000001,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/cavalry_javelineer_auxiliary_b",
+   "civ": "rome",
+   "class": "UNIT_CAVALRY",
+   "name": "Auxiliary Cavalry Javelineer",
+   "specific_name": "Eques Alaris Numidarum",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_RANGED",
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_ROMAN_REFORMS",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Auxiliary",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Javelineer",
+    "Organic",
+    "Ranged",
+    "Soldier",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 100.0,
+    "cooldown": 1.5,
+    "hack_dmg": 0.0,
+    "pierce_dmg": 18.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 2.0,
+    "pierce_armor": 1.0,
+    "crush_armor": 15.0,
+    "food": 100,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 5.7672,
+    "vision": 22.400000000000002,
+    "damage": 18.0,
+    "range": 8.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/cavalry_spearman_auxiliary_b",
+   "civ": "rome",
+   "class": "UNIT_CAVALRY",
+   "name": "Auxiliary Cavalry Spearman",
+   "specific_name": "Eques Alaris",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CITIZEN"
+   ],
+   "unlock_tech": "TECH_ROMAN_REFORMS",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Auxiliary",
+    "Cavalry",
+    "Citizen",
+    "CitizenSoldier",
+    "ConquestCritical",
+    "FastMoving",
+    "Human",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Spearman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 160.0,
+    "cooldown": 1.25,
+    "hack_dmg": 6.0,
+    "pierce_dmg": 5.5,
+    "crush_dmg": 0.0,
+    "hack_armor": 3.0,
+    "pierce_armor": 3.0,
+    "crush_armor": 15.0,
+    "food": 100,
+    "wood": 50,
+    "gold": 0,
+    "stone": 0,
+    "train_time": 15.0,
+    "pop": 1,
+    "speed": 6.4079999999999995,
+    "vision": 22.400000000000002,
+    "damage": 11.5,
+    "range": 2.4,
+    "carry": 0
+   }
+  },
+  {
+   "id": "rome/champion_infantry_swordsman_first",
+   "civ": "rome",
+   "class": "UNIT_SWORDSMAN",
+   "name": "First Cohort Legionary",
+   "specific_name": "Cohors Prima Legiōnārius",
+   "phase": 3,
+   "trainers": [],
+   "trained_at_0ad": [],
+   "flags": [
+    "ROSTER_CHAMPION"
+   ],
+   "unlock_tech": "TECH_UNLOCK_CHAMPION_INFANTRY",
+   "auras": [],
+   "civ_bonuses": [],
+   "classes": [
+    "Champion",
+    "ConquestCritical",
+    "Human",
+    "Infantry",
+    "Legionary",
+    "Melee",
+    "Organic",
+    "Soldier",
+    "Swordsman",
+    "Unit"
+   ],
+   "stats": {
+    "hp": 200.0,
+    "cooldown": 0.75,
+    "hack_dmg": 16.0,
+    "pierce_dmg": 0.0,
+    "crush_dmg": 0.0,
+    "hack_armor": 6.0,
+    "pierce_armor": 6.0,
+    "crush_armor": 20.0,
+    "food": 80,
+    "wood": 60,
+    "gold": 80,
+    "stone": 0,
+    "train_time": 20.0,
+    "pop": 1,
+    "speed": 3.3819999999999997,
+    "vision": 22.400000000000002,
+    "damage": 16.0,
+    "range": 1.7999999999999998,
+    "carry": 0
    }
   }
  ],

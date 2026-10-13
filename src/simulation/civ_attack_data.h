@@ -47,7 +47,7 @@ struct CombatProfile {
 // 0 A.D. metres to RTS0 units for ranged distances (extract_0ad_rosters.py RANGED_RANGE_SCALE).
 inline constexpr float COMBAT_DISTANCE_SCALE = 0.28f;
 
-inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 423; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t COMBAT_TEMPLATE_COUNT = 428; // = CIV_UNIT_TEMPLATE_COUNT
 inline const CombatProfile *combat_template_table() {
 	static const CombatProfile kTable[COMBAT_TEMPLATE_COUNT] = {
 		{{0x0000000000000532ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f}, // athen/cavalry_javelineer_b
@@ -473,6 +473,11 @@ inline const CombatProfile *combat_template_table() {
 		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.5f, 0.0f, 0.0f}, // sele/support_civilian_house
 		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.5f, 0.0f, 0.0f}, // han/support_civilian
 		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.5f, 0.0f, 0.0f}, // han/support_civilian_house
+		{{0x0000000000000530ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 1, {{{0x0000000000000002ull, 0x0000000000000000ull}, 2.5f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.5f, 0.0f, 0.0f}, // rome/infantry_spearman_conscript
+		{{0x0000000000000530ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 1, {{{0x0000000000000002ull, 0x0000000000000000ull}, 2.5f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.5f, 0.0f, 0.0f}, // cart/infantry_spearman_ital_b
+		{{0x0000000000000532ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 4.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0, 0.4f, 70.0f, 35.0f}, // rome/cavalry_javelineer_auxiliary_b
+		{{0x0000000000000532ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 1, {{{0x0000000000000002ull, 0x0000000000000000ull}, 1.75f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0, 0.625f, 0.0f, 0.0f}, // rome/cavalry_spearman_auxiliary_b
+		{{0x0000000000000530ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f}, // rome/champion_infantry_swordsman_first
 	};
 	return kTable;
 }
