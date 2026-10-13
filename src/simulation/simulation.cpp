@@ -13512,6 +13512,8 @@ void Simulation::petra_manage_military_production(float dt) {
 		if (!fortress) for (int r = 0; r < RES_COUNT; ++r) reserve[r] = PETRA_FORTRESS_COST[r];
 	}
 	bool reserving = reserve[RES_FOOD] + reserve[RES_WOOD] + reserve[RES_GOLD] + reserve[RES_STONE] > 0.0f;
+	bool champion_waiting = false;
+	float champion_cost[RES_COUNT] = {};
 	for (const auto &opt : options) {
 		if (pop_current(petra_pid_) >= pop_max(petra_pid_)) break;
 		const bool siege_opt = is_siege(civ_unit_template(opt.tmpl).unit_type);
@@ -13531,6 +13533,21 @@ void Simulation::petra_manage_military_production(float dt) {
 			}
 		}
 		if (petra_train_template(PETRA_QUEUE_MILITARY, opt.bld_id, opt.tmpl)) break;
+		if ((civ_unit_template(opt.tmpl).flags & ROSTER_CHAMPION) && !champion_waiting) {
+			// HugeAttack's champion unitStat waits in its queue for its price (queueManager), so
+			// cheaper soldiers that also cost metal (mercenaries) do not spend it first each pass.
+			const UnitTypeInfo &ui = civ_template_unit_info(opt.tmpl, civ_unit_template(opt.tmpl).unit_type);
+			unit_train_cost(petra_pid_, opt.tmpl, ui, champion_cost);
+			bool short_of = false;
+			for (int r = 0; r < RES_COUNT; ++r)
+				if (champion_cost[r] > 0.0f && petra_ps().res[r] - reserve[r] < champion_cost[r]) short_of = true;
+			if (short_of) {
+				champion_waiting = true;
+				for (int r = 0; r < RES_COUNT; ++r) reserve[r] += champion_cost[r];
+				reserving = true;
+			}
+			continue;
+		}
 		if (civ_unit_template(opt.tmpl).flags & ROSTER_HERO) {
 			// The hero leads the HugeAttack's unitStat (priority over champions): soldiers train
 			// only from what its price leaves, or cheaper units would always spend it first.
@@ -13550,6 +13567,12 @@ void Simulation::petra_manage_military_production(float dt) {
 			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
 			reserving = true;
 		}
+	}
+	if (champion_waiting) {
+		// A cheaper soldier queued after it cleared the queue's wants: the champion still waits.
+		PetraQueueAccount &w = petra_queues_.wants[PETRA_QUEUE_MILITARY];
+		w.food = std::max(w.food, champion_cost[RES_FOOD]); w.wood = std::max(w.wood, champion_cost[RES_WOOD]);
+		w.gold = std::max(w.gold, champion_cost[RES_GOLD]); w.stone = std::max(w.stone, champion_cost[RES_STONE]);
 	}
 }
 
