@@ -754,6 +754,56 @@ enum VictoryCondition : uint8_t {
 	VICTORY_COUNT
 };
 
+// 0 A.D. Game Setup combines victory conditions (VictoryConditions.js). A combination that
+// isn't one of the codes above is stored as VICTORY_COMBINED | mask, so codes 0..6 (and old
+// saves and replays) keep their meaning.
+enum VictoryKind : uint8_t {
+	VK_CONQUEST = 1 << 0,
+	VK_CONQUEST_UNITS = 1 << 1,
+	VK_CONQUEST_STRUCTURES = 1 << 2,
+	VK_CONQUEST_CIVIC_CENTRES = 1 << 3,
+	VK_WONDER = 1 << 4,
+	VK_RELIC = 1 << 5,
+	VK_REGICIDE = 1 << 6,
+	VK_ALL = 0x7F,
+};
+constexpr uint8_t VICTORY_COMBINED = 0x80;
+// The conditions each code stands for. Wonder, Relic and Regicide always played with
+// Conquest on; Endless is none.
+inline constexpr uint8_t victory_mask(uint8_t code) {
+	switch (code) {
+		case VICTORY_CONQUEST: return VK_CONQUEST;
+		case VICTORY_WONDER: return VK_CONQUEST | VK_WONDER;
+		case VICTORY_RELIC: return VK_CONQUEST | VK_RELIC;
+		case VICTORY_ENDLESS: return 0;
+		case VICTORY_CONQUEST_UNITS: return VK_CONQUEST_UNITS;
+		case VICTORY_CONQUEST_STRUCTURES: return VK_CONQUEST_STRUCTURES;
+		case VICTORY_REGICIDE: return VK_CONQUEST | VK_REGICIDE;
+		default: return (code & VICTORY_COMBINED) ? (uint8_t)(code & VK_ALL) : (uint8_t)VK_CONQUEST;
+	}
+}
+// The stored code for a set of conditions: the single code when one matches, else combined.
+inline constexpr uint8_t victory_code(uint8_t mask) {
+	mask &= VK_ALL;
+	for (uint8_t c = 0; c < VICTORY_COUNT; ++c)
+		if (victory_mask(c) == mask) return c;
+	return (uint8_t)(VICTORY_COMBINED | mask);
+}
+inline constexpr bool valid_victory_code(uint8_t code) {
+	return code < VICTORY_COUNT || (code & VICTORY_COMBINED);
+}
+// 0.28 victory_conditions/*.json DisabledWhenChecked: Conquest excludes the partial
+// conquests, and each partial conquest excludes Conquest and the other "all" conquest.
+inline constexpr uint8_t victory_excludes(uint8_t kind) {
+	switch (kind) {
+		case VK_CONQUEST: return VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES | VK_CONQUEST_CIVIC_CENTRES;
+		case VK_CONQUEST_UNITS: return VK_CONQUEST;
+		case VK_CONQUEST_STRUCTURES: return VK_CONQUEST | VK_CONQUEST_CIVIC_CENTRES;
+		case VK_CONQUEST_CIVIC_CENTRES: return VK_CONQUEST | VK_CONQUEST_STRUCTURES;
+		default: return 0;
+	}
+}
+
 struct BattleAlert {
 	enum Type : uint8_t {
 		ALERT_UNDER_ATTACK = 0,
@@ -1904,6 +1954,15 @@ inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
 }
 
+// 0.28 Civilians (template_unit_support_civilian Identity/Phenotype "female male"): Identity.js
+// picks one at random when the unit is created. RTS0 keeps no phenotype state; a hash of the
+// unit id picks it, so a civilian keeps one look and voice for its whole life. Every other
+// template has a single phenotype (UnitType decides it).
+inline bool civilian_is_male(uint16_t tmpl, uint32_t unit_id) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !(civ_unit_template(tmpl).flags & ROSTER_CIVILIAN)) return false;
+	return ((unit_id * 2654435761u) >> 31) != 0;
+}
+
 // The roster row of a 0 A.D. template path ("athen/infantry_javelineer_b"), or
 // CIV_UNIT_TEMPLATE_NONE.
 inline uint16_t civ_unit_template_by_id(const char *id) {
@@ -2492,6 +2551,9 @@ inline const char *civ_unit_model(uint8_t civ, uint8_t type) {
 				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, unit_type_info(t).model_id);
 			}
 		}
+		// 0.28's Macedonian male citizen is the Athenian one (units/mace/support_civilian.xml:
+		// units/athenians/citizen_{phenotype}.xml); mace_villager.glb is the pre-0.28 woman.
+		std::snprintf(names[CIV_MACEDONIANS][UNIT_VILLAGER], sizeof(names[0][0]), "athen_villager");
 		ready = true;
 	}
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;
@@ -2620,7 +2682,8 @@ enum FaunaBehavior : uint8_t {
 	FAUNA_HERDED     = 3,
 	FAUNA_CARCASS    = 4,
 	FAUNA_CORRALLED  = 5,
-	FAUNA_ROAMING    = 6  // IDLE.ROAMING
+	FAUNA_ROAMING    = 6, // IDLE.ROAMING
+	FAUNA_MOVING     = 7  // INDIVIDUAL.WALKING: an owned animal going where its owner sent it
 };
 
 } // namespace rtso

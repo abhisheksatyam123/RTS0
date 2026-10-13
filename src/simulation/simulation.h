@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 66; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 67; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -775,6 +775,12 @@ public:
 
 	// Livestock & Corrals (Corral.js)
 	void order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
+	// 0 A.D. owned livestock is a unit its owner selects and orders (UnitAI "walk",
+	// "garrison" into a corral, "stop"). Ids that aren't player's living, unpenned
+	// animals are ignored, so a command's whole selection can be passed.
+	void order_fauna_walk(uint8_t player, const uint32_t *ids, size_t count, float x, float z, uint32_t corral_id = 0);
+	void order_fauna_stop(uint8_t player, const uint32_t *ids, size_t count);
+	bool fauna_selectable_by(uint8_t player, uint32_t fauna_id) const;
 	bool cmd_breed_livestock(uint8_t player, uint32_t building_id, uint8_t ftype = FAUNA_SHEEP_TRAINABLE, int count = 1);
 	static uint8_t corral_animal_for(uint8_t civ, uint16_t ftype);
 	float livestock_train_time(uint8_t player, uint8_t ftype) const;
@@ -834,6 +840,9 @@ public:
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)
 	uint8_t victory_condition() const { return (uint8_t)victory_condition_; }
 	void set_victory_condition(uint8_t vc) { victory_condition_ = (VictoryCondition)vc; }
+	uint8_t victory_conditions() const { return victory_mask(victory_condition_); }
+	void set_victory_conditions(uint8_t mask) { victory_condition_ = (VictoryCondition)victory_code(mask); }
+	bool has_victory(uint8_t kind) const { return (victory_mask(victory_condition_) & kind) != 0; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
@@ -1456,16 +1465,6 @@ public:
 		// baseManager.js neededDefenders: emergency units still to train for a civic centre we
 		// built or captured (in what was padding, so saves keep their layout).
 		uint8_t needed_defenders = 0;
-	};
-
-	enum PetraPriorityQueue : uint8_t {
-		PETRA_QUEUE_EMERGENCY = 0, // Threat >= 7.0f: Emergency spearmen, archers, towers
-		PETRA_QUEUE_VILLAGER  = 1, // Economic boom: 35% of total pop
-		PETRA_QUEUE_MILITARY  = 2, // Military strike force: Counter-units for AttackPlan
-		PETRA_QUEUE_TECH      = 3, // Technology & Phase research
-		PETRA_QUEUE_TRADE     = 4, // Market and trader caravans
-		PETRA_QUEUE_NAVAL     = 5, // Dock and triremes on coastal/water maps
-		PETRA_QUEUE_COUNT     = 6
 	};
 
 	const std::vector<PetraBase> &petra_bases() const { return petra_bases_; }
@@ -2643,6 +2642,13 @@ private:
 	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
 	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
+	int petra_queue_base_priority(uint8_t q) const; // config.js priorities after setConfig (attackPlan.js for plan queues)
+	int petra_queue_priority(uint8_t q) const;      // with changePriority's
+	// queueManager.changePriority; `reset_when` names the queue whose next started item resets
+	// it to Config.priorities (a plan's queueToReset), PETRA_Q_COUNT for none.
+	void petra_change_priority(uint8_t q, int priority, uint8_t reset_when = PETRA_Q_COUNT);
+	void petra_check_paused_queues();               // queueManager.checkPausedQueues
+	void petra_fund_queue(uint8_t q, const float cost[RES_COUNT]); // setAccounts, then transferAccounts from the others
 	void petra_staff_foundations();
 	void petra_manage_fields();
 	float petra_gather_rate(size_t i, uint8_t kind) const;
@@ -2752,6 +2758,9 @@ private:
 	LosGrid los_;                         // per-player LOS counts and visible/explored bits (saved v42)
 	std::vector<LosSource> los_unit_src_; // the circle each unit index last added
 	std::vector<LosSource> los_bld_src_;  // the circle each buildings_ index last added
+	std::vector<LosSource> los_fauna_src_; // the circle each fauna_ index's owned animal adds (rebuilt on load)
+	float owned_fauna_vision(size_t f) const;
+	void update_fauna_los();
 
 	// Per-AI Petra state. The petra_* members above hold the state of the AI being
 	// run (PETRA_PLAYER between ticks); every other AI slot's state is parked here
