@@ -831,7 +831,8 @@ static void test_petra_cothon() {
 		s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 		const uint32_t dock = s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
 		s.spawn_building_world(-10.0f, 50.0f, BLD_MARKET, 1);
-		for (int k = 0; k < 60; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
+		// 0.28 popPhase2 is 100 at the default 200 population limit.
+		for (int k = 0; k < 120; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
 		run(s, 8.0f);
 		const Simulation::Building *cothon = nullptr;
 		for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_SUPER_DOCK) cothon = &b;

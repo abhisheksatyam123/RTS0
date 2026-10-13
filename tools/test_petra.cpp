@@ -2241,7 +2241,7 @@ static void test_decay_garrison_from_attack() {
 }
 
 // headquarters.js buildDefenses: the first sentry tower waits for fortStartTime + towerLapseTime
-// (180 + 90 s, balanced), the defenseBuilding plan holds one structure until it is paid for, and
+// (180 + 360 s at defensive 0.5), the defenseBuilding plan holds one structure until it is paid for, and
 // the next stone tower waits (1 + 0.1 * towers) * towerLapseTime after the last one was queued.
 static void test_build_defenses() {
 	auto s = std::make_unique<Simulation>();
@@ -2260,19 +2260,21 @@ static void test_build_defenses() {
 	};
 	auto fund = [&] { s->petra_queues_.accounts[Simulation::PETRA_QUEUE_MILITARY] = {5000, 5000, 5000, 5000}; };
 	s->players_[1].phase = 1;
-	at(260.0f);
+	s->petra_config_.defensive = 0.5f; // towerLapseTime 360 x (1.1 - 0.2 x 0.5)
+	s->petra_attack_mgr_.save_resources = 0;
+	at(530.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "no sentry tower before fortStartTime + towerLapseTime");
-	at(280.0f);
+	at(550.0f);
 	s->petra_build_defenses();
-	CHECK(s->petra_defense_build_.pending == BLD_SENTRY_TOWER + 1, "a sentry tower is queued after 270 s");
+	CHECK(s->petra_defense_build_.pending == BLD_SENTRY_TOWER + 1, "a sentry tower is queued after 540 s");
 	const int sentries = count(BLD_SENTRY_TOWER);
 	s->petra_build_defenses();
 	CHECK(count(BLD_SENTRY_TOWER) == sentries, "an unpaid plan waits");
 	fund();
 	s->petra_build_defenses();
 	CHECK(count(BLD_SENTRY_TOWER) == sentries + 1 && s->petra_defense_build_.pending == 0, "the paid plan is placed");
-	at(400.0f);
+	at(1000.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "medium difficulty builds one sentry tower");
 	s->players_[1].phase = 2;
@@ -2281,7 +2283,7 @@ static void test_build_defenses() {
 	fund();
 	s->petra_build_defenses();
 	CHECK(count(BLD_TOWER) == 1, "the stone tower is placed");
-	at(480.0f);
+	at(1300.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
 }
@@ -2357,7 +2359,11 @@ static void test_personality_draw() {
 	t.set_sim_seed(4242);
 	t.set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
 	assert(t.petra_config_for(2).aggressive == a2); // same seed, same draw on every peer
+	// Allied victory (no Last Man Standing) adds 0.15, locked teams 0.3 instead.
+	t.set_last_man_standing(true);
 	const float coop = t.petra_config_for(2).cooperative;
+	t.set_last_man_standing(false);
+	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.15f)) < 1e-5f);
 	t.set_lock_teams(true);
 	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
 	t.set_petra_difficulty(2, PETRA_SANDBOX);
