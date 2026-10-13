@@ -1526,11 +1526,21 @@ void Simulation::ensure_territory_regions() {
 }
 
 bool Simulation::territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia) {
+	if (b.territory_decay_rate <= 0.0f) {
+		to.fill(0.0f);
+		to_gaia = 0.0f;
+		return false;
+	}
+	// template_structure.xml decays in "neutral enemy" territory; outposts and docks only in "enemy".
+	return territory_decay_targets(b.x, b.z, b.team, b.type != BLD_OUTPOST && b.type != BLD_DOCK, to, to_gaia);
+}
+
+// TerritoryDecay.js for an entity of `team` at (x, z); `neutral`: it decays in neutral territory too.
+bool Simulation::territory_decay_targets(float x, float z, uint8_t team, bool neutral, std::array<float, MAX_PLAYERS> &to,
+		float &to_gaia) {
+	struct { float x, z; uint8_t team; } b{x, z, team};
 	to.fill(0.0f);
 	to_gaia = 0.0f;
-	if (b.territory_decay_rate <= 0.0f) return false;
-	// template_structure.xml decays in "neutral enemy" territory; outposts and docks only in "enemy".
-	const bool neutral = b.type != BLD_OUTPOST && b.type != BLD_DOCK;
 	const bool gaia = b.team >= MAX_PLAYERS;
 	ensure_territory_regions();
 	const int W = territory_grid_.w, Hh = territory_grid_.h;
@@ -7338,6 +7348,7 @@ void Simulation::tick(float dt) {
 	cc_captures_.clear();
 	tick_fauna(dt);
 	tick_scenery_attackers();
+	tick_scenery_capture();  // Capturable.js TimerTick on scenery
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	tick_relics();           // Capture the Relic catafalques (Capturable.js)
 	tick_global_auras();     // relics' and heroes' global player modifiers
@@ -21893,7 +21904,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 each scenery entity's owner and capture points per player (Capturable scenery)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -22830,9 +22841,25 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	} else if constexpr (Ar::loading) {
 		s.treasures_.clear();
 	}
-	static_assert(sizeof(S::Scenery) == 32, "Scenery is saved raw (pad[] explicit and zeroed); list a new field here");
-	if (ar.version >= 29) io_vec_pod(ar, s.scenery_, 1u << 16);
-	else if constexpr (Ar::loading) s.scenery_.clear();
+	static_assert(sizeof(S::Scenery) == 68, "Scenery is saved raw (pad[] explicit and zeroed); list a new field here");
+	if (ar.version >= S::SAVE_VERSION_SCENERY_CAPTURE) {
+		io_vec_pod(ar, s.scenery_, 1u << 16);
+	} else if (ar.version >= 29) {
+		// Older saves: the 32 bytes up to pad[]; Gaia owns it and holds every point.
+		struct SceneryV29 { uint32_t id; float x, z, angle, half_w, half_d, hp; uint8_t type, pad[3]; };
+		static_assert(sizeof(SceneryV29) == 32);
+		io_vec(ar, s.scenery_, 1u << 16, [&](S::Scenery &sc) {
+			SceneryV29 o{sc.id, sc.x, sc.z, sc.angle, sc.half_w, sc.half_d, sc.hp, sc.type, {}};
+			ar.pod(o);
+			if constexpr (Ar::loading) {
+				sc = S::Scenery{};
+				sc.id = o.id; sc.x = o.x; sc.z = o.z; sc.angle = o.angle;
+				sc.half_w = o.half_w; sc.half_d = o.half_d; sc.hp = o.hp; sc.type = o.type;
+				sc.owner = GAIA_PLAYER;
+				if (sc.type < SCENERY_TYPE_COUNT) sc.cp[MAX_PLAYERS] = (float)scenery_type_info(sc.type).capture_points;
+			}
+		});
+	} else if constexpr (Ar::loading) s.scenery_.clear();
 	static_assert(sizeof(S::FaunaStorage) == 68616, "list the new FaunaStorage field below");
 	if constexpr (Ar::loading) {
 		if (ar.version < 25) {
@@ -24512,18 +24539,22 @@ uint32_t Simulation::spawn_scenery(float x, float z, uint8_t scenery_type, float
 	sc.half_d = 0.5f * info.depth * scale;
 	sc.hp = info.max_hp;
 	sc.type = scenery_type;
+	sc.owner = GAIA_PLAYER;
+	sc.cp[MAX_PLAYERS] = (float)info.capture_points;
 	scenery_.push_back(sc);
 	if (!bulk_spawn_) rebuild_nav_grid();
 	return sc.id;
 }
 
-void Simulation::order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id) {
+void Simulation::order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture) {
 	const int32_t k = scenery_index(scenery_id);
 	if (k < 0) return;
+	const uint8_t owner = scenery_[k].owner;
 	for (size_t n = 0; n < count; ++n) {
 		const int32_t u = lookup_unit(unit_ids[n]);
 		if (u < 0 || !units_.alive[u] || units_.attack_damage[u] <= 0.0f) continue;
 		if (units_.action_state[u] == ACTION_GARRISONED || units_.team[u] >= MAX_PLAYERS) continue;
+		if (owner < MAX_PLAYERS && (owner == units_.team[u] || is_ally(units_.team[u], owner))) continue; // CanAttack
 		if (unit_combat_at(u).restricted.any_of(building_combat(BLD_TYPE_COUNT).classes)) continue; // RestrictedClasses
 		units_.action_state[u] = ACTION_ATTACK;
 		units_.has_order[u] = 1;
@@ -24533,6 +24564,7 @@ void Simulation::order_attack_scenery(const uint32_t *unit_ids, size_t count, ui
 		units_.target_resource_id[u] = 0;
 		units_.target_x[u] = scenery_[k].x;
 		units_.target_z[u] = scenery_[k].z;
+		if (allow_capture) units_.order_flags[u] = ORDER_FLAG_ALLOW_CAPTURE; // Attack.js allowCapture
 	}
 }
 
@@ -24567,14 +24599,75 @@ void Simulation::tick_scenery_attackers() {
 		units_.target_x[i] = ex;
 		units_.target_z[i] = ez;
 		units_.has_order[i] = 1;
+		const float dx = units_.pos_x[i] - ex, dz = units_.pos_z[i] - ez;
+		// Attack.js GetBestAttackAgainst: Capture when allowed, the scenery is Capturable and an
+		// enemy holds points on it (Capturable.CanCapture); the unit's Capture attack, divided by
+		// 0.1 + 0.9 x its health fraction (GetTotalAttackEffects), Reduces in its owner's favour.
+		const float strength = unit_capture_attack_at(i);
+		if ((units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) && strength > 0.0f && scenery_capturable(sc)) {
+			bool enemy_points = false;
+			for (int p = 0; p <= MAX_PLAYERS; ++p)
+				if (sc.cp[p] > 0.0f && is_hostile(units_.team[i], p < MAX_PLAYERS ? (uint8_t)p : GAIA_PLAYER)) enemy_points = true;
+			if (!enemy_points) { // it is ours now, or an ally's: done (FINDINGNEWTARGET)
+				units_.target_unit_id[i] = 0;
+				units_.action_state[i] = ACTION_IDLE;
+				units_.has_order[i] = 0;
+				continue;
+			}
+			const float reach = CAPTURE_RANGE + unit_collision_radius(units_.unit_type[i]);
+			if (dx * dx + dz * dz > reach * reach) continue;
+			units_.vel_x[i] = units_.vel_z[i] = 0.0f;
+			if (units_.attack_timer[i] > 0.0f && units_.attack_timer[i] != ATTACK_DUE) continue;
+			units_.attack_timer[i] = CAPTURE_REPEAT_S;
+			const float max_hp = scenery_type_info(sc.type).max_hp;
+			const float health = max_hp > 0.0f ? std::clamp(sc.hp / max_hp, 0.0f, 1.0f) : 1.0f;
+			capture_reduce(scenery_[k].cp, units_.team[i], strength / (0.1f + 0.9f * health));
+			scenery_check_owner(scenery_[k]);
+			continue;
+		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue;
 		const float reach = units_.attack_range[i] + 1.0f;
-		const float dx = units_.pos_x[i] - ex, dz = units_.pos_z[i] - ez;
 		const bool in_reach = dx * dx + dz * dz <= reach * reach;
 		if (!attack_ready(i, in_reach, unit_combat_at(i).prepare)) continue;
 		attack_done(i, in_reach, units_.attack_cooldown[i]);
 		scenery_[k].hp -= unit_damage_to_scenery(i);
 		if (scenery_[k].hp <= 0.0f) destroy_scenery((size_t)k, (int32_t)i);
+	}
+}
+
+// Capturable.js RegisterCapturePointsChanged: an owner left with no points loses the scenery
+// to whoever holds the most (Gaia on a tie with it).
+void Simulation::scenery_check_owner(Scenery &sc) {
+	constexpr int GAIA = MAX_PLAYERS;
+	const int owner = sc.owner < MAX_PLAYERS ? sc.owner : GAIA;
+	if (sc.cp[owner] > 0.0f) return;
+	int best = GAIA;
+	for (int t = 0; t < GAIA; ++t) if (sc.cp[t] > sc.cp[best]) best = t;
+	sc.owner = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
+}
+
+// Capturable.js TimerTick, once a second for each Capturable scenery entity: TerritoryDecay
+// (template_structure.xml: 20 a second in neutral or enemy territory, towards the territory's
+// owner or Gaia; Gaia's own in a player's land decays to that player), then RegenRate 5 for
+// its owner (Reduce in the owner's favour, Gaia's too).
+void Simulation::tick_scenery_capture() {
+	if (scenery_.empty() || ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) != 0) return;
+	constexpr float DECAY_RATE = 20.0f, REGEN_RATE = 5.0f;
+	constexpr int GAIA = MAX_PLAYERS;
+	for (Scenery &sc : scenery_) {
+		if (!scenery_capturable(sc)) continue;
+		const int owner = sc.owner < MAX_PLAYERS ? sc.owner : GAIA;
+		std::array<float, MAX_PLAYERS> to;
+		float to_gaia;
+		if (territory_decay_targets(sc.x, sc.z, sc.owner, true, to, to_gaia)) {
+			const float decay = std::min(DECAY_RATE, sc.cp[owner]);
+			sc.cp[owner] -= decay;
+			for (int p = 0; p < MAX_PLAYERS; ++p) sc.cp[p] += decay * to[p];
+			sc.cp[GAIA] += decay * to_gaia;
+			scenery_check_owner(sc);
+		}
+		capture_reduce(sc.cp, sc.owner < MAX_PLAYERS ? sc.owner : GAIA, REGEN_RATE);
+		scenery_check_owner(sc);
 	}
 }
 

@@ -162,7 +162,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 64; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 65; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 65; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -1592,7 +1593,9 @@ public:
 		float half_w, half_d; // RTS0 units along the rotated x and z axes
 		float hp;
 		uint8_t type;         // SceneryType (scenery_type_info)
-		uint8_t pad[3];
+		uint8_t owner;        // Ownership: a player, or GAIA_PLAYER (0xFE)
+		uint8_t pad[2];
+		std::array<float, MAX_PLAYERS + 1> cp; // Capturable points per player, then Gaia's
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
 	// The scenery_ index of entity `id`, or -1.
@@ -1603,7 +1606,12 @@ public:
 	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
 	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
 	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
-	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	// Capturable scenery (benches, tables, obelisks, wooden fences) is captured instead, as a
+	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
+	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
+	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
 	void tick_scenery_attackers();
 	void destroy_scenery(size_t k, int32_t killer);
@@ -2720,6 +2728,7 @@ private:
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
+	bool territory_decay_targets(float x, float z, uint8_t team, bool neutral, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: each claiming structure's
 	// TerritoryInfluence in buildings_ order, the grid size and the map extent. Same inputs, same
 	// grids, so the 1 Hz refresh skips.

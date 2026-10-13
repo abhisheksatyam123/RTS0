@@ -218,6 +218,7 @@ enum class NetCommandType : uint8_t {
 inline constexpr uint8_t NET_PARAM_QUEUED = 0x80;     // Shift: add to the order queue (0 A.D. "queued")
 inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only (targetClasses Unit)
 inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
+inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 
 struct NetCommand {
 	uint32_t client_id = 0;
