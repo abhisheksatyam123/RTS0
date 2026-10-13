@@ -205,7 +205,7 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	a.set_victory_condition(VICTORY_WONDER);
 	a.set_last_man_standing(true);
 	a.set_pop_cap(150);
-	a.set_player_pop_cap(1, 1000); // a scenario player's own PopulationLimit (v66)
+	a.set_player_pop_cap(1, 1000); // a scenario player's own PopulationLimit (v67)
 	a.set_ceasefire_seconds(300.0f);
 	a.set_explore_map(true);
 	a.set_wonder_duration(1200.0f);
