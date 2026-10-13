@@ -14750,14 +14750,14 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// worker.js startGathering over baseManager.js dropsiteSupplies: each base lists the supplies
-	// (not animals or fields) within 90 m of one of its dropsites for that resource ("nearby") and
-	// 90-180 m ("medium"), by distance to the dropsite; supplies further out are never sought.
+	// (not animals or fields) within 90 m of one of its dropsites for that resource ("nearby"),
+	// 90-180 m ("medium") and 180-360 m ("faraway"), by distance to the dropsite.
 	// Every supply caps its gatherers (worker.js IsSupplyFull: everyone's gatherers on it against
 	// its MaxGatherers, fields FIELD_MAX_GATHERERS); slots counts the free ones.
 	struct Candidate { uint32_t id; float x, z; uint8_t type; int slots, users; uint16_t land; int32_t amount; int base; };
 	std::vector<Candidate> candidates;
 	struct Listed { float d2; uint32_t c; };
-	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT]; };
+	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT], faraway[RES_COUNT]; };
 	std::vector<BaseSupplies> supplies;
 	PetraBasesMap bmap;
 	if (!reassignable_workers.empty()) {
@@ -14822,11 +14822,12 @@ void Simulation::petra_manage_economy(float dt) {
 				// maxDistResourceSquare 360 m: nearby within a quarter, medium within half.
 				if (d2 < 22.5f * 22.5f) supplies[a].nearby[type].push_back({d2, ci});
 				else if (d2 < 45.0f * 45.0f) supplies[a].medium[type].push_back({d2, ci});
+				else if (d2 < 90.0f * 90.0f) supplies[a].faraway[type].push_back({d2, ci});
 			}
 		}
 		for (auto &bs : supplies)
 			for (int t = 0; t < RES_COUNT; ++t)
-				for (auto *v : {&bs.nearby[t], &bs.medium[t]})
+				for (auto *v : {&bs.nearby[t], &bs.medium[t], &bs.faraway[t]})
 					std::stable_sort(v->begin(), v->end(), [](const Listed &a, const Listed &b) { return a.d2 < b.d2; });
 	}
 
@@ -14843,6 +14844,10 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// Assign reassignable workers as worker.js startGathering does.
+	const uint8_t my_civ = petra_ps().civ;
+	const bool allow_distant_food =
+		!(civ_can_build(my_civ, BLD_FIELD) && petra_limit_allows_building(BLD_FIELD)) &&
+		!(civ_can_build(my_civ, BLD_CORRAL) && petra_limit_allows_building(BLD_CORRAL));
 	for (size_t w = 0; w < reassignable_workers.size(); ++w) {
 		const size_t widx = reassignable_workers[w];
 		// baseManager.js reassignIdleWorkers: the most needed resource that is not (food aside)
@@ -14969,6 +14974,14 @@ void Simulation::petra_manage_economy(float dt) {
 					order_build_or_repair(&uid, 1, b.id);
 					return true;
 				}
+			// Faraway supplies, ours then the other bases' on our land; for food only when
+			// neither a field nor a corral can be built (allowDistantFood).
+			if (rt == RES_FOOD && !allow_distant_food) return false;
+			if (my_base > 0)
+				if (Candidate *c = find_supply(supplies[my_base].faraway[rt])) { gather(c); return true; }
+			for (size_t a = 1; a < supplies.size(); ++a)
+				if ((int)a != my_base && bmap.anchors[a - 1].land == wland)
+					if (Candidate *c = find_supply(supplies[a].faraway[rt])) { gather(c); return true; }
 			return false;
 		};
 		// The worker fails and the next pass picks another resource: the others, most needed
