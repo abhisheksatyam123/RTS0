@@ -3401,16 +3401,10 @@ Simulation::TradeGain Simulation::garrisoned_trade_gain(size_t trader_idx, Trade
 	return g;
 }
 
-Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
-		uint8_t trader_type) const {
-	// 0 A.D. Market.js CalculateTraderGain: the trader's owner gets
-	// round(norm * GainMultiplier * TradeGain(d^2, mapSize)), which grows with
-	// the square of the distance. When the two markets have different owners,
-	// each owner also gets that gain times its market's InternationalBonus.
-	TradeGain g;
+int Simulation::trader_gain_at(double dx, double dz, uint8_t trader_owner, uint8_t trader_type) const {
 	const double map_size = std::max(1.0, 2.0 * (double)map_half_ * TRADE_TILE_METRES);
-	const double dx = ((double)from.x - (double)to.x) * TRADE_TILE_METRES;
-	const double dz = ((double)from.z - (double)to.z) * TRADE_TILE_METRES;
+	dx *= TRADE_TILE_METRES;
+	dz *= TRADE_TILE_METRES;
 	// Trader/GainMultiplier with the civ bonus (Persian Darics +25% on land
 	// traders, Carthaginian +25% on merchant ships only), the Handicraft /
 	// Advanced Handicraft techs and an AI player's difficulty applied.
@@ -3418,7 +3412,17 @@ Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, con
 	const float civ_mult = trader_type == UNIT_MERCHANT_SHIP ? ci.ship_trade_gain_mult : ci.trade_gain_mult;
 	const double mult = TRADER_GAIN_MULTIPLIER * (double)civ_mult *
 	                    (double)tech_mods(trader_owner).trade_gain[UNIT_TRADER] * (double)ai_gather_mult(trader_owner);
-	g.trader = (int)std::lround(trade_gain_normalization(map_size) * mult * trade_gain_curve(dx * dx + dz * dz, map_size));
+	return (int)std::lround(trade_gain_normalization(map_size) * mult * trade_gain_curve(dx * dx + dz * dz, map_size));
+}
+
+Simulation::TradeGain Simulation::calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
+		uint8_t trader_type) const {
+	// 0 A.D. Market.js CalculateTraderGain: the trader's owner gets
+	// round(norm * GainMultiplier * TradeGain(d^2, mapSize)), which grows with
+	// the square of the distance. When the two markets have different owners,
+	// each owner also gets that gain times its market's InternationalBonus.
+	TradeGain g;
+	g.trader = trader_gain_at((double)from.x - (double)to.x, (double)from.z - (double)to.z, trader_owner, trader_type);
 	if (from.team != to.team) {
 		// Market.js GetInternationalBonus: the market's own InternationalBonus (0.2, plus
 		// Carthage's 0.1) with its owner's modifications: Commercial Treaty adds 0.1,
@@ -15031,6 +15035,208 @@ void Simulation::petra_set_trading_goods() {
 	cmd_set_trading_goods(petra_pid_, goods);
 }
 
+static float petra_pop_scaling_for(float pop_scaling, int max_pop);
+
+// tradeManager.js minimalGain: a route (or a new market) has to earn this per leg.
+int Simulation::petra_trade_minimal_gain() const {
+	uint16_t home = 0;
+	return petra_classified_topo(home).naval_map ? 3 : 5;
+}
+
+// config.js Economy.targetNumTraders (2 + difficulty, times popScaling), raised by
+// setTradingGoods for each tradable resource that runs low, times popScaling again.
+int Simulation::petra_target_traders() const {
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
+	int target = (int)std::lround((2.0f + (float)petra_config_.difficulty) * scaling);
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
+	const PlayerState &ps = petra_ps();
+	for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
+		const float wanted_rate = std::max(0.0f, demand[r] - ps.res[r]) / 30.0f;
+		if (ps.res[r] < 200.0f) target += std::min(5, 3 + (int)std::ceil(wanted_rate / 30.0f));
+		else if (ps.res[r] < 500.0f) target += 2;
+		else if (ps.res[r] < 1000.0f) target += 1;
+	}
+	return (int)std::lround(scaling * (float)target);
+}
+
+// PETRA.isLineInsideEnemyTerritory: a point every 70 m along the line in an enemy's territory.
+bool Simulation::petra_line_in_enemy_territory(float x1, float z1, float x2, float z2) const {
+	constexpr float STEP = 70.0f / 4.0f; // 1 unit = 4 m
+	const float dx = x2 - x1, dz = z2 - z1;
+	const int n = (int)std::floor(std::sqrt(dx * dx + dz * dz) / STEP) + 1;
+	for (int i = 1; i < n; ++i) {
+		const int owner = territory_owner_at(x1 + dx * (float)i / (float)n, z1 + dz * (float)i / (float)n);
+		if (owner > 0 && owner < MAX_PLAYERS && petra_foe((uint8_t)owner)) return true;
+	}
+	return false;
+}
+
+// tradeManager.js checkRoutes. Our markets (foundations too) against our exclusive allies'
+// markets, or against each other when no ally has one. A land route joins two markets on
+// one land that doesn't cross enemy territory, a sea route two docks on one sea (RTS0's
+// land traders only trade at markets and merchant ships only at docks).
+void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
+	out = PetraTradeRoutes();
+	uint16_t home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home);
+	auto standing = [](const Building &b) { return b.hp > 0.0f && !b.wrecked; };
+	auto finished = [](const Building &b) { return b.build_progress >= 1.0f; };
+	std::vector<const Building *> own, ally;
+	for (const Building &b : buildings_) {
+		if ((b.type != BLD_MARKET && b.type != BLD_DOCK) || !standing(b) || b.team >= MAX_PLAYERS) continue;
+		if (b.team == petra_pid_) own.push_back(&b);
+		else if (is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team)) ally.push_back(&b);
+	}
+	const bool only_ours = ally.empty();
+	const std::vector<const Building *> &others = only_ours ? own : ally;
+	const int minimal = petra_trade_minimal_gain();
+	for (const Building *m1 : own) {
+		const uint16_t land1 = m1->type == BLD_MARKET ? (topo.naval_map ? petra_building_land(*m1, &topo) : 1) : 0;
+		const uint16_t sea1 = m1->type == BLD_DOCK ? dock_sea(*m1) : 0;
+		for (const Building *m2 : others) {
+			if (only_ours && m1->id >= m2->id) continue;
+			if (m1->type != m2->type) continue;
+			PetraTradeRoute r;
+			if (m1->type == BLD_MARKET) {
+				r.land = topo.naval_map ? petra_building_land(*m2, &topo) : 1;
+				if (!land1 || r.land != land1) continue;
+				if (petra_line_in_enemy_territory(m1->x, m1->z, m2->x, m2->z)) continue;
+			} else {
+				r.sea = dock_sea(*m2);
+				if (!sea1 || r.sea != sea1) continue;
+			}
+			r.gain = trader_gain_at(m1->x - m2->x, m1->z - m2->z, petra_pid_,
+			                        m1->type == BLD_DOCK ? UNIT_MERCHANT_SHIP : UNIT_TRADER);
+			if (r.gain < minimal) continue;
+			r.source = m1->id;
+			r.target = m2->id;
+			if (finished(*m1) && finished(*m2)) {
+				out.finished.push_back(r);
+				if (r.gain >= out.best.gain) out.best = r;
+			}
+			if (r.gain >= out.potential.gain) out.potential = r;
+		}
+	}
+}
+
+const Simulation::PetraTradeRoute *Simulation::petra_route_for(const PetraTradeRoutes &routes, uint16_t access,
+		bool ship) const {
+	const PetraTradeRoute *same = nullptr, *any_land = nullptr;
+	for (const PetraTradeRoute &r : routes.finished) {
+		if (ship ? r.sea == 0 : r.land == 0) continue;
+		if ((ship ? r.sea : r.land) == access) {
+			if (!same || r.gain >= same->gain) same = &r;
+		} else if (!ship && (!any_land || r.gain >= any_land->gain)) {
+			any_land = &r;
+		}
+	}
+	return same ? same : any_land;
+}
+
+int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_gain) const {
+	out_gain = 0;
+	std::vector<const Building *> markets;
+	for (const Building &b : buildings_)
+		if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team < MAX_PLAYERS && b.team != petra_pid_ &&
+		    is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))
+			markets.push_back(&b);
+	if (markets.empty())
+		for (const Building &b : buildings_)
+			if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team == petra_pid_) markets.push_back(&b);
+	if (markets.empty() || territory_grid_.blank()) return 0; // the first market: anywhere
+
+	uint16_t home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home);
+	std::vector<uint16_t> market_land(markets.size(), 1);
+	if (topo.naval_map)
+		for (size_t m = 0; m < markets.size(); ++m) market_land[m] = petra_building_land(*markets[m], &topo);
+
+	const BuildingTypeInfo &info = building_type_info(BLD_MARKET);
+	const float half = info.footprint * GRID * 0.5f;
+	const float cell = map_half_ * 2.0f / (float)territory_grid_.w;
+	// headquarters.js borderMap narrowFrontier: within 45 m of land that isn't ours.
+	const float inside = 45.0f / 4.0f;
+	const float around[8][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {0.7071f, 0.7071f}, {-0.7071f, 0.7071f},
+	                            {0.7071f, -0.7071f}, {-0.7071f, -0.7071f}};
+	float best_val = -1.0f, best_d2 = 0.0f;
+	bool found = false;
+	for (int tz = 0; tz < territory_grid_.h; ++tz) {
+		for (int tx = 0; tx < territory_grid_.w; ++tx) {
+			if (territory_grid_.at(tx, tz) != petra_pid_ + 1) continue;
+			const float wx = -map_half_ + ((float)tx + 0.5f) * cell, wz = -map_half_ + ((float)tz + 0.5f) * cell;
+			const uint16_t land = topo.naval_map ? petra_land_at(wx, wz) : 1;
+			if (topo.naval_map && !topo.land_region(land)) continue;
+			float max_val = 0.0f;
+			for (size_t m = 0; m < markets.size(); ++m) {
+				if (market_land[m] != land) continue;
+				const float dx = markets[m]->x - wx, dz = markets[m]->z - wz;
+				const float d2 = dx * dx + dz * dz;
+				if (d2 <= max_val || petra_line_in_enemy_territory(markets[m]->x, markets[m]->z, wx, wz)) continue;
+				max_val = d2;
+			}
+			if (max_val <= 0.0f || max_val < best_val) continue;
+			bool frontier = false;
+			for (const auto &a : around) {
+				const float px = wx + a[0] * inside, pz = wz + a[1] * inside;
+				if (std::abs(px) > map_half_ || std::abs(pz) > map_half_) continue; // outside the map
+				if (territory_owner_at(px, pz) != petra_pid_) { frontier = true; break; }
+			}
+			if (frontier) continue;
+			const int cx = (int)std::floor((wx - half) / GRID), cz = (int)std::floor((wz - half) / GRID);
+			if (!petra_can_place(cx, cz, info.footprint, BLD_MARKET) || !is_position_safe(wx, wz, 6.0f)) continue;
+			best_val = max_val;
+			best_d2 = max_val;
+			out_x = wx;
+			out_z = wz;
+			found = true;
+		}
+	}
+	if (!found) return 0;
+	out_gain = trader_gain_at(std::sqrt(best_d2), 0.0, petra_pid_, UNIT_TRADER);
+	if (out_gain < petra_trade_minimal_gain()) {
+		// Too little to gain, except for our first market.
+		for (const Building &b : buildings_)
+			if (b.type == BLD_MARKET && b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked) return -1;
+	}
+	return 1;
+}
+
+// queueplanBuilding.js for a Market: at findMarketLocation's spot, anywhere near home
+// when there is nothing to measure from.
+uint32_t Simulation::petra_build_market(float home_x, float home_z, uint8_t queue) {
+	float x = 0.0f, z = 0.0f;
+	int gain = 0;
+	const int where = petra_find_market_location(x, z, gain);
+	if (where < 0) return 0;
+	if (where == 0) return petra_place_building(BLD_MARKET, home_x, home_z, 4, 16, queue);
+	const float half = building_type_info(BLD_MARKET).footprint * GRID * 0.5f;
+	return petra_place_building(BLD_MARKET, x - half, z - half, 0, 2, queue);
+}
+
+// tradeManager.js prospectForNewMarket and isNewMarketWorth: one more market when its best
+// spot earns at least minimalGain and clearly more than the best route we could have now.
+void Simulation::petra_prospect_market(const PetraTradeRoutes &routes) {
+	if (petra_ps().phase < 2 || !civ_can_build(civ_of(petra_pid_), BLD_MARKET) || !petra_limit_allows_building(BLD_MARKET))
+		return;
+	bool any = false;
+	for (const Building &b : buildings_) {
+		if (b.type != BLD_MARKET || b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
+		if (b.team == petra_pid_ && b.build_progress < 1.0f) return; // one market at a time
+		if (b.team == petra_pid_ || (is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))) any = true;
+	}
+	if (!any) return;
+	float x = 0.0f, z = 0.0f;
+	int gain = 0;
+	if (petra_find_market_location(x, z, gain) <= 0) return;
+	if (gain < petra_trade_minimal_gain()) return;
+	const int potential = routes.potential.gain;
+	if (potential > 0 && gain < 2 * potential && gain < potential + 20) return;
+	const float half = building_type_info(BLD_MARKET).footprint * GRID * 0.5f;
+	petra_place_building(BLD_MARKET, x - half, z - half, 0, 2, PETRA_QUEUE_TRADE);
+}
+
 void Simulation::petra_manage_trading(float dt) {
 	petra_trade_timer_ += dt;
 	if (petra_trade_timer_ < 2.0f) return;
@@ -15038,199 +15244,85 @@ void Simulation::petra_manage_trading(float dt) {
 
 	if (petra_ps().phase < 2) return;
 	petra_perform_barter();
-	// Every 60 AI turns in 0 A.D.; here every 20 s of game time while a route exists.
-	if (has_trade_route(petra_pid_) && (int)(petra_timer_ / 20.0f) != (int)((petra_timer_ - 2.0f) / 20.0f))
-		petra_set_trading_goods();
-	// tradeManager.js update: researchTradeBonus every 20 AI turns (4 s) with two traders.
-	if ((int)(petra_timer_ / 4.0f) != (int)((petra_timer_ - 2.0f) / 4.0f)) {
-		int traders = 0;
-		for (size_t i = 0; i < units_.count && traders < 2; ++i)
-			if (units_.alive[i] && units_.team[i] == petra_pid_ && unit_is_trader(units_.unit_type[i])) ++traders;
-		if (traders >= 2) petra_research_trade_bonus();
-	}
+	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
 
-	// 1. Build Market if AI has none, or build secondary Market at forward base
-	int market_count = 0;
-	std::vector<uint32_t> market_ids;
-	for (const auto &b : buildings_) {
-		if (b.team == petra_pid_ && b.type == BLD_MARKET) {
-			market_count++;
-			if (b.build_progress >= 1.0f) market_ids.push_back(b.id);
-		}
-	}
+	PetraTradeRoutes routes;
+	petra_check_routes(routes);
+	auto crossed = [&](float period) { return (int)(petra_timer_ / period) != (int)((petra_timer_ - 2.0f) / period); };
 
-	// Allied markets we could trade with (tradeManager.js counts allies' markets as route ends).
-	std::vector<const Building *> ally_markets;
-	for (const auto &b : buildings_)
-		if (b.team != petra_pid_ && b.type == BLD_MARKET && b.team < MAX_PLAYERS && is_ally(petra_pid_, b.team) &&
-		    can_trade_at(petra_pid_, b))
-			ally_markets.push_back(&b);
-
-	if (market_count == 0 && !ally_markets.empty()) {
-		// findMarketLocation: in our territory, as far as we can get from the
-		// allied market we would trade with (the gain grows with distance).
-		float base_x = 36.0f, base_z = 36.0f;
-		if (const auto *pbase = get_primary_petra_base()) {
-			base_x = pbase->x; base_z = pbase->z;
-		}
-		const int start_cx = (int)(base_x / GRID), start_cz = (int)(base_z / GRID);
-		int best_cx = 0, best_cz = 0;
-		float best_d2 = -1.0f;
-		for (int dx = -14; dx <= 14; ++dx) {
-			for (int dz = -14; dz <= 14; ++dz) {
-				if (std::abs(dx) < 4 && std::abs(dz) < 4) continue;
-				const int cx = start_cx + dx, cz = start_cz + dz;
-				const float wx = cx * GRID, wz = cz * GRID;
-				if (territory_owner_at(wx, wz) != petra_pid_ || !petra_can_place(cx, cz, 2, BLD_MARKET) ||
-				    !is_position_safe(wx, wz, 6.0f)) continue;
-				float far2 = 0.0f;
-				for (const Building *m : ally_markets)
-					far2 = std::max(far2, (m->x - wx) * (m->x - wx) + (m->z - wz) * (m->z - wz));
-				if (far2 > best_d2) { best_d2 = far2; best_cx = cx; best_cz = cz; }
-			}
-		}
-		if (best_d2 >= 0.0f && petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
-			uint32_t bid = spawn_building(best_cx, best_cz, BLD_MARKET, petra_pid_, 0.0f);
-			auto idle_workers = get_idle_workers(petra_pid_);
-			if (!idle_workers.empty())
-				petra_order_builders(idle_workers, 3, bid);
-		}
-	} else if (market_count == 0) {
-		float base_x = 36.0f, base_z = 36.0f;
-		if (const auto *pbase = get_primary_petra_base()) {
-			base_x = pbase->x; base_z = pbase->z;
-		}
-		int start_cx = (int)(base_x / GRID);
-		int start_cz = (int)(base_z / GRID);
-		bool placed = false;
-		for (int r = 4; r <= 9 && !placed; ++r) {
-			for (int dx = -r; dx <= r && !placed; ++dx) {
-				for (int dz = -r; dz <= r && !placed; ++dz) {
-					if (std::abs(dx) != r && std::abs(dz) != r) continue;
-					int cx = start_cx + dx;
-					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2, BLD_MARKET) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
-					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
-						auto idle_workers = get_idle_workers(petra_pid_);
-						if (!idle_workers.empty()) {
-							petra_order_builders(idle_workers, 3, bid);
-						}
-						placed = true;
-					}
-				}
-			}
-		}
-	} else if (market_count == 1 && ally_markets.empty() && petra_bases_.size() >= 2) {
-		// Build secondary market at forward base to establish optimal trade route
-		const PetraBase &fwd = petra_bases_[1];
-		int start_cx = (int)(fwd.x / GRID);
-		int start_cz = (int)(fwd.z / GRID);
-		bool placed = false;
-		for (int r = 3; r <= 8 && !placed; ++r) {
-			for (int dx = -r; dx <= r && !placed; ++dx) {
-				for (int dz = -r; dz <= r && !placed; ++dz) {
-					if (std::abs(dx) != r && std::abs(dz) != r) continue;
-					int cx = start_cx + dx;
-					int cz = start_cz + dz;
-					if (petra_can_place(cx, cz, 2, BLD_MARKET) && is_position_safe(cx * GRID, cz * GRID, 6.0f) &&
-					    petra_try_pay(PETRA_QUEUE_TRADE, 0.0f, 200.0f, 100.0f, 0.0f)) {
-						uint32_t bid = spawn_building(cx, cz, BLD_MARKET, petra_pid_, 0.0f);
-						auto idle_workers = get_idle_workers(petra_pid_);
-						if (!idle_workers.empty()) {
-							petra_order_builders(idle_workers, 3, bid);
-						}
-						placed = true;
-					}
-				}
-			}
-		}
-	}
-
-	// 2. Train UNIT_TRADER caravans at Market
-	int ai_traders = 0;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_TRADER) {
-			ai_traders++;
-		}
-	}
-
-	int target_traders = petra_config_.target_num_traders;
-	if (petra_ps().phase >= 3) target_traders += 1;
-	// Traders need two markets to trade between (own or allied); without a route they would idle.
-	if (ai_traders < target_traders && !market_ids.empty() && has_trade_route(petra_pid_) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
-		const uint16_t tmpl = civ_default_template(civ_of(petra_pid_), UNIT_TRADER);
-		auto bit = building_id_to_idx_.find(market_ids[0]);
-		if (tmpl != CIV_UNIT_TEMPLATE_NONE && bit != building_id_to_idx_.end() && buildings_[bit->second].queue.size() < 3)
-			petra_train_template(PETRA_QUEUE_TRADE, market_ids[0], tmpl);
-	}
-
-	// 2b. tradeManager.js on a sea: with two docks on one sea, merchant ships trade
-	// between them. Land routes (step 3) are scored separately, so ships only get
-	// their own block: train up to the trader target, and send idle ones out.
-	if (has_trade_route(petra_pid_, UNIT_MERCHANT_SHIP)) {
-		int ai_ships = 0;
-		for (size_t i = 0; i < units_.count; ++i)
-			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_MERCHANT_SHIP) ai_ships++;
-		for (const Building &b : buildings_) // ships already queued count toward the target
-			if (b.team == petra_pid_ && b.type == BLD_DOCK)
-				for (const ProductionOrder &o : b.queue) if (o.unit_type == UNIT_MERCHANT_SHIP) ai_ships++;
-		const Building *dock = nullptr;
-		for (const Building &b : buildings_)
-			if (b.team == petra_pid_ && can_trade_at(petra_pid_, b, UNIT_MERCHANT_SHIP) && dock_sea(b) && b.queue.size() < 3) { dock = &b; break; }
-		const uint16_t stmpl = civ_default_template(civ_of(petra_pid_), UNIT_MERCHANT_SHIP);
-		if (dock && stmpl != CIV_UNIT_TEMPLATE_NONE && ai_ships < target_traders && pop_current(petra_pid_) < pop_max(petra_pid_))
-			petra_train_template(PETRA_QUEUE_TRADE, dock->id, stmpl);
+	if (routes.best.gain > 0) {
+		// updateTrader and checkTrader: a trader on another route than the best one for
+		// its land (or sea) is moved to it, an idle one is given it; with none, a land
+		// trader heads back to its base.
+		uint16_t home_land = 0;
+		const PetraNavalTopo &topo = petra_classified_topo(home_land);
+		const PetraBase *pbase = get_primary_petra_base();
+		int traders = 0, sea_traders = 0;
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_MERCHANT_SHIP) continue;
-			uint32_t uid = units_.id[i];
-			if (units_.action_state[i] == ACTION_IDLE || trader_routes_.find(uid) == trader_routes_.end())
-				order_trade_auto(&uid, 1);
+			if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_trader(units_.unit_type[i])) continue;
+			const bool ship = units_.unit_type[i] == UNIT_MERCHANT_SHIP;
+			++traders;
+			if (ship) ++sea_traders;
+			const uint32_t uid = units_.id[i];
+			if (units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+			const uint16_t access = ship ? petra_ship_sea(i) : (topo.naval_map ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 1);
+			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
+			if (r && !ship && r->land != access) r = nullptr; // needs a transport (not ported)
+			auto cur = trader_routes_.find(uid);
+			const bool has_route = cur != trader_routes_.end();
+			const bool idle = units_.action_state[i] == ACTION_IDLE;
+			if (has_route && r) {
+				const auto &[a, b] = cur->second;
+				if (units_.action_state[i] == ACTION_TRADE && ((a == r->source && b == r->target) || (a == r->target && b == r->source))) continue;
+			}
+			if (!r) {
+				if (has_route && !ship && pbase) {
+					const float dx = pbase->x - units_.pos_x[i], dz = pbase->z - units_.pos_z[i];
+					if (dx * dx + dz * dz > 15.0f / 4.0f * 15.0f / 4.0f) cmd_move(&uid, 1, pbase->x, pbase->z);
+				}
+				continue;
+			}
+			if (!has_route && !idle) continue; // busy with something else (a player order, fleeing)
+			auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
+			if (ita == building_id_to_idx_.end() || itb == building_id_to_idx_.end()) continue;
+			const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
+			const float px = units_.pos_x[i], pz = units_.pos_z[i];
+			const bool nearer_source = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz) <=
+			                           (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz);
+			if (nearer_source) order_trade(&uid, 1, s.id, t.id);
+			else order_trade(&uid, 1, t.id, s.id);
 		}
+
+		// trainMoreTraders: one at a time, up to targetNumTraders with at least half of
+		// them of the best route's kind.
+		bool queued = false;
+		for (const Building &b : buildings_) {
+			if (b.team != petra_pid_ || queued) continue;
+			for (const ProductionOrder &o : b.queue)
+				if (!o.is_tech() && unit_is_trader(o.unit_type)) { queued = true; break; }
+		}
+		const int target = petra_target_traders();
+		const bool sea_route = routes.best.sea != 0;
+		const int of_kind = sea_route ? sea_traders : traders - sea_traders;
+		if (!queued && !(traders >= target && of_kind >= target / 2) && pop_current(petra_pid_) < pop_max(petra_pid_)) {
+			const uint8_t kind = sea_route ? UNIT_MERCHANT_SHIP : UNIT_TRADER;
+			const uint16_t tmpl = civ_default_template(civ_of(petra_pid_), kind);
+			const Building *at = nullptr;
+			for (uint32_t id : {routes.best.source, routes.best.target}) {
+				auto it = building_id_to_idx_.find(id);
+				if (it != building_id_to_idx_.end() && buildings_[it->second].team == petra_pid_) { at = &buildings_[it->second]; break; }
+			}
+			if (at && tmpl != CIV_UNIT_TEMPLATE_NONE) petra_train_template(PETRA_QUEUE_TRADE, at->id, tmpl);
+		}
+
+		// researchTradeBonus every 20 AI turns (4 s) with two traders; setTradingGoods every 60 (12 s).
+		if (traders >= 2 && crossed(4.0f)) petra_research_trade_bonus();
+		if (crossed(12.0f)) petra_set_trading_goods();
 	}
 
-	// 3. tradeManager.js checkRoutes: the best route starts at one of our
-	// markets and ends at ours or an ally's, scored by what we earn per leg:
-	// the trader's gain plus the 20% international bonus our market gets on a
-	// route with an ally.
-	auto building_of = [&](uint32_t id) -> const Building * {
-		auto it = building_id_to_idx_.find(id);
-		return it == building_id_to_idx_.end() ? nullptr : &buildings_[it->second];
-	};
-	auto route_gain = [&](const Building &m1, const Building &m2) {
-		const TradeGain g = calculate_trade_gain(m1, m2, petra_pid_);
-		return g.trader + (m1.team == petra_pid_ ? g.market1 : 0) + (m2.team == petra_pid_ ? g.market2 : 0);
-	};
-	const Building *best_a = nullptr, *best_b = nullptr;
-	int best_gain = 0;
-	for (const auto &m1 : buildings_) {
-		if (m1.team != petra_pid_ || !can_trade_at(petra_pid_, m1)) continue;
-		for (const auto &m2 : buildings_) {
-			if (&m2 == &m1 || !can_trade_at(petra_pid_, m2)) continue;
-			if (m2.team != petra_pid_ && !is_ally(petra_pid_, m2.team)) continue;
-			const int gain = route_gain(m1, m2);
-			if (gain > best_gain) { best_gain = gain; best_a = &m1; best_b = &m2; }
-		}
-	}
-	if (!best_a) return;
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_TRADER) continue;
-		uint32_t uid = units_.id[i];
-		auto rt = trader_routes_.find(uid);
-		bool reassign = units_.action_state[i] == ACTION_IDLE || rt == trader_routes_.end();
-		if (!reassign) {
-			const Building *a = building_of(rt->second.first), *b = building_of(rt->second.second);
-			// Move to a clearly better route (an ally's market further away).
-			reassign = !a || !b || !can_trade_at(petra_pid_, *a) || !can_trade_at(petra_pid_, *b) ||
-			           (float)route_gain(*a, *b) < 0.8f * (float)best_gain;
-		}
-		if (!reassign) continue;
-		const Building *a = best_a, *b = best_b;
-		const float px = units_.pos_x[i], pz = units_.pos_z[i];
-		if ((b->x - px) * (b->x - px) + (b->z - pz) * (b->z - pz) < (a->x - px) * (a->x - px) + (a->z - pz) * (a->z - pz))
-			std::swap(a, b); // start at the nearer end
-		order_trade(&uid, 1, a->id, b->id);
-	}
+	// routeProspection: 0 A.D. looks again when a market is built, destroyed or captured,
+	// diplomacy changes or our territory grows; here every 20 s.
+	if (crossed(20.0f)) petra_prospect_market(routes);
 }
 
 // accessibility.js for navalManager.js: the land (PASS_INFANTRY) and sea
@@ -16614,7 +16706,10 @@ void Simulation::petra_manage_research(float dt) {
 		if (cls == 1) {
 			for (uint8_t t : kVillage) if (petra_place_building(t, home->x, home->z, 3, 16, PETRA_QUEUE_TECH)) return;
 		} else {
-			for (uint8_t t : kTown) if (!have_building(t) && petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_TECH)) return;
+			for (uint8_t t : kTown)
+				if (!have_building(t) && (t == BLD_MARKET ? petra_build_market(home->x, home->z, PETRA_QUEUE_TECH)
+				                                          : petra_place_building(t, home->x, home->z, 4, 16, PETRA_QUEUE_TECH)))
+					return;
 			petra_place_building(BLD_TEMPLE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
 		}
 	};
@@ -16629,7 +16724,7 @@ void Simulation::petra_manage_research(float dt) {
 		const int cap = pop_cap_ > 0 ? pop_cap_ : 200;
 		const int pop_for_forge = std::min(std::max((int)std::floor(65.0f * petra_config_.pop_scaling), 30), cap / 2);
 		if (!have_building(BLD_MARKET))
-			petra_place_building(BLD_MARKET, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
+			petra_build_market(home->x, home->z, PETRA_QUEUE_TECH);
 		else if (pop >= pop_for_forge && !have_building(BLD_FORGE))
 			petra_place_building(BLD_FORGE, home->x, home->z, 4, 16, PETRA_QUEUE_TECH);
 	}
