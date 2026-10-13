@@ -416,6 +416,9 @@ public:
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
 	float rank_melee_armor(size_t i) const;
 	float unit_capture_attack_at(size_t i) const;
+	bool loot_denied_unit(size_t i) const;
+	bool loot_denied_building(const Building &b) const;
+	float unit_loot_xp(size_t victim) const;
 	// Read-only, for the renderer: unit i is attacking a structure it captures
 	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
 	bool unit_capturing(size_t i) const;
@@ -437,6 +440,9 @@ public:
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
 			uint8_t flora = 0);
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
+	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
+	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
+	void set_resource_amount(uint32_t res_id, int32_t amount);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);
@@ -1842,10 +1848,14 @@ private:
 	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
-	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	// UnitAI "Attacked" for an animal; the attacker is a unit or a structure (its arrows).
+	void fauna_attacked(size_t f, uint32_t attacker_id, bool melee = false);
+	// Where the unit or (standing) structure an animal flees from is; false if it is gone.
+	bool fauna_threat_pos(uint32_t id, float &x, float &z) const;
 	void fauna_start_attack(size_t f, uint32_t target);  // UnitAI COMBAT for an animal (PrepareTime)
 	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
 	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
+	static constexpr float SLAUGHTER_PREPARE = 0.9f; // Attack/Slaughter PrepareTime 900 ms
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
@@ -1900,6 +1910,9 @@ private:
 	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void fire_at_fauna(size_t i, size_t f);
 	void fauna_killed(size_t f, size_t i);
+	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
+	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
+	uint32_t spawn_carcass(size_t f);
 	bool projectile_lands_in(const Projectile &p, const Building &b) const;
 	int32_t projectile_hit_structure(const Projectile &p) const;
 	void projectile_hits_structure(const Projectile &p, Building &b);
