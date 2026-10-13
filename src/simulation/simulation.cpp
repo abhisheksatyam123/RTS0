@@ -2586,10 +2586,11 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	const uint8_t civ = players_[pid].civ;
 	const uint16_t allies = ally_civ_mask(pid);
 	// Cost/Resources technologies (e.g. Hippocratic Oath's free healers) by the template's own classes.
-	const float *tech_cost = tmpl < CIV_UNIT_TEMPLATE_COUNT ? tech_mods(pid).tmpl[tmpl].cost : nullptr;
+	// ModifiersManager: the multipliers, then the additions (Nastasen's -50 wood and metal).
+	const TechMods::Template *tm = tmpl < CIV_UNIT_TEMPLATE_COUNT ? &tech_mods(pid).tmpl[tmpl] : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
-		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
-		                    (tech_cost ? tech_cost[r] : 1.0f));
+		out[r] = std::round(std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
+		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f)));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -3061,6 +3062,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
 		for (float &c : tm.cost) c = 1.0f;
+		for (float &c : tm.cost_add) c = 0.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
@@ -3171,7 +3173,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_RANGE: if (ranged) apply(e.op == TOP_MUL ? tm.range_mul : tm.range); break;
 					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
-						apply(tm.cost[cost_res]); break;
+						if (e.op == TOP_ADD) tm.cost_add[cost_res] += e.value;
+						else apply(tm.cost[cost_res]);
+						break;
 					default: break;
 				}
 			}
@@ -5287,7 +5291,7 @@ int Simulation::ship_template_capacity(uint8_t unit_type, uint16_t tmpl) {
 	const char *id = civ_unit_template(tmpl).id;
 	const char *slash = std::strrchr(id, '/');
 	const char *name = slash ? slash + 1 : id;
-	if (std::strcmp(name, "ship_fire") == 0) return 0;
+	if (std::strncmp(name, "ship_fire", 9) == 0) return 0; // ship_fire and ship_fire_fire
 	if (std::strcmp(name, "ship_scout") == 0) return 10;
 	if (std::strcmp(name, "ship_siege") == 0) return 50;
 	return TRANSPORT_CAPACITY; // ship_arrow, ship_ram, ship_bireme...
@@ -6605,8 +6609,14 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 
 void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim) {
 	if (victim >= units_.count) return;
-	collect_loot(looter_id, looter_player, loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
-			loot_rank_multiplier(units_.rank[victim]), units_.res_type_carried[victim], units_.carry[victim]);
+	LootInfo loot = loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]);
+	// Sacrificial Ritual (cost_healer.json): the victim's owner's healers yield Loot/metal 0.
+	const uint8_t owner = units_.team[victim];
+	if (owner < MAX_PLAYERS && players_[owner].has_tech(TECH_COST_HEALER) &&
+			unit_is_healer(units_.tmpl[victim], units_.unit_type[victim]))
+		loot.metal = 0;
+	collect_loot(looter_id, looter_player, loot, loot_rank_multiplier(units_.rank[victim]),
+			units_.res_type_carried[victim], units_.carry[victim]);
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
@@ -11297,8 +11307,9 @@ void Simulation::eject_corral_animals(const Building &b) {
 }
 
 // 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
-// they die. Of the trained ones that is mixins/fireship.xml (brit, gaul and iber
-// ship_fire): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
+// they die. Of the trained ones that is mixins/fireship.xml, on the ignited fire ships
+// (brit, gaul and iber ship_fire_fire, which ship_fire turns into by its Ignition
+// upgrade): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
 // has one too but no civ trains it.
 static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {20.0f * AREA_DAMAGE_SCALE, 500.0f, true};
 
@@ -11309,24 +11320,30 @@ static bool template_is(uint16_t tmpl, const char *name) {
 	return std::strcmp(slash ? slash + 1 : id, name) == 0;
 }
 
-// The fire ship templates (template_unit_ship_fire.xml), looked up once: the
-// Health regen loop asks this for every unit every tick.
-static bool is_fire_ship(uint16_t tmpl) {
+// The ignited fire ship templates (units/{civ}/ship_fire_fire, mixins/fireship.xml),
+// looked up once: the Health regen loop asks this for every unit every tick. A fire
+// ship as trained doesn't burn until the player ignites it (Upgrade/Ignition).
+static bool is_ignited_fire_ship(uint16_t tmpl) {
 	static const auto table = [] {
 		std::array<bool, CIV_UNIT_TEMPLATE_COUNT> t{};
-		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire");
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire_fire");
 		return t;
 	}();
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT && table[tmpl];
 }
 
+// Either form of the fire ship (template_unit_ship_fire.xml: Repairable disable).
+static bool is_fire_ship(uint16_t tmpl) {
+	return template_is(tmpl, "ship_fire") || is_ignited_fire_ship(tmpl);
+}
+
 const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
-	return is_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
+	return is_ignited_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
 }
 
 // Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
 float Simulation::unit_template_regen(size_t i) const {
-	return is_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
+	return is_ignited_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
 }
 
 // DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the
@@ -23124,6 +23141,31 @@ uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
 
 // UnitAI Order.CollectTreasure: walk to the treasure. Ships, war dogs and animals have no
 // TreasureCollector (template_unit_ship.xml, template_unit_dog.xml disable it).
+// 0.28 TreasureCollector MaxDistance: template_unit.xml 2 m; template_unit_ship.xml 12 m for
+// every ship (merchants, arrow and ram warships, fire ships), fishing boats 5, scout ships 7,
+// siege warships 24; template_unit_dog, template_unit_siege (siege towers too) and
+// template_unit_catafalque disable it. A contact reach, x0.6 like melee ranges, plus 1 for
+// the treasure's footprint.
+float Simulation::treasure_reach(size_t i) const {
+	const uint8_t ut = units_.unit_type[i];
+	if (ut == UNIT_WAR_DOG || ut == UNIT_CATAFALQUE || unit_is_siege_engine(ut)) return -1.0f;
+	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(units_.tmpl[i]).flags & ROSTER_SIEGE_TOWER)) return -1.0f;
+	float m = 2.0f;
+	if (ut == UNIT_FISHING_BOAT) m = 5.0f;
+	else if (unit_is_ship(ut)) {
+		m = 12.0f;
+		const uint16_t tmpl = units_.tmpl[i];
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+			const char *id = civ_unit_template(tmpl).id;
+			const char *slash = std::strrchr(id, '/');
+			const char *name = slash ? slash + 1 : id;
+			if (std::strcmp(name, "ship_scout") == 0) m = 7.0f;
+			else if (std::strcmp(name, "ship_siege") == 0) m = 24.0f;
+		}
+	}
+	return m * 0.6f + 1.0f;
+}
+
 void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued) {
 	const Treasure *t = nullptr;
 	for (const auto &tr : treasures_) if (tr.id == treasure_id) t = &tr;
@@ -23132,8 +23174,7 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 	for (size_t k = 0; k < count; ++k) {
 		int32_t u = lookup_unit(unit_ids[k]);
 		if (u < 0 || !units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
-		const uint8_t ut = units_.unit_type[u];
-		if (unit_is_ship(ut) || ut == UNIT_WAR_DOG || units_.action_state[u] == ACTION_GARRISONED) continue;
+		if (treasure_reach((size_t)u) < 0.0f || units_.action_state[u] == ACTION_GARRISONED) continue;
 		collectors.push_back(unit_ids[k]);
 	}
 	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.target = treasure_id; o.x = t->x; o.z = t->z;
@@ -23156,7 +23197,6 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 // CollectTime to collect; Treasure.Reward gives its owner the resources and the treasure is gone.
 void Simulation::tick_treasures(float dt) {
 	if (treasures_.empty()) return;
-	const float reach = 2.0f * 0.6f + 1.0f;
 	const size_t n = units_.count;
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
 	struct NextTreasure { uint32_t uid; float x, z; };
@@ -23170,7 +23210,8 @@ void Simulation::tick_treasures(float dt) {
 			Treasure &t = treasures_[k];
 			if (t.id != tid) continue;
 			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
-			if (dx * dx + dz * dz > reach * reach) break;
+			const float reach = treasure_reach(i);
+			if (reach < 0.0f || dx * dx + dz * dz > reach * reach) break;
 			// One collector at a time; another in range takes over if it stops.
 			if (t.collector_id == 0 || lookup_unit(t.collector_id) < 0 || !units_.alive[lookup_unit(t.collector_id)] ||
 			    units_.target_unit_id[lookup_unit(t.collector_id)] != t.id) {

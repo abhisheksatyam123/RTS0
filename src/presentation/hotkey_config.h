@@ -38,6 +38,7 @@ public:
 	void reload();
 	// Canonical key name of a key or mouse-button event ("ctrl", "f5", "mouseleft"); "" if none.
 	String event_key_name(const Ref<InputEvent> &event) const;
+	PackedStringArray fired(const Ref<InputEvent> &event) const;
 	// Formats held keys as a combination, modifiers first ("Ctrl+Shift+A").
 	String format_keys(const PackedStringArray &keys) const;
 	// Engine.HotkeyIsPressed(name): every key of one of its combinations is down.
