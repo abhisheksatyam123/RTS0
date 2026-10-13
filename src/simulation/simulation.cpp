@@ -14749,20 +14749,20 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
-	// Safe, non-empty resources with their squared distance to our nearest
-	// dropsite, computed once per pass rather than once per idle worker.
-	// Every supply caps its gatherers (worker.js IsSupplyFull: everyone's gatherers on it
-	// against its MaxGatherers, fields FIELD_MAX_GATHERERS); slots counts the free ones.
-	struct Candidate { uint32_t id; float x, z, d2_drop; uint8_t type; int slots; uint16_t land; };
+	// worker.js startGathering over baseManager.js dropsiteSupplies: each base lists the supplies
+	// (not animals or fields) within 90 m of one of its dropsites for that resource ("nearby") and
+	// 90-180 m ("medium"), by distance to the dropsite; supplies further out are never sought.
+	// Every supply caps its gatherers (worker.js IsSupplyFull: everyone's gatherers on it against
+	// its MaxGatherers, fields FIELD_MAX_GATHERERS); slots counts the free ones.
+	struct Candidate { uint32_t id; float x, z; uint8_t type; int slots, users; uint16_t land; int32_t amount; int base; };
 	std::vector<Candidate> candidates;
-	// On a naval map a worker gathers on its own land (worker.js startGathering
-	// keeps to the base's accessIndex) and drops at a dropsite there.
-	bool naval_map = false;
+	struct Listed { float d2; uint32_t c; };
+	struct BaseSupplies { std::vector<Listed> nearby[RES_COUNT], medium[RES_COUNT]; };
+	std::vector<BaseSupplies> supplies;
+	PetraBasesMap bmap;
 	if (!reassignable_workers.empty()) {
-		uint16_t home_land = 0;
-		naval_map = petra_classified_topo(home_land).naval_map;
-	}
-	if (!reassignable_workers.empty()) {
+		petra_bases_map(bmap);
+		supplies.resize(bmap.anchors.size() + 1);
 		std::unordered_map<uint32_t, int> field_users, supply_users;
 		for (size_t i = 0; i < units_.count; ++i) {
 			const uint32_t rid = units_.target_resource_id[i];
@@ -14773,44 +14773,61 @@ void Simulation::petra_manage_economy(float dt) {
 				supply_users[rid]++;
 			}
 		}
-		struct Drop { float x, z; uint16_t land; };
+		// Our finished dropsites, by base, with the resources each takes.
+		struct Drop { float x, z; int base; uint8_t takes; };
 		std::vector<Drop> drops;
 		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && b.hp > 0 &&
-			    (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK))
-				drops.push_back({b.x, b.z, naval_map ? petra_building_land(b) : (uint16_t)0});
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			uint8_t takes = 0;
+			if (is_civic_centre(b.type) || civ_building_is_dropsite(b.type)) takes = 0xF;
+			else if (b.type == BLD_STOREHOUSE) takes = (1 << RES_WOOD) | (1 << RES_STONE) | (1 << RES_GOLD);
+			else if (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) takes = 1 << RES_FOOD;
+			if (!takes) continue;
+			const int base = bmap.at(b.x, b.z, map_half_);
+			if (base > 0) drops.push_back({b.x, b.z, base, takes});
 		}
-		for (const auto &base : petra_bases_)
-			drops.push_back({base.x, base.z, naval_map ? petra_land_at(base.x, base.z) : (uint16_t)0});
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
-			if (resources_.subtype[r] == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
+			const uint8_t sub = resources_.subtype[r];
+			if (sub == RES_SUB_FISH) continue; // fishing boats' food, not villagers'
 			if (!is_position_safe(resources_.x[r], resources_.z[r], 6.0f)) continue;
-			// worker.js gatherNearestSupply: not in enemy territory.
+			// findSupply: not in enemy territory.
 			const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
-			if (terr >= 0 && !is_ally(petra_pid_, (uint8_t)terr)) continue;
-			int slots;
-			auto fit = field_bld_by_res_.find(resources_.id[r]);
-			if (fit != field_bld_by_res_.end()) {
-				auto bit = building_id_to_idx_.find(fit->second);
+			if (terr >= 0 && terr < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)terr)) continue;
+			const bool field = field_bld_by_res_.count(resources_.id[r]) != 0;
+			int slots, users;
+			if (field) {
+				auto bit = building_id_to_idx_.find(field_bld_by_res_.at(resources_.id[r]));
 				if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != petra_pid_) continue;
 				auto uit = field_users.find(resources_.id[r]);
-				slots = FIELD_MAX_GATHERERS - (uit == field_users.end() ? 0 : uit->second);
+				users = uit == field_users.end() ? 0 : uit->second;
+				slots = FIELD_MAX_GATHERERS - users;
 			} else {
+				if (sub == RES_SUB_MEAT) continue; // animals: startHunting
 				auto uit = supply_users.find(resources_.id[r]);
-				slots = (int)resources_.max_gatherers[r] - (uit == supply_users.end() ? 0 : uit->second);
+				users = uit == supply_users.end() ? 0 : uit->second;
+				slots = (int)resources_.max_gatherers[r] - users;
 			}
-			if (slots <= 0) continue;
-			const uint16_t land = naval_map ? petra_land_at(resources_.x[r], resources_.z[r]) : 0;
-			float d2_drop = 1e9f;
-			for (const auto &d : drops) {
-				if (d.land != land) continue;
-				float bdx = resources_.x[r] - d.x;
-				float bdz = resources_.z[r] - d.z;
-				d2_drop = std::min(d2_drop, bdx * bdx + bdz * bdz);
+			const uint32_t ci = (uint32_t)candidates.size();
+			candidates.push_back({resources_.id[r], resources_.x[r], resources_.z[r], resources_.type[r], slots, users,
+			                      bmap.land(petra_land_at(resources_.x[r], resources_.z[r])), resources_.amount[r],
+			                      field ? bmap.at(resources_.x[r], resources_.z[r], map_half_) : -1});
+			if (field) continue;
+			const uint8_t type = resources_.type[r];
+			for (size_t a = 1; a < supplies.size(); ++a) {
+				float d2 = 1e30f;
+				for (const Drop &d : drops)
+					if (d.base == (int)a && (d.takes & (1 << type)))
+						d2 = std::min(d2, (d.x - resources_.x[r]) * (d.x - resources_.x[r]) + (d.z - resources_.z[r]) * (d.z - resources_.z[r]));
+				// maxDistResourceSquare 360 m: nearby within a quarter, medium within half.
+				if (d2 < 22.5f * 22.5f) supplies[a].nearby[type].push_back({d2, ci});
+				else if (d2 < 45.0f * 45.0f) supplies[a].medium[type].push_back({d2, ci});
 			}
-			candidates.push_back({resources_.id[r], resources_.x[r], resources_.z[r], d2_drop, resources_.type[r], slots, land});
 		}
+		for (auto &bs : supplies)
+			for (int t = 0; t < RES_COUNT; ++t)
+				for (auto *v : {&bs.nearby[t], &bs.medium[t]})
+					std::stable_sort(v->begin(), v->end(), [](const Listed &a, const Listed &b) { return a.d2 < b.d2; });
 	}
 
 	// Field foundations and their builders (buildAnyField: found.getBuildersNb()).
@@ -14825,7 +14842,7 @@ void Simulation::petra_manage_economy(float dt) {
 					if (id == units_.target_building_id[i]) { ++n; break; }
 	}
 
-	// Assign reassignable workers to nearest safe dropsite and resource
+	// Assign reassignable workers as worker.js startGathering does.
 	for (size_t w = 0; w < reassignable_workers.size(); ++w) {
 		const size_t widx = reassignable_workers[w];
 		// baseManager.js reassignIdleWorkers: the most needed resource that is not (food aside)
@@ -14847,66 +14864,118 @@ void Simulation::petra_manage_economy(float dt) {
 			continue;
 		}
 
-		float wx = units_.pos_x[widx];
-		float wz = units_.pos_z[widx];
-		const uint16_t wland = naval_map ? petra_land_at(wx, wz) : 0;
-
-		// Fall back to the other resource types, most needed first, when the chosen one has
-		// nothing safe left (worker.js: the worker fails and the next pass picks another).
-		uint8_t order[RES_COUNT];
-		order[0] = chosen_res_type;
-		for (int r = 0, n = 1; r < RES_COUNT; ++r)
-			if (needed[r] != chosen_res_type) order[n++] = needed[r];
-
-		uint32_t best_rid = 0;
-		Candidate *best_c = nullptr;
-		uint8_t got_type = chosen_res_type;
-		for (uint8_t rt : order) {
-			float best_score = 1e9f;
-			for (auto &c : candidates) {
-				if (c.type != rt || c.slots <= 0 || c.land != wland) continue;
-				float dx = wx - c.x;
-				float dz = wz - c.z;
-				float score = dx * dx + dz * dz + c.d2_drop * 0.5f;
-				if (score < best_score) {
-					best_score = score;
-					best_rid = c.id;
-					best_c = &c;
-				}
-			}
-			if (best_rid != 0) { got_type = rt; break; }
-			// worker.js startGathering, food: with no food in reach and no field with room,
-			// build a field foundation (buildAnyField, up to the field's MaxGatherers builders).
-			if (rt == RES_FOOD && unit_can_build(units_.unit_type[widx], units_.tmpl[widx])) {
-				std::pair<uint32_t, int> *fb = nullptr;
-				float fbest = 1e9f;
-				for (auto &e : field_builders) {
-					if (e.second >= FIELD_MAX_GATHERERS) continue;
-					const Building &f = buildings_[building_id_to_idx_.at(e.first)];
-					if (naval_map && petra_building_land(f) != wland) continue;
-					const float d2 = (f.x - wx) * (f.x - wx) + (f.z - wz) * (f.z - wz);
-					if (d2 < fbest) { fbest = d2; fb = &e; }
-				}
-				if (fb) {
-					uint32_t uid = units_.id[widx];
-					order_build_or_repair(&uid, 1, fb->first);
-					fb->second++;
-					got_type = RES_FOOD;
-					break;
-				}
+		const float wx = units_.pos_x[widx], wz = units_.pos_z[widx];
+		const uint16_t wland = bmap.land(petra_land_at(wx, wz));
+		// The worker's base: the one whose tile it stands on, else the nearest on its land.
+		int my_base = bmap.at(wx, wz, map_half_);
+		if (my_base > 0 && bmap.anchors[my_base - 1].land != wland) my_base = 0;
+		if (my_base == 0) {
+			float best = 1e30f;
+			for (size_t a = 0; a < bmap.anchors.size(); ++a) {
+				if (bmap.anchors[a].land != wland) continue;
+				const float d = (bmap.anchors[a].x - wx) * (bmap.anchors[a].x - wx) + (bmap.anchors[a].z - wz) * (bmap.anchors[a].z - wz);
+				if (d < best) { best = d; my_base = (int)a + 1; }
 			}
 		}
-		if (best_c) best_c->slots--;
-		if (best_rid == 0 && got_type == RES_FOOD && units_.action_state[widx] == ACTION_BUILD) {
-			cur_rate[RES_FOOD] += 0.5f; // AddTCResGatherer
-			continue;
-		}
+		const bool builder = unit_can_build(units_.unit_type[widx], units_.tmpl[widx]);
+		const uint32_t uid = units_.id[widx];
 
-		if (best_rid != 0) {
-			uint32_t uid = units_.id[widx];
-			order_gather(&uid, 1, best_rid);
-			cur_rate[got_type] += 0.5f; // AddTCResGatherer
-		}
+		// findSupply: the first listed supply with room, that the worker gathers, and that is
+		// worth one more gatherer (amount / (1 + gatherers) of at least 30).
+		auto find_supply = [&](const std::vector<Listed> &list) -> Candidate * {
+			for (const Listed &l : list) {
+				Candidate &c = candidates[l.c];
+				if (c.slots <= 0 || c.land != wland || carry_cap(widx, c.type) <= 0) continue;
+				if (c.users > 0 && (float)c.amount / (float)(1 + c.users) < 30.0f) continue;
+				return &c;
+			}
+			return nullptr;
+		};
+		// gatherNearestField: the base's field with room nearest the worker, 0.9 per gatherer
+		// on it costing 400 m (diminishing returns); none while it is down to 70% and the base
+		// has a field foundation to build.
+		auto nearest_field = [&](int base) -> Candidate * {
+			Candidate *best = nullptr;
+			float best_d = 0.0f, best_rate = 1.0f;
+			for (Candidate &c : candidates) {
+				if (c.base != base || c.slots <= 0 || c.land != wland || carry_cap(widx, c.type) <= 0) continue;
+				const float rate = c.users > 0 ? std::pow(FIELD_DIMINISHING_RETURNS, (float)c.users) : 1.0f;
+				const float d = (c.x - wx) * (c.x - wx) + (c.z - wz) * (c.z - wz) + (1.0f - rate) * (160000.0f / 16.0f);
+				if (!best || d < best_d) { best = &c; best_d = d; best_rate = rate; }
+			}
+			if (best && best_rate < 0.7f)
+				for (const auto &fb : field_builders) {
+					const Building &f = buildings_[building_id_to_idx_.at(fb.first)];
+					if (bmap.at(f.x, f.z, map_half_) == base) return nullptr;
+				}
+			return best;
+		};
+		// buildAnyField: the base's field foundation nearest the worker with builder room.
+		auto any_field = [&](int base) -> std::pair<uint32_t, int> * {
+			if (!builder) return nullptr;
+			std::pair<uint32_t, int> *fb = nullptr;
+			float fbest = 1e30f;
+			for (auto &e : field_builders) {
+				if (e.second >= FIELD_MAX_GATHERERS) continue;
+				const Building &f = buildings_[building_id_to_idx_.at(e.first)];
+				if (bmap.at(f.x, f.z, map_half_) != base || bmap.land(petra_building_land(f)) != wland) continue;
+				const float d2 = (f.x - wx) * (f.x - wx) + (f.z - wz) * (f.z - wz);
+				if (d2 <= fbest) { fbest = d2; fb = &e; }
+			}
+			return fb;
+		};
+		auto gather = [&](Candidate *c) {
+			order_gather(&uid, 1, c->id);
+			c->slots--;
+			c->users++;
+			cur_rate[c->type] += 0.5f; // AddTCResGatherer
+		};
+		auto build_field = [&](std::pair<uint32_t, int> *fb) {
+			order_build_or_repair(&uid, 1, fb->first);
+			fb->second++;
+			cur_rate[RES_FOOD] += 0.5f;
+		};
+		// One resource's tiers: our base nearby (then its fields), its medium; the other bases on
+		// our land nearby, their fields, their medium; then a dropsite foundation for it.
+		auto try_resource = [&](uint8_t rt) -> bool {
+			if (my_base > 0) {
+				if (Candidate *c = find_supply(supplies[my_base].nearby[rt])) { gather(c); return true; }
+				if (rt == RES_FOOD) {
+					if (Candidate *c = nearest_field(my_base)) { gather(c); return true; }
+					if (auto *fb = any_field(my_base)) { build_field(fb); return true; }
+				}
+				if (Candidate *c = find_supply(supplies[my_base].medium[rt])) { gather(c); return true; }
+			}
+			for (size_t a = 1; a < supplies.size(); ++a)
+				if ((int)a != my_base && bmap.anchors[a - 1].land == wland)
+					if (Candidate *c = find_supply(supplies[a].nearby[rt])) { gather(c); return true; }
+			if (rt == RES_FOOD)
+				for (size_t a = 1; a < supplies.size(); ++a) {
+					if ((int)a == my_base || bmap.anchors[a - 1].land != wland) continue;
+					if (Candidate *c = nearest_field((int)a)) { gather(c); return true; }
+					if (auto *fb = any_field((int)a)) { build_field(fb); return true; }
+				}
+			for (size_t a = 1; a < supplies.size(); ++a)
+				if ((int)a != my_base && bmap.anchors[a - 1].land == wland)
+					if (Candidate *c = find_supply(supplies[a].medium[rt])) { gather(c); return true; }
+			// A dropsite foundation for this resource on our land to help build.
+			if (builder)
+				for (const auto &b : buildings_) {
+					if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress >= 1.0f) continue;
+					const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
+					                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
+					                   ((b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD);
+					if (!takes || bmap.land(petra_building_land(b)) != wland) continue;
+					order_build_or_repair(&uid, 1, b.id);
+					return true;
+				}
+			return false;
+		};
+		// The worker fails and the next pass picks another resource: the others, most needed
+		// first, are tried at once.
+		if (try_resource(chosen_res_type)) continue;
+		for (uint8_t r : needed)
+			if (r != chosen_res_type && (r == RES_FOOD || !exhausted[r]) && try_resource(r)) break;
 	}
 
 	petra_manage_hunters(hunt_scan);
