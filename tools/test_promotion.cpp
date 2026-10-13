@@ -276,7 +276,7 @@ int main() {
 		fresh(s, CIV_PERSIANS);
 		const uint16_t imm = tmpl_of("pers/champion_infantry");
 		const uint16_t bow = tmpl_of("pers/champion_infantry_archer_upgrade");
-		CHECK(civ_unit_template(bow).trainers == 0 && (civ_unit_template(bow).flags & ROSTER_RANGED));
+		CHECK(!civ_unit_template(bow).trainers && (civ_unit_template(bow).flags & ROSTER_RANGED));
 		const uint32_t u = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, imm);
 		s.set_player_resources(0, 0, 0, 0, 0);
 		CHECK(s.cmd_upgrade_units(0, &u, 1, bow));
