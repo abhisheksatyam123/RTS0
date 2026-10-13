@@ -12,6 +12,7 @@ extends Control
 ## comes back here (default_menu/endgame).
 
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
+const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 const GRAY := Color8(128, 128, 128)
 const GREEN := Color8(0, 200, 0)
@@ -206,26 +207,8 @@ func start_level(level_id: String) -> void:
 	if ms == null:
 		push_error("[Campaigns] MatchSettings autoload missing.")
 		return
-	var players: Array = _map_json(map_id).get("players", [])
-	var n := maxi(1, players.size())
-	var types: Array = []
-	var civs: Array = []
-	for i in n:
-		types.append(0 if i == 0 else 1)
-		civs.append(int(players[i].get("civ", 0)) if i < players.size() and typeof(players[i]) == TYPE_DICTIONARY else 0)
-	ms.map_id = map_id
-	ms.seed = 0
-	ms.victory = 0
-	ms.waves_enabled = false
-	ms.cheats = true
-	ms.player_count = n
-	ms.slot_types = types
-	ms.slot_civs = civs
-	ms.slot_teams = range(n).map(func(_i): return 0)
-	ms.slot_names = []
-	ms.slot_colors = []
-	ms.player_civ = civs[0]
-	ms.ai_civ = civs[1] if n > 1 else civs[0]
+	if not ScenarioStart.configure(ms, map_id):
+		return
 	ms.campaign_run = run.filename
 	ms.campaign_level = level_id
 	run.save()

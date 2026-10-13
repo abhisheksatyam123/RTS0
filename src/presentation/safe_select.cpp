@@ -27,6 +27,8 @@ RtsoSafeSelect::RtsoSafeSelect() {
 	set_clip_text(true);
 	set_text_alignment(HORIZONTAL_ALIGNMENT_LEFT);
 	set_focus_mode(FOCUS_NONE);
+	// Item icons (civ emblems are 256 px) stay the size of a text line.
+	add_theme_constant_override("icon_max_width", 20);
 	connect("pressed", Callable(this, "_on_pressed"));
 }
 
@@ -53,6 +55,7 @@ void RtsoSafeSelect::ensure_menu() {
 	list = memnew(ItemList);
 	list->set_allow_reselect(true);
 	list->set_auto_height(false);
+	list->set_fixed_icon_size(Vector2i(18, 18));
 	list->connect("item_selected", Callable(this, "_on_list_selected"));
 	menu->add_child(list);
 }

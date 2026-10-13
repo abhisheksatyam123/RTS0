@@ -71,6 +71,9 @@ EXTRA_STATS = {
 EXTRA_ALIASES = {
     "Human": ["Unit !Siege !Ship"],
     "Economic": ["Storehouse", "Farmstead", "Market", "Dock", "Corral"],
+    # Nastasen's Gift of Warships: units/kush/ship_arrow is Kush's only ArrowShip, and the
+    # aura reaches only its Kushite owner, who trains no other civ's ships.
+    "KushTrireme": ["ArrowShip"],
 }
 
 # Auras.js affectedPlayers -> AuraPlayers bits (aura_manager.h).

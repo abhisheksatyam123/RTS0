@@ -2130,6 +2130,30 @@ static void test_aura_secondary_effects() {
 	check(mod(22, 20, 1, AURA_SPEED, champ) == 0.0f, "an enemy champion keeps its speed");
 }
 
+static void test_nastasen_warships() {
+	std::printf("57. Nastasen's Gift of Warships: Kushite arrow ships -50 wood and metal while he lives\n");
+	Simulation s;
+	setup(s);
+	s.set_team_civ(0, CIV_KUSHITES);
+	const uint16_t ship = roster_named("kush/ship_arrow");
+	check(ship != CIV_UNIT_TEMPLATE_NONE, "roster has the Kushite arrow ship");
+	auto cost = [&](float out[RES_COUNT]) { s.unit_train_cost(0, ship, civ_template_unit_info(ship, UNIT_TRIREME), out); };
+	float before[RES_COUNT], after[RES_COUNT];
+	cost(before);
+	check(before[RES_WOOD] > 50.0f && before[RES_GOLD] > 50.0f, "the ship costs wood and metal");
+	const uint32_t nas = s.spawn_unit(-20, -20, 0, UNIT_HERO, 0.0f, roster_named("kush/hero_nastasen"));
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP); // a global-aura pulse
+	cost(after);
+	check(after[RES_WOOD] == before[RES_WOOD] - 50.0f && after[RES_GOLD] == before[RES_GOLD] - 50.0f,
+			"Nastasen: -50 wood and -50 metal");
+	check(after[RES_FOOD] == before[RES_FOOD], "food unchanged");
+	s.units_.hp[idx_of(s, nas)] = 0.0f;
+	s.units_.alive[idx_of(s, nas)] = 0;
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP);
+	cost(after);
+	check(after[RES_WOOD] == before[RES_WOOD], "Nastasen dead: full cost again");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2189,6 +2213,7 @@ int main(int argc, char **argv) {
 	test_loot_auras();
 	test_hero_global_auras();
 	test_aura_secondary_effects();
+	test_nastasen_warships();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

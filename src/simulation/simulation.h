@@ -1731,6 +1731,7 @@ private:
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
+			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
