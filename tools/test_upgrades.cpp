@@ -83,7 +83,7 @@ int main() {
 	{
 		fresh(s);
 		s.player(0).phase = 2;
-		uint32_t st = s.spawn_building_world(0.0f, 0.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		uint32_t st = s.spawn_building_world(-20.0f, -30.0f, BLD_SENTRY_TOWER, 0, 1.0f); // in the civic centre's territory
 		CHECK(s.cmd_upgrade_building(0, st));
 		run(s, 30.0f);
 		CHECK(!s.cmd_cancel_upgrade(1, st));
@@ -138,7 +138,7 @@ int main() {
 	{
 		fresh(s);
 		s.player(0).phase = 2;
-		uint32_t st = s.spawn_building_world(0.0f, 0.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		uint32_t st = s.spawn_building_world(-20.0f, -30.0f, BLD_SENTRY_TOWER, 0, 1.0f); // in the civic centre's territory
 		TurnManager tm;
 		const uint32_t h0 = tm.compute_sim_hash(s);
 		CHECK(s.cmd_upgrade_building(0, st));
@@ -250,7 +250,8 @@ int main() {
 	// 10. The Han Imperial Court (civil_centre -> civil_centre_court: 300 wood, 300 stone,
 	// 40 s, City phase) and Great Archery Tower (defense_tower -> defense_tower_great:
 	// 200 stone, 40 s). Both keep their base type's role (a Civic Center: territory root,
-	// dropsite; a stone tower that shoots) and EntityLimits allows one of each.
+	// dropsite; a stone tower that shoots, which like 0 A.D.'s is not a territory root) and
+	// EntityLimits allows one of each.
 	{
 		const BuildingUpgradeInfo ct = building_upgrade(BLD_TOWN_CENTER, CIV_HAN);
 		CHECK(ct.to == BLD_IMPERIAL_COURT && ct.wood_cost == 300 && ct.stone_cost == 300 && ct.time == 40.0f &&
@@ -259,7 +260,7 @@ int main() {
 		CHECK(gt.to == BLD_TOWER_GREAT && gt.stone_cost == 200 && gt.wood_cost == 0 && gt.time == 40.0f);
 		CHECK(!civ_can_build(CIV_HAN, BLD_IMPERIAL_COURT) && !civ_can_build(CIV_HAN, BLD_TOWER_GREAT));
 		CHECK(is_civic_centre(BLD_IMPERIAL_COURT) && is_defense_tower(BLD_TOWER_GREAT));
-		CHECK(is_territory_root(BLD_IMPERIAL_COURT) && is_territory_root(BLD_TOWER_GREAT));
+		CHECK(is_territory_root(BLD_IMPERIAL_COURT) && !is_territory_root(BLD_TOWER_GREAT) && has_territory_influence(BLD_TOWER_GREAT));
 		CHECK(building_tech_classes(BLD_IMPERIAL_COURT) & TC_CIVCENTRE);
 		CHECK(building_tech_classes(BLD_TOWER_GREAT) & TC_STONETOWER);
 		CHECK(building_type_info(BLD_IMPERIAL_COURT).max_hp > building_type_info(BLD_TOWN_CENTER).max_hp);

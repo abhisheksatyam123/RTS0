@@ -21,7 +21,9 @@ static uint32_t fresh(Simulation &s) {
 	s.set_sim_seed(11);
 	s.reset();
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
-	return s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	// Central, so the test structures stand in its territory, not on neutral land where
+	// they would decay to Gaia (TerritoryDecay.js).
+	return s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
 }
 
 static void run(Simulation &s, float seconds) {
@@ -218,9 +220,9 @@ int main() {
 			if (with) CHECK(s.cmd_research(0, temple, TECH_HEAL_RANGE));
 			run(s, tech_info(TECH_HEAL_RANGE).research_time + 1.0f);
 			CHECK(s.is_tech_researched(TECH_HEAL_RANGE) == (with != 0));
-			s.spawn_building_world(0.0f, 0.0f, BLD_TOWER, 1, 1.0f);   // enemy tower
-			uint32_t sp = s.spawn_unit(8.0f, 0.0f, 0, UNIT_SPEARMAN, 400.0f); // under its arrows
-			uint32_t healer = s.spawn_unit(12.0f, 0.0f, 0, UNIT_HEALER, 5000.0f);
+			s.spawn_building_world(0.0f, 40.0f, BLD_TOWER, 1, 1.0f);   // enemy tower
+			uint32_t sp = s.spawn_unit(8.0f, 40.0f, 0, UNIT_SPEARMAN, 400.0f); // under its arrows
+			uint32_t healer = s.spawn_unit(12.0f, 40.0f, 0, UNIT_HEALER, 5000.0f);
 			s.order_set_stance(&healer, 1, STANCE_STAND_GROUND); // heals only whom its range reaches
 			s.cmd_stop(&healer, 1);
 			s.cmd_stop(&sp, 1);
@@ -418,7 +420,7 @@ int main() {
 		s.set_player_civ(CIV_CARTHAGINIANS);
 		s.player(0).phase = 2;
 		float stone0 = (float)s.stone();
-		CHECK(s.cmd_build(0, -16, -16, BLD_WALL_TOWER) != 0); // in its Civic Centre's territory
+		CHECK(s.cmd_build(0, -12, 0, BLD_WALL_TOWER) != 0); // in its Civic Centre's territory
 		float paid = stone0 - (float)s.stone();
 		CHECK(std::fabs(paid - 2.0f * building_type_info(BLD_WALL_TOWER).stone_cost) < 1.01f);
 	}
