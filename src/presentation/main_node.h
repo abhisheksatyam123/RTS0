@@ -167,6 +167,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 3. Command & Action Panel (Right of Inspector)
 	Panel *command_panel = nullptr;
 	HBoxContainer *stances_bar = nullptr;
+	Button *stance_buttons_[5] = {}; // indexed by UnitStance
 	HBoxContainer *actions_bar = nullptr;
 	// Wraps its buttons; the scroll keeps a long build menu inside the panel.
 	ScrollContainer *production_scroll = nullptr;
@@ -336,6 +337,8 @@ public:
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
+	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
+	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
