@@ -1885,6 +1885,15 @@ inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
 }
 
+// 0.28 Civilians (template_unit_support_civilian Identity/Phenotype "female male"): Identity.js
+// picks one at random when the unit is created. RTS0 keeps no phenotype state; a hash of the
+// unit id picks it, so a civilian keeps one look and voice for its whole life. Every other
+// template has a single phenotype (UnitType decides it).
+inline bool civilian_is_male(uint16_t tmpl, uint32_t unit_id) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !(civ_unit_template(tmpl).flags & ROSTER_CIVILIAN)) return false;
+	return ((unit_id * 2654435761u) >> 31) != 0;
+}
+
 // The roster row of a 0 A.D. template path ("athen/infantry_javelineer_b"), or
 // CIV_UNIT_TEMPLATE_NONE.
 inline uint16_t civ_unit_template_by_id(const char *id) {
@@ -2473,6 +2482,9 @@ inline const char *civ_unit_model(uint8_t civ, uint8_t type) {
 				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, unit_type_info(t).model_id);
 			}
 		}
+		// 0.28's Macedonian male citizen is the Athenian one (units/mace/support_civilian.xml:
+		// units/athenians/citizen_{phenotype}.xml); mace_villager.glb is the pre-0.28 woman.
+		std::snprintf(names[CIV_MACEDONIANS][UNIT_VILLAGER], sizeof(names[0][0]), "athen_villager");
 		ready = true;
 	}
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;

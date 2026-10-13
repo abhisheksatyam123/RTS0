@@ -1374,7 +1374,9 @@ void RtsoMain::play_civ_voice(const char *action) {
 	auto uv = sim->units();
 	for (size_t i = 0; i < uv.count; ++i) {
 		if (uv.id[i] != first) continue;
-		session_audio_.play_voice(sim->player_civ(uv.team[i]), uv.unit_type[i], act);
+		// A male Civilian speaks with the civ's male citizen voice (rtso::civilian_is_male).
+		const uint8_t voice_type = rtso::civilian_is_male(uv.tmpl[i], uv.id[i]) ? (uint8_t)rtso::UNIT_VILLAGER : uv.unit_type[i];
+		session_audio_.play_voice(sim->player_civ(uv.team[i]), voice_type, act);
 		return;
 	}
 }
