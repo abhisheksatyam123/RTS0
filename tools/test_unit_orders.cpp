@@ -2020,6 +2020,47 @@ static void test_capture_attack_auras() {
 	check(std::fabs(s.unit_capture_attack_at((size_t)idx_of(s, u)) - c0) < 1e-4f, "garrisoned: its own capture strength");
 }
 
+// Kill victim with killer (melee) and return what killer's owner gained.
+static void loot_kill(Simulation &s, uint32_t killer, uint32_t victim, float out[RES_COUNT]) {
+	float before[RES_COUNT];
+	const uint8_t p = s.units_.team[idx_of(s, killer)];
+	for (int r = 0; r < RES_COUNT; ++r) before[r] = s.player(p).res[r];
+	s.order_attack(&killer, 1, victim);
+	for (int k = 0; k < 200; ++k) {
+		s.tick(DT);
+		const int v = idx_of(s, victim);
+		if (v < 0 || !s.units_.alive[v]) break;
+	}
+	for (int r = 0; r < RES_COUNT; ++r) out[r] = s.player(p).res[r] - before[r];
+}
+
+static void test_loot_auras() {
+	std::printf("54. loot auras: Brennus +15 metal loot, Pericles' units give none (Looter.js, Loot.js)\n");
+	const uint16_t sword = roster_named("gaul/infantry_spearman_b"), spear = roster_named("athen/infantry_spearman_b");
+	check(sword != CIV_UNIT_TEMPLATE_NONE && spear != CIV_UNIT_TEMPLATE_NONE, "roster has the Gallic and Athenian spearmen");
+	// mode 0: no hero; 1: Brennus beside the killer; 2: Pericles beside the victim.
+	float gain[3][RES_COUNT];
+	uint16_t xp[3];
+	for (int mode = 0; mode < 3; ++mode) {
+		Simulation s;
+		setup(s);
+		const uint32_t k = s.spawn_unit(0, 0, 0, (UnitType)civ_unit_template(sword).unit_type, 0.0f, sword);
+		const uint32_t v = s.spawn_unit(1.5f, 0, 1, (UnitType)civ_unit_template(spear).unit_type, 1.0f, spear);
+		if (mode == 1) s.spawn_unit(-3, 0, 0, UNIT_HERO, 0.0f, roster_named("gaul/hero_brennus"));
+		if (mode == 2) s.spawn_unit(4.5f, 0, 1, UNIT_HERO, 0.0f, roster_named("athen/hero_pericles"));
+		run(s, 0.5f); // auras rebuilt
+		xp[mode] = (uint16_t)s.unit_loot_xp((size_t)idx_of(s, v)); // Loot/xp shared out per hit
+		loot_kill(s, k, v, gain[mode]);
+		std::printf("  mode %d: food %.0f wood %.0f stone %.0f metal %.0f, victim xp %u\n", mode, gain[mode][RES_FOOD],
+			gain[mode][RES_WOOD], gain[mode][RES_STONE], gain[mode][RES_GOLD], (unsigned)xp[mode]);
+	}
+	check(gain[0][RES_FOOD] > 0.0f && xp[0] > 0, "a kill pays loot, and the victim is worth xp");
+	check(std::fabs(gain[1][RES_GOLD] - gain[0][RES_GOLD] - 15.0f) < 1e-3f && gain[1][RES_FOOD] == gain[0][RES_FOOD],
+			"Brennus: his Humans gain +15 metal loot");
+	check(gain[2][RES_FOOD] == 0.0f && gain[2][RES_WOOD] == 0.0f && gain[2][RES_GOLD] == 0.0f && xp[2] == 0,
+			"Pericles: a soldier beside him gives no loot and no xp");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2076,6 +2117,7 @@ int main(int argc, char **argv) {
 	test_capture_auras();
 	test_capture_owner_change();
 	test_capture_attack_auras();
+	test_loot_auras();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
