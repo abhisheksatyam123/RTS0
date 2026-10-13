@@ -15782,91 +15782,106 @@
       "type": "bush",
       "x": 61.54,
       "z": 61.41,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 63.6,
       "z": 62.34,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 65.83,
       "z": 64.52,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 64.66,
       "z": 62.06,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 66.55,
       "z": 63.02,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 67.27,
       "z": 65.78,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 70.26,
       "z": 67.25,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 70.23,
       "z": 63.69,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 88.97,
       "z": -34.58,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.28,
       "z": -35.67,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.0,
       "z": -37.3,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 89.42,
       "z": -35.77,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 63.01,
       "z": -21.5,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 64.43,
       "z": -19.93,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 62.47,
       "z": -17.81,
-      "amount": 50
+      "amount": 50,
+      "max_gatherers": 4
     },
     {
       "type": "dead",

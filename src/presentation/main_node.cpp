@@ -5,6 +5,7 @@
 #include <cstring>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
+#include "simulation/petra_chat.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -1375,7 +1376,9 @@ void RtsoMain::play_civ_voice(const char *action) {
 	auto uv = sim->units();
 	for (size_t i = 0; i < uv.count; ++i) {
 		if (uv.id[i] != first) continue;
-		session_audio_.play_voice(sim->player_civ(uv.team[i]), uv.unit_type[i], act);
+		// A male Civilian speaks with the civ's male citizen voice (rtso::civilian_is_male).
+		const uint8_t voice_type = rtso::civilian_is_male(uv.tmpl[i], uv.id[i]) ? (uint8_t)rtso::UNIT_VILLAGER : uv.unit_type[i];
+		session_audio_.play_voice(sim->player_civ(uv.team[i]), voice_type, act);
 		return;
 	}
 }
@@ -2638,8 +2641,10 @@ void RtsoMain::_on_entity_command(const String &name) {
 		if (n == 0) return;
 		if (turn_cmds())
 			post_lockstep(2, ids, n);
-		else
+		else {
 			sim->cmd_stop(ids, n);
+			sim->order_fauna_stop(local_player(), ids, n);
+		}
 	} else if (name == "back-to-work") { // backToWork
 		if (n == 0) return;
 		if (turn_cmds())
@@ -3323,17 +3328,15 @@ void RtsoMain::_process(double delta) {
 	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			const uint8_t me = local_player();
-			if (line.to == rtso::PETRA_CHAT_TO_ALLIES) { // "/allies": the speaker and its allies
-				if (me >= rtso::MAX_PLAYERS || (me != line.from && !sim->is_ally(line.from, me))) continue;
-			} else if (line.to != 0xFF && line.to != me) continue; // addressed to someone else
-			// Players named as {P<id>} in the line get their display names.
-			String text(line.text);
-			for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
-				text = text.replace("{P" + String::num_int64(p) + "}", player_display_name(p));
+			if (!sim->petra_chat_reaches(line, local_player())) continue; // addressed to someone else
+			const std::string text = rtso::petra_chat_text(line, [&](uint8_t pid) {
+				return std::string(player_display_name(pid).utf8().get_data());
+			});
+			// 0 A.D. marks "/allies" lines "(to allies)" and "/msg" lines "(privately)".
 			const bool ai = line.kind != rtso::PETRA_CHAT_ATTACK_REQUESTED || sim->player(line.from).is_ai;
-			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + (ai ? " (AI)" : "") + ":[/color] " +
-			                         text + "\n");
+			const String audience = line.to == rtso::PETRA_CHAT_ALLIES ? " (to allies)" : line.to < rtso::MAX_PLAYERS ? " (privately)" : "";
+			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + (ai ? " (AI)" : "") + audience + ":[/color] " +
+			                         String::utf8(text.c_str()) + "\n");
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
@@ -3699,6 +3702,23 @@ void RtsoMain::update_hud() {
 // with a garrison shows the garrison grid ("Garrison").
 // EntitySelection.update (gui/session/selection.js): units that died leave the
 // selection, so its count and groups follow the battle.
+// The player's own unpenned animal nearest (x, z) within a click's reach, or 0.
+uint32_t RtsoMain::own_fauna_at(float x, float z) const {
+	if (!sim) return 0;
+	auto fview = sim->fauna();
+	uint32_t best = 0;
+	float best_d2 = 1.5f * 1.5f;
+	for (size_t f = 0; f < fview.count; ++f) {
+		if (!sim->fauna_selectable_by(local_player(), fview.id[f])) continue;
+		const float dx = fview.pos_x[f] - x, dz = fview.pos_z[f] - z, d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) {
+			best_d2 = d2;
+			best = fview.id[f];
+		}
+	}
+	return best;
+}
+
 void RtsoMain::prune_selection() {
 	if (!sim || selected_ids.is_empty()) return;
 	auto uview = sim->units();
@@ -3706,6 +3726,9 @@ void RtsoMain::prune_selection() {
 	std::unordered_set<int32_t> living;
 	for (size_t i = 0; i < uview.count; ++i)
 		if (uview.alive[i] && wanted.count((int32_t)uview.id[i])) living.insert((int32_t)uview.id[i]);
+	// The player's own livestock stays selected until it dies or is penned.
+	for (int32_t id : wanted)
+		if (!living.count(id) && sim->fauna_selectable_by(local_player(), (uint32_t)id)) living.insert(id);
 	if ((int64_t)living.size() == selected_ids.size()) return;
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s)
@@ -5329,6 +5352,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								selected_ids.push_back((int32_t)uview.id[best_uidx]);
 							}
 							play_civ_voice("select");
+						} else if (uint32_t animal = own_fauna_at(click_pos.x, click_pos.z)) {
+							// The player's own livestock (0 A.D. livestock are units).
+							const int64_t at = selected_ids.find((int32_t)animal);
+							if (is_ctrl) {
+								if (at >= 0) selected_ids.remove_at(at);
+							} else {
+								if (!is_shift) selected_ids.clear();
+								selected_building_id = 0;
+								if (at < 0) selected_ids.push_back((int32_t)animal);
+							}
 						} else {
 							// Check building hit: any visible part (0 A.D. picks the
 							// rendered entity), then the old ground test round its base.
@@ -5387,6 +5420,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									} else if (!selected_ids.has(uid)) {
 										selected_ids.push_back(uid);
 									}
+								}
+							}
+							// The player's own livestock in the box (not with the military,
+							// idle or wounded filters, which pick soldiers and workers).
+							auto fview = sim->fauna();
+							for (size_t f = 0; f < fview.count && !military_only && !idle_only && !wounded_only; ++f) {
+								if (!sim->fauna_selectable_by(local_player(), fview.id[f])) continue;
+								Vector3 world_pos(fview.pos_x[f], 0, fview.pos_z[f]);
+								if (cam->is_position_behind(world_pos)) continue;
+								Vector2 screen_pos = cam->unproject_position(world_pos);
+								if (screen_pos.x < min_p.x || screen_pos.x > max_p.x || screen_pos.y < min_p.y || screen_pos.y > max_p.y)
+									continue;
+								const int32_t fid = (int32_t)fview.id[f];
+								const int64_t at = selected_ids.find(fid);
+								if (is_ctrl) {
+									if (at >= 0) selected_ids.remove_at(at);
+								} else if (at < 0) {
+									selected_ids.push_back(fid);
 								}
 							}
 							if (selected_ids.size() > 0) {
@@ -5472,6 +5523,28 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				one_id = sel_ptr[0];
 				sel_ptr = &one_id;
 				sel_n = 1;
+			}
+
+			// Owned livestock alone (0 A.D. livestock are units): a right-click walks it, or
+			// sends it into the player's own corral under the cursor (UnitAI "garrison").
+			bool fauna_only = sel_n > 0;
+			for (size_t k = 0; k < sel_n && fauna_only; ++k) fauna_only = sim->fauna_selectable_by(local_player(), sel_ptr[k]);
+			if (fauna_only) {
+				uint32_t corral = 0;
+				for (const auto &b : sim->buildings()) {
+					if (b.team != local_player() || b.type != rtso::BLD_CORRAL) continue;
+					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
+					if (dx * dx + dz * dz <= hit_r * hit_r) corral = b.id;
+				}
+				if (!corral)
+					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+				if (turn_cmds()) {
+					if (corral) post_lockstep(12, sel_ptr, sel_n, 0, 0, corral, qbit);
+					else post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
+				} else {
+					sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z, corral);
+				}
+				return;
 			}
 
 			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
@@ -5884,8 +5957,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 			if (turn_cmds())
 				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
-			else
+			else {
 				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
+				sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z);
+			}
 			play_civ_voice("move");
 		}
 	}
@@ -5966,13 +6041,14 @@ void RtsoMain::apply_match_settings() {
 		sim->spawn_initial();
 		return;
 	}
-	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
+	if (victory >= 0 && victory < 256 && rtso::valid_victory_code((uint8_t)victory)) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
 	{
-		const int pc = (int)ms->get("pop_cap"); // negative: World Population (0 A.D. WorldPopulationCap)
-		if (pc < 0) sim->set_world_pop_cap(-pc);
-		else sim->set_pop_cap(pc);
+		// negative: World Population (0 A.D. WorldPopulationCap); team_pop: Team Population
+		const int pc = (int)ms->get("pop_cap");
+		if (pc > 0 && (bool)ms->get("team_pop")) sim->set_team_pop_cap(pc);
+		else sim->set_pop_cap_setting(pc);
 	}
 	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
 	sim->set_reveal_map((bool)ms->get("reveal_map"));
@@ -6857,6 +6933,11 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
 		// A negative pop_cap is Game Setup's World Population.
 		setup.world_pop = (uint16_t)std::clamp(-(int)ms->get("pop_cap"), 0, rtso::Simulation::MAX_WORLD_POP);
+		// team_pop: the positive pop_cap is 0 A.D. 0.28's Team Population.
+		if (setup.pop_cap > 0 && (bool)ms->get("team_pop")) {
+			setup.team_pop = (uint16_t)std::min((int)ms->get("pop_cap"), rtso::Simulation::MAX_TEAM_POP);
+			setup.pop_cap = 0;
+		}
 		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		setup.reveal = (bool)ms->get("reveal_map") ? 1 : 0;
 		setup.explore = (bool)ms->get("explore_map") ? 1 : 0;
@@ -6917,7 +6998,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	if (setup.map_id.empty()) setup.map_id = "random_continental";
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (setup.victory >= rtso::VICTORY_COUNT) setup.victory = sim->victory_condition();
+	if (!rtso::valid_victory_code(setup.victory)) setup.victory = sim->victory_condition();
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
 	if (setup.start_res >= rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT) setup.start_res = 1;
@@ -6976,10 +7057,11 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
 	}
-	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
+	sim->set_victory_condition(rtso::valid_victory_code(setup.victory) ? setup.victory : 0);
 	sim->set_waves_enabled(setup.waves != 0);
 	sim->set_last_man_standing(setup.lms != 0);
 	if (setup.world_pop) sim->set_world_pop_cap(setup.world_pop);
+	else if (setup.team_pop) sim->set_team_pop_cap(setup.team_pop);
 	else sim->set_pop_cap(setup.pop_cap);
 	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
 	sim->set_reveal_map(setup.reveal != 0);
@@ -7031,7 +7113,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
 		ms->set("last_man_standing", sim->last_man_standing());
-		ms->set("pop_cap", sim->pop_cap_setting()); // negative: World Population
+		ms->set("pop_cap", sim->team_pop_cap() > 0 ? sim->team_pop_cap() : sim->pop_cap_setting()); // negative: World Population
+		ms->set("team_pop", sim->team_pop_cap() > 0);
 		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("reveal_map", sim->reveal_map());
 		ms->set("explore_map", sim->explore_map());

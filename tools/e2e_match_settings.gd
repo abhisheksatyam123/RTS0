@@ -38,7 +38,7 @@ func run() -> void:
 	ms.slot_types = [0, 1]
 	ms.slot_civs = [0, 1]
 	ms.slot_teams = [1, 2]
-	ms.victory = GameDescription.VICTORY_REGICIDE
+	ms.victory = 6 # rtso::VICTORY_REGICIDE: Conquest and Regicide
 	ms.regicide_garrison = false
 	ms.lock_teams = true
 	ms.nomad = true
@@ -59,7 +59,7 @@ func run() -> void:
 	check(d["objectives"], "the top panel button opens Match Settings")
 	var text: String = d["match_settings_text"]
 	print(text)
-	check(has_line(text, "Regicide", "Defeat opponents by killing their hero."), "Regicide")
+	check(has_line(text, "Conquest", GameDescription.CONQUEST[1]) and has_line(text, "Regicide", "Defeat opponents by killing their hero."), "Conquest and Regicide")
 	check(has_line(text, "Exposed Heroes", "Heroes cannot be garrisoned and they are vulnerable to raids."), "Exposed Heroes")
 	check(has_line(text, "Locked Teams", "Players can't change the initial teams."), "Locked Teams instead of Diplomacy")
 	check(not text.contains("Players can make alliances"), "no alliance line with locked teams")
@@ -101,12 +101,25 @@ func run() -> void:
 	check(has_line(scen, "Starting Resources", "Per Player"), "its own resources read Per Player")
 	check(has_line(scen, "Population Cap", "300"), "a player cap")
 	check(not scen.contains("Map Size") and not scen.contains("Nomad Mode"), "no random-map lines")
-	info["victory"] = GameDescription.VICTORY_WONDER
+	info["victory_mask"] = GameDescription.VK_CONQUEST | GameDescription.VK_WONDER
 	info["wonder_min"] = 1
 	info["lock_teams"] = false
 	scen = GameDescription.describe(info)
 	check(has_line(scen, "Conquest", GameDescription.CONQUEST[1]) and has_line(scen, "Wonder (1 minute)", GameDescription.WONDER_DESC), "Wonder adds to Conquest")
 	check(has_line(scen, "Diplomacy", "Players can make alliances and declare war on allies."), "Diplomacy when teams are open")
+	info["victory_mask"] = GameDescription.VK_CONQUEST_UNITS | GameDescription.VK_CONQUEST_CIVIC_CENTRES | GameDescription.VK_RELIC
+	info["relic_min"] = 3
+	info["relic_count"] = 4
+	info["pop_cap"] = -GameDescription.TEAM_POP_FLAG - 250
+	scen = GameDescription.describe(info)
+	var lines := Array(scen.split("\n"))
+	check(not scen.contains("[color=orange]Conquest[/color]"), "a combination without Conquest leaves it out")
+	check(lines.find("[color=orange]Conquest Units[/color] " + GameDescription.CONQUEST_UNITS[1]) < lines.find("[color=orange]Conquest Civic Centers[/color] " + GameDescription.CONQUEST_CIVIC_CENTRES[1])
+		and lines.find("[color=orange]Conquest Civic Centers[/color] " + GameDescription.CONQUEST_CIVIC_CENTRES[1]) < lines.find("[color=orange]Capture the Relic (3 minutes)[/color] " + GameDescription.RELIC_DESC)
+		and has_line(scen, "Relic Count", "4"), "combined conditions in GUIOrder, each with its lines")
+	check(has_line(scen, "Population Cap Type", "Team Population") and has_line(scen, "Team Population Cap", "250"), "Team Population")
+	info["victory_mask"] = 0
+	check(has_line(GameDescription.describe(info), "Endless Game", "No winner will be determined, even if everyone is defeated."), "no condition is an Endless Game")
 
 	print("4. Player state")
 	main.resign()

@@ -10,26 +10,29 @@ const SummaryPage = preload("res://scenes/session/summary_screen.gd")
 
 const HIGHLIGHT := "orange" # g_DescriptionHighlight
 
-# rtso::VictoryCondition ids (sim_types.h).
-const VICTORY_CONQUEST := 0
-const VICTORY_WONDER := 1
-const VICTORY_RELIC := 2
-const VICTORY_ENDLESS := 3
-const VICTORY_CONQUEST_UNITS := 4
-const VICTORY_CONQUEST_STRUCTURES := 5
-const VICTORY_REGICIDE := 6
+# rtso::VictoryKind bits (sim_types.h): the match's set of victory conditions.
+const VK_CONQUEST := 1
+const VK_CONQUEST_UNITS := 2
+const VK_CONQUEST_STRUCTURES := 4
+const VK_CONQUEST_CIVIC_CENTRES := 8
+const VK_WONDER := 16
+const VK_RELIC := 32
+const VK_REGICIDE := 64
 
 # simulation/data/settings/victory_conditions/*.json Title and Description.
 const CONQUEST := ["Conquest", "Defeat opponents by killing all their units and destroying all their structures."]
 const CONQUEST_UNITS := ["Conquest Units", "Defeat opponents by killing all their units."]
 const CONQUEST_STRUCTURES := ["Conquest Structures", "Defeat opponents by destroying all their structures."]
+const CONQUEST_CIVIC_CENTRES := ["Conquest Civic Centers", "Defeat opponents by destroying all their fully built civic centers."]
 const REGICIDE := ["Regicide", "Defeat opponents by killing their hero."]
 const WONDER_DESC := "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured."
 const RELIC_DESC := "Capture all relics spread across the map and keep them for a certain time to win the game."
 
 # settings/population_capacities.json Name, Title, CapTitle.
 const POP_PLAYER := ["Player Population", "Population Cap"]
+const POP_TEAM := ["Team Population", "Team Population Cap"]
 const POP_WORLD := ["World Population", "World Population Cap"]
+const TEAM_POP_FLAG := 100000 # Simulation::TEAM_POP_FLAG: pop_cap <= -flag is a Team Population
 const UNLIMITED_POP := 10000
 
 ## 0.28 messages.js g_PlayerStateMessages, for the dialog's player-state line.
@@ -58,29 +61,29 @@ static func _scenario_players(map_id: String) -> Array:
 
 static func titles(info: Dictionary) -> Array:
 	var out: Array = []
-	var victory := int(info.get("victory", VICTORY_CONQUEST))
-	match victory:
-		VICTORY_ENDLESS:
-			out.append(["Endless Game", "No winner will be determined, even if everyone is defeated."])
-		VICTORY_CONQUEST_UNITS:
-			out.append(CONQUEST_UNITS)
-		VICTORY_CONQUEST_STRUCTURES:
-			out.append(CONQUEST_STRUCTURES)
-		VICTORY_REGICIDE:
-			out.append(REGICIDE)
-			if bool(info.get("regicide_garrison", false)):
-				out.append(["Hero Garrison", "Heroes can be garrisoned."])
-			else:
-				out.append(["Exposed Heroes", "Heroes cannot be garrisoned and they are vulnerable to raids."])
-		VICTORY_WONDER:
-			out.append(CONQUEST)
-			out.append([_minutes(int(info.get("wonder_min", 0)), "Wonder"), WONDER_DESC])
-		VICTORY_RELIC:
-			out.append(CONQUEST)
-			out.append([_minutes(int(info.get("relic_min", 0)), "Capture the Relic"), RELIC_DESC])
-			out.append(["Relic Count", int(info.get("relic_count", 0))])
-		_:
-			out.append(CONQUEST)
+	# One line per condition in g_VictoryConditions (GUIOrder) order.
+	var vk := int(info.get("victory_mask", VK_CONQUEST))
+	if vk == 0:
+		out.append(["Endless Game", "No winner will be determined, even if everyone is defeated."])
+	if vk & VK_CONQUEST:
+		out.append(CONQUEST)
+	if vk & VK_CONQUEST_STRUCTURES:
+		out.append(CONQUEST_STRUCTURES)
+	if vk & VK_CONQUEST_UNITS:
+		out.append(CONQUEST_UNITS)
+	if vk & VK_CONQUEST_CIVIC_CENTRES:
+		out.append(CONQUEST_CIVIC_CENTRES)
+	if vk & VK_RELIC:
+		out.append([_minutes(int(info.get("relic_min", 0)), "Capture the Relic"), RELIC_DESC])
+		out.append(["Relic Count", int(info.get("relic_count", 0))])
+	if vk & VK_REGICIDE:
+		out.append(REGICIDE)
+		if bool(info.get("regicide_garrison", false)):
+			out.append(["Hero Garrison", "Heroes can be garrisoned."])
+		else:
+			out.append(["Exposed Heroes", "Heroes cannot be garrisoned and they are vulnerable to raids."])
+	if vk & VK_WONDER:
+		out.append([_minutes(int(info.get("wonder_min", 0)), "Wonder"), WONDER_DESC])
 
 	if bool(info.get("lock_teams", false)):
 		out.append(["Locked Teams", "Players can't change the initial teams."])
@@ -120,10 +123,13 @@ static func titles(info: Dictionary) -> Array:
 	out.append(["Starting Resources", "Per Player" if players.any(func(p): return p is Dictionary and p.has("resources"))
 		else SetupPage.START_RES[start_res]])
 
+	# Simulation::pop_cap_setting: > 0 per player, 0 unlimited, < 0 World, <= -TEAM_POP_FLAG Team.
 	var pop_cap := int(info.get("pop_cap", 0))
-	var cap_type: Array = POP_WORLD if pop_cap < 0 else POP_PLAYER
+	var cap_type: Array = POP_TEAM if pop_cap <= -TEAM_POP_FLAG else POP_WORLD if pop_cap < 0 else POP_PLAYER
 	out.append(["Population Cap Type", cap_type[0]])
-	var cap := absi(pop_cap) if pop_cap != 0 else UNLIMITED_POP
+	var cap := (-pop_cap - TEAM_POP_FLAG) if pop_cap <= -TEAM_POP_FLAG else absi(pop_cap)
+	if cap == 0:
+		cap = UNLIMITED_POP
 	out.append([cap_type[1], "Per Player" if players.any(func(p): return p is Dictionary and p.has("pop"))
 		else str(cap) if cap < UNLIMITED_POP else "Unlimited"])
 

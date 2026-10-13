@@ -527,6 +527,7 @@ private:
 	void update_hud();
 	void update_inspector();
 	void prune_selection();
+	uint32_t own_fauna_at(float x, float z) const;
 	void update_command_panel();
 	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);

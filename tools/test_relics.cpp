@@ -297,6 +297,14 @@ int main() {
 		CHECK(s.tech_mods(0).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f);
 		CHECK(s.tech_mods(2).gather[UNIT_FEMALE_CITIZEN][Simulation::GK_WOOD] == 1.0f); // player 0's ally
 
+		// Germanic Sacred Groves: the owner's workers gather wood 20% faster and carry 10 more.
+		const int16_t carry0 = s.tech_mods(0).carry[UNIT_VILLAGER][RES_WOOD];
+		give_relic(s, CIV_GERMANS, 0);
+		run(s, 1.0f);
+		CHECK(std::fabs(s.tech_mods(0).gather[UNIT_VILLAGER][Simulation::GK_WOOD] - 1.2f) < 1e-5f);
+		CHECK(s.tech_mods(0).carry[UNIT_VILLAGER][RES_WOOD] == carry0 + 10);
+		CHECK(s.tech_mods(1).gather[UNIT_VILLAGER][Simulation::GK_WOOD] == 1.0f);
+
 		// Macedonian Financial Reorganization (+1 metal a second), Seleucid Immigration
 		// (+5% population limit), Han Imperial Music Bureau (technologies half price).
 		give_relic(s, CIV_MACEDONIANS, 0);
