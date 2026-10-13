@@ -16655,13 +16655,21 @@
       "id": 1,
       "team": 0,
       "start_x": -108.72,
-      "start_z": 100.05
+      "start_z": 100.05,
+      "civ": 5,
+      "resources": {
+        "food": 100000,
+        "metal": 100000,
+        "stone": 100000,
+        "wood": 100000
+      }
     },
     {
       "id": 2,
       "team": 1,
       "start_x": 158.85,
-      "start_z": -139.68
+      "start_z": -139.68,
+      "civ": 1
     }
   ],
   "resources": [
