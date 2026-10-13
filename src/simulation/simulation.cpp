@@ -2507,10 +2507,11 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	const uint8_t civ = players_[pid].civ;
 	const uint16_t allies = ally_civ_mask(pid);
 	// Cost/Resources technologies (e.g. Hippocratic Oath's free healers) by the template's own classes.
-	const float *tech_cost = tmpl < CIV_UNIT_TEMPLATE_COUNT ? tech_mods(pid).tmpl[tmpl].cost : nullptr;
+	// ModifiersManager: the multipliers, then the additions (Nastasen's -50 wood and metal).
+	const TechMods::Template *tm = tmpl < CIV_UNIT_TEMPLATE_COUNT ? &tech_mods(pid).tmpl[tmpl] : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
-		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
-		                    (tech_cost ? tech_cost[r] : 1.0f));
+		out[r] = std::round(std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
+		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f)));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -2982,6 +2983,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
 		for (float &c : tm.cost) c = 1.0f;
+		for (float &c : tm.cost_add) c = 0.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
@@ -3092,7 +3094,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_RANGE: if (ranged) apply(e.op == TOP_MUL ? tm.range_mul : tm.range); break;
 					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
-						apply(tm.cost[cost_res]); break;
+						if (e.op == TOP_ADD) tm.cost_add[cost_res] += e.value;
+						else apply(tm.cost[cost_res]);
+						break;
 					default: break;
 				}
 			}
