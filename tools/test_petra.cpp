@@ -2102,6 +2102,67 @@ static void test_defense_switch_to_attack() {
 	CHECK(!plan || plan->state == Simulation::AttackPlan::REGROUP, "it takes no other target (uniqueTargetId)");
 }
 
+// defenseArmy.js "capturing" armies: Petra wins back the points an enemy holds on one of its
+// structures, and captures a Gaia structure in its land.
+static void test_capturing_armies() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 10; ++k) s->spawn_unit(cx - 2.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	const uint32_t barracks = s->spawn_building_world(cx - 14.0f, cz - 14.0f, BLD_BARRACKS, 1, 1.0f);
+	auto bld = [&](uint32_t id) -> Simulation::Building * {
+		for (auto &b : s->buildings_)
+			if (b.id == id) return &b;
+		return nullptr;
+	};
+	Simulation::Building *b = bld(barracks);
+	CHECK(b && b->max_capture_points > 0.0f, "the barracks can be captured");
+	if (!b || b->max_capture_points <= 0.0f) return;
+	b->capture_points_by_team[0] = 0.45f * b->max_capture_points;
+	b->capture_points_by_team[1] = 0.55f * b->max_capture_points;
+	const auto capturing = [&](uint32_t id) -> const PetraDefenseArmy * {
+		for (const auto &a : s->petra_defense_armies())
+			if (a.foe_ids.size() == 1 && a.foe_ids[0] == id) return &a;
+		return nullptr;
+	};
+	bool formed = false, recapturing = false;
+	for (int t = 0; t < 20 && !recapturing; ++t) {
+		run_for(*s, 0.5f);
+		if (const PetraDefenseArmy *a = capturing(barracks)) {
+			formed = true;
+			for (uint32_t uid : a->defender_ids) {
+				const int32_t i = s->lookup_unit(uid);
+				recapturing |= i >= 0 && s->units_.target_building_id[i] == barracks;
+			}
+		}
+	}
+	std::printf("  capturing: army for our barracks %s, defenders capturing it %s\n", formed ? "yes" : "no", recapturing ? "yes" : "no");
+	CHECK(formed && recapturing, "a capturing army wins back the points an enemy holds on our structure");
+	run_for(*s, 30.0f);
+	b = bld(barracks);
+	std::printf("  capturing: enemy points left %.0f, army %s\n", b ? b->capture_points_by_team[0] : -1.0f, capturing(barracks) ? "still there" : "disbanded");
+	CHECK(b && b->capture_points_by_team[0] <= 0.0f && !capturing(barracks), "it disbands once the points are back");
+
+	const uint32_t tower = s->spawn_building_world(cx + 14.0f, cz - 12.0f, BLD_SENTRY_TOWER, MAX_PLAYERS, 1.0f);
+	bool taken = false;
+	for (int t = 0; t < 240 && !taken; ++t) {
+		run_for(*s, 0.5f);
+		const Simulation::Building *tw = bld(tower);
+		taken = tw && tw->team == 1;
+	}
+	std::printf("  capturing: Gaia sentry tower in our land taken: %s\n", taken ? "yes" : "no");
+	CHECK(taken, "Petra captures a Gaia structure in its land");
+}
+
 // defenseManager.js isDangerous / checkEvents outside our own land: Petra sends
 // defenders to an ally's civic centre under attack, keeps a backup of up to 12
 // far-off units at home, and answers a unit attacked in neutral land.
@@ -2680,6 +2741,58 @@ static void test_temple_wonder_save() {
 	CHECK(seen && s->petra_attack_mgr_.save_resources == 0, "a new civic centre ends the saving");
 }
 
+// headquarters.js manageCorral: without fields, Petra breeds an animal of a kind while it owns no
+// more of that kind than it has corrals (Gaia's animals don't count), and lays another corral
+// while it has fewer than its phase number and over 30 population per corral.
+static void test_corral_by_owner() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 2.0f);
+	s->petra_pid_ = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_FIELD);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	const uint32_t corral = s->spawn_building_world(cx + 20.0f, cz, BLD_CORRAL, 1, 1.0f);
+	CHECK(corral != 0, "a corral is placed");
+	auto corrals = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == BLD_CORRAL && b.hp > 0.0f;
+		return n;
+	};
+	auto queued = [&] {
+		auto it = s->building_id_to_idx_.find(corral);
+		return it == s->building_id_to_idx_.end() ? 0 : (int)s->buildings_[it->second].queue.size();
+	};
+	const uint8_t first = CORRAL_TRAINABLE[s->players_[1].civ].fauna[0];
+	const uint8_t second = CORRAL_TRAINABLE[s->players_[1].civ].fauna[1];
+	auto manage = [&] { s->ticks_ = (s->ticks_ / 16 + 1) * 16 + 12; s->petra_manage_fields(); };
+	// Two of our own animals of the first kind: the corral breeds the second kind, though Gaia's
+	// animals of that kind stand beside it.
+	s->spawn_fauna(cx + 22.0f, cz, first, 1);
+	s->spawn_fauna(cx + 23.0f, cz, first, 1);
+	for (int k = 0; k < 4; ++k) s->spawn_fauna(cx + 21.0f, cz + 2.0f, second); // Gaia's, beside the corral
+	manage();
+	CHECK(corrals() == 1, "no second corral in the village phase");
+	CHECK(queued() == 1, "an animal is bred");
+	auto it = s->building_id_to_idx_.find(corral);
+	if (it != s->building_id_to_idx_.end() && !s->buildings_[it->second].queue.empty())
+		CHECK(s->buildings_[it->second].queue[0].tmpl == second, "the second kind: two of the first are ours, none of the second");
+	s->players_[1].phase = 2;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f, cz + (float)k * 0.5f, 1, UNIT_VILLAGER);
+	manage();
+	std::printf("  corrals: %d at pop %d in the town phase, %d bred\n", corrals(), s->pop_current(1), queued());
+	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -2719,6 +2832,7 @@ int main() {
 	test_defense_by_strength();
 	test_defense_armies();
 	test_defense_switch_to_attack();
+	test_capturing_armies();
 	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
@@ -2730,6 +2844,7 @@ int main() {
 	test_build_defenses();
 	test_dropsites();
 	test_food_fields();
+	test_corral_by_owner();
 	test_emergency_units();
 	test_new_cc_defenders();
 	test_temple_wonder_save();

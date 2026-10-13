@@ -3411,7 +3411,8 @@
     20,
     21,
     22,
-    34
+    34,
+    65
    ]
   },
   "brit/infantry_slinger_b": {
@@ -3451,7 +3452,8 @@
     20,
     21,
     22,
-    34
+    34,
+    65
    ]
   },
   "brit/infantry_spearman_b": {
@@ -3491,7 +3493,8 @@
     20,
     21,
     22,
-    34
+    34,
+    65
    ]
   },
   "brit/ship_arrow": {
@@ -3603,7 +3606,8 @@
     20,
     21,
     22,
-    34
+    34,
+    65
    ]
   },
   "brit/support_female_citizen_house": {
@@ -3640,7 +3644,8 @@
     20,
     21,
     22,
-    34
+    34,
+    65
    ]
   },
   "brit/support_healer_b": {
@@ -10142,6 +10147,19 @@
      "Gate"
     ],
     "template": "structures/palisades_gate"
+   },
+   "65": {
+    "generic_name": "Island Settlement",
+    "specific_name": "Cranogion",
+    "tooltip": "Build upon a shoreline in own, neutral, or allied territory. Acquire large tracts of territory. Territory root. Train Citizens, construct Ships, and research technologies. Garrison Soldiers for additional arrows.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "CivilCentre",
+     "Naval"
+    ],
+    "template": "structures/brit/crannog"
    }
   },
   "gaul": {
