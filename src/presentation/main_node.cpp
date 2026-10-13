@@ -158,6 +158,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
 	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
+	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -3322,7 +3323,7 @@ void RtsoMain::_process(double delta) {
 					g->set_mesh(box);
 					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
 				}
-				g->set_global_position(Vector3(p.x, 0.05f, p.z));
+				g->set_global_position(Vector3(p.x, (sim ? sim->get_terrain_height(p.x, p.z) : 0.0f) + 0.05f, p.z));
 				g->set_rotation(Vector3(0.0f, yaw, 0.0f));
 				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
@@ -3356,7 +3357,7 @@ void RtsoMain::_process(double delta) {
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
 				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
-				ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
+				ghost_mesh->set_global_position(Vector3(gx, sim->get_terrain_height(gx, gz) + 0.05f, gz));
 				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
 				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
@@ -3477,8 +3478,32 @@ Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 	Vector3 ray_origin = cam->project_ray_origin(mouse_pos);
 	Vector3 ray_dir = cam->project_ray_normal(mouse_pos);
 	if (std::abs(ray_dir.y) < 0.0001f) return Vector3();
-	float t = -ray_origin.y / ray_dir.y;
-	return ray_origin + ray_dir * t;
+	const float t_plane = -ray_origin.y / ray_dir.y;
+	// The ground the player sees is the heightmap, not y = 0 (0 A.D.'s
+	// GetTerrainCursorPosition): walk the ray down until it passes under the
+	// terrain, then bisect that step. Without a heightmap, or when the ray
+	// never meets it, the y = 0 plane stands in.
+	if (sim && ray_dir.y < 0.0f && !sim->terrain_heights().empty()) {
+		constexpr float STEP = 0.5f;
+		const float t_end = std::max(t_plane, 0.0f) + 400.0f;
+		float prev = 0.0f;
+		for (float t = 0.0f; t <= t_end; t += STEP) {
+			const Vector3 p = ray_origin + ray_dir * t;
+			if (p.y > sim->get_terrain_height(p.x, p.z)) {
+				prev = t;
+				continue;
+			}
+			float lo = prev, hi = t;
+			for (int i = 0; i < 12; ++i) {
+				const float mid = 0.5f * (lo + hi);
+				const Vector3 m = ray_origin + ray_dir * mid;
+				(m.y > sim->get_terrain_height(m.x, m.z) ? lo : hi) = mid;
+			}
+			const Vector3 hit = ray_origin + ray_dir * hi;
+			return Vector3(hit.x, sim->get_terrain_height(hit.x, hit.z), hit.z);
+		}
+	}
+	return ray_origin + ray_dir * t_plane;
 }
 
 // The local player's structure whose box the mouse ray enters first: its
@@ -6408,7 +6433,19 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["hosting"] = hosting;
 	d["players"] = players;
 	d["started"] = net_game_started_;
+	// For tools/playtest_godot_mp.py: where the match is and whether it agrees.
+	d["turn"] = (int64_t)turn_mgr_.current_turn();
+	d["seat"] = (int)seat_player();
+	d["oos"] = turn_mgr_.has_out_of_sync();
+	d["oos_turn"] = (int64_t)turn_mgr_.oos_turn();
 	return d;
+}
+
+int64_t RtsoMain::get_turn_hash(int64_t turn) const {
+	const auto &history = turn_mgr_.turn_history();
+	for (auto it = history.rbegin(); it != history.rend(); ++it)
+		if ((int64_t)it->turn_index == turn) return (int64_t)it->sim_state_hash;
+	return 0;
 }
 
 // 0 A.D. gamesetup player assignment (PlayerAssignmentsController.js): the host

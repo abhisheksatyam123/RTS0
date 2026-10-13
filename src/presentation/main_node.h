@@ -376,6 +376,8 @@ public:
 	void _start_menu_net();
 	// For LobbySession's heartbeat: whether we host, how many play, whether it started.
 	Dictionary get_lobby_state() const;
+	// The lockstep state hash this client computed for a turn (0 if not kept).
+	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();
 	bool net_lockstep() const { return net_host_.getRole() != rtso::NetRole::None; }
 	// Orders go through the TurnManager: always in multiplayer, and offline too
