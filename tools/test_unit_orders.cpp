@@ -756,10 +756,28 @@ static void test_capture_rules() {
 		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
 		root_origin(s);
 		const float cp = bld(s, house)->capture_points_by_team[1];
-		uint32_t w = s.spawn_unit(-5, 0, 0, UNIT_FEMALE_CITIZEN);
+		// A woman: the civilian 0.28 trains in her place (also UNIT_FEMALE_CITIZEN) captures at 1.
+		uint32_t w = s.spawn_unit(-5, 0, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_unit_template_by_id("athen/support_female_citizen"));
 		s.order_attack_building(&w, 1, house, false, true);
 		run(s, 10.0f);
 		check(bld(s, house)->capture_points_by_team[1] >= cp - 0.01f, "women have no capture attack");
+	}
+	{
+		// 0.28 Attack/Capture/Capture per template and Capturable/RegenRate per structure.
+		auto cap = [](const char *id) {
+			const uint16_t t = civ_unit_template_by_id(id);
+			return unit_capture_attack(t, civ_unit_template(t).unit_type);
+		};
+		check(cap("athen/support_civilian") == 1.0f && cap("athen/infantry_spearman_b") == 2.5f, "civilians 1, infantry 2.5");
+		check(cap("athen/cavalry_javelineer_b") == 1.75f && cap("cart/champion_cavalry") == 3.5f, "cavalry 1.75, champion cavalry 3.5");
+		check(cap("cart/champion_elephant") == 0.0f && cap("cart/hero_hannibal") == 0.0f && cap("brit/war_dog") == 0.0f,
+		      "war elephants, hero elephants and dogs don't capture");
+		check(cap("han/support_minister") == 4.0f, "the Han minister captures at 4");
+		check(building_type_info(BLD_TOWN_CENTER).capture_regen_rate == 30.0f && building_type_info(BLD_FORTRESS).capture_regen_rate == 45.0f &&
+		      building_type_info(BLD_TEMPLE).capture_regen_rate == 15.0f && building_type_info(BLD_TOWER).capture_regen_rate == 10.0f &&
+		      building_type_info(BLD_BARRACKS).capture_regen_rate == 10.0f && building_type_info(BLD_HOUSE).capture_regen_rate == 5.0f,
+		      "structures regain 5 a second, military and towers 10, temples 15, civic centres 30, fortresses 45");
+		check(building_type_info(BLD_DOCK).territory_decay_rate == 0.0f, "docks don't decay");
 	}
 }
 
