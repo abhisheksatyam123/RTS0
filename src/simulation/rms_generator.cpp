@@ -7551,9 +7551,6 @@ void RmsGenerator::synth_elephantine(HeightmapGrid &hm, RmsRng &rng, float &wate
 namespace {
 namespace jebel {
 
-// getDifficulty(): RTS0 has no trigger difficulty setting yet, so the map is built at the
-// script's default, Medium (data/settings/trigger_difficulties.json: 3), as TriggerState's.
-constexpr int kDifficulty = 3;
 // jebel_barkal.png (tools/gen_heightmap_images.py) holds the PMP's raw heights 23170..33144 as
 // 0..255: 255 is 797 x 9974 / 65535 m above 0 on a 320 tile map (HeightmapPainter maps
 // 0..0xFFFF to minHeightSource 3..maxHeightSource 800).
@@ -7635,7 +7632,9 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 	const size_t N = hm.data.size();
 	auto sc = [&](float a, float b) { return seas_scale(a, b, half); };
 	const float hs = size / 320.0f, hw = std::max(hs, 1.0f);
+	const uint8_t difficulty = out.difficulty; // the caller's Trigger Difficulty
 	out = JebelBarkalLayout();
+	out.difficulty = difficulty;
 	const float h_fertile = metres(water_h, 3.0f * hw), h_desert = metres(water_h, 5.0f * hw);
 	const float h_passage = std::max(metres(water_h, -1.5f * hw), wade_height(water_h) + 0.02f);
 	const float h_canal = metres(water_h, -4.0f * hw), h_sea = metres(water_h, -8.0f * hw);
@@ -7928,7 +7927,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 	// of the temples (placeLinearWall, ["tower", "gate", "tower", "short", "tower", "short",
 	// "tower"]) where they keep off the hill and the temples. Each stretch between gates is laid
 	// as segments of at most a medium piece, which spawn_gaia_wall joins with towers.
-	out.wall = size < 192.0f || kDifficulty < 2 ? 0xFF : kDifficulty < 3 ? (uint8_t)WALLSET_PALISADE : (uint8_t)WALLSET_STONE;
+	out.wall = size < 192.0f || out.difficulty < 2 ? 0xFF : out.difficulty < 3 ? (uint8_t)WALLSET_PALISADE : (uint8_t)WALLSET_STONE;
 	std::vector<uint8_t> wall_mask(N, 0), gate_mask(N, 0);
 	if (out.wall != 0xFF) {
 		const WallLengths L = wall_lengths(out.wall);
@@ -8258,7 +8257,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	// The districts (CityPainter): through each district in rows along its angle, at every free
 	// spot the first of the shuffled structures that fits and keeps its distance from its kind.
 	{
-		const uint8_t tower = size >= 256.0f && kDifficulty >= 3 ? BLD_TOWER : BLD_SENTRY_TOWER;
+		const uint8_t tower = size >= 256.0f && lay.difficulty >= 3 ? BLD_TOWER : BLD_SENTRY_TOWER;
 		struct CityBuilding {
 			uint8_t type;
 			int difficulty;
@@ -8273,7 +8272,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 		};
 		std::vector<CityBuilding> layout;
 		for (const CityBuilding &b : all)
-			if (kDifficulty >= b.difficulty) layout.push_back(b);
+			if (lay.difficulty >= b.difficulty) layout.push_back(b);
 		std::vector<std::vector<Spot>> placed(layout.size());
 		const auto to_path = seas_dist_inside(hm, lay.path);
 		std::vector<uint8_t> taken(N, 0);
@@ -8361,7 +8360,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 			++placed;
 		}
 	};
-	const float diff = (float)kDifficulty / 3.0f;
+	const float diff = (float)lay.difficulty / 3.0f;
 	const auto hilltop = pick_cells([&](size_t v) { return lay.hilltop[v] && to_cliff[v] > 1.0f && to_cliff[v] <= 5.0f; });
 	groups_on(hilltop, count(sc(1.0f, 5.0f) * diff), 250, 0.0f, [&](float x, float z) {
 		const int n = rng.range_int((int)sc(4.0f, 10.0f), (int)sc(6.0f, 20.0f));
@@ -9283,6 +9282,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_anatolian_plateau(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_JEBEL_BARKAL:
+			jebel_barkal.difficulty = config.trigger_difficulty;
 			synth_jebel_barkal_0ad(hm, rng, water_h, spawns, config.num_players, config.teams, jebel_barkal);
 			break;
 		case MAP_MAINLAND:
