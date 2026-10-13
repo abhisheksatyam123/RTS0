@@ -627,6 +627,8 @@ int main() {
 		run(g, 5.0f);
 		CHECK(bld(bar).capture_points_by_team[0] >= held - 0.01f);
 		std::printf("Migratory Resettlement: barracks decay %.2f -> %.6f points/s\n", base, g.structure_decay_rate(bld(bar)));
+	}
+
 	// Attack technologies change each damage kind on its own (Attack/<type>/Damage/<kind>,
 	// GetTechModifiedProperty_numeric: x every multiply, then + every add): Naval Oxybeles
 	// gives Arrow Ships +10 crush on top of their 32 pierce, and Poison Arrows scales each of
