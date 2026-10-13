@@ -27,10 +27,10 @@ struct RelicGlobalAura {
 	uint16_t mod_count;
 };
 
-constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 34;
+constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 35;
 
 inline const RelicAuraModifier *relic_aura_modifiers() {
-	static const RelicAuraModifier kMods[109] = {
+	static const RelicAuraModifier kMods[111] = {
 		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
@@ -99,6 +99,8 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // han_catafalque_2
 		{TSTAT_TECH_COST_METAL, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // han_catafalque_2
 		{TSTAT_RESEARCH_TIME, TOP_MUL, 0.5f, 1, {{TC_STRUCTURE, 0}}}, // han_catafalque_2
+		{TSTAT_GATHER_WOOD, TOP_MUL, 1.2f, 1, {{TC_WORKER, 0}}}, // germ_1
+		{TSTAT_CARRY_WOOD, TOP_ADD, 10.0f, 1, {{TC_WORKER, 0}}}, // germ_1
 		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
 		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 1, {{TC_STRUCTURE, 0}}}, // athen_hero_pericles_2
@@ -170,16 +172,17 @@ inline const RelicGlobalAura *relic_global_auras() {
 		{"sele_catafalque_3", 1, 58, 4},
 		{"han_catafalque_1", 1, 62, 1},
 		{"han_catafalque_2", 1, 63, 5},
-		{"athen_hero_pericles_2", 1, 68, 5},
-		{"athen_hero_themistocles_1", 1, 73, 2},
-		{"athen_hero_themistocles_2", 1, 75, 3},
-		{"iber_hero_indibil", 1, 78, 5},
-		{"kush_hero_arakamani_1", 1, 83, 5},
-		{"kush_hero_nastasen_2", 1, 88, 2},
-		{"maur_hero_ashoka", 1, 90, 8},
-		{"maur_hero_chanakya_1", 1, 98, 5},
-		{"ptol_hero_ptolemy_i_2", 1, 103, 4},
-		{"spart_hero_agis_1", 1, 107, 2},
+		{"germ_1", 1, 68, 2},
+		{"athen_hero_pericles_2", 1, 70, 5},
+		{"athen_hero_themistocles_1", 1, 75, 2},
+		{"athen_hero_themistocles_2", 1, 77, 3},
+		{"iber_hero_indibil", 1, 80, 5},
+		{"kush_hero_arakamani_1", 1, 85, 5},
+		{"kush_hero_nastasen_2", 1, 90, 2},
+		{"maur_hero_ashoka", 1, 92, 8},
+		{"maur_hero_chanakya_1", 1, 100, 5},
+		{"ptol_hero_ptolemy_i_2", 1, 105, 4},
+		{"spart_hero_agis_1", 1, 109, 2},
 	};
 	return kAuras;
 }
@@ -258,6 +261,17 @@ inline const GatherRateRangeAura *gather_rate_range_auras() {
 	static const GatherRateRangeAura kAuras[2] = {
 		{"farmstead_60", {1.75f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, 60.0f, 1},
 		{"spart_catafalque_3", {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.15f}, 80.0f, 1},
+	};
+	return kAuras;
+}
+
+// Range auras adding to the MaxRange of the units they reach (AURA_RANGE_ADD sources,
+// value = row): 0 A.D. metres added to a ranged and to a melee attack; radius in 0 A.D. metres.
+struct RangeAddRangeAura { const char *id; float ranged; float melee; float radius; uint8_t players; };
+constexpr uint16_t RANGE_ADD_RANGE_AURA_COUNT = 1;
+inline const RangeAddRangeAura *range_add_range_auras() {
+	static const RangeAddRangeAura kAuras[1] = {
+		{"germ_hero_boiorix_1", 5.0f, 2.0f, 60.0f, 1},
 	};
 	return kAuras;
 }
