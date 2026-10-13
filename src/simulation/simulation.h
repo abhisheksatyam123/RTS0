@@ -2150,7 +2150,9 @@ private:
 	void stat_unit_captured(size_t idx, uint8_t from); // unit idx now belongs to its captor
 	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
 	void tick_statistics();
-	void update_statistics_explored();
+	uint8_t stat_team_mask(uint8_t player) const;
+	float explored_percent(uint8_t players) const;
+	std::array<uint8_t, MAX_PLAYERS> territory_percentages() const;
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
@@ -2464,7 +2466,8 @@ private:
 	std::array<PlayerStatistics, MAX_PLAYERS> stats_{};
 	std::vector<StatisticsSample> stat_samples_;
 	static constexpr size_t MAX_STATISTICS_SAMPLES = 4096; // 34 hours of 30 s rows
-	// Cells each player has seen, STATISTICS_EXPLORE_CELL wide (1 = explored).
+	// Saves before map exploration was read from the LOS grid (los_) kept their own
+	// explored cells here; still in the save layout, no longer filled.
 	int32_t stats_explore_res_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> stats_explored_;
 
@@ -2884,10 +2887,10 @@ private:
 		std::array<uint32_t, MAX_PLAYERS> neighbours;
 		uint32_t neutral; // bordering neutral tiles (Gaia's share of the decay)
 	};
-	Grid<uint16_t> territory_region_;
-	std::vector<TerritoryRegion> territory_regions_;
-	bool territory_regions_dirty_ = true;
-	void ensure_territory_regions();
+	mutable Grid<uint16_t> territory_region_;
+	mutable std::vector<TerritoryRegion> territory_regions_;
+	mutable bool territory_regions_dirty_ = true;
+	void ensure_territory_regions() const;
 	// !IsTerritoryBlinking: the tile at (x, z) is neutral or in a region holding one of its owner's roots.
 	bool territory_connected_at(float x, float z) const;
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
