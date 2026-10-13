@@ -27,6 +27,7 @@ void RtsoHotkeyConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset_user"), &RtsoHotkeyConfig::reset_user);
 	ClassDB::bind_method(D_METHOD("reload"), &RtsoHotkeyConfig::reload);
 	ClassDB::bind_method(D_METHOD("event_key_name", "event"), &RtsoHotkeyConfig::event_key_name);
+	ClassDB::bind_method(D_METHOD("fired", "event"), &RtsoHotkeyConfig::fired);
 	ClassDB::bind_method(D_METHOD("format_keys", "keys"), &RtsoHotkeyConfig::format_keys);
 	ClassDB::bind_method(D_METHOD("is_held", "name"), &RtsoHotkeyConfig::is_held);
 }
@@ -87,6 +88,19 @@ String RtsoHotkeyConfig::event_key_name(const Ref<InputEvent> &event) const {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_valid()) return hk::mouse_name(mb->get_button_index());
 	return String();
+}
+
+// The hotkeys a key or mouse press fires, for GUI pages that handle their
+// own keys while the session is paused (the in-game menu).
+PackedStringArray RtsoHotkeyConfig::fired(const Ref<InputEvent> &event) const {
+	PackedStringArray out;
+	std::vector<std::string> names;
+	Ref<InputEventKey> key = event;
+	Ref<InputEventMouseButton> mb = event;
+	if (key.is_valid()) names = hk::fired(key);
+	else if (mb.is_valid()) names = hk::fired(mb);
+	for (const auto &n : names) out.push_back(to_godot(n));
+	return out;
 }
 
 String RtsoHotkeyConfig::format_keys(const PackedStringArray &keys) const {

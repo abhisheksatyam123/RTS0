@@ -27,10 +27,10 @@ struct RelicGlobalAura {
 	uint16_t mod_count;
 };
 
-constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 32;
+constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 33;
 
 inline const RelicAuraModifier *relic_aura_modifiers() {
-	static const RelicAuraModifier kMods[102] = {
+	static const RelicAuraModifier kMods[104] = {
 		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
@@ -114,6 +114,8 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_COST_WOOD, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_STONE, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_METAL, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_COST_WOOD, TOP_ADD, -50.0f, 1, {{TC_ARROWSHIP, 0}}}, // kush_hero_nastasen_2
+		{TSTAT_COST_METAL, TOP_ADD, -50.0f, 1, {{TC_ARROWSHIP, 0}}}, // kush_hero_nastasen_2
 		{TSTAT_BUILD_TIME, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
 		{TSTAT_COST_WOOD, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
 		{TSTAT_COST_STONE, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
@@ -167,10 +169,11 @@ inline const RelicGlobalAura *relic_global_auras() {
 		{"athen_hero_themistocles_1", 1, 73, 2},
 		{"athen_hero_themistocles_2", 1, 75, 3},
 		{"iber_hero_indibil", 1, 78, 5},
-		{"maur_hero_ashoka", 1, 83, 8},
-		{"maur_hero_chanakya_1", 1, 91, 5},
-		{"ptol_hero_ptolemy_i_2", 1, 96, 4},
-		{"spart_hero_agis_1", 1, 100, 2},
+		{"kush_hero_nastasen_2", 1, 83, 2},
+		{"maur_hero_ashoka", 1, 85, 8},
+		{"maur_hero_chanakya_1", 1, 93, 5},
+		{"ptol_hero_ptolemy_i_2", 1, 98, 4},
+		{"spart_hero_agis_1", 1, 102, 2},
 	};
 	return kAuras;
 }
@@ -249,6 +252,38 @@ inline const NoLootRangeAura *no_loot_range_auras() {
 	return kAuras;
 }
 
+// Every AuraManager effect of the unit auras with more than one kind (extract_0ad_rosters
+// rts0_aura_effects): civ_roster_data.h's CivHeroAura keeps one kind, and rebuild_auras
+// registers the rows of the other kinds from here. range in RTS0 units.
+struct AuraEffectRow { const char *id; uint8_t kind; float value; float range; };
+constexpr uint16_t AURA_EFFECT_ROW_COUNT = 21;
+inline const AuraEffectRow *aura_effect_rows() {
+	static const AuraEffectRow kRows[21] = {
+		{"brit_catafalque_1", 3 /* AURA_SPEED */, 1.15f, 1000.0f},
+		{"brit_catafalque_1", 6 /* AURA_VISION */, 1.15f, 1000.0f},
+		{"cart_catafalque", 4 /* AURA_ARMOR */, 1.0f, 1000.0f},
+		{"cart_catafalque", 5 /* AURA_HEALTH */, 1.1f, 1000.0f},
+		{"brit_hero_boudicca", 2 /* AURA_ATTACK */, 1.2f, 11.2f},
+		{"brit_hero_boudicca", 3 /* AURA_SPEED */, 1.1f, 11.2f},
+		{"brit_hero_caratacos", 3 /* AURA_SPEED */, 1.15f, 1000.0f},
+		{"brit_hero_caratacos", 4 /* AURA_ARMOR */, 1.0f, 1000.0f},
+		{"mace_hero_alexander_iii_1", 2 /* AURA_ATTACK */, 1.1f, 16.8f},
+		{"mace_hero_alexander_iii_1", 3 /* AURA_SPEED */, 1.15f, 16.8f},
+		{"mace_hero_demetrius_i", 2 /* AURA_ATTACK */, 1.2f, 16.8f},
+		{"mace_hero_demetrius_i", 4 /* AURA_ARMOR */, 1.0f, 16.8f},
+		{"mace_hero_demetrius_i", 6 /* AURA_VISION */, 1.1f, 16.8f},
+		{"mace_hero_pyrrhus_i", 2 /* AURA_ATTACK */, 1.2f, 1000.0f},
+		{"mace_hero_pyrrhus_i", 5 /* AURA_HEALTH */, 0.85f, 1000.0f},
+		{"maur_hero_chandragupta_2", 2 /* AURA_ATTACK */, 1.1765f, 1000.0f},
+		{"maur_hero_chandragupta_2", 3 /* AURA_SPEED */, 1.1f, 1000.0f},
+		{"sele_hero_seleucus_i", 2 /* AURA_ATTACK */, 1.2f, 16.8f},
+		{"sele_hero_seleucus_i", 3 /* AURA_SPEED */, 1.2f, 16.8f},
+		{"spart_hero_brasidas", 2 /* AURA_ATTACK */, 1.25f, 16.8f},
+		{"spart_hero_brasidas", 4 /* AURA_ARMOR */, 1.0f, 16.8f},
+	};
+	return kRows;
+}
+
 // Structures projecting a capture range aura: BuildingType, capture_range_auras() index.
 struct CaptureStructureAura { uint8_t building; uint16_t aura; };
 constexpr uint16_t CAPTURE_STRUCTURE_AURA_COUNT = 1;
@@ -265,8 +300,8 @@ struct BuilderRateRangeAura { const char *id; float multiply; bool stackable; };
 constexpr uint16_t BUILDER_RATE_RANGE_AURA_COUNT = 3;
 inline const BuilderRateRangeAura *builder_rate_range_auras() {
 	static const BuilderRateRangeAura kAuras[3] = {
-		{"han_minister_building", 1.02f, true},
-		{"pers_hero_xerxes_i", 1.15f, false},
+		{"han_minister_building", 1.1f, false},
+		{"pers_hero_xerxes_i_1", 1.25f, false},
 		{"ptol_hero_ptolemy_i_1", 1.1f, false},
 	};
 	return kAuras;
