@@ -13,6 +13,7 @@
 #include "sim_types.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
+#include "tutorial_data.h"
 #include "turret_data.h"
 #include <cstdint>
 #include <vector>
@@ -864,6 +865,20 @@ public:
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
+	bool has_map_triggers() const { return !triggers_.triggers.empty(); }
+	// Commands.js ProcessCommand's OnPlayerCommand (kind: TriggerCommand). target and other
+	// are the command's targets (see TriggerCommand), hunt 1 when target is an animal,
+	// count a constructed BuildingType.
+	void note_player_command(uint8_t player, uint16_t kind, uint32_t target, uint32_t other, uint8_t hunt, uint16_t count);
+	// The running tutorial (maps/scripts/Tutorial.js): which one (TutorialId), its current
+	// goal (tutorial_goal(), the last one when finished), whether the goal waits for the
+	// Ready button (NET_CMD_TUTORIAL_READY) and the WarningMessage shown (TutorialWarning).
+	uint8_t tutorial_id() const { return (uint8_t)triggers_.vars[7]; }
+	int tutorial_goal_index() const { return triggers_.vars[0]; }
+	bool tutorial_ready_button() const { return triggers_.vars[1] != 0; }
+	uint8_t tutorial_warning() const { return (uint8_t)triggers_.vars[6]; }
+	// The player the tutorial teaches (playerID 1) and its enemy (2).
+	static constexpr uint8_t TUTORIAL_PLAYER = 0, TUTORIAL_ENEMY = 1;
 	// Time notifications (GuiInterface.AddTimeNotification) shown to `player` right now.
 	std::vector<const TimeNotification *> time_notifications_for(uint8_t player) const;
 	// WaterManager.SetWaterLevel as the rising-water scripts use it: moves the water
@@ -1229,7 +1244,8 @@ public:
 	int petra_pop_for_barracks2() const;
 	void petra_build_defenses();
 	void petra_check_resource_levels(int32_t turn);
-	uint32_t petra_place_dropsite(uint8_t res);
+	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 6000.0f, bool *no_site = nullptr);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -1584,6 +1600,7 @@ private:
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
+	void patrol_arrive(size_t i);
 	void patrol_next_leg(size_t i);
 	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
 	// structure) and the point the unit walks to (the unit, or tick_combat's stand point beside the
@@ -1633,6 +1650,7 @@ private:
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
+		float bld_garrison_regen_add[BLD_TYPE_COUNT]; // added to Capturable/GarrisonRegenRate (the phases)
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
@@ -1825,6 +1843,10 @@ private:
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
+	void refresh_capture_max(Building &b); // Capturable.js UpdateCachedValuesAndNotify: rescale every side's points
+	float structure_capture_garrison_regen(const Building &b) const; // Capturable/GarrisonRegenRate with modifiers
+	void register_capture_aura(uint32_t id, uint8_t team, uint16_t k, float x, float z);
 	float unit_base_vision(size_t i) const; // the template's Vision/Range x0.28 (class default if none)
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
@@ -2084,10 +2106,21 @@ private:
 	void trigger_survival_wave();
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
+	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
+	void tutorial_next_goal();
+	void tutorial_event(const TriggerEventData &data);
+	bool tutorial_goal_done(int goal) const;
+	void tutorial_goal_init(int goal);
+	bool tutorial_goal_listens(int goal) const;
+	void tutorial_reset_queue(uint32_t building_id);
+	void tutorial_launch_attack();
+	void tutorial_remove_champions();
+	bool tech_dealt_with(uint8_t player, uint8_t tech) const; // TriggerHelper.HasDealtWithTech
+	uint8_t tutorial_resource_kind(uint32_t id, bool animal) const;
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
-	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
+	void capture_points_tick(Building &b, size_t bi, bool timer_tick); // Capturable.js Reduce, regen and owner change
 	using CapturePools = std::array<float, MAX_PLAYERS + 1>; // per player, then Gaia's
 	bool capture_enemy(int source, int t) const;
 	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce

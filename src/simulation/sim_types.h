@@ -1225,6 +1225,7 @@ enum TechStat : uint8_t {
 	TSTAT_SPREAD,          // Attack/Ranged/Projectile/Spread
 	TSTAT_GARRISON_ARROWS, // BuildingAI/GarrisonArrowMultiplier
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
+	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_COUNT
 };
 
@@ -1713,6 +1714,14 @@ inline bool civ_aura_affects(int16_t aura, uint16_t tmpl) {
 inline const CivUnitTemplate &civ_unit_template(uint16_t id) {
 	const CivUnitTemplate *t = civ_unit_template_table();
 	return t[id < CIV_UNIT_TEMPLATE_COUNT ? id : 0];
+}
+
+// The roster row of a 0 A.D. template path ("athen/infantry_javelineer_b"), or
+// CIV_UNIT_TEMPLATE_NONE.
+inline uint16_t civ_unit_template_by_id(const char *id) {
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, id) == 0) return t;
+	return CIV_UNIT_TEMPLATE_NONE;
 }
 
 // Cost/Population of a unit (heroes, dogs and catafalques 0, siege and warships 2-4);
