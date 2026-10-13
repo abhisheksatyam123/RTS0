@@ -1472,9 +1472,7 @@ inline bool siege_garrison_allowed(uint8_t unit_type) {
 }
 
 inline uint64_t building_tech_classes(uint8_t type) {
-	uint64_t c = TC_STRUCTURE;
-	uint8_t phase = building_required_phase(type);
-	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
+	const uint64_t c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;

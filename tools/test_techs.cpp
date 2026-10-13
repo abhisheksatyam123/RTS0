@@ -76,7 +76,7 @@ int main() {
 		CHECK(ti.researcher < BLD_TYPE_COUNT);
 		CHECK(ti.required_phase >= 1 && ti.required_phase <= 3);
 		CHECK(ti.prerequisite < TECH_COUNT && ti.prerequisite != t);
-		CHECK(ti.civ_mask != 0);
+		CHECK(ti.civ_mask != 0 || t == TECH_WARSHIP_RAMMING_SPEED); // Flanking Maneuvers: not in 0.28
 		// Only the free, instant Seleucid army reforms (pair members with no researchTime) take no time.
 		CHECK(ti.research_time > 0.0f || (t == TECH_TRADITIONAL_ARMY_SELE || t == TECH_REFORMED_ARMY_SELE));
 		for (int e = 0; e < ti.effect_count; ++e)
@@ -342,9 +342,9 @@ int main() {
 		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
 		CHECK(cost[RES_GOLD] == 0.0f);
 
-		// Dock warship techs: Flanking Maneuvers and Bronze Ram reach ramming ships
-		// (0 A.D. NavalRam) only, Bronze Ram needs Flanking Maneuvers, and the
-		// Athenian Arsenal of Philon (after Shipwrights) repairs warships.
+		// Dock warship techs: Bronze Ram reaches ramming ships (0 A.D. NavalRam) only and
+		// needs only the City phase (0.28 has no Flanking Maneuvers), and the Athenian
+		// Arsenal of Philon (after Shipwrights) repairs warships.
 		fresh(s);
 		s.set_player_civ(CIV_ATHENIANS);
 		s.player(0).phase = 3;
@@ -354,13 +354,10 @@ int main() {
 			if (std::strcmp(civ_unit_template(i).id, "athen/ship_arrow") == 0) arrow = i;
 		}
 		CHECK(ram != CIV_UNIT_TEMPLATE_NONE && arrow != CIV_UNIT_TEMPLATE_NONE);
-		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_BRITONS)); // brit fire ships are melee warships too
-		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_WARSHIP_RAMMING_SPEED);
+		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_ATHENIANS)); // not in 0.28
+		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_NONE);
 		CHECK(tech_info(TECH_ARSENAL_PHILON).prerequisite == TECH_DOCK_EFFICIENCY);
 		CHECK(!tech_available_to_civ(TECH_ARSENAL_PHILON, CIV_SPARTANS));
-		research(TECH_WARSHIP_RAMMING_SPEED, -10.0f);
-		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].speed - 1.25f) < 1e-4f);
-		CHECK(s.tech_mods(0).tmpl[arrow].speed == 1.0f);
 		research(TECH_WARSHIP_RAMMING_ATTACK, -30.0f);
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].attack - 1.3f) < 1e-4f);
 		CHECK(s.tech_mods(0).tmpl[arrow].attack == 1.0f);
@@ -371,6 +368,32 @@ int main() {
 		research(TECH_ARSENAL_PHILON, -90.0f);
 		CHECK(s.tech_mods(0).regen[UNIT_TRIREME] == 1.0f);
 		CHECK(s.tech_mods(0).regen[UNIT_FISHING_BOAT] == 0.0f);
+
+		// 0.28 naval classes: Naval Ballistae (NavalSiege range and vision x1.2), Burning
+		// Pitch (Ignited health x1.25) and Lookouts (Ship vision x1.1, ScoutShip x1.25 more).
+		auto tmpl_id = [](const char *id) {
+			for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (std::strcmp(civ_unit_template(i).id, id) == 0) return i;
+			return (uint16_t)CIV_UNIT_TEMPLATE_NONE;
+		};
+		const uint16_t siege = tmpl_id("rome/ship_siege"), scout = tmpl_id("rome/ship_scout");
+		const uint16_t ignited = tmpl_id("brit/ship_fire_fire"), unlit = tmpl_id("brit/ship_fire");
+		CHECK(siege != CIV_UNIT_TEMPLATE_NONE && scout != CIV_UNIT_TEMPLATE_NONE && ignited != CIV_UNIT_TEMPLATE_NONE);
+		fresh(s);
+		s.set_player_civ(CIV_ROMANS);
+		s.player(0).phase = 3;
+		research(TECH_WARSHIP_SIEGE_ATTACK, -10.0f);
+		research(TECH_SHIP_VISION, -30.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[siege].range_mul - 1.2f) < 1e-4f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[siege].vision - 1.2f * 1.1f) < 1e-4f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[scout].vision - 1.1f * 1.25f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[scout].range_mul == 1.0f);
+		fresh(s);
+		s.set_player_civ(CIV_BRITONS);
+		s.player(0).phase = 3;
+		research(TECH_WARSHIP_FIRESHIP_ATTACK, -10.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ignited].health - 1.25f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[unlit].health == 1.0f); // only the ignited form is Ignited
 
 		s.set_player_civ(civ_before);
 	}
@@ -549,7 +572,7 @@ int main() {
 		                  TECH_TOWER_CRENELLATIONS, TECH_TOWER_MURDERHOLES, TECH_HEAL_RANGE, TECH_TOWER_RANGE})
 			v.complete_research(0, t);
 		CHECK(std::fabs(v.unit_tech_mods(0, UNIT_ARCHER, v.units_.tmpl[archer]).spread - 0.8f) < 1e-6f);
-		CHECK(std::fabs(v.unit_vision_at(ship) - ship_vis * 1.1f * 1.2f) < 1e-3f);
+		CHECK(std::fabs(v.unit_vision_at(ship) - ship_vis * 1.1f * 1.2f * 1.25f) < 1e-3f); // a Carthaginian scout ship: Lookouts' ScoutShip row too
 		CHECK(std::fabs(v.unit_vision_at(healer) - (healer_vis + 5.0f * 0.28f)) < 1e-3f);
 		CHECK(std::fabs(v.building_vision_range(building(outpost)) - outpost_vis * 1.333333f) < 1e-3f);
 		CHECK(std::fabs(v.building_vision_range(building(tower)) - (tower_vis + 8.0f * 0.28f)) < 1e-3f);

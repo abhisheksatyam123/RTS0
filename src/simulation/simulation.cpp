@@ -2976,13 +2976,6 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	// 0 A.D. phase_town_generic / phase_city_generic "entity" requirements.
 	if (tech_id == TECH_PHASE_TOWN && phase_structures(player_id, 1) < 5) return TECH_ERR_STRUCTURES;
 	if (tech_id == TECH_PHASE_CITY && phase_structures(player_id, 2) < 3) return TECH_ERR_STRUCTURES;
-	// unlock_shared_dropsites.json: {"entity": {"class": "Trader", "number": 3}}.
-	if (tech_id == TECH_UNLOCK_SHARED_DROPSITES) {
-		int traders = 0;
-		for (size_t u = 0; u < units_.count; ++u)
-			traders += units_.alive[u] && units_.team[u] == player_id && (unit_tech_classes(units_.unit_type[u]) & TC_TRADER);
-		if (traders < 3) return TECH_ERR_STRUCTURES;
-	}
 	if (building_id != 0) {
 		auto bit = building_id_to_idx_.find(building_id);
 		if (bit == building_id_to_idx_.end()) return TECH_ERR_BUILDING;

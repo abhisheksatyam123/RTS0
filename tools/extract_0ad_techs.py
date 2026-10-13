@@ -86,7 +86,9 @@ CLASSES = [
     "Chariot", "Dog", "Structure", "CivCentre", "House", "Barracks", "Stable", "Tower",
     "SentryTower", "StoneTower", "Fortress", "Wall", "Temple", "Wonder", "Dock", "Market",
     "Storehouse", "Farmstead", "Field", "Corral", "Forge", "Arsenal", "Outpost", "Civic",
-    "Defensive", "Village", "Town", "City", "Domestic",
+    # Bits 53-55 were Village, Town and City, which no technology or code tests: 0.28's
+    # naval technologies need these three instead (Naval Ballistae, Burning Pitch, Lookouts).
+    "Defensive", "NavalSiege", "Ignited", "ScoutShip", "Domestic",
     # Appended for civ-only technologies (bits 57..62).
     "Javelineer", "Immortal", "Crossbowman", "Mercenary", "SiegeTower", "Minister",
     "IceHouse",  # bit 63 (Subterranean Aqueducts)
