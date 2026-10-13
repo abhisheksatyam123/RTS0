@@ -75,8 +75,8 @@ def collect(sim_root):
         units.append((u["id"], preferences_of(t), ex.classes_of(t)))
     generic = []
     for cls in atk.UNIT_TYPES:
-        t = loader.load(ex.GENERIC[cls])
-        generic.append((cls, ex.GENERIC[cls], preferences_of(t), ex.classes_of(t)))
+        t = ex.generic_template(loader, cls)
+        generic.append((cls, ex.GENERIC[cls] or "no template", preferences_of(t), ex.classes_of(t)))
     buildings = []
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
         buildings.append((bld, name, ex.classes_of(loader.load(name))))
