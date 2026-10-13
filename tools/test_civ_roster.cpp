@@ -64,8 +64,11 @@ int main()
 		bool rows_ok = true;
 		for (uint16_t i = b; i < e; ++i) {
 			const CivUnitTemplate &u = civ_unit_template(i);
+			// 0.28's Civilians replace the Female Citizens, whose rows keep their ids for saves
+			// but no structure trains them (extract_0ad_rosters.py --retire).
+			const bool retired = std::strstr(u.id, "/support_female_citizen") != nullptr;
 			if (u.civ != c || u.unit_type >= UNIT_TYPE_COUNT || u.hp <= 0.0f || u.speed <= 0.0f ||
-					u.phase < 1 || u.phase > 3 || !u.trainers || u.train_time <= 0.0f) {
+					u.phase < 1 || u.phase > 3 || !u.trainers != retired || u.train_time <= 0.0f) {
 				rows_ok = false;
 				std::printf("      bad row %u %s\n", i, u.id);
 			}
