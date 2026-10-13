@@ -1242,6 +1242,7 @@ enum TechStat : uint8_t {
 	TSTAT_SPREAD,          // Attack/Ranged/Projectile/Spread
 	TSTAT_GARRISON_ARROWS, // BuildingAI/GarrisonArrowMultiplier
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
+	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_COUNT
 };
 
