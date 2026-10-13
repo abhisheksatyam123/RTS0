@@ -503,7 +503,7 @@ int main() {
 		for (uint16_t w : f->tree3_wood) add_wood(w);
 		int odd_wood = 0;
 		for (size_t i = 0; i < rv.count; ++i)
-			if (rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
+			if (rv.alive[i] && rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
 		CHECK(odd_wood == 0, "%s: %d trees hold wood no slot's template gives", f->biome, odd_wood);
 	}
 	// 10b'. Savanna: tree1 is gaia/tree/baobab (ResourceSupply/Max 400), tree2 acacia (200) and
@@ -575,7 +575,8 @@ int main() {
 		for (uint16_t w : st->flora.tree3_wood) add_wood(w);
 		int odd_wood = 0;
 		for (size_t i = 0; i < rv.count; ++i)
-			if (rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
+			// A cleared tree (clear_resources_near: Jebel Barkal's city) is dead, with no wood left.
+			if (rv.alive[i] && rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
 		CHECK(odd_wood == 0, "%s: %d trees hold wood no slot's template gives", st->map_id, odd_wood);
 		Simulation chosen;
 		chosen.set_biome_override(BIOME_SAVANNA);
