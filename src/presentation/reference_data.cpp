@@ -221,8 +221,7 @@ Array RtsoReference::get_structure_tree(int civ) const {
 			if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) units.push_back(unit_entry(t));
 		}
 		for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
-			const auto &ti = rtso::tech_info(id);
-			if (ti.researcher == b && rtso::tech_available_to_civ(id, c)) techs.push_back(tech_entry(id));
+			if (rtso::building_researches(b, id) && rtso::tech_available_to_civ(id, c)) techs.push_back(tech_entry(id));
 		}
 		const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
 		if (up.to < rtso::BLD_TYPE_COUNT) {
@@ -394,7 +393,7 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 	for (uint16_t t : rtso::civ_roster_ids(c))
 		if (rtso::civ_unit_template(t).trainers & rtso::bld_bit(b)) trains.push_back(unit_entry(t));
 	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id)
-		if (rtso::tech_info(id).researcher == b && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id));
+		if (rtso::building_researches(b, id) && rtso::tech_available_to_civ(id, c)) researches.push_back(tech_entry(id));
 	const rtso::BuildingUpgradeInfo up = rtso::building_upgrade(b, c);
 	if (up.to < rtso::BLD_TYPE_COUNT) {
 		Dictionary ud;

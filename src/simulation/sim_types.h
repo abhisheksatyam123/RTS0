@@ -1434,6 +1434,16 @@ struct TechInfo {
 static_assert(TRAINER_BUILDING_ROWS == BLD_TYPE_COUNT && TRAINER_CIV_ROWS == CIV_COUNT,
 	"re-run tools/extract_0ad_trainer.py after adding buildings or civs");
 
+// Whether a structure of `type` researches `tech_id`: its research base's techs, less
+// the "-tech" tokens its own 0 A.D. Researcher removes (brit/crannog and
+// han/civil_centre_court drop -phase_town_{civ}; the crannog also -hellenistic_metropolis).
+inline bool building_researches(uint8_t type, uint8_t tech_id) {
+	if (tech_info(tech_id).researcher != building_research_base(type)) return false;
+	if ((type == BLD_CRANNOG || type == BLD_IMPERIAL_COURT) && tech_id == TECH_PHASE_TOWN) return false;
+	if (type == BLD_CRANNOG && tech_id == TECH_HELLENISTIC_METROPOLIS) return false;
+	return true;
+}
+
 // Researched technologies for one player. 256 bits covers every uint8_t id.
 struct TechSet {
 	uint64_t words[4] = {};
