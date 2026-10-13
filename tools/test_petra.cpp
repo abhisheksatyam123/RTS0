@@ -1643,6 +1643,58 @@ static void test_placement_miss_memory_exact() {
 	CHECK(temple != 0, "felling the trees on a spot lets the next search use it");
 }
 
+// baseManager.js findBestDropsiteLocation scores territory tiles on the resource maps: the
+// storehouse goes by the big forest, not the small grove, beyond 60 m of the civic centre.
+// queueplanBuilding.js keeps the farmstead out of the woods (a third of the wood map off).
+static void test_dropsite_sites() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) s->players_[p].active = 1, s->players_[p].is_ai = 0;
+	run_for(*s, 1.0f);
+	float hx = 0.0f, hz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
+	auto &r = s->resources_;
+	for (size_t i = 0; i < r.count; ++i)
+		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) r.amount[i] = 0;
+	// Toward the map centre a forest of 30 trees 22-30 units out, the other way a grove of 3.
+	const float ux = hx > 0.0f ? -1.0f : 1.0f, uz = hz > 0.0f ? -1.0f : 1.0f;
+	for (int i = 0; i < 6; ++i)
+		for (int j = 0; j < 5; ++j)
+			s->spawn_resource_world(hx + ux * (20.0f + 2.0f * (float)i), hz + uz * (2.0f * (float)j - 4.0f), RES_WOOD, 200);
+	for (int i = 0; i < 3; ++i) s->spawn_resource_world(hx - ux * 22.0f, hz + 2.0f * (float)i, RES_WOOD, 200);
+	s->resource_block_tick_ = UINT64_MAX;
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	const uint32_t store = s->petra_place_dropsite(RES_WOOD, 1.0f);
+	float sx = 0.0f, sz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.id == store) { sx = b.x; sz = b.z; }
+	const float along = (sx - hx) * ux, d = std::hypot(sx - hx, sz - hz);
+	std::printf("  storehouse %.1f units from the civic centre, %.1f toward the forest\n", d, along);
+	CHECK(store != 0 && along > 10.0f, "the storehouse goes by the forest, not the grove");
+	CHECK(d >= 15.0f, "and beyond 60 m of the civic centre");
+	// The farmstead (a storehouse and a house stand): out of the wood map.
+	s->spawn_building_world(hx - ux * 10.0f, hz - uz * 10.0f, BLD_HOUSE, 1, 1.0f);
+	fund_queues(*s);
+	s->petra_build_farmstead();
+	float fx = 0.0f, fz = 0.0f;
+	bool farm = false;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_FARMSTEAD) { fx = b.x; fz = b.z; farm = true; }
+	std::vector<uint8_t> maps[3];
+	s->petra_resource_maps(maps, -1e9f, 1e9f, -1e9f, 1e9f);
+	const int w = (int)std::floor(2.0f * s->map_half_ / Simulation::GRID);
+	const int fi = (int)std::floor((fz + s->map_half_) / Simulation::GRID) * w + (int)std::floor((fx + s->map_half_) / Simulation::GRID);
+	std::printf("  farmstead %s at %.1f toward the forest, wood map %d there\n", farm ? "placed" : "missing", (fx - hx) * ux, farm ? (int)maps[0][(size_t)fi] : -1);
+	CHECK(farm && maps[0][(size_t)fi] == 0, "the farmstead stands off the woods");
+}
+
 // headquarters.js findEconomicCCLocation reads resource density, not single
 // nodes: with 0 A.D.'s 200-wood trees and nothing bigger, Petra still finds a
 // site for a second civic centre and lays out storehouses by its forests. The
@@ -3248,6 +3300,7 @@ int main() {
 	test_relic_enemy_player();
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
+	test_dropsite_sites();
 	test_repairs();
 	test_idle_return();
 	test_idle_return_to_wagon();
