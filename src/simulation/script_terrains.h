@@ -17,9 +17,37 @@ namespace rtso {
 // water line take one of the terrains, over whatever the generic rules painted
 // (a later band over an earlier one), though not over roads, forest floor or
 // mine dirt. Only for scripts whose synth_* keeps 0 A.D. metres (metres()).
+// A band the script paints after its areas (below) has `late` set.
 struct HeightBand {
 	float lo, hi;
 	const char *terrain[2];
+	bool late;
+};
+
+// Areas a synth_* records (RmsGenerator record_area) where its script paints
+// the area's own terrains.
+enum AreaKind : uint8_t {
+	AREA_NONE,
+	AREA_HILL,     // createHills or the script's own hills
+	AREA_MOUNTAIN, // createMountains
+	AREA_ISLAND,
+	AREA_PLAYER_ISLAND,
+	AREA_LAKE,
+	AREA_MARSH,
+	AREA_VOLCANO,
+	AREA_CORAL,    // a ring painted round an island, without elevation
+};
+
+// rmgen LayeredPainter(terrains, widths): a tile `d` tiles in from the area's
+// edge (8-neighbour steps, 1 at the edge) takes the first layer whose summed
+// widths reach d, else the last; each layer is one of up to 6 names. One layer
+// with no widths is a TerrainPainter. Painted in the order the synth recorded the
+// areas, over the generic rules and early bands, not over roads, forest floor or
+// mine dirt.
+struct AreaLayers {
+	uint8_t kind; // AreaKind
+	const char *layer[6][6];
+	uint8_t width[5];
 };
 
 struct ScriptTerrains {
@@ -27,6 +55,7 @@ struct ScriptTerrains {
 	TerrainBiome terrain;
 	BiomeFlora flora;
 	HeightBand bands[6]; // in the script's paint order; unused ones have no terrain
+	AreaLayers areas[4];
 };
 
 inline const ScriptTerrains *script_terrains(const char *map_id) {
@@ -40,8 +69,11 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"aegean_sea", {{FLORA_CAROB, FLORA_PALM}}, {FLORA_FAN_PALM, FLORA_POPLAR, FLORA_CYPRESS},
 		  {{FLORA_CAROB, FLORA_PALM}}, FLORA_BERRY,
 		  {{200, 100}}, {200, 200, 200}, {{200, 200}}},
-		 {{-1e9f, 1.0f, {"medit_sand_wet"}}, {1.0f, 2.0f, {"medit_sand"}}, {-1e9f, -3.0f, {"medit_sea_depths"}},
-		  {-3.0f, -2.0f, {"medit_sea_coral_deep"}}, {-2.0f, -1.5f, {"medit_sea_coral_plants"}}}},
+		 {{-1e9f, 1.0f, {"medit_sand_wet"}}, {1.0f, 2.0f, {"medit_sand"}}, {-1e9f, -3.0f, {"medit_sea_depths"}, true},
+		  {-3.0f, -2.0f, {"medit_sea_coral_deep"}, true}, {-2.0f, -1.5f, {"medit_sea_coral_plants"}, true}},
+		 {{AREA_HILL, {{"medit_grass_field"}, {"medit_cliff_aegean"}, {"medit_grass_shrubs", "medit_rocks_grass_shrubs", "medit_rocks_shrubs", "medit_rocks_grass", "medit_shrubs"}}, {1, 2}},
+		  {AREA_MOUNTAIN, {{"medit_cliff_aegean"}}, {}},
+		  {AREA_ISLAND, {{"medit_sand_wet"}, {"medit_sand"}, {"medit_grass_shrubs", "medit_rocks_grass_shrubs", "medit_rocks_shrubs", "medit_rocks_grass", "medit_shrubs"}}, {2, 1}}}},
 		// anatolian_plateau.js: no water or cliffs, so cliff, hill and the shore slots reuse its dirt and grass.
 		{"anatolian_plateau",
 		 {"anatolian_plateau", {"steppe_grass_a", "steppe_grass_c", "steppe_grass_d"}, {"steppe_grass_c"},
@@ -58,7 +90,9 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "alpine_shore_rocks", "polar_ice_b"},
 		 {"arctic_summer", {{FLORA_BUSH, FLORA_BUSH}}, {FLORA_BUSH}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
 		  {{100, 100}}, {100}, {{100, 100}}},
-		 {{4.0f, 15.0f, {"polar_cliff_a", "polar_cliff_b"}}, {15.0f, 100.0f, {"polar_snow_rocks", "polar_ice"}}}},
+		 {{4.0f, 15.0f, {"polar_cliff_a", "polar_cliff_b"}, true}, {15.0f, 100.0f, {"polar_snow_rocks", "polar_ice"}, true}},
+		 {{AREA_HILL, {{"alpine_grass_rocky"}, {"polar_cliff_a", "polar_cliff_b", "polar_cliff_snow"}, {"polar_ice_cracked"}}, {1, 2}},
+		  {AREA_LAKE, {{"alpine_shore_rocks"}, {"polar_ice_b"}}, {1}}}},
 		// ardennes_forest.js: no hills, dirt or water, so hill reuses tCliff and dirt and the shore slots its mud and grass.
 		{"ardennes_forest",
 		 {"ardennes_forest", {"steppe_grass_03", "steppe_grass_03", "alpine_cliff_c", "temperate_grass_mud_01"},
@@ -85,7 +119,10 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "savanna_riparian_wet", "savanna_mud_a"},
 		 {"botswanan_haven", {{FLORA_TEAK, FLORA_BAOBAB}}, {FLORA_TEAK, FLORA_BAOBAB, FLORA_BUSH},
 		  {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
-		  {{200, 400}}, {200, 400, 100}, {{100, 100}}}},
+		  {{200, 400}}, {200, 400, 100}, {{100, 100}}},
+		 {},
+		 {{AREA_HILL, {{"savanna_cliff_a"}, {"savanna_grass_a_wetseason"}}, {2}},
+		  {AREA_MARSH, {{"savanna_grass_b_wetseason"}, {"savanna_riparian_wet"}, {"savanna_mud_a"}}, {1, 1}}}},
 		// corsica.js: forests stand on grass, so forest reuses tLushGrass; no dirt, so dirt reuses its rocks.
 		{"corsica",
 		 {"corsica", {"medit_grass_field", "medit_grass_field_b", "temp_grass_c"}, {"medit_grass_field", "medit_grass_field_a"},
@@ -102,7 +139,10 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"medit_dirt"}, "medit_city_tile", "medit_city_tile", "medit_rocks_grass", "medit_sand", "medit_sea_depths"},
 		 {"cycladic_archipelago", {{FLORA_CAROB, FLORA_BEECH}}, {FLORA_PALM, FLORA_CYPRESS},
 		  {{FLORA_FAN_PALM, FLORA_FAN_PALM}, {FLORA_ALEPPO_PINE, FLORA_ALEPPO_PINE}, {FLORA_POPLAR, FLORA_POPLAR}}, FLORA_BERRY,
-		  {{200, 200}}, {100, 200}, {{200, 200}, {200, 200}, {200, 200}}}},
+		  {{200, 200}}, {100, 200}, {{200, 200}, {200, 200}, {200, 200}}},
+		 {},
+		 {{AREA_ISLAND, {{"medit_sea_coral_plants"}, {"medit_sand_wet"}, {"medit_sand"}, {"medit_rocks_grass", "medit_sand", "medit_rocks_grass_shrubs"}, {"medit_rocks_grass", "medit_rocks_grass_shrubs"}, {"medit_rocks_grass", "medit_rocks_grass", "medit_dirt", "medit_rocks_grass_shrubs"}}, {1, 3, 1, 1, 2}},
+		  {AREA_HILL, {{"medit_cliff_italia", "medit_cliff_italia", "medit_cliff_italia_grass"}, {"medit_cliff_aegean_shrubs", "medit_cliff_italia_grass", "medit_cliff_italia"}}, {2}}}},
 		// danubius.js: oak forests and poplar, beech and acacia forests; no hills, dirt or shore blend, so hill reuses
 		// tCliff, dirt tShore and shore_blend tIsland.
 		{"danubius",
@@ -123,7 +163,12 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"dodecanese", {{FLORA_CAROB, FLORA_PALM}}, {FLORA_POPLAR, FLORA_CYPRESS, FLORA_PALM},
 		  {{FLORA_FAN_PALM, FLORA_POPLAR}, {FLORA_POPLAR, FLORA_CYPRESS}}, FLORA_BERRY,
 		  {{200, 100}}, {200, 200, 200}, {{200, 200}, {200, 200}}},
-		 {{-1e9f, -6.0f, {"medit_sea_depths"}}, {-6.0f, -4.0f, {"medit_sea_coral_deep"}}, {-4.0f, -2.0f, {"medit_sea_coral_plants"}}}},
+		 {{-1e9f, -6.0f, {"medit_sea_depths"}, true}, {-6.0f, -4.0f, {"medit_sea_coral_deep"}, true},
+		  {-4.0f, -2.0f, {"medit_sea_coral_plants"}, true}, {-2.0f, 1.0f, {"medit_sand_wet"}, true},
+		  {1.0f, 3.0f, {"medit_sand"}, true}},
+		 {{AREA_PLAYER_ISLAND, {{"medit_grass_shrubs", "medit_grass_wild", "medit_rocks_grass_shrubs", "medit_dirt_b", "medit_plants_dirt", "medit_grass_flowers"}}, {}}, {AREA_ISLAND, {{"medit_grass_shrubs", "medit_grass_wild", "medit_rocks_grass_shrubs", "medit_dirt_b", "medit_plants_dirt", "medit_grass_flowers"}}, {}},
+		  {AREA_VOLCANO, {{"LavaTest06"}, {"LavaTest05"}}, {4}},
+		  {AREA_HILL, {{"medit_cliff_aegean"}, {"medit_grass_shrubs", "medit_rocks_grass_shrubs", "medit_rocks_shrubs", "medit_rocks_grass", "medit_shrubs"}}, {2}}}},
 		// elephantine.js: the island forest floor is pickRandom(tGrass) (first option here); no cliffs or shore,
 		// so cliff and hill reuse its rocky dirt and the shore slots its cracked dirt and tWater.
 		{"elephantine",
@@ -144,7 +189,8 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"english_channel", {{FLORA_BEECH, FLORA_BEECH}}, {FLORA_POPLAR}, {{FLORA_OAK, FLORA_OAK}},
 		  FLORA_BERRY,
 		  {{200, 200}}, {200}, {{200, 200}}},
-		 {{-5.0f, 1.0f, {"temp_dirt_gravel_b"}}, {1.0f, 3.0f, {"temp_dirt_gravel"}}}},
+		 {{-5.0f, 1.0f, {"temp_dirt_gravel_b"}}, {1.0f, 3.0f, {"temp_dirt_gravel"}}},
+		 {{AREA_HILL, {{"temp_cliff_a", "temp_cliff_b"}, {"temp_cliff_a", "temp_cliff_b"}, {"temp_highlands", "temp_grass_long_b"}}, {1, 2}}}},
 		// extinct_volcano.js: dead tree and beech forests, oak and dead oak forests; no dirt, so dirt reuses tHillMedium2.
 		{"extinct_volcano",
 		 {"extinct_volcano", {"ocean_rock_a"}, {"ocean_rock_a", "ocean_rock_b"},
@@ -171,7 +217,10 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "temperate_paving_03", "temperate_paving_03", "temperate_grass_dirt_01", "temperate_grass_mud_01", "temperate_mud_01"},
 		 {"fortress", {{FLORA_BEECH, FLORA_BEECH}, {FLORA_OAK, FLORA_OAK}}, {FLORA_OAK, FLORA_BEECH, FLORA_PINE},
 		  {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY,
-		  {{200, 200}, {200, 200}}, {200, 200, 200}, {{200, 200}}}},
+		  {{200, 200}, {200, 200}}, {200, 200, 200}, {{200, 200}}},
+		 {},
+		 {{AREA_LAKE, {{"temperate_grass_mud_01"}, {"temperate_mud_01"}}, {1}},
+		  {AREA_HILL, {{"temperate_cliff_01", "temperate_cliff_02"}, {"temperate_cliff_01", "temperate_cliff_02"}, {"temperate_rocks_dirt_01"}}, {1, 2}}}},
 		// guadalquivir_river.js: poplar and carob forests; no cliffs, hills or dirt, so they reuse its dry grass and
 		// plants; shore_blend reuses tGrass.
 		{"guadalquivir_river",
@@ -249,7 +298,9 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "medit_rocks_grass", "medit_sand", "medit_sand_wet"},
 		 {"phoenician_levant", {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_CAROB}}, {FLORA_FAN_PALM, FLORA_POPLAR, FLORA_CYPRESS},
 		  {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_CAROB}}, FLORA_BERRY,
-		  {{100, 200}, {100, 200}}, {200, 200, 200}, {{200, 100}, {200, 200}}}},
+		  {{100, 200}, {100, 200}}, {200, 200, 200}, {{200, 100}, {200, 200}}},
+		 {},
+		 {{AREA_HILL, {{"medit_cliff_aegean"}, {"medit_dirt", "medit_dirt_b", "medit_dirt_c", "medit_rocks_grass", "medit_rocks_grass"}}, {2}}, {AREA_ISLAND, {{"medit_sand"}, {"medit_dirt", "medit_dirt_b", "medit_dirt_c", "medit_rocks_grass", "medit_rocks_grass"}}, {12}}}},
 		// polar_sea.js: four terrains and no trees or fruit; every other role reuses tSecondary or tShore.
 		{"polar_sea",
 		 {"polar_sea", {"alpine_snow_01"}, {"alpine_snow_02"}, {"alpine_snow_02"}, {"alpine_ice_01"}, {"alpine_ice_01"},
@@ -304,7 +355,10 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "snow rough", "alpine_shore_rocks_icy", "polar_ice_b"},
 		 {"scythian_rivulet", {{FLORA_DEAD, FLORA_DEAD}}, {FLORA_DEAD, FLORA_DEAD, FLORA_PINE, FLORA_BUSH},
 		  {{FLORA_DEAD, FLORA_DEAD}}, FLORA_BERRY,
-		  {{200, 200}}, {200, 200, 200, 100}, {{200, 200}}}},
+		  {{200, 200}}, {200, 200, 200, 100}, {{200, 200}}},
+		 {},
+		 {{AREA_HILL, {{"alpine_cliff_a", "alpine_cliff_b"}, {"alpine_cliff_a", "alpine_cliff_b"}, {"alpine_snow_glacial"}}, {1, 2}},
+		  {AREA_MOUNTAIN, {{"alpine_cliff_a", "alpine_cliff_b"}}, {}}}},
 		// syria.js: date palm forests and tamarix forests; no water, so the shore slots reuse its grass.
 		{"syria",
 		 {"syria", {"desert_dirt_rocks_1", "desert_dirt_cracks"}, {"forestfloor_dirty", "desert_forestfloor_palms"},
