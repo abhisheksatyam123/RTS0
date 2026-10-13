@@ -1042,7 +1042,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	}
 	if (progress >= 0.99f && !bulk_spawn_) {
 		rebuild_nav_grid();
-		if (is_territory_root(b.type)) {
+		if (has_territory_influence(b.type)) {
 			rebuild_territory();
 		}
 	}
@@ -1290,59 +1290,102 @@ void Simulation::rebuild_territory_grids() {
 	const int R = grid_res_;
 	auto &roots = territory_roots_scratch_;
 	roots.clear();
-	// structures/theater.json (stackable): each finished theater widens its owner's
-	// territory roots by 20%.
+	// structures/theater.json (global, stackable): each finished theater widens its owner's
+	// structures' territory influence by 20%.
 	float theater[MAX_PLAYERS];
 	std::fill(theater, theater + MAX_PLAYERS, 1.0f);
 	for (const auto &b : buildings_)
 		if (b.type == BLD_THEATER && b.build_progress >= 0.99f && b.team < MAX_PLAYERS && !b.wrecked)
 			theater[b.team] *= 1.2f;
 	for (const auto &b : buildings_) {
-		if (b.build_progress < 0.99f) continue;
-		float radius = 0.0f;
-		if (is_civic_centre(b.type)) radius = 32.0f;
-		else if (b.type == BLD_FORTRESS) radius = 28.0f;
-		else if (is_defense_tower(b.type)) radius = 18.0f;
-		else if ((radius = civ_building_territory_radius(b.type)) <= 0.0f) continue;
-		if (b.team >= MAX_PLAYERS) continue; // Gaia holds no territory
-		roots.push_back({b.x, b.z, radius * theater[b.team] * tech_mods(b.team).bld_territory[b.type], b.team});
+		// Foundations claim nothing; Gaia holds no territory (CalculateTerritories skips owner 0).
+		if (b.build_progress < 0.99f || b.wrecked || b.team >= MAX_PLAYERS) continue;
+		const TerritoryInfluenceInfo &ti = territory_influence_info(b.type);
+		if (ti.radius <= 0.0f) continue;
+		roots.push_back({b.x, b.z, ti.radius * theater[b.team] * tech_mods(b.team).bld_territory[b.type], b.team, ti.weight});
 	}
-	// The grids depend on nothing else, so unchanged inputs (most 1 Hz refreshes) keep them.
+	// The grids depend on nothing else but the cost grid's terrain and water (set_water_level
+	// clears the roots to redo them), so unchanged inputs (most 1 Hz refreshes) keep them.
 	if (roots == territory_roots_ && territory_roots_res_ == R && territory_roots_half_ == map_half_ &&
-			influence_grid_.w == R && influence_grid_.h == R && territory_grid_.w == R && territory_grid_.h == R)
+			influence_grid_.w == R && influence_grid_.h == R &&
+			territory_grid_.w == R && territory_grid_.h == R)
 		return;
 	territory_roots_.swap(roots);
 	territory_roots_res_ = R;
 	territory_roots_half_ = map_half_;
-
-	influence_grid_.resize(R, R, 0);
-	territory_grid_.resize(R, R, 0);
-	influence_grid_.fill(0);
-	territory_grid_.fill(0);
 	territory_regions_dirty_ = true;
-	for (const TerritoryRoot &b : territory_roots_) {
-		const float radius = b.radius;
-		float r2 = radius * radius;
-		// Only cells whose centre can fall inside the radius (one-cell margin
-		// keeps the exact distance test below authoritative).
-		const float to_cell = static_cast<float>(R) / (map_half_ * 2.0f);
-		const int x0 = std::max(0, static_cast<int>((b.x - radius + map_half_) * to_cell) - 1);
-		const int x1 = std::min(R - 1, static_cast<int>((b.x + radius + map_half_) * to_cell) + 1);
-		const int y0 = std::max(0, static_cast<int>((b.z - radius + map_half_) * to_cell) - 1);
-		const int y1 = std::min(R - 1, static_cast<int>((b.z + radius + map_half_) * to_cell) + 1);
-		for (int y = y0; y <= y1; ++y) {
-			for (int x = x0; x <= x1; ++x) {
-				float wx = ((static_cast<float>(x) + 0.5f) / static_cast<float>(R)) * (map_half_ * 2.0f) - map_half_;
-				float wz = ((static_cast<float>(y) + 0.5f) / static_cast<float>(R)) * (map_half_ * 2.0f) - map_half_;
-				float dx = wx - b.x;
-				float dz = wz - b.z;
-				if (dx * dx + dz * dz <= r2) {
-					influence_grid_.at(x, y) = static_cast<uint8_t>(b.team + 1);
+
+	// CCmpTerritoryManager::CalculateCostGrid: 1 a tile, ImpassableCost (4) where a land unit
+	// can't stand (default-terrain-only: deep water or a slope over MaxTerrainSlope).
+	const float cell = map_half_ * 2.0f / (float)R;
+	territory_cost_.resize(R, R, 1);
+	territory_cost_.fill(1);
+	if (!nav_grid_.cells.blank())
+		for (int y = 0; y < R; ++y)
+			for (int x = 0; x < R; ++x) {
+				auto [cx, cy] = nav_grid_.world_to_cell(((float)x + 0.5f) * cell - map_half_, ((float)y + 0.5f) * cell - map_half_);
+				if (nav_grid_.cells.inside(cx, cy) && (nav_grid_.cells.at(cx, cy) == NAV_WATER || nav_grid_.is_steep(cx, cy)))
+					territory_cost_.at(x, y) = TERRITORY_IMPASSABLE_COST;
+			}
+
+	// CalculateTerritories: each structure's weight floods outwards over the tiles, losing
+	// weight x tile / radius per tile (times the tile's cost, x362/256 diagonally); a player's
+	// weights add up and each tile goes to the player with the most.
+	const size_t N = (size_t)R * R;
+	auto &entity = territory_entity_w_, &player = territory_player_w_, &best = territory_best_w_;
+	entity.assign(N, 0);
+	player.assign(N, 0);
+	best.assign(N, 0);
+	influence_grid_.resize(R, R, 0);
+	influence_grid_.fill(0);
+	auto &open = territory_open_;
+	auto &touched = territory_touched_;
+	static constexpr int DX[8] = {1, -1, 0, 0, 1, -1, 1, -1};
+	static constexpr int DZ[8] = {0, 0, 1, -1, 1, -1, -1, 1};
+	for (uint8_t team = 0; team < MAX_PLAYERS; ++team) {
+		bool any = false;
+		for (const TerritoryRoot &r : territory_roots_) any |= r.team == team;
+		if (!any) continue;
+		std::fill(player.begin(), player.end(), 0u);
+		for (const TerritoryRoot &r : territory_roots_) {
+			if (r.team != team || r.radius <= 0.0f) continue;
+			const uint32_t falloff_rel = (uint32_t)((float)r.weight * cell / r.radius);
+			const int ox = std::clamp((int)((r.x + map_half_) / cell), 0, R - 1);
+			const int oz = std::clamp((int)((r.z + map_half_) / cell), 0, R - 1);
+			// The origin tile takes the structure's weight alone (its decider has no predecessor).
+			auto claim = [&](int x, int z, uint32_t w, bool origin) {
+				const size_t k = (size_t)z * R + x;
+				const uint32_t total = origin ? w : w + player[k] - entity[k];
+				player[k] = total;
+				if (entity[k] == 0) touched.push_back((uint32_t)k);
+				entity[k] = w;
+				if (total > best[k]) {
+					best[k] = total;
+					influence_grid_.data[k] = (uint8_t)(team + 1);
+				}
+			};
+			open.clear();
+			touched.clear();
+			claim(ox, oz, r.weight, true);
+			open.push_back((uint32_t)(oz * R + ox));
+			for (size_t head = 0; head < open.size(); ++head) {
+				const int cx = (int)(open[head] % (uint32_t)R), cz = (int)(open[head] / (uint32_t)R);
+				const uint32_t here = entity[(size_t)cz * R + cx];
+				for (int d = 0; d < 8; ++d) {
+					const int nx = cx + DX[d], nz = cz + DZ[d];
+					if (nx < 0 || nz < 0 || nx >= R || nz >= R) continue;
+					const uint32_t per_tile = falloff_rel * territory_cost_.at(nx, nz);
+					const uint32_t fall = d >= 4 ? per_tile * 362 / 256 : per_tile;
+					const size_t k = (size_t)nz * R + nx;
+					if (here <= entity[k] + fall) continue; // no better than what it has
+					claim(nx, nz, here - fall, false);
+					open.push_back((uint32_t)k);
 				}
 			}
+			for (uint32_t k : touched) entity[k] = 0;
 		}
 	}
-	nav_grid_.blur_territory(influence_grid_, territory_grid_);
+	territory_grid_ = influence_grid_;
 }
 
 // Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell no land unit can cross:
@@ -1403,11 +1446,10 @@ void Simulation::ensure_territory_regions() {
 			}
 		}
 	}
-	// Roots: template_structure_civic_civil_centre.xml and template_structure_wonder.xml
-	// TerritoryInfluence/Root.
+	// Roots: TerritoryInfluence/Root (civic centres, wonders and a few civ structures).
 	for (const auto &b : buildings_) {
 		if (b.build_progress < 0.99f || b.team >= MAX_PLAYERS || b.wrecked) continue;
-		if (!is_civic_centre(b.type) && b.type != BLD_WONDER) continue;
+		if (!is_territory_root(b.type)) continue;
 		const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
 		const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
 		const uint16_t id = territory_region_.at(tx, tz);
@@ -1445,11 +1487,7 @@ bool Simulation::territory_decay_targets(const Building &b, std::array<float, MA
 	const int tx = std::clamp((int)((b.x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
 	const int tz = std::clamp((int)((b.z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
 	const uint16_t id = territory_region_.at(tx, tz);
-	if (!id) { // neutral ground: Gaia's own structures don't decay there
-		// 0 A.D. only lets outposts (which don't decay there) and military colonies be placed in
-		// neutral land (BuildRestrictions/Territory). Until RTS0's placement follows those rules
-		// (gap U5), structures standing there keep their points rather than all turning Gaia.
-		if (!TERRITORY_DECAY_IN_NEUTRAL_LAND) return false;
+	if (!id) { // neutral ground: Gaia's own structures don't decay there, nor outposts and docks
 		if (gaia || !neutral) return false;
 		to_gaia = 1.0f;
 		return true;
@@ -2800,8 +2838,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
 	b.upgrade_duration = 0.0f;
-	if (is_territory_root(to) || civ_building_territory_radius(to) > 0.0f ||
-	    civ_building_territory_radius(from) > 0.0f)
+	if (has_territory_influence(to) || has_territory_influence(from))
 		rebuild_territory();
 	if (is_gate_type(to)) {
 		b.gate_open = false;
@@ -8676,7 +8713,7 @@ void Simulation::tick_construction(float dt) {
 				b.hp = std::max(b.hp, b.max_hp);
 				on_construction_finished(b, i); // 0 A.D. UnitAI ConstructionFinished
 				rebuild_nav_grid();
-				if (is_territory_root(b.type)) {
+				if (has_territory_influence(b.type)) {
 					rebuild_territory();
 				}
 				if (!triggers_.triggers.empty()) { // Foundation.js: OnStructureBuilt
@@ -9458,7 +9495,7 @@ void Simulation::tick_combat(float dt) {
 				units_.target_building_id[i] = 0;
 				units_.action_state[i] = ACTION_IDLE;
 				rebuild_nav_grid();
-				if (is_territory_root(b.type)) {
+				if (has_territory_influence(b.type)) {
 					rebuild_territory();
 				}
 			}
@@ -10037,7 +10074,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		owner = best;
 		raise_alert(BattleAlert::ALERT_STRUCTURE_CAPTURED, b.x, b.z, b.id, b.team);
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) cc_captures_.push_back({b.id, from, b.team});
-		if (is_territory_root(b.type)) rebuild_territory();
+		if (has_territory_influence(b.type)) rebuild_territory();
 		return true;
 	};
 	check_owner(); // territory decay (tick_capture) may have emptied the owner
@@ -10187,7 +10224,7 @@ void Simulation::projectile_hits_structure(const Projectile &p, Building &b) {
 	collect_building_loot(p.source_id, p.team, b);
 	mark_building_wreck(b, p.team);
 	rebuild_nav_grid();
-	if (is_territory_root(b.type))
+	if (has_territory_influence(b.type))
 		rebuild_territory();
 }
 
@@ -10671,7 +10708,7 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.rally_more.clear();
 		b.team = GAIA_PLAYER;
 		b.capture_points = 0.0f;
-		roots |= is_territory_root(b.type);
+		roots |= has_territory_influence(b.type);
 	}
 	// Capturable.js OnOwnershipChanged: the old owner's points become the new owner's
 	// (Gaia's pool is what no player holds), and OnGlobalPlayerDefeated: what the defeated
@@ -11209,7 +11246,7 @@ void Simulation::cause_damage_over_area(uint8_t splash, uint32_t attacker_id, ui
 		collect_building_loot(attacker_id, attacker_team, b);
 		mark_building_wreck(b, attacker_team);
 		nav_changed = true;
-		if (is_territory_root(b.type)) territory_changed = true;
+		if (has_territory_influence(b.type)) territory_changed = true;
 	}
 	if (nav_changed) rebuild_nav_grid();
 	if (territory_changed) rebuild_territory();
@@ -12268,7 +12305,7 @@ void Simulation::destroy_building(Building &b) {
 	b.build_progress = 0.0f;
 	record_death((float)b.cell_x, (float)b.cell_y, b.team, b.team, b.type, true); // no killer, no loot
 	rebuild_nav_grid();
-	if (is_territory_root(b.type)) rebuild_territory();
+	if (has_territory_influence(b.type)) rebuild_territory();
 }
 
 void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
@@ -12503,7 +12540,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		b.team = to;
 		refresh_capture_max(b);
 		b.capture_points = to < MAX_PLAYERS ? b.capture_points_by_team[to] : 0.0f;
-		roots |= is_territory_root(b.type);
+		roots |= has_territory_influence(b.type);
 	}
 	if (roots) rebuild_territory();
 }
@@ -13259,7 +13296,7 @@ void Simulation::petra_manage_workers(float dt) {
 
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress < 0.5f) continue;
-		if (is_territory_root(b.type) || b.type == BLD_STOREHOUSE) {
+		if (is_civic_centre(b.type) || b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_STOREHOUSE) {
 			float b_threat = get_threat_at(b.x, b.z);
 			if (b_threat < best_shelter_score) {
 				best_shelter_score = b_threat;
@@ -20912,7 +20949,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	};
 	static_assert(sizeof(S::TerritoryRoot) == 16, "list the new TerritoryRoot field below");
 	auto root = [&](S::TerritoryRoot &r) {
-		ar.padded(r, [&](S::TerritoryRoot &d, const S::TerritoryRoot &v) { d.x = v.x; d.z = v.z; d.radius = v.radius; d.team = v.team; });
+		ar.padded(r, [&](S::TerritoryRoot &d, const S::TerritoryRoot &v) { d.x = v.x; d.z = v.z; d.radius = v.radius; d.team = v.team; d.weight = v.weight; });
 	};
 	static_assert(sizeof(S::PetraBase) == 36, "list the new PetraBase field below");
 	auto base = [&](S::PetraBase &b) {
@@ -24665,7 +24702,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		}
 	// Structures and resources under water become decorative actors in 0 A.D.:
 	// here they are gone. Docks float with the water.
-	bool lost_building = false, lost_root = false;
+	bool lost_building = false;
 	for (Building &b : buildings_) {
 		if (b.wrecked || b.hp <= 0.0f || b.type == BLD_DOCK || b.type == BLD_SUPER_DOCK || !submerged(b.x, b.z)) continue;
 		for (uint32_t uid : b.garrisoned_units) {
@@ -24686,7 +24723,6 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		b.build_progress = 0.0f;
 		record_death(b.x, b.z, b.team, b.team, b.type, true);
 		lost_building = true;
-		lost_root |= is_territory_root(b.type);
 	}
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.subtype[r] == RES_SUB_FISH) continue;
@@ -24696,7 +24732,9 @@ void Simulation::set_water_level(float h, float drown_depth) {
 	}
 	(void)lost_building;
 	rebuild_nav_grid(); // new water cells, and the drowned structures' footprints
-	if (lost_root) rebuild_territory();
+	// The territory cost grid follows the water (CCmpTerritoryManager::OnWaterChanged).
+	territory_roots_.clear();
+	rebuild_territory();
 }
 
 } // namespace rtso
