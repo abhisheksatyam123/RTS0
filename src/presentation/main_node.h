@@ -555,6 +555,7 @@ private:
 	bool replay_recording_ = false;
 	bool replay_finished_ = false;
 	String replay_dir_;            // user://replays/<id>/ of the game being recorded
+	String watched_replay_dir_;    // the replay being watched (0 A.D. Engine.GetCurrentReplayDirectory)
 	Dictionary replay_meta_;       // its metadata.json, minus what is filled at write time
 	uint32_t replay_written_turn_ = 0;
 	Label *replay_label_ = nullptr;

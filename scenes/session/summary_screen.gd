@@ -59,8 +59,13 @@ const BOX_GAP := 2 # g_PlayerBoxGap
 const LONG_HEADING := 250 # g_LongHeadingWidth
 const GOLD := Color(0.9, 0.75, 0.31)
 
-## The selected tab and charts, kept while the game runs (data.gui.summarySelection).
-static var selection := {"panel": 0, "category": [0, 0], "value": [0, 1], "type": [0, 0], "teamCharts": false}
+## The selected tab and charts (data.gui.summarySelection): kept by the match's
+## in-game Summary and by the replay menu while it is open; any other summary
+## (the one after a match, a new match) starts on the Score tab.
+const DEFAULT_SELECTION := {"panel": 0, "category": [0, 0], "value": [0, 1], "type": [0, 0], "teamCharts": false}
+static var selection := DEFAULT_SELECTION.duplicate(true)
+## Which match or menu `selection` belongs to.
+static var selection_owner := ""
 
 ## How the page was opened (0 A.D. data.gui): isInGame, dialog, isReplay,
 ## replayDirectory, assignedPlayer, shownPlayers, fromReplayMenu.
@@ -110,6 +115,10 @@ func is_open() -> bool:
 ## Where the page is opened from (call before show_summary).
 func configure(g: Dictionary) -> void:
 	gui = g.duplicate()
+	var owner := str(gui.get("selectionOwner", ""))
+	if owner == "" or owner != selection_owner:
+		selection = DEFAULT_SELECTION.duplicate(true)
+	selection_owner = owner
 
 ## Opened from the replay menu's Summary button: Continue goes back to it.
 func close_only() -> void:
@@ -149,20 +158,41 @@ func _init_players() -> void:
 		var state := str(p.get("state", "won" if p.get("winner", false) else ("defeated" if p.get("defeated", false) else "active")))
 		var tooltip := ""
 		if p.get("ai", false):
-			tooltip = "%s %s Petra Bot" % [AI_DIFFICULTIES[clampi(int(p.get("ai_difficulty", 3)), 0, 5)],
-				AI_BEHAVIORS[clampi(int(p.get("ai_behavior", 2)), 0, 3)]]
+			tooltip = ai_description(p)
 		players.append({"id": id, "name": str(p.get("name", "Player %d" % (id + 1))), "civ": int(p.get("civ", 0)),
-			"team": int(p.get("team", 0)), "state": state, "color": color, "tooltip": tooltip, "si": si, "final": p})
+			"team": setup_team(p, all), "state": state, "color": color, "tooltip": tooltip, "si": si, "final": p})
 
-## initTeamData: teams are shown when one of them has two or more players.
+## translateAISettings: "Medium Balanced Petra Bot".
+static func ai_description(p: Dictionary) -> String:
+	return "%s %s Petra Bot" % [AI_DIFFICULTIES[clampi(int(p.get("ai_difficulty", 3)), 0, 5)],
+		AI_BEHAVIORS[clampi(int(p.get("ai_behavior", 2)), 0, 3)]]
+
+## playerState.team: the Game Setup team, -1 for none. Records from before
+## setup_team only have RTS0's sim team (its lowest member's id + 1): players
+## sharing one form a team, numbered in that order.
+static func setup_team(p: Dictionary, all: Array) -> int:
+	if p.has("setup_team"):
+		return int(p["setup_team"])
+	var count := {}
+	for q in all:
+		var t := int(q.get("team", 0))
+		count[t] = int(count.get(t, 0)) + 1
+	var shared: Array = count.keys().filter(func(t): return count[t] > 1)
+	shared.sort()
+	return shared.find(int(p.get("team", 0)))
+
+## initTeamData: teams are shown when teams are locked and one of them has two
+## or more players; players without a team (-1) are listed first, untitled.
 func _init_teams() -> void:
 	teams.clear()
+	if not data.get("lock_teams", true): # records from before lock_teams grouped any shared team
+		return
 	for i in players.size():
 		var t: int = players[i]["team"]
 		if not teams.has(t):
 			teams[t] = []
 		teams[t].append(i)
-	if teams.values().all(func(m): return m.size() < 2):
+	if teams.keys().all(func(t): return t < 0 or teams[t].size() < 2):
 		teams.clear()
 
 func sample_count() -> int:
@@ -394,62 +424,62 @@ static func C(w: int, fn: Callable, off: int) -> Dictionary:
 ## yet (resource counts, livestock, population, bribes).
 func score_panels() -> Array:
 	var name := H("playername", "Player name", 26, 200)
-	var structures_h := [name, H("Structure", "Total", 34, 105)]
+	var structures_h := [name, H("Structure", "Total", 34, 90)]
 	for b in [["House", "Houses"], ["Economic", "Economic"], ["Outpost", "Outposts"], ["Military", "Military"],
 			["Fortress", "Fortresses"], ["CivCentre", "Civ centers"], ["Wonder", "Wonders"]]:
-		structures_h.append(H(b[0], b[1], 34, 85))
-	var units_h := [name, H("Unit", "Total", 34, 105)]
+		structures_h.append(H(b[0], b[1], 34, 90))
+	var units_h := [name, H("Unit", "Total", 34, 90)]
 	for u in [["Infantry", "Infantry"], ["Worker", "Worker"], ["Cavalry", "Cavalry"], ["Champion", "Champion"],
 			["Hero", "Heroes"], ["Siege", "Siege"], ["Ship", "Navy"], ["Trader", "Traders"]]:
-		units_h.append(H(u[0], u[1], 34, 85))
+		units_h.append(H(u[0], u[1], 34, 90))
 	var res_h := [name, H("total", "Total", 34, 110)]
 	var res_c := [C(110, calc_total_resources, 12)]
-	var market_h := [name, H("tradeIncome", "Trade income", 16, 100),
-		H("barterEfficency", "Barter efficiency", 16, 100, {"format": "PERCENTAGE"})]
-	var market_c := [C(100, calc_trade_income, 12), C(100, calc_barter_efficiency, 12)]
+	var market_h := [name, H("tradeIncome", "Trade income", 16, 120),
+		H("barterEfficency", "Barter efficiency", 16, 120, {"format": "PERCENTAGE"})]
+	var market_c := [C(120, calc_trade_income, 12), C(120, calc_barter_efficiency, 12)]
 	for r in RESOURCES:
-		res_h.append(H(r[0], r[1], 34, 100))
-		res_c.append(C(100, calc_resources, 12))
-		market_h.append(H(r[0], "%s exchanged" % r[1], 16, 100))
-		market_c.append(C(100, calc_exchanged, 12))
-	res_h.append(H("tributes", "Tributes", 16, 121,
+		res_h.append(H(r[0], r[1], 34, 110))
+		res_c.append(C(110, calc_resources, 12))
+		market_h.append(H(r[0], "%s exchanged" % r[1], 16, 120))
+		market_c.append(C(120, calc_exchanged, 12))
+	res_h.append(H("tributes", "Tributes", 16, 110,
 		{"header": "Tributes \n(%s / %s)" % [colored_type("sent"), colored_type("received")]}))
 	res_h.append(H("treasuresCollected", "Treasures collected", 16, 85))
 	res_h.append(H("loot", "Loot", 16, 85))
-	res_c.append_array([C(121, calc_tributes, 12), C(85, calc_treasures, 12), C(85, calc_loot, 12)])
+	res_c.append_array([C(110, calc_tributes, 12), C(85, calc_treasures, 12), C(85, calc_loot, 12)])
 	return [
-		{"label": "Score", "headings": [name, H("totalScore", "Total score", 16, 100),
-			H("economyScore", "Economy score", 16, 100), H("militaryScore", "Military score", 16, 100),
-			H("explorationScore", "Exploration score", 16, 100)],
+		{"label": "Score", "headings": [name, H("totalScore", "Total score", 16, 120),
+			H("economyScore", "Economy score", 16, 120), H("militaryScore", "Military score", 16, 120),
+			H("explorationScore", "Exploration score", 16, 120)],
 		"titles": [],
-		"counters": [C(100, calc_score_total, 12), C(100, calc_economy_score, 12),
-			C(100, calc_military_score, 12), C(100, calc_exploration_score, 12)],
+		"counters": [C(120, calc_score_total, 12), C(120, calc_economy_score, 12),
+			C(120, calc_military_score, 12), C(120, calc_exploration_score, 12)],
 		"team_fn": calc_score_team},
 		{"label": "Structures", "headings": structures_h,
 		"titles": [{"caption": "Structure Statistics (%s / %s / %s / %s)" % [colored_type("constructed"),
-			colored_type("destroyed"), colored_type("captured"), colored_type("lost")], "y": 16, "w": 85 * 7 + 105}],
-		"counters": [C(105, calc_buildings, 3)] + range(7).map(func(_i): return C(85, calc_buildings, 3)),
+			colored_type("destroyed"), colored_type("captured"), colored_type("lost")], "y": 16, "w": 90 * 8}],
+		"counters": range(8).map(func(_i): return C(90, calc_buildings, 3)),
 		"team_fn": calc_sum_team},
 		{"label": "Units", "headings": units_h,
 		"titles": [{"caption": "Unit Statistics (%s / %s / %s)" % [colored_type("trained"), colored_type("killed"),
-			colored_type("lost")], "y": 16, "w": 85 * 8 + 105}],
-		"counters": [C(105, calc_units, 3)] + range(8).map(func(_i): return C(85, calc_units, 3)),
+			colored_type("lost")], "y": 16, "w": 90 * 9}],
+		"counters": range(9).map(func(_i): return C(90, calc_units, 3)),
 		"team_fn": calc_sum_team},
 		{"label": "Resources", "headings": res_h,
 		"titles": [{"caption": "Resource Statistics (%s / %s)" % [colored_type("gathered"), colored_type("used")],
-			"y": 16, "w": 100 * RESOURCES.size() + 110}],
+			"y": 16, "w": 110 * RESOURCES.size() + 110}],
 		"counters": res_c, "team_fn": calc_sum_team},
 		{"label": "Market", "headings": market_h, "titles": [], "counters": market_c, "team_fn": calc_market_team},
 		{"label": "Miscellaneous", "headings": [name,
-			H("killDeath", "Kill / Death ratio", 16, 100, {"format": "DECIMAL2"}),
-			H("mapControlPeak", "Map control (peak)", 16, 100, {"format": "PERCENTAGE"}),
-			H("mapControl", "Map control (finish)", 16, 100, {"format": "PERCENTAGE"}),
-			H("mapExploration", "Map exploration", 16, 100, {"format": "PERCENTAGE"}),
-			H("vegetarianRatio", "Vegetarian ratio", 16, 100, {"format": "PERCENTAGE"}),
-			H("civilianization", "Civilianization", 16, 100, {"format": "PERCENTAGE"})],
+			H("killDeath", "Kill / Death ratio", 16, 110, {"format": "DECIMAL2"}),
+			H("mapControlPeak", "Map control (peak)", 16, 110, {"format": "PERCENTAGE"}),
+			H("mapControl", "Map control (finish)", 16, 110, {"format": "PERCENTAGE"}),
+			H("mapExploration", "Map exploration", 16, 110, {"format": "PERCENTAGE"}),
+			H("vegetarianRatio", "Vegetarian ratio", 16, 110, {"format": "PERCENTAGE"}),
+			H("civilianization", "Civilianization", 16, 110, {"format": "PERCENTAGE"})],
 		"titles": [],
-		"counters": [C(100, calc_kill_death, 12), C(100, calc_map_peak, 12), C(100, calc_map_final, 12),
-			C(100, calc_map_exploration, 12), C(100, calc_vegetarian, 12), C(100, calc_civilianization, 12)],
+		"counters": [C(110, calc_kill_death, 12), C(110, calc_map_peak, 12), C(110, calc_map_final, 12),
+			C(110, calc_map_exploration, 12), C(110, calc_vegetarian, 12), C(110, calc_civilianization, 12)],
 		"team_fn": calc_misc_team},
 	]
 
@@ -501,6 +531,8 @@ func summary_text() -> String:
 		return "Current Scores"
 	if gui.get("isReplay", false) or gui.get("fromReplayMenu", false):
 		return "Scores at the end of the game."
+	if gui.get("disconnected", false):
+		return "You have been disconnected."
 	var me := int(gui.get("assignedPlayer", data.get("local_player", -1)))
 	var mine: Array = players.filter(func(p): return p["id"] == me)
 	if me < 0 or mine.is_empty():
@@ -517,7 +549,8 @@ func map_caption() -> String:
 	var map_id := str(data.get("map_id", ""))
 	var random := map_id.begins_with("random_") or map_id.begins_with("procedural_")
 	var size := int(data.get("map_size", 0))
-	var kind: String = MAP_SIZE_NAMES.get(size, "") if random else "Skirmish"
+	# RTS0's Game Setup has Random and Scenario map types (no Skirmish yet).
+	var kind: String = MAP_SIZE_NAMES.get(size, "Random") if random else "Scenario"
 	return "%s - %s" % [map_name, kind] if kind != "" else map_name
 
 func _label(text: String, size := 13, color := Color.WHITE) -> Label:
@@ -605,8 +638,10 @@ func _build() -> void:
 		b.text = labels[i]
 		b.toggle_mode = true
 		b.button_group = group
-		b.tooltip_text = "Focus the %s summary tab." % labels[i]
+		b.tooltip_text = "Focus the %s summary tab.\nScroll down or use %s to move a tab right.\nScroll up or use %s to move a tab left." % [
+			labels[i], _hotkey_text("tab.next"), _hotkey_text("tab.prev")]
 		b.pressed.connect(select_panel.bind(i))
+		b.gui_input.connect(_on_tab_wheel)
 		_place(b, _window, Vector2(17 + i * (TAB_W + TAB_GAP), 66), Vector2(TAB_W, 28))
 		_tab_buttons.append(b)
 	var frame := Panel.new() # generalPanel / chartsPanel frame
@@ -654,6 +689,32 @@ func _build() -> void:
 	_replay_button.offset_right = -180
 	_replay_button.offset_top = -46
 	_replay_button.offset_bottom = -12
+	# lobbyButton: after a game while signed in to the lobby, left of the other buttons.
+	var lobby := Button.new()
+	lobby.name = "LobbyButton"
+	lobby.text = "Lobby"
+	lobby.tooltip_text = "%s: Toggle the multiplayer lobby in a dialog window." % _hotkey_text("lobby")
+	lobby.visible = not gui.get("isInGame", false) and _lobby_signed_in()
+	lobby.pressed.connect(open_lobby)
+	lobby.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	_window.add_child(lobby)
+	var right := (_replay_button.offset_left if _replay_button.visible else _continue_button.offset_left) - 10
+	lobby.offset_left = right - 80
+	lobby.offset_right = right
+	lobby.offset_top = -46
+	lobby.offset_bottom = -12
+
+## tab_buttons.xml MouseWheelDown / MouseWheelUp: the next or previous tab.
+func _on_tab_wheel(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and \
+			(event.button_index == MOUSE_BUTTON_WHEEL_DOWN or event.button_index == MOUSE_BUTTON_WHEEL_UP):
+		var n := panels.size() + 1
+		select_panel((panel_index + (1 if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else n - 1)) % n)
+
+## colorizeHotkey: the hotkey's first binding in brackets.
+func _hotkey_text(hotkey: String) -> String:
+	var combos: PackedStringArray = _hotkeys.call("get_hotkey_map").get(hotkey, PackedStringArray()) if _hotkeys else PackedStringArray()
+	return "[%s]" % combos[0] if not combos.is_empty() else "[unassigned]"
 
 func select_panel(i: int) -> void:
 	panel_index = clampi(i, 0, panels.size())
@@ -705,9 +766,15 @@ func _update_panel(pd: Dictionary) -> void:
 	else:
 		var keys := teams.keys()
 		keys.sort()
+		if keys.has(-1): # updateGeneralPanelTeams: noTeamsBox, then a box per team
+			var loose: Array = teams[-1]
+			for n in loose.size():
+				_player_row(players[loose[n]], counters, headings, index, Vector2(10, y + n * (BOX_H + BOX_GAP)), row_w)
+			y += loose.size() * (BOX_H + BOX_GAP) + 30
+			keys.erase(-1)
 		for t in keys:
 			var members: Array = teams[t]
-			var head := _label("Team %d" % t, 14, GOLD)
+			var head := _label("Team %d" % (t + 1), 14, GOLD)
 			head.name = "TeamHeading%d" % t
 			_place(head, _general, Vector2(15, y + 5), Vector2(200, 22))
 			for n in members.size():
@@ -1002,12 +1069,25 @@ func continue_pressed() -> void:
 		queue_free()
 		return
 	get_tree().paused = false
-	if gui.get("isReplay", false):
+	if _lobby_signed_in(): # Engine.HasXmppClient()
+		MatchSettings.go("res://scenes/menu/lobby.tscn")
+	elif gui.get("isReplay", false):
 		MatchSettings.go("res://scenes/menu/replay_browser.tscn")
 	elif MatchSettings.campaign_run != "":
 		leave_campaign(_victory)
 	else:
 		MatchSettings.go("res://scenes/menu/main_menu.tscn")
+
+func _lobby_signed_in() -> bool:
+	var lobby := get_tree().root.get_node_or_null("LobbySession")
+	return lobby != null and lobby.signed_in()
+
+## The lobby button: RTS0's lobby is a page, not a dialog, so it is opened in place of the summary.
+func open_lobby() -> void:
+	if not _lobby_signed_in():
+		return
+	get_tree().paused = false
+	MatchSettings.go("res://scenes/menu/lobby.tscn")
 
 ## 0 A.D. campaigns/default_menu/endgame: a level won is completed, then the run's menu.
 static func leave_campaign(victory: bool) -> void:
