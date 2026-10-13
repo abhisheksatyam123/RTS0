@@ -435,7 +435,9 @@ enum BuildingType : uint8_t {
 	BLD_SIEGE_WALL_GATE = 64, // rome/siege_wall_gate (a siege_wall_long Upgrade)
 	BLD_CRANNOG = 65,         // brit/crannog (a Civic Center on the shore: is_civic_centre)
 	BLD_GREAT_HALL = 66,      // germ/great_hall (Town phase; champions and the ram)
-	BLD_TYPE_COUNT = 67
+	BLD_WAGON_ENCAMPMENT = 67, // germ/encampment (a Colony that claims no territory; researches Wagon Trains)
+	BLD_WAGON_ENCAMPMENT_FORTIFIED = 68, // germ/encampment_fortified (its City-phase Upgrade; also trains the log ram)
+	BLD_TYPE_COUNT = 69
 };
 
 #include "civ_building_data.h"
@@ -451,6 +453,7 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	       : type == BLD_APARTMENT ? (uint8_t)BLD_HOUSE
 	       : (type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG) ? (uint8_t)BLD_TOWN_CENTER
 	       : type == BLD_TOWER_GREAT ? (uint8_t)BLD_TOWER
+	       : type == BLD_WAGON_ENCAMPMENT_FORTIFIED ? (uint8_t)BLD_WAGON_ENCAMPMENT
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
 
@@ -1508,6 +1511,8 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
 		case BLD_MILITARY_COLONY: return c | TC_COLONY;
+		// germ/encampment: VisibleClasses Civic Defensive Colony Encampment (no CivCentre).
+		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED: return c | TC_CIVIC | TC_DEFENSIVE | TC_COLONY;
 		default: return c;
 	}
 }

@@ -510,6 +510,8 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x000u}, // germ/rts0_villager (RTS0-only)
 		{0x00000u, 0x000u}, // germ/catafalque
 		{0x00000u, 0x008u}, // germ/ship_fire_fire
+		{0x00000u, 0x000u}, // germ/support_wagon
+		{0x00000u, 0x000u}, // germ/support_wagon_house
 	};
 	return kRows;
 }

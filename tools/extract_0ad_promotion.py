@@ -163,7 +163,8 @@ def xp_tech_rows(sim_root):
         for m in tech.get("modifications", []):
             if m["value"] != "Promotion/RequiredXp":
                 continue
-            for aff in m.get("affects") or tech.get("affects") or [""]:
+            affects = m.get("affects") or tech.get("affects") or [""]
+            for aff in [affects] if isinstance(affects, str) else affects:  # wagon_trains: "Wagon"
                 toks = aff.split()
                 rank = sum(RANKS[t] for t in toks if t in RANKS)
                 need = [t for t in toks if not t.startswith("!") and t not in RANKS]

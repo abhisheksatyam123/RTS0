@@ -233,6 +233,10 @@ UNIQUE_BUILDINGS = [
     ("BLD_CRANNOG", ["crannog"], "crannog", "crannog"),
     # The Germans' Great Hall (Town phase): their champions and the ram train there.
     ("BLD_GREAT_HALL", ["great_hall"], "great_hall", "great_hall"),
+    # The Germans' Wagon Encampment and its fortified Upgrade (a Colony that claims no territory),
+    # drawn with the Roman army camp until they have their own models.
+    ("BLD_WAGON_ENCAMPMENT", ["encampment"], "army_camp", "army_camp"),
+    ("BLD_WAGON_ENCAMPMENT_FORTIFIED", ["encampment_fortified"], "army_camp", "army_camp"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -243,7 +247,8 @@ ONE_CELL = {"BLD_SIEGE_WALL", "BLD_SIEGE_WALL_GATE"}
 SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC"}
 # Structures no Builder list names: only an Upgrade reaches them.
 UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
-                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE"}
+                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE",
+                "BLD_WAGON_ENCAMPMENT_FORTIFIED"}
 # Generic structures (structures/<stem>.xml) in UNIQUE_BUILDINGS -> the generic BuildingType
 # whose civs have them too.
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
@@ -1040,7 +1045,9 @@ PREVIOUS_SIM_ROOT = None
 # type whose Trainer list theirs adds to: --keep-trainers adds them to the kept trainers where
 # the release trains the unit there, or where the civ has the template and the kept trainers
 # hold that type (0.28's crannog adds ships to the civil centre's list).
-KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
+KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER"),
+                               "BLD_WAGON_ENCAMPMENT": ("encampment", None),
+                               "BLD_WAGON_ENCAMPMENT_FORTIFIED": ("encampment_fortified", None)}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
 # --retire: kept rows (fnmatch patterns) the release no longer trains: they keep their ids for

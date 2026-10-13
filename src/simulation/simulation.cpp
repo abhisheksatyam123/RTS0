@@ -1689,6 +1689,8 @@ BuildRestriction build_restriction(uint8_t type) {
 	// Civ-specific: civil_centre_military_colony (own neutral, 120 m from a
 	// CivilCentre), ptol/lighthouse and cart/super_dock (shore, own ally neutral).
 	case BLD_MILITARY_COLONY: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 120.0f / 4.0f};
+	// germ/encampment: own neutral, 1 m from a CivilCentre.
+	case BLD_WAGON_ENCAMPMENT: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 1.0f / 4.0f};
 	case BLD_SUPER_DOCK:
 	case BLD_LIGHTHOUSE: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};

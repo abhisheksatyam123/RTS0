@@ -267,6 +267,7 @@ inline constexpr PromotionStep PROMOTION_STEPS[] = {
 	{"germ/infantry_swordsman_b", 2, 100, nullptr, 3},
 	{"germ/support_healer_b", 1, 150, nullptr, 2},
 	{"germ/support_healer_b", 2, 150, nullptr, 3},
+	{"germ/support_wagon", 1, 5000, "germ/support_wagon_house", 1},
 	{"rome/cavalry_auxiliary_b", 1, 150, nullptr, 2},
 	{"rome/cavalry_auxiliary_b", 2, 150, nullptr, 3},
 };
@@ -333,6 +334,7 @@ inline constexpr PromotionXpTech PROMOTION_XP_TECHS[] = {
 	{TECH_SILVERSHIELDS, 1.0f, true, 0x8100ull, 0x0ull, 0},
 	{TECH_NONE, 1.25f, false, 0x840ull, 0x0ull, 0},
 	{TECH_NONE, 1.0f, true, 0x1000000000000000ull, 0x0ull, 1},
+	{TECH_WAGON_TRAINS, 1.0f, true, TechClasses{0x0ull, 0x1ull}, 0x0ull, 0},
 };
 
 } // namespace rtso
