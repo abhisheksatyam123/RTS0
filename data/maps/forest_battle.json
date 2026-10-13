@@ -14409,85 +14409,141 @@
       "type": "palisade",
       "template": "structures/palisades_curve",
       "x": -10.11,
-      "z": -8.64
-    },
-    {
-      "type": "sentry_tower",
-      "template": "structures/palisades_fort",
-      "x": -9.56,
-      "z": -7.36
-    },
-    {
-      "type": "sentry_tower",
-      "template": "structures/palisades_fort",
-      "x": -6.46,
-      "z": -3.75
+      "z": -8.64,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -2.9626,
+      "length": 2.0
     },
     {
       "type": "palisade",
+      "template": "structures/palisades_fort",
+      "x": -9.56,
+      "z": -7.36,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 2.0
+    },
+    {
+      "type": "palisade",
+      "template": "structures/palisades_fort",
+      "x": -6.46,
+      "z": -3.75,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 2.0
+    },
+    {
+      "type": "palisade_gate",
       "template": "structures/palisades_gate",
       "x": -8.25,
-      "z": -5.52
+      "z": -5.52,
+      "wallset": "palisade",
+      "piece": "gate",
+      "angle": 2.3562,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": -10.03,
-      "z": -11.54
+      "z": -11.54,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -1.7199,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": -9.47,
-      "z": -14.87
+      "z": -14.87,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -1.7199,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -10.25,
-      "z": -9.94
+      "z": -9.94,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -9.79,
-      "z": -13.42
+      "z": -13.42,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -9.17,
-      "z": -16.84
+      "z": -16.84,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
+    },
+    {
+      "type": "palisade_gate",
+      "template": "structures/palisades_gate",
+      "x": -9.07,
+      "z": -32.88,
+      "wallset": "palisade",
+      "piece": "gate",
+      "angle": 0.6851,
+      "length": 3.5
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_gate",
-      "x": -9.07,
-      "z": -32.88
-    },
-    {
-      "type": "sentry_tower",
       "template": "structures/palisades_fort",
       "x": -10.94,
-      "z": -31.99
+      "z": -31.99,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": -2.749,
+      "length": 2.0
     },
     {
-      "type": "sentry_tower",
+      "type": "palisade",
       "template": "structures/palisades_fort",
       "x": -7.94,
-      "z": -34.38
+      "z": -34.38,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 0.7343,
+      "length": 2.0
     },
     {
       "type": "palisade",
       "template": "structures/palisades_curve",
       "x": -12.19,
-      "z": -30.99
+      "z": -30.99,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 2.0
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": -8.91,
-      "z": -18.75
+      "z": -18.75,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 1.6212,
+      "length": 3.5
     },
     {
       "type": "palisade",
@@ -14517,169 +14573,281 @@
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -9.09,
-      "z": -20.72
+      "z": -20.72,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": -11.39,
-      "z": -25.47
+      "z": -25.47,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -1.1033,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": -12.45,
-      "z": -28.44
+      "z": -28.44,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -1.357,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -12.08,
-      "z": -26.89
+      "z": -26.89,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -10.87,
-      "z": -24.4
+      "z": -24.4,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_curve",
       "x": -4.82,
-      "z": -2.82
+      "z": -2.82,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -1.7645,
+      "length": 2.0
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": -1.81,
-      "z": -2.79
+      "z": -2.79,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 0.1472,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -3.29,
-      "z": -2.79
+      "z": -2.79,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": -0.14,
-      "z": -2.98
+      "z": -2.98,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": 1.71,
-      "z": -3.24
+      "z": -3.24,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 0.1108,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": 4.34,
-      "z": -1.84
+      "z": -1.84,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": 3.15,
-      "z": -3.36
+      "z": -3.36,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
+    },
+    {
+      "type": "palisade_gate",
+      "template": "structures/palisades_gate",
+      "x": 13.87,
+      "z": -5.51,
+      "wallset": "palisade",
+      "piece": "gate",
+      "angle": 0.9595,
+      "length": 3.5
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_gate",
-      "x": 13.87,
-      "z": -5.51
-    },
-    {
-      "type": "sentry_tower",
       "template": "structures/palisades_fort",
       "x": 14.84,
-      "z": -7.0
+      "z": -7.0,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 0.9702,
+      "length": 2.0
     },
     {
       "type": "palisade",
       "template": "structures/palisades_medium",
       "x": 14.77,
-      "z": -8.09
+      "z": -8.09,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 1.4984,
+      "length": 2.25
     },
     {
       "type": "palisade",
       "template": "structures/palisades_medium",
       "x": 14.73,
-      "z": -9.64
+      "z": -9.64,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -1.4533,
+      "length": 2.25
     },
     {
       "type": "palisade",
       "template": "structures/palisades_medium",
       "x": 14.46,
-      "z": -11.69
+      "z": -11.69,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -1.2995,
+      "length": 2.25
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": 8.44,
-      "z": -33.3
+      "z": -33.3,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 3.5
+    },
+    {
+      "type": "palisade_gate",
+      "template": "structures/palisades_gate",
+      "x": 11.32,
+      "z": -30.4,
+      "wallset": "palisade",
+      "piece": "gate",
+      "angle": 2.2115,
+      "length": 3.5
     },
     {
       "type": "palisade",
-      "template": "structures/palisades_gate",
-      "x": 11.32,
-      "z": -30.4
-    },
-    {
-      "type": "sentry_tower",
       "template": "structures/palisades_fort",
       "x": 12.35,
-      "z": -28.63
+      "z": -28.63,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.0137,
+      "length": 2.0
     },
     {
-      "type": "sentry_tower",
+      "type": "palisade",
       "template": "structures/palisades_fort",
       "x": 10.02,
-      "z": -31.93
+      "z": -31.93,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 2.0
     },
     {
       "type": "palisade",
       "template": "structures/palisades_long",
       "x": 13.07,
-      "z": -26.39
+      "z": -26.39,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 1.8032,
+      "length": 3.5
     },
     {
       "type": "palisade",
       "template": "structures/palisades_medium",
       "x": 13.49,
-      "z": -24.22
+      "z": -24.22,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": 1.6933,
+      "length": 2.25
     },
     {
       "type": "palisade",
       "template": "structures/palisades_medium",
       "x": 6.75,
-      "z": -34.88
+      "z": -34.88,
+      "wallset": "palisade",
+      "piece": "wall",
+      "angle": -0.5775,
+      "length": 2.25
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": 5.85,
-      "z": -35.51
+      "z": -35.51,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": 7.08,
-      "z": -34.51
+      "z": -34.51,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": 13.52,
-      "z": -24.82
+      "z": -24.82,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "palisade",
       "template": "structures/palisades_tower",
       "x": 13.84,
-      "z": -23.0
+      "z": -23.0,
+      "wallset": "palisade",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 0.75
     },
     {
       "type": "house",
