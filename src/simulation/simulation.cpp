@@ -2045,7 +2045,8 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const WallSetInfo &ws = wallset_info(kind);
 	const Civilization civ = civ_of(player);
 	for (uint8_t t : {ws.segment, ws.tower})
-		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase) return 0;
+		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase ||
+				triggers_.building_disabled(player, t)) return 0;
 	rebuild_territory();
 	uint32_t start_tower = 0, end_tower = 0;
 	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower, kind);
@@ -22749,6 +22750,7 @@ void Simulation::register_map_triggers(MapType type) {
 		case MAP_EXTINCT_VOLCANO: register_trigger_script("extinct_volcano_triggers"); break;
 		case MAP_POLAR_SEA: register_trigger_script("polar_sea_triggers"); break;
 		case MAP_SURVIVAL_OF_THE_FITTEST: register_trigger_script("survivalofthefittest_triggers"); break;
+		case MAP_ELEPHANTINE: register_trigger_script("elephantine_triggers"); break;
 		default: break;
 	}
 }
@@ -22761,6 +22763,8 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"polar_sea_triggers", TRIGGER_ACTION_POLAR_SEA_INIT, TUTORIAL_NONE},
 		{"treasure_islands", TRIGGER_ACTION_TREASURE_ISLANDS_INIT, TUTORIAL_NONE},
 		{"survivalofthefittest_triggers", TRIGGER_ACTION_SURVIVAL_INIT, TUTORIAL_NONE},
+		{"death_canyon_invasion_force_triggers", TRIGGER_ACTION_DEATH_CANYON_INIT, TUTORIAL_NONE},
+		{"elephantine_triggers", TRIGGER_ACTION_ELEPHANTINE_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -22933,6 +22937,15 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_TUTORIAL:
 			tutorial_event(data);
+			break;
+		case TRIGGER_ACTION_ELEPHANTINE_INIT:
+			trigger_elephantine_init();
+			break;
+		case TRIGGER_ACTION_DEATH_CANYON_INIT:
+			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
+			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
+			static_assert(BLD_TYPE_COUNT <= 64, "disabled_buildings is a 64-bit mask");
+			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = ~0ull;
 			break;
 		default:
 			break;
@@ -23192,19 +23205,8 @@ void Simulation::trigger_survival_wave() {
 	int remainder = total;
 	std::vector<std::pair<uint16_t, int>> counts;
 	auto add_templates = [&](const std::vector<uint16_t> &names, int count) {
-		std::vector<float> f(names.size());
-		float sum = 0.0f;
-		for (float &v : f) sum += (v = sim_rng_.range_float(0.0f, 1.0f));
-		int left = count;
-		for (size_t i = 0; i < names.size(); ++i) {
-			const int n = i + 1 == names.size() ? left : std::min(left, (int)std::lround(f[i] / sum * (float)count));
-			if (!n) continue;
-			auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
-			if (it == counts.end()) counts.push_back({names[i], n});
-			else it->second += n;
-			left -= n;
-			remainder -= n;
-		}
+		random_template_composition(names, count, counts);
+		remainder -= count;
 	};
 	for (const Group &g : groups)
 		if (g.count) add_templates(*g.templates, std::min(remainder, g.count));
@@ -23712,6 +23714,84 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 			}
 			break;
 		default: break;
+	}
+}
+
+void Simulation::random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts) {
+	// TriggerHelper.RandomTemplateComposition: a random share of `count` for each template.
+	if (names.empty()) return;
+	std::vector<float> f(names.size());
+	float sum = 0.0f;
+	for (float &v : f) sum += (v = sim_rng_.range_float(0.0f, 1.0f));
+	int left = count;
+	for (size_t i = 0; i < names.size(); ++i) {
+		const int n = i + 1 == names.size() ? left : std::min(left, (int)std::lround(f[i] / sum * (float)count));
+		if (!n) continue;
+		auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
+		if (it == counts.end()) counts.push_back({names[i], n});
+		else it->second += n;
+		left -= n;
+	}
+}
+
+void Simulation::trigger_elephantine_init() {
+	// elephantine_triggers.js InitElephantine: the Gaia soldiers hold a defensive stance, the
+	// towers fill with elite Kushite citizen infantry and the wonder, temples and pyramids
+	// with those and Kushite women and elite priests (SpawnAndGarrisonAtClasses at 100%).
+	std::vector<uint32_t> soldiers;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != GAIA_PLAYER) continue;
+		const uint16_t t = units_.tmpl[i];
+		const uint64_t c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+		if (c & TC_SOLDIER) soldiers.push_back(units_.id[i]);
+	}
+	if (!soldiers.empty()) order_set_stance(soldiers.data(), soldiers.size(), STANCE_DEFENSIVE);
+	// GetTemplateNamesByClasses("CitizenSoldier+Infantry", "kush", , "Elite", true) and
+	// ("FemaleCitizen Healer", "kush", , "Elite", true): the elite rank of each _b row.
+	std::vector<uint16_t> infantry, support;
+	for (uint16_t t : civ_roster_ids(CIV_KUSHITES)) {
+		const CivUnitTemplate &u = civ_unit_template(t);
+		if (std::strstr(u.id, "rts0_")) continue;
+		const uint64_t c = u.tech_classes;
+		const size_t len = std::strlen(u.id);
+		const bool basic = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0;
+		if ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY) && !std::strstr(u.id, "_merc")) {
+			if (basic) infantry.push_back(t);
+		} else if (c & TC_FEMALECITIZEN) {
+			support.push_back(t);
+		} else if ((c & TC_HEALER) && std::strstr(u.id, "_e")) {
+			support.push_back(t);
+		}
+	}
+	std::vector<uint16_t> temple = infantry;
+	temple.insert(temple.end(), support.begin(), support.end());
+	auto elite = [&](uint16_t t) {
+		const CivUnitTemplate &u = civ_unit_template(t);
+		const size_t len = std::strlen(u.id);
+		return len > 2 && std::strcmp(u.id + len - 2, "_b") == 0 ? 3 : 1;
+	};
+	std::vector<std::pair<uint32_t, bool>> holders; // the structure, and whether it is a temple
+	for (const Building &b : buildings_) {
+		if (b.team != GAIA_PLAYER || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		if (building_tech_classes(b.type) & TC_TOWER) holders.push_back({b.id, false}); // "Tower": sentry and defence towers
+		else if (b.type == BLD_WONDER || b.type == BLD_TEMPLE || b.type == BLD_TEMPLE_AMUN ||
+				b.type == BLD_PYRAMID_LARGE || b.type == BLD_PYRAMID_SMALL) holders.push_back({b.id, true});
+	}
+	for (const auto &[id, is_temple] : holders) {
+		const int cap = get_garrison_capacity(id);
+		if (cap <= 0) continue;
+		std::vector<std::pair<uint16_t, int>> counts;
+		random_template_composition(is_temple ? temple : infantry, cap, counts);
+		auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end()) continue;
+		const float x = buildings_[it->second].x, z = buildings_[it->second].z;
+		for (const auto &[t, n] : counts) {
+			const CivUnitTemplate &u = civ_unit_template(t);
+			for (int k = 0; k < n; ++k) {
+				const uint32_t uid = spawn_gaia_unit(x, z, (UnitType)u.unit_type, u.id, elite(t));
+				if (uid) garrison_unit_now(uid, id);
+			}
+		}
 	}
 }
 
