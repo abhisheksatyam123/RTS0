@@ -168,11 +168,13 @@ public:
     // Combined modifier on a unit of player qowner at (qx, qz). qtmpl is its roster
     // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
     // qclasses its 0 A.D. classes.
-    //   AURA_HEAL: sum of hp/s. AURA_GATHER: strongest bonus.
-    //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP: strongest bonus times
-    //     strongest penalty
-    //     (0 when none reaches the unit).
-    //   AURA_ARMOR / AURA_HEAL_AMOUNT / AURA_VISION_ADD: strongest bonus plus strongest penalty.
+    //   AURA_HEAL: sum of hp/s. AURA_GATHER: strongest bonus plus strongest penalty.
+    //   AURA_ATTACK / AURA_SPEED / AURA_HEALTH / AURA_VISION / AURA_REQUIRED_XP: the
+    //     product of every aura reaching the unit (0 when none does).
+    //   AURA_ARMOR / AURA_HEAL_AMOUNT / AURA_VISION_ADD: the sum of every aura reaching it.
+    //   As Auras.js and ModifiersManager do, each aura counts once however many sources
+    //   project it (a second Marcellus or carnyx adds nothing) and different auras stack
+    //   (a hero's attack aura with the Iberian monument's).
     //   AURA_BUILD: the product of every aura reaching the unit, a stackable one (the Han
     //     minister's) once per source and any other once (0 when none reaches the unit).
     // structure: the query is for a structure, which only auras naming the Structure
@@ -184,11 +186,10 @@ public:
         const uint16_t qbit = aura_player_bit(qowner);
         bool any = false;
         float sum = 0.0f, up = 0.0f, down = 0.0f, product = 1.0f;
-        int16_t once[8]; // non-stackable AURA_BUILD auras already counted
+        int16_t once[16]; // auras already counted (non-stackable AURA_BUILD ones for AURA_BUILD)
         int once_n = 0;
         const bool mul = type == AURA_ATTACK || type == AURA_SPEED || type == AURA_HEALTH || type == AURA_VISION
             || type == AURA_REQUIRED_XP;
-        if (mul) up = down = 1.0f;
         // Only this type's sources, in the order they were registered.
         for (uint32_t k : of_type_[type]) {
             const AuraSource &s = sources[k];
@@ -211,19 +212,28 @@ public:
                     bool seen = false;
                     for (int k = 0; k < once_n; ++k) seen |= once[k] == s.aura;
                     if (seen) continue;
-                    if (once_n < 8) once[once_n++] = s.aura;
+                    if (once_n < 16) once[once_n++] = s.aura;
                 }
                 product *= s.value;
-            } else {
+            } else if (type == AURA_GATHER) {
                 if (s.value > up) up = s.value;
                 if (s.value < down) down = s.value;
+            } else {
+                // A roster aura by its index; an unlisted one (the carnyx) by its class filter.
+                const int16_t key = s.aura >= 0 ? s.aura : (int16_t)(-1 - (int16_t)s.need_class);
+                bool seen = false;
+                for (int k = 0; k < once_n; ++k) seen |= once[k] == key;
+                if (seen) continue;
+                if (once_n < 16) once[once_n++] = key;
+                product *= s.value;
+                sum += s.value;
             }
         }
         if (!any) return 0.0f;
         if (type == AURA_HEAL) return sum;
-        if (type == AURA_BUILD) return product;
-        if (mul) return up * down;
-        return up + down;
+        if (type == AURA_BUILD || mul) return product;
+        if (type == AURA_GATHER) return up + down;
+        return sum;
     }
 
 private:
