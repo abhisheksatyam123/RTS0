@@ -93,6 +93,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <utility>
 
 using namespace rtso;
 
@@ -232,6 +233,9 @@ static void test_attack_move() {
 	uint32_t e = s.spawn_unit(-10, 0, 1, UNIT_FEMALE_CITIZEN);
 	s.order_set_stance(&e, 1, STANCE_STAND_GROUND);
 	const uint32_t house = s.spawn_building_world(4, 0, BLD_HOUSE, 1, 1.0f);
+	// Player 1's territory over the house, out of the swordsmen's sight: on neutral land it
+	// decays to Gaia mid-fight, and attack-walk leaves Gaia's structures alone.
+	s.spawn_building_world(4.0f, -36.0f, BLD_TOWN_CENTER, 1, 1.0f);
 	const float house_hp = bld(s, house)->hp;
 	s.order_attack_move(a, 3, 30, 0);
 	const bool killed = run_until(s, 20.0f, [&] { return !alive(s, e); });
@@ -2173,6 +2177,47 @@ static void test_gather_rate_auras() {
 	check(std::fabs(rate(true, RES_STONE) - rate(false, RES_STONE)) < 1e-6f, "stone mining unchanged");
 }
 
+static void test_attack_preference_switch() {
+	std::printf("59. after each hit on a target it doesn't prefer, a unit looks again (0.28 Attack.js)\n");
+	auto run_case = [](bool forced) {
+		Simulation s;
+		setup(s);
+		const uint32_t house = s.spawn_building_world(0, 0, BLD_HOUSE, 1, 1.0f);
+		s.spawn_building_world(0.0f, -36.0f, BLD_TOWN_CENTER, 1, 1.0f); // keeps the house player 1's
+		uint32_t w = s.spawn_unit(-6, 0, 0, UNIT_SWORDSMAN);
+		if (forced) s.order_attack_building(&w, 1, house);
+		const float hp0 = bld(s, house)->hp;
+		run_until(s, 20.0f, [&] { return bld(s, house)->hp < hp0; });
+		uint32_t e = s.spawn_unit(-6, 9, 1, UNIT_SPEARMAN, 5000.0f);
+		s.order_set_stance(&e, 1, STANCE_STAND_GROUND);
+		return std::make_pair(bld(s, house)->hp < hp0, run_until(s, 6.0f, [&] { return target_of(s, w) == e; }));
+	};
+	const auto [hit, switched] = run_case(false);
+	check(hit, "a swordsman with nothing else in sight hacks at an enemy house");
+	check(switched, "and turns on the soldier who walks up after the next hit");
+	const auto [hit2, switched2] = run_case(true);
+	check(hit2 && !switched2, "a house it was ordered to attack keeps it busy");
+}
+
+static void test_healer_attack_order() {
+	std::printf("60. a healer told to attack walks into heal range of the target (0.28 WalkToTargetRange)\n");
+	Simulation s;
+	setup(s);
+	uint32_t h = s.spawn_unit(-20, 0, 0, UNIT_HEALER);
+	const uint32_t e = post(s, 10, 0, UNIT_SPEARMAN, 5000.0f);
+	s.order_attack(&h, 1, e);
+	check(s.unit_order(h).kind == ORDER_WALK && (s.unit_order(h).flags & ORDER_FLAG_FORCE), "it takes a forced walk");
+	const float range = s.healer_range_of(s.lookup_unit(h));
+	run(s, 20.0f);
+	const float d = dist(s, h, 10, 0);
+	check(d <= range && d > 0.5f * range, "and stops in heal range, short of the enemy");
+	// One already in range stays where it is.
+	const float hx = s.units().pos_x[s.lookup_unit(h)];
+	s.order_attack(&h, 1, e);
+	run(s, 2.0f);
+	check(std::fabs(s.units().pos_x[s.lookup_unit(h)] - hx) < 0.5f, "one already in range stays put");
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2234,6 +2279,8 @@ int main(int argc, char **argv) {
 	test_aura_secondary_effects();
 	test_nastasen_warships();
 	test_gather_rate_auras();
+	test_attack_preference_switch();
+	test_healer_attack_order();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;

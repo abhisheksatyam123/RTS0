@@ -159,6 +159,27 @@ const LANDSCAPES := [["Random", 0, "Choose a random landscape."],
 	["Naval: Lake and rivers", 9, "A central lake with rivers possibly separating neighboring players."]]
 const LANDSCAPE_MAPS := ["random_unknown"]
 
+# 0 A.D. common/settings.js loadMapTypes: [name, title, description]; Skirmish is the default.
+const MAP_TYPES := [["skirmish", "Skirmish", "A map with a predefined landscape and number of players. Freely select the other game settings."],
+	["random", "Random", "Create a unique map with a different resource distribution each time. Freely select the number of players and teams."],
+	["scenario", "Scenario", "A map with a predefined landscape and matchsettings."]]
+# 0 A.D. gui/maps/MapFilters.js: [name, title, description, match on the map's Keywords].
+const MAP_FILTERS := [["default", "Default", "All maps except naval and demo maps.", ["!naval !demo !hidden"]],
+	["naval", "Naval Maps", "Maps where ships are needed to reach the enemy.", ["naval"]],
+	["demo", "Demo Maps", "These maps are not playable but for demonstration purposes only.", ["demo"]],
+	["new", "New Maps", "Maps that are brand new in this release of the game.", ["new"]],
+	["multiplayer", "Best for MP", "Maps that are recommended for Multiplayer play.", ["multiplayer"]],
+	["trigger", "Trigger Maps", "Maps that come with scripted events and potentially spawn enemy units.", ["trigger"]],
+	["all", "All Maps", "Every map of the chosen maptype.", ["!"]]]
+# Each map's 0.28 type, Keywords and scenario settings (tools/extract_0ad_map_types.py).
+const MAP_TYPES_FILE := "res://data/map_types.json"
+# MapSelection.js: the Random map type's first entry picks one of the listed maps on Start.
+const RANDOM_MAP_ID := "random"
+const RANDOM_MAP := {"id": RANDOM_MAP_ID, "name": "Random", "kind": "Random", "type": "random", "keywords": [],
+	"players": 8, "size": 128, "biome": "random", "desc": "Pick any of the given maps at random."}
+# 0 A.D. starting_resources.json amounts, index == START_RES.
+const START_RES_AMOUNTS := [100, 300, 500, 1000, 3000, 50000]
+
 # 0 A.D. map sizes (width in meters) for random maps.
 const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium (256 m)"],
 	[320, "Normal (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
@@ -190,11 +211,17 @@ var _color_icons: Array = []
 var _maps: Array = []          # all map dicts
 var _filtered: Array = []      # after filter
 var _sel_map: int = 0
+var _map_type := "skirmish"
+var _map_filter_name := "default"
+var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
+var _want_map_id := ""         # the map to select on the next refresh_map_list
+var _was_scenario := false     # the slots hold a scenario's locked teams
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
 var _rebuilding_slots := false
 
 func _ready() -> void:
 	_load_maps()
+	_build_map_type()
 	_build_map_filter()
 	_build_map_list()
 	_build_options()
@@ -225,9 +252,43 @@ func _load_maps() -> void:
 	if _maps.is_empty():
 		for p in ["acropolis_bay", "corinthian_isthmus", "atlas_valleys", "bactria", "battle_for_the_tiber"]:
 			_maps.append(_read_scenario(p))
+	var types := _map_types_data()
+	var known: Dictionary = types.get("maps", {})
+	for m in _maps:
+		var t: Dictionary = known.get(m["id"], {})
+		m["type"] = str(t.get("type", "skirmish"))
+		m["kind"] = "Scenario" if m["type"] == "scenario" else "Skirmish"
+		m["keywords"] = t.get("keywords", [])
+		m["settings"] = t.get("settings", {})
+	var random_kw: Dictionary = types.get("random_keywords", {})
 	for r in RMS_MAPS:
-		_maps.append({"id": r[0], "name": r[1], "kind": r[2], "players": r[3],
+		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
+		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
+			"keywords": random_kw.get(rms_script(r[0]), []), "players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6]})
+
+## The 0.28 maps/random script an RTS0 random map ports ("random_archipelago_0ad" -> "archipelago").
+static func rms_script(map_id: String) -> String:
+	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
+	return "neareastern_badlands" if s == "nearestern_badlands" else s
+
+static func _map_types_data() -> Dictionary:
+	var f := FileAccess.open(MAP_TYPES_FILE, FileAccess.READ)
+	var d: Variant = JSON.parse_string(f.get_as_text()) if f else null
+	return d if typeof(d) == TYPE_DICTIONARY else {}
+
+## globalscripts MatchesClassList: any entry whose space-separated classes all
+## hold ("!x" = x absent); "!" alone matches every map.
+static func matches_class_list(classes: Array, match: Array) -> bool:
+	for sub in match:
+		var ok := true
+		for c in str(sub).split(" ", false):
+			if c.begins_with("!") == classes.has(c.substr(1) if c.begins_with("!") else c):
+				ok = false
+				break
+		if ok:
+			return true
+	return false
 
 func _read_scenario(map_id: String) -> Dictionary:
 	var d := {"id": map_id, "name": map_id, "kind": "Scenario",
@@ -258,45 +319,192 @@ func _make_option(slot: Control) -> RtsoSafeSelect:
 	slot.add_child(ob)
 	return ob
 
+## 0 A.D. gamesetup MapType dropdown.
+func _build_map_type() -> void:
+	var t := _make_option($VBox/HBox/LeftScroll/Left/MapTypeSlot)
+	for mt in MAP_TYPES:
+		t.add_item(mt[1])
+	t.select(0)
+	_update_map_type_tooltip()
+	t.item_selected.connect(_on_map_type_selected)
+
+func _update_map_type_tooltip() -> void:
+	var t: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapTypeSlot.get_child(0)
+	for i in range(MAP_TYPES.size()):
+		if MAP_TYPES[i][0] == _map_type:
+			t.select(i)
+			t.tooltip_text = "Select a map type.\n\n%s: %s" % [MAP_TYPES[i][1], MAP_TYPES[i][2]]
+
+func _on_map_type_selected(idx: int) -> void:
+	_map_type = MAP_TYPES[clampi(idx, 0, MAP_TYPES.size() - 1)][0]
+	_update_map_type_tooltip()
+	_rebuild_map_filter()
+	refresh_map_list()
+	_clamp_slots_to_map()
+
+## 0 A.D. gamesetup MapFilter dropdown: the filters with maps of this type.
 func _build_map_filter() -> void:
 	var f := _make_option($VBox/HBox/LeftScroll/Left/MapFilterSlot)
-	f.add_item("All maps")
-	f.add_item("Scenarios")
-	f.add_item("Random (RMS)")
-	f.select(0)
-	f.item_selected.connect(func(_i: int) -> void: refresh_map_list())
+	f.item_selected.connect(_on_map_filter_selected)
+	_rebuild_map_filter()
+
+func _rebuild_map_filter() -> void:
+	var f: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapFilterSlot.get_child(0)
+	f.clear()
+	_filter_names.clear()
+	for flt in MAP_FILTERS:
+		if _maps.any(func(m): return m["type"] == _map_type and matches_class_list(m["keywords"], flt[3])):
+			_filter_names.append(flt[0])
+			f.add_item(flt[1])
+	if not _filter_names.has(_map_filter_name):
+		_map_filter_name = _filter_names[0] if not _filter_names.is_empty() else "default"
+	var shown := not _filter_names.is_empty()
+	$VBox/HBox/LeftScroll/Left/MapFilterLabel.visible = shown
+	$VBox/HBox/LeftScroll/Left/MapFilterSlot.visible = shown
+	if shown:
+		var i := _filter_names.find(_map_filter_name)
+		f.select(i)
+		f.tooltip_text = "Select a map filter.\n\n%s: %s" % [MAP_FILTERS[_filter_index(_map_filter_name)][1], MAP_FILTERS[_filter_index(_map_filter_name)][2]]
+
+func _filter_index(name: String) -> int:
+	for i in range(MAP_FILTERS.size()):
+		if MAP_FILTERS[i][0] == name:
+			return i
+	return 0
+
+func _on_map_filter_selected(idx: int) -> void:
+	if idx < 0 or idx >= _filter_names.size():
+		return
+	_map_filter_name = _filter_names[idx]
+	_rebuild_map_filter()
+	refresh_map_list()
+	_clamp_slots_to_map()
+
+## Shows map_id: its type, and a filter that lists it ("All Maps" for one the
+## default filter hides).
+func _select_map_id(map_id: String) -> void:
+	var m := {}
+	for x in _maps:
+		if str(x["id"]) == map_id:
+			m = x
+	if map_id == RANDOM_MAP_ID:
+		m = RANDOM_MAP
+	if m.is_empty():
+		return
+	_map_type = str(m["type"])
+	_update_map_type_tooltip()
+	if map_id != RANDOM_MAP_ID and not matches_class_list(m["keywords"], MAP_FILTERS[_filter_index(_map_filter_name)][3]):
+		_map_filter_name = "all"
+	_rebuild_map_filter()
+	_want_map_id = map_id
 
 func _build_map_list() -> void:
 	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
 
-func _map_filter() -> int:
-	var f: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapFilterSlot.get_child(0)
-	return f.get_selected()
-
+## MapFilters.getFilteredMaps: the maps of the type the filter matches, by
+## name, after the Random entry for random maps; keeps the selected map if listed.
 func refresh_map_list() -> void:
+	var keep := _want_map_id if not _want_map_id.is_empty() else str(_selected_map().get("id", ""))
+	_want_map_id = ""
 	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
 	_filtered.clear()
-	var flt := _map_filter()
+	var match: Array = MAP_FILTERS[_filter_index(_map_filter_name)][3]
 	for m in _maps:
-		if flt == 1 and m["kind"] != "Scenario":
-			continue
-		if flt == 2 and m["kind"] != "Random":
-			continue
-		_filtered.append(m)
-		list.add_item(str(m["name"]))
-	if _sel_map < 0 or _sel_map >= _filtered.size():
-		_sel_map = 0
+		if m["type"] == _map_type and matches_class_list(m["keywords"], match):
+			_filtered.append(m)
+	_filtered.sort_custom(func(a, b): return str(a["name"]).naturalnocasecmp_to(str(b["name"])) < 0)
+	if _map_type == "random":
+		_filtered.push_front(RANDOM_MAP)
+	_sel_map = 0
+	for i in range(_filtered.size()):
+		list.add_item(str(_filtered[i]["name"]))
+		if str(_filtered[i]["id"]) == keep:
+			_sel_map = i
 	if not _filtered.is_empty():
 		list.select(_sel_map)
+	_apply_map_locks()
 	_update_preview()
 
 func _on_map_list_selected(idx: int) -> void:
 	_sel_map = idx
-	_update_preview()
 	_clamp_slots_to_map()
+	_apply_map_locks()
+	_update_preview()
+
+func _is_scenario() -> bool:
+	return str(_selected_map().get("type", "")) == "scenario"
+
+## The scenario's PlayerData entry for slot i, {} otherwise.
+func _map_player(i: int) -> Dictionary:
+	if not _is_scenario():
+		return {}
+	var pl: Array = _selected_map().get("settings", {}).get("players", [])
+	return pl[i] if i < pl.size() and typeof(pl[i]) == TYPE_DICTIONARY else {}
+
+func _civ_index(code: String) -> int:
+	for i in range(CIVS.size()):
+		if CIVS[i]["code"] == code:
+			return i
+	return -1
+
+## 0 A.D. gamesetup on a scenario ("predefined matchsettings"): the player count
+## is the map's, and civs, teams, colours, population, starting resources,
+## ceasefire, Last Man Standing, map exploration, treasures and spies are the
+## map's, shown disabled. Only random maps let you pick the player count.
+func _apply_map_locks() -> void:
+	var m := _selected_map()
+	var scen := _is_scenario()
+	var s: Dictionary = m.get("settings", {}) if scen else {}
+	_slot_count_node().editable = m.is_empty() or str(m.get("type", "")) == "random"
+	var left := $VBox/HBox/LeftScroll/Left
+	var checks := {"LastManStanding": "LastManStanding", "StartRow/LockTeams": "LockTeams",
+		"StartRow/DisableTreasures": "DisableTreasures", "MapVisRow/RevealMap": "RevealMap",
+		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/DisableSpies": "DisableSpies"}
+	for path in checks:
+		var cb: BaseButton = left.get_node(path)
+		cb.disabled = scen
+		if scen:
+			cb.button_pressed = bool(s.get(checks[path], false))
+	var pop: RtsoSafeSelect = left.get_node("PopCapSlot").get_child(0)
+	var res: RtsoSafeSelect = left.get_node("ResSlot").get_child(0)
+	var cf: RtsoSafeSelect = left.get_node("CeasefireSlot").get_child(0)
+	pop.disabled = scen
+	res.disabled = scen
+	cf.disabled = scen
+	if not scen:
+		pop.select(pop.get_selected())  # back from "Per Player"
+		res.select(res.get_selected())
+		if _was_scenario:
+			# The scenario's teams would leave allies without an enemy: no team, as 0 A.D. starts.
+			for r in _slot_rows:
+				r["team"] = 0
+		_was_scenario = false
+		refresh_slots()
+		return
+	_was_scenario = true
+	cf.select(maxi(CEASEFIRES.find(int(s.get("Ceasefire", 0))), 0))
+	var players: Array = s.get("players", [])
+	var cap := int(s.get("PopulationCap", 300))
+	for i in range(POP_CAPS.size()):
+		if int(POP_CAPS[i][0]) == cap:
+			pop.select(i)
+	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("pop")):
+		pop.text = "Per Player"
+	res.select(maxi(START_RES_AMOUNTS.find(int(s.get("StartingResources", 300))), 0))
+	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("resources")):
+		res.text = "Per Player"
+	_ensure_slot_rows(int(_slot_count_node().value))
+	for i in range(_slot_rows.size()):
+		var p := _map_player(i)
+		var c := _civ_index(str(p.get("civ", "")))
+		if c >= 0:
+			_slot_rows[i]["civ"] = c
+		if not p.is_empty():
+			_slot_rows[i]["team"] = clampi(int(p.get("team", -1)) + 1, 0, 4)
+	refresh_slots()
 
 # 0 A.D. shows WaterLevel and SeaLevelRiseTime only for the maps whose triggers
 # read them, and TeamPlacement only for the maps that list placement patterns.
@@ -436,6 +644,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		else: civ.add_item(c["name"])
 	civ.add_item("Random")
 	civ.select(clampi(int(row["civ"]), 0, CIVS.size()))
+	civ.disabled = _civ_index(str(_map_player(i).get("civ", ""))) >= 0
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
 	var team_slot := Control.new()
@@ -446,6 +655,7 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	for t in range(1, 5):
 		team.add_item("T%d" % t)
 	team.select(clampi(int(row["team"]), 0, 4))
+	team.disabled = _is_scenario()
 	team.item_selected.connect(_on_slot_team.bind(i))
 	# AI difficulty (per-slot; slot 0 uses the global default row)
 	var diff_slot := Control.new()
@@ -474,6 +684,9 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		col.add_icon_item(_color_icon(c), "")
 	col.select(clampi(int(row["color"]), 0, PLAYER_COLORS.size() - 1))
 	col.item_selected.connect(_on_slot_color.bind(i))
+	# PlayerColor.js hides the colours on a scenario (kept in place for the grid's columns).
+	col.disabled = _is_scenario()
+	col_slot.modulate.a = 0.0 if _is_scenario() else 1.0
 
 func _on_slot_kind(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -520,10 +733,10 @@ func _slot_civ(slot: int) -> int:
 	return int(_slot_rows[slot]["civ"])
 
 func _clamp_slots_to_map() -> void:
-	# RMS maps spawn any count; scenarios are fixed-size. Warn, don't force:
-	# extra spawns still get bases but no AI economy (Petra drives team 1).
+	# 0 A.D. PlayerCount: random maps take any count; skirmishes and scenarios
+	# have the map's.
 	var m := _selected_map()
-	if m.is_empty() or str(m.get("kind", "")) != "Scenario":
+	if m.is_empty() or str(m.get("type", "")) == "random":
 		return
 	var want := int(m["players"])
 	var spin := _slot_count_node()
@@ -731,12 +944,8 @@ func _apply_settings(ms: Dictionary) -> void:
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
 			spd.select(i)
 	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value = int(ms.get("seed"))
-	# Restore map selection by id.
-	var want: String = str(ms.get("map_id"))
-	for i in range(_filtered.size()):
-		if str(_filtered[i]["id"]) == want:
-			_sel_map = i
-			break
+	# Restore map selection by id, with its map type.
+	_select_map_id(str(ms.get("map_id")))
 	# Restore slots.
 	var types: Array = ms.get("slot_types", [])
 	var civs: Array = ms.get("slot_civs", [])
@@ -899,8 +1108,15 @@ func _on_start_pressed() -> void:
 		return
 	save_persisted() # GameSettingsController.launchGame, before random choices are resolved
 	var m: Dictionary = st["map"]
-	if str(m["kind"]) == "Scenario" and int(st["slots"]) != int(m["players"]):
-		_show_error("'%s' needs exactly %d players (scenario)." % [m["name"], int(m["players"])])
+	if str(m["id"]) == RANDOM_MAP_ID:
+		# MapSelection's Random: one of the maps the type and filter list.
+		var pool := _filtered.filter(func(x): return str(x["id"]) != RANDOM_MAP_ID)
+		if pool.is_empty():
+			_show_error("No map selected.")
+			return
+		m = pool[randi() % pool.size()]
+	if str(m["type"]) != "random" and int(st["slots"]) != int(m["players"]):
+		_show_error("'%s' needs exactly %d players." % [m["name"], int(m["players"])])
 		return
 	if not has_node("/root/MatchSettings"):
 		_show_error("MatchSettings autoload missing.")

@@ -4110,7 +4110,14 @@
       "id": 1,
       "team": 0,
       "start_x": 18.23,
-      "start_z": -16.22
+      "start_z": -16.22,
+      "civ": 8,
+      "resources": {
+        "food": 9990,
+        "metal": 9990,
+        "stone": 9990,
+        "wood": 9990
+      }
     }
   ],
   "resources": [

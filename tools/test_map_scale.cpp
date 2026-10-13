@@ -556,6 +556,8 @@ int main() {
 		for (const char *n : {b.road, b.road_wild, b.shore_blend, b.shore, b.water})
 			if (n) own.insert(n);
 		for (const HeightBand &band : st->bands) add(band.terrain, 2);
+		for (const AreaLayers &area : st->areas)
+			for (const auto &layer : area.layer) add(layer, 6);
 		int foreign = 0;
 		for (const auto &n : sim.terrain_tiles().names) foreign += !own.count(n);
 		CHECK(foreign == 0, "%s paints %d terrains outside its script's set", st->map_id, foreign);
@@ -612,6 +614,18 @@ int main() {
 		const auto ice = count(MAP_ARCTIC_SUMMER, "polar_ice", 15.0f, 100.0f);
 		CHECK(snow.second > 0 && (snow.first + ice.first) * 10 >= snow.second * 9, "arctic_summer: %d of %d tiles over 15 m are snow",
 		      snow.first + ice.first, snow.second);
+		// Script areas (LayeredPainter): tiles only an area's layers name.
+		auto tiles_named = [](MapType type, const char *name) {
+			Simulation sim;
+			sim.generate_random_map(type, 7, 2, 128.0f);
+			const auto &t = sim.terrain_tiles();
+			int n = 0;
+			for (uint8_t v : t.tiles) n += t.names[v] == name;
+			return n;
+		};
+		CHECK(tiles_named(MAP_CYCLADIC_ARCHIPELAGO, "medit_sea_coral_plants") > 0, "cycladic_archipelago: islands ring with coral");
+		CHECK(tiles_named(MAP_DODECANESE, "LavaTest06") > 0, "dodecanese: the volcano's lava rim");
+		CHECK(tiles_named(MAP_ARCTIC_SUMMER, "polar_ice_cracked") > 0, "arctic_summer: hilltops of cracked ice");
 	}
 	{
 		Simulation sim;
@@ -635,6 +649,22 @@ int main() {
 		const auto v2 = sim.resources();
 		for (size_t i = 0; i < v2.count; ++i)
 			if (v2.id[i] == id) CHECK(v2.flora[i] == FLORA_DEFAULT, "an out-of-range FloraKind falls back to the default");
+	}
+	{
+		// 0.28's per-map fish passes (latium.js, gulf_of_bothnia.js, corsica.js).
+		auto fish = [](MapType mt) {
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(mt, 7, 2, 128.0f);
+			const auto rv = s.resources();
+			int n = 0;
+			for (size_t i = 0; i < rv.count; ++i) n += rv.subtype[i] == RES_SUB_FISH;
+			return n;
+		};
+		const int latium = fish(MAP_LATIUM), gulf = fish(MAP_GULF_OF_BOTHNIA), corsica = fish(MAP_CORSICA);
+		CHECK(latium >= 40, "latium: %d fish, 0.28 places scaleByMapSize(45, 65) single fish", latium);
+		CHECK(gulf >= 100, "gulf_of_bothnia: %d fish, 0.28 places 4 * scaleByMapSize(5, 30) groups of 2-3", gulf);
+		CHECK(corsica >= 250, "corsica: %d fish, 0.28 places 50 and 70 groups of 2-3 per player", corsica);
 	}
 	{
 		// "AQAAAQAA" is the (run - 1, name) pairs (1, 0) (0, 1) (0, 0): 0, 0, 1, 0.

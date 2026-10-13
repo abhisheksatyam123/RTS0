@@ -237,6 +237,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// The map's fixed teams (0 A.D. PlayerData Team; 0 none, else team + 1), when it has any.
 	uint8_t map_team_[8] = {};
 	bool map_has_teams_ = false;
+	// The scenario's PopulationLimit (0 A.D. ScriptSettings, locked in its game setup); -1: none.
+	int map_pop_limit_ = -1;
 	void apply_map_player_overrides();
 
 	bool dragging = false;
@@ -517,7 +519,12 @@ private:
 	void try_breed(uint32_t building_id, uint8_t ftype, int count = 1);
 	uint32_t scenery_at(float x, float z) const; // Gaia scenery under a ground point, 0 if none
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
+	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
 	void update_roster_list(const rtso::Simulation::Building *b);
+	bool update_unit_roster(uint32_t unit_id);
+	int add_roster_item(uint8_t pid, uint16_t tmpl, String &tip);
+	void try_train_from_unit(uint32_t unit_id, uint16_t tmpl, int count);
+	uint32_t trainer_unit_id_ = 0; // the selected training unit whose roster is shown, else 0
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
