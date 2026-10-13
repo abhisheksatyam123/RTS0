@@ -194,6 +194,9 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "dialog-answer" {"tutorial": "ready"}: the tutorial panel's Ready button
 	// (maps/scripts/Tutorial.js). The sim only passes it to the map's triggers.
 	NET_CMD_TUTORIAL_READY = 47,
+	// 0 A.D. Trainer on a unit (triremes, Cyrus II): unit target_id trains the roster template
+	// in target_x, batch size in target_z (param 0), or cancels its queue item target_x (param 1).
+	NET_CMD_TRAIN_FROM_UNIT = 48,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.

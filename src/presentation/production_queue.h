@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "../network/net_types.h"
 #include "../simulation/simulation.h"
 
 #ifndef RTSO_UI_LOAD_TEXTURE
@@ -169,13 +170,25 @@ public:
 	}
 
 	void update(const rtso::Simulation::Building *found_b) {
+		trainer_unit_ = 0;
+		show(found_b ? &found_b->queue : nullptr, found_b ? found_b->type : 0);
+	}
+
+	// A unit's Trainer queue (triremes, Cyrus II); a click cancels through the unit.
+	void update_unit(uint32_t unit_id, const std::vector<rtso::ProductionOrder> *queue) {
+		trainer_unit_ = unit_id;
+		if (queue) show(queue, 0);
+		else clear();
+	}
+
+	void show(const std::vector<rtso::ProductionOrder> *queue, uint8_t researcher) {
 		using namespace godot;
-		if (found_b) {
+		if (queue) {
 			for (int q = 0; q < 8; ++q) {
-				if (q < (int)found_b->queue.size()) {
-					const rtso::ProductionOrder &po = found_b->queue[q];
+				if (q < (int)queue->size()) {
+					const rtso::ProductionOrder &po = (*queue)[q];
 					// A technology shows its researcher's portrait; a batch shows its size.
-					const char *portrait = po.is_tech() ? rtso::building_type_info(found_b->type).portrait_id
+					const char *portrait = po.is_tech() ? rtso::building_type_info(researcher).portrait_id
 							: rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).portrait_id;
 					queue_slots_[q].icon->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(portrait) + ".png"));
 					queue_slots_[q].icon->set_visible(true);
@@ -186,8 +199,8 @@ public:
 
 					if (q == 0) {
 						queue_slots_[q].progress->set_visible(true);
-						queue_slots_[q].progress->set_max(found_b->queue[0].duration);
-						queue_slots_[q].progress->set_value(found_b->queue[0].timer);
+						queue_slots_[q].progress->set_max((*queue)[0].duration);
+						queue_slots_[q].progress->set_value((*queue)[0].timer);
 					} else {
 						queue_slots_[q].progress->set_visible(false);
 					}
@@ -225,6 +238,15 @@ public:
 		if (!host_) return;
 		uint32_t bld_id = host_->ui_selected_building_id();
 		rtso::Simulation *sim = host_->ui_sim();
+		if (bld_id == 0 && trainer_unit_ != 0 && sim) {
+			if (host_->turn_cmds())
+				host_->post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_FROM_UNIT, nullptr, 0, (float)slot_idx, 0,
+						trainer_unit_, 1);
+			else if (!sim->cmd_cancel_unit_train(host_->local_player(), trainer_unit_, (size_t)slot_idx))
+				return;
+			host_->play_sfx("res://assets/sounds/ui/cancel.ogg");
+			return;
+		}
 		if (bld_id != 0 && sim) {
 			if (host_->turn_cmds()) {
 				host_->post_lockstep(20, nullptr, 0, 0, 0, bld_id, (uint8_t)slot_idx);
@@ -243,6 +265,7 @@ private:
 	godot::HBoxContainer *queue_bar_ = nullptr;
 	QueueSlotUI queue_slots_[8];
 	RtsoProductionQueueHost *host_ = nullptr;
+	uint32_t trainer_unit_ = 0; // the unit whose queue is shown (update_unit), else 0
 };
 
 #endif

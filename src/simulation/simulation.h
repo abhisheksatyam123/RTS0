@@ -16,6 +16,7 @@
 #include "tutorial_data.h"
 #include "turret_data.h"
 #include <cstdint>
+#include <map>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -161,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 59; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 60; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
@@ -538,6 +539,26 @@ public:
 	// resources (Petra team 1 via petra_try_pay) so Petra docks can train.
 	bool cmd_maintain_fleet(uint32_t building_id, UnitType u_type, uint8_t team);
 	bool cmd_cancel_train(uint8_t player, uint32_t building_id, size_t queue_idx);
+	// Units that train (0 A.D. Trainer on a unit: Athenian and Persian triremes, Cyrus II;
+	// unit_trainer_data.h). Each trainer unit keeps its own production queue; the units it
+	// trains step out beside it (Footprint.PickSpawnPoint).
+	bool cmd_train_from_unit(uint8_t player, uint32_t unit_id, uint16_t tmpl, int count = 1);
+	bool cmd_cancel_unit_train(uint8_t player, uint32_t unit_id, size_t queue_idx);
+	// Roster templates the unit `tmpl` trains for `player` now (Trainer/Entities with their
+	// requirements met), and every one it could train (`all`).
+	std::vector<uint16_t> unit_trainables(uint8_t player, uint16_t tmpl, bool all = false) const;
+	static bool unit_is_trainer(uint16_t tmpl);
+	// A training unit's queue. `player` paid; Trainer.js OnOwnershipChanged refunds them when
+	// the unit dies or changes hands.
+	struct UnitQueue {
+		uint8_t player = 0;
+		std::vector<ProductionOrder> orders; // never empty
+	};
+	const std::map<uint32_t, UnitQueue> &unit_queues() const { return unit_queues_; }
+	const std::vector<ProductionOrder> *unit_queue(uint32_t unit_id) const {
+		auto it = unit_queues_.find(unit_id);
+		return it == unit_queues_.end() ? nullptr : &it->second.orders;
+	}
 	// queued (Shift) adds a position after the ones already set (RallyPoint.AddPosition).
 	void cmd_set_rally_point(uint8_t player, uint32_t building_id, float rx, float rz, uint32_t res_id = 0, uint32_t bld_id = 0,
 			bool queued = false);
@@ -1791,9 +1812,13 @@ private:
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
+	void tick_unit_production(float dt); // units' Trainer queues (unit_queues_)
+	float unit_trainer_batch_mult(uint16_t trainer_tmpl, uint16_t trainee, int count) const;
 	void tick_upgrades(float dt);
 	void tick_unit_upgrades(float dt);
 	std::vector<UnitUpgrade> unit_upgrades_; // in start order (saved v45)
+	// Production queues of units that train, by unit id (saved SAVE_VERSION_UNIT_TRAINERS).
+	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
 	// Structures heal their garrison each second and unload it below EjectHealth (GarrisonHolder.js).

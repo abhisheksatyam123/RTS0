@@ -897,6 +897,17 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		}
 	}
 
+	// 2c. Units' production queues (triremes, Cyrus II), by unit id
+	if (!sim.unit_queues().empty()) mix_u32((uint32_t)sim.unit_queues().size());
+	for (const auto &kv : sim.unit_queues()) {
+		mix_u32(kv.first);
+		mix_u8(kv.second.player);
+		mix_u32((uint32_t)kv.second.orders.size());
+		mix_u16(kv.second.orders.front().tmpl);
+		mix_u8(kv.second.orders.front().count);
+		mix_float(kv.second.orders.front().timer);
+	}
+
 	// 3. Resource Nodes — amount, alive, type, coords
 	auto rview = sim.resources();
 	mix_u32((uint32_t)rview.count);
@@ -1391,6 +1402,12 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
+		} else if (c.cmd_type == 48) { // Unit Trainer — target_id=unit, target_x=template (param 0) or
+			// queue slot (param 1 cancels), target_z=batch.
+			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT) {
+				if (c.param == 1) sim.cmd_cancel_unit_train(pl, c.target_id, (size_t)c.target_x);
+				else sim.cmd_train_from_unit(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
+			}
 		} else if (c.cmd_type == 44) { // Autoqueue — target_id=building, param 1 on / 0 off.
 			sim.cmd_set_autoqueue(pl, c.target_id, c.param == 1);
 		} else if (c.cmd_type == 33) { // Trading goods — target_id = one percent byte per ResourceType.
