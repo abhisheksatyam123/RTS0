@@ -68,9 +68,21 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
+[node name="MapTypeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
+layout_mode = 2
+tooltip_text = "Select a map type."
+mouse_filter = 1
+text = "Map Type"
+
+[node name="MapTypeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
 [node name="MapFilterLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
-text = "Map filter"
+tooltip_text = "Select a map filter."
+mouse_filter = 1
+text = "Map Filter"
 
 [node name="MapFilterSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 32)
@@ -78,7 +90,9 @@ layout_mode = 2
 
 [node name="MapLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
-text = "Map"
+tooltip_text = "Select a map to play on."
+mouse_filter = 1
+text = "Select Map"
 
 [node name="MapList" type="ItemList" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 190)
