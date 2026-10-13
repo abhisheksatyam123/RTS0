@@ -2278,6 +2278,31 @@ static void test_dropsites() {
 // baseManager.js checkResourceLevels, food branch: the first field once the fruit and grain near
 // the food dropsites is under 600, then provisionFields foundations (2 at Medium), one fewer
 // while more than 300 food is still in reach.
+// config.js setConfig: each AI draws its personality within its behaviour's range from the
+// match seed, Sandbox keeps the middle, and locked teams add 0.3 cooperativeness.
+static void test_personality_draw() {
+	Simulation s;
+	s.set_sim_seed(4242);
+	s.set_petra_behavior(PETRA_BEHAVIOR_AGGRESSIVE);
+	for (uint8_t p = 1; p < 4; ++p) s.set_petra_behavior(p, PETRA_BEHAVIOR_AGGRESSIVE);
+	s.set_petra_behavior(4, PETRA_BEHAVIOR_DEFENSIVE);
+	const float a2 = s.petra_config_for(2).aggressive, a3 = s.petra_config_for(3).aggressive;
+	assert(a2 >= 0.73f && a2 <= 1.0f && a3 >= 0.73f && a3 <= 1.0f);
+	assert(a2 != a3);
+	const PetraConfig &d = s.petra_config_for(4);
+	assert(d.aggressive >= 0.0f && d.aggressive <= 0.27f && d.defensive >= 0.73f);
+	Simulation t;
+	t.set_sim_seed(4242);
+	t.set_petra_behavior(2, PETRA_BEHAVIOR_AGGRESSIVE);
+	assert(t.petra_config_for(2).aggressive == a2); // same seed, same draw on every peer
+	const float coop = t.petra_config_for(2).cooperative;
+	t.set_lock_teams(true);
+	assert(std::fabs(t.petra_config_for(2).cooperative - std::min(1.0f, coop + 0.3f)) < 1e-5f);
+	t.set_petra_difficulty(2, PETRA_SANDBOX);
+	assert(t.petra_config_for(2).aggressive == 0.85f && t.petra_config_for(2).pop_scaling == 0.5f);
+	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
+}
+
 static void test_food_fields() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2367,6 +2392,7 @@ int main() {
 	test_build_defenses();
 	test_dropsites();
 	test_food_fields();
+	test_personality_draw();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }
