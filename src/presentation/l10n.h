@@ -12,6 +12,8 @@
 #include <initializer_list>
 #include <utility>
 
+#include "user_config.h"
+
 namespace rtso {
 
 // translate(msgid): the current language's string, else the English msgid.
@@ -26,6 +28,21 @@ inline godot::String sprintf0(const godot::String &format,
 	godot::String s = format;
 	for (const auto &a : args) s = s.replace(godot::String("%(") + a.first + ")s", a.second);
 	return s;
+}
+
+// tooltips.js getEntityNames under gui.session.howtoshownames (0 specific
+// first, 1 generic first, 2 only specific, 3 only generic): "Primary
+// (Secondary)", or the one name.
+inline godot::String entity_names(const godot::String &generic, const godot::String &specific) {
+	if (specific.is_empty()) return tr0(generic);
+	if (specific == generic) return specific;
+	const std::string mode = user_config::get("gui.session.howtoshownames");
+	const bool specific_first = mode != "1" && mode != "3";
+	const bool secondary = mode != "2" && mode != "3";
+	const godot::String primary = specific_first ? specific : tr0(generic);
+	if (!secondary) return sprintf0(tr0("%(primaryName)s"), {{"primaryName", primary}});
+	return sprintf0(tr0("%(primaryName)s (%(secondaryName)s)"),
+			{{"primaryName", primary}, {"secondaryName", specific_first ? tr0(generic) : specific}});
 }
 
 } // namespace rtso

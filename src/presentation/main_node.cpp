@@ -3927,11 +3927,9 @@ void RtsoMain::update_inspector() {
 		// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
 		const int rank = std::max(1, (int)uview.rank[u]);
 		static const char *kRank[] = {"", "", "Advanced ", "Elite "};
-		String name = String(kRank[std::min(rank, 3)]) + String::utf8(uinfo.name);
-		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
-			const char *specific = rtso::civ_unit_template(tmpl).specific_name;
-			if (specific && specific[0]) name += String::utf8(" (") + String::utf8(specific) + ")";
-		}
+		const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
+		const String name = String(kRank[std::min(rank, 3)]) +
+				rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
 		inspector_title->set_text(name);
 		const uint8_t owner = uview.team[u];
 		inspector_class->set_text(player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
@@ -4453,8 +4451,10 @@ void RtsoMain::update_command_panel() {
 					add_cost(row->gold_cost, "g");
 					add_cost(row->stone_cost, "s");
 					Button *btn = memnew(Button);
-					btn->set_text(String("Upgrade to ") + rtso::civ_unit_template(to).name + (cost.is_empty() ? String() : " (" + cost + ")"));
-					String tip = String(rtso::civ_unit_template(to).specific_name) + "\n" + String::num((double)row->time, 0) + "s";
+					btn->set_text(String("Upgrade to ") + String::utf8(rtso::civ_unit_template(to).name) + (cost.is_empty() ? String() : " (" + cost + ")"));
+					const rtso::CivUnitTemplate &tt = rtso::civ_unit_template(to);
+					String tip = rtso::entity_names(String::utf8(tt.name), String::utf8(tt.specific_name ? tt.specific_name : "")) +
+							"\n" + String::num((double)row->time, 0) + "s";
 					if (!why.is_empty()) {
 						tip += "\n" + tr(why);
 						btn->set_disabled(true);
@@ -4748,8 +4748,10 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		(ps.has_tech(rtso::TECH_UNLOCK_CHAMPION_CHARIOTS) ? 4u : 0u);
 	const uint64_t key = ((uint64_t)b->id << 32) | ((uint64_t)sim->ally_civ_mask(pid) << 12) |
 		(unlocks << 8) | ((uint64_t)(civ & 0x3F) << 2) | (uint64_t)(phase & 0x3);
-	if (key == roster_list_key_) return;
+	// A changed option (gui.session.howtoshownames) rebuilds it too.
+	if (key == roster_list_key_ && roster_list_gen_ == rtso::user_config::generation()) return;
 	roster_list_key_ = key;
+	roster_list_gen_ = rtso::user_config::generation();
 	roster_list->clear();
 	// A corral trains its civ's animals (structures/<civ>/corral.xml Trainer/Entities);
 	// metadata ROSTER_ANIMAL | FaunaType tells the click handler to breed one.
@@ -4874,8 +4876,7 @@ int RtsoMain::add_roster_item(uint8_t pid, uint16_t i, String &tip) {
 	label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
 	int idx = roster_list->add_item(label);
 	roster_list->set_item_metadata(idx, (int)i);
-	tip = String::utf8(u.name);
-	if (u.specific_name && u.specific_name[0]) tip += String::utf8(" \u2014 ") + String::utf8(u.specific_name);
+	tip = rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
 	tip += "\nHP " + String::num_int64((int64_t)u.hp) + ", attack " + String::num(u.attack_damage, 1) +
 		", train " + String::num(u.train_time, 0) + " s, pop " + String::num_int64(u.pop_cost);
 	return idx;

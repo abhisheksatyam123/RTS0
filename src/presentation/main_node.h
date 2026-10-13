@@ -179,6 +179,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// roster_list_key_ changes so hover and tooltips survive between frames.
 	ItemList *roster_list = nullptr;
 	uint64_t roster_list_key_ = ~0ull;
+	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 
 	RtsoProductionQueue production_queue_;
 

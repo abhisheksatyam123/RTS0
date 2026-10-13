@@ -10,7 +10,10 @@ extends SceneTree
 #   4. the top panel's counters read CounterPopulation's caption and tooltip,
 #      and once the player is defeated (an observer, g_IsObserver) every other
 #      player's stock follows in the tooltips, with the order line
-#      (CounterManager.getAllyStatTooltip); a click on a counter changes it.
+#      (CounterManager.getAllyStatTooltip); a click on a counter changes it;
+#   5. Options' "Naming of entities" (gui.session.howtoshownames) names units
+#      as tooltips.js getEntityNames does: specific first by default, then
+#      generic first, only specific, only generic.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_l10n_notices.gd
 # Exit code 0 = pass.
@@ -112,6 +115,23 @@ func run() -> void:
 		check(food.tooltip_text.contains("\nAscending: [Click]"), "the next ascending")
 		main._on_top_counter_gui_input(ev)
 		check(food.tooltip_text.contains("\nUnordered: [Click]"), "and back to unordered")
+
+	print("5. Naming of entities")
+	var cfg := RtsoUserConfig.new()
+	var saved: String = cfg.get_value("gui.session.howtoshownames")
+	var names_by_mode := {}
+	for mode in ["0", "1", "2", "3"]:
+		cfg.set_value("gui.session.howtoshownames", mode)
+		main.debug_train_buttons(0)  # a Civic Centre: the roster list
+		await frames(2)
+		var lists: Array = main.find_children("*", "ItemList", true, false).filter(func(l): return l.visible and l.item_count > 0)
+		names_by_mode[mode] = str(lists[0].get_item_tooltip(0)).get_slice("\n", 0) if lists.size() > 0 else ""
+	cfg.set_value("gui.session.howtoshownames", saved)
+	print("  ", names_by_mode)
+	var spec: String = names_by_mode["2"]
+	var gen: String = names_by_mode["3"]
+	check(spec != "" and gen != "" and spec != gen, "only specific: %s, only generic: %s" % [spec, gen])
+	check(names_by_mode["0"] == "%s (%s)" % [spec, gen] and names_by_mode["1"] == "%s (%s)" % [gen, spec], "specific first, then generic first")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)
