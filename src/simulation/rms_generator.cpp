@@ -8428,6 +8428,31 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			}
 			t.tiles[j] = v;
 		}
+	// A tile's terrain blends over neighbours of lower priority, which the renderer
+	// takes as the name's index. rmgen gives each terrain the index of its first use,
+	// so paint order decides: the main terrain first, then water and shores, player
+	// bases, cliffs and hills, forests and the patches on top.
+	std::vector<const char *> order(b.main, b.main + 4);
+	for (const char *n : {b.water, b.shore_blend, b.shore, b.road_wild, b.road}) order.push_back(n);
+	for (const char *const *l : {b.cliff, b.hill, b.forest}) order.insert(order.end(), l, l + 2);
+	order.insert(order.end(), b.tier, b.tier + 4);
+	order.insert(order.end(), b.dirt, b.dirt + 2);
+	auto rank = [&](const std::string &n) {
+		for (size_t i = 0; i < order.size(); ++i)
+			if (order[i] && n == order[i]) return i;
+		return order.size();
+	};
+	std::vector<uint8_t> by_rank(t.names.size());
+	for (size_t i = 0; i < by_rank.size(); ++i) by_rank[i] = (uint8_t)i;
+	std::stable_sort(by_rank.begin(), by_rank.end(), [&](uint8_t a, uint8_t c) { return rank(t.names[a]) < rank(t.names[c]); });
+	std::vector<uint8_t> remap(t.names.size());
+	std::vector<std::string> names(t.names.size());
+	for (size_t i = 0; i < by_rank.size(); ++i) {
+		remap[by_rank[i]] = (uint8_t)i;
+		names[i] = t.names[by_rank[i]];
+	}
+	for (uint8_t &v : t.tiles) v = remap[v];
+	t.names = std::move(names);
 	sim.set_terrain_tiles(std::move(t));
 }
 
