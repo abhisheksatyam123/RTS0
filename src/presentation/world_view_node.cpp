@@ -1154,6 +1154,12 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 			w.clip = CLIP_BUILD;
 			w.state = rtso::AnimState::Build;
 			return w;
+		// UnitAI INDIVIDUAL.REPAIR on a unit: "build" once in range, the move clip on the way.
+		case rtso::ACTION_REPAIR:
+			if (speed2 > 0.001f) return w_move;
+			w.clip = CLIP_BUILD;
+			w.state = rtso::AnimState::Build;
+			return w;
 		// UnitAI INDIVIDUAL.HEAL: "heal" once in range, the move clip on the way.
 		case rtso::ACTION_HEAL:
 			if (speed2 > 0.001f) return w_move;

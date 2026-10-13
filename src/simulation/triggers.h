@@ -83,6 +83,10 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_DANUBIUS_UNLOAD_ORDER = 25,     // UngarrisonShipsOrder
 	TRIGGER_ACTION_DANUBIUS_SHIP_RANGE = 26,       // CheckShipRange
 	TRIGGER_ACTION_DANUBIUS_OWNERSHIP = 27,        // DanubiusOwnershipChange
+	TRIGGER_ACTION_JEBEL_BARKAL_INIT = 28,         // jebel_barkal_triggers.js JebelBarkal_Init
+	TRIGGER_ACTION_JEBEL_BARKAL_CITY_PATROL = 29,  // JebelBarkal_SpawnCityPatrolGroups
+	TRIGGER_ACTION_JEBEL_BARKAL_ATTACK = 30,       // JebelBarkal_SpawnAttackerGroups
+	TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP = 31,    // JebelBarkal_OwnershipChange
 	TRIGGER_ACTION_COUNT
 };
 
@@ -197,7 +201,8 @@ struct TriggerState {
 	// cmpPlayer.SetDisabledTechnologies, per player: a 256-bit set of tech ids.
 	uint64_t disabled_techs[8][4] = {};
 	std::vector<TriggerAttackOrder> attack_orders;
-	// cmpPlayer.SetDisabledTemplates: structures (bld_bit of BuildingType) and unit roster
+	// cmpPlayer.SetDisabledTemplates: structures (bit per BuildingType below 64; saved, so
+	// ids 64 and up need a save bump to widen) and unit roster
 	// templates each player may not build or train.
 	uint64_t disabled_buildings[8] = {};
 	std::vector<uint16_t> disabled_templates; // for every player (the ported scripts disable the same ones for all)

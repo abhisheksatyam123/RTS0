@@ -46,7 +46,7 @@ int main()
 	bool tail_ok = CIV_ROSTER_PROMOTION_ONLY_FIRST < CIV_UNIT_TEMPLATE_COUNT;
 	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
 		const CivUnitTemplate &u = civ_unit_template(i);
-		if (u.trainers != 0) continue; // a trainable row added later (civ_roster_ids)
+		if (u.trainers) continue; // a trainable row added later (civ_roster_ids)
 		if (u.flags & ROSTER_RELIC) continue; // a catafalque: Capture the Relic places it
 		bool upgrade_target = false; // reached by a unit Upgrade (the Immortals' bow)
 		for (const CivUnitUpgrade *up = civ_unit_upgrade_table(); up->from != 0xFFFF; ++up)
@@ -65,7 +65,7 @@ int main()
 		for (uint16_t i = b; i < e; ++i) {
 			const CivUnitTemplate &u = civ_unit_template(i);
 			if (u.civ != c || u.unit_type >= UNIT_TYPE_COUNT || u.hp <= 0.0f || u.speed <= 0.0f ||
-					u.phase < 1 || u.phase > 3 || u.trainers == 0 || u.train_time <= 0.0f) {
+					u.phase < 1 || u.phase > 3 || !u.trainers || u.train_time <= 0.0f) {
 				rows_ok = false;
 				std::printf("      bad row %u %s\n", i, u.id);
 			}
@@ -130,7 +130,7 @@ int main()
 	check(found_pericles, "Pericles is an Athenian hero with his own aura");
 
 	// Civ bonus building masks cover every BuildingType, including ids above 15.
-	check(bld_bit(BLD_EMBASSY) != 0 && bld_bit(BLD_TYPE_COUNT - 1) != 0, "bld_bit covers every building id");
+	check(bld_bit(BLD_EMBASSY).test(BLD_EMBASSY) && bld_bit(BLD_TYPE_COUNT - 1).test(BLD_TYPE_COUNT - 1) && bld_bit(127).test(127), "bld_bit covers every building id");
 	check(civ_bonus_mult(CIV_ATHENIANS, CIV_BONUS_BUILDING_HP, BLD_EMBASSY) > 1.05f,
 		"Hellenic Architecture reaches buildings above id 15");
 	check(civ_bonus_mult(CIV_SELEUCIDS, CIV_BONUS_BUILDING_BUILD_TIME, BLD_FIELD) < 0.5f,
