@@ -335,7 +335,11 @@ enum UnitType : uint8_t {
 	UNIT_SCYTHED_CHARIOT = 22,
 	UNIT_MINISTER = 23, // Han Imperial Minister (units/han/support_minister)
 	UNIT_CATAFALQUE = 24, // a relic (template_unit_catafalque)
-	UNIT_TYPE_COUNT = 25,
+	// A queued technology's ProductionOrder::unit_type, written to saves since v48; no unit has it.
+	// Its rows in the per-class tables are empty.
+	UNIT_TYPE_TECH = 25,
+	UNIT_WAGON = 26, // the Germans' supply wagon (template_unit_support_wagon): a mobile dropsite
+	UNIT_TYPE_COUNT = 27,
 	UNIT_TYPE_NONE = 255
 };
 
@@ -642,8 +646,8 @@ inline constexpr int RELIC_REGEN_RATE = 10;
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
 inline constexpr float HEAL_HP = 5.0f;
-// template_unit_hero_healer.xml Heal: Health 6, Range 20 (m, before COMBAT_DISTANCE_SCALE).
-inline constexpr float HERO_HEAL_HP = 6.0f;
+// 0.28 template_unit_hero_healer.xml Heal: Health 15, Range 20 (m, before COMBAT_DISTANCE_SCALE).
+inline constexpr float HERO_HEAL_HP = 15.0f;
 inline constexpr float HERO_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;
@@ -790,7 +794,10 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Persian/Arabian Camel", "camel", "camel", 190.0f, 5.2f, 2.4f, 12.0f, 1.2f, 0, 12.0f, 3.0f, 3.0f, 15.0f, 60, 0, 70, 0, 2, 16.0f, 12.0f, 0.0f, 0.0f},
 		{"Seleucid Scythed Chariot", "scythed_chariot", "scythed_chariot", 320.0f, 5.6f, 2.2f, 24.0f, 1.0f, 0, 14.0f, 5.0f, 5.0f, 25.0f, 100, 80, 120, 0, 3, 26.0f, 18.0f, 0.0f, 6.0f},
 		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f},
-		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}
+		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f},
+		{"Technology", "villager", "villager", 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}, // UNIT_TYPE_TECH
+		// template_unit_support_wagon, drawn on the ram model until it has its own
+		{"Supply Wagon", "ram", "ram", 200.0f, 1.78f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 4.0f, 4.0f, 10.0f, 50, 50, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -823,6 +830,7 @@ inline float unit_collision_radius(uint8_t type) {
 		case UNIT_SCYTHED_CHARIOT: return 1.35f;
 		case UNIT_MINISTER: return 0.50f;
 		case UNIT_CATAFALQUE: return 1.20f; // Footprint 5 x 12 m
+		case UNIT_WAGON: return 1.40f; // Footprint 7 x 14 m
 		default: return 0.55f;
 	}
 }
@@ -872,11 +880,19 @@ inline float unit_push_clearance(uint8_t type) {
 	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
 }
 
-// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines and war elephants.
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines, elephants (war
+// and worker: template_unit_elephant, template_unit_support_elephant) and the supply wagon.
 // A heavy unit pushes harder and is harder to push.
 inline float unit_push_weight(uint8_t type) {
-	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT ? 50.0f : 10.0f;
+	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT || type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON
+		? 50.0f : 10.0f;
 }
+
+// 0 A.D. ResourceDropsite on a unit: the Mauryan worker elephant (template_unit_support_elephant)
+// and the supply wagon (template_unit_support_wagon) take food, wood, stone and metal. Only the
+// wagon is Sharable, and ResourceDropsite.js shares a sharable dropsite by default.
+inline bool unit_is_mobile_dropsite(uint8_t type) { return type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON; }
+inline bool unit_dropsite_sharable(uint8_t type) { return type == UNIT_WAGON; }
 
 // 0 A.D. Attack.js CanAttack: fishing/merchant/trader/healer ship no (or
 // RestrictedClasses !SeaCreature). Fish are gathered, not fought.
@@ -917,6 +933,7 @@ inline uint8_t unit_default_stance(uint8_t type) {
 		case UNIT_FEMALE_CITIZEN:
 		case UNIT_HEALER:
 		case UNIT_MINISTER:
+		case UNIT_WAGON:
 			return STANCE_PASSIVE;
 		case UNIT_CATAFALQUE:
 			return STANCE_STAND_GROUND; // template_unit_catafalque UnitAI/DefaultStance
@@ -1404,6 +1421,7 @@ inline uint64_t unit_tech_classes(uint8_t type) {
 		case UNIT_CARNYX: return org | TC_SOLDIER | TC_INFANTRY | TC_MELEE;
 		case UNIT_ARCHER_MAIDEN: return org | TC_SOLDIER | TC_INFANTRY | TC_RANGED | TC_ARCHER | TC_CHAMPION;
 		case UNIT_WORKER_ELEPHANT: return org | TC_WORKER | TC_ELEPHANT;
+		case UNIT_WAGON: return org | TC_CIVILIAN; // Support (Civilian) Wagon
 		case UNIT_CATAPULT: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_STONETHROWER;
 		case UNIT_BOLT_SHOOTER: return TC_UNIT | TC_SIEGE | TC_RANGED | TC_BOLTSHOOTER;
 		case UNIT_SIEGE_RAM: return TC_UNIT | TC_SIEGE | TC_MELEE | TC_RAM;
@@ -1880,10 +1898,11 @@ inline bool unit_is_healer(uint16_t tmpl, uint8_t type) {
 // (template_unit_elephant and the champion, hero and support elephants), chariots
 // (mixins/chariot: the champion and hero chariots) and catafalques (template_unit_catafalque).
 // Among 0 A.D.'s unit templates these are exactly the ones whose classes hold Siege, Elephant or
-// Chariot, plus the catafalques, so the roster row's classes decide it (a hero on an elephant or
-// a chariot is large, one on foot or horseback is not).
+// Chariot, plus the catafalques and supply wagons (template_unit_support_wagon), so the roster
+// row's classes decide it (a hero on an elephant or a chariot is large, one on foot or horseback
+// is not).
 inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
-	if (type == UNIT_CATAFALQUE) return true;
+	if (type == UNIT_CATAFALQUE || type == UNIT_WAGON) return true;
 	const uint64_t c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
 }
@@ -2174,6 +2193,8 @@ inline LootInfo unit_class_loot(uint8_t type) {
 		{200, 15, 8, 0, 10},  // SCYTHED_CHARIOT: champion_cavalry
 		{150, 10, 0, 0, 10},  // MINISTER: units/han/support_minister
 		{0, 0, 0, 0, 0},      // CATAFALQUE: no Loot
+		{0, 0, 0, 0, 0},      // TYPE_TECH: not a unit
+		{100, 10, 10, 10, 10}, // WAGON: support_wagon
 	};
 	return type < UNIT_TYPE_COUNT ? table[type] : LootInfo{};
 }

@@ -5,7 +5,7 @@
 //  1. Data: stone throwers, bolt shooters, siege warships, melee elephants and
 //     the longsword mixin's champions splash, with their template numbers;
 //     archers, spearmen and rams don't.
-//  2. Circular: an onager's 4 m Crush 80 hurts the target and enemies by it,
+//  2. Circular: an onager's 4 m Crush 160 hurts the target and enemies by it,
 //     less with distance (1 - d^2/r^2 from each one's edge), not its own side
 //     (no FriendlyFire), not enemies outside the range; the centre takes the
 //     Splash Damage less its own resistance.
@@ -69,20 +69,21 @@ static const SplashProfile &splash_of(const char *suffix) {
 static void test_data() {
 	std::printf("1. data\n");
 	const SplashProfile &onager = splash_of("rome/siege_onager_packed");
-	check(onager.shape == SPLASH_CIRCULAR && onager.range == 4.0f && onager.crush == 80.0f && !onager.friendly_fire,
-			"onager: Circular 4 m, Crush 80, no friendly fire");
+	check(onager.shape == SPLASH_CIRCULAR && onager.range == 4.0f && onager.crush == 160.0f && !onager.friendly_fire,
+			"onager: Circular 4 m, Crush 160, no friendly fire");
 	const SplashProfile &litho = splash_of("athen/siege_lithobolos_packed");
-	check(litho.shape == SPLASH_CIRCULAR && litho.range == 1.0f && litho.crush == 100.0f, "lithobolos: Circular 1 m, Crush 100");
+	check(litho.shape == SPLASH_CIRCULAR && litho.range == 1.5f && litho.crush == 120.0f, "lithobolos: Circular 1.5 m, Crush 120");
 	const SplashProfile &oxy = splash_of("athen/siege_oxybeles_packed");
 	check(oxy.shape == SPLASH_LINEAR && oxy.range == 9.0f && oxy.pierce == 80.0f, "oxybeles: Linear 9 m, Pierce 80");
-	check(splash_of("ptol/siege_polybolos_packed").pierce == 50.0f, "polybolos: Pierce 50");
-	check(splash_of("rome/ship_siege").crush == 50.0f, "siege warship: Crush 50");
+	check(splash_of("ptol/siege_polybolos_packed").pierce == 44.0f, "polybolos: Pierce 44");
+	check(splash_of("rome/ship_siege").range == 4.0f && splash_of("rome/ship_siege").crush == 100.0f, "siege warship: 4 m, Crush 100");
 	const SplashProfile &pers_ele = splash_of("pers/champion_elephant");
-	check(pers_ele.hack == 22.0f && pers_ele.pierce == 0.0f && pers_ele.crush == 0.0f,
-			"Indian elephant: Hack 20 x1.1, nothing added for Pierce or Crush");
-	check(splash_of("cart/champion_elephant").hack == 18.0f, "African elephant: Hack 20 x0.9");
-	check(splash_of("cart/hero_hannibal").hack == 40.0f, "elephant hero: Hack 40");
-	check(splash_of("mace/champion_infantry_swordsman").hack == 4.0f, "longsword champion: Hack 4 over 2 m");
+	check(pers_ele.range == 2.5f && pers_ele.hack == 33.0f && pers_ele.pierce == 0.0f && pers_ele.crush == 0.0f,
+			"Indian elephant: 2.5 m, Hack 30 x1.1, nothing added for Pierce or Crush");
+	check(splash_of("cart/champion_elephant").hack == 27.0f, "African elephant: Hack 30 x0.9");
+	check(splash_of("cart/hero_hannibal").hack == 45.0f, "elephant hero: Hack 45");
+	check(splash_of("mace/champion_infantry_swordsman").range == 2.5f && splash_of("mace/champion_infantry_swordsman").hack == 6.0f,
+			"longsword champion: Hack 6 over 2.5 m");
 	check(unit_splash(CIV_UNIT_TEMPLATE_NONE, UNIT_CATAPULT) != 0 && unit_splash(CIV_UNIT_TEMPLATE_NONE, UNIT_BOLT_SHOOTER) != 0,
 			"generic stone and bolt throwers splash");
 	check(unit_splash(template_named("athen/infantry_archer_b"), UNIT_ARCHER) == 0 &&
@@ -110,10 +111,10 @@ static void test_circular() {
 	check(dt >= dn && dn > dm, "less the further out");
 	check(hp(s, far) == h0, "an enemy 3.5 units away takes none");
 	check(hp(s, own) == o0, "the attacker's own unit takes none (no FriendlyFire)");
-	// The swordsman's crush resistance (template) reduces Crush 80 at the centre.
+	// The swordsman's crush resistance (template) reduces Crush 160 at the centre.
 	float res[3];
 	s.unit_resistance(idx(s, target), res);
-	check(std::fabs(dt - 80.0f * powf(0.9f, res[2])) < 0.01f, "the centre takes Crush 80 less its own resistance");
+	check(std::fabs(dt - 160.0f * powf(0.9f, res[2])) < 0.01f, "the centre takes Crush 160 less its own resistance");
 }
 
 static void test_linear() {
@@ -156,7 +157,7 @@ static void test_in_play() {
 	{
 		Simulation s;
 		setup(s);
-		// Hannibal's elephant (Hack 40 over 2 m) into a tight block of spearmen.
+		// Hannibal's elephant (Hack 45 over 2 m) into a tight block of spearmen.
 		uint32_t ele = s.spawn_unit(-2.0f, 0.0f, 0, UNIT_HERO, 0.0f, template_named("cart/hero_hannibal"));
 		std::vector<uint32_t> block;
 		for (int k = 0; k < 9; ++k) block.push_back(still(s, 1.0f + 1.1f * (k % 3), -1.1f + 1.1f * (k / 3), 1, UNIT_SPEARMAN));

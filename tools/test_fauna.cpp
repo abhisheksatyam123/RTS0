@@ -86,11 +86,45 @@ int main() {
 		CHECK(!f_alive(s, deer));
 		CHECK(fidx(s, deer) < 0); // compacted out of the fauna table
 		int32_t c = uidx(s, cav);
-		CHECK(s.units_.xp[c] == xp0 + 5);
+		CHECK(std::fabs(s.units_.xp[c] + s.units_.xp_partial[c] - (xp0 + 5)) < 0.01f); // per-hit shares of 5
 		const bool gathering = s.units_.action_state[c] == ACTION_GATHER || s.units_.action_state[c] == ACTION_RETURN_DROPSITE;
 		CHECK(gathering);
 		CHECK(s.units_.carry[c] > 0 || s.units_.res_type_carried[c] == RES_FOOD);
 		std::printf("hunt: hunter state %d carry %d\n", s.units_.action_state[c], s.units_.carry[c]);
+	}
+
+	// 2a. Health.js TakeDamage: every hit gives its attacker Loot xp x health taken / max
+	// health, so two hunters share a deer's 5 xp and a wounded animal already gave some.
+	{
+		fresh(s);
+		uint32_t a = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t b = s.spawn_unit(0.0f, 1.0f, 0, UNIT_SPEARMAN);
+		uint32_t boar = s.spawn_fauna(3.0f, 0.5f, FAUNA_BOAR);
+		const int32_t ai = uidx(s, a), bi = uidx(s, b);
+		const float xa0 = s.units_.xp[ai] + s.units_.xp_partial[ai], xb0 = s.units_.xp[bi] + s.units_.xp_partial[bi];
+		const uint32_t both[2] = {a, b};
+		s.order_hunt(both, 2, boar);
+		run(s, 30.0f);
+		CHECK(!f_alive(s, boar));
+		const float ga = s.units_.xp[uidx(s, a)] + s.units_.xp_partial[uidx(s, a)] - xa0;
+		const float gb = s.units_.xp[uidx(s, b)] + s.units_.xp_partial[uidx(s, b)] - xb0;
+		const float loot = fauna_type_info(FAUNA_BOAR).loot_xp;
+		std::printf("shared hunt xp: %.2f + %.2f of %.0f\n", ga, gb, loot);
+		CHECK(ga > 0.0f && gb > 0.0f && std::fabs(ga + gb - loot) < 0.01f);
+
+		// A wounded animal that gets away still gave its share.
+		fresh(s);
+		uint32_t c = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t deer = s.spawn_fauna(2.0f, 0.0f, FAUNA_DEER);
+		const int32_t ci = uidx(s, c);
+		const float xc0 = s.units_.xp[ci] + s.units_.xp_partial[ci];
+		s.order_hunt(&c, 1, deer);
+		for (int t = 0; t < 400 && f_alive(s, deer) && s.fauna_.hp[fidx(s, deer)] >= fauna_type_info(FAUNA_DEER).max_hp; ++t)
+			s.tick(Simulation::FIXED_STEP);
+		s.cmd_stop(&c, 1);
+		const int32_t ci2 = uidx(s, c);
+		const float gc = s.units_.xp[ci2] + s.units_.xp_partial[ci2] - xc0;
+		CHECK(f_alive(s, deer) && gc > 0.0f && gc < fauna_type_info(FAUNA_DEER).loot_xp);
 	}
 
 	// 2b. Citizen cavalry hunt and butcher meat (template_unit_cavalry: food.meat only, carry 20).

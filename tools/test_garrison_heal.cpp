@@ -140,7 +140,7 @@ int main() {
 		CHECK(s.units().hp[idx_of(s, e)] > half);
 	}
 
-	// 6. Hero healers (template_unit_hero_healer: Hippocrates) heal 6 hp per 2 s at range 20.
+	// 6. Hero healers (template_unit_hero_healer: Hippocrates) heal 15 hp per 2 s at range 20 (0.28).
 	{
 		fresh(s);
 		const uint16_t hip = tmpl_of("athen/hero_hippocrates");
@@ -154,7 +154,7 @@ int main() {
 		run(s, 7.0f); // idle hero healer finds the injured unit
 		const float gained = s.units().hp[idx_of(s, u)] - half;
 		std::printf("hero healer: +%.1f hp in 7 s, moved to x=%.2f\n", gained, s.units().pos_x[idx_of(s, h)]);
-		CHECK(gained >= 12.0f && gained <= 30.0f); // + Hippocrates' regen aura
+		CHECK(gained >= 40.0f && gained <= 80.0f); // 3-4 heals of 15 + Hippocrates' regen aura
 		CHECK(std::fabs(s.units().pos_x[idx_of(s, h)]) < 1.0f); // healed without walking up
 	}
 

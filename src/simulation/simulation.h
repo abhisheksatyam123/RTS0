@@ -83,7 +83,7 @@ struct Projectile {
 // One item of a structure's production queue (0 A.D. ProductionQueue.js Item): a batch of
 // `count` units (Trainer.js) or one technology (Researcher.js), worked on front first.
 struct ProductionOrder {
-	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_COUNT for a technology
+	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_TECH for a technology
 	float timer;
 	float duration;
 	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE; // civ roster unit to spawn (NONE = civ default for unit_type)
@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 64; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 65; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -170,6 +170,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
 	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
+	static constexpr uint32_t SAVE_VERSION_STATISTICS_COUNTS = 65; // resource and population counts, livestock, bribes
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -758,6 +759,8 @@ public:
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
 	// mutual ally once `player` has researched Diaspora (Player/sharedDropsites).
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
+	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
+	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);
@@ -859,6 +862,11 @@ public:
 	// 0 A.D. Landscape for the Unknown map (RmsGenerator::UNKNOWN_LANDSCAPE_*); setup-time only.
 	void set_map_landscape(int l) { map_landscape_ = (uint8_t)((l >= 0 && l < 16) ? l : 0); }
 	uint8_t map_landscape() const { return map_landscape_; }
+	// 0 A.D. Game Setup Trigger Difficulty (1 Very Easy .. 5 Very Hard, 3 Medium) for maps
+	// whose script reads getDifficulty(): random map generation uses it and hands it to
+	// the map's triggers (TriggerState::difficulty, saved with them).
+	void set_trigger_difficulty(int d) { trigger_difficulty_ = (uint8_t)((d >= 1 && d <= 5) ? d : 3); }
+	uint8_t trigger_difficulty() const { return trigger_difficulty_; }
 	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
@@ -1541,7 +1549,7 @@ public:
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	uint32_t find_nearby_prey(size_t i, float x, float z) const;
+	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -1636,6 +1644,21 @@ public:
 	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
 	// built and uncapturable.
 	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
+	// rmgen-common player.js placeStartingWalls, the Iberian "Starting Walls" civ bonus: on a map
+	// over 128 tiles across (`map_tiles`), an Iberian player's base at (x, z) gets built stone
+	// walls, either a ring of long walls, gates and towers (STARTING_WALLS_FORTRESS,
+	// placeGenericFortress at radius 20, its shape drawn from `seed`) or only seven towers
+	// (STARTING_WALLS_TOWERS, placePolygonalWall at radius 15 facing `orientation`). Other civs
+	// and smaller maps get none. Returns the number of pieces placed.
+	enum StartingWalls : uint8_t { STARTING_WALLS_NONE, STARTING_WALLS_FORTRESS, STARTING_WALLS_TOWERS };
+	size_t place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
+			uint32_t seed);
+	// wall_builder.js placeGenericFortress: `player`'s built stone walls round (x, z) at about
+	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
+	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
+	// `max_tries` tries). Pieces in water or off the map are left out.
+	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
+			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -1878,6 +1901,7 @@ private:
 	void stop_attack(size_t i);
 	bool attack_ready(size_t i, bool in_range, float prepare);
 	void attack_done(size_t i, bool in_range, float repeat);
+	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	void unit_attack_effects(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
@@ -2003,6 +2027,7 @@ private:
 	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
 	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
 	uint32_t spawn_carcass(size_t f);
+	void award_fauna_xp(size_t i, size_t f, float damage);
 	bool projectile_lands_in(const Projectile &p, const Building &b) const;
 	int32_t projectile_hit_structure(const Projectile &p) const;
 	void projectile_hits_structure(const Projectile &p, Building &b);
@@ -2225,6 +2250,7 @@ private:
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
+	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
@@ -2547,6 +2573,7 @@ private:
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_assign_bombers(); // attackManager.js assignBombers
+	void petra_cancel_attacks_against(uint8_t player); // attackManager.js cancelAttacksAgainstPlayer
 	// navalManager.requireTransport for a worker: ship it from its land to a supply's on another.
 	bool petra_require_worker_transport(size_t unit_idx, uint16_t from_land, uint16_t to_land, float to_x, float to_z);
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);

@@ -6305,13 +6305,44 @@ std::vector<std::pair<float, float>> pattern_locs(const HeightmapGrid &hm, RmsRn
 
 // The pattern_locs pattern for a Game Setup Team Placement (TEAM_PLACEMENT_*),
 // or the map's own random pick when it is Random.
+// The last pattern placement_pattern chose, for the bases' starting walls
+// (rmgen2 setup.js playerbaseTypes[pattern].walls).
+thread_local int g_placement_pattern = -1;
+
 int placement_pattern(uint8_t team_placement, int random_pick) {
 	switch (team_placement) {
-		case TEAM_PLACEMENT_RADIAL: return 1;
-		case TEAM_PLACEMENT_LINE: return 0;
-		case TEAM_PLACEMENT_RANDOM_GROUP: return 2;
-		case TEAM_PLACEMENT_STRONGHOLD: return 3;
-		default: return random_pick;
+		case TEAM_PLACEMENT_RADIAL: return g_placement_pattern = 1;
+		case TEAM_PLACEMENT_LINE: return g_placement_pattern = 0;
+		case TEAM_PLACEMENT_RANDOM_GROUP: return g_placement_pattern = 2;
+		case TEAM_PLACEMENT_STRONGHOLD: return g_placement_pattern = 3;
+		default: return g_placement_pattern = random_pick;
+	}
+}
+
+// The walls 0.28's map script asks placeStartingWalls for (Simulation::StartingWalls): the
+// Walls of placePlayerBases' CityPatch, else true; rmgen2's createBases only on maps over 192
+// tiles. Maps that lay out no player bases get none.
+uint8_t starting_walls_of(MapType map, int map_tiles) {
+	switch (map) {
+		case MAP_CANTABRIAN_HIGHLANDS: case MAP_CORSICA: case MAP_DANUBIUS: case MAP_FLOOD:
+		case MAP_GUADALQUIVIR_RIVER: case MAP_SCHWARZWALD: case MAP_BELGIAN_UPLANDS: case MAP_ISLAND_STRONGHOLD:
+		case MAP_EMPIRE: case MAP_HELLS_PASS: case MAP_POMPEII: case MAP_STRONGHOLD: case MAP_FORTRESS:
+		case MAP_JEBEL_BARKAL: case MAP_MEDITERRANEAN: case MAP_SURVIVAL_OF_THE_FITTEST:
+			return Simulation::STARTING_WALLS_NONE;
+		case MAP_ARCHIPELAGO_0AD: case MAP_CORINTHIAN_ISTHMUS: case MAP_CYCLADIC_ARCHIPELAGO: case MAP_DODECANESE:
+		case MAP_ELEPHANTINE: case MAP_EXTINCT_VOLCANO: case MAP_GEAR: case MAP_HELLAS: case MAP_ISLANDS:
+		case MAP_LORRAINE_PLAIN: case MAP_POLAR_SEA: case MAP_RATUMACOS: case MAP_SNOWFLAKE_SEAROCKS:
+			return Simulation::STARTING_WALLS_TOWERS;
+		case MAP_BAHRAIN:
+			return map_tiles > 192 ? Simulation::STARTING_WALLS_TOWERS : Simulation::STARTING_WALLS_NONE;
+		case MAP_HARBOR: case MAP_LIONS_DEN: case MAP_MARMARA: case MAP_RED_SEA: case MAP_WILD_LAKE:
+			return map_tiles > 192 ? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
+		case MAP_AMBUSH: case MAP_FRONTIER:
+			// groupedLines and stronghold: false; circle and randomGroup: true.
+			return map_tiles > 192 && (g_placement_pattern == 1 || g_placement_pattern == 2)
+					? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
+		default:
+			return Simulation::STARTING_WALLS_FORTRESS;
 	}
 }
 
@@ -7551,9 +7582,6 @@ void RmsGenerator::synth_elephantine(HeightmapGrid &hm, RmsRng &rng, float &wate
 namespace {
 namespace jebel {
 
-// getDifficulty(): RTS0 has no trigger difficulty setting yet, so the map is built at the
-// script's default, Medium (data/settings/trigger_difficulties.json: 3), as TriggerState's.
-constexpr int kDifficulty = 3;
 // jebel_barkal.png (tools/gen_heightmap_images.py) holds the PMP's raw heights 23170..33144 as
 // 0..255: 255 is 797 x 9974 / 65535 m above 0 on a 320 tile map (HeightmapPainter maps
 // 0..0xFFFF to minHeightSource 3..maxHeightSource 800).
@@ -7635,7 +7663,9 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 	const size_t N = hm.data.size();
 	auto sc = [&](float a, float b) { return seas_scale(a, b, half); };
 	const float hs = size / 320.0f, hw = std::max(hs, 1.0f);
+	const uint8_t difficulty = out.difficulty; // the caller's Trigger Difficulty
 	out = JebelBarkalLayout();
+	out.difficulty = difficulty;
 	const float h_fertile = metres(water_h, 3.0f * hw), h_desert = metres(water_h, 5.0f * hw);
 	const float h_passage = std::max(metres(water_h, -1.5f * hw), wade_height(water_h) + 0.02f);
 	const float h_canal = metres(water_h, -4.0f * hw), h_sea = metres(water_h, -8.0f * hw);
@@ -7928,7 +7958,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 	// of the temples (placeLinearWall, ["tower", "gate", "tower", "short", "tower", "short",
 	// "tower"]) where they keep off the hill and the temples. Each stretch between gates is laid
 	// as segments of at most a medium piece, which spawn_gaia_wall joins with towers.
-	out.wall = size < 192.0f || kDifficulty < 2 ? 0xFF : kDifficulty < 3 ? (uint8_t)WALLSET_PALISADE : (uint8_t)WALLSET_STONE;
+	out.wall = size < 192.0f || out.difficulty < 2 ? 0xFF : out.difficulty < 3 ? (uint8_t)WALLSET_PALISADE : (uint8_t)WALLSET_STONE;
 	std::vector<uint8_t> wall_mask(N, 0), gate_mask(N, 0);
 	if (out.wall != 0xFF) {
 		const WallLengths L = wall_lengths(out.wall);
@@ -8258,7 +8288,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	// The districts (CityPainter): through each district in rows along its angle, at every free
 	// spot the first of the shuffled structures that fits and keeps its distance from its kind.
 	{
-		const uint8_t tower = size >= 256.0f && kDifficulty >= 3 ? BLD_TOWER : BLD_SENTRY_TOWER;
+		const uint8_t tower = size >= 256.0f && lay.difficulty >= 3 ? BLD_TOWER : BLD_SENTRY_TOWER;
 		struct CityBuilding {
 			uint8_t type;
 			int difficulty;
@@ -8273,7 +8303,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 		};
 		std::vector<CityBuilding> layout;
 		for (const CityBuilding &b : all)
-			if (kDifficulty >= b.difficulty) layout.push_back(b);
+			if (lay.difficulty >= b.difficulty) layout.push_back(b);
 		std::vector<std::vector<Spot>> placed(layout.size());
 		const auto to_path = seas_dist_inside(hm, lay.path);
 		std::vector<uint8_t> taken(N, 0);
@@ -8361,7 +8391,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 			++placed;
 		}
 	};
-	const float diff = (float)kDifficulty / 3.0f;
+	const float diff = (float)lay.difficulty / 3.0f;
 	const auto hilltop = pick_cells([&](size_t v) { return lay.hilltop[v] && to_cliff[v] > 1.0f && to_cliff[v] <= 5.0f; });
 	groups_on(hilltop, count(sc(1.0f, 5.0f) * diff), 250, 0.0f, [&](float x, float z) {
 		const int n = rng.range_int((int)sc(4.0f, 10.0f), (int)sc(6.0f, 20.0f));
@@ -9283,6 +9313,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_anatolian_plateau(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_JEBEL_BARKAL:
+			jebel_barkal.difficulty = config.trigger_difficulty;
 			synth_jebel_barkal_0ad(hm, rng, water_h, spawns, config.num_players, config.teams, jebel_barkal);
 			break;
 		case MAP_MAINLAND:
@@ -9532,6 +9563,14 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
 	if (config.map_type == MAP_JEBEL_BARKAL) place_jebel_barkal_entities(sim, hm, water_h, spawns, rng, jebel_barkal);
 
+	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
+	// under them go (template_gaia_flora's DeleteUponConstruction).
+	const int map_tiles = (int)std::lround(2.0f * hm.map_half);
+	const uint8_t walls = starting_walls_of(config.map_type, map_tiles);
+	if (walls != Simulation::STARTING_WALLS_NONE)
+		for (const auto &sp : spawns)
+			sim.place_starting_walls(sp.team, sp.x, sp.z, map_tiles, walls, -0.7853982f, rng.next_u32());
+
 	return true;
 }
 
@@ -9673,7 +9712,8 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	const float water = sim.water_height();
 	const bool has_water = water > -0.5f;
 	const float metre = HEIGHT_PER_METRE;
-	std::vector<float> metres_up(t.tiles.size(), 0.0f);
+	std::vector<float> metres_up(t.tiles.size(), 0.0f), slope_up(t.tiles.size(), 0.0f);
+	const bool own_patches = own && own->patches[0].layer[0][0];
 	// A script paints its own shores (its height bands and areas), with no shore blend to 3 m.
 	const bool own_bands = own && own->bands[0].terrain[0];
 	for (int tz = 0; tz < res; ++tz)
@@ -9702,7 +9742,8 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 				// createPatches over the main terrain: [main, tier1], [tier1, tier2],
 				// [tier2, tier3] clumps, then tier4 and dirt patches.
 				const float n1 = noise(x, z, 9.0f, 7), n2 = noise(x, z, 6.0f, 8), n3 = noise(x, z, 5.0f, 9);
-				if (n1 > 0.78f) v = index_of(b.tier[2] ? b.tier[2] : b.main[0]);
+				if (own_patches) v = pick(b.main, 4, tx, tz, 11);
+				else if (n1 > 0.78f) v = index_of(b.tier[2] ? b.tier[2] : b.main[0]);
 				else if (n1 > 0.70f) v = index_of(b.tier[1] ? b.tier[1] : b.main[0]);
 				else if (n1 > 0.62f) v = index_of(b.tier[0] ? b.tier[0] : b.main[0]);
 				else if (n2 > 0.80f) v = index_of(b.tier[3] ? b.tier[3] : b.main[0]);
@@ -9710,6 +9751,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 				else v = pick(b.main, 4, tx, tz, 11);
 			}
 			// To the millimetre, so land the synth set to a whole metre stays on it.
+			slope_up[j] = slope / metre;
 			metres_up[j] = std::round((h - water) / metre * 1000.0f) / 1000.0f;
 			t.tiles[j] = v;
 		}
@@ -9725,20 +9767,149 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	};
 	if (own) {
 		paint_bands(false);
+		// The script's patches (PatchSet), with rmgen's ChainPlacer on the tile grid.
+		auto paint_patches = [&](auto &paint_layers) {
+			if (!own_patches) return;
+			uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull ^ 0x5041544348ull;
+			auto next = [&]() {
+				state += 0x9E3779B97F4A7C15ull;
+				uint64_t z = state;
+				z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+				z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+				return z ^ (z >> 31);
+			};
+			auto rand_int = [&](int lo, int hi) { return lo + (int)(next() % (uint64_t)(hi - lo + 1)); };
+			const float scale = std::clamp(((float)res - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f);
+			auto sbms = [&](const float *lohi) { return lohi[0] + (lohi[1] - lohi[0]) * scale; };
+			// Chebyshev distances (in tiles) to water, hills, forest floor and civic centres.
+			auto distance_to = [&](auto in_class) {
+				std::vector<uint16_t> d(t.tiles.size(), 0xFFFF);
+				std::vector<uint32_t> q;
+				for (size_t j = 0; j < d.size(); ++j)
+					if (in_class(j)) { d[j] = 0; q.push_back((uint32_t)j); }
+				for (size_t k = 0; k < q.size(); ++k) {
+					const int x = (int)(q[k] % (uint32_t)res), z = (int)(q[k] / (uint32_t)res);
+					for (int dz = -1; dz <= 1; ++dz)
+						for (int dx = -1; dx <= 1; ++dx) {
+							const int nx = x + dx, nz = z + dz;
+							if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
+							const uint32_t n = (uint32_t)(nz * res + nx);
+							if (d[n] != 0xFFFF) continue;
+							d[n] = (uint16_t)(d[q[k]] + 1);
+							q.push_back(n);
+						}
+				}
+				return d;
+			};
+			std::vector<uint8_t> hill(t.tiles.size(), 0), player(t.tiles.size(), 0);
+			for (const MapArea &a : t_map_areas)
+				if (a.kind == AREA_HILL || a.kind == AREA_MOUNTAIN || a.kind == AREA_VOLCANO)
+					for (uint32_t j : a.tiles) hill[j] = 1;
+			for (const auto &bd : sim.buildings())
+				if (is_civic_centre(bd.type)) {
+					const int cx = (int)std::floor((bd.x + half) / cell), cz = (int)std::floor((bd.z + half) / cell);
+					for (int dz = -5; dz <= 5; ++dz)
+						for (int dx = -5; dx <= 5; ++dx)
+							if (dx * dx + dz * dz < 25 && cx + dx >= 0 && cz + dz >= 0 && cx + dx < res && cz + dz < res)
+								player[(size_t)(cz + dz) * (size_t)res + (size_t)(cx + dx)] = 1;
+				}
+			const auto to_water = distance_to([&](size_t j) { return metres_up[j] < 0.0f; });
+			const auto to_hill = distance_to([&](size_t j) { return hill[j] || slope_up[j] >= 1.25f; });
+			const auto to_forest = distance_to([&](size_t j) { return forest[j] != 0; });
+			const auto to_player = distance_to([&](size_t j) { return player[j] != 0; });
+			std::vector<uint8_t> patched(t.tiles.size(), 0), got(t.tiles.size(), 0), near(t.tiles.size(), 0);
+			std::vector<uint32_t> points, touched;
+			std::vector<std::pair<int, int>> edges;
+			for (const PatchSet &ps : own->patches) {
+				if (!ps.layer[0][0]) continue;
+				int layers = 0;
+				while (layers < 4 && ps.layer[layers][0]) ++layers;
+				auto far = [&](const std::vector<uint16_t> &d, int8_t r, size_t j) { return r < 0 || d[j] > (uint16_t)r; };
+				// Tiles within avoid_patch (Chebyshev) of a patch: marked once per patched tile, not per test.
+				const int pr = ps.avoid_patch;
+				std::fill(near.begin(), near.end(), 0);
+				auto mark_near = [&](uint32_t j) {
+					const int x = (int)(j % (uint32_t)res), z = (int)(j / (uint32_t)res);
+					for (int nz = std::max(0, z - pr); nz <= std::min(res - 1, z + pr); ++nz)
+						for (int nx = std::max(0, x - pr); nx <= std::min(res - 1, x + pr); ++nx) near[(size_t)nz * (size_t)res + (size_t)nx] = 1;
+				};
+				if (pr >= 0)
+					for (size_t j = 0; j < patched.size(); ++j)
+						if (patched[j]) mark_near((uint32_t)j);
+				auto near_patch = [&](int x, int z) { return pr >= 0 && near[(size_t)z * (size_t)res + (size_t)x]; };
+				auto borders_free = [&](int x, int z) {
+					auto free_at = [&](int nx, int nz) {
+						return nx >= 0 && nz >= 0 && nx < res && nz < res && !got[(size_t)nz * (size_t)res + (size_t)nx];
+					};
+					return free_at(x - 1, z) || free_at(x + 1, z) || free_at(x, z - 1) || free_at(x, z + 1);
+				};
+				auto allows = [&](int x, int z) {
+					const size_t j = (size_t)z * (size_t)res + (size_t)x;
+					return far(to_water, ps.avoid_water, j) && far(to_hill, ps.avoid_hill, j) && far(to_forest, ps.avoid_forest, j) &&
+					       far(to_player, ps.avoid_player, j) && !near_patch(x, z);
+				};
+				const int count = (int)sbms(ps.count);
+				const int max_r = (int)std::floor(3.0f + 2.0f * scale);
+				for (const auto &size_lohi : ps.size) {
+					if (size_lohi[1] <= 0.0f) continue;
+					const int circles = (int)sbms(size_lohi);
+					// createAreas: `count` areas, giving up after count * 10 failures.
+					for (int placed = 0, failed = 0; placed < count && failed < count * 10;) {
+						const int cx = rand_int(0, res - 1), cz = rand_int(0, res - 1);
+						points.clear();
+						touched.clear();
+						edges.assign(1, {cx, cz});
+						int seen = 0, bad = 0;
+						if (allows(cx, cz))
+							for (int c = 0; c < circles && !edges.empty(); ++c) {
+								// The chain grows from the area's edge tiles: new tiles join the list, and a
+								// listed tile with no free neighbour left is dropped when drawn.
+								std::pair<int, int> at;
+								bool found = false;
+								while (!edges.empty()) {
+									const size_t e = (size_t)rand_int(0, (int)edges.size() - 1);
+									at = edges[e];
+									if (points.empty() || borders_free(at.first, at.second)) { found = true; break; }
+									edges[e] = edges.back();
+									edges.pop_back();
+								}
+								if (!found) break;
+								const int r = rand_int(1, max_r);
+								for (int z = std::max(0, at.second - r); z <= std::min(res - 1, at.second + r); ++z)
+									for (int x = std::max(0, at.first - r); x <= std::min(res - 1, at.first + r); ++x) {
+										if ((x - at.first) * (x - at.first) + (z - at.second) * (z - at.second) >= r * r) continue;
+										++seen;
+										if (!allows(x, z)) { ++bad; continue; }
+										const size_t j = (size_t)z * (size_t)res + (size_t)x;
+										if (got[j] == 0) {
+											points.push_back((uint32_t)j);
+											touched.push_back((uint32_t)j);
+											edges.push_back({x, z});
+										}
+										got[j] = 1;
+									}
+							}
+						for (uint32_t j : touched) got[j] = 0;
+						if (points.empty() || bad > seen / 2) { ++failed; continue; }
+						paint_layers(points, &ps.layer[0][0], 8, layers, ps.width, 30);
+						for (uint32_t j : points) {
+							patched[j] = 1;
+							if (pr >= 0) mark_near(j);
+						}
+						++placed;
+					}
+				}
+			}
+		};
 		// LayeredPainter: 8-neighbour steps in from the area's edge, 1 on the edge.
 		std::vector<uint8_t> in(t.tiles.size(), 0);
 		std::vector<uint16_t> dist(t.tiles.size(), 0);
 		std::vector<uint32_t> queue;
-		for (const MapArea &a : t_map_areas) {
-			const AreaLayers *paint = nullptr;
-			for (const AreaLayers &l : own->areas)
-				if (l.kind == a.kind && l.layer[0][0]) { paint = &l; break; }
-			if (!paint) continue;
-			int layers = 0;
-			while (layers < 6 && paint->layer[layers][0]) ++layers;
-			for (uint32_t j : a.tiles) in[j] = 1;
+		auto paint_layers = [&](const std::vector<uint32_t> &tiles, const char *const *layer, int stride, int layers,
+		                        const uint8_t *widths, uint32_t salt) {
+			for (uint32_t j : tiles) in[j] = 1;
 			queue.clear();
-			for (uint32_t j : a.tiles) {
+			for (uint32_t j : tiles) {
 				const int x = (int)(j % (uint32_t)res), z = (int)(j / (uint32_t)res);
 				bool edge = false;
 				for (int dz = -1; dz <= 1 && !edge; ++dz)
@@ -9762,18 +9933,29 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 						queue.push_back(k);
 					}
 			}
-			for (uint32_t j : a.tiles) {
+			for (uint32_t j : tiles) {
 				// An area with no edge inside the map (it covers it) counts as one wide ring.
 				const int d = dist[j] ? dist[j] : 1;
 				int i = 0, width = 0;
 				for (; i < layers - 1; ++i) {
-					width += paint->width[i];
+					width += widths[i];
 					if (width >= d) break;
 				}
-				if (free_tile(j)) t.tiles[j] = pick(paint->layer[i], 6, (int)(j % (uint32_t)res), (int)(j / (uint32_t)res), 13 + (uint32_t)i);
+				if (free_tile(j))
+					t.tiles[j] = pick(layer + i * stride, stride, (int)(j % (uint32_t)res), (int)(j / (uint32_t)res), salt + (uint32_t)i);
 			}
-			for (uint32_t j : a.tiles) { in[j] = 0; dist[j] = 0; }
+			for (uint32_t j : tiles) { in[j] = 0; dist[j] = 0; }
+		};
+		for (const MapArea &a : t_map_areas) {
+			const AreaLayers *paint = nullptr;
+			for (const AreaLayers &l : own->areas)
+				if (l.kind == a.kind && l.layer[0][0]) { paint = &l; break; }
+			if (!paint) continue;
+			int layers = 0;
+			while (layers < 6 && paint->layer[layers][0]) ++layers;
+			paint_layers(a.tiles, &paint->layer[0][0], 6, layers, paint->width, 13);
 		}
+		paint_patches(paint_layers);
 		paint_bands(true);
 	}
 	// A tile's terrain blends over neighbours of lower priority, which the renderer
@@ -9789,6 +9971,8 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			for (const AreaLayers &l : own->areas)
 				if (l.kind == a.kind)
 					for (const auto &layer : l.layer) order.insert(order.end(), layer, layer + 6);
+		for (const PatchSet &ps : own->patches)
+			for (const auto &layer : ps.layer) order.insert(order.end(), layer, layer + 8);
 		for (const HeightBand &band : own->bands)
 			if (band.late) order.insert(order.end(), band.terrain, band.terrain + 2);
 	}
