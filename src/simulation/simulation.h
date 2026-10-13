@@ -2474,6 +2474,11 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
+	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)
+	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
+	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
+	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
