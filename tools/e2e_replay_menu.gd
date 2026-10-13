@@ -63,7 +63,7 @@ func run() -> void:
 	# b: multiplayer 1v1, Giant, 50 min, Conquest, February 2030.
 	write_replay(NAMES[1], {"format": 2, "save_version": v, "timestamp": 1896300000, "map_id": "random_oasis",
 		"map_name": "E2E Oasis", "map_size": 512, "duration": 3000.0, "kind": "mp",
-		"game_start": "map=random_oasis;seed=1;victory=0;popcap=300",
+		"game_start": "map=random_oasis;seed=1;victory=0;popcap=300;worldpop=600",
 		"players": [player(0, "e2eAlpha", 1, false, "active"), player(1, "e2eBeta", 2, false, "active")]})
 	# c: an old save format, so incompatible.
 	write_replay(NAMES[2], {"format": 2, "save_version": v - 1, "timestamp": 1896400000, "map_id": "random_oasis",
@@ -81,7 +81,7 @@ func run() -> void:
 	check(titles == ["Date / Time", "Players", "Map Name", "Size", "Population", "Duration"], "0 A.D.'s columns: " + str(titles))
 	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "compatible replays only, newest first: " + str(visible_dirs(b)))
 	var row: TreeItem = b.replay_list.get_root().get_child(b._replays.map(func(r): return r.dir.get_file()).find(NAMES[0]))
-	check(row.get_text(1) == "e2eAlpha, Bot One, Bot Two, Bot Three" and row.get_text(3) == "Small" and row.get_text(4) == "150" and row.get_text(5) == "20:00",
+	check(row.get_text(1) == "e2eAlpha, Bot One, Bot Two, Bot Three" and row.get_text(3) == "Small" and row.get_text(4) == "150 (player)" and row.get_text(5) == "20:00",
 		"a row shows players, size, population and duration: %s | %s | %s | %s" % [row.get_text(1), row.get_text(3), row.get_text(4), row.get_text(5)])
 	b.sort_by("duration")
 	check(visible_dirs(b) == [NAMES[0], NAMES[1]], "Duration sorts shortest first")
@@ -89,6 +89,12 @@ func run() -> void:
 	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "and again longest first")
 	b.sort_by("players")
 	check(visible_dirs(b) == [NAMES[1], NAMES[0]], "Players sorts by player count")
+	b.sort_by("popCapacity")
+	var pops: Array = b._replays.filter(func(r): return r.dir.get_file().begins_with("zz_e2e")).map(func(r): return b.population_name(r.pop, r.pop_type))
+	check(pops == ["600 (world)", "150 (player)"] or pops == ["150 (player)", "600 (world)"], "a World Population reads as 0.28's translatePopulationCapacity: " + str(pops))
+	var first := visible_dirs(b)
+	b.sort_by("popCapacity")
+	check(visible_dirs(b) == [first[1], first[0]], "Population sorts by cap, then type")
 
 	print("2. filters")
 	b._players_filter.text = "e2eal bot"
@@ -107,8 +113,15 @@ func run() -> void:
 	pick.call(b._size_filter, "Giant")
 	check(visible_dirs(b) == [NAMES[1]], "map size")
 	pick.call(b._size_filter, "Any")
+	var caps := []
+	for i in b._pop_filter.item_count:
+		caps.append(b._pop_filter.get_item_text(i))
+	check(caps[0] == "Any" and caps[-1] == "Unlimited" and caps.has("2400") and caps.find("300") < caps.find("400"),
+		"one ascending list of every type's caps, Unlimited last (initPopCapFilter): " + str(caps))
 	pick.call(b._pop_filter, "150")
 	check(visible_dirs(b) == [NAMES[0]], "population")
+	pick.call(b._pop_filter, "600")
+	check(visible_dirs(b) == [NAMES[1]], "a World Population matches its cap")
 	pick.call(b._pop_filter, "Any")
 	pick.call(b._duration_filter, "45 - 60 min")
 	check(visible_dirs(b) == [NAMES[1]], "duration")
