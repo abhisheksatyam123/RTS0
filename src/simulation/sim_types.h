@@ -169,7 +169,8 @@ enum TeamPlacement : uint8_t {
 	TEAM_PLACEMENT_LINE = 2,
 	TEAM_PLACEMENT_RANDOM_GROUP = 3,
 	TEAM_PLACEMENT_STRONGHOLD = 4,
-	TEAM_PLACEMENT_COUNT = 5
+	TEAM_PLACEMENT_RIVER = 5,        // players on two parallel lines across the map
+	TEAM_PLACEMENT_COUNT = 6
 };
 
 struct MapTypeInfo {
@@ -181,9 +182,27 @@ struct MapTypeInfo {
 	const char *description;
 };
 
-// The maps that offer Team Placement: 0 A.D.'s Ambush and Frontier list
-// ["radial", "line", "randomGroup", "stronghold"].
-inline bool map_has_team_placement(uint8_t type) { return type == MAP_AMBUSH || type == MAP_FRONTIER; }
+// The Team Placement patterns a random map offers: a bit (1 << TEAM_PLACEMENT_*)
+// per pattern its 0.28 JSON lists in PlayerPlacements (circle, river,
+// groupedLines, randomGroup, stronghold); 0 for maps without the setting.
+inline uint8_t map_team_placements(uint8_t type) {
+	constexpr uint8_t C = 1 << TEAM_PLACEMENT_RADIAL, R = 1 << TEAM_PLACEMENT_RIVER, L = 1 << TEAM_PLACEMENT_LINE,
+	                  G = 1 << TEAM_PLACEMENT_RANDOM_GROUP, S = 1 << TEAM_PLACEMENT_STRONGHOLD;
+	switch (type) {
+		case MAP_AFRICAN_PLAINS: case MAP_ALPINE_LAKES: case MAP_AMBUSH: case MAP_ANATOLIAN_PLATEAU: case MAP_ARCHIPELAGO_0AD:
+		case MAP_ARCTIC_SUMMER: case MAP_ATLAS_MOUNTAINS: case MAP_BOTSWANAN_HAVEN: case MAP_FRONTIER: case MAP_MAINLAND:
+		case MAP_RHINE_MARSHLANDS: case MAP_SAHEL:
+			return C | R | L | G | S;
+		case MAP_ARDENNES_FOREST: return C | R | L | G;
+		case MAP_CANTABRIAN_HIGHLANDS: return C | S;
+		case MAP_EXTINCT_VOLCANO: return C | R | G;
+		case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
+		case MAP_LAKE: case MAP_NEARESTERN_BADLANDS: return C | R;
+		case MAP_SYRIA: return C | R | G | S;
+		default: return 0;
+	}
+}
+inline bool map_has_team_placement(uint8_t type) { return map_team_placements(type) != 0; }
 
 inline const MapTypeInfo &map_type_info(uint8_t type) {
 	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {
