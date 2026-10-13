@@ -13,6 +13,7 @@ using namespace godot;
 void RtsoMiniMapView::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("minimap_clicked", PropertyInfo(Variant::VECTOR2, "world_pos")));
 	ADD_SIGNAL(MethodInfo("flare_requested", PropertyInfo(Variant::VECTOR2, "world_pos")));
+	ADD_SIGNAL(MethodInfo("minimap_order", PropertyInfo(Variant::VECTOR2, "world_pos")));
 	ClassDB::bind_method(D_METHOD("add_ping", "world_pos", "color"), &RtsoMiniMapView::add_ping, DEFVAL(Color(1.0f, 0.85f, 0.2f)));
 	ClassDB::bind_method(D_METHOD("toggle_territory"), &RtsoMiniMapView::toggle_territory);
 	ClassDB::bind_method(D_METHOD("toggle_resources"), &RtsoMiniMapView::toggle_resources);
@@ -78,10 +79,9 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 			emit_signal("minimap_clicked", Vector2(wx, wz));
 			accept_event();
 		} else if (mb->get_button_index() == MOUSE_BUTTON_RIGHT && mb->is_pressed()) {
-			// Right-click on minimap adds tactical ping + broadcasts a flare
-			// to session peers (main_node handles flare_requested -> NMT_CHAT).
-			add_ping(Vector2(wx, wz), Color(1.0f, 0.4f, 0.2f));
-			emit_signal("flare_requested", Vector2(wx, wz));
+			// Right-click orders the selection there or sets the rally point
+			// (0 A.D. MiniMap.js onWorldClick); K+click sends a flare.
+			emit_signal("minimap_order", Vector2(wx, wz));
 			accept_event();
 		}
 	}
