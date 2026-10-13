@@ -656,7 +656,7 @@ int Simulation::pop_max_uncapped(uint8_t player) const {
 }
 
 int Simulation::pop_limit(uint8_t player) const {
-	const int limit = pop_cap();
+	const int limit = pop_cap(player);
 	if (limit <= 0 || player >= MAX_PLAYERS) return limit;
 	// Player/MaxPopulation modifiers, multiplied then added as ApplyValueModifications does:
 	// the Seleucid relic's Immigration, each finished Wonder's Glorious Expansion aura once
@@ -674,16 +674,28 @@ int Simulation::pop_max(uint8_t player) const {
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
-int Simulation::pop_cap() const {
+int Simulation::pop_cap(uint8_t player) const {
 	if (pop_cap_ >= 0) return pop_cap_;
 	// World Population: split among the seated players not yet defeated (players 0
-	// and 1 when no slot is seated, as petra_runs_for assumes).
+	// and 1 when no slot is seated, as petra_runs_for assumes). Team Population:
+	// the same, among the player's own team (PopulationCapManager.js).
+	const int team_cap = team_pop_cap();
+	const uint8_t team = player < MAX_PLAYERS ? players_[player].team : 0xFF;
 	bool any_active = false;
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	int live = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p)) ++live;
+		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p) &&
+		    (team_cap == 0 || (player < MAX_PLAYERS && players_[p].team == team)))
+			++live;
+	if (team_cap > 0) return std::max(1, (int)std::lround((double)team_cap / std::max(1, live)));
 	return std::max(1, -pop_cap_ / std::max(1, live));
+}
+
+void Simulation::set_pop_cap_setting(int setting) {
+	if (setting <= -TEAM_POP_FLAG) set_team_pop_cap(-setting - TEAM_POP_FLAG);
+	else if (setting < 0) set_world_pop_cap(-setting);
+	else set_pop_cap(setting);
 }
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
@@ -13342,7 +13354,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 	case CHEAT_MAX_POPULATION: { // "the hive master": SetPopulationBonuses((world max || MaxPopulation) + 500)
 		CheatMods &cm = cheat_mods_[player];
 		const int houses = pop_max_uncapped(player) - cm.pop_bonus;
-		const int limit = pop_cap_ < 0 ? world_pop_cap() : pop_cap() > 0 ? pop_limit(player) : houses;
+		const int limit = world_pop_cap() > 0 ? world_pop_cap() : team_pop_cap() > 0 ? team_pop_cap() : pop_cap(player) > 0 ? pop_limit(player) : houses;
 		cm.pop_bonus = std::clamp(limit + 500 - houses, -1000000, 1000000);
 		return true;
 	}
@@ -15130,7 +15142,7 @@ void Simulation::petra_staff_foundations() {
 		if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress >= 1.0f && !b.wrecked) { has_base = true; break; }
 	int max_total = (int)std::ceil((float)workers * petra_builder_ratio());
 	if (max_total < 2 && workers > 1) max_total = 2;
-	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap();
+	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap(petra_pid_);
 	auto budget_for = [&](const Building &b) {
 		int cap = max_total;
 		if (b.type == BLD_HOUSE && house_short) cap += 2;
@@ -16246,7 +16258,7 @@ int Simulation::petra_trade_minimal_gain() const {
 // config.js Economy.targetNumTraders (2 + difficulty, times popScaling), raised by
 // setTradingGoods for each tradable resource that runs low, times popScaling again.
 int Simulation::petra_target_traders() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
 	int target = (int)std::lround((2.0f + (float)petra_config_.difficulty) * scaling);
 	float demand[RES_COUNT];
@@ -17743,7 +17755,7 @@ static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
 }
 
 int Simulation::petra_pop_phase2() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	int base = petra_config_.pop_phase2;
 	if (petra_attack_mgr_.save_resources) base = base * 3 / 4; // startingStrategy.js: phase sooner to expand
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
@@ -17751,7 +17763,7 @@ int Simulation::petra_pop_phase2() const {
 }
 
 int Simulation::petra_target_workers() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	const uint8_t d = petra_config_.difficulty;
 	int target = d < PETRA_EASY ? std::min(40, max_pop) : d < PETRA_MEDIUM ? std::min(60, max_pop / 2)
 	                                                                        : std::min(120, max_pop / 3);
@@ -17760,7 +17772,7 @@ int Simulation::petra_target_workers() const {
 
 int Simulation::petra_work_phase3() const {
 	if (petra_config_.work_phase3 >= 999) return 999; // below Easy: never the city phase
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	int base = petra_config_.work_phase3;
 	if (victory_condition_ == VICTORY_WONDER) base = base * 9 / 10;
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
@@ -17783,13 +17795,13 @@ int Simulation::petra_accounted_population() const {
 // popForBarracks2 (55), scaled by popScaling (times sqrt(maxPop/300) under 300): at least 12 and
 // at most a fifth of maxPop, and at least 45 and at most two thirds of it.
 int Simulation::petra_pop_for_barracks1() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	const float base = petra_config_.difficulty >= PETRA_MEDIUM && petra_config_.aggressive > 0.7f ? 12.0f : 25.0f;
 	return std::min(std::max((int)(base * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 12), max_pop / 5);
 }
 
 int Simulation::petra_pop_for_barracks2() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	return std::min(std::max((int)(55.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
 }
 
