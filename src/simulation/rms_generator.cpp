@@ -6305,13 +6305,44 @@ std::vector<std::pair<float, float>> pattern_locs(const HeightmapGrid &hm, RmsRn
 
 // The pattern_locs pattern for a Game Setup Team Placement (TEAM_PLACEMENT_*),
 // or the map's own random pick when it is Random.
+// The last pattern placement_pattern chose, for the bases' starting walls
+// (rmgen2 setup.js playerbaseTypes[pattern].walls).
+thread_local int g_placement_pattern = -1;
+
 int placement_pattern(uint8_t team_placement, int random_pick) {
 	switch (team_placement) {
-		case TEAM_PLACEMENT_RADIAL: return 1;
-		case TEAM_PLACEMENT_LINE: return 0;
-		case TEAM_PLACEMENT_RANDOM_GROUP: return 2;
-		case TEAM_PLACEMENT_STRONGHOLD: return 3;
-		default: return random_pick;
+		case TEAM_PLACEMENT_RADIAL: return g_placement_pattern = 1;
+		case TEAM_PLACEMENT_LINE: return g_placement_pattern = 0;
+		case TEAM_PLACEMENT_RANDOM_GROUP: return g_placement_pattern = 2;
+		case TEAM_PLACEMENT_STRONGHOLD: return g_placement_pattern = 3;
+		default: return g_placement_pattern = random_pick;
+	}
+}
+
+// The walls 0.28's map script asks placeStartingWalls for (Simulation::StartingWalls): the
+// Walls of placePlayerBases' CityPatch, else true; rmgen2's createBases only on maps over 192
+// tiles. Maps that lay out no player bases get none.
+uint8_t starting_walls_of(MapType map, int map_tiles) {
+	switch (map) {
+		case MAP_CANTABRIAN_HIGHLANDS: case MAP_CORSICA: case MAP_DANUBIUS: case MAP_FLOOD:
+		case MAP_GUADALQUIVIR_RIVER: case MAP_SCHWARZWALD: case MAP_BELGIAN_UPLANDS: case MAP_ISLAND_STRONGHOLD:
+		case MAP_EMPIRE: case MAP_HELLS_PASS: case MAP_POMPEII: case MAP_STRONGHOLD: case MAP_FORTRESS:
+		case MAP_JEBEL_BARKAL: case MAP_MEDITERRANEAN: case MAP_SURVIVAL_OF_THE_FITTEST:
+			return Simulation::STARTING_WALLS_NONE;
+		case MAP_ARCHIPELAGO_0AD: case MAP_CORINTHIAN_ISTHMUS: case MAP_CYCLADIC_ARCHIPELAGO: case MAP_DODECANESE:
+		case MAP_ELEPHANTINE: case MAP_EXTINCT_VOLCANO: case MAP_GEAR: case MAP_HELLAS: case MAP_ISLANDS:
+		case MAP_LORRAINE_PLAIN: case MAP_POLAR_SEA: case MAP_RATUMACOS: case MAP_SNOWFLAKE_SEAROCKS:
+			return Simulation::STARTING_WALLS_TOWERS;
+		case MAP_BAHRAIN:
+			return map_tiles > 192 ? Simulation::STARTING_WALLS_TOWERS : Simulation::STARTING_WALLS_NONE;
+		case MAP_HARBOR: case MAP_LIONS_DEN: case MAP_MARMARA: case MAP_RED_SEA: case MAP_WILD_LAKE:
+			return map_tiles > 192 ? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
+		case MAP_AMBUSH: case MAP_FRONTIER:
+			// groupedLines and stronghold: false; circle and randomGroup: true.
+			return map_tiles > 192 && (g_placement_pattern == 1 || g_placement_pattern == 2)
+					? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
+		default:
+			return Simulation::STARTING_WALLS_FORTRESS;
 	}
 }
 
@@ -9531,6 +9562,14 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
 	if (config.map_type == MAP_JEBEL_BARKAL) place_jebel_barkal_entities(sim, hm, water_h, spawns, rng, jebel_barkal);
+
+	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
+	// under them go (template_gaia_flora's DeleteUponConstruction).
+	const int map_tiles = (int)std::lround(2.0f * hm.map_half);
+	const uint8_t walls = starting_walls_of(config.map_type, map_tiles);
+	if (walls != Simulation::STARTING_WALLS_NONE)
+		for (const auto &sp : spawns)
+			sim.place_starting_walls(sp.team, sp.x, sp.z, map_tiles, walls, -0.7853982f, rng.next_u32());
 
 	return true;
 }

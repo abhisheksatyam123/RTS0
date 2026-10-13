@@ -1643,6 +1643,21 @@ public:
 	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
 	// built and uncapturable.
 	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
+	// rmgen-common player.js placeStartingWalls, the Iberian "Starting Walls" civ bonus: on a map
+	// over 128 tiles across (`map_tiles`), an Iberian player's base at (x, z) gets built stone
+	// walls, either a ring of long walls, gates and towers (STARTING_WALLS_FORTRESS,
+	// placeGenericFortress at radius 20, its shape drawn from `seed`) or only seven towers
+	// (STARTING_WALLS_TOWERS, placePolygonalWall at radius 15 facing `orientation`). Other civs
+	// and smaller maps get none. Returns the number of pieces placed.
+	enum StartingWalls : uint8_t { STARTING_WALLS_NONE, STARTING_WALLS_FORTRESS, STARTING_WALLS_TOWERS };
+	size_t place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
+			uint32_t seed);
+	// wall_builder.js placeGenericFortress: `player`'s built stone walls round (x, z) at about
+	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
+	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
+	// `max_tries` tries). Pieces in water or off the map are left out.
+	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
+			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
