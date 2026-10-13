@@ -13075,10 +13075,37 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
-	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
+	if (!petra_ring_clear(cell_x, cell_y, footprint)) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// The ground petra_can_place needs: its footprint's cells free and a ring of whole cells round it
+// with no building covering one (FULL). A building off the grid or turned that only reaches into
+// a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
+// the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
+// On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
+bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
+	ensure_occupied_cells();
+	const int limit = (int)(map_half_ / GRID) - (footprint + 2);
+	bool part = false;
+	for (int dx = -1; dx <= footprint; ++dx)
+		for (int dy = -1; dy <= footprint; ++dy) {
+			const int cx = cell_x + dx, cy = cell_y + dy;
+			if (std::abs(cx) > limit || std::abs(cy) > limit) return false;
+			const uint8_t m = occupied_cells_.mark(cx, cy);
+			if (!m) continue;
+			const bool ring = dx < 0 || dy < 0 || dx == footprint || dy == footprint;
+			if (!ring || m == CellSet::FULL) return false;
+			part = true;
+		}
+	if (!part) return true;
+	nav::Footprint grown;
+	grown.x = (cell_x + footprint * 0.5f) * GRID;
+	grown.z = (cell_y + footprint * 0.5f) * GRID;
+	grown.hu = grown.hv = (footprint + 1) * GRID * 0.5f;
+	return !footprint_hits_building(grown);
 }
 
 // EntityLimits for a placement search: counting the player's entities walks every
