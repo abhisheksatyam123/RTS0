@@ -2,7 +2,7 @@
 """Bake the random-map heightmap images into a C++ header.
 
 0 A.D.'s Hellas, Red Sea, Mediterranean, Pompeii, Elephantine, Marmara,
-Bahrain, Ratumacos and Lower Nubia scripts
+Bahrain, Ratumacos, Lower Nubia and Ngorongoro scripts
 paint the map from a greyscale PNG (Engine.LoadHeightmapImage). The headless
 simulation has no image decoder, so this script decodes the PNGs in
 assets/maps/heightmaps/ (8-bit or 1-bit grey; 1-bit samples become 0 or
@@ -44,6 +44,7 @@ IMAGES = [
     ("lower_nubia", ("assets/maps/heightmaps/lower_nubia_heightmap.png",
                      "assets/maps/heightmaps/lower_nubia_land_threshold.png",
                      "assets/maps/heightmaps/lower_nubia_water_threshold.png"), 1),
+    ("ngorongoro", "assets/maps/heightmaps/ngorongoro.png", 2),
 ]
 # jebel_barkal.pmp's lowest and highest raw heights, the black and white of jebel_barkal.png.
 PMP_RANGE = (23170, 33144)

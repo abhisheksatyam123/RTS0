@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <queue>
 #include <unordered_map>
@@ -4094,6 +4095,9 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	// migration.js: two forest passes of the biome's forestTrees each, on the
 	// continent (stayClasses(clLand, 7)) and on the player islands (3x the clumps).
 	else if (config.map_type == MAP_MIGRATION) num_groves = num_groves * 2;
+	// ngorongoro.js: rmgen2 addForests plants nothing on generic/savanna; its zones' baobab
+	// stragglers, mines and hunt are place_ngorongoro_entities'.
+	else if (config.map_type == MAP_NGORONGORO) num_groves = 0;
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_SAHARAN_OASES) {
@@ -4232,6 +4236,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	}
 	// migration.js puts its mines on the continent only (distribute_land_extras).
 	if (config.map_type == MAP_MIGRATION) num_neutral_mines = 0;
+	if (config.map_type == MAP_NGORONGORO) num_neutral_mines = 0; // the zones' own mines (place_ngorongoro_entities)
 	for (int m = 0; m < num_neutral_mines; ++m) {
 		float mx = rng.range_float(-half * 0.70f, half * 0.70f);
 		float mz = rng.range_float(-half * 0.70f, half * 0.70f);
@@ -4309,6 +4314,7 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 	if (config.map_type == MAP_ARCTIC_SUMMER || config.map_type == MAP_RATUMACOS) num_packs *= 2;
 	// migration.js: deer, sheep and fruit on the continent only, no predators (distribute_land_extras).
 	if (config.map_type == MAP_MIGRATION) num_packs = 0;
+	if (config.map_type == MAP_NGORONGORO) num_packs = 0; // each zone's own hunt (place_ngorongoro_entities)
 
 	for (int p = 0; p < num_packs; ++p) {
 		float px = rng.range_float(-half * 0.75f, half * 0.75f);
@@ -6558,6 +6564,7 @@ uint8_t starting_walls_of(MapType map, int map_tiles) {
 		case MAP_BAHRAIN:
 			return map_tiles > 192 ? Simulation::STARTING_WALLS_TOWERS : Simulation::STARTING_WALLS_NONE;
 		case MAP_HARBOR: case MAP_LIONS_DEN: case MAP_MARMARA: case MAP_RED_SEA: case MAP_WILD_LAKE:
+		case MAP_NGORONGORO: // createBases(..., true)
 			return map_tiles > 192 ? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
 		case MAP_AMBUSH: case MAP_FRONTIER:
 			// groupedLines and stronghold: false; circle and randomGroup: true.
@@ -9688,6 +9695,264 @@ void RmsGenerator::synth_migration(HeightmapGrid &hm, RmsRng &rng, float &water_
 	misc_maps::finish_spawns(hm, spawns, locs, land, 22.0f, water_h);
 }
 
+// =========================================================================
+// Map from 0 A.D. maps/random/ngorongoro.js (rmgen2): the crater from a real
+// elevation map, in three zones (lowlands, highlands, eden), each with its
+// own mines, hunt and baobabs. One world unit is one tile.
+// =========================================================================
+
+namespace {
+namespace ngorongoro {
+
+const std::vector<uint8_t> &image() {
+	static const std::vector<uint8_t> img = decode_heightmap_image(heightmap_images::ngorongoro_b64, heightmap_images::ngorongoro_size);
+	return img;
+}
+
+// The RTS0 height of the script's 0 m (the image's black). The map has no water.
+constexpr float kGround = 0.0f;
+constexpr float kNoWater = -10.0f;
+
+// heightScale(n) = n * mapSettings.Size / 320 metres.
+inline float height_scale(float n, float half) { return n * 2.0f * half / 320.0f; }
+
+// The script's tile classes from the heights: eden is DiskPlacer(fractionToTiles(0.14))
+// round the centre under heightScale(60), the highlands heightScale(45) and up
+// outside eden, mountain the slopes of 2 m per tile and more (SlopeConstraint(2)).
+struct Zones {
+	std::vector<uint8_t> eden, highlands, mountain;
+};
+
+Zones zones(const HeightmapGrid &hm) {
+	const float half = hm.map_half, eden_r = 0.14f * 2.0f * half;
+	const float eden_h = kGround + height_scale(60.0f, half) * kMetre, high_h = kGround + height_scale(45.0f, half) * kMetre;
+	const size_t n = hm.data.size();
+	Zones z{std::vector<uint8_t>(n, 0), std::vector<uint8_t>(n, 0), std::vector<uint8_t>(n, 0)};
+	const auto slope = slopes_m(hm);
+	for (int vz = 0; vz < hm.res; ++vz)
+		for (int vx = 0; vx < hm.res; ++vx) {
+			float wx, wz;
+			hm.grid_to_world(vx, vz, wx, wz);
+			const size_t i = (size_t)vz * (size_t)hm.res + (size_t)vx;
+			z.eden[i] = wx * wx + wz * wz <= eden_r * eden_r && hm.data[i] < eden_h;
+			z.highlands[i] = !z.eden[i] && hm.data[i] >= high_h;
+			z.mountain[i] = slope[i] >= 2.0f;
+		}
+	return z;
+}
+
+} // namespace ngorongoro
+} // namespace
+
+void RmsGenerator::synth_ngorongoro(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// ngorongoro.js: LoadHeightmapImage("ngorongoro.png", 0, 150) (GEBCO
+	// elevations round the crater), SmoothingPainter(1, scaleByMapSize(0.1,
+	// 0.5), 1), the eden, highlands and cliff (mountain) classes, players at
+	// random (playerPlacementRandom) 5 from cliffs, highlands and eden and a
+	// base radius inside the map, each start flattened over 0.8 base radius
+	// with a 6-tile blend. The highland patches are AREA_HIGHLANDS (2 off the
+	// cliffs, as the script's addLayeredPatches); the zones' mines, hunt and
+	// baobabs are place_ngorongoro_entities'.
+	using namespace misc_maps;
+	using namespace ngorongoro;
+	water_h = kNoWater;
+	const float half = hm.map_half;
+	const int n = heightmap_images::ngorongoro_size;
+	paint_heightmap(hm, image(), n, 0, 0, n, 0.0f, 150.0f, kGround);
+	shepard_smooth(hm, scale_f(0.1f, 0.5f, half));
+	const Zones z = zones(hm);
+	const size_t N = hm.data.size();
+	{
+		std::vector<uint8_t> up(N, 0);
+		const auto near_cliff = near_mask(hm, z.mountain, 2.0f);
+		for (size_t i = 0; i < N; ++i) up[i] = (z.eden[i] || z.highlands[i]) && !near_cliff[i];
+		record_area(hm, up, AREA_HIGHLANDS);
+	}
+	// avoidClasses(mountain, 5, highlands, 5, eden, 5), stayClasses(land, defaultPlayerBaseRadius()).
+	const float base_r = (float)scale_by_map_size(15, 25, half);
+	const auto near_m = near_mask(hm, z.mountain, 5.0f), near_h = near_mask(hm, z.highlands, 5.0f), near_e = near_mask(hm, z.eden, 5.0f);
+	std::vector<uint8_t> allowed(N, 0);
+	for (int vz = 0; vz < hm.res; ++vz)
+		for (int vx = 0; vx < hm.res; ++vx) {
+			float wx, wz;
+			hm.grid_to_world(vx, vz, wx, wz);
+			const size_t i = (size_t)vz * (size_t)hm.res + (size_t)vx;
+			allowed[i] = !near_m[i] && !near_h[i] && !near_e[i] && std::hypot(wx, wz) <= half - base_r;
+		}
+	std::vector<std::pair<float, float>> locs;
+	if (player_placement_random(hm, rng, allowed, num_players, locs)) {
+		group_players_by_area(locs, num_players, teams);
+		make_heightmap_spawns(hm, spawns, locs, base_r * 0.8f, 6.0f, water_h);
+		face_most_land(hm, spawns, water_h);
+		return;
+	}
+	place_ring_spawns(hm, spawns, num_players, half * 0.6f, rng.range_float(0.0f, kTau), kTau, kGround + 1.0f);
+	for (const auto &s : spawns) lift_area(hm, s.x, s.z, 20.0f, 6.0f, s.base_height);
+}
+
+void RmsGenerator::place_ngorongoro_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng,
+		const Config &config) {
+	// ngorongoro.js's addElements passes, zone by zone (lowlands, highlands,
+	// eden), each list shuffled as the script's shuffleArray does. rmgen2
+	// createObjectGroupsDeprecated makes `amount` tries at random spots on the
+	// map, a group placed only where all of its objects fit (30 retries,
+	// 1 tile apart) on tiles the constraint allows. addForests plants nothing
+	// on the savanna biome; addLayeredPatches are the terrain areas and
+	// addDecoration's actors are left out. The classes the script avoids are
+	// the objects placed here (metal, rock, forest, animals), the cliffs, the
+	// zones and the bases' CityPatch (a third of the base radius).
+	using namespace ngorongoro;
+	const float half = hm.map_half;
+	const Zones zn = zones(hm);
+	const auto d_eden = distance_to_mask(zn.eden, hm.res, grid_spacing(hm));
+	const auto d_high = distance_to_mask(zn.highlands, hm.res, grid_spacing(hm));
+	const auto d_mtn = distance_to_mask(zn.mountain, hm.res, grid_spacing(hm));
+	const auto in_eden = misc_maps::dist_inside(hm, zn.eden), in_high = misc_maps::dist_inside(hm, zn.highlands);
+	const float city_r = (float)scale_by_map_size(15, 25, half) / 3.0f;
+	enum { CL_METAL, CL_ROCK, CL_FOREST, CL_ANIMALS, CL_COUNT };
+	std::vector<std::pair<float, float>> cls[CL_COUNT];
+	// avoidClasses distances (negative: not avoided) and the zone to stay 2 inside.
+	struct Rule {
+		float mountain, player, metal, rock, forest, animals;
+		bool lowlands; // avoidClasses(eden, 2, highlands, 2)
+		int stay;      // 0 none, 1 stayClasses(highlands, 2), 2 stayClasses(eden, 2)
+	};
+	auto allows = [&](const Rule &r, float x, float z) {
+		const size_t v = vertex_at(hm, x, z);
+		if (r.mountain >= 0.0f && d_mtn[v] <= r.mountain) return false;
+		if (r.lowlands && (d_eden[v] <= 2.0f || d_high[v] <= 2.0f)) return false;
+		if (r.stay == 1 && in_high[v] <= 2.0f) return false;
+		if (r.stay == 2 && in_eden[v] <= 2.0f) return false;
+		for (const auto &s : spawns)
+			if (std::hypot(x - s.x, z - s.z) <= r.player + city_r) return false;
+		const float d[CL_COUNT] = {r.metal, r.rock, r.forest, r.animals};
+		for (int c = 0; c < CL_COUNT; ++c) {
+			if (d[c] < 0.0f) continue;
+			for (const auto &p : cls[c])
+				if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) <= d[c] * d[c]) return false;
+		}
+		return true;
+	};
+	// SimpleObject(template, minCount, maxCount, minDistance, maxDistance).
+	struct Obj {
+		uint8_t res;   // RES_* or 0xFF for fauna
+		int amount;    // resource supply
+		uint8_t fauna;
+		float min_n, max_n, min_d, max_d;
+	};
+	auto rand_int_inclusive = [&](float lo, float hi) { return (int)std::floor(lo + rng.next_float() * (hi + 1.0f - lo)); };
+	// createObjectGroupsDeprecated(new SimpleGroup(objs, true, class), 0, constraint, amount).
+	auto groups = [&](const std::vector<Obj> &objs, int cl, const Rule &r, float amount) {
+		const float pass_r = half - 3.0f; // MAP_BORDER_WIDTH
+		struct Spec { float x, z; const Obj *o; };
+		std::vector<Spec> specs;
+		for (int k = 0; (float)k < amount; ++k) {
+			const auto c = random_in_circle(rng, pass_r);
+			const float cx = std::floor(c.first + half) - half + 0.5f, cz = std::floor(c.second + half) - half + 0.5f;
+			specs.clear();
+			bool ok = true;
+			for (const Obj &o : objs) {
+				const int count = rand_int_inclusive(o.min_n, o.max_n);
+				int retries = 0;
+				for (int i = 0; i < count && ok; ++i)
+					while (true) {
+						const auto p = polar(rng.range_float(0.0f, kTwoPi), rng.range_float(o.min_d, o.max_d));
+						const float x = cx + p.first, zz = cz + p.second;
+						bool fits = x * x + zz * zz < pass_r * pass_r;
+						for (const Spec &s : specs) fits = fits && (s.x - x) * (s.x - x) + (s.z - zz) * (s.z - zz) >= 1.0f;
+						fits = fits && allows(r, std::floor(x + half) - half + 0.5f, std::floor(zz + half) - half + 0.5f);
+						if (fits) { specs.push_back({x, zz, &o}); break; }
+						if (retries++ > 30) { ok = false; break; }
+					}
+				if (!ok) break;
+			}
+			if (!ok) continue;
+			for (const Spec &s : specs) {
+				if (s.o->res == 0xFF) sim.spawn_fauna(s.x, s.z, s.o->fauna);
+				else sim.spawn_resource_world(s.x, s.z, s.o->res, s.o->amount);
+				cls[cl].push_back({std::floor(s.x + half) - half + 0.5f, std::floor(s.z + half) - half + 0.5f});
+			}
+		}
+	};
+	// g_Sizes normal 1, big 1.25, huge 1.5; g_Mixes same 0, similar 0.1, unique 0.75;
+	// g_Amounts scarce 0.2, few 0.5, many 1.75, tons 3.
+	auto small_metal = [&](const Rule &r, float size, float mix, float fill) {
+		// addSmallMetal: gaia/ore/tropical_small (1000), 2-5 x dev at dev-3 dev, 1 + 20 fill groups.
+		const float d = random_deviation(rng, size, mix);
+		groups({{RES_GOLD, MINE_SUPPLY, 0, 2.0f * d, 5.0f * d, d, 3.0f * d}}, CL_METAL, r, 1.0f + 20.0f * fill);
+	};
+	auto metal = [&](const Rule &r, float size, float mix, float fill) {
+		// addMetal: one gaia/ore/savanna_large (5000) within 4 offset, 1 + 20 fill groups.
+		const float o = random_deviation(rng, size, mix);
+		groups({{RES_GOLD, LARGE_MINE_SUPPLY, 0, o, o, 0.0f, 4.0f * o}}, CL_METAL, r, 1.0f + 20.0f * fill);
+	};
+	auto stone = [&](const Rule &r, float size, float mix, float fill) {
+		// addStone: savanna stone, a large mine with 0-2 small rocks, then 2-5 small rocks, 1 + 20 fill groups each.
+		const float o = random_deviation(rng, size, mix);
+		groups({{RES_STONE, MINE_SUPPLY, 0, 0.0f, 2.0f * o, 0.0f, 4.0f * o}, {RES_STONE, LARGE_MINE_SUPPLY, 0, o, o, 0.0f, 4.0f * o}},
+			CL_ROCK, r, 1.0f + 20.0f * fill);
+		groups({{RES_STONE, MINE_SUPPLY, 0, 2.0f * o, 5.0f * o, o, 3.0f * o}}, CL_ROCK, r, 1.0f + 20.0f * fill);
+	};
+	auto animals = [&](const Rule &r, float size, float mix, float fill, uint8_t main, uint8_t secondary) {
+		// addAnimals: 5-7 x offset of the main huntable animal within 4 offset and 2-3 x offset of the
+		// secondary within 2 offset, floor(30 fill) groups of each.
+		const float o = random_deviation(rng, size, mix);
+		groups({{0xFF, 0, main, 5.0f * o, 7.0f * o, 0.0f, 4.0f * o}}, CL_ANIMALS, r, std::floor(30.0f * fill));
+		groups({{0xFF, 0, secondary, 2.0f * o, 3.0f * o, 0.0f, 2.0f * o}}, CL_ANIMALS, r, std::floor(30.0f * fill));
+	};
+	auto stragglers = [&](const Rule &r, float size, float mix, float fill) {
+		// addStragglerTrees on the savanna: fill at least 2 and size at least 1; tree1-tree4 (all
+		// baobabs here), floor(40 max(1, (players - 3) / 2) fill / 4) fill groups of each, 3-5 offset
+		// trees 2 offset + 1 to 3 offset + 2 out.
+		fill = std::max(fill, 2.0f);
+		size = std::max(size, 1.0f);
+		const float bonus = std::max(1.0f, ((float)config.num_players - 3.0f) / 2.0f);
+		const float o = random_deviation(rng, size, mix);
+		const float count = std::floor(40.0f * bonus * fill / 4.0f) * fill;
+		for (int t = 0; t < 4; ++t)
+			groups({{RES_WOOD, TREE_WOOD_SUPPLY, 0, 3.0f * o, 5.0f * o, 2.0f * o + 1.0f, 3.0f * o + 2.0f}}, CL_FOREST, r, count);
+	};
+	// One addElements list: its entries in the script's order, shuffled when it shuffles them.
+	auto run = [&](std::vector<std::function<void()>> list, bool shuffle) {
+		std::vector<int> order(list.size());
+		for (size_t i = 0; i < order.size(); ++i) order[i] = (int)i;
+		if (shuffle) shuffle_ints(rng, order);
+		for (int i : order) list[(size_t)i]();
+	};
+	const auto none = [] {}; // addForests: no forests on generic/savanna
+	// Render lowlands (setBiomeLowlands: giraffes and zebras).
+	{
+		const Rule mines{6.0f, 30.0f, 10.0f, 20.0f, 3.0f, -1.0f, true, 0};
+		run({[&] { small_metal(mines, 1.0f, 0.0f, 0.5f); }, [&] { stone(mines, 1.0f, 0.0f, 0.2f); }, none}, true);
+		const Rule hunt{6.0f, 20.0f, 2.0f, 2.0f, 2.0f, 20.0f, true, 0};
+		const Rule trees{6.0f, 12.0f, 2.0f, 2.0f, 4.0f, -1.0f, true, 0};
+		run({[&] { animals(hunt, 1.25f, 0.1f, 1.75f, FAUNA_GIRAFFE, FAUNA_ZEBRA); },
+		     [&] { animals(hunt, 1.0f, 0.75f, 1.75f, FAUNA_GIRAFFE, FAUNA_ZEBRA); },
+		     [&] { stragglers(trees, 1.25f, 0.0f, 1.75f); }}, true);
+	}
+	// Render highlands (setBiomeHighlands: lionesses and lions), staying 2 inside them.
+	{
+		const Rule metal_r{3.0f, 30.0f, 20.0f, 10.0f, 3.0f, -1.0f, false, 1};
+		const Rule stone_r{3.0f, 30.0f, 10.0f, 20.0f, 3.0f, -1.0f, false, 1};
+		run({[&] { small_metal(metal_r, 1.0f, 0.0f, 1.75f); }, [&] { stone(stone_r, 1.0f, 0.0f, 1.75f); }, none}, true);
+		const Rule hunt{3.0f, 20.0f, 2.0f, 2.0f, 2.0f, 20.0f, false, 1};
+		const Rule trees{3.0f, 12.0f, 2.0f, 2.0f, 2.0f, -1.0f, false, 1};
+		run({[&] { animals(hunt, 1.5f, 0.0f, 1.75f, FAUNA_LIONESS, FAUNA_LION); }, [&] { stragglers(trees, 1.5f, 0.0f, 1.75f); }}, true);
+	}
+	// Render eden (setBiomeEden: white rhinos and African bush elephants), staying 2 inside it.
+	{
+		const Rule metal_r{2.0f, 20.0f, 3.0f, 3.0f, 3.0f, -1.0f, false, 2};
+		const Rule stone_r{2.0f, 30.0f, 3.0f, 3.0f, 3.0f, -1.0f, false, 2};
+		run({[&] { metal(metal_r, 1.0f, 0.0f, 3.0f); }, [&] { metal(metal_r, 1.0f, 0.0f, 3.0f); },
+		     [&] { small_metal(metal_r, 1.0f, 0.0f, 3.0f); }, [&] { stone(stone_r, 1.0f, 0.0f, 0.5f); }, none}, true);
+		const Rule hunt{3.0f, 20.0f, 2.0f, 2.0f, 2.0f, 2.0f, false, 2};
+		const Rule trees{8.0f, 12.0f, 2.0f, 2.0f, 2.0f, -1.0f, false, 2};
+		run({[&] { animals(hunt, 1.0f, 0.0f, 1.75f, FAUNA_RHINOCEROS_WHITE, FAUNA_ELEPHANT_AFRICAN_BUSH); },
+		     [&] { stragglers(trees, 1.5f, 0.0f, 0.2f); }}, true);
+	}
+}
+
 namespace {
 // Eases the heights along a route of navcells (cell indices in res x res) wherever it crosses one
 // steeper than land units may (LAND_MAX_TERRAIN_SLOPE): each steep stretch, and as much of the
@@ -10083,6 +10348,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_MIGRATION:
 			synth_migration(hm, rng, water_h, spawns, config.num_players, config.teams, config.team_placement);
+		case MAP_NGORONGORO:
+			synth_ngorongoro(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
@@ -10109,6 +10376,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	// Distribute neutral resources, groves, and quarries
 	distribute_neutral_resources(sim, hm, water_h, spawns, rng, config);
+	if (config.map_type == MAP_NGORONGORO) place_ngorongoro_entities(sim, hm, spawns, rng, config);
 
 	// Distribute roaming wildlife packs
 	distribute_wildlife(sim, hm, water_h, spawns, rng, config);
