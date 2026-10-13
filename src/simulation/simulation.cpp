@@ -3141,9 +3141,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			apply_mod(e, [&](uint64_t cls) { return tech_effect_applies(e, cls); });
 		}
 	}
-	// Global relic auras (Capture the Relic) reaching this player. Same-named auras
-	// don't stack (ModifiersManager keys them by name), so each applies once.
-	const uint32_t mask = relic_aura_mask(player_id);
+	// Global relic and hero auras reaching this player. Same-named auras don't stack
+	// (ModifiersManager keys them by name), so each applies once.
+	const uint64_t mask = relic_aura_mask(player_id);
 	for (uint16_t g = 0; g < RELIC_GLOBAL_AURA_COUNT; ++g) {
 		if (!((mask >> g) & 1u)) continue;
 		const RelicGlobalAura &ga = relic_global_auras()[g];
@@ -3187,20 +3187,41 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	}
 }
 
-uint32_t Simulation::relic_aura_mask(uint8_t player) const {
-	uint32_t mask = 0;
-	if (player >= MAX_PLAYERS) return 0;
-	for (const Relic &rel : relics_) {
-		const int32_t u = lookup_unit(rel.id);
-		if (!is_relic_unit(u) || units_.team[u] >= MAX_PLAYERS || units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+// Bit g of masks[p]: relic_global_auras() row g reaches player p, from an owned relic or a
+// living hero (a global aura reaches its players wherever the source is, garrisoned too).
+void Simulation::global_aura_masks(uint64_t masks[MAX_PLAYERS]) const {
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) masks[p] = 0;
+	for (size_t u = 0; u < units_.count; ++u) {
+		if ((!units_.alive[u] && units_.action_state[u] != ACTION_GARRISONED) || units_.team[u] >= MAX_PLAYERS ||
+				units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
 		for (int16_t a : civ_unit_template(units_.tmpl[u]).auras) {
 			const int g = relic_global_aura_index(a);
 			if (g < 0) continue;
-			if (aura_affected_players(units_.team[u], relic_global_auras()[g].players) & aura_player_bit(player))
-				mask |= 1u << g;
+			const uint16_t reach = aura_affected_players(units_.team[u], relic_global_auras()[g].players);
+			for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+				if (reach & aura_player_bit(p)) masks[p] |= 1ull << g;
 		}
 	}
-	return mask;
+}
+
+uint64_t Simulation::relic_aura_mask(uint8_t player) const {
+	if (player >= MAX_PLAYERS) return 0;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	return masks[player];
+}
+
+// Global auras follow their sources' lives, ownership and diplomacy: a player gaining or
+// losing one has every entity it affects rescaled, as for a technology. Once a second.
+void Simulation::tick_global_auras() {
+	if (ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) != 0) return;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (masks[p] == relic_aura_masks_[p]) continue;
+		relic_aura_masks_[p] = masks[p];
+		refresh_tech_mods(p);
+	}
 }
 
 void Simulation::rebuild_all_tech_mods() {
@@ -6888,6 +6909,7 @@ void Simulation::tick(float dt) {
 	tick_scenery_attackers();
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	tick_relics();           // Capture the Relic catafalques (Capturable.js)
+	tick_global_auras();     // relics' and heroes' global player modifiers
 	check_victory_conditions(dt);
 	tick_statistics();       // 0 A.D. StatisticsTracker.js: per-player counters and 30 s sequences
 
@@ -23200,16 +23222,6 @@ void Simulation::tick_relics() {
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}
-	// Global relic auras follow ownership and diplomacy: a player gaining or losing one
-	// has every entity it affects rescaled, as for a technology.
-	if (pulse) {
-		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			const uint32_t mask = relic_aura_mask(p);
-			if (mask == relic_aura_masks_[p]) continue;
-			relic_aura_masks_[p] = mask;
-			refresh_tech_mods(p);
-		}
-	}
 	// Captors whose relic is now theirs or an ally's stop and take their next order.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.order_kind[i] != ORDER_CAPTURE_RELIC) continue;
@@ -23415,7 +23427,9 @@ void Simulation::rebuild_auras() {
 					aura_mgr_.register_source(id, AURA_BUILD, aura.radius * COMBAT_DISTANCE_SCALE,
 						builder_rate_range_auras()[row].multiply, aura_affected_players(team, aura.players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
-				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
+				// A relic's global aura is a player modifier (compute_tech_mods); a hero's global
+				// cost and research auras are too, beside its other effects here.
+				if (ut == UNIT_CATAFALQUE && relic_global_aura_index(a) >= 0) continue;
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
 					aura_affected_players(team, aura.players), x, z, a);
 			}
