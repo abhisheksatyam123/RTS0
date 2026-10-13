@@ -36,8 +36,9 @@ import zipfile
 SPY_TECHS = ("unlock_spies", "spy_counter")
 # Read by name: Cartography (Simulation::shares_los, Player/sharedLos), Glorious Expansion
 # (Simulation::pop_limit, the wonder's Player/MaxPopulation aura) and Athenian Long Walls
-# (build_restriction, Wall BuildRestrictions/Territory "own neutral").
-NAMED_TECHS = SPY_TECHS + ("unlock_shared_los", "wonder_population_cap", "long_walls")
+# (build_restriction, Wall BuildRestrictions/Territory "own neutral"), and Equine Transports
+# (unit_trainer_data.h: the Persian triremes' cavalry require it).
+NAMED_TECHS = SPY_TECHS + ("unlock_shared_los", "wonder_population_cap", "long_walls", "equine_transports")
 
 # RTS0 civ id order (sim_types.h Civilization) by 0 A.D. civ code.
 CIVS = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul",
@@ -100,7 +101,6 @@ CLASS_ALIASES = {"NavalRam": "Warship Melee"}
 # Civ-only technologies left out on purpose.
 CIV_TECH_SKIP = {
     "unlock_females_house",  # newer 0 A.D. name of unlock_civilians_house_generic (id 77)
-    "equine_transports",     # cavalry trained aboard triremes; RTS0 ships train nothing
 }
 
 # RTS0 civ-specific BuildingType -> 0 A.D. structures/<civ>/<stem>.xml stems
