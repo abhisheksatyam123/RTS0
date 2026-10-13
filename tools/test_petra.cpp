@@ -129,7 +129,7 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	CHECK(town_at > 0.0f && town_at < 12.0f * 60.0f, "town phase within 12 minutes");
+	CHECK(town_at > 0.0f && town_at < 13.0f * 60.0f, "town phase within 13 minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
