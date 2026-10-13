@@ -1032,6 +1032,11 @@ void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	if (resources_.max_amount[it->second] > 0) resources_.max_amount[it->second] = amount;
 }
 
+void Simulation::set_resource_max_gatherers(uint32_t res_id, int max_gatherers) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it != res_id_to_idx_.end()) resources_.max_gatherers[it->second] = (uint8_t)std::clamp(max_gatherers, 1, 255);
+}
+
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress, float rot) {
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
