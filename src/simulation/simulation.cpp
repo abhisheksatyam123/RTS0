@@ -14081,6 +14081,20 @@ void Simulation::petra_resource_demand(float out[RES_COUNT]) const {
 	out[RES_STONE] = demand_stone;
 }
 
+// ResourceGatherer/Rates of unit i for a supply kind (entity.js currentGatherRate), with its
+// technologies and the AI difficulty's gather rate.
+float Simulation::petra_gather_rate(size_t i, uint8_t kind) const {
+	const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+	return gather_class_rate(gcls, kind) * unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]).gather[kind] *
+		ai_gather_mult(units_.team[i]);
+}
+
+uint8_t Simulation::petra_gather_kind(size_t r) const {
+	const uint8_t rt = resources_.type[r], sub = resources_.subtype[r];
+	return rt == RES_WOOD ? GK_WOOD : rt == RES_STONE ? GK_STONE : rt == RES_GOLD ? GK_METAL
+		: sub == RES_SUB_FISH ? GK_FISH : sub == RES_SUB_GRAIN ? GK_GRAIN : sub == RES_SUB_MEAT ? GK_MEAT : GK_FRUIT;
+}
+
 void Simulation::petra_manage_economy(float dt) {
 	petra_econ_timer_ += dt;
 	if (petra_econ_timer_ < 1.0f) return;
@@ -14095,12 +14109,13 @@ void Simulation::petra_manage_economy(float dt) {
 	// headquarters.js update: trainMoreWorkers (every 4th AI turn there, every second here).
 	const int worker_shortfall = petra_train_more_workers();
 
-	// 2. Count workers currently on each resource
-	// Gatherers per resource weighted by their rate (pickMostNeededResources compares
-	// gather rates): a citizen soldier farms at half a woman's rate, so it counts as half.
-	float workers_food = 0, workers_wood = 0, workers_gold = 0, workers_stone = 0;
-	auto food_weight = [&](size_t i) {
-		return unit_gather_class(units_.unit_type[i], units_.tmpl[i]) == GATHER_INFANTRY ? 0.5f : 1.0f;
+	// 2. headquarters.js GetCurrentGatherRates (basesManager.addGatherRates): every gatherer
+	// that is not idle adds log(1 + rate) / 1.1 to its resource, the rate being its
+	// ResourceGatherer rate for the supply it is after; hunters and fishing boats count for food.
+	float cur_rate[RES_COUNT] = {};
+	auto add_rate = [&](size_t i, uint8_t kind, uint8_t res) {
+		const float r = petra_gather_rate(i, kind);
+		if (r > 0.0f) cur_rate[res] += std::log(1.0f + r) / 1.1f;
 	};
 	std::vector<size_t> reassignable_workers;
 
@@ -14115,6 +14130,16 @@ void Simulation::petra_manage_economy(float dt) {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls == GATHER_CAVALRY || gcls == GATHER_FISHING) {
+			if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
+				add_rate(i, GK_MEAT, RES_FOOD);
+			} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit != res_id_to_idx_.end() && resources_.type[rit->second] == RES_FOOD)
+					add_rate(i, petra_gather_kind(rit->second), RES_FOOD);
+			}
+			continue;
+		}
 		if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 		if (units_.action_state[i] == ACTION_IDLE) {
 			// Standing at a treasure is collecting it (UnitAI COLLECTTREASURE), not idling;
@@ -14144,16 +14169,16 @@ void Simulation::petra_manage_economy(float dt) {
 			}
 			reassignable_workers.push_back(i);
 		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
-			workers_food++; // hunting: the carcass is gathered next
+			add_rate(i, GK_MEAT, RES_FOOD); // hunting: the carcass is gathered next
 		} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
-			if (units_.target_resource_id[i] != 0) {
-				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				if (rit != res_id_to_idx_.end()) {
-					uint8_t rtype = resources_.type[rit->second];
-					if (rtype == RES_FOOD) workers_food += food_weight(i);
-					else if (rtype == RES_WOOD) workers_wood++;
-					else if (rtype == RES_GOLD) workers_gold++;
-					else if (rtype == RES_STONE) workers_stone++;
+			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+			if (rit != res_id_to_idx_.end()) {
+				const size_t r = rit->second;
+				if (resources_.subtype[r] == RES_SUB_RUINS) {
+					const float rr = gather_class_ruins_rate(gcls, resources_.type[r]) * ai_gather_mult(petra_pid_);
+					if (rr > 0.0f) cur_rate[resources_.type[r]] += std::log(1.0f + rr) / 1.1f;
+				} else {
+					add_rate(i, petra_gather_kind(r), resources_.type[r]);
 				}
 			}
 		}
@@ -14178,55 +14203,112 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
-	// Compute Resource Deficits & Proportions:
-	float need_food  = std::max(40.0f, demand_food - petra_ps().food());
-	float need_wood  = std::max(40.0f, demand_wood - petra_ps().wood());
-	float need_gold  = std::max(30.0f, demand_gold - petra_ps().gold());
-	float need_stone = (petra_ps().phase >= 2) ? std::max(40.0f, demand_stone - petra_ps().stone()) : 20.0f;
+	// queueManager.js wantedGatherRates: what the queues' next plans cost (with config.js
+	// queues.short) less what we have, wanted within 30 s.
+	float want_rate[RES_COUNT];
+	want_rate[RES_FOOD] = std::max(0.0f, demand_food - petra_ps().food()) / 30.0f;
+	want_rate[RES_WOOD] = std::max(0.0f, demand_wood - petra_ps().wood()) / 30.0f;
+	want_rate[RES_STONE] = std::max(0.0f, demand_stone - petra_ps().stone()) / 30.0f;
+	want_rate[RES_GOLD] = std::max(0.0f, demand_gold - petra_ps().gold()) / 30.0f;
 
-	float total_need = need_food + need_wood + need_gold + need_stone;
-	float pct_food  = need_food / total_need;
-	float pct_wood  = need_wood / total_need;
-	float pct_gold  = need_gold / total_need;
-	float pct_stone = need_stone / total_need;
-
-	const float total_workers = std::max(1.0f, workers_food + workers_wood + workers_gold + workers_stone + (float)reassignable_workers.size());
-	const float target_food  = std::max(1.0f, std::round(pct_food * total_workers));
-	const float target_wood  = std::max(1.0f, std::round(pct_wood * total_workers));
-	const float target_gold  = std::max(1.0f, std::round(pct_gold * total_workers));
-	const float target_stone = std::max(0.0f, std::round(pct_stone * total_workers));
-
-	// baseManager.js setWorkersIdleByPriority (every 8 s, one switch at a time): a gatherer moves
-	// from the resource least in need to the one most in need when the gap is wide enough;
-	// citizen soldiers leave food first and support workers (Civilian) go to food first.
-	if ((ticks_ / (uint64_t)std::lround(1.0f / FIXED_STEP)) % 8 == 0) {
-		const float cur[RES_COUNT] = {workers_wood, workers_gold, workers_stone, workers_food};
-		const float want[RES_COUNT] = {target_wood, target_gold, target_stone, target_food};
-		int more = -1, less = -1;
-		for (int r = 0; r < RES_COUNT; ++r) {
-			if (more < 0 || want[r] - cur[r] > want[more] - cur[more]) more = r;
-			if (cur[r] > 0 && (less < 0 || cur[r] - want[r] > cur[less] - want[less])) less = r;
+	// basesManager.isResourceExhausted: no supply of it within maxDistResourceSquare (360 m)
+	// of one of our dropsites for it.
+	bool exhausted[RES_COUNT] = {};
+	{
+		std::vector<std::pair<float, float>> drops[RES_COUNT];
+		for (const auto &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD})
+				if (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE) drops[r].push_back({b.x, b.z});
 		}
-		if (more >= 0 && less >= 0 && more != less && (want[more] - cur[more]) - (want[less] - cur[less]) > 3) {
+		for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD}) {
+			bool any = false;
+			for (size_t k = 0; k < resources_.count && !any; ++k) {
+				if (!resources_.alive[k] || resources_.type[k] != r || resources_.amount[k] <= 0) continue;
+				for (const auto &d : drops[r]) {
+					const float dx = resources_.x[k] - d.first, dz = resources_.z[k] - d.second;
+					if (dx * dx + dz * dz < 90.0f * 90.0f) { any = true; break; }
+				}
+			}
+			exhausted[r] = !any;
+		}
+	}
+
+	// headquarters.js pickMostNeededResources: short of what we want first, the furthest short
+	// (wanted over current) first; then by how far over it we are.
+	auto most_needed = [&](uint8_t out[RES_COUNT]) {
+		const uint8_t codes[RES_COUNT] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+		auto cmp = [&](uint8_t a, uint8_t b) -> float {
+			const float aw = want_rate[a], ac = cur_rate[a], bw = want_rate[b], bc = cur_rate[b];
+			if (ac < aw && bc < bw) {
+				if (ac > 0.0f && bc > 0.0f) return bw / bc - aw / ac;
+				if (ac > 0.0f) return 1.0f;
+				if (bc > 0.0f) return -1.0f;
+				return bw - aw;
+			}
+			if (ac < aw || (aw > 0.0f && bw <= 0.0f)) return -1.0f;
+			if (bc < bw || (bw > 0.0f && aw <= 0.0f)) return 1.0f;
+			return ac - aw - bc + bw;
+		};
+		for (int r = 0; r < RES_COUNT; ++r) out[r] = codes[r];
+		for (int x = 1; x < RES_COUNT; ++x)
+			for (int y = x; y > 0 && cmp(out[y - 1], out[y]) > 0.0f; --y) std::swap(out[y - 1], out[y]);
+	};
+
+	// baseManager.js setWorkersIdleByPriority (every 8 s, one switch at most): a gatherer moves
+	// from a less needed resource to a more needed one when, with the wanted rates scaled to the
+	// current total, the gap passes 1.5, or the less needed one is exhausted. switchGatherer
+	// takes a citizen soldier off food and a woman onto it when there is one.
+	std::vector<uint8_t> gather_type(reassignable_workers.size(), (uint8_t)RES_COUNT); // RES_COUNT: none yet
+	if ((ticks_ / (uint64_t)std::lround(1.0f / FIXED_STEP)) % 8 == 0) {
+		uint8_t order[RES_COUNT];
+		most_needed(order);
+		float sum_want = 0.0f, sum_cur = 0.0f;
+		for (int r = 0; r < RES_COUNT; ++r) { sum_want += want_rate[r]; sum_cur += cur_rate[r]; }
+		const float scale = sum_want > 0.0f ? sum_cur / sum_want : 1.0f;
+		auto switch_gatherer = [&](uint8_t from, uint8_t to) -> bool {
 			size_t pick = SIZE_MAX;
+			bool only_soldier = false, only_woman = false;
 			for (size_t i = 0; i < units_.count; ++i) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
-				const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
-				if (gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
 				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
-				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != less) continue;
-				const bool preferred = (less == RES_FOOD && gcls == GATHER_INFANTRY) || (more == RES_FOOD && gcls == GATHER_SUPPORT);
-				if (pick == SIZE_MAX || preferred) pick = i;
-				if (preferred) break;
+				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != from) continue;
+				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+				if (from == RES_FOOD && g == GATHER_INFANTRY) only_soldier = true;
+				else if (to == RES_FOOD && g == GATHER_SUPPORT) only_woman = true;
 			}
-			if (pick != SIZE_MAX) {
-				uint32_t uid = units_.id[pick];
-				cmd_stop(&uid, 1);
-				reassignable_workers.push_back(pick);
-				if (less == RES_FOOD) workers_food -= food_weight(pick);
-				else if (less == RES_WOOD) workers_wood--;
-				else if (less == RES_GOLD) workers_gold--;
-				else workers_stone--;
+			for (size_t i = 0; i < units_.count && pick == SIZE_MAX; ++i) {
+				if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_GATHER) continue;
+				const uint8_t g = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+				if (g != GATHER_INFANTRY && g != GATHER_SUPPORT) continue;
+				auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+				if (rit == res_id_to_idx_.end() || resources_.type[rit->second] != from) continue;
+				if (only_soldier && g != GATHER_INFANTRY) continue;
+				if (only_woman && g != GATHER_SUPPORT) continue;
+				if (petra_gather_rate(i, to == RES_FOOD ? GK_FRUIT : to == RES_WOOD ? GK_WOOD : to == RES_STONE ? GK_STONE : GK_METAL) <= 0.0f &&
+				    !(to == RES_FOOD && petra_gather_rate(i, GK_GRAIN) > 0.0f)) continue; // canGather
+				pick = i;
+			}
+			if (pick == SIZE_MAX) return false;
+			uint32_t uid = units_.id[pick];
+			cmd_stop(&uid, 1);
+			reassignable_workers.push_back(pick);
+			gather_type.push_back(to);
+			cur_rate[to] += 0.5f; // AddTCResGatherer
+			return true;
+		};
+		bool done = false;
+		for (int a = RES_COUNT - 1; a > 0 && !done; --a) {
+			const uint8_t less = order[a];
+			for (int b = 0; b < a && !done; ++b) {
+				const uint8_t more = order[b];
+				if (more != RES_FOOD && exhausted[more]) {
+					if (less != RES_FOOD && exhausted[less]) continue;
+					if (switch_gatherer(more, less)) { done = true; break; }
+				}
+				if (scale * want_rate[more] - cur_rate[more] - scale * want_rate[less] + cur_rate[less] > 1.5f ||
+				    (less != RES_FOOD && exhausted[less]))
+					if (switch_gatherer(less, more)) done = true;
 			}
 		}
 	}
@@ -14305,34 +14387,24 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	// Assign reassignable workers to nearest safe dropsite and resource
-	for (size_t widx : reassignable_workers) {
-		uint8_t chosen_res_type = RES_FOOD;
-		float max_deficit = target_food - workers_food;
-
-		if (target_wood - workers_wood > max_deficit) {
-			max_deficit = target_wood - workers_wood;
-			chosen_res_type = RES_WOOD;
+	for (size_t w = 0; w < reassignable_workers.size(); ++w) {
+		const size_t widx = reassignable_workers[w];
+		// baseManager.js reassignIdleWorkers: the most needed resource that is not (food aside)
+		// exhausted; a switched gatherer keeps the type it was switched to.
+		uint8_t needed[RES_COUNT];
+		most_needed(needed);
+		uint8_t chosen_res_type = gather_type[w];
+		if (chosen_res_type == RES_COUNT) {
+			chosen_res_type = needed[0];
+			for (uint8_t r : needed)
+				if (r == RES_FOOD || !exhausted[r]) { chosen_res_type = r; break; }
 		}
-		if (target_gold - workers_gold > max_deficit) {
-			max_deficit = target_gold - workers_gold;
-			chosen_res_type = RES_GOLD;
-		}
-		if (target_stone - workers_stone > max_deficit) {
-			max_deficit = target_stone - workers_stone;
-			chosen_res_type = RES_STONE;
-		}
-
-		// baseManager.js prefers female citizens for food (setWorkersIdleByPriority): a support
-		// worker gathers food while it is short.
-		if (chosen_res_type != RES_FOOD && target_food > workers_food &&
-		    unit_gather_class(units_.unit_type[widx], units_.tmpl[widx]) == GATHER_SUPPORT)
-			chosen_res_type = RES_FOOD;
 
 		// worker.js startGathering: any gatherer takes a treasure nearby first, and a food
 		// gatherer hunts next (livestock and carcasses near a dropsite).
 		if (petra_gather_treasure(widx, hunt_scan)) continue;
 		if (chosen_res_type == RES_FOOD && petra_start_hunting(widx, hunt_scan)) {
-			workers_food += 1.0f; // hunting: meat at the same rate for all
+			cur_rate[RES_FOOD] += 0.5f; // AddTCResGatherer
 			continue;
 		}
 
@@ -14340,22 +14412,12 @@ void Simulation::petra_manage_economy(float dt) {
 		float wz = units_.pos_z[widx];
 		const uint16_t wland = naval_map ? petra_land_at(wx, wz) : 0;
 
-		// Fall back to the other resource types, neediest first, when the
-		// chosen one has nothing safe left (a depleted map left workers idle).
-		uint8_t order[4] = {chosen_res_type, RES_WOOD, RES_FOOD, RES_GOLD};
-		float deficits[RES_COUNT] = {};
-		deficits[RES_FOOD] = target_food - workers_food;
-		deficits[RES_WOOD] = target_wood - workers_wood;
-		deficits[RES_GOLD] = target_gold - workers_gold;
-		deficits[RES_STONE] = target_stone - workers_stone;
-		{
-			int n = 0;
-			uint8_t rest[3];
-			for (uint8_t rt : {RES_FOOD, RES_WOOD, RES_GOLD, RES_STONE})
-				if (rt != chosen_res_type) rest[n++] = rt;
-			std::stable_sort(rest, rest + 3, [&](uint8_t a, uint8_t b) { return deficits[a] > deficits[b]; });
-			order[1] = rest[0]; order[2] = rest[1]; order[3] = rest[2];
-		}
+		// Fall back to the other resource types, most needed first, when the chosen one has
+		// nothing safe left (worker.js: the worker fails and the next pass picks another).
+		uint8_t order[RES_COUNT];
+		order[0] = chosen_res_type;
+		for (int r = 0, n = 1; r < RES_COUNT; ++r)
+			if (needed[r] != chosen_res_type) order[n++] = needed[r];
 
 		uint32_t best_rid = 0;
 		Candidate *best_c = nullptr;
@@ -14397,17 +14459,14 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 		if (best_c) best_c->slots--;
 		if (best_rid == 0 && got_type == RES_FOOD && units_.action_state[widx] == ACTION_BUILD) {
-			workers_food += food_weight(widx);
+			cur_rate[RES_FOOD] += 0.5f; // AddTCResGatherer
 			continue;
 		}
 
 		if (best_rid != 0) {
 			uint32_t uid = units_.id[widx];
 			order_gather(&uid, 1, best_rid);
-			if (got_type == RES_FOOD) workers_food += food_weight(widx);
-			else if (got_type == RES_WOOD) workers_wood++;
-			else if (got_type == RES_GOLD) workers_gold++;
-			else if (got_type == RES_STONE) workers_stone++;
+			cur_rate[got_type] += 0.5f; // AddTCResGatherer
 		}
 	}
 
