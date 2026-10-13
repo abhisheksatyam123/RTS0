@@ -1515,13 +1515,21 @@ void Simulation::ensure_territory_regions() {
 	territory_region_.resize(W, Hh, 0);
 	territory_region_.fill(0);
 	if (W <= 0 || Hh <= 0) return;
-	// Label 4-connected patches of one owner (region ids from 1; 0 = no territory).
+	// Label 8-connected patches of one owner (CCmpTerritoryManager FLOODFILL; region ids from
+	// 1, 0 = no territory), keeping each region's bordering tiles once each (GetNeighbours).
+	static constexpr int NX[8] = {1, -1, 0, 0, 1, -1, 1, -1};
+	static constexpr int NZ[8] = {0, 0, 1, -1, 1, -1, -1, 1};
 	std::vector<int> stack;
+	std::vector<std::vector<int>> border;
+	Grid<uint16_t> seen; // the region that last listed a tile as its border
+	seen.resize(W, Hh, 0);
+	seen.fill(0);
 	for (int y = 0; y < Hh; ++y) {
 		for (int x = 0; x < W; ++x) {
 			const uint8_t v = territory_grid_.at(x, y);
 			if (v == 0 || territory_region_.at(x, y) != 0) continue;
-			territory_regions_.push_back(TerritoryRegion{(uint8_t)(v - 1), false, {}});
+			territory_regions_.push_back(TerritoryRegion{(uint8_t)(v - 1), false, {}, 0});
+			border.emplace_back();
 			const uint16_t id = (uint16_t)territory_regions_.size();
 			territory_region_.at(x, y) = id;
 			stack.assign(1, y * W + x);
@@ -1529,13 +1537,16 @@ void Simulation::ensure_territory_regions() {
 				const int c = stack.back();
 				stack.pop_back();
 				const int cx = c % W, cy = c / W;
-				const int nx[4] = {cx - 1, cx + 1, cx, cx};
-				const int ny[4] = {cy, cy, cy - 1, cy + 1};
-				for (int k = 0; k < 4; ++k) {
-					if (nx[k] < 0 || ny[k] < 0 || nx[k] >= W || ny[k] >= Hh) continue;
-					if (territory_grid_.at(nx[k], ny[k]) != v || territory_region_.at(nx[k], ny[k]) != 0) continue;
-					territory_region_.at(nx[k], ny[k]) = id;
-					stack.push_back(ny[k] * W + nx[k]);
+				for (int k = 0; k < 8; ++k) {
+					const int nx = cx + NX[k], ny = cy + NZ[k];
+					if (nx < 0 || ny < 0 || nx >= W || ny >= Hh) continue;
+					if (territory_grid_.at(nx, ny) != v) {
+						if (seen.at(nx, ny) != id) { seen.at(nx, ny) = id; border.back().push_back(ny * W + nx); }
+						continue;
+					}
+					if (territory_region_.at(nx, ny) != 0) continue;
+					territory_region_.at(nx, ny) = id;
+					stack.push_back(ny * W + nx);
 				}
 			}
 		}
@@ -1549,23 +1560,29 @@ void Simulation::ensure_territory_regions() {
 		const uint16_t id = territory_region_.at(tx, tz);
 		if (id && territory_regions_[id - 1].owner == b.team) territory_regions_[id - 1].connected = true;
 	}
-	// Bordering tiles of connected foreign regions, for each unconnected region.
-	for (int y = 0; y < Hh; ++y) {
-		for (int x = 0; x < W; ++x) {
-			const uint16_t id = territory_region_.at(x, y);
-			if (!id || territory_regions_[id - 1].connected) continue;
-			TerritoryRegion &r = territory_regions_[id - 1];
-			const int nx[4] = {x - 1, x + 1, x, x};
-			const int ny[4] = {y, y, y - 1, y + 1};
-			for (int k = 0; k < 4; ++k) {
-				if (nx[k] < 0 || ny[k] < 0 || nx[k] >= W || ny[k] >= Hh) continue;
-				const uint16_t n = territory_region_.at(nx[k], ny[k]);
-				if (!n || n == id || !territory_regions_[n - 1].connected) continue;
-				const uint8_t o = territory_regions_[n - 1].owner;
-				if (o != r.owner && o < MAX_PLAYERS) r.neighbours[o]++;
-			}
+	// GetNeighbours(filterConnected) of each unconnected region: its bordering neutral tiles
+	// (Gaia's) and those of connected regions, one count per tile.
+	for (size_t r = 0; r < territory_regions_.size(); ++r) {
+		TerritoryRegion &reg = territory_regions_[r];
+		if (reg.connected) continue;
+		for (int c : border[r]) {
+			const uint16_t n = territory_region_.at(c % W, c / W);
+			if (!n) { ++reg.neutral; continue; }
+			const TerritoryRegion &o = territory_regions_[n - 1];
+			if (o.connected && o.owner < MAX_PLAYERS) reg.neighbours[o.owner]++;
 		}
 	}
+}
+
+bool Simulation::territory_connected_at(float x, float z) const {
+	if (territory_grid_.blank()) return true;
+	const_cast<Simulation *>(this)->ensure_territory_regions();
+	const int W = territory_grid_.w, Hh = territory_grid_.h;
+	if (W <= 0 || Hh <= 0) return true;
+	const int tx = std::clamp((int)((x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
+	const int tz = std::clamp((int)((z + map_half_) / (map_half_ * 2.0f) * (float)Hh), 0, Hh - 1);
+	const uint16_t id = territory_region_.at(tx, tz);
+	return !id || territory_regions_[id - 1].connected;
 }
 
 bool Simulation::territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia) {
@@ -1602,20 +1619,18 @@ bool Simulation::territory_decay_targets(float x, float z, uint8_t team, bool ne
 		return true;
 	}
 	if (r.connected) return false;
-	if (gaia || r.owner != b.team) { // unconnected foreign territory: towards Gaia
-		if (gaia) return false;
-		to_gaia = 1.0f;
-		return true;
-	}
-	// Own unconnected territory: safe next to a connected ally, else towards the neighbours.
-	uint32_t total = 0;
+	// Unconnected territory, anyone's: safe next to a connected mutual ally (or the owner's own
+	// connected land), else towards the region's neighbours by bordering tiles, the neutral ones
+	// Gaia's (Capturable.js TimerTick), all to Gaia when it borders nobody.
+	uint32_t total = r.neutral;
 	for (int p = 0; p < MAX_PLAYERS; ++p) {
 		if (!r.neighbours[p]) continue;
-		if (is_ally(b.team, (uint8_t)p)) return false;
+		if (!gaia && is_ally(b.team, (uint8_t)p)) return false;
 		total += r.neighbours[p];
 	}
 	if (!total) { to_gaia = 1.0f; return true; }
 	for (int p = 0; p < MAX_PLAYERS; ++p) to[p] = (float)r.neighbours[p] / (float)total;
+	to_gaia = (float)r.neutral / (float)total;
 	return true;
 }
 
@@ -1987,9 +2002,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		return PLACE_SHORE;
 	}
 
-	// 3. Territory at the centre. Every RTS0 territory cell comes from a root
-	// building, so none is unconnected. Before the first territory pass sizes the
-	// grid (a scenario still being set up) there is nothing to check against.
+	// 3. Territory at the centre: own and allied land cut off from every root ("unconnected",
+	// IsTerritoryBlinking) takes only what may also go on neutral land. Before the first
+	// territory pass sizes the grid (a scenario still being set up) there is nothing to check.
 	if (!territory_grid_.blank()) {
 		const int owner = territory_owner_at(cxw, czw);
 		uint8_t kind;
@@ -1998,6 +2013,8 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		else if (is_ally(player, (uint8_t)owner) && is_ally((uint8_t)owner, player)) kind = TERR_ALLY;
 		else kind = TERR_ENEMY;
 		if (!(rule.territory & kind)) return PLACE_TERRITORY;
+		if ((kind == TERR_OWN || kind == TERR_ALLY) && !(rule.territory & TERR_NEUTRAL) && !territory_connected_at(cxw, czw))
+			return PLACE_TERRITORY;
 	}
 
 	// 4. Distance from the player's own structures (foundations included) of the
@@ -11837,6 +11854,7 @@ void Simulation::check_victory_conditions(float dt) {
 	constexpr int MAX_TEAMS = MAX_PLAYERS;
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
+	int critical_count[MAX_TEAMS] = {}; // ConquestCritical+!Foundation (Conquest.js)
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	bool wonder[MAX_TEAMS] = {};
@@ -11845,6 +11863,7 @@ void Simulation::check_victory_conditions(float dt) {
 		// queue them).
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
 		structure_count[b.team]++;
+		if (is_conquest_critical(b.type) && b.build_progress >= 1.0f) critical_count[b.team]++;
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
 		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && b.build_progress >= 1.0f) built_cc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
@@ -11852,8 +11871,8 @@ void Simulation::check_victory_conditions(float dt) {
 	for (size_t u = 0; u < units_.count; ++u) {
 		uint8_t t = units_.team[u];
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
-		if (units_.unit_type[u] == UNIT_CATAFALQUE) continue; // not ConquestCritical
-		unit_count[t]++;
+		unit_count[t]++; // ConquestUnits.js "Unit+!Animal": every unit, catafalques and traders too
+		if (is_conquest_critical_unit(units_.unit_type[u])) critical_count[t]++;
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
@@ -11910,17 +11929,21 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 
 	// Each active condition defeats on its own (every Conquest*.js query and Regicide.js
-	// call SetState("defeated") independently). Each partial conquest's second query
-	// ("ConquestCritical ...") is Conquest itself.
+	// call SetState("defeated") independently). A partial conquest's second query
+	// ("ConquestCritical Unit+!Animal" and the like: critical OR its own class) can only
+	// empty after its first, so the first decides.
 	const uint8_t vk = victory_conditions();
-	constexpr uint8_t kAnyConquest = VK_CONQUEST | VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES | VK_CONQUEST_CIVIC_CENTRES;
 	auto defeated = [&](int t) {
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
 		// A query whose list starts empty never fires, so a nomad who has not built a civic
 		// centre yet is not out until one is lost.
 		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
-		return ((vk & kAnyConquest) && no_units && no_structures) ||
+		// Conquest.js's list starts with what the player holds at the start and only fires on a
+		// loss, so a player that never lost anything (a test's lone market) stays in until it
+		// holds nothing at all.
+		const bool lost_any = stats_[t].units_lost[STAT_UNIT_TOTAL] + stats_[t].buildings_lost[STAT_BLD_TOTAL] > 0;
+		return ((vk & VK_CONQUEST) && ((critical_count[t] == 0 && lost_any) || (no_units && no_structures))) ||
 		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
 		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
 		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
@@ -16357,10 +16380,12 @@ void Simulation::petra_build_first_base() {
 			return; // hasPotentialBase
 	PetraHuntScan scan = petra_hunt_scan();
 	uint8_t goal = BLD_TOWN_CENTER;
-	const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
-	auto affords = [&](const BuildingTypeInfo &t, float f, float w, float g, float st) {
-		return f >= (float)t.food_cost && w >= (float)t.wood_cost && g >= (float)t.gold_cost && st >= (float)t.stone_cost;
+	auto affords = [&](uint8_t t, float f, float w, float g, float st) {
+		float cf, cw, cg, cs;
+		petra_structure_cost(t, cf, cw, cg, cs);
+		return f >= cf && w >= cw && g >= cg && st >= cs;
 	};
+	const uint8_t cc = BLD_TOWN_CENTER;
 	if (!affords(cc, petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone())) {
 		float ef = petra_ps().food(), ew = petra_ps().wood(), eg = petra_ps().gold(), es = petra_ps().stone();
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -16376,7 +16401,7 @@ void Simulation::petra_build_first_base() {
 		}
 		for (const auto &b : buildings_)
 			if (b.team == petra_pid_ && b.hp > 0.0f && b.type == BLD_DOCK) return;
-		if (!affords(building_type_info(BLD_DOCK), petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()))
+		if (!affords(BLD_DOCK, petra_ps().food(), petra_ps().wood(), petra_ps().gold(), petra_ps().stone()))
 			return;
 		goal = BLD_DOCK;
 	}
@@ -16417,8 +16442,9 @@ void Simulation::petra_build_first_base() {
 			for (int dz = -r; dz <= r; ++dz) {
 				if (std::abs(dx) != r && std::abs(dz) != r) continue;
 				if (!petra_can_place(sx + dx, sz + dz, info.footprint, goal)) continue;
-				petra_ps().food() -= (float)info.food_cost; petra_ps().wood() -= (float)info.wood_cost;
-				petra_ps().gold() -= (float)info.gold_cost; petra_ps().stone() -= (float)info.stone_cost;
+				float cf, cw, cg, cs;
+				petra_structure_cost(goal, cf, cw, cg, cs);
+				petra_ps().food() -= cf; petra_ps().wood() -= cw; petra_ps().gold() -= cg; petra_ps().stone() -= cs;
 				const uint32_t bid = spawn_building(sx + dx, sz + dz, goal, petra_pid_, 0.0f);
 				if (bid != 0 && !workers.empty()) petra_order_builders(workers, workers.size(), bid);
 				return;
@@ -17763,7 +17789,8 @@ void Simulation::petra_manage_naval(float dt) {
 				const PetraQueueAccount &want = petra_queues_.wants[PETRA_Q_DOCK];
 				const bool waiting = want.food + want.wood + want.gold + want.stone > 0.0f;
 				if (!waiting && (int)(petra_timer_ / 10.0f) == (int)((petra_timer_ - naval_span) / 10.0f)) break;
-				const float cost[4] = {(float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost};
+				float cost[4];
+				petra_structure_cost(BLD_DOCK, cost[0], cost[1], cost[2], cost[3]);
 				const PetraQueueAccount &acc = petra_queues_.accounts[PETRA_Q_DOCK];
 				if (waiting && (acc.food < cost[0] || acc.wood < cost[1] || acc.gold < cost[2] || acc.stone < cost[3] ||
 				                petra_ps().food() < cost[0] || petra_ps().wood() < cost[1] ||
@@ -17815,8 +17842,7 @@ void Simulation::petra_manage_naval(float dt) {
 							probe.z = (cz + info.footprint * 0.5f) * GRID;
 							if (dock_sea(probe) != first_sea || petra_building_land(probe, &topo, land) != land) continue;
 							placed = true;
-							if (!petra_try_pay(PETRA_Q_MILITARY_BUILDING, (float)info.food_cost, (float)info.wood_cost,
-							                   (float)info.gold_cost, (float)info.stone_cost)) break;
+							if (!petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_SUPER_DOCK)) break;
 							const uint32_t bid = spawn_building(cx, cz, BLD_SUPER_DOCK, petra_pid_, 0.0f);
 							auto idle = get_idle_workers(petra_pid_);
 							if (bid && !idle.empty()) petra_order_builders(idle, 4, bid);
@@ -18398,8 +18424,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 		if (no_site) *no_site = true;
 		return 0;
 	}
-	if (!petra_try_pay(PETRA_Q_DROPSITES, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
-		return 0;
+	if (!petra_try_pay_structure(PETRA_Q_DROPSITES, BLD_STOREHOUSE)) return 0;
 	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(BLD_STOREHOUSE);
 	const uint32_t bid = spawn_building(best_cx, best_cz, BLD_STOREHOUSE, petra_pid_, 0.0f);
 	if (bid) {
@@ -18496,9 +18521,7 @@ bool Simulation::petra_build_new_base(int res) {
 	const BuildingTypeInfo &info = building_type_info(btype);
 	const int foot = info.footprint;
 	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
-	if (!petra_try_pay(PETRA_Q_CIVIL_CENTRE, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost,
-	                   (float)info.stone_cost))
-		return false;
+	if (!petra_try_pay_structure(PETRA_Q_CIVIL_CENTRE, btype)) return false;
 	const uint32_t bid = spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 	// Overseas, petra_staff_foundations ships the builders across.
 	uint16_t home_land = 0;
@@ -18815,19 +18838,19 @@ void Simulation::petra_build_defenses() {
 		const uint8_t btype = (uint8_t)(d.pending - 1);
 		const BuildingTypeInfo &info = building_type_info(btype);
 		const PetraQueueAccount &a = petra_queues_.accounts[PETRA_Q_DEFENSE_BUILDING];
-		const bool affordable = a.food >= info.food_cost && a.wood >= info.wood_cost && a.gold >= info.gold_cost &&
-		                        a.stone >= info.stone_cost && petra_ps().food() >= info.food_cost &&
-		                        petra_ps().wood() >= info.wood_cost && petra_ps().gold() >= info.gold_cost &&
-		                        petra_ps().stone() >= info.stone_cost;
+		float cf, cw, cg, cs;
+		petra_structure_cost(btype, cf, cw, cg, cs);
+		const bool affordable = a.food >= cf && a.wood >= cw && a.gold >= cg && a.stone >= cs && petra_ps().food() >= cf &&
+		                        petra_ps().wood() >= cw && petra_ps().gold() >= cg && petra_ps().stone() >= cs;
 		if (!affordable) { // registers the want, so the queue gets funded
-			petra_try_pay(PETRA_Q_DEFENSE_BUILDING, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost);
+			petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs);
 			return;
 		}
 		d.pending = 0;
 		int cx = 0, cz = 0;
 		uint32_t bid = 0;
 		if (petra_find_defensive_location(btype, cx, cz)) {
-			if (petra_try_pay(PETRA_Q_DEFENSE_BUILDING, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
+			if (petra_try_pay(PETRA_Q_DEFENSE_BUILDING, cf, cw, cg, cs))
 				bid = spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 		} else if (btype == BLD_FORTRESS) {
 			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
@@ -21080,6 +21103,18 @@ void Simulation::petra_fund_queue(uint8_t q, const float cost[RES_COUNT]) {
 	}
 }
 
+void Simulation::petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const {
+	float c[RES_COUNT];
+	structure_cost(petra_pid_, btype, -1.0f, c);
+	food = c[RES_FOOD]; wood = c[RES_WOOD]; gold = c[RES_GOLD]; stone = c[RES_STONE];
+}
+
+bool Simulation::petra_try_pay_structure(uint8_t queue, uint8_t btype) {
+	float f, w, g, st;
+	petra_structure_cost(btype, f, w, g, st);
+	return petra_try_pay(queue, f, w, g, st);
+}
+
 bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone) {
 	if (queue >= PETRA_Q_COUNT) return false;
 	if (food < 0.0f || wood < 0.0f || gold < 0.0f || stone < 0.0f) return false;
@@ -21680,8 +21715,7 @@ uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const flo
 		return 0;
 	}
 	const BuildingTypeInfo &info = building_type_info(btype);
-	if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
-		return 0;
+	if (!petra_try_pay_structure(queue, btype)) return 0;
 	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
 	return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 }
@@ -21718,8 +21752,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				int cx = start_cx + dx;
 				int cz = start_cz + dz;
 				if (!petra_can_place(cx, cz, foot, btype)) continue;
-				if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost,
-				                   (float)info.gold_cost, (float)info.stone_cost)) {
+				if (!petra_try_pay_structure(queue, btype)) {
 					return 0;
 				}
 				if (remember) petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);

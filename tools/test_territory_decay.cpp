@@ -11,7 +11,9 @@
 //   g++ -std=c++20 -O2 -Isrc tools/test_territory_decay.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_territory_decay && /tmp/test_territory_decay
+#define private public
 #include "simulation/simulation.h"
+#undef private
 #include "network/turn_manager.h"
 #include <cmath>
 #include <cstdio>
@@ -96,14 +98,21 @@ int main() {
 		CHECK(owner_of(s, tw) == GAIA_PLAYER);
 	}
 
-	// 5. Cut off but bordering an enemy's connected territory: to that enemy;
+	// 5. Cut off but bordering an enemy's connected territory: to that enemy and, for the
+	// bordering neutral tiles, to Gaia, by tile count (GetNeighbours, Capturable.js TimerTick);
 	// bordering an ally's: safe.
 	{
 		fresh(s);
 		uint32_t tw = s.spawn_building_world(40.0f, -4.0f, BLD_TOWER, 0, 1.0f);
+		run(s, 1.0f);
+		std::array<float, MAX_PLAYERS> to;
+		float to_gaia = 0.0f;
+		CHECK(s.territory_decay_targets(*find_bld(s, tw), to, to_gaia));
+		std::printf("cut-off tower next to player 1: %.2f to player 1, %.2f to Gaia\n", to[1], to_gaia);
+		CHECK(to[1] > 0.0f && to_gaia > 0.0f && std::fabs(to[1] + to_gaia - 1.0f) < 1e-4f);
 		run(s, decay_time(find_bld(s, tw)));
-		std::printf("cut-off tower next to player 1: owner %d\n", owner_of(s, tw));
-		CHECK(owner_of(s, tw) == 1);
+		std::printf("  then owner %d\n", owner_of(s, tw));
+		CHECK(owner_of(s, tw) == (to[1] > to_gaia ? 1 : GAIA_PLAYER));
 		fresh(s, true);
 		tw = s.spawn_building_world(40.0f, -4.0f, BLD_TOWER, 0, 1.0f);
 		run(s, 40.0f);
