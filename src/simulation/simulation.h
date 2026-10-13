@@ -448,8 +448,11 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
 	}
-	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f);
-	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f);
+	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
+	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
+			float rot = DEFAULT_BUILDING_ROT);
+	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
+			float rot = DEFAULT_BUILDING_ROT);
 	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
 	uint32_t spawn_relic(float x, float z, int civ_pick = -1); // civ_pick: which catafalque (-1: from the id)
 	std::vector<std::pair<float, float>> relic_spawn_points() const; // TriggerHelper.GetLandSpawnPoints
@@ -1044,8 +1047,9 @@ public:
 	bool load_state(const char *filepath);
 
 	bool can_place(int cell_x, int cell_y, int footprint) const;
-	// 0 A.D. BuildRestrictions.js CheckPlacement for `player` placing `b_type` at cell_x/cell_y:
-	// obstruction, terrain (land, shore, land-shore), territory, dock shoreline and distance rules.
+	// 0 A.D. BuildRestrictions.js CheckPlacement for `player` placing `b_type` at cell_x/cell_y, turned
+	// by `angle` (a dock by dock_angle): obstruction, terrain (land, shore, land-shore), territory, dock
+	// shoreline and distance rules.
 	enum PlacementResult : uint8_t {
 		PLACE_OK = 0,
 		PLACE_OBSTRUCTED, // off the map, on another building or on a resource
@@ -1054,7 +1058,8 @@ public:
 		PLACE_SHORE,      // a dock not on a shoreline facing a sea
 		PLACE_DISTANCE,   // too close to the player's own building of the same class
 	};
-	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const;
+	PlacementResult check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type,
+			float angle = DEFAULT_BUILDING_ROT) const;
 
 	// 0 A.D. WallSet walls (helpers/Walls.js GetWallPlacement, Commands.js "construct-wall").
 	struct WallPiece {
@@ -1086,8 +1091,8 @@ public:
 	// 1/32 world units from -1024, 16 bits each.
 	static uint32_t pack_wall_point(float x, float z);
 	static void unpack_wall_point(uint32_t packed, float &x, float &z);
-	// The GRID cells a building takes in occupied_cells_: its footprint's square of cells, or for
-	// a WallSet piece every cell its turned rectangle overlaps.
+	// The GRID cells a building takes in occupied_cells_: every cell its turned rectangle overlaps
+	// (for an unturned building on the grid, its footprint's square of cells).
 	std::vector<std::pair<int, int>> building_cells(const Building &b) const;
 
 	void tick(float dt);
@@ -2047,7 +2052,16 @@ private:
 	uint32_t find_free_fish(uint16_t sea, float x, float z, float max_d, uint32_t skip = 0) const;
 	std::unordered_map<uint32_t, size_t> building_id_to_idx_;
 
-	CellSet occupied_cells_; // every building's footprint cells (can_place)
+	// Every standing building's footprint cells (can_place): FULL where a footprint covers the cell,
+	// PART where one only reaches into it. A wreck no longer obstructs (0 A.D. rubble has no
+	// Obstruction), so wrecking a building marks the set stale, and ensure_occupied_cells rebuilds it.
+	mutable CellSet occupied_cells_;
+	mutable bool occupied_stale_ = false;
+	void ensure_occupied_cells() const;
+	void occupy_cells(const Building &b) const;
+	// Whether the footprint `f` overlaps a standing building's (CheckFoundation's TestStaticShape):
+	// the exact test for a turned footprint where occupied_cells_ marks a cell PART.
+	bool footprint_hits_building(const nav::Footprint &f) const;
 	// check_placement's cells (GRID-sized, from -map_half_) that a Gaia resource's
 	// obstruction touches. A cache of resources_, rebuilt when the tick or the
 	// resource count changes; never saved or hashed.
@@ -2502,6 +2516,7 @@ private:
 	float petra_template_strength(const UnitTypeInfo &ui, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
+	bool petra_ring_clear(int cell_x, int cell_y, int footprint) const;
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
