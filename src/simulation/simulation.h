@@ -1659,6 +1659,19 @@ public:
 	// `max_tries` tries). Pieces in water or off the map are left out.
 	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
 			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
+	// wall_builder.js placeCustomFortress (getWallAlignment with the stone WallSet): `player`'s
+	// built closed wall of `n` elements laid one after the next round (x, z), each a long wall, a
+	// gate, a wall tower, a cornerIn (a tower turned 45 degrees where the wall turns a quarter
+	// left) or a structure set into the wall (FORT_BUILDING: 3.5 towers inside the wall line).
+	// The outline is centred on (x, z) and turned so the first element faces the world angle
+	// `facing` from it. Pieces off the map, in water, or where `skip` says are left out.
+	enum FortressElement : uint8_t { FORT_LONG, FORT_GATE, FORT_TOWER, FORT_CORNER_IN, FORT_BUILDING };
+	struct FortressPart {
+		uint8_t element;  // FortressElement
+		uint8_t building; // the BuildingType of a FORT_BUILDING
+	};
+	size_t place_custom_fortress(uint8_t player, float x, float z, float facing, const FortressPart *wall, size_t n,
+			bool (*skip)(float x, float z, const void *ctx) = nullptr, const void *ctx = nullptr);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -2187,6 +2200,9 @@ private:
 	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
+	// A map script's built wall piece for `player` (placeGenericFortress, placeCustomFortress): left
+	// out off the map or in water; the trees and bushes under it go (DeleteUponConstruction).
+	bool place_map_wall_piece(const WallPiece &p, uint8_t player);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
