@@ -13836,6 +13836,8 @@ void Simulation::update_petra_bases(float dt) {
 			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
 			// handleNewBase: a further base should end a resource shortage, so stop saving.
 			if (!petra_bases_.empty()) petra_attack_mgr_.save_resources = 0;
+			// The territory grows: there may be room again (resetMissingRoom).
+			petra_attack_mgr_.missing_room = 0;
 			petra_bases_.push_back(new_base);
 		}
 	}
@@ -17408,6 +17410,11 @@ void Simulation::petra_check_base_expansion() {
 		++active;
 	}
 	if (active == 0) return; // petra_build_first_base
+	// Then a new base when more than one kind of structure finds no room (numberMissingRoom).
+	if (std::popcount(petra_attack_mgr_.missing_room) > 1) {
+		petra_build_new_base();
+		return;
+	}
 	// headquarters.js phasing lasts until the phase research starts (ResearchPlan.onStart).
 	const uint8_t next = petra_ps().phase == 2 ? TECH_PHASE_CITY : 0;
 	if (petra_phasing() && !(next && research_check(petra_pid_, next) == TECH_ERR_IN_PROGRESS)) return;
@@ -19987,6 +19994,19 @@ static inline bool petra_military_structure(uint8_t t) {
 	}
 }
 
+// buildManager.js counts the templates set unbuildable for want of room; RTS0 keeps a bit per
+// kind of structure Petra places by search (its Map.findPosition users).
+static uint8_t petra_room_bit(uint8_t t) {
+	if (t == BLD_HOUSE || t == BLD_APARTMENT) return 1u << 0;
+	if (t == BLD_FIELD) return 1u << 1;
+	if (t == BLD_CORRAL) return 1u << 2;
+	if (t == BLD_STOREHOUSE || t == BLD_FARMSTEAD) return 1u << 3;
+	if (t == BLD_TOWER || t == BLD_SENTRY_TOWER || t == BLD_TOWER_GREAT || t == BLD_FORTRESS) return 1u << 4;
+	if (petra_military_structure(t)) return 1u << 5;
+	if (t == BLD_MARKET || t == BLD_TEMPLE) return 1u << 6;
+	return 1u << 7;
+}
+
 // Structures that take food (ResourceDropsite food): civic centres, farmsteads, docks, colonies.
 static inline bool petra_food_dropsite(uint8_t t) {
 	return is_civic_centre(t) || t == BLD_FARMSTEAD || t == BLD_DOCK || civ_building_is_dropsite(t);
@@ -20159,11 +20179,13 @@ uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const flo
 	int cx = 0, cz = 0;
 	if (!petra_find_position(btype, base_at, favor_at, military_base, cx, cz)) {
 		petra_place_no_room_ = true;
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
 		return 0;
 	}
 	const BuildingTypeInfo &info = building_type_info(btype);
 	if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
 		return 0;
+	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
 	return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 }
 
@@ -20187,7 +20209,11 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	};
 	auto miss = remember ? std::find_if(petra_place_misses_.begin(), petra_place_misses_.end(), same_search)
 	                     : petra_place_misses_.end();
-	if (miss != petra_place_misses_.end() && miss->sig == sig) { petra_place_no_room_ = true; return 0; }
+	if (miss != petra_place_misses_.end() && miss->sig == sig) {
+		petra_place_no_room_ = true;
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
+		return 0;
+	}
 	for (int r = min_r; r <= max_r; ++r) {
 		for (int dx = -r; dx <= r; ++dx) {
 			for (int dz = -r; dz <= r; ++dz) {
@@ -20199,11 +20225,13 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				                   (float)info.gold_cost, (float)info.stone_cost)) {
 					return 0;
 				}
+				if (remember) petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
 				return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 			}
 		}
 	}
 	if (remember) {
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
 		if (miss != petra_place_misses_.end()) miss->sig = sig;
 		else {
 			if (petra_place_misses_.size() >= 64) petra_place_misses_.erase(petra_place_misses_.begin());

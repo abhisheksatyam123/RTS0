@@ -2744,6 +2744,43 @@ static void test_temple_wonder_save() {
 // headquarters.js manageCorral: without fields, Petra breeds an animal of a kind while it owns no
 // more of that kind than it has corrals (Gaia's animals don't count), and lays another corral
 // while it has fewer than its phase number and over 30 population per corral.
+// headquarters.js checkBaseExpansion: more than one kind of structure with no room left
+// (buildManager.numberMissingRoom) sends Petra to found a new base, below the population
+// threshold; a structure placed again clears its kind.
+static void test_missing_room_expansion() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 2.0f);
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 2;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	for (auto &a : s->petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+	auto bases = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.hp > 0.0f && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY);
+		return n;
+	};
+	const int before = bases();
+	s->petra_attack_mgr_.missing_room = 1u << 0; // houses only
+	s->petra_check_base_expansion();
+	CHECK(bases() == before, "one kind without room: no new base");
+	const uint32_t house = s->petra_place_generic(BLD_HOUSE, Simulation::PETRA_QUEUE_VILLAGER);
+	CHECK(house != 0 && s->petra_attack_mgr_.missing_room == 0, "a house placed clears its kind");
+	s->petra_attack_mgr_.missing_room = (1u << 0) | (1u << 5); // houses and barracks
+	s->petra_check_base_expansion();
+	std::printf("  missing room: %d bases before, %d after\n", before, bases());
+	CHECK(bases() == before + 1, "two kinds without room: a new base");
+	// A search that finds no spot (asked for in a corner no base holds) sets its kind.
+	s->petra_attack_mgr_.missing_room = 0;
+	const float corner[2] = {-60.0f, -60.0f};
+	CHECK(s->petra_place_generic(BLD_WONDER, Simulation::PETRA_QUEUE_TECH, corner) == 0 &&
+	          s->petra_attack_mgr_.missing_room == (1u << 7),
+	      "no room for a wonder sets its kind");
+}
+
 static void test_corral_by_owner() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2845,6 +2882,7 @@ int main() {
 	test_dropsites();
 	test_food_fields();
 	test_corral_by_owner();
+	test_missing_room_expansion();
 	test_emergency_units();
 	test_new_cc_defenders();
 	test_temple_wonder_save();
