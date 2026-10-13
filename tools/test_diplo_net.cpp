@@ -154,7 +154,8 @@ static bool start_peers(NetHost &h, NetHost &c, uint16_t port, int budget_ms = 1
 // ---- Phase 1: frozen ids; a retired NMT_DIPLOMACY packet is dropped ---------
 static bool run_wire_contract(const char *ph) {
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_DIPLOMACY) == 31, ph);
-	CHECK(static_cast<uint8_t>(NetMessageType::NMT_COUNT) == 35, ph);
+	CHECK(static_cast<uint8_t>(NetMessageType::NMT_COUNT) == 36, ph);
+	CHECK(static_cast<uint8_t>(NetMessageType::NMT_SETUP_REQUEST) == 35, ph);
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_REJOIN_STATE) == 34, ph);
 	// Append-only NMT ids 32/33 (late-join sync) and the frozen cmd_type block.
 	CHECK(static_cast<uint8_t>(NetMessageType::NMT_JOIN_SYNC_STATE) == 32, ph);
@@ -712,6 +713,100 @@ static bool run_tribute_and_barter(const char *ph) {
 	return true;
 }
 
+// Networked game setup (0 A.D. NMT_GAME_SETUP / NMT_READY plus RTS0's
+// NMT_SETUP_REQUEST): the setup survives the wire, only the host's setup
+// counts, the host stamps who asked and who is ready, and nothing is taken
+// once the game started.
+static bool run_game_setup_wire(const char *ph) {
+	NetSetupState n;
+	n.setup.map_id = "mainland";
+	n.setup.seed = 0;
+	n.setup.slot_count = 3;
+	n.setup.civs[0] = 15; // Germans
+	n.setup.civs[1] = RANDOM_CIV_WIRE;
+	n.setup.speed = 150;
+	n.setup.lock_players = 1;
+	n.setup.rated = 1;
+	n.setup.slot_types[2] = 'h';
+	n.settings_version = 7;
+	n.seq = 12;
+	n.slot_client[0] = 0;
+	n.slot_client[2] = 1;
+	n.clients = 0x7;
+	n.ready = 0x2;
+	n.stay_ready = 0x1;
+	n.observers = 0x4;
+	n.names[0] = "alice";
+	n.names[1] = "b;o,b=%";
+	n.names[2] = "carol";
+	NetSetupState back;
+	CHECK(parse_net_setup(format_net_setup(n), back), "a setup parses back", ph);
+	CHECK(back.setup.civs[0] == 15 && back.setup.civs[1] == RANDOM_CIV_WIRE, "Germans and Random civs survive", ph);
+	CHECK(back.setup.speed == 150 && back.setup.lock_players == 1 && back.setup.rated == 1,
+	      "game speed, the scenario lock and Rated Game survive", ph);
+	CHECK(back.settings_version == 7 && back.seq == 12, "versions survive", ph);
+	CHECK(back.slot_client[0] == 0 && back.slot_client[1] == -1 && back.slot_client[2] == 1, "seats survive", ph);
+	CHECK(back.clients == 0x7 && back.ready == 0x2 && back.stay_ready == 0x1 && back.observers == 0x4,
+	      "clients, ready, stay ready and observers survive", ph);
+	CHECK(back.names[1] == "b;o,b=%" && back.names[2] == "carol", "names with separators survive", ph);
+	CHECK(back.slot_of(1) == 2 && back.slot_of(2) == -1 && back.all_ready(), "slot_of and all_ready", ph);
+	back.ready = 0;
+	CHECK(!back.all_ready(), "a seated client not ready holds the start", ph);
+	back.stay_ready = 0x2;
+	CHECK(back.all_ready(), "stay ready counts as ready", ph);
+	GameSetupParams plain;
+	CHECK(!parse_net_setup(format_game_start_full(plain), back), "a GAME_START string is no setup", ph);
+	GameSetupParams g;
+	CHECK(parse_game_start_full(format_game_start_full(n.setup), g) && g.civs[0] == 15, "GAME_START keeps civ 15", ph);
+
+	NetHost host, joiner;
+	Arena arena;
+	uint16_t port = 0;
+	for (uint16_t cand = 22010; cand < 22100 && port == 0; ++cand)
+		if (start_peers(host, joiner, cand)) port = cand;
+	if (!check(port != 0, "host/joiner peers established", ph)) {
+		host.stop(); joiner.stop();
+		return false;
+	}
+	for (int i = 0; i < 200 && !(host.getPeers().size() && host.getPeers()[0].is_authenticated); ++i) pump(host, joiner, arena, 1, 5);
+	CHECK(host.getPeers().size() && host.getPeers()[0].is_authenticated, "the joiner is admitted", ph);
+	const uint32_t cid = host.getPeers().empty() ? 0 : host.getPeers()[0].id;
+	host.sendGameSetup(format_net_setup(n));
+	joiner.sendGameSetup("map=x;seed=1;nsv=99"); // a client cannot send one
+	joiner.sendSetupRequest("civ=3");
+	joiner.sendReady(1, 7);
+	pump(host, joiner, arena, 40, 5);
+	auto got = joiner.takeGameSetups();
+	CHECK(got.size() == 1 && parse_net_setup(got.empty() ? "" : got[0], back) && back.seq == 12, "the joiner gets the host's setup", ph);
+	CHECK(joiner.takeGameSetups().empty(), "taken once", ph);
+	CHECK(host.takeGameSetups().empty(), "the host ignores a client's setup", ph);
+	auto reqs = host.takeSetupRequests();
+	CHECK(reqs.size() == 1 && reqs[0].client == cid && reqs[0].request == "civ=3", "the host gets the request, stamped", ph);
+	const NetPeer *p = host.getPeer(cid);
+	CHECK(p && p->ready_status == 1 && p->ready_version == 7, "the host keeps the ready and its version", ph);
+	host.sendSetupRefusal(cid, "Another player has that color");
+	pump(host, joiner, arena, 40, 5);
+	auto why = joiner.takeSetupRefusals();
+	CHECK(why.size() == 1 && why[0] == "Another player has that color", "the joiner hears why it was refused", ph);
+	CHECK(host.takeSetupRequests().empty(), "a refusal is no request", ph);
+	host.clearAllReady();
+	CHECK(p && p->ready_status == 0, "clear all ready", ph);
+	joiner.sendReady(2, 7);
+	pump(host, joiner, arena, 40, 5);
+	host.clearAllReady();
+	CHECK(p && p->ready_status == 2, "clear all ready keeps stay ready", ph);
+	joiner.sendReady(0, 7);
+	pump(host, joiner, arena, 40, 5);
+	host.note_game_start_sent();
+	joiner.sendSetupRequest("team=2");
+	joiner.sendReady(1, 7);
+	pump(host, joiner, arena, 40, 5);
+	CHECK(host.takeSetupRequests().empty() && p && p->ready_status == 0, "nothing is taken once the game started", ph);
+	host.stop();
+	joiner.stop();
+	return g_failures == 0;
+}
+
 int main(int argc, char **argv) {
 	(void)argv;
 	if (argc > 1) {
@@ -728,6 +823,7 @@ int main(int argc, char **argv) {
 		{"G8 lockstep gate: no turn before NMT_GAME_START is applied", run_lockstep_gate},
 		{"P3 late-join GAME_START resend + turn-0 hash handshake", run_late_join_game_start_resend},
 		{"tribute (cmd 27) and barter (cmd 23) on two lockstep peers", run_tribute_and_barter},
+		{"game setup: NMT_GAME_SETUP, setup requests and ready", run_game_setup_wire},
 	};
 	const size_t n = sizeof(phases) / sizeof(phases[0]);
 	for (size_t i = 0; i < n; ++i) {

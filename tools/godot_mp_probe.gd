@@ -9,6 +9,9 @@ extends SceneTree
 # "<name> has left the game." in its chat, and a client whose host left must
 # get the "Connection to the server has been lost." overlay, whose Exit opens
 # the summary as a disconnected player (0 A.D. g_Disconnected).
+# In game setup the client asks for its own civ, team and colour and then
+# presses Ready; the host's Start is refused until it does, and the match
+# plays at the host's game speed on both.
 
 var args := {}
 
@@ -47,6 +50,8 @@ func _run() -> void:
 		ms.slot_teams = [0, 0]
 		ms.player_count = 2
 		ms.map_size = 128
+		ms.slot_colors = [0, 1]
+		ms.game_speed = 1.5
 	var lobby = load("res://scenes/menu/lobby.tscn").instantiate()
 	root.add_child(lobby)
 	current_scene = lobby
@@ -86,6 +91,10 @@ func _run() -> void:
 	var main = null
 	var started := false
 	var saw_wait := false
+	var asked := false
+	var refused := false
+	var ready_for := -1
+	var refusals: Array = []
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -94,20 +103,49 @@ func _run() -> void:
 		if main == null and scene != null and scene.has_method("get_lobby_state"):
 			main = scene
 			_say("in the match scene")
+			main.net_setup_refused.connect(func(why): refusals.append(why))
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
 		if not saw_wait and str(st.get("net_status", "")) != "":
 			saw_wait = true
 			_say("waiting=%s %s" % [st.get("net_status", ""), st.get("net_loading", "")])
-		if role == "host" and not started and int(st.get("players", 0)) >= 2:
-			started = true
-			_say("both players in, pressing Start")
-			main._on_lobby_start_pressed()
+		if main.is_net_pregame():
+			var ns: Dictionary = main.get_net_setup_state()
+			var slot := int(ns.get("my_slot", -1))
+			if role == "join" and slot >= 0:
+				if not asked:
+					asked = true
+					main.request_net_player_setting("color", 0) # the host's: refused
+					main.request_net_player_setting("civ", 15)
+					main.request_net_player_setting("team", 2)
+					main.request_net_player_setting("color", 5)
+					_say("asked for civ 15, team 2, colour 5 in slot %d" % slot)
+				var civs: Array = ms.slot_civs
+				var teams: Array = ms.slot_teams
+				var cols: Array = ms.slot_colors
+				var got: bool = slot < civs.size() and int(civs[slot]) == 15 and int(teams[slot]) == 2 and int(cols[slot]) == 5
+				if got and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
+					_say("refused=%s" % refusals[0])
+					ready_for = int(ns.get("settings_version", 0))
+					main.set_net_ready(1)
+					_say("ready for settings version %d" % ready_for)
+			if role == "host" and not started and int(st.get("players", 0)) >= 2:
+				if not bool(ns.get("can_start", false)):
+					if not refused:
+						refused = true
+						main._on_lobby_start_pressed()
+						_say("start_refused=%s" % str(not bool(main.get_lobby_state().get("started", false))))
+				else:
+					started = true
+					_say("both players in and ready, pressing Start")
+					main._on_lobby_start_pressed()
 		if st.get("oos", false):
 			return _fail("out of sync at turn %d" % int(st.get("oos_turn", 0)))
 		if int(st.get("turn", 0)) >= turns + 5:
-			_say("done turn=%d seat=%d hash=%08X" % [turns, int(st.get("seat", -1)), int(main.get_turn_hash(turns))])
+			_say("done turn=%d seat=%d hash=%08X speed=%s civ1=%d team1=%d color1=%d" % [turns, int(st.get("seat", -1)),
+					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
+					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1])])
 			break
 	var leave: String = args.get("leave", "")
 	if leave == role:
