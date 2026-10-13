@@ -36,6 +36,7 @@ enum AreaKind : uint8_t {
 	AREA_MARSH,
 	AREA_VOLCANO,
 	AREA_CORAL,    // a ring painted round an island, without elevation
+	AREA_HIGHLANDS, // ngorongoro.js's highlands and eden, which take the highland patches
 };
 
 // rmgen LayeredPainter(terrains, widths): a tile `d` tiles in from the area's
@@ -310,6 +311,20 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"lorraine_plain", {{FLORA_BEECH, FLORA_BEECH}}, {FLORA_OAK, FLORA_BEECH}, {{FLORA_OAK, FLORA_OAK}},
 		  FLORA_BERRY,
 		  {{200, 200}}, {200, 200}, {{200, 200}}}},
+		// ngorongoro.js: the savanna biome's savanna_grass_01 ground (the RandomMap's terrain), cliff, hill and dirt,
+		// the script's roads and baobabs only (rmgen2 addForests plants no savanna forest, so forest floor reuses the
+		// ground); the lowland patches are the tiers (its tier4 "savanna_forest_floor_a" names no 0 A.D. terrain, so
+		// savanna_forestfloor_a), the highland patches the highlands' and eden's area. No water.
+		{"ngorongoro",
+		 {"ngorongoro", {"savanna_grass_01"}, {"savanna_grass_01"},
+		  {"savanna_dirt_rocks_a", "savanna_grass_a", "savanna_grass_b", "savanna_forestfloor_a"}, {"sahara_rock_01"},
+		  {"sahara_rock_01"}, {"aegean_grass_02"}, "road2", "savanna_riparian_dry", "steppe_grass_04", "steppe_grass_04",
+		  "india_sand_01"},
+		 {"ngorongoro", {{FLORA_BAOBAB, FLORA_BAOBAB}}, {FLORA_BAOBAB}, {{FLORA_BAOBAB, FLORA_BAOBAB}}, FLORA_BERRY,
+		  {{400, 400}}, {400}, {{400, 400}}},
+		 {},
+		 {{AREA_HIGHLANDS, {{"savanna_grass_01", "savanna_grass_01", "savanna_grass_a_wetseason", "savanna_grass_b_wetseason",
+		                     "savanna_shrubs_a_wetseason", "savanna_shrubs_b"}}, {}}}},
 		// northern_lights.js: winter pines only and no fruit bush; no hills or dirt, so hill reuses tSnowE and tCliff,
 		// dirt tForestFloor.
 		{"northern_lights",

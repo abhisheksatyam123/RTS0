@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bake the random-map heightmap images into a C++ header.
 
-0 A.D.'s Hellas, Red Sea, Mediterranean, Pompeii, Elephantine, Marmara,
+0 A.D.'s Hellas, Red Sea, Mediterranean, Pompeii, Elephantine, Marmara, Ngorongoro,
 Bahrain and Ratumacos scripts
 paint the map from a greyscale PNG (Engine.LoadHeightmapImage). The headless
 simulation has no image decoder, so this script decodes the PNGs in
@@ -38,6 +38,7 @@ IMAGES = [
     ("pompeii", "assets/maps/heightmaps/pompeii.png", 2),
     ("elephantine", "assets/maps/heightmaps/elephantine.png", 2),
     ("jebel_barkal", "assets/maps/heightmaps/jebel_barkal.png", 2),
+    ("ngorongoro", "assets/maps/heightmaps/ngorongoro.png", 2),
 ]
 # jebel_barkal.pmp's lowest and highest raw heights, the black and white of jebel_barkal.png.
 PMP_RANGE = (23170, 33144)

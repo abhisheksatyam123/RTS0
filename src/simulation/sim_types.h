@@ -157,7 +157,8 @@ enum MapType : uint8_t {
 	MAP_LATIUM = 81,
 	MAP_UNKNOWN = 82,
 	MAP_SURVIVAL_OF_THE_FITTEST = 83,
-	MAP_TYPE_COUNT = 84
+	MAP_NGORONGORO = 86,
+	MAP_TYPE_COUNT = 87
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -270,7 +271,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_POMPEII, "pompeii", "Pompeii (RMS)", "volcanic", true, "Pompeii, an ancient Roman coastal city in Campania, buried under ash and pumice when Mount Vesuvius erupted in AD 79."},
 		{MAP_LATIUM, "latium", "Latium (RMS)", "latium", true, "The Italian peninsula: the fertile volcanic region of central western Italy where Rome was founded."},
 		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."},
-		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."}
+		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."},
+		// Ids 84 and 85 belong to other maps' ports that land separately; until then they hold their places in the table.
+		{(MapType)84, "reserved_84", "Reserved 84", "mediterranean", true, "Reserved for another map's port."},
+		{(MapType)85, "reserved_85", "Reserved 85", "mediterranean", true, "Reserved for another map's port."},
+		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
