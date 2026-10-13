@@ -66,6 +66,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
+	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
@@ -888,6 +889,7 @@ void RtsoMain::_ready() {
 
 	// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
 	selection_grid_.build(inspector_panel, Vector2(102, 60), Vector2(404, 120), this, "_on_selection_group_clicked", 10, 36.0f);
+	selection_grid_.set_right_click("_on_selection_group_gui_input");
 	garrison_grid_.build(inspector_panel, Vector2(102, 148), Vector2(404, 34), this, "_on_garrison_group_clicked", 12, 30.0f);
 
 	// =========================================================================
@@ -947,8 +949,17 @@ void RtsoMain::_ready() {
 	stances_bar->add_theme_constant_override("separation", 6);
 	command_panel->add_child(stances_bar);
 
-	// Indexed by UnitStance (0 A.D. g_Stances).
-	const char *stance_names[5] = {"Aggressive", "Defensive", "Stand Ground", "Violent", "Passive"};
+	// Indexed by UnitStance; laid out in 0 A.D. g_Stances order (violent, aggressive,
+	// defensive, passive, standground: UnitAI's selectable stances when a template names
+	// none), with selection_panels_helpers.js names and tooltips.
+	const char *stance_names[5] = {"Aggressive", "Defensive", "Standground", "Violent", "Passive"};
+	const char *stance_tips[5] = {
+		"Attack nearby opponents",
+		"Attack nearby opponents, chase a short distance and return to the original location",
+		"Attack opponents in range, but don't move",
+		"Attack nearby opponents, focus on attackers and chase while visible",
+		"Flee if attacked"
+	};
 	// 0 A.D. stance icons (art/textures/ui/session/stances), same order as the names.
 	const char *stance_icons[5] = {
 		"res://assets/textures/ui/stances/aggressive.png",
@@ -957,10 +968,14 @@ void RtsoMain::_ready() {
 		"res://assets/textures/ui/stances/violent.png",
 		"res://assets/textures/ui/stances/passive.png"
 	};
-	for (int s = 0; s < 5; ++s) {
+	const int stance_order[5] = {rtso::STANCE_VIOLENT, rtso::STANCE_AGGRESSIVE, rtso::STANCE_DEFENSIVE,
+			rtso::STANCE_PASSIVE, rtso::STANCE_STAND_GROUND};
+	for (int s : stance_order) {
 		Button *sb = memnew(Button);
 		sb->set_custom_minimum_size(Vector2(95, 24));
 		sb->set_text(stance_names[s]);
+		sb->set_tooltip_text(String(stance_names[s]) + "\n" + stance_tips[s]);
+		sb->set_toggle_mode(true); // pressed = some selected unit holds it (IsStanceSelected)
 		Ref<Texture2D> s_ico = load_tex(stance_icons[s]);
 		if (s_ico.is_valid()) {
 			sb->set_button_icon(s_ico);
@@ -969,7 +984,9 @@ void RtsoMain::_ready() {
 		sb->add_theme_font_size_override("font_size", 9);
 		sb->connect("pressed", Callable(this, "_on_stance_selected").bind(s));
 		stances_bar->add_child(sb);
+		stance_buttons_[s] = sb;
 	}
+	stances_bar->set_visible(false);
 
 	// Actions & Formations Bar
 	actions_bar = memnew(HBoxContainer);
@@ -3551,7 +3568,7 @@ void RtsoMain::update_inspector() {
 		inspector_stats->set_text("");
 		inspector_extra->set_text("");
 		ungarrison_btn->set_visible(false);
-		selection_grid_.update(groups, "Click to select only these, Ctrl+click to deselect them.");
+		selection_grid_.update(groups, "Click to select only these, Ctrl+click or right-click to deselect them.");
 		show_selection_grid = true;
 	}
 	inspector_panel->set_visible(true);
@@ -3559,9 +3576,20 @@ void RtsoMain::update_inspector() {
 
 // Multi-selection icon click (0 A.D. selection_panels.js Selection.execute):
 // select only that group, or drop it with session.deselectgroup (Ctrl).
+// selection_panels.js Selection onPressRight: a right-click drops the group.
+void RtsoMain::_on_selection_group_gui_input(const Ref<InputEvent> &event, int key) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || mb->get_button_index() != MOUSE_BUTTON_RIGHT || mb->is_pressed()) return;
+	select_group(key, true);
+}
+
 void RtsoMain::_on_selection_group_clicked(int key) {
+	select_group(key, rtso::hotkeys::held("session.deselectgroup"));
+}
+
+// makePrimarySelectionGroup (keep only the group) or removeFromSelectionGroup (drop it).
+void RtsoMain::select_group(int key, bool drop) {
 	if (!sim) return;
-	const bool drop = rtso::hotkeys::held("session.deselectgroup");
 	auto uview = sim->units();
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s) {
@@ -3604,6 +3632,27 @@ void RtsoMain::_on_garrison_group_clicked(int key) {
 
 void RtsoMain::update_command_panel() {
 	if (!command_panel) return;
+
+	// g_SelectionPanels.Stance: shown when only units are selected, the stances
+	// some selected unit holds highlighted (GuiInterface IsStanceSelected).
+	if (stances_bar && sim) {
+		bool held[5] = {};
+		bool any = false;
+		if (selected_building_id == 0 && !selected_ids.is_empty()) {
+			auto uv = sim->units();
+			for (int s = 0; s < selected_ids.size(); ++s)
+				for (size_t i = 0; i < uv.count; ++i)
+					if (uv.id[i] == (uint32_t)selected_ids[s]) {
+						if (uv.stance[i] < 5) held[uv.stance[i]] = true;
+						any = true;
+						break;
+					}
+		}
+		stances_bar->set_visible(any);
+		for (int st = 0; st < 5; ++st)
+			if (stance_buttons_[st] && stance_buttons_[st]->is_pressed() != held[st])
+				stance_buttons_[st]->set_pressed_no_signal(held[st]);
+	}
 
 	// The buttons are built after the current ones each frame, then
 	// keep_command_buttons() keeps whichever set is older when both look and
