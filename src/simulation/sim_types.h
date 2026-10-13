@@ -781,8 +781,8 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f},
 		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f},
 		{"Technology", "villager", "villager", 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}, // UNIT_TYPE_TECH
-		// template_unit_support_wagon, drawn on the ram model until it has its own
-		{"Supply Wagon", "ram", "ram", 200.0f, 1.78f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 4.0f, 4.0f, 10.0f, 50, 50, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f}
+		// template_unit_support_wagon (0.28 structures/germans/wagon.xml; the ram portrait for now)
+		{"Supply Wagon", "wagon", "ram", 200.0f, 1.78f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 4.0f, 4.0f, 10.0f, 50, 50, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];

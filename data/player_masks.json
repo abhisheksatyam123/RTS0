@@ -1535,6 +1535,214 @@
 0.94
 ]
 },
+"buildings/germ_barracks_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_barracks_tex1": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"buildings/germ_barracks_tex2": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_corral_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_dock_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_dock_tex1": {
+"mask": "res://assets/textures/player_masks/structural/germ_fishing_boat_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_dock_tex2": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_dock_tex3": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"buildings/germ_farmstead_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_farmstead_tex1": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"buildings/germ_fortress_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_fortress_tex1": {
+"mask": "res://assets/textures/player_masks/props/hele_props_a_512x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"buildings/germ_house_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_house_tex1": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"buildings/germ_house_tex2": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_market_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_storehouse_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_storehouse_tex2": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"buildings/germ_temple_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_town_center_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_wall_tower_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_wonder_tex0": {
+"mask": "res://assets/textures/player_masks/props/palisade_main_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_wonder_tex1": {
+"mask": "res://assets/textures/player_masks/props/rome_sb_turf_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_wonder_tex2": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/germ_wonder_tex3": {
+"mask": "res://assets/textures/player_masks/props/rome_sb_tent_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "buildings/great_hall_tex1": {
 "mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
 "tint": [
@@ -4991,6 +5199,118 @@
 1.0
 ]
 },
+"buildings/s_germans_forge_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_forge_tex1": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_forge_tex2": {
+"mask": "res://assets/textures/player_masks/structural/rome_struct_2_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_range_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_stable_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_wooden_wall_gate_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_wooden_wall_long_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_wooden_wall_medium_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_wooden_wall_short_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_workshop_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_workshop_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_damaged_weathered_dark_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_workshop_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_04_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_workshop_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_damaged_dark_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"buildings/s_germans_workshop_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_01_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "buildings/s_han_forge_tex0": {
 "mask": "res://assets/textures/player_masks/structural/han_struct_02_512x256.png",
 "tint": [
@@ -7535,6 +7855,14 @@
 0.94
 ]
 },
+"units/brit_female_citizen_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/dress_female_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/brit_fishing_boat_tex1": {
 "mask": "res://assets/textures/player_masks/props/celt_sail_boar_512x512.png",
 "tint": [
@@ -7847,6 +8175,14 @@
 0.94
 ]
 },
+"units/brit_villager_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_pants_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/brit_war_dog_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/brit/mastiff_a_01_256x256.png",
 "tint": [
@@ -7925,6 +8261,38 @@
 0.36,
 0.62,
 0.94
+]
+},
+"units/cart_bolt_shooter_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/padded_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/cart_bolt_shooter_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/tunic_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/cart_catapult_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/padded_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/cart_catapult_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/tunic_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
 ]
 },
 "units/cart_cavalry_javelineer_b_tex1": {
@@ -8383,6 +8751,30 @@
 0.94
 ]
 },
+"units/cart_villager_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/tunic_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/catapult_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/padded_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/catapult_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/cart/tunic_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "units/cavalry_tex3": {
 "mask": "res://assets/textures/player_masks/skeletal/hele/tunic_02_03_256x256.png",
 "tint": [
@@ -8617,6 +9009,14 @@
 },
 "units/gaul_champion_cavalry_tex9": {
 "mask": "res://assets/textures/player_masks/props/shield/celt_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_female_citizen_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/dress_female_02_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -8865,6 +9265,286 @@
 },
 "units/gaul_trireme_tex1": {
 "mask": "res://assets/textures/player_masks/props/celt_sail_boar_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/gaul_villager_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_pants_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_archer_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/furs_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_cavalry_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_cavalry_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_legwraps_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_female_citizen_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/dress_female_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_fishing_boat_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_fishing_boat_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_fishing_boat_tex1": {
+"mask": "res://assets/textures/player_masks/structural/germ_snekkja_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_fishing_boat_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_pants_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_healer_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/robes_priest_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_hero_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/furs_01_02_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/germ_hero_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_10_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/germ_merchant_ship_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_snekkja_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_merchant_ship_tex1": {
+"mask": "res://assets/textures/player_masks/props/germ_ship_sail_b_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_merchant_ship_tex2": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_merchant_ship_tex3": {
+"mask": "res://assets/textures/player_masks/structural/germ_struct_03_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_ram_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_damaged_weathered_dark_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_ram_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_01_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_ram_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_damaged_dark_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_ram_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_04_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_siege_ram_tex3": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_damaged_weathered_dark_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_siege_ram_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_01_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_siege_ram_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/shield_damaged_dark_512x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_siege_ram_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_04_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_spearman_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_pants_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_spearman_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_swordsman_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_pants_02_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/germ_swordsman_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_01_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/germ_trader_tex2": {
+"mask": "res://assets/textures/player_masks/props/celt_prop_1_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_trader_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_pants_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_trireme_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_boat_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_trireme_tex1": {
+"mask": "res://assets/textures/player_masks/props/germ_ship_sail_b_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_trireme_tex2": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_07_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_trireme_tex6": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_10_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_trireme_tex8": {
+"mask": "res://assets/textures/player_masks/structural/germ_snekkja_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_villager_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/padded_legwraps_01_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -14999,6 +15679,14 @@
 0.28
 ]
 },
+"units/sele_infantry_javelineer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/arab/robes_03_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
 "units/sele_infantry_pikeman_b_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/mace/tunic_hellenistic_e_03_256x256.png",
 "tint": [
@@ -16053,6 +16741,30 @@
 0.36,
 0.62,
 0.94
+]
+},
+"units/wagon_house_tex0": {
+"mask": "res://assets/textures/player_masks/structural/nomad_struct_01_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/wagon_house_tex3": {
+"mask": "res://assets/textures/player_masks/props/sail_stripes_1_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/wagon_tex0": {
+"mask": "res://assets/textures/player_masks/structural/nomad_struct_01_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
 ]
 },
 "units/war_dog_tex0": {
