@@ -17904,12 +17904,111 @@ bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, boo
 	return found;
 }
 
+// headquarters.js findDefensiveLocation: the frontier cell of our territory nearest to an enemy
+// civic centre, at least 30 m from our towers and fortresses, never within 80 m of an enemy
+// civic centre, fortress or tower, near an invading army or under enemy fire. Towers keep to the
+// narrow frontier (45 m from the border), fortresses take the large one (80 m) too. Without enemy
+// structures, neutral players' count (allied victory: allies never do). Distances here are
+// 0 A.D.'s metres at 4 m per world unit.
+bool Simulation::petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const {
+	const int R = territory_grid_.w;
+	if (territory_grid_.blank() || R <= 0) return false;
+	struct Site { float x, z; bool cc; };
+	std::vector<Site> foes;
+	auto collect = [&](bool hostile) {
+		for (const Building &b : buildings_) {
+			if (b.team >= MAX_PLAYERS || b.team == petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			const bool foe = is_hostile(petra_pid_, b.team);
+			if (hostile ? !foe : (foe || is_ally(petra_pid_, b.team))) continue;
+			const uint64_t c = building_tech_classes(b.type);
+			if (c & (TC_CIVCENTRE | TC_FORTRESS | TC_TOWER)) foes.push_back({b.x, b.z, (c & TC_CIVCENTRE) != 0});
+		}
+	};
+	collect(true);
+	if (foes.empty()) collect(false);
+	if (foes.empty()) return false;
+	std::vector<std::pair<float, float>> own;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (building_tech_classes(b.type) & (TC_FORTRESS | TC_TOWER)))
+			own.push_back({b.x, b.z});
+
+	const bool tower = (building_tech_classes(btype) & TC_TOWER) != 0;
+	const BuildingTypeInfo &info = building_type_info(btype);
+	const int foot = info.footprint;
+	const float half = (float)foot * GRID * 0.5f;
+	const float cell = map_half_ * 2.0f / (float)R;
+	const int inside_small = std::max(1, (int)std::lround(45.0f / 4.0f / cell));
+	const int inside_large = std::max(1, (int)std::lround(80.0f / 4.0f / cell));
+	static const float kAround[8][2] = {{-0.7f, 0.7f}, {0, 1}, {0.7f, 0.7f}, {1, 0}, {0.7f, -0.7f}, {0, -1}, {-0.7f, -0.7f}, {-1, 0}};
+	const uint8_t mine = (uint8_t)(petra_pid_ + 1);
+	auto other = [&](int x, int z) { // territory that is neither ours nor an ally's
+		const uint8_t v = territory_grid_.at(x, z);
+		return v != mine && !(v != 0 && is_ally(petra_pid_, (uint8_t)(v - 1)));
+	};
+	const float enemy_cut = 80.0f / 4.0f, own_cut = 30.0f / 4.0f, army_cut = std::sqrt(12000.0f) / 4.0f;
+	float best = std::numeric_limits<float>::max();
+	bool found = false;
+	for (int iz = 0; iz < R; ++iz) {
+		for (int ix = 0; ix < R; ++ix) {
+			if (territory_grid_.at(ix, iz) != mine) continue;
+			bool narrow = false, large = false;
+			for (const auto &a : kAround) {
+				int jx = ix + (int)std::lround((float)inside_small * a[0]), jz = iz + (int)std::lround((float)inside_small * a[1]);
+				if (jx < 0 || jx >= R || jz < 0 || jz >= R) continue;
+				if (other(jx, jz)) { narrow = true; break; }
+				jx = ix + (int)std::lround((float)inside_large * a[0]);
+				jz = iz + (int)std::lround((float)inside_large * a[1]);
+				if (jx < 0 || jx >= R || jz < 0 || jz >= R) continue;
+				if (other(jx, jz)) large = true;
+			}
+			if (!narrow && (!large || tower)) continue;
+			const float x = ((float)ix + 0.5f) * cell - map_half_, z = ((float)iz + 0.5f) * cell - map_half_;
+			float min_dist = std::numeric_limits<float>::max();
+			bool bad = false;
+			for (const Site &f : foes) {
+				const float dd = (f.x - x) * (f.x - x) + (f.z - z) * (f.z - z);
+				if (dd < enemy_cut * enemy_cut) { bad = true; break; }
+				if (f.cc) min_dist = std::min(min_dist, dd);
+			}
+			if (bad || min_dist == std::numeric_limits<float>::max() || min_dist > best) continue;
+			for (const auto &o : own)
+				if ((o.first - x) * (o.first - x) + (o.second - z) * (o.second - z) < own_cut * own_cut) { bad = true; break; }
+			if (bad) continue;
+			// isNearInvadingArmy / isUnderEnemyFire
+			bool near_army = false;
+			for (const PetraDefenseArmy &a : petra_defense_armies_) {
+				float ax, az;
+				if (petra_army_position(a, ax, az) && (ax - x) * (ax - x) + (az - z) * (az - z) < army_cut * army_cut) { near_army = true; break; }
+			}
+			if (near_army) continue;
+			for (const Building &b : buildings_) {
+				if (!petra_foe(b.team) || b.hp <= 0.0f || b.build_progress < 1.0f || !building_ai_info(b.type).shoots()) continue;
+				const float r = half + building_arrow_range(b);
+				if ((b.x - x) * (b.x - x) + (b.z - z) * (b.z - z) < r * r) { bad = true; break; }
+			}
+			if (bad) continue;
+			// getNonObstructedTile: a spot for the footprint in or beside this cell.
+			const int c0x = (int)std::floor(x / GRID - (float)foot * 0.5f), c0z = (int)std::floor(z / GRID - (float)foot * 0.5f);
+			bool placed = false;
+			for (int r = 0; r <= 1 && !placed; ++r)
+				for (int dz = -r; dz <= r && !placed; ++dz)
+					for (int dx = -r; dx <= r && !placed; ++dx) {
+						if (std::abs(dx) != r && std::abs(dz) != r) continue;
+						if (petra_can_place(c0x + dx, c0z + dz, foot, btype)) { out_cx = c0x + dx; out_cz = c0z + dz; placed = true; }
+					}
+			if (!placed) continue;
+			best = min_dist;
+			found = true;
+		}
+	}
+	return found;
+}
+
 // headquarters.js buildDefenses. The defenseBuilding queue holds one plan at a time
 // (petra_defense_build_.pending); its start time is taken when it is queued, as in 0 A.D.
 // While saving resources it waits for barter and builds no fortress. RTS0 has no queue
-// priority changes: the plan is paid from the military queue. The structure goes up around the primary base, not on the frontier
-// (findDefensiveLocation): on RTS0's maps a frontier tower lands about 20 tiles from the enemy
-// civic centre, and two Petras then bled each other to near zero population in 12 of 12 seeds.
+// priority changes: the plan is paid from the military queue. Towers and fortresses go on the
+// frontier nearest an enemy civic centre (findDefensiveLocation).
 void Simulation::petra_build_defenses() {
 	PetraDefenseBuild &d = petra_defense_build_;
 	const PetraConfig &cfg = petra_config_;
@@ -17926,8 +18025,20 @@ void Simulation::petra_build_defenses() {
 			return;
 		}
 		d.pending = 0;
-		const PetraBase *home = get_primary_petra_base();
-		const uint32_t bid = home ? petra_place_building(btype, home->x, home->z, btype == BLD_FORTRESS ? 4 : 5, 12, PETRA_QUEUE_MILITARY) : 0;
+		int cx = 0, cz = 0;
+		uint32_t bid = 0;
+		if (petra_find_defensive_location(btype, cx, cz)) {
+			if (petra_try_pay(PETRA_QUEUE_MILITARY, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
+				bid = spawn_building(cx, cz, btype, petra_pid_, 0.0f);
+		} else if (btype == BLD_FORTRESS) {
+			// queueplanBuilding.js findGoodPosition: a first fortress with no frontier spot
+			// takes the standard placement.
+			bool has_fortress = false;
+			for (const Building &b : buildings_)
+				if (b.team == petra_pid_ && b.type == BLD_FORTRESS && b.hp > 0.0f && !b.wrecked) { has_fortress = true; break; }
+			const PetraBase *home = get_primary_petra_base();
+			if (!has_fortress && home) bid = petra_place_building(BLD_FORTRESS, home->x, home->z, 4, 12, PETRA_QUEUE_MILITARY);
+		}
 		if (bid) {
 			auto idle = get_idle_workers(petra_pid_);
 			if (!idle.empty()) petra_order_builders(idle, btype == BLD_FORTRESS ? 4 : 2, bid);

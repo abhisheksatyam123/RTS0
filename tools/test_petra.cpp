@@ -2632,6 +2632,40 @@ static void test_build_defenses() {
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
 }
 
+// headquarters.js findDefensiveLocation: a tower goes on our frontier at the spot nearest an enemy
+// civic centre, outside 80 m of enemy towers and civic centres and 30 m from our own towers.
+static void test_defensive_location() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0, ex = 0, ez = 0;
+	for (const auto &b : s->buildings_) {
+		if (!is_civic_centre(b.type) || b.hp <= 0.0f) continue;
+		if (b.team == 1) { ox = b.x; oz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; }
+	}
+	int cx = 0, cz = 0;
+	CHECK(s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx, cz), "a frontier spot for a sentry tower");
+	const float foot = (float)building_type_info(BLD_SENTRY_TOWER).footprint * Simulation::GRID * 0.5f;
+	const float x = (float)cx * Simulation::GRID + foot, z = (float)cz * Simulation::GRID + foot;
+	const float to_enemy = std::hypot(x - ex, z - ez);
+	const float cc_gap = std::hypot(ox - ex, oz - ez);
+	std::printf("  sentry tower spot %.1f from the enemy civic centre, %.1f from ours (civic centres %.1f apart)\n",
+	            to_enemy, std::hypot(x - ox, z - oz), cc_gap);
+	CHECK(to_enemy >= 80.0f / 4.0f - 1.0f, "out of 80 m of the enemy civic centre");
+	CHECK(to_enemy < cc_gap, "on the side facing the enemy");
+	const uint32_t t = s->spawn_building(cx, cz, BLD_SENTRY_TOWER, 1, 1.0f);
+	CHECK(t != 0, "the tower is placed");
+	int cx2 = 0, cz2 = 0;
+	if (s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx2, cz2))
+		CHECK(std::hypot((float)(cx2 - cx) * Simulation::GRID, (float)(cz2 - cz) * Simulation::GRID) >= 30.0f / 4.0f - 1.0f,
+		      "the next tower keeps 30 m from it");
+}
+
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
 // back lays a storehouse by a forest at least 15 tiles from our dropsites, and its foundation
 // restarts every count; headquarters.js buildFarmstead lays one farmstead once there is a
@@ -3073,6 +3107,7 @@ int main() {
 	test_mobile_dropsite_follows();
 	test_worker_mix();
 	test_build_defenses();
+	test_defensive_location();
 	test_dropsites();
 	test_food_fields();
 	test_corral_by_owner();

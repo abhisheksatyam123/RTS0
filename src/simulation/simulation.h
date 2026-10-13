@@ -2653,6 +2653,7 @@ private:
 	// 0 when there are no markets to measure from (place it anywhere), -1 when nothing will do.
 	int petra_find_market_location(float &out_x, float &out_z, int &out_gain) const;
 	uint32_t petra_build_market(float home_x, float home_z, uint8_t queue); // ConstructionPlan for a Market
+	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
 	int petra_pop_room() const; // population left after Petra's queued batches
