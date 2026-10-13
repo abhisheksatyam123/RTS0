@@ -1657,6 +1657,7 @@ private:
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
+		float bld_garrison_regen_add[BLD_TYPE_COUNT]; // added to Capturable/GarrisonRegenRate (the phases)
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
@@ -1849,6 +1850,10 @@ private:
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
+	void refresh_capture_max(Building &b); // Capturable.js UpdateCachedValuesAndNotify: rescale every side's points
+	float structure_capture_garrison_regen(const Building &b) const; // Capturable/GarrisonRegenRate with modifiers
+	void register_capture_aura(uint32_t id, uint8_t team, uint16_t k, float x, float z);
 	float unit_base_vision(size_t i) const; // the template's Vision/Range x0.28 (class default if none)
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
@@ -2120,7 +2125,7 @@ private:
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
-	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
+	void capture_points_tick(Building &b, size_t bi, bool timer_tick); // Capturable.js Reduce, regen and owner change
 	using CapturePools = std::array<float, MAX_PLAYERS + 1>; // per player, then Gaia's
 	bool capture_enemy(int source, int t) const;
 	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce
