@@ -1100,6 +1100,19 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
 	triggers_.difficulty = trigger_difficulty_; // Trigger.js SetDifficulty (generate reset the triggers)
+	// Daytime (danubius.js randBool(2/3) for day, polar_sea.js randBool(1/3) for dawn): drawn
+	// from the seed alone, so the map's own random stream and the lockstep hash are untouched.
+	map_daytime_ = 0;
+	if (type == MAP_DANUBIUS || type == MAP_POLAR_SEA) {
+		map_daytime_ = map_daytime_choice_;
+		if (map_daytime_ == 0) {
+			uint64_t z = (uint64_t)seed + 0x9E3779B97F4A7C15ull; // splitmix64
+			z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+			z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+			const bool first = (z ^ (z >> 31)) % 3 < (type == MAP_DANUBIUS ? 2u : 1u);
+			map_daytime_ = first ? 1 : 2;
+		}
+	}
 	if (biome_override_ >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
