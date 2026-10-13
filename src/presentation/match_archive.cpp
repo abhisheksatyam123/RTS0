@@ -25,6 +25,8 @@
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/viewport_texture.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/script.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
@@ -272,6 +274,11 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	g["dialog"] = in_game;
 	g["isReplay"] = replay;
 	g["networked"] = net_lockstep();
+	// session.js g_IsController (the host, or any offline game) and g_IsObserver
+	// (no seat, or a seat whose game is over).
+	g["isController"] = net_host_.getRole() == rtso::NetRole::None || net_host_.getRole() == rtso::NetRole::Host;
+	g["victory"] = !replay && me < rtso::MAX_PLAYERS && sim->is_victory_for(me);
+	g["isObserver"] = replay || me >= rtso::MAX_PLAYERS || sim->is_defeated(me) || sim->is_victory_for(me);
 	g["assignedPlayer"] = replay || me >= rtso::MAX_PLAYERS ? -1 : (int)me;
 	g["replayDirectory"] = !replay && !replay_dir_.is_empty() && FileAccess::file_exists(replay_dir_ + String("metadata.json"))
 		? replay_dir_ : String();
@@ -285,6 +292,34 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 		g["shownPlayers"] = shown;
 	}
 	return g;
+}
+
+// One of 0 A.D.'s session quit questions (scenes/session/quit_confirmation.gd).
+void RtsoMain::quit_confirmation(const String &kind, bool won, bool ask_exit) {
+	Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
+	if (q.is_null()) return;
+	if (kind == "defeat") q->call("defeat", this, won, ask_exit);
+	else q->call(StringName(kind), this);
+}
+
+// QuitConfirmationDefeat.onPlayersFinished: once the local player has won or
+// been defeated, ask whether to quit. The host isn't invited to leave while
+// other humans still play.
+void RtsoMain::tick_quit_confirmation() {
+	const uint8_t me = local_player();
+	if (finished_asked_ || !sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS) return;
+	const bool won = sim->is_victory_for(me);
+	if (!won && !sim->is_defeated(me)) return;
+	finished_asked_ = true;
+	write_replay(); // the player's game is over: keep its replay as it stands
+	bool ask_exit = net_host_.getRole() != rtso::NetRole::Host;
+	if (!ask_exit) {
+		ask_exit = true;
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+			if (p != me && sim->player(p).active && !sim->player(p).is_ai && !sim->is_defeated(p) && !sim->is_victory_for(p))
+				ask_exit = false;
+	}
+	quit_confirmation("defeat", won, ask_exit);
 }
 
 // The "summary" hotkey and the menu's Summary button: the page over the
@@ -483,11 +518,7 @@ void RtsoMain::tick_match_archive() {
 		text += "  (out of sync at turn " + String::num_int64(turn_mgr_.replay_out_of_sync_turn()) + ")";
 	if (!replay_finished_ && turn_mgr_.replay_complete()) {
 		replay_finished_ = true;
-		if (Node *summary = get_node_or_null(NodePath("SummaryScreen"))) {
-			summary->call("configure", summary_gui(false));
-			summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(),
-			              (float)((double)total * rtso::TurnManager::TURN_DURATION));
-		}
+		quit_confirmation("replay_finished"); // QuitConfirmationReplay
 	}
 	if (replay_finished_) text += "  finished";
 	replay_label_->set_text(text);

@@ -195,7 +195,8 @@ static void test_roster_army() {
 		CHECK(hero, "trains a hero in the city phase");
 		CHECK(champion, "trains roster champions in the city phase");
 		CHECK(siege, "trains siege engines");
-		if (civ == CIV_MACEDONIANS) CHECK(tower, "builds a siege tower where the civ has one");
+		// HQ.findBestTrainableUnit leaves siege towers out: Petra does not know how to use them.
+		if (civ == CIV_MACEDONIANS) CHECK(!tower, "trains no siege tower");
 		// Petra picks siege by siegeStrength (attackPlan.js unitStat Siege), so a civ whose rams
 		// outlast the fortresses may never field a catapult: packing is checked across both civs.
 		any_packed_moved |= packed_moved;
