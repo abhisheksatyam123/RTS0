@@ -875,8 +875,8 @@ inline const UnitTypeInfo &unit_type_info(uint8_t type) {
 		{"Imperial Minister", "healer", "healer", 200.0f, 3.204f, 1.8f, 10.0f, 1.0f, 0, 8.0f, 2.0f, 4.0f, 6.0f, 100, 0, 100, 0, 1, 15.0f, 10.0f, 0.0f, 0.0f},
 		{"Catafalque", "ram", "ram", 1000.0f, 1.762f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f},
 		{"Technology", "villager", "villager", 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 0.0f}, // UNIT_TYPE_TECH
-		// template_unit_support_wagon, drawn on the ram model until it has its own
-		{"Supply Wagon", "ram", "ram", 200.0f, 1.78f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 4.0f, 4.0f, 10.0f, 50, 50, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f}
+		// template_unit_support_wagon (0.28 structures/germans/wagon.xml; the ram portrait for now)
+		{"Supply Wagon", "wagon", "ram", 200.0f, 1.78f, 1.0f, 0.0f, 1.0f, 0, 0.0f, 4.0f, 4.0f, 10.0f, 50, 50, 0, 0, 1, 12.0f, 0.0f, 0.0f, 0.0f}
 	};
 	if (type >= UNIT_TYPE_COUNT) return kTable[UNIT_VILLAGER];
 	return kTable[type];
@@ -2526,7 +2526,7 @@ inline const CivInfo &civ_info(uint8_t civ) {
 		// Gaia's row: names Gaia's structures (Building::civ); never offered as a civ.
 		{CIV_GAIA, "gaia", "Gaia", "res://assets/textures/ui/emblems/athenians.png", "", 1.0f, 1.0f, 1.0f, 0.0f},
 		// The Gallic emblem until the Germans' own is extracted (ASSET_MANIFEST_TODO.md).
-		{CIV_GERMANS, "germ", "Germans", "res://assets/textures/ui/emblems/gauls.png",
+		{CIV_GERMANS, "germ", "Germans", "res://assets/textures/ui/emblems/germans.png",
 		 civ_bonus_text(CIV_GERMANS),
 		 1.0f, 1.0f, 1.0f, 0.0f}
 	};
@@ -2534,11 +2534,6 @@ inline const CivInfo &civ_info(uint8_t civ) {
 	return kTable[civ];
 }
 
-// The civ code whose models a civ draws with: its own, except the Germans, who borrow the
-// Gauls' until their 0 A.D. actors are extracted (docs/ASSET_MANIFEST_TODO.md).
-inline const char *civ_art_code(uint8_t civ) {
-	return civ == CIV_GERMANS ? civ_info(CIV_GAULS).code : civ_info(civ).code;
-}
 
 // Prefer extracted `{civcode}_{model}` GLB; ModelLibrary falls back to the generic mesh.
 inline const char *civ_unit_model(uint8_t civ, uint8_t type) {
@@ -2546,7 +2541,7 @@ inline const char *civ_unit_model(uint8_t civ, uint8_t type) {
 	static bool ready = false;
 	if (!ready) {
 		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
-			const char *code = civ_art_code(c);
+			const char *code = civ_info(c).code;
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, unit_type_info(t).model_id);
 			}
@@ -2566,7 +2561,7 @@ inline const char *civ_building_model(uint8_t civ, uint8_t type) {
 	static bool ready = false;
 	if (!ready) {
 		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
-			const char *code = civ_art_code(c);
+			const char *code = civ_info(c).code;
 			for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
 				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, building_type_info(t).model_id);
 			}
@@ -2583,7 +2578,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 	static bool ready = false;
 	if (!ready) {
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
-			std::snprintf(cc_rubble[c], sizeof(cc_rubble[c]), "%s_town_center_rubble", civ_art_code(c));
+			std::snprintf(cc_rubble[c], sizeof(cc_rubble[c]), "%s_town_center_rubble", civ_info(c).code);
 		ready = true;
 	}
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;

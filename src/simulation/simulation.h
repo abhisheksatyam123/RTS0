@@ -390,6 +390,7 @@ public:
 		uint8_t target_is_building;
 		float x, z; // the target's position
 		float damage;
+		uint8_t melee; // a melee hit (the attacker's attack_melee sound plays on it)
 	};
 	static constexpr size_t kMaxAttackedEvents = 4096;
 	// Hands over the hits since the last call.
@@ -1669,6 +1670,11 @@ public:
 	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
 	// built and uncapturable.
 	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
+	// A ported map's WallSet piece (tools/port_0ad_maps.py wall_piece): `player`'s built `kind`
+	// (WallSetKind) wall, tower or gate (MapWallPiece) at (x, z), turned to its 0 A.D. Position
+	// `angle`; a wall or gate is `length` long. Gaia's can't be captured. Returns its id.
+	enum MapWallPiece : uint8_t { MAP_WALL_SEGMENT, MAP_WALL_TOWER, MAP_WALL_GATE };
+	uint32_t spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t piece, float x, float z, float angle, float length);
 	// rmgen-common player.js placeStartingWalls, the Iberian "Starting Walls" civ bonus: on a map
 	// over 128 tiles across (`map_tiles`), an Iberian player's base at (x, z) gets built stone
 	// walls, either a ring of long walls, gates and towers (STARTING_WALLS_FORTRESS,
@@ -2104,7 +2110,7 @@ private:
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage);
+			bool target_is_building, float damage, bool melee = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
 	std::vector<SessionNotice> session_notices_;
@@ -2666,6 +2672,7 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
 	void petra_treasures_taken(PetraHuntScan &scan) const;
 	void petra_manage_hunters(PetraHuntScan &scan);
+	void petra_check_hunt_drift(PetraHuntScan &scan); // worker.js: a chase that left our land is given up
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
 	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
 	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)
