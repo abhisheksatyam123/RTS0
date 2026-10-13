@@ -1193,6 +1193,8 @@ def collect(sim_root):
                 flags.append("ROSTER_CITIZEN")
             if "Mercenary" in c:
                 flags.append("ROSTER_MERCENARY")
+            if "Civilian" in c:
+                flags.append("ROSTER_CIVILIAN")  # 0.28's template_unit_support_civilian
             if "Citizen" in c and not t.value("ResourceGatherer/MaxDistance", ""):
                 flags.append("ROSTER_NO_GATHER")  # mixins/mercenary.xml, Neodamodes: ResourceGatherer disabled
             if t.value("Pack/Time", ""):

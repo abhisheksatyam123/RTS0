@@ -309,6 +309,8 @@ int main() {
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen")).trainers);
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen_house")).trainers);
 		CHECK(std::strcmp(civ_unit_template(roster_id("athen/support_civilian")).name, "Athenian Artisan") == 0);
+		CHECK((civ_unit_template(roster_id("athen/support_civilian")).flags & ROSTER_CIVILIAN) &&
+		      !(civ_unit_template(roster_id("athen/support_female_citizen")).flags & ROSTER_CIVILIAN));
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));
