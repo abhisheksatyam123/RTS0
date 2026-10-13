@@ -493,9 +493,10 @@ bool RtsoMain::start_pending_replay() {
 	replay_recording_ = false;
 	replay_finished_ = false;
 	replay_meta_ = meta;
-	// 0 A.D. starts a replay with the map revealed; the picker follows one player.
+	// 0 A.D. starts a replay as an observer (player -1) with the map revealed and
+	// no counters; the picker follows one player.
 	replay_view_ = rtso::OBSERVER_VIEW;
-	replay_hud_player_ = (uint8_t)std::clamp((int)meta.get("local_player", 0), 0, (int)rtso::MAX_PLAYERS - 1);
+	replay_hud_player_ = 0xFF; // seat_player()'s observer
 	UtilityFunctions::print("[RTS0] Playing replay ", dir, " (", (int64_t)turn_mgr_.turn_history().size(), " turns)");
 	return true;
 }
@@ -511,6 +512,8 @@ Dictionary RtsoMain::get_replay_status() const {
 	d["recording"] = replay_recording_;
 	d["replay_dir"] = replay_dir_;
 	d["view"] = turn_mgr_.is_replaying() && replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	// The player whose counters and time notifications show (local_player()); -1 for none.
+	d["hud_player"] = local_player() < rtso::MAX_PLAYERS ? (int)local_player() : -1;
 	d["start_time"] = (double)replay_meta_.get("start_time", 0.0);
 	d["speed"] = game_speed;
 	d["paused"] = is_game_paused();
@@ -607,7 +610,10 @@ void RtsoMain::_on_replay_view_selected(int index) {
 void RtsoMain::set_replay_view(int player) {
 	if (!turn_mgr_.is_replaying()) return;
 	if (player < 0 || player >= rtso::MAX_PLAYERS) {
+		// g_ViewedPlayer -1: the counters, civ icon and player panels go, and
+		// time notifications are the ones every observer sees.
 		replay_view_ = rtso::OBSERVER_VIEW;
+		replay_hud_player_ = 0xFF; // seat_player()'s observer
 	} else {
 		replay_view_ = (uint8_t)player;
 		replay_hud_player_ = (uint8_t)player;
