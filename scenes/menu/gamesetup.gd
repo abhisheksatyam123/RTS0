@@ -1230,7 +1230,8 @@ func _restore_settings() -> void:
 	var src := {}
 	for k in PERSISTED_KEYS:
 		src[k] = m.get(k)
-	var saved := load_persisted()
+	# A networked game's setup is the host's MatchSettings, never this player's saved file.
+	var saved := load_persisted() if net_main == null else {}
 	for k in saved:
 		if src.has(k) and typeof(saved[k]) in [TYPE_FLOAT, TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_ARRAY]:
 			src[k] = saved[k]
@@ -1325,7 +1326,7 @@ func _apply_settings(ms: Dictionary) -> void:
 func _on_back_pressed() -> void:
 	if _mp_role != "none":
 		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
-		MatchSettings.go("res://scenes/menu/lobby.tscn")
+		net_main.leave_net_game()
 		return
 	save_persisted() # GameSettingsController.onClose
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
@@ -1565,9 +1566,11 @@ var _net_names: Array = []
 var _net_tick := 0.0
 var _ready_btn: Button
 var _wait_label: Label
-## 0.28 ReadyButton captions (NotReady, Ready).
-const READY_CAPTIONS := ["I'm ready", "I'm not ready!"]
-const READY_TOOLTIPS := ["State that you are ready to play.", "State that you are not ready to play."]
+## 0.28 ReadyButton captions and tooltips per ready state (NotReady, Ready,
+## StayReady); pressing moves to the next state.
+const READY_CAPTIONS := ["I'm ready", "Stay ready", "I'm not ready!"]
+const READY_TOOLTIPS := ["State that you are ready to play.", "Stay ready even when the game settings change.",
+	"State that you are not ready to play."]
 ## 0.28 StartGameButton tooltips.
 const START_TOOLTIP := "Start a new game with the current settings."
 const START_WAIT_TOOLTIP := "Start a new game with the current settings (disabled until all players are ready)."
@@ -1581,6 +1584,8 @@ func _init_net() -> void:
 	_mp_role = "host" if bool(_net_state.get("controller", false)) else "client"
 	_build_net_controls()
 	net_main.net_setup_changed.connect(_on_net_setup_changed)
+	if net_main.has_signal("net_setup_refused"):
+		net_main.net_setup_refused.connect(_show_error)
 	if _mp_role == "client":
 		_on_net_setup_changed()
 	else:
@@ -1616,7 +1621,7 @@ func _update_net_controls() -> void:
 		start.disabled = not ok
 		start.tooltip_text = START_TOOLTIP if ok else START_WAIT_TOOLTIP
 		return
-	var ready := 1 if bool(_net_state.get("ready", false)) else 0
+	var ready := clampi(int(_net_state.get("ready", 0)), 0, 2)
 	_ready_btn.text = READY_CAPTIONS[ready]
 	_ready_btn.tooltip_text = READY_TOOLTIPS[ready]
 	# An observer has nothing to be ready for.
@@ -1625,7 +1630,7 @@ func _update_net_controls() -> void:
 func _on_ready_pressed() -> void:
 	if _mp_role != "client":
 		return
-	net_main.set_net_ready(not bool(_net_state.get("ready", false)))
+	net_main.set_net_ready((clampi(int(_net_state.get("ready", 0)), 0, 2) + 1) % 3)
 	_net_state = net_main.get_net_setup_state()
 	refresh_slots()
 	_update_net_controls()
@@ -1733,7 +1738,7 @@ func _slot_label(i: int, row: Dictionary) -> String:
 		return "P%d" % (i + 1)
 	var e: Dictionary = slots[k]
 	var you := int(e["client"]) == int(_net_state.get("my_client", -2))
-	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and bool(e.get("ready", false)) else ""]
+	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and int(e.get("ready", 0)) > 0 else ""]
 
 ## Session UI's single lock pass: a client may change only its own slot's civ,
 ## team and colour (none on a map that sets them); only adds disables, after

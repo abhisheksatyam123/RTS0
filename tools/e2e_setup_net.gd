@@ -7,8 +7,9 @@ extends SceneTree
 #      writes into MatchSettings, show on the host's page; Start is disabled,
 #      with 0.28's tooltip, until every player is ready, then starts the game;
 #   2. a client sees the host's setup, may change only its own slot's civ,
-#      team and colour (asked of the host), presses Ready ("I'm ready" /
-#      "I'm not ready!") and waits for the host, with no Start button;
+#      team and colour (asked of the host), presses Ready ("I'm ready",
+#      "Stay ready", "I'm not ready!") and waits for the host, with no
+#      Start button; a refused request says why, and Back leaves the game;
 #   3. outside a networked game the page is the single-player one.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_setup_net.gd
@@ -16,11 +17,13 @@ extends SceneTree
 
 class StubMain extends Node:
 	signal net_setup_changed
+	signal net_setup_refused(reason: String)
 	var state := {}
 	var requests: Array = []
 	var pushes := 0
 	var started := 0
-	var is_ready := false
+	var is_ready := 0
+	var left := 0
 	func is_net_pregame() -> bool:
 		return true
 	func get_net_setup_state() -> Dictionary:
@@ -32,8 +35,10 @@ class StubMain extends Node:
 		pushes += 1
 	func request_net_player_setting(key: String, value: int) -> void:
 		requests.append([key, value])
-	func set_net_ready(on: bool) -> void:
-		is_ready = on
+	func set_net_ready(status: int) -> void:
+		is_ready = status
+	func leave_net_game() -> void:
+		left += 1
 	func _on_lobby_start_pressed() -> void:
 		started += 1
 
@@ -84,7 +89,7 @@ func run() -> void:
 	var host := StubMain.new()
 	root.add_child(host)
 	host.state = {"controller": true, "my_client": 0, "my_slot": 0, "can_start": false, "all_ready": false,
-		"slots": [{"client": 0, "name": "alice", "ready": true}, {"client": 1, "name": "bob", "ready": false}],
+		"slots": [{"client": 0, "name": "alice", "ready": 2}, {"client": 1, "name": "bob", "ready": 0}],
 		"observers": [], "locked": false, "version": 1, "settings_version": 1}
 	var page := await open_page(host)
 	check(page._mp_role == "host", "the controller hosts the page")
@@ -102,7 +107,7 @@ func run() -> void:
 	ms.slot_civs = [1, 15]
 	ms.slot_teams = [0, 2]
 	ms.slot_colors = [0, 5]
-	host.state["slots"][1]["ready"] = true
+	host.state["slots"][1]["ready"] = 1
 	host.state["can_start"] = true
 	host.state["all_ready"] = true
 	host.net_setup_changed.emit()
@@ -123,7 +128,7 @@ func run() -> void:
 	var client := StubMain.new()
 	root.add_child(client)
 	client.state = {"controller": false, "my_client": 1, "my_slot": 1, "can_start": false, "all_ready": false,
-		"slots": [{"client": 0, "name": "alice", "ready": true}, {"client": 1, "name": "bob", "ready": false}],
+		"slots": [{"client": 0, "name": "alice", "ready": 2}, {"client": 1, "name": "bob", "ready": 0}],
 		"observers": [], "locked": false, "version": 2, "settings_version": 2}
 	ms.slot_types = [0, 0]
 	ms.slot_civs = [1, 3]
@@ -150,14 +155,23 @@ func run() -> void:
 	check(client.requests == [["civ", int(page.CIVS[0]["id"])], ["team", 3], ["color", 6]], "picks are asked of the host: " + str(client.requests))
 	check(ready_btn.text == "I'm ready" and not ready_btn.disabled, "Ready: I'm ready")
 	ready_btn.pressed.emit()
-	check(client.is_ready and ready_btn.text == "I'm not ready!", "pressed: I'm not ready!")
+	check(client.is_ready == 1 and ready_btn.text == "Stay ready", "pressed: ready, then Stay ready")
+	ready_btn.pressed.emit()
+	check(client.is_ready == 2 and ready_btn.text == "I'm not ready!", "pressed again: stays ready, then I'm not ready!")
+	ready_btn.pressed.emit()
+	check(client.is_ready == 0 and ready_btn.text == "I'm ready", "pressed again: not ready")
+	ready_btn.pressed.emit()
 	ms.seed = 555
-	client.is_ready = false # RtsoMain takes the ready back when a setting changes
+	client.is_ready = 0 # RtsoMain takes a Ready (not a Stay ready) back when a setting changes
 	client.net_setup_changed.emit()
 	await frames(3)
 	check(page.get_node("VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed").value == 555 and ready_btn.text == "I'm ready",
 		"a new setup shows, and Ready is back")
 	check(not picker(page, 1, 2).disabled and picker(page, 0, 2).disabled, "the locks hold after the update")
+	client.net_setup_refused.emit("That colour is taken.")
+	check(page.get_node("VBox/HBox/Right/ErrorLabel").text == "That colour is taken.", "a refused request says why")
+	page._on_back_pressed()
+	check(client.left == 1, "Back leaves the networked game")
 	client.state["locked"] = true
 	client.net_setup_changed.emit()
 	await frames(3)
