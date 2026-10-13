@@ -276,7 +276,10 @@ struct TriggerState {
 		return player < 8 && ((disabled_techs[player][tech >> 6] >> (tech & 63)) & 1u);
 	}
 	bool building_disabled(uint8_t player, uint8_t type) const {
-		return player < 8 && type < 64 && ((disabled_buildings[player] >> type) & 1u);
+		// Ids 64 and up have no bit until a save bump widens the mask; a mask disabling every
+		// structure (Death Canyon's invasion forces) disables them too.
+		if (player >= 8) return false;
+		return type < 64 ? ((disabled_buildings[player] >> type) & 1u) != 0 : disabled_buildings[player] == ~0ull;
 	}
 	bool template_disabled(uint16_t tmpl) const {
 		for (uint16_t t : disabled_templates) if (t == tmpl) return true;

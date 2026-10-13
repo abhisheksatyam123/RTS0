@@ -47,6 +47,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Iberian Embassy", "embassy", "embassy", 2000.0f, 2, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
 		{"Italic Embassy", "embassy", "embassy", 1500.0f, 1, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
 		{"Siege Wall", "wall_segment", "wall", 2250.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_long */ \
+		{"Island Settlement", "crannog", "crannog", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* structures/brit/crannog */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -89,6 +90,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 20, 20, 0}, /* structures/cart/embassy_iberian */ \
 		{0, 0, 20, 20, 0}, /* structures/cart/embassy_italic */ \
 		{0, 0, 12, 0, 0}, /* structures/rome/siege_wall_long */ \
+		{0, 0, 60, 60, 50}, /* structures/brit/crannog */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -140,6 +142,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_EMBASSY_IBERIAN: return 0x0010; // cart
 		case BLD_EMBASSY_ITALIC: return 0x0010; // cart
 		case BLD_SIEGE_WALL: return 0x0008; // rome
+		case BLD_CRANNOG: return 0x0040; // brit
 		default: return 0xFFFF;
 	}
 }
@@ -185,6 +188,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_EMBASSY_IBERIAN: return 2;
 		case BLD_EMBASSY_ITALIC: return 2;
 		case BLD_SIEGE_WALL: return 3;
+		case BLD_CRANNOG: return 2;
 		default: return 0;
 	}
 }
@@ -202,6 +206,7 @@ inline float civ_building_territory_radius(uint8_t type) {
 		case BLD_TACHARA_STONE: return 11.0f;
 		case BLD_TACHARA_METAL: return 11.0f;
 		case BLD_IMPERIAL_COURT: return 32.0f;
+		case BLD_CRANNOG: return 32.0f;
 		default: return 0.0f;
 	}
 }
@@ -216,6 +221,7 @@ inline float civ_building_vision(uint8_t type) {
 		case BLD_SUPER_DOCK: return 30.0f;
 		case BLD_IMPERIAL_COURT: return 27.0f;
 		case BLD_TOWER_GREAT: return 27.0f;
+		case BLD_CRANNOG: return 27.0f;
 		default: return 0.0f;
 	}
 }
@@ -267,7 +273,7 @@ inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 
 // True for a civ-specific structure that takes every resource (ResourceDropsite).
 inline bool civ_building_is_dropsite(uint8_t type) {
-	return type == BLD_MILITARY_COLONY || type == BLD_IMPERIAL_COURT;
+	return type == BLD_MILITARY_COLONY || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG;
 }
 
 #endif // RTSO_CIV_BUILDING_DATA_H
