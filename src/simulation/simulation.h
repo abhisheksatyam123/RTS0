@@ -453,6 +453,9 @@ public:
 	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
 	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
 	void set_resource_amount(uint32_t res_id, int32_t amount);
+	// Sets a resource's ResourceSupply/MaxGatherers, as map generation does for a tree whose 0 A.D.
+	// template allows other than 8 (tree_slot_gatherers.h).
+	void set_resource_max_gatherers(uint32_t res_id, int max_gatherers);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);
