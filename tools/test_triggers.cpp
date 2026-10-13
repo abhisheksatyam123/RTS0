@@ -885,6 +885,36 @@ static void check_jebel_barkal() {
 	if (failures == before)
 		std::printf("Jebel Barkal: Napata (%d houses, %d CCs, %d fortresses, %d wall pieces, %d gates), %d spawn points, %d patrolling, %d in the first wave: ok\n",
 		            houses, ccs, forts, walls, gates, spawns, patrols, attackers);
+
+	// Game Setup Trigger Difficulty (getDifficulty()): Very Easy builds Napata with no wall
+	// and fewer defenders, Very Hard with the Kushite wall and more; the triggers get it.
+	auto gaia_soldiers = [](const Simulation &sim) {
+		int n = 0;
+		for (size_t i = 0; i < sim.units_.count; ++i)
+			n += sim.units_.alive[i] && sim.units_.team[i] == GAIA_PLAYER && sim.units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
+			     (civ_unit_template(sim.units_.tmpl[i]).tech_classes & TC_SOLDIER);
+		return n;
+	};
+	auto wall_pieces = [](const Simulation &sim) {
+		int n = 0;
+		for (const Simulation::Building &b : sim.buildings_)
+			n += b.team == GAIA_PLAYER && (b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_GATE || b.type == BLD_PALISADE);
+		return n;
+	};
+	const int before_diff = failures;
+	s.set_trigger_difficulty(1);
+	build(s, MAP_JEBEL_BARKAL);
+	const int easy_soldiers = gaia_soldiers(s), easy_walls = wall_pieces(s);
+	CHECK(s.trigger_state().difficulty == 1 && easy_walls == 0, "Very Easy: difficulty %d, %d wall pieces", (int)s.trigger_state().difficulty, easy_walls);
+	s.set_trigger_difficulty(5);
+	build(s, MAP_JEBEL_BARKAL);
+	const int hard_soldiers = gaia_soldiers(s), hard_walls = wall_pieces(s);
+	CHECK(s.trigger_state().difficulty == 5 && hard_walls > 0, "Very Hard: difficulty %d, %d wall pieces", (int)s.trigger_state().difficulty, hard_walls);
+	CHECK(hard_soldiers > easy_soldiers, "Napata defenders: %d on Very Easy, %d on Very Hard", easy_soldiers, hard_soldiers);
+	s.set_trigger_difficulty(3);
+	if (failures == before_diff)
+		std::printf("Jebel Barkal Trigger Difficulty: Very Easy %d defenders and no wall, Very Hard %d defenders and %d wall pieces: ok\n",
+		            easy_soldiers, hard_soldiers, hard_walls);
 }
 
 static void check_disabled_buildings_128() {

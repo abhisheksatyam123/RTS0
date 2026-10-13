@@ -861,6 +861,11 @@ public:
 	// 0 A.D. Landscape for the Unknown map (RmsGenerator::UNKNOWN_LANDSCAPE_*); setup-time only.
 	void set_map_landscape(int l) { map_landscape_ = (uint8_t)((l >= 0 && l < 16) ? l : 0); }
 	uint8_t map_landscape() const { return map_landscape_; }
+	// 0 A.D. Game Setup Trigger Difficulty (1 Very Easy .. 5 Very Hard, 3 Medium) for maps
+	// whose script reads getDifficulty(): random map generation uses it and hands it to
+	// the map's triggers (TriggerState::difficulty, saved with them).
+	void set_trigger_difficulty(int d) { trigger_difficulty_ = (uint8_t)((d >= 1 && d <= 5) ? d : 3); }
+	uint8_t trigger_difficulty() const { return trigger_difficulty_; }
 	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
@@ -1638,6 +1643,21 @@ public:
 	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
 	// built and uncapturable.
 	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
+	// rmgen-common player.js placeStartingWalls, the Iberian "Starting Walls" civ bonus: on a map
+	// over 128 tiles across (`map_tiles`), an Iberian player's base at (x, z) gets built stone
+	// walls, either a ring of long walls, gates and towers (STARTING_WALLS_FORTRESS,
+	// placeGenericFortress at radius 20, its shape drawn from `seed`) or only seven towers
+	// (STARTING_WALLS_TOWERS, placePolygonalWall at radius 15 facing `orientation`). Other civs
+	// and smaller maps get none. Returns the number of pieces placed.
+	enum StartingWalls : uint8_t { STARTING_WALLS_NONE, STARTING_WALLS_FORTRESS, STARTING_WALLS_TOWERS };
+	size_t place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
+			uint32_t seed);
+	// wall_builder.js placeGenericFortress: `player`'s built stone walls round (x, z) at about
+	// `radius`, long walls between towers with every `gate_every`-th wall a gate, the outline's
+	// corners pushed in or out by up to `irregularity` of a wall's length (the best closing of
+	// `max_tries` tries). Pieces in water or off the map are left out.
+	size_t place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
+			float irregularity = 0.5f, int gate_every = 3, int max_tries = 100);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -2228,6 +2248,7 @@ private:
 	int biome_override_ = -1; // setup-time only: applied when a random map is generated
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
+	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
