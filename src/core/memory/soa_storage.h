@@ -89,6 +89,7 @@ struct UnitSoA {
 	// gathering), kept until it leaves; a field's diminishing returns are those at the start.
 	float *gather_rate = nullptr;
 	uint32_t *gather_res = nullptr;
+	float *patrol_wait = nullptr; // PATROL.CHECKINGWAYPOINT: seconds surveyed at the waypoint (0 = walking)
 	ShortPathMemo *short_path = nullptr; // the short path around buildings the unit is walking
 	MotionTurn *motion = nullptr; // UnitMotion's failed movements and this turn's move
 
@@ -112,7 +113,7 @@ struct UnitSoA {
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
 		FREE(xp_partial); FREE(short_path); FREE(motion);
-		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist); FREE(gather_rate); FREE(gather_res);
+		FREE(aura_hp_mult); FREE(flee_from); FREE(flee_dist); FREE(gather_rate); FREE(gather_res); FREE(patrol_wait);
 		#undef FREE
 		cap = count = 0;
 	}
@@ -192,6 +193,7 @@ struct UnitSoA {
 		realloc_aligned(flee_dist, c * sizeof(float));
 		realloc_aligned(gather_rate, c * sizeof(float));
 		realloc_aligned(gather_res, c * sizeof(uint32_t));
+		realloc_aligned(patrol_wait, c * sizeof(float));
 		realloc_aligned(short_path, c * sizeof(ShortPathMemo));
 		realloc_aligned(motion, c * sizeof(MotionTurn));
 		cap = c;
@@ -247,6 +249,7 @@ struct UnitSoA {
 		flee_dist[i] = 0.0f;
 		gather_rate[i] = 0.0f;
 		gather_res[i] = 0;
+		patrol_wait[i] = 0.0f;
 		short_path[i] = ShortPathMemo{};
 		motion[i] = MotionTurn{};
 		hp[i] = max_hp[i] = info.hp;
@@ -311,6 +314,7 @@ struct UnitSoA {
 			flee_dist[idx] = flee_dist[last];
 			gather_rate[idx] = gather_rate[last];
 			gather_res[idx] = gather_res[last];
+			patrol_wait[idx] = patrol_wait[last];
 			short_path[idx] = short_path[last];
 			motion[idx] = motion[last];
 		}

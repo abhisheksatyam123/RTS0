@@ -1814,6 +1814,37 @@ static void test_patrol_loop() {
 	check(order.rfind("ABCABCA", 0) == 0, "after the last point it goes back to the first, not the one before");
 }
 
+static void test_patrol_wait(const char *path) {
+	std::printf("49. a patrolling unit surveys each waypoint for PatrolWaitTime (CHECKINGWAYPOINT)\n");
+	Simulation s;
+	setup(s);
+	uint32_t p = s.spawn_unit(-10, 0, 0, UNIT_SPEARMAN);
+	s.order_patrol(&p, 1, 10, 0);
+	check(run_until(s, 20.0f, [&] { return dist(s, p, 10, 0) < 1.5f; }), "reaches the far end");
+	float px = x_of(s, p), pz = z_of(s, p);
+	int still = 0;
+	for (int k = 0; k < 25; ++k) { // 5 s
+		run(s, DT);
+		const float nx = x_of(s, p), nz = z_of(s, p);
+		if (std::fabs(nx - px) < 1e-4f && std::fabs(nz - pz) < 1e-4f) ++still;
+		else if (still > 0) break;
+		px = nx; pz = nz;
+	}
+	std::printf("  stood still %.1f s at the waypoint\n", still * DT);
+	check(still * DT >= 0.8f && still * DT <= 1.6f, "it waits about a second there");
+	check(run_until(s, 20.0f, [&] { return dist(s, p, -10, 0) < 1.5f; }), "then walks back to the start");
+	// Saved mid-wait, the wait carries on the same way.
+	check(run_until(s, 2.0f, [&] { return s.units_.patrol_wait[idx_of(s, p)] > 0.3f; }), "waits at the start too");
+	check(s.save_state(path), "saved while waiting");
+	Simulation t;
+	check(t.load_state(path), "loaded");
+	run(s, 3.0f);
+	run(t, 3.0f);
+	check(std::fabs(x_of(s, p) - x_of(t, p)) < 1e-4f && std::fabs(z_of(s, p) - z_of(t, p)) < 1e-4f,
+			"both copies leave the waypoint together");
+	std::remove(path);
+}
+
 static uint16_t roster_named(const char *suffix) {
 	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
 		const char *id = civ_unit_template(t).id;
@@ -1994,6 +2025,7 @@ int main(int argc, char **argv) {
 	test_chase_into_fog();
 	test_hidden_attacker();
 	test_patrol_loop();
+	test_patrol_wait(save.c_str());
 	test_capture_regen();
 	test_capture_auras();
 	test_capture_owner_change();
