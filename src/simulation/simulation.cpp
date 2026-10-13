@@ -18102,6 +18102,8 @@ uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &
 			tx = units_.pos_x[u]; tz = units_.pos_z[u]; return plan.target_building_id;
 		}
 	}
+	// uniqueTargetId: no other target once that one is destroyed or captured.
+	if (plan.kind == PETRA_ATTACK_UNIQUE) return 0;
 	if (plan.kind == PETRA_ATTACK_RUSH && plan.state != AttackPlan::ATTACKED) return find_petra_rush_target(tx, tz, plan.target_player);
 	return find_petra_attack_target(tx, tz, same_land, &plan);
 }
@@ -18146,7 +18148,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				int started = 0;
 				bool huge_started = false;
 				for (const AttackPlan &p : petra_started_attacks_) {
-					if ((p.kind != PETRA_ATTACK_ATTACK && p.kind != PETRA_ATTACK_HUGE) ||
+					if ((p.kind != PETRA_ATTACK_ATTACK && p.kind != PETRA_ATTACK_HUGE && p.kind != PETRA_ATTACK_UNIQUE) ||
 					    (p.state != AttackPlan::WALKING && p.state != AttackPlan::ATTACKED)) continue;
 					++started;
 					huge_started |= p.kind == PETRA_ATTACK_HUGE;
@@ -20065,6 +20067,54 @@ void Simulation::petra_manage_defense(float dt) {
 		armies.back().foe_ids.push_back(fid);
 	};
 	const PetraBase *home = get_primary_petra_base();
+	// defenseManager.js targetList: an enemy structure going up in our territory, or an
+	// enemy civic centre within 30000 m² of one of our finished structures.
+	auto defense_target = [&](const Building &b) {
+		if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
+		if (territory_owner_at(b.x, b.z) == petra_pid_) return true;
+		if (!is_civic_centre(b.type)) return false;
+		for (const Building *o : own_structures) {
+			if (o->build_progress < 1.0f) continue;
+			const float dx = o->x - b.x, dz = o->z - b.z;
+			if (dx * dx + dz * dz <= 30000.0f / 16.0f) return true; // m² to RTS0 units² (4 m each)
+		}
+		return false;
+	};
+	// switchToAttack: a disbanding army with a defender on the same land within 120 m of a
+	// target turns into an attack on that target alone (attackManager.js
+	// switchDefenseToAttack with uniqueTarget), starting where the army stands.
+	auto switch_to_attack = [&](PetraDefenseArmy &a) {
+		for (const Building &b : buildings_) {
+			if (!defense_target(b)) continue;
+			const uint16_t land = petra_land_at(b.x, b.z);
+			bool near = false;
+			for (uint32_t uid : a.defender_ids) {
+				const int32_t i = lookup_unit(uid);
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+				if (dx * dx + dz * dz <= 14400.0f / 16.0f) { near = true; break; }
+			}
+			if (!near) continue;
+			AttackPlan plan;
+			for (uint32_t uid : a.defender_ids) {
+				const int32_t i = lookup_unit(uid);
+				if (i < 0 || !units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || petra_land_at(units_.pos_x[i], units_.pos_z[i]) != land) continue;
+				plan.squad.push_back(uid);
+			}
+			a.defender_ids.clear();
+			plan.kind = PETRA_ATTACK_UNIQUE;
+			plan.type = AttackPlan::PLAN_ASSAULT;
+			plan.target_building_id = b.id;
+			plan.target_player = b.team;
+			plan.target_x = plan.staging_x = b.x;
+			plan.target_z = plan.staging_z = b.z;
+			plan.initial_squad_size = plan.squad.size();
+			plan.state = AttackPlan::ATTACKED;
+			order_attack_move(plan.squad.data(), plan.squad.size(), b.x, b.z, false, false, true, petra_attack_avoid(plan, false));
+			petra_started_attacks_.push_back(std::move(plan));
+			return;
+		}
+	};
 	// defenseArmy.js clear: a defender below low health goes to heal in the nearest healing
 	// structure; the others come home instead of chasing foes out of territory.
 	auto clear_army = [&](PetraDefenseArmy &a) {
@@ -20134,6 +20184,7 @@ void Simulation::petra_manage_defense(float dt) {
 	}
 	for (size_t k = 0; k < armies.size(); ++k) {
 		if (!armies[k].foe_ids.empty()) continue;
+		switch_to_attack(armies[k]);
 		clear_army(armies[k]);
 		armies.erase(armies.begin() + (ptrdiff_t)k--);
 	}
@@ -20176,6 +20227,7 @@ void Simulation::petra_manage_defense(float dt) {
 				keep = reach > 0.0f && dx * dx + dz * dz <= reach * reach;
 			}
 			if (keep) continue;
+			switch_to_attack(armies[k]);
 			clear_army(armies[k]);
 			armies.erase(armies.begin() + (ptrdiff_t)k--);
 		}
@@ -20210,10 +20262,9 @@ void Simulation::petra_manage_defense(float dt) {
 		if (dangerous) make_into_army(units_.id[i]);
 	}
 
-	// Enemy foundations in our territory (defenseManager targetList): whoever stands by one.
+	// isDangerous: whoever stands by a structure of the targetList.
 	for (const auto &b : buildings_) {
-		if (!petra_foe(b.team) || b.hp <= 0.0f) continue;
-		if (territory_owner_at(b.x, b.z) != petra_pid_) continue;
+		if (!defense_target(b)) continue;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
 			float dx = units_.pos_x[i] - b.x;
@@ -22297,7 +22348,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		if (ar.version >= SAVE_VERSION_PETRA_STARTED_ATTACKS) ar.pod(v.kind);
 		if (ar.version >= SAVE_VERSION_PETRA_ATTACK_REQUEST) { ar.pod(v.target_player); ar.pod(v.forced); ar.pod(v.requested); }
 		if constexpr (Ar::loading)
-			if (v.state > S::AttackPlan::ABORT || v.kind > PETRA_ATTACK_RAID) ar.ok = false;
+			if (v.state > S::AttackPlan::ABORT || (v.kind > PETRA_ATTACK_RAID && v.kind != PETRA_ATTACK_UNIQUE)) ar.ok = false;
 	};
 	auto field = [&](auto &v) {
 		using T = std::decay_t<decltype(v)>;
