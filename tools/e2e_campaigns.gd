@@ -13,8 +13,6 @@ extends SceneTree
 #   godot --headless --path . --fixed-fps 60 -s tools/e2e_campaigns.gd
 # Exit code 0 = pass.
 
-const Campaigns = preload("res://scenes/menu/campaigns.gd")
-
 var failures := 0
 
 func check(cond: bool, what: String) -> void:
@@ -61,7 +59,7 @@ func run() -> void:
 	check(page.mode == "setup", "the page opens on the campaign list")
 	check(level_texts(page).has("Tutorial"), "0 A.D.'s Tutorial campaign is listed: " + str(level_texts(page)))
 	page.select(level_texts(page).find("Tutorial"))
-	check(page.info_desc.text == "Learn how to play 0 A.D.", "its description shows: " + page.info_desc.text)
+	check(page.info_desc.text.replace(char(0xa0), " ") == "Learn how to play 0 A.D.", "its description shows: %s (%d)" % [page.info_desc.text, page.info_desc.text.length()])
 	var made: CampaignRun = page.create_run("My run")
 	await frames(2)
 	check(FileAccess.file_exists(made.path()), "the run is written to " + made.path())
@@ -97,7 +95,7 @@ func run() -> void:
 	summary.continue_pressed()
 	await frames(6)
 	page = current_scene
-	check(page is Campaigns and page.mode == "menu", "Continue on the summary comes back to the run's menu")
+	check(page.get_script().resource_path == "res://scenes/menu/campaigns.gd" and page.mode == "menu", "Continue on the summary comes back to the run's menu")
 	var back := CampaignRun.new(made.filename)
 	check(back.load_run() and back.is_completed("introduction"), "the tutorial is completed in the run file")
 	texts = level_texts(page)
