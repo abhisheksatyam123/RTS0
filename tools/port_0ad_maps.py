@@ -5,6 +5,7 @@
                                                   # libyan_oases_4p), fetched from 0 A.D.'s GitHub
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
+  python3 tools/port_0ad_maps.py --zip-scenarios ZIP [NAME..]  # scenario maps from a 0 A.D. public.zip
   python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
@@ -720,6 +721,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     structures.append({"type": "wall_segment", "player": ply, "x": wx, "z": wz})
                 elif "corral" in ltpl:
                     structures.append({"type": "corral", "player": ply, "x": wx, "z": wz})
+                elif ltpl.count("/") == 1 and (gaia_owned(files, ltpl, wx, wz) or ("",))[0] == "scenery":
+                    # A player's obelisk or fence (Saharan Oases' scenario): RTS0 scenery has no owner.
+                    gaia["scenery"].append(gaia_owned(files, ltpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)[1])
                 else:
                     # A civ structure the names above miss (spart/gerousia): RTS0 finds it by template.
                     structures.append({"type": "", "player": ply, "x": wx, "z": wz})
@@ -958,6 +962,10 @@ github_scenarios = {
     "siwa_oasis": ("siwa_oasis", "desert"),
     "the_massacre_of_delphi": ("the_massacre_of_delphi", "aegean"),
     "the_persian_gates": ("the_persian_gates", "persia"),
+    # Scenario versions of skirmish maps (fixed civs and per-player resources); the
+    # skirmish keeps the plain id.
+    "sahel": ("sahel_scenario", "savanna"),
+    "saharan_oases": ("saharan_oases_scenario", "desert"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
@@ -1029,6 +1037,12 @@ if __name__ == "__main__":
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
                      source=GithubSource())
+    elif len(sys.argv) > 2 and sys.argv[1] == "--zip-scenarios":
+        # --zip-scenarios <public.zip> [names]: like --github-scenarios, from a 0 A.D. public.zip.
+        for name in sys.argv[3:] or sorted(github_scenarios):
+            mid, bome = github_scenarios.get(name, (name, "mediterranean"))
+            port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
+                     source=zipfile.ZipFile(sys.argv[2]))
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-tutorials":
         for name in sys.argv[2:] or sorted(github_tutorials):
             mid, bome = github_tutorials.get(name, (name, "mediterranean"))
