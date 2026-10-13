@@ -322,6 +322,7 @@ func _ready() -> void:
 	refresh_map_list()
 	refresh_slots()
 	_update_preview()
+	_init_net()
 
 # ---------------------------------------------------------------- maps ---
 
@@ -881,11 +882,12 @@ func refresh_slots() -> void:
 	for i in range(n):
 		_add_slot_row(grid, i)
 	_rebuilding_slots = false
+	_apply_mp_locks()
 
 func _add_slot_row(grid: GridContainer, i: int) -> void:
 	var row: Dictionary = _slot_rows[i]
 	var name := Label.new()
-	name.text = "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
+	name.text = _slot_label(i, row)
 	grid.add_child(name)
 	# kind
 	var kind_slot := Control.new()
@@ -968,6 +970,7 @@ func _on_slot_civ(idx: int, slot: int) -> void:
 		return
 	var order := _civ_order()
 	_slot_rows[slot]["civ"] = int(CIVS[order[idx - 1]]["id"]) if idx >= 1 and idx <= order.size() else RANDOM_CIV
+	_net_request("civ", int(_slot_rows[slot]["civ"]))
 	_update_preview()
 
 var _civ_order_cache: Array = []
@@ -983,6 +986,7 @@ func _on_slot_team(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
 	_slot_rows[slot]["team"] = idx
+	_net_request("team", idx)
 
 func _on_slot_diff(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -991,6 +995,10 @@ func _on_slot_diff(idx: int, slot: int) -> void:
 
 func _on_slot_color(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
+		return
+	if _mp_role == "client":
+		# The host swaps nothing for a client: it takes a colour no one uses.
+		_net_request("color", idx)
 		return
 	var old := int(_slot_rows[slot]["color"])
 	for r in _slot_rows:
@@ -1315,6 +1323,10 @@ func _apply_settings(ms: Dictionary) -> void:
 # ---------------------------------------------------------------- start ---
 
 func _on_back_pressed() -> void:
+	if _mp_role != "none":
+		# 0 A.D. gamesetup's Back in a networked game: leave it for the lobby.
+		MatchSettings.go("res://scenes/menu/lobby.tscn")
+		return
 	save_persisted() # GameSettingsController.onClose
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
 
@@ -1439,9 +1451,17 @@ func _player_names(types: Array, civs: Array) -> Array:
 	return names
 
 func _on_start_pressed() -> void:
+	if _mp_role == "client":
+		return
 	var st := _collect_setup()
 	if st["map"].is_empty():
 		_show_error("No map selected.")
+		return
+	if _mp_role == "host":
+		# The host's MatchSettings is the setup; RtsoMain starts every peer
+		# once all players are ready (0.28 ReadyController).
+		_host_write_setup(true)
+		net_main._on_lobby_start_pressed()
 		return
 	if int(st["humans"]) < 1 and int(st["ai"]) < 2:
 		_show_error("Watching a game needs at least 2 AI players.")
@@ -1526,3 +1546,223 @@ func _show_error(msg: String) -> void:
 	var err := $VBox/HBox/Right/ErrorLabel as Label
 	if err:
 		err.text = msg
+
+# ------------------------------------------------------- networked setup ---
+# 0 A.D. 0.28 gamesetup in a networked game. The host (the controller) edits
+# the page as in single player; its MatchSettings is the setup RtsoMain sends
+# to every client. A client shows the host's setup, may change only its own
+# slot's civ, team and colour (asked of the host), and presses Ready; the
+# host's Start waits until every player is ready. net_main is the RtsoMain
+# that runs the networked game, set before the page enters the tree.
+
+var net_main: Node = null
+var _mp_role := "none"           # "none", "host" or "client"
+var _net_state := {}             # net_main.get_net_setup_state()
+var _net_sent := {}              # host: the settings written last
+var _net_random_map := ""        # host: the map Random picked, kept while Random stays selected
+var _net_names_key := ""
+var _net_names: Array = []
+var _net_tick := 0.0
+var _ready_btn: Button
+var _wait_label: Label
+## 0.28 ReadyButton captions (NotReady, Ready).
+const READY_CAPTIONS := ["I'm ready", "I'm not ready!"]
+const READY_TOOLTIPS := ["State that you are ready to play.", "State that you are not ready to play."]
+## 0.28 StartGameButton tooltips.
+const START_TOOLTIP := "Start a new game with the current settings."
+const START_WAIT_TOOLTIP := "Start a new game with the current settings (disabled until all players are ready)."
+const WAIT_TEXT := "Waiting for the host to start the game."
+const NET_SLOT_KEYS := ["slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
+
+func _init_net() -> void:
+	if net_main == null or not net_main.has_method("is_net_pregame") or not net_main.is_net_pregame():
+		return
+	_net_state = net_main.get_net_setup_state()
+	_mp_role = "host" if bool(_net_state.get("controller", false)) else "client"
+	_build_net_controls()
+	net_main.net_setup_changed.connect(_on_net_setup_changed)
+	if _mp_role == "client":
+		_on_net_setup_changed()
+	else:
+		_host_write_setup(true)
+		refresh_slots()
+		_update_net_controls()
+
+func _build_net_controls() -> void:
+	var right := $VBox/HBox/Right
+	var start := $VBox/HBox/Right/BtnStart as Button
+	_wait_label = Label.new()
+	_wait_label.name = "NetWaitLabel"
+	_wait_label.text = WAIT_TEXT
+	_wait_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	right.add_child(_wait_label)
+	right.move_child(_wait_label, start.get_index())
+	_ready_btn = Button.new()
+	_ready_btn.name = "BtnReady"
+	_ready_btn.custom_minimum_size = Vector2(0, 48)
+	_ready_btn.pressed.connect(_on_ready_pressed)
+	right.add_child(_ready_btn)
+	right.move_child(_ready_btn, start.get_index())
+	_wait_label.visible = _mp_role == "client"
+	_ready_btn.visible = _mp_role == "client"
+	start.visible = _mp_role == "host"
+
+func _update_net_controls() -> void:
+	if _mp_role == "none":
+		return
+	var start := $VBox/HBox/Right/BtnStart as Button
+	if _mp_role == "host":
+		var ok := bool(_net_state.get("can_start", false))
+		start.disabled = not ok
+		start.tooltip_text = START_TOOLTIP if ok else START_WAIT_TOOLTIP
+		return
+	var ready := 1 if bool(_net_state.get("ready", false)) else 0
+	_ready_btn.text = READY_CAPTIONS[ready]
+	_ready_btn.tooltip_text = READY_TOOLTIPS[ready]
+	# An observer has nothing to be ready for.
+	_ready_btn.disabled = int(_net_state.get("my_slot", -1)) < 0
+
+func _on_ready_pressed() -> void:
+	if _mp_role != "client":
+		return
+	net_main.set_net_ready(not bool(_net_state.get("ready", false)))
+	_net_state = net_main.get_net_setup_state()
+	refresh_slots()
+	_update_net_controls()
+
+func _process(delta: float) -> void:
+	if _mp_role == "none":
+		return
+	_net_tick += delta
+	if _net_tick < 0.25:
+		return
+	_net_tick = 0.0
+	if _mp_role == "host":
+		_host_write_setup(false)
+	else:
+		_apply_mp_locks() # controls the page rebuilt since
+
+## The rows that are in the setup (Closed slots are dropped, as at Start):
+## the setup's slot k is row _net_rows()[k].
+func _net_rows() -> Array:
+	var rows: Array = []
+	var n := mini(int(_slot_count_node().value), _slot_rows.size())
+	for i in range(n):
+		if i == 0 or int(_slot_rows[i]["kind"]) != 2:
+			rows.append(i)
+	return rows
+
+## Host: the page into MatchSettings, which RtsoMain sends when it changed.
+func _host_write_setup(force: bool) -> void:
+	if _mp_role != "host" or not has_node("/root/MatchSettings"):
+		return
+	var ps := page_state()
+	var keep := _net_rows()
+	for k in NET_SLOT_KEYS:
+		var a: Array = ps[k]
+		ps[k] = keep.filter(func(i): return i < a.size()).map(func(i): return a[i])
+	if not ps["slot_types"].is_empty():
+		ps["slot_types"][0] = mini(int(ps["slot_types"][0]), 1)
+	if str(ps["map_id"]) == RANDOM_MAP_ID:
+		# Every peer must load the same map, so Random picks one at once.
+		var pool := _filtered.filter(func(x): return str(x["id"]) != RANDOM_MAP_ID)
+		if not pool.any(func(x): return str(x["id"]) == _net_random_map) and not pool.is_empty():
+			_net_random_map = str(pool[randi() % pool.size()]["id"])
+		ps["map_id"] = _net_random_map
+	ps["map_locks_players"] = _is_scenario()
+	if not force and ps == _net_sent:
+		return
+	_net_sent = ps.duplicate(true)
+	var ms := get_node("/root/MatchSettings")
+	for k in ps:
+		ms.set(k, ps[k])
+	var key := str(ps["slot_types"]) + str(ps["slot_civs"])
+	if key != _net_names_key:
+		_net_names_key = key
+		_net_names = _player_names(ps["slot_types"], ps["slot_civs"])
+	ms.slot_names = _net_names
+	ms.player_count = ps["slot_types"].size()
+	ms.campaign_run = ""
+	ms.campaign_level = ""
+	# Cheats.js: off in a networked game unless the host allows them.
+	ms.cheats = false
+	ms.ai_difficulty = 3
+	ms.ai_behavior = 2
+	for i in range(ps["slot_types"].size()):
+		if int(ps["slot_types"][i]) == 1:
+			ms.ai_difficulty = int(ps["slot_diffs"][i])
+			ms.ai_behavior = int(ps["slot_behs"][i])
+			break
+	net_main.push_net_setup()
+
+func _on_net_setup_changed() -> void:
+	_net_state = net_main.get_net_setup_state()
+	var ms := get_node("/root/MatchSettings")
+	if _mp_role == "client":
+		var src := {}
+		for k in PERSISTED_KEYS:
+			src[k] = ms.get(k)
+		_apply_settings(src)
+		refresh_map_list()
+	elif _mp_role == "host":
+		# A client's own civ, team or colour, which RtsoMain wrote into MatchSettings.
+		var rows := _net_rows()
+		var fields := {"slot_civs": "civ", "slot_teams": "team", "slot_colors": "color"}
+		for f in fields:
+			var a: Array = ms.get(f)
+			for k in range(mini(a.size(), rows.size())):
+				_slot_rows[rows[k]][fields[f]] = int(a[k])
+				if _net_sent.has(f) and k < _net_sent[f].size():
+					_net_sent[f][k] = int(a[k])
+	refresh_slots()
+	_update_preview()
+	_update_net_controls()
+
+## A client asks the host for its own slot's civ, team or colour.
+func _net_request(key: String, value: int) -> void:
+	if _mp_role == "client" and not _rebuilding_slots:
+		net_main.request_net_player_setting(key, value)
+
+## The slot's name: in a networked game, the client in it and whether it is ready.
+func _slot_label(i: int, row: Dictionary) -> String:
+	if _mp_role == "none":
+		return "P%d%s" % [i + 1, " (You)" if i == 0 and int(row["kind"]) == 0 else ""]
+	var k := _net_rows().find(i) if _mp_role == "host" else i
+	var slots: Array = _net_state.get("slots", [])
+	if k < 0 or k >= slots.size() or int(slots[k].get("client", -1)) < 0:
+		return "P%d" % (i + 1)
+	var e: Dictionary = slots[k]
+	var you := int(e["client"]) == int(_net_state.get("my_client", -2))
+	return "%s%s%s" % [str(e.get("name", "")), " (You)" if you else "", " (Ready)" if int(e["client"]) > 0 and bool(e.get("ready", false)) else ""]
+
+## Session UI's single lock pass: a client may change only its own slot's civ,
+## team and colour (none on a map that sets them); only adds disables, after
+## the map's own locks.
+func _apply_mp_locks() -> void:
+	if _mp_role != "client":
+		return
+	var keep := {}
+	if _ready_btn:
+		keep[_ready_btn] = true
+	var k := int(_net_state.get("my_slot", -1))
+	var cells := _slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
+	if k >= 0 and not bool(_net_state.get("locked", false)):
+		for col in [2, 3, 6]:
+			if k * 7 + col < cells.size():
+				keep[cells[k * 7 + col]] = true
+	_lock_tree($VBox/HBox, keep)
+
+func _lock_tree(n: Node, keep: Dictionary) -> void:
+	if keep.has(n):
+		return
+	if n is BaseButton:
+		n.disabled = true
+	elif n is SpinBox:
+		n.editable = false
+	elif n is LineEdit:
+		n.editable = false
+	elif n is ItemList:
+		n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		n.focus_mode = Control.FOCUS_NONE
+	for c in n.get_children():
+		_lock_tree(c, keep)
