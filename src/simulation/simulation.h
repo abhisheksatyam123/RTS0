@@ -751,6 +751,9 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// Auras.js "garrison" auras on BuildingAI (Caros' Valiant Defender) from the units `ids`
+	// that `owner` garrisons: what GarrisonArrowMultiplier and MaxArrowCount are multiplied by.
+	void garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8_t owner, float &arrows, float &max_arrows) const;
 	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).

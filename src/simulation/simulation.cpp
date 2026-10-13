@@ -5353,6 +5353,26 @@ int Simulation::siege_garrison_capacity(size_t i) const {
 	return 0;
 }
 
+void Simulation::garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8_t owner, float &arrows,
+		float &max_arrows) const {
+	arrows = max_arrows = 1.0f;
+	if (GARRISON_ARROW_AURA_COUNT == 0) return;
+	uint32_t seen = 0; // garrison_arrow_auras() rows applied: one aura counts once, not per carrier
+	for (uint32_t uid : ids) {
+		const int32_t g = lookup_unit(uid);
+		if (g < 0 || units_.team[g] != owner || units_.tmpl[g] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		for (int16_t a : civ_unit_template(units_.tmpl[g]).auras) {
+			const int row = garrison_arrow_aura_index(a);
+			if (row < 0 || row >= 32 || (seen & (1u << row))) continue;
+			seen |= 1u << row;
+			arrows *= garrison_arrow_auras()[row].arrow_multiply;
+			max_arrows *= garrison_arrow_auras()[row].max_multiply;
+		}
+	}
+}
+
+// BuildingAI.js GetArrowCount on a siege tower: one arrow per garrisoned Infantry
+// (GarrisonArrowMultiplier 1), at most MaxArrowCount 10, both after garrison auras.
 int Simulation::siege_tower_arrows(size_t i) const {
 	auto pit = transport_passengers_.find(units_.id[i]);
 	if (pit == transport_passengers_.end()) return 0;
@@ -5361,12 +5381,14 @@ int Simulation::siege_tower_arrows(size_t i) const {
 		int32_t p = lookup_unit(puid);
 		if (p >= 0 && (unit_tech_classes(units_.unit_type[p]) & TC_INFANTRY)) ++infantry;
 	}
-	return std::min(infantry, SIEGE_TOWER_MAX_ARROWS);
+	float mul, max_mul;
+	garrison_arrow_auras_of(pit->second, units_.team[i], mul, max_mul);
+	return std::min((int)std::lround(infantry * mul), (int)std::lround(SIEGE_TOWER_MAX_ARROWS * max_mul));
 }
 
 // BuildingAI.js GetArrowCount: DefaultArrowCount (with technologies: multiplied, then
 // added, then rounded) + round(garrisoned GarrisonArrowClasses units x
-// GarrisonArrowMultiplier), at most MaxArrowCount.
+// GarrisonArrowMultiplier), at most MaxArrowCount; a garrisoned Caros multiplies both.
 int Simulation::building_arrow_count(const Building &b) const {
 	const BuildingAIInfo &ai = building_ai_info(b.type);
 	if (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER) return 0;
@@ -5382,9 +5404,12 @@ int Simulation::building_arrow_count(const Building &b) const {
 			if (g >= 0 && (unit_classes(units_.tmpl[g], units_.unit_type[g]) & ai.garrison_arrow_classes)) ++garrisoned;
 		}
 	}
-	const float per_unit = ai.garrison_arrow_multiplier * (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_garrison_arrows[b.type] : 1.0f);
+	float aura = 1.0f, max_aura = 1.0f;
+	if (b.team < MAX_PLAYERS) garrison_arrow_auras_of(b.garrisoned_units, b.team, aura, max_aura);
+	const float per_unit = ai.garrison_arrow_multiplier * aura
+		* (b.team < MAX_PLAYERS ? tech_mods(b.team).bld_garrison_arrows[b.type] : 1.0f);
 	int count = (int)std::lround(def) + (int)std::lround(garrisoned * per_unit);
-	if (ai.max_arrows > 0) count = std::min(count, (int)ai.max_arrows);
+	if (ai.max_arrows > 0) count = std::min(count, (int)std::lround(ai.max_arrows * max_aura));
 	return std::max(count, 0);
 }
 
