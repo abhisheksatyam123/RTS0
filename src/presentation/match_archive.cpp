@@ -94,11 +94,16 @@ Dictionary stats_dict(const rtso::PlayerStatistics &st) {
 	};
 	Dictionary trained = by_class(st.units_trained, true);
 	trained["Domestic"] = (int64_t)st.livestock_bred; // not in the total, as StatisticsTracker.js
+	// The "Unit" class counter (the summary's Total column) also counts livestock: it
+	// is a class in UnitClasses, unlike `total`. Lost and killed units never include it.
+	trained["Unit"] = (int64_t)st.units_trained[rtso::STAT_UNIT_TOTAL] + (int64_t)st.livestock_bred;
 	d["unitsTrained"] = trained;
 	d["unitsLost"] = by_class(st.units_lost, true);
 	d["enemyUnitsKilled"] = by_class(st.enemy_units_killed, true);
 	d["unitsLostValue"] = (int64_t)st.units_lost_value;
 	d["enemyUnitsKilledValue"] = (int64_t)st.enemy_units_killed_value;
+	d["unitsCaptured"] = by_class(st.units_captured, true);
+	d["unitsCapturedValue"] = (int64_t)st.units_captured_value;
 	d["buildingsConstructed"] = by_class(st.buildings_constructed, false);
 	d["buildingsLost"] = by_class(st.buildings_lost, false);
 	d["enemyBuildingsDestroyed"] = by_class(st.enemy_buildings_destroyed, false);
@@ -142,8 +147,8 @@ int economy_score(const rtso::PlayerStatistics &st) {
 	return (int)std::llround((double)total / 10.0);
 }
 int military_score(const rtso::PlayerStatistics &st) {
-	return (int)std::llround((double)(st.enemy_units_killed_value + st.enemy_buildings_destroyed_value +
-	                                  st.buildings_captured_value) / 10.0);
+	return (int)std::llround((double)(st.enemy_units_killed_value + st.units_captured_value +
+	                                  st.enemy_buildings_destroyed_value + st.buildings_captured_value) / 10.0);
 }
 // RangeManager GetPercentMapExplored is a whole percent in 0 A.D.
 int exploration_score(float percent_explored) { return (int)std::floor(percent_explored) * 10; }

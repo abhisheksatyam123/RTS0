@@ -127,6 +127,10 @@ func run() -> void:
 	check(res.keys() == ["count", "gathered", "used"] and res.gathered > 0, "resources count / gathered / used: " + str(res))
 	check(not s.format_value(res).contains(str(res["count"]) + "[/color]"), "the count is charted, not shown in the table")
 	check(s.panels[3].headings.map(func(h): return h.id).has("livestock") and s.player_value(1, 3, 8) is int, "Livestock bred")
+	var by = s.get_script()
+	check(by._by({"unitsTrained": {"total": 3, "Unit": 5}}, "unitsTrained", "Unit") == 5
+		and by._by({"unitsLost": {"total": 2}}, "unitsLost", "Unit") == 2,
+		"the Units Total column is the Unit class counter, livestock included")
 	var misc_ids: Array = s.panels[5].headings.map(func(h): return h.id)
 	check(misc_ids.has("population") and misc_ids.has("bribes"), "Population and Bribes in Miscellaneous")
 	check(int(s.player_value(1, 5, 1).population) > 0, "population count %s" % str(s.player_value(1, 5, 1)))

@@ -12,7 +12,10 @@ always show what the simulation plays.
 0 A.D. text is CC BY-SA 3.0, Wildfire Games (see docs/0AD_ATTRIBUTION.md).
 
 Usage:
-  python3 -I tools/extract_0ad_reference.py --0ad PATH/TO/0ad [--check]
+  python3 -I tools/extract_0ad_reference.py --0ad PATH/TO/0ad [--previous-0ad PATH] [--check]
+
+--previous-0ad: roster rows and technologies RTS0 still has that the --0ad release
+dropped (a retired roster row kept for saves, Flanking Maneuvers) keep that tree's text.
 """
 
 import argparse
@@ -24,9 +27,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract_0ad_rosters import (BUILDING_BITS, CIVS, UNIQUE_BUILDINGS,  # noqa: E402
                                  TemplateLoader)
 
+import re  # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(REPO, "data", "reference", "templates.json")
 ROSTERS = os.path.join(REPO, "data", "civs", "rosters.json")
+TECH_DATA = os.path.join(REPO, "src", "simulation", "tech_data.h")
 
 # 0 A.D. structure file stems for RTS0's generic BuildingTypes, first match wins
 # (structures/<civ>/<stem>.xml, then the generic template_structure_* parent).
@@ -106,19 +112,39 @@ def build_list(loader, t, civ):
     return sorted(out)
 
 
-def collect(zad):
-    sim_root = os.path.join(zad, "binaries", "data", "mods", "public", "simulation")
+def sim_root_of(zad):
+    return os.path.join(zad, "binaries", "data", "mods", "public", "simulation")
+
+
+def tech_text(path):
+    with open(path, encoding="utf-8") as f:
+        j = json.load(f)
+    if "description" not in j and "tooltip" not in j:
+        return None
+    return {
+        "tooltip": j.get("tooltip", ""),
+        "description": j.get("description", ""),
+        "requirements_tooltip": j.get("requirementsTooltip", ""),
+    }
+
+
+def collect(zad, prev=None):
+    sim_root = sim_root_of(zad)
     loader = TemplateLoader(sim_root)
+    prev_loader = TemplateLoader(sim_root_of(prev)) if prev else None
     with open(ROSTERS, encoding="utf-8") as f:
         rosters = json.load(f)
     units = {}
     for r in rosters["units"]:
         name = "units/" + r["id"]
-        if not loader.exists(name):
-            continue  # RTS0-only rows (rts0_*) have no 0 A.D. template
-        t = loader.load(name)
+        ld = loader
+        if not ld.exists(name):
+            ld = prev_loader  # a row the release dropped, kept for saves
+            if ld is None or not ld.exists(name):
+                continue  # RTS0-only rows (rts0_*) have no 0 A.D. template
+        t = ld.load(name)
         d = identity(t)
-        d["builds"] = build_list(loader, t, r["civ"])
+        d["builds"] = build_list(ld, t, r["civ"])
         units[r["id"]] = d
     structures = {}
     for civ in CIVS:
@@ -138,15 +164,20 @@ def collect(zad):
             if not fn.endswith(".json"):
                 continue
             rel = os.path.relpath(os.path.join(root, fn), tdir)[:-5].replace(os.sep, "/")
-            with open(os.path.join(root, fn), encoding="utf-8") as f:
-                j = json.load(f)
-            if "description" not in j and "tooltip" not in j:
-                continue
-            techs[rel] = {
-                "tooltip": j.get("tooltip", ""),
-                "description": j.get("description", ""),
-                "requirements_tooltip": j.get("requirementsTooltip", ""),
-            }
+            d = tech_text(os.path.join(root, fn))
+            if d is not None:
+                techs[rel] = d
+    if prev:
+        # Technologies tech_data.h still plays that the release dropped.
+        with open(TECH_DATA, encoding="utf-8") as f:
+            ids = re.findall(r'"([a-z0-9_/]+)"\},\s*(?://.*)?$', f.read(), re.M)
+        pdir = os.path.join(sim_root_of(prev), "data", "technologies")
+        for tid in ids:
+            p = os.path.join(pdir, tid + ".json")
+            if tid not in techs and os.path.exists(p):
+                d = tech_text(p)
+                if d is not None:
+                    techs[tid] = d
     civs = {}
     for civ in CIVS:
         p = loader.load("special/players/" + civ)
@@ -164,9 +195,10 @@ def collect(zad):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--0ad", dest="zad", required=True, help="0 A.D. source checkout")
+    ap.add_argument("--previous-0ad", dest="prev", help="older 0 A.D. tree for rows and techs the release dropped")
     ap.add_argument("--check", action="store_true", help="fail if the checked-in file differs")
     args = ap.parse_args()
-    text = json.dumps(collect(args.zad), indent=1, ensure_ascii=False) + "\n"
+    text = json.dumps(collect(args.zad, args.prev), indent=1, ensure_ascii=False) + "\n"
     if args.check:
         with open(OUT, encoding="utf-8") as f:
             if f.read() != text:

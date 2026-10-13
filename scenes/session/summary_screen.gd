@@ -219,10 +219,12 @@ func _stats(p: Dictionary, index: int) -> Dictionary:
 
 static func _by(stats: Dictionary, key: String, cls: String) -> int:
 	var d: Variant = stats.get(key, {})
-	if cls == "Unit" or cls == "Structure":
-		cls = "total"
 	if not d is Dictionary:
 		return 0
+	# The Unit and Structure class counters; only trained units carry "Unit" (livestock
+	# included), elsewhere and in older replays they equal the total.
+	if (cls == "Unit" or cls == "Structure") and not d.has(cls):
+		cls = "total"
 	# Replays and saves from before 0.28's Civilian class carry FemaleCitizen in its place.
 	if cls == "Civilian" and not d.has("Civilian"):
 		cls = "FemaleCitizen"
@@ -277,8 +279,8 @@ func calc_economy_score(p: Dictionary, index: int, _t := "") -> int:
 
 func calc_military_score(p: Dictionary, index: int, _t := "") -> int:
 	var s := _stats(p, index)
-	return roundi((int(s.get("enemyUnitsKilledValue", 0)) + int(s.get("enemyBuildingsDestroyedValue", 0)) +
-		int(s.get("buildingsCapturedValue", 0))) / 10.0)
+	return roundi((int(s.get("enemyUnitsKilledValue", 0)) + int(s.get("unitsCapturedValue", 0)) +
+		int(s.get("enemyBuildingsDestroyedValue", 0)) + int(s.get("buildingsCapturedValue", 0))) / 10.0)
 
 func calc_exploration_score(p: Dictionary, index: int, _t := "") -> int:
 	return _percent_of(p, index, "percentMapExplored") * 10

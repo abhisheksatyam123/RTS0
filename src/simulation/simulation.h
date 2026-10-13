@@ -162,7 +162,9 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 68; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 71; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
+	static constexpr uint32_t SAVE_VERSION_HUNT_SPECIES = 70; // each carcass's and hunter's animal template
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -171,6 +173,7 @@ public:
 	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr uint32_t SAVE_VERSION_STATISTICS_COUNTS = 65; // resource and population counts, livestock, bribes
+	static constexpr uint32_t SAVE_VERSION_UNITS_CAPTURED = 71; // StatisticsTracker unitsCaptured and its value
 	static constexpr size_t MAX_PROJECTILES = 384;
 
 	// Spatial grids (nav, fog of war, territory) keep a fixed 2m cell, so their
@@ -1134,6 +1137,9 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
+	// The same for any passability class; building_region is that cell's region (0 = none).
+	bool nearest_pass_cell(const Building &b, uint8_t pass, float &out_x, float &out_z, uint16_t *out_region = nullptr) const;
+	uint16_t building_region(const Building &b, uint8_t pass) const;
 	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
 	// footprint, the front (or the side facing the rally point) first; skip_uid is the unit left out
 	// of the overlap check (the one being placed).
@@ -1317,6 +1323,10 @@ public:
 
 	int order_pop(const ProductionOrder &o, uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
+	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
+	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	float structure_build_time_for(uint8_t player, uint8_t type) const;
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
@@ -1604,7 +1614,7 @@ public:
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2) const;
+	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna = 0) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -1655,7 +1665,9 @@ public:
 		float half_w, half_d; // RTS0 units along the rotated x and z axes
 		float hp;
 		uint8_t type;         // SceneryType (scenery_type_info)
-		uint8_t pad[3];
+		uint8_t owner;        // Ownership: a player, or GAIA_PLAYER (0xFE)
+		uint8_t pad[2];
+		std::array<float, MAX_PLAYERS + 1> cp; // Capturable points per player, then Gaia's
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
 	// The scenery_ index of entity `id`, or -1.
@@ -1666,7 +1678,12 @@ public:
 	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
 	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
 	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
-	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	// Capturable scenery (benches, tables, obelisks, wooden fences) is captured instead, as a
+	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
+	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
+	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
 	void tick_scenery_attackers();
 	void destroy_scenery(size_t k, int32_t killer);
@@ -2130,6 +2147,7 @@ private:
 	void stat_building_constructed(const Building &b);
 	void stat_building_lost(const Building &b, uint8_t killer);
 	void stat_building_captured(const Building &b, uint8_t from);
+	void stat_unit_captured(size_t idx, uint8_t from); // unit idx now belongs to its captor
 	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
 	void tick_statistics();
 	void update_statistics_explored();
@@ -2263,10 +2281,15 @@ private:
 	void ensure_resource_block_cells() const;
 	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
 	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
-	// occupied cells in `ignore_cells` don't obstruct it.
+	// occupied cells in `ignore_cells` don't obstruct it. With `ignore_ids` (a wall piece), other
+	// structures obstruct it where their footprints overlap its own, as 0 A.D.'s obstructions do.
 	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
 			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
-			const std::vector<std::pair<int, int>> *ignore_cells) const;
+			const std::vector<std::pair<int, int>> *ignore_cells, const std::vector<uint32_t> *ignore_ids = nullptr) const;
+	// Whether a wall piece's footprint `f` overlaps a structure, leaving out `ignore` (the towers it
+	// joins and the pieces laid since) and, of the segments already joined to one of those towers,
+	// the part inside the tower (their shared obstruction control group).
+	bool wall_piece_hits_building(const nav::Footprint &f, const std::vector<uint32_t> &ignore) const;
 	// survivalofthefittest.js's placement obstructors: whether one covers part of [x0, x1] x [z0, z1].
 	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
@@ -2278,6 +2301,8 @@ private:
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
 	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
+	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
@@ -2750,6 +2775,9 @@ private:
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
 	bool petra_try_pay(uint8_t queue, float food, float wood, float gold, float stone);
+	// What a structure costs this AI (structure_cost: its civ's template and cost bonuses), and paying it.
+	void petra_structure_cost(uint8_t btype, float &food, float &wood, float &gold, float &stone) const;
+	bool petra_try_pay_structure(uint8_t queue, uint8_t btype);
 	// chatHelper.js: queue a line of `kind` (PetraChatKind) to `to` (a player, PETRA_CHAT_ALLIES or
 	// PETRA_CHAT_EVERYONE) about `player`; sub is the request type or PetraChatStance.
 	void petra_say(uint8_t kind, uint8_t to, uint8_t player = 0xFF, uint8_t sub = 0, int amount = 0, uint8_t res = 0,
@@ -2846,22 +2874,26 @@ private:
 	Grid<uint8_t> territory_grid_; // grid_res_^2 player id per cell, G2 (CCmpTerritoryManager)
 	Grid<uint8_t> influence_grid_; // grid_res_^2 influence count per cell, G2
 	// CCmpTerritoryManager connectivity, derived from territory_grid_ and the territory roots
-	// (civic centres and wonders): each 4-connected patch of one player's territory is a region,
+	// (civic centres and wonders): each 8-connected patch of one player's territory is a region,
 	// connected when it holds one of that player's roots. Unconnected regions keep the count of
-	// tiles of connected foreign regions bordering them (GetNeighbours(filterConnected)).
+	// bordering tiles of connected foreign regions and of neutral land (GetNeighbours(filterConnected)).
 	// Rebuilt on demand after the grid changes; not saved or hashed.
 	struct TerritoryRegion {
 		uint8_t owner;
 		bool connected;
 		std::array<uint32_t, MAX_PLAYERS> neighbours;
+		uint32_t neutral; // bordering neutral tiles (Gaia's share of the decay)
 	};
 	Grid<uint16_t> territory_region_;
 	std::vector<TerritoryRegion> territory_regions_;
 	bool territory_regions_dirty_ = true;
 	void ensure_territory_regions();
+	// !IsTerritoryBlinking: the tile at (x, z) is neutral or in a region holding one of its owner's roots.
+	bool territory_connected_at(float x, float z) const;
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
+	bool territory_decay_targets(float x, float z, uint8_t team, bool neutral, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: each claiming structure's
 	// TerritoryInfluence in buildings_ order, the grid size and the map extent. Same inputs, same
 	// grids, so the 1 Hz refresh skips.
@@ -2935,7 +2967,7 @@ private:
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).
 	uint32_t find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype = -1,
-			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0) const;
+			const std::unordered_map<uint32_t, FieldGatherers> *busy = nullptr, uint32_t skip = 0, uint8_t fauna = 0) const;
 	uint32_t find_nearby_foundation(float x, float z, uint8_t team) const;
 	bool self_garrison_rally(const Building &b, uint8_t unit_type, uint16_t tmpl) const;
 	void apply_rally_point(uint32_t uid, const Building &b, bool ignore_self_garrison = false);

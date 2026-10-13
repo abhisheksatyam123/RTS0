@@ -82,6 +82,21 @@ int main() {
 		for (int e = 0; e < ti.effect_count; ++e)
 			CHECK(tech_effects_table()[ti.effect_begin + e].stat < TSTAT_COUNT);
 	}
+	{
+		// 0.28 cost_healer ("Healer !Champion !Hero": time, metal cost and the healer's own metal
+		// loot) and siege_health (Ram or SiegeTower).
+		const TechInfo &ch = tech_info(TECH_COST_HEALER);
+		CHECK(ch.effect_count == 3);
+		for (int e = 0; e < ch.effect_count; ++e) {
+			const TechEffect &fx = tech_effects_table()[ch.effect_begin + e];
+			const TechClassExpr &x = tech_affects_table()[fx.affects];
+			CHECK(fx.affects_count == 1 && x.need == TC_HEALER && x.forbid == (TC_CHAMPION | TC_HERO));
+		}
+		CHECK(tech_effects_table()[ch.effect_begin + 2].stat == TSTAT_UNIT_LOOT_METAL);
+		const TechEffect &sh = tech_effects_table()[tech_info(TECH_SIEGE_HEALTH).effect_begin];
+		CHECK(sh.affects_count == 2 && tech_affects_table()[sh.affects].need == TC_RAM &&
+		      tech_affects_table()[sh.affects + 1].need == TC_SIEGETOWER);
+	}
 	CHECK(tech_info(TECH_FARMING_1).researcher == BLD_FARMSTEAD);
 	CHECK(tech_info(TECH_PHASE_TOWN).researcher == BLD_TOWN_CENTER);
 

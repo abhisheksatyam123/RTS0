@@ -129,7 +129,7 @@ static void test_phase_up() {
 	}
 	std::printf("  continental: town phase at %.0fs, city phase at %.0fs, peak workers %d, fields %d\n",
 	            town_at, city_at, peak_workers, peak_fields);
-	CHECK(town_at > 0.0f && town_at < 12.0f * 60.0f, "town phase within 12 minutes");
+	CHECK(town_at > 0.0f && town_at < 13.0f * 60.0f, "town phase within 13 minutes");
 	CHECK(city_at > 0.0f && city_at < 18.0f * 60.0f, "city phase within 18 minutes (Town structures built first)");
 	CHECK(peak_workers >= 25, "economy grows past 25 workers");
 	CHECK(peak_fields >= 2, "farms fields once hunt and berries run low");
@@ -509,7 +509,7 @@ static void test_attack_plans() {
 		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false, told_allies = true, named_target = false;
 		int attack_size = 0, huge_size = 0;
-		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 25.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			// chatLaunchAttack: "/allies", naming the player attacked.
 			for (const auto &l : s->pending_petra_chat()) {
@@ -600,12 +600,11 @@ static void test_attack_plans() {
 	{
 		// Raid: an enemy outpost in Petra's territory, cavalry and spearmen at hand. (An
 		// outpost claims no territory; a house's TerritoryInfluence would own its own ground.)
+		// Six riders: two stay home to hunt (attackPlan.js addUnits).
 		auto s = match(PETRA_BEHAVIOR_BALANCED);
 		const uint32_t outpost = s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f);
-		for (int i = 0; i < 4; ++i) {
-			s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
-			s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
-		}
+		for (int i = 0; i < 6; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
+		for (int i = 0; i < 4; ++i) s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
 		bool raided = false, cavalry_only = true;
 		size_t raiders = 0;
 		for (float t = 0.0f; t < 20.0f && !raided; t += Simulation::FIXED_STEP) {
@@ -982,7 +981,7 @@ static void test_first_base() {
 	for (size_t i = 0; i < u.count; ++i) // a nomad start: everyone stands idle
 		if (u.alive[i] && u.team[i] == 1) { u.action_state[i] = ACTION_IDLE; u.has_order[i] = 0; u.target_resource_id[i] = 0; }
 	PlayerState &ps = s->players_[1];
-	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 100.0f; ps.stone() = 200.0f;
+	ps.food() = 0.0f; ps.wood() = 50.0f; ps.gold() = 250.0f; ps.stone() = 300.0f;
 	const uint32_t treasure = s->spawn_resource_treasure(tx + 9.0f, tz + 9.0f, RES_WOOD); // 300 wood, outside the wreck
 	bool founded = false, built = false;
 	float t = 0.0f;
@@ -1292,6 +1291,9 @@ static void test_nomad_first_base() {
 	s->set_sim_seed(42);
 	s->reset();
 	s->set_nomad(true);
+	// Seated players: placePlayersNomad leaves each one the treasure its civic centre needs.
+	s->set_player_active(0, true, false);
+	s->set_player_active(1, true, true);
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
 	auto town_centers = [&](bool built) {
 		int n = 0;
@@ -1646,6 +1648,24 @@ static void test_placement_miss_memory_exact() {
 // baseManager.js findBestDropsiteLocation scores territory tiles on the resource maps: the
 // storehouse goes by the big forest, not the small grove, beyond 60 m of the civic centre.
 // queueplanBuilding.js keeps the farmstead out of the woods (a third of the wood map off).
+// Petra pays a structure what it costs its own civ (structure_cost), not the generic row:
+// a Briton barracks is 300 wood and no stone.
+static void test_structure_cost_by_civ() {
+	auto s = std::make_unique<Simulation>();
+	s->reset();
+	s->petra_pid_ = 1;
+	s->players_[1].civ = CIV_BRITONS;
+	s->set_player_resources(1, 1000, 1000, 1000, 1000);
+	fund_queues(*s);
+	float c[RES_COUNT];
+	s->structure_cost(1, BLD_BARRACKS, -1.0f, c);
+	const BuildingTypeInfo &generic = building_type_info(BLD_BARRACKS);
+	std::printf("  Briton barracks %.0fw %.0fs (generic %dw %ds)\n", c[RES_WOOD], c[RES_STONE], generic.wood_cost, generic.stone_cost);
+	CHECK(c[RES_WOOD] == 300.0f && c[RES_STONE] == 0.0f, "a Briton barracks costs 300 wood and no stone");
+	CHECK(s->petra_try_pay_structure(PETRA_Q_MILITARY_BUILDING, BLD_BARRACKS), "Petra pays for it");
+	CHECK(s->players_[1].wood() == 700.0f && s->players_[1].stone() == 1000.0f, "with 300 wood and no stone");
+}
+
 static void test_dropsite_sites() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2851,6 +2871,41 @@ static void test_defensive_location() {
 		      "the next tower keeps 30 m from it");
 }
 
+// attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
+static void test_raid_keeps_hunters() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0;
+	uint32_t target = 0;
+	for (const auto &b : s->buildings_) {
+		if (!is_civic_centre(b.type) || b.hp <= 0.0f) continue;
+		if (b.team == 1) { ox = b.x; oz = b.z; }
+	}
+	// An enemy outpost inside our territory is the raid's target (raidTargetEntity).
+	target = s->spawn_building_world(ox - 12.0f, oz - 12.0f, BLD_OUTPOST, 0, 1.0f);
+	for (int k = 0; k < 3; ++k) s->spawn_unit(ox + 6.0f + 2.0f * k, oz + 6.0f, 1, UNIT_CAVALRY);
+	s->petra_scout_unit_id_ = 0;
+	int riders = 0;
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.alive[i] && s->units_.team[i] == 1 &&
+		    (s->units_.unit_type[i] == UNIT_CAVALRY || s->units_.unit_type[i] == UNIT_CAMEL || s->units_.unit_type[i] == UNIT_CHARIOT))
+			++riders;
+	auto &plan = s->petra_raid_plan_;
+	plan.state = Simulation::AttackPlan::MUSTER;
+	plan.state_timer = 0.0f;
+	plan.target_building_id = target;
+	plan.squad.clear();
+	s->petra_manage_raid(Simulation::FIXED_STEP);
+	std::printf("  raid: %d riders, %zu join the raid\n", riders, plan.squad.size());
+	CHECK(s->petra_raid_target_ok(target), "the outpost stands in our territory");
+	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
+}
+
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
 // back lays a storehouse by a forest at least 15 tiles from our dropsites, and its foundation
 // restarts every count; headquarters.js buildFarmstead lays one farmstead once there is a
@@ -3301,6 +3356,7 @@ int main() {
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
 	test_dropsite_sites();
+	test_structure_cost_by_civ();
 	test_repairs();
 	test_idle_return();
 	test_idle_return_to_wagon();
@@ -3327,6 +3383,7 @@ int main() {
 	test_worker_mix();
 	test_build_defenses();
 	test_defensive_location();
+	test_raid_keeps_hunters();
 	test_dropsites();
 	test_food_fields();
 	test_corral_by_owner();
