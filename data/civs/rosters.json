@@ -1378,10 +1378,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -1498,10 +1500,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -1560,11 +1564,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -1619,11 +1625,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -2462,10 +2470,12 @@
    "specific_name": "Ékdromos Skirítēs",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -2682,11 +2692,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -2741,11 +2753,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -4104,11 +4118,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -4163,10 +4179,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -4221,11 +4239,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -5069,10 +5089,12 @@
    "specific_name": "Extrāōrdinārius",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -5345,11 +5367,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -5514,10 +5538,12 @@
    "specific_name": "Triārius",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -5625,11 +5651,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -6952,11 +6980,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -7129,11 +7159,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -8192,10 +8224,12 @@
    "specific_name": "Hypaspistḗs",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -8244,10 +8278,12 @@
    "specific_name": "Rhomphaiaphoros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -8464,10 +8500,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -8526,11 +8564,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -8585,11 +8625,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -8642,10 +8684,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -9533,10 +9577,12 @@
    "specific_name": "Argos",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -9756,10 +9802,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -9818,12 +9866,14 @@
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
     "BLD_RANGE",
+    "BLD_MERCENARY_CAMP",
     "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
     "crannog",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -9881,12 +9931,14 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP",
     "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
-    "crannog"
+    "crannog",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -10738,10 +10790,12 @@
    "specific_name": "Soliduros",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -11009,11 +11063,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -11068,10 +11124,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -11126,11 +11184,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -11864,10 +11924,12 @@
    "specific_name": "Leial Ezpatari",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -12083,11 +12145,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -12142,10 +12206,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -12199,10 +12265,12 @@
    "specific_name": "Ezkutari",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -12255,11 +12323,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -13046,10 +13116,12 @@
    "specific_name": "Yōddha",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -13427,11 +13499,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -13486,11 +13560,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -13542,10 +13618,12 @@
    "specific_name": "Khadagdhari",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -14501,10 +14579,12 @@
    "phase": 3,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -14724,11 +14804,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -14899,10 +14981,12 @@
    "specific_name": "Siȝwrd",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -14955,11 +15039,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -15011,10 +15097,12 @@
    "specific_name": "Knw hps",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -15912,10 +16000,12 @@
    "specific_name": "Phalangitès Agema",
    "phase": 3,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -16132,10 +16222,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -16193,10 +16285,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -16254,11 +16348,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -16312,11 +16408,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -17535,10 +17633,12 @@
    "specific_name": "Argyraspis",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -17587,10 +17687,12 @@
    "specific_name": "Thorakitès Rhomaïkós",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -17863,11 +17965,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -17921,10 +18025,12 @@
    "specific_name": "Phalangitēs",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -17977,11 +18083,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -19314,10 +19422,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "practice_range",
     "range"
    ],
@@ -19435,10 +19545,12 @@
    "specific_name": "Jǐ Bīng",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -19492,12 +19604,14 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP",
     "BLD_IMPERIAL_COURT"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
-    "civil_centre_court"
+    "civil_centre_court",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -22876,10 +22990,12 @@
    "specific_name": "Slōgijanōz",
    "phase": 2,
    "trainers": [
+    "BLD_MERCENARY_CAMP",
     "BLD_GREAT_HALL"
    ],
    "trained_at_0ad": [
-    "great_hall"
+    "great_hall",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION"
@@ -22929,10 +23045,12 @@
    "specific_name": "Kulbawigô",
    "phase": 1,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CHAMPION",
@@ -23155,10 +23273,12 @@
    "phase": 2,
    "trainers": [
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -23214,11 +23334,13 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_RANGE"
+    "BLD_RANGE",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
     "civil_centre",
+    "mercenary_camp",
     "range"
    ],
    "flags": [
@@ -23273,11 +23395,13 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
     "barracks",
-    "civil_centre"
+    "civil_centre",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
@@ -23330,10 +23454,12 @@
    "specific_name": "Swerdamannaz",
    "phase": 2,
    "trainers": [
-    "BLD_BARRACKS"
+    "BLD_BARRACKS",
+    "BLD_MERCENARY_CAMP"
    ],
    "trained_at_0ad": [
-    "barracks"
+    "barracks",
+    "mercenary_camp"
    ],
    "flags": [
     "ROSTER_CITIZEN"
