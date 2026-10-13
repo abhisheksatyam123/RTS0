@@ -90,7 +90,7 @@ int main() {
 	{
 		fresh(s);
 		s.player(0).phase = 2;
-		uint32_t temple = s.spawn_building_world(-20.0f, 20.0f, BLD_TEMPLE, 0, 1.0f);
+		uint32_t temple = s.spawn_building_world(-30.0f, -20.0f, BLD_TEMPLE, 0, 1.0f); // in the civic centre's territory
 		CHECK(s.cmd_research(0, temple, TECH_GARRISON_HEAL));
 		run(s, lc.research_time + 1.0f);
 		CHECK(s.player(0).has_tech(TECH_GARRISON_HEAL));
