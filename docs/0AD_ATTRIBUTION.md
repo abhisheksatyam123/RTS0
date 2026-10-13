@@ -245,6 +245,7 @@ Each `synth_<id>` function generates RTS0's version of the 0 A.D. map script of 
 | `scenes/reference/catafalque_page.gd`, `RtsoReference.get_catafalques` | `gui/reference/catafalque/` (CatafalquePage.js, Emblem.js, catafalque.xml, styles.xml), `getAurasTooltip` from `gui/common/tooltips.js` | Hand-ported |
 | `scenes/reference/credits_page.gd` | `gui/credits/credits.js` and `credits.xml` | Hand-ported |
 | `scenes/menu/splashscreen.gd` (welcome page) | 0.28 `gui/splashscreen/splashscreen.{js,xml,txt}` (text copied, translated per line through the .po files) and `gui/pregame/SplashscreenHandler.js` | Hand-ported + text copy |
+| `scenes/menu/modmod.gd`, `scenes/menu/mods.gd` (mod selector and loading) | `mod/gui/modmod/modmod.js`, `modmod.xml`, `validatemod.js`, `help/help.txt` (0 A.D. 61a3b95), 0.28 `public/mod.json` (data copied) | Hand-ported |
 | Population Cap Type in `scenes/menu/gamesetup.gd` (`POP_CAP_TYPES`) | 0.28 `simulation/data/settings/population_capacities.json` (data copied), `gamesetup/.../PopulationCapType.js`, `PopulationCap.js`, `LockedTeams.js` | Data copy + port |
 | `data/reference/credits/*.json` | `gui/credits/texts/*.json` (all ten credits files) | Copied as is |
 | `assets/textures/ui/portraits/catafalque.png` | `art/textures/ui/reference/portraits/catafalque.png` | Copied as is |

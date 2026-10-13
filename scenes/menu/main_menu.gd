@@ -83,7 +83,9 @@ var submenu_data = {
 		"title": "SETTINGS",
 		"items": [
 			{"label": "Game Options", "tooltip": "Audio, graphics, display mode, camera speeds.", "action": "open_options"},
-			{"label": "Hotkeys & Controls", "tooltip": "Standard 0 A.D. hotkeys (WASD, MMB pan, H stop, Ctrl+RMB).", "action": "open_options"}
+			{"label": "Hotkeys & Controls", "tooltip": "Standard 0 A.D. hotkeys (WASD, MMB pan, H stop, Ctrl+RMB).", "action": "open_options"},
+			{"label": "Mod Selection", "tooltip": "Select and download mods for the game.", "action": "open_mods"},
+			{"label": "Welcome Screen", "tooltip": "Show the Welcome Screen again. Useful if you hid it by mistake.", "action": "open_splash"}
 		]
 	}
 }
@@ -264,6 +266,12 @@ func _execute_action(action: String) -> void:
 			_go_to_scene("res://scenes/menu/lobby.tscn")
 		"open_options":
 			_go_to_scene("res://scenes/menu/options.tscn")
+		"open_mods":
+			_close_submenu()
+			load("res://scenes/menu/modmod.gd").open(self)
+		"open_splash":
+			_close_submenu()
+			load("res://scenes/menu/splashscreen.gd").open(self)
 		"open_asset_viewer":
 			_go_to_scene("res://scenes/tools/asset_viewer.tscn")
 		"continue_campaign", "new_campaign", "load_campaign":

@@ -31,6 +31,7 @@ const Default kDefaults[] = {
 	{"gui.session.howtoshownames", "0"},
 	{"gui.splashscreen.enable", "true"},
 	{"gui.splashscreen.version", "0"},
+	{"mod.enabledmods", "mod public"},
 	{"windowed", "true"},
 	{"fog", "true"},
 	{"postproc", "true"},
