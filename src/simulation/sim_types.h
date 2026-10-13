@@ -922,24 +922,6 @@ inline float unit_collision_radius(uint8_t type) {
 	}
 }
 
-// 0 A.D. capture attack strengths by class (Attack.js Capture in template_unit_infantry,
-// _cavalry and _hero.xml: 2.5, 2.5, 10; champions 5 via unit_capture_attack).
-// Support units (women, healers, traders, worker elephants), siege and ships have no
-// Capture attack. RTS0's generic villager keeps 1.
-inline float unit_capture_strength(uint8_t type) {
-	switch (type) {
-		case UNIT_VILLAGER: return 1.0f;
-		case UNIT_CAVALRY: case UNIT_CHARIOT: case UNIT_CAMEL:
-		case UNIT_SCYTHED_CHARIOT:
-		case UNIT_SPEARMAN: case UNIT_SWORDSMAN: case UNIT_ARCHER:
-		case UNIT_ARCHER_MAIDEN: case UNIT_ELEPHANT: case UNIT_CARNYX:
-		case UNIT_WAR_DOG: return 2.5f;
-		case UNIT_HERO: return 10.0f;
-		case UNIT_MINISTER: return 8.0f; // units/han/support_minister Attack/Capture
-		default: return 0.0f;
-	}
-}
-
 inline const char *unit_type_name(uint8_t type) { return unit_type_info(type).name; }
 inline const char *unit_type_model(uint8_t type) { return unit_type_info(type).model_id; }
 inline const char *unit_type_portrait(uint8_t type) { return unit_type_info(type).portrait_id; }
@@ -1077,40 +1059,41 @@ struct BuildingTypeInfo {
 inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	static const BuildingTypeInfo kTable[BLD_TYPE_COUNT] = {
 		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time,
-		// capture max, regen, garrison regen, territory decay (Capturable from
-		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
-		// farmstead 300). garrison is GarrisonHolder/Max (0: none; the house's civ value and
+		// capture max, regen, garrison regen, territory decay (0.28 Capturable from
+		// template_structure.xml 500/5/1.0; civil centre 2500/30, fortress x8 and 45, temple 15,
+		// template_structure_military and _defensive_tower 10, wonder x4, farmstead 300; the dock's
+		// TerritoryDecay is disabled). garrison is GarrisonHolder/Max (0: none; the house's civ value and
 		// other civ overrides are in structure_garrison_max, the List in structure_garrison_list).
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 20, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 3, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 20, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
-		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 20, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 50, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 0, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 20, 20, 60.0f, 2500.0f, 30.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 3, 20.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 300.0f, 5.0f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 0, 40.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 20, 80.0f, 4000.0f, 45.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 20, 40.0f, 500.0f, 15.0f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 50, 120.0f, 2000.0f, 5.0f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 0, 40.0f, 500.0f, 10.0f, 1.0f, 0.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 0, 8, 25.0f, 500.0f, 5.0f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
 		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
-		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f}, // cart/embassy_celtic
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 10.0f, 1.0f, 20.0f}, // cart/embassy_celtic
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -2379,16 +2362,6 @@ inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	return unit_class_loot(type);
 }
 
-// A unit's Capture attack: template_unit_hero 10, template_unit_champion 5, else by class.
-inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
-	const float base = unit_capture_strength(type);
-	if (base <= 0.0f || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return base;
-	const uint16_t flags = civ_unit_template(tmpl).flags;
-	if (flags & ROSTER_HERO) return 10.0f;
-	if (flags & ROSTER_CHAMPION) return 5.0f;
-	return base;
-}
-
 // Structures yield resources (and no xp, but for the Han Imperial Ministry). Keyed by building type; the
 // civ-specific structures (ids 26-45) take their rows from civ_building_data.h.
 inline LootInfo building_loot(uint8_t type) {
@@ -2452,6 +2425,15 @@ inline const CombatProfile &unit_combat(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return combat_template_table()[tmpl];
 	return combat_class_table()[type < UNIT_TYPE_COUNT ? type : UNIT_VILLAGER];
 }
+// A unit's Capture attack (Attack/Capture/Capture in its 0 A.D. template, civ_attack_data.h):
+// infantry 2.5, cavalry 1.75, champions 5, champion cavalry 3.5, heroes 10 (none on hero
+// elephants and healer heroes), male civilians 1, the Han minister 4. Women, healers, traders,
+// war elephants, dogs, siege and ships have none. RTS0's own villager captures as 0.28's civilian.
+inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_VILLAGER) return 1.0f;
+	return unit_combat(tmpl, type).capture;
+}
+
 // A building type past the table (a civ-unique structure added later) is a generic structure.
 inline const CombatProfile &building_combat(uint8_t type) {
 	return combat_building_table()[type < COMBAT_BUILDING_ROWS ? type : COMBAT_BUILDING_ROWS];

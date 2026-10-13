@@ -672,7 +672,9 @@ static void test_allow_capture() {
 	s->order_garrison(guards.data(), guards.size(), fort);
 	run_for(*s, 20.0f);
 	std::vector<uint32_t> squad;
-	for (int i = 0; i < 4; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, -2.0f, 1, UNIT_SPEARMAN));
+	// Five spearmen (12.5 a second) beat a house's RegenRate 5 plus an 80th of its points, also
+	// once one of six is sent at the fortress.
+	for (int i = 0; i < 6; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, -2.0f, 1, UNIT_SPEARMAN));
 	const uint32_t ram = s->spawn_unit(-40.0f, -4.0f, 1, UNIT_SIEGE_RAM);
 	auto bld = [&](uint32_t id) -> const Simulation::Building & { return s->buildings()[s->building_id_to_idx_.at(id)]; };
 	const auto &f = bld(fort);
@@ -1639,6 +1641,58 @@ static void test_placement_miss_memory_exact() {
 	CHECK(tower != 0, "losing the tower that blocked a spot lets the next search use it");
 	CHECK(temple_fails && still_fails && freed, "trees block every temple spot until felled");
 	CHECK(temple != 0, "felling the trees on a spot lets the next search use it");
+}
+
+// baseManager.js findBestDropsiteLocation scores territory tiles on the resource maps: the
+// storehouse goes by the big forest, not the small grove, beyond 60 m of the civic centre.
+// queueplanBuilding.js keeps the farmstead out of the woods (a third of the wood map off).
+static void test_dropsite_sites() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) s->players_[p].active = 1, s->players_[p].is_ai = 0;
+	run_for(*s, 1.0f);
+	float hx = 0.0f, hz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
+	auto &r = s->resources_;
+	for (size_t i = 0; i < r.count; ++i)
+		if (r.alive[i] && std::hypot(r.x[i] - hx, r.z[i] - hz) < 45.0f) r.amount[i] = 0;
+	// Toward the map centre a forest of 30 trees 22-30 units out, the other way a grove of 3.
+	const float ux = hx > 0.0f ? -1.0f : 1.0f, uz = hz > 0.0f ? -1.0f : 1.0f;
+	for (int i = 0; i < 6; ++i)
+		for (int j = 0; j < 5; ++j)
+			s->spawn_resource_world(hx + ux * (20.0f + 2.0f * (float)i), hz + uz * (2.0f * (float)j - 4.0f), RES_WOOD, 200);
+	for (int i = 0; i < 3; ++i) s->spawn_resource_world(hx - ux * 22.0f, hz + 2.0f * (float)i, RES_WOOD, 200);
+	s->resource_block_tick_ = UINT64_MAX;
+	s->petra_pid_ = 1;
+	s->players_[1].phase = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	const uint32_t store = s->petra_place_dropsite(RES_WOOD, 1.0f);
+	float sx = 0.0f, sz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.id == store) { sx = b.x; sz = b.z; }
+	const float along = (sx - hx) * ux, d = std::hypot(sx - hx, sz - hz);
+	std::printf("  storehouse %.1f units from the civic centre, %.1f toward the forest\n", d, along);
+	CHECK(store != 0 && along > 10.0f, "the storehouse goes by the forest, not the grove");
+	CHECK(d >= 15.0f, "and beyond 60 m of the civic centre");
+	// The farmstead (a storehouse and a house stand): out of the wood map.
+	s->spawn_building_world(hx - ux * 10.0f, hz - uz * 10.0f, BLD_HOUSE, 1, 1.0f);
+	fund_queues(*s);
+	s->petra_build_farmstead();
+	float fx = 0.0f, fz = 0.0f;
+	bool farm = false;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_FARMSTEAD) { fx = b.x; fz = b.z; farm = true; }
+	std::vector<uint8_t> maps[3];
+	s->petra_resource_maps(maps, -1e9f, 1e9f, -1e9f, 1e9f);
+	const int w = (int)std::floor(2.0f * s->map_half_ / Simulation::GRID);
+	const int fi = (int)std::floor((fz + s->map_half_) / Simulation::GRID) * w + (int)std::floor((fx + s->map_half_) / Simulation::GRID);
+	std::printf("  farmstead %s at %.1f toward the forest, wood map %d there\n", farm ? "placed" : "missing", (fx - hx) * ux, farm ? (int)maps[0][(size_t)fi] : -1);
+	CHECK(farm && maps[0][(size_t)fi] == 0, "the farmstead stands off the woods");
 }
 
 // headquarters.js findEconomicCCLocation reads resource density, not single
@@ -2677,15 +2731,18 @@ static void test_decay_garrison_from_attack() {
 		plan.state = Simulation::AttackPlan::ATTACKED;
 		const std::vector<uint32_t> army = plan.squad;
 		s->petra_started_attacks_.push_back(plan);
-		// A tower's garrison (5 of the 20 it needs) can't stop its decay. Neither can a stock
-		// fortress's (GarrisonHolder/Max 20 of the 30 it needs), so this one is given room
-		// for 30 to exercise the garrison that does.
+		// A tower's garrison (5 of the 10 it needs) can't stop its decay. A stock fortress needs
+		// none (RegenRate 45 outdoes DecayRate 40), so this one regains only 10 a second (needing
+		// 30) and is given room for 30 to exercise the garrison that does.
 		const uint32_t held = s->spawn_building_world(tx + (holdable ? 4.0f : 0.0f), tz, holdable ? BLD_FORTRESS : BLD_TOWER, 1);
 		int need = 0, cap = 0;
 		if (auto it = s->building_id_to_idx_.find(held); it != s->building_id_to_idx_.end()) {
 			need = s->petra_decay_garrison_min(s->buildings_[it->second]);
 			if (holdable) {
-				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "a stock fortress holds 20 of the 30 its decay needs");
+				CHECK(need == 0, "a stock fortress outregenerates its decay");
+				s->buildings_[it->second].capture_regen_rate = 10.0f;
+				need = s->petra_decay_garrison_min(s->buildings_[it->second]);
+				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "regaining 10 a second it holds 20 of the 30 its decay needs");
 				s->buildings_[it->second].garrison_cap = need;
 			}
 			cap = s->buildings_[it->second].garrison_cap;
@@ -2758,6 +2815,40 @@ static void test_build_defenses() {
 	at(1300.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
+}
+
+// headquarters.js findDefensiveLocation: a tower goes on our frontier at the spot nearest an enemy
+// civic centre, outside 80 m of enemy towers and civic centres and 30 m from our own towers.
+static void test_defensive_location() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0, ex = 0, ez = 0;
+	for (const auto &b : s->buildings_) {
+		if (!is_civic_centre(b.type) || b.hp <= 0.0f) continue;
+		if (b.team == 1) { ox = b.x; oz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; }
+	}
+	int cx = 0, cz = 0;
+	CHECK(s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx, cz), "a frontier spot for a sentry tower");
+	const float foot = (float)building_type_info(BLD_SENTRY_TOWER).footprint * Simulation::GRID * 0.5f;
+	const float x = (float)cx * Simulation::GRID + foot, z = (float)cz * Simulation::GRID + foot;
+	const float to_enemy = std::hypot(x - ex, z - ez);
+	const float cc_gap = std::hypot(ox - ex, oz - ez);
+	std::printf("  sentry tower spot %.1f from the enemy civic centre, %.1f from ours (civic centres %.1f apart)\n",
+	            to_enemy, std::hypot(x - ox, z - oz), cc_gap);
+	CHECK(to_enemy >= 80.0f / 4.0f - 1.0f, "out of 80 m of the enemy civic centre");
+	CHECK(to_enemy < cc_gap, "on the side facing the enemy");
+	const uint32_t t = s->spawn_building(cx, cz, BLD_SENTRY_TOWER, 1, 1.0f);
+	CHECK(t != 0, "the tower is placed");
+	int cx2 = 0, cz2 = 0;
+	if (s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx2, cz2))
+		CHECK(std::hypot((float)(cx2 - cx) * Simulation::GRID, (float)(cz2 - cz) * Simulation::GRID) >= 30.0f / 4.0f - 1.0f,
+		      "the next tower keeps 30 m from it");
 }
 
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
@@ -3209,6 +3300,7 @@ int main() {
 	test_relic_enemy_player();
 	test_retreat_walk_forced();
 	test_expansion_small_nodes();
+	test_dropsite_sites();
 	test_repairs();
 	test_idle_return();
 	test_idle_return_to_wagon();
@@ -3234,6 +3326,7 @@ int main() {
 	test_mobile_dropsite_follows();
 	test_worker_mix();
 	test_build_defenses();
+	test_defensive_location();
 	test_dropsites();
 	test_food_fields();
 	test_corral_by_owner();
