@@ -148,7 +148,7 @@ int main() {
 
 	// 4. Rome: an Elite swordsman becomes a Marian Legionary after 2000 more xp (another
 	//    roster unit, Elite); Marian Reforms replaces RequiredXp with 0, so every Roman
-	//    citizen soldier promotes straight to Legionary; Army Camp veterans start Advanced.
+	//    citizen soldier promotes straight to its 0.28 target (swordsmen Legionary, spearmen Levy); Army Camp veterans start Advanced.
 	{
 		fresh(s, CIV_ROMANS);
 		const uint16_t sw = tmpl_of("rome/infantry_swordsman_b"), leg = tmpl_of("rome/infantry_legionary");
@@ -172,9 +172,11 @@ int main() {
 		s.complete_research(0, TECH_ROMAN_REFORMS);
 		CHECK(near(s.promotion_required_xp(j), 0.0f));
 		s.tick(Simulation::FIXED_STEP);
-		CHECK(s.units_.tmpl[j] == leg && s.units_.rank[j] == 3);
-		CHECK(s.units_.unit_type[j] == UNIT_SWORDSMAN);
-		CHECK(s.units_.tmpl[veteran] == leg);
+		// 0.28: spearmen become Levy Auxiliary Spearmen (Basic, cannot promote), not Legionaries.
+		const uint16_t levy = tmpl_of("rome/infantry_spearman_conscript");
+		CHECK(s.units_.tmpl[j] == levy && s.units_.rank[j] == 1);
+		CHECK(s.units_.unit_type[j] == UNIT_SPEARMAN);
+		CHECK(s.units_.tmpl[veteran] == levy);
 	}
 
 	// 5. Hoplite Tradition halves a hoplite's RequiredXp (Infantry Spearman !Hero).
