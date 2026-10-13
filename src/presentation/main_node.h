@@ -479,6 +479,7 @@ public:
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
+	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count);
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();

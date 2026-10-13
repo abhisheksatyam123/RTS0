@@ -6,7 +6,11 @@ extends SceneTree
 #   1. in English the lines read as 0.28's;
 #   2. in German the same notices use the German format strings and resource
 #      names;
-#   3. so do the "Requires %(technology)s" lines on the command buttons.
+#   3. so do the "Requires %(technology)s" lines on the command buttons;
+#   4. the top panel's counters read CounterPopulation's caption and tooltip,
+#      and once the player is defeated (an observer, g_IsObserver) every other
+#      player's stock follows in the tooltips, with the order line
+#      (CounterManager.getAllyStatTooltip); a click on a counter changes it.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_l10n_notices.gd
 # Exit code 0 = pass.
@@ -79,6 +83,35 @@ func run() -> void:
 	main.debug_train_buttons(11)
 	tips = main.debug_command_row().map(func(e): return str(e["tip"]))
 	check(tips.any(func(t): return t.contains("Requires Town Phase")), "\"Requires Town Phase\" in English")
+
+	print("4. Counters")
+	await frames(4)
+	var pop: Control = null
+	var food: Control = null
+	for c in main.find_children("*", "HBoxContainer", true, false):
+		if c.tooltip_text.begins_with("Population: current/limit (max)"):
+			pop = c
+		elif c.tooltip_text.begins_with("Food"):
+			food = c
+	check(pop != null and food != null, "the population and food counters")
+	if pop and food:
+		var cap: String = pop.find_children("*", "Label", true, false).map(func(l): return l.text).filter(func(t): return t.contains("/"))[0]
+		check(RegEx.create_from_string("^\\d+/\\d+ \\(\\d+\\)$").search(cap) != null, "caption \"count/limit (max)\": " + cap)
+		check(pop.tooltip_text == "Population: current/limit (max)" and food.tooltip_text == "Food", "no allies' stats while playing: " + food.tooltip_text)
+		main.resign()
+		await frames(10)
+		var tip: String = food.tooltip_text
+		print("  ", tip.replace("\n", " | "))
+		check(tip.begins_with("Food\nUnordered: [Click] to change order.\n") and tip.contains(": "), "a defeated player sees the others' food")
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = true
+		main._on_top_counter_gui_input(ev)
+		check(food.tooltip_text.contains("\nDescending: [Click]"), "a click orders them descending")
+		main._on_top_counter_gui_input(ev)
+		check(food.tooltip_text.contains("\nAscending: [Click]"), "the next ascending")
+		main._on_top_counter_gui_input(ev)
+		check(food.tooltip_text.contains("\nUnordered: [Click]"), "and back to unordered")
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

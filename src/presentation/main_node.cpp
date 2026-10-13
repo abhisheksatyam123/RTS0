@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include "l10n.h"
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -29,13 +30,7 @@
 
 using namespace godot;
 
-// 0 A.D.'s sprintf with named arguments: each "%(key)s" in the (translated)
-// format string becomes its value, so translators can reorder them.
-static String sprintf0(const String &format, std::initializer_list<std::pair<const char *, String>> args) {
-	String s = format;
-	for (const auto &a : args) s = s.replace(String("%(") + a.first + ")s", a.second);
-	return s;
-}
+using rtso::sprintf0;
 
 // 0 A.D. Trainer lists (civ_unit_template(..).trainers): does a structure of type
 // `btype` train any of `civ`'s units of class `utype`?
@@ -146,6 +141,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
+	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
@@ -560,6 +556,8 @@ void RtsoMain::_ready() {
 	top_hud_panel->add_child(top_hbox);
 
 	top_panel_.build(this, top_hbox, sim->player_civ());
+	// Tooltips are plain text: the name without colorizePlayernameHelper's coloured square.
+	top_panel_.set_ally_name([this](uint8_t p) { return player_display_name(p); });
 	{
 		auto first_key = [](const char *name) {
 			const auto *combos = rtso::hotkeys::table().get(name);
@@ -1713,6 +1711,15 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
+}
+
+// CounterManager.onPress: a click on a resource or population counter cycles
+// the order of the allies' stats in their tooltips.
+void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	RtsoTopPanel::cycle_order();
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time);
 }
 
 // Test hook: destroys the units (Delete's command) without touching the selection,
