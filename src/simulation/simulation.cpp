@@ -4300,7 +4300,7 @@ void Simulation::attack_unit_one_by_one(const uint32_t *unit_ids, size_t count, 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (units_.attack_damage[uidx] <= 0.0f) {
+		if (units_.attack_damage[uidx] <= 0.0f || !unit_can_target((size_t)uidx, (size_t)tidx)) { // CanAttack
 			walk_to_attack_target((size_t)uidx, tx, tz, 0.0f, tx, tz);
 			continue;
 		}
@@ -4328,8 +4328,9 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 	attack_building_one_by_one(now.data(), now.size(), target_building_id, allow_capture);
 }
 
-// UnitAI Attack: a unit that can't attack walks to the target instead (WalkToTarget, to
-// (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
+// UnitAI Attack: a unit that can't attack the target (no attack, or the target is in its
+// RestrictedClasses: a ram and a unit, a dog and a structure) walks to it instead (WalkToTarget,
+// to (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
 // killed (0.28 WalkToTargetRange; one already in range stops there). RTS0's walk goes to where
 // the target stands now, where 0 A.D.'s follows it. A player's order: the walk is forced.
 void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz) {
@@ -4364,7 +4365,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		const bool captures = allow_capture && unit_capture_strength(units_.unit_type[uidx]) > 0.0f;
-		if (units_.attack_damage[uidx] <= 0.0f && !captures) {
+		if (!captures && (units_.attack_damage[uidx] <= 0.0f || !unit_can_target_building((size_t)uidx, b.type))) { // CanAttack
 			float sx = b.x, sz = b.z;
 			stand_outside(b, units_.id[uidx], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz);
 			walk_to_attack_target((size_t)uidx, b.x, b.z, b.half_size, sx, sz);
@@ -18841,6 +18842,52 @@ void Simulation::petra_check_captures(const std::vector<uint32_t> &squad, float 
 	}
 }
 
+// attackManager.js assignBombers (every fifth AI turn, above Very Easy): an idle bolt shooter
+// or stone thrower outside any marching plan shells the first enemy structure in its range,
+// or one it can reach range of from a spot in our own territory on its land, provided a
+// point 30 m (x0.28) beyond the structure's footprint toward it isn't enemy land; at most 5
+// on one structure. The bombers on a structure are those whose order targets it, so there
+// is no saved list. (Fields are left alone: 0 A.D. shells only enemy-land fields being
+// worked, and RTS0 doesn't track a field's gatherers here.)
+void Simulation::petra_assign_bombers() {
+	if (petra_config_.difficulty <= PETRA_VERY_EASY) return;
+	auto bomber = [&](size_t i) {
+		return units_.alive[i] && units_.team[i] == petra_pid_ &&
+			(unit_tech_classes(units_.unit_type[i]) & (TC_STONETHROWER | TC_BOLTSHOOTER)) != 0;
+	};
+	std::unordered_map<uint32_t, int> bombing;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (bomber(i) && units_.order_kind[i] == ORDER_ATTACK_BUILDING && units_.order_target[i] != 0) ++bombing[units_.order_target[i]];
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!bomber(i) || units_.action_state[i] != ACTION_IDLE || units_.has_order[i] || units_.attack_range[i] <= 0.0f) continue;
+		const uint32_t uid = units_.id[i];
+		if (petra_is_defender(uid) || petra_passenger(uid) || (petra_unit_reserved(uid) && !petra_mustering(uid))) continue;
+		const float range = units_.attack_range[i];
+		const float ux = units_.pos_x[i], uz = units_.pos_z[i];
+		const uint16_t land = petra_land_at(ux, uz);
+		for (const Building &b : buildings_) {
+			if (b.wrecked || b.hp <= 0.0f || !petra_foe(b.team) || b.type == BLD_FIELD) continue;
+			if (!can_attack(petra_pid_, b.team) || !unit_can_target_building(i, b.type)) continue;
+			const float dist = std::hypot(b.x - ux, b.z - uz);
+			float px = ux, pz = uz;
+			if (dist > range) {
+				const float safety = std::hypot(b.half_size, b.half_d) + 30.0f * 0.28f;
+				const int owner = territory_owner_at(b.x + (ux - b.x) * safety / dist, b.z + (uz - b.z) * safety / dist);
+				if (petra_foe(owner)) continue;
+				px = b.x + (ux - b.x) * range / dist;
+				pz = b.z + (uz - b.z) * range / dist;
+				if (territory_owner_at(px, pz) != petra_pid_ || petra_land_at(px, pz) != land) continue;
+			}
+			int &n = bombing[b.id];
+			if (n > 4) continue;
+			++n;
+			if (dist > range) order_walk(&uid, 1, px, pz, false);
+			order_attack_building(&uid, 1, b.id, dist > range, false);
+			break;
+		}
+	}
+}
+
 void Simulation::petra_manage_tactical_attacks(float dt) {
 	petra_strike_force_.state_timer += dt;
 
@@ -22182,6 +22229,7 @@ void Simulation::tick_petra_ai_player(float dt) {
 	// 11. Coordinated Tactical Battlegroup Attacks (attackPlan.js) + concurrent raid
 	petra_retake_civic_centres();
 	petra_manage_tactical_attacks(dt);
+	if ((int)(petra_timer_ / 2.5f) != (int)((petra_timer_ - dt) / 2.5f)) petra_assign_bombers();
 	petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
