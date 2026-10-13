@@ -13,13 +13,13 @@ Content breadth moved up since the afternoon: 44 skirmish and scenario maps and 
 These are the biggest gaps between a RTS0 match and a 0 A.D. one, ordered by impact. None has an owner yet; the coordinator assigns them. The full list, including the session UI, menus, data and rendering, is under [Unowned gaps](#unowned-gaps-2026-10-08-audit).
 
 1. ~~**A move order gets hijacked.**~~ Fixed by the unit orders PR: a plain move is UnitAI's WALKING and ignores enemies, attack-move is WALKANDFIGHT, and stance leash and range (`ShouldAbandonChase`, `GetQueryRange`) apply to targets a unit picks itself.
-2. **Hunting can't kill anything.** `order_hunt` puts a fauna id in `target_unit_id`, which `lookup_unit` can't resolve, and nothing ever lowers `fauna_.hp`, so animals never die and the carcass is never spawned (`order_hunt` ~10259, `tick_fauna`).
-3. **Citizen soldiers can't gather.** `tick_gather` only lets villagers, female citizens, worker elephants and fishing boats gather (~3221), and every gatherer uses one flat rate. 0 A.D.'s economy is built on infantry and cavalry gathering at per-class `ResourceGatherer` rates.
+2. ~~**Hunting can't kill anything.**~~ Fixed by the fauna PR (U2): hunters kill animals and gather the carcass.
+3. ~~**Citizen soldiers can't gather.**~~ Fixed by the gather PR (U3): citizen infantry and cavalry gather at their 0 A.D. class `Rates`.
 4. ~~**Units idle when a resource runs out.**~~ Fixed by the unit orders PRs: a gatherer whose supply runs out takes the nearest one of the same kind (GATHER FINDINGNEWTARGET), and with none left drops its load off (`tools/test_unit_orders.cpp` 21, 29, 45). Women default to passive and flee 12 m from attackers.
-5. ~~**Capture happens by standing near a building.**~~ Fixed by the unit orders PR: only units ordered to capture do so (Attack.js Capture, 4 m, once per second), and Ctrl+right-click attacks instead. Per-template capture resistance is still missing.
-6. **Buildings can be placed anywhere.** `can_place` checks only map bounds and occupied cells (~875): no own-territory rule, no distance between Civic Centres, no unit obstruction (0 A.D. `BuildRestrictions.js`).
-7. **No batch training.** One unit per queue slot with no batch time discount (0 A.D. `Trainer.js`). Entity limits are in (`EntityLimits.js`), and each hero trains once a match (`TrainingRestrictions/MatchLimit`, MatchLimit PR).
-8. **Single-player Game Setup ignores the player count.** Random maps always generate 2 players (4 on Mediterranean) because `main_node.cpp` passes a fixed `num_p`, and the single-player path never reads `slot_types` or calls `set_player_active`, so 3–8 slots and extra AIs only work in multiplayer (~3369).
+5. ~~**Capture happens by standing near a building.**~~ Fixed by the unit orders PR: only units ordered to capture do so (Attack.js Capture, 4 m, once per second), and Ctrl+right-click attacks instead. No 0.28 template, tech or aura gives a structure capture resistance, so there is none to port.
+6. ~~**Buildings can be placed anywhere.**~~ Fixed by the placement PR (U5): `check_placement` ports BuildRestrictions.js.
+7. ~~**No batch training.**~~ Fixed by the production queue PR (U7): batch training follows Trainer.js.
+8. ~~**Single-player Game Setup ignores the player count.**~~ Fixed by #76 (U6): single-player random maps seat every slot.
 9. ~~**Siege engines and towers pick the wrong targets.**~~ Fixed: RestrictedClasses come from each template (combat PRs), and structures shoot as 0 A.D.'s `BuildingAI.js` (structure arrows PR).
 10. ~~**Guard and patrol are broken.**~~ Fixed by the unit orders PR (Guard.js, UnitAI PATROL).
 
