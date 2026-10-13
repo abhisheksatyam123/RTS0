@@ -103,8 +103,50 @@ def test_http():
     server.shutdown()
 
 
+def test_ratings():
+    import tempfile
+    adj = lobby_server.get_rating_adjustment
+    check(adj(1200, 1200, 0, 0, 1) == 78 and adj(1200, 1200, 0, 0, -1) == -78,
+          "elo.py: two new players move 78 points")
+    check(adj(1800, 1200, 30, 30, 1) == 0 and adj(1200, 1800, 30, 30, -1) == 0,
+          "elo.py: a sure win (600 apart) changes nothing")
+    check(adj(1500, 1500, 30, 30, -1) == -14, "elo.py: stable players at 1500 move 14 points")
+
+    path = os.path.join(tempfile.mkdtemp(), "ratings.json")
+    lb = lobby_server.Lobby(ratings_path=path)
+    _, a = lb.login("alice")
+    _, b = lb.login("bob")
+    _, c = lb.login("carol")
+    rep = {"matchID": "m1", "players": "alice,bob,", "playerStates": "won,defeated,", "civs": "athen,brit,"}
+    check(lb.report("nope", rep)[0] == 401, "a report needs a signed-in player")
+    check(lb.report(c["token"], rep)[0] == 403, "only a player of the match reports it")
+    check(lb.report(a["token"], {"matchID": "m1"})[0] == 400, "a report needs its players and states")
+    code, obj = lb.report(a["token"], rep)
+    check(code == 202 and not obj["rated"], "the game waits for every player's report")
+    check("rating" not in lb.player_list()[1]["players"][0], "no rating before a rated game")
+    code, obj = lb.report(b["token"], rep)
+    check(code == 200 and obj["rated"] and obj["ratings"] == {"alice": 1278, "bob": 1122},
+          "the 1v1 is rated once both have reported")
+    check(lb.report(b["token"], rep)[1] == {"rated": False}, "a repeated report rates nothing again")
+    ratings = {p["name"]: p.get("rating") for p in lb.player_list()[1]["players"]}
+    check(ratings == {"alice": 1278, "bob": 1122, "carol": None}, "the player list carries ratings")
+    check(lb.leaderboard()[1]["players"] == [{"name": "alice", "rating": 1278}, {"name": "bob", "rating": 1122}],
+          "the leaderboard lists rated players best first")
+    code, prof = lb.profile("BOB")
+    check(code == 200 and prof == {"name": "bob", "rating": 1122, "highestRating": 1200, "rank": 2,
+                                   "totalGamesPlayed": 1, "wins": 0, "losses": 1}, "a player's profile")
+    check(lb.profile("carol")[0] == 404, "a player with no rated game has no profile")
+    team = {"matchID": "m2", "players": "alice,bob,carol,", "playerStates": "won,defeated,defeated,"}
+    lb.report(a["token"], team)
+    lb.report(b["token"], team)
+    check(lb.report(c["token"], team)[1] == {"rated": False}, "only 1v1 games are rated")
+    check(lobby_server.Lobby(ratings_path=path).profile("alice")[1]["rating"] == 1278,
+          "ratings outlive the server in the --ratings file")
+
+
 if __name__ == "__main__":
     test_object()
+    test_ratings()
     test_http()
     print(f"{'FAILED ' + str(len(FAILS)) if FAILS else 'all lobby checks passed'}")
     sys.exit(1 if FAILS else 0)

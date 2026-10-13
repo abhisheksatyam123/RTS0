@@ -2001,6 +2001,41 @@ static void test_idle_return() {
 	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
 }
 
+// worker.js returnResources looks among gameState.getOwnDropsites(), units included: with no
+// structure dropsite left, an idle worker carrying a load takes it to a supply wagon.
+static void test_idle_return_to_wagon() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	auto &u = s->units_;
+	uint32_t uid = 0;
+	for (size_t i = 0; i < u.count && !uid; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
+	CHECK(uid != 0, "Petra has a villager");
+	if (!uid) return;
+	// No structure of its own takes the load any more.
+	for (auto &b : s->buildings_) if (b.team == 1) b.team = GAIA_PLAYER;
+	s->cmd_stop(&uid, 1);
+	int32_t i = s->lookup_unit(uid);
+	const uint32_t wagon = s->spawn_unit(u.pos_x[i] + 6.0f, u.pos_z[i], 1, UNIT_WAGON);
+	u.carry[i] = 5;
+	u.res_type_carried[i] = RES_WOOD;
+	const float before = s->player(1).wood();
+	bool dropped = false;
+	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t j = s->lookup_unit(uid);
+		if (j < 0) break;
+		dropped = u.carry[j] == 0;
+	}
+	std::printf("  idle worker with a load and only a wagon: dropped off %s, wood %.0f -> %.0f\n", dropped ? "yes" : "no",
+	            before, s->player(1).wood());
+	CHECK(wagon != 0 && dropped && s->player(1).wood() >= before + 5.0f, "an idle worker with a load drops it at a supply wagon");
+}
+
 // worker.js startGathering skips a supply whose MaxGatherers are all taken (IsSupplyFull),
 // so Petra's workers spread over the trees and mines instead of crowding the nearest.
 static void test_gather_limits() {
@@ -3229,6 +3264,7 @@ int main() {
 	test_dropsite_sites();
 	test_repairs();
 	test_idle_return();
+	test_idle_return_to_wagon();
 	test_gather_limits();
 	test_decay_garrison();
 	test_decay_garrison_from_attack();
