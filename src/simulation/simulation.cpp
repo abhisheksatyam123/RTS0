@@ -25046,7 +25046,7 @@ void Simulation::tutorial_goal_init(int g) {
 		return;
 	}
 	switch (g) {
-		case 13: v[kTutTrainingDone] = 0; break;
+		case 14: v[kTutTrainingDone] = 0; break;
 		case 17: // houseGoal = new Set()
 			v[kTutCount] = 0;
 			triggers_.watched.erase(std::remove_if(triggers_.watched.begin(), triggers_.watched.end(),
@@ -25163,6 +25163,11 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 	auto queued_at = [&](uint64_t cls) { return d.event == TRIGGER_ON_RESEARCH_QUEUED && (bld_classes(d.entity) & cls); };
 	auto event = [&](uint8_t e) { return d.event == e; };
 	auto done_next = [&]() { if (tutorial_goal_done(g)) tutorial_next_goal(); };
+	// 0.28's units/{civ}/support_civilian, or the female citizen while the roster lacks it.
+	auto tutorial_civilian = [](const char *civ) {
+		const std::string name = std::string(civ) + "/support_civilian";
+		return civ_unit_template_by_id(name.c_str()) != CIV_UNIT_TEMPLATE_NONE ? name : std::string(civ) + "/support_female_citizen";
+	};
 	// OnTrainingQueued of a goal asking for `tmpl` in a batch (or one at a time): anything
 	// else is taken off the queue with a warning. True when the order was the right one.
 	auto training = [&](const char *tmpl, bool batch, uint8_t warn_count, uint8_t warn_unit) {
@@ -25225,7 +25230,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 			case 15: if (repair(TC_OUTPOST)) tutorial_next_goal(); break;
 			case 16:
 				if (event(TRIGGER_ON_TRAINING_QUEUED)) {
-					if (!training("spart/support_female_citizen", true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_FEMALE)) break;
+					if (!training(tutorial_civilian("spart").c_str(), true, TUTORIAL_WARN_BATCH_HOTKEY, TUTORIAL_WARN_CLICK_FEMALE)) break;
 					v[kTutFlagB] = 1;
 					done_next();
 				} else if (rally_gather(TUT_RES_GRAIN) || (command(TRIGGER_CMD_SET_RALLY) && (bld_classes(d.other) & TC_FIELD))) {
@@ -25296,12 +25301,12 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 			// A finished dropsite that takes wood (ResourceDropsite.AcceptsType("wood")).
 			if (event(TRIGGER_ON_STRUCTURE_BUILT) && d.value != BLD_FARMSTEAD && is_dropsite_type((uint8_t)d.value)) tutorial_next_goal();
 			break;
-		case 13:
-			if (training("athen/support_female_citizen", true, TUTORIAL_WARN_HOLD_SHIFT_FEMALE, TUTORIAL_WARN_SHIFT_FEMALE)) tutorial_next_goal();
-			break;
-		case 14:
+		case 13: // 0.28 removes the wood rally point before training the civilians
 			if (command(TRIGGER_CMD_UNSET_RALLY)) tutorial_next_goal();
 			else if (event(TRIGGER_ON_TRAINING_FINISHED)) v[kTutTrainingDone] = 1;
+			break;
+		case 14:
+			if (training(tutorial_civilian("athen").c_str(), true, TUTORIAL_WARN_HOLD_SHIFT_FEMALE, TUTORIAL_WARN_SHIFT_FEMALE)) tutorial_next_goal();
 			break;
 		case 17:
 			// houseGoal: each new House foundation counts; one destroyed before it is built
@@ -25333,7 +25338,7 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 			tutorial_next_goal();
 			break;
 		case 24:
-			if (training("athen/support_female_citizen", false, TUTORIAL_WARN_NO_SHIFT, TUTORIAL_WARN_CLICK_FEMALE_ECO) && ++v[kTutCount] == 3)
+			if (training(tutorial_civilian("athen").c_str(), false, TUTORIAL_WARN_NO_SHIFT, TUTORIAL_WARN_CLICK_FEMALE_ECO) && ++v[kTutCount] == 3)
 				tutorial_next_goal();
 			break;
 		case 25: if (queued_at(TC_FARMSTEAD)) tutorial_next_goal(); break;
