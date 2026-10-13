@@ -666,7 +666,8 @@ def run_kick_case(binary: str, seed: int, speed: float, loss: float, port: int, 
     h, j1 = read_hashes(logs["host"]), read_hashes(logs["j1"])
     refused = {r: next((l.split("code=")[1] for l in outs[r].splitlines() if "refused code=" in l), None)
                for r in ("wrong", "banned")}
-    kicked = any("join: kicked at turn" in l for l in outs["j2"].splitlines())
+    # Kicked, then the link closes with 0 A.D.'s reason: banned (7).
+    kicked = any("join: kicked at turn" in l and l.endswith("reason=7") for l in outs["j2"].splitlines())
     j1_heard = "join: kicks name=carol ban=1" in outs["j1"]
     bad = next((t for t in sorted(h) if j1.get(t) != h[t]), None)
     ok = (rcs["host"] == 0 and rcs["j1"] == 0 and rcs["j2"] == 0 and rcs["wrong"] == 4 and rcs["banned"] == 4
@@ -684,6 +685,64 @@ def run_kick_case(binary: str, seed: int, speed: float, loss: float, port: int, 
         print(f"[net] FAIL password and ban: rc={rcs} refused={refused} kicked={kicked} heard={j1_heard} "
               f"turns={len(h)},{len(j1)} first_bad={bad}")
     return ok
+
+
+def run_host_gone_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                       timeout: int) -> bool:
+    """0 A.D. netstatus "disconnected": the host ends the game after turn LEAVE and
+    both clients must hear why ("The host has ended the game.", reason 2); then a
+    host drops off without a word and its client must notice the silence on its
+    own (reason 0, after the 10 s timeout)."""
+    turns, leave = 400, 120
+    print(f"\n---- host gone: the host ends the game after turn {leave}, then a host vanishes ----")
+    results = {}
+    for kind, flag, joiners, want in (("quit", "--host-quit-turn", ("j1", "j2"), "2"),
+                                      ("vanish", "--host-vanish-turn", ("j1",), "0")):
+        logs = {r: os.path.join(out_dir, f"hostgone_{kind}_{r}.log") for r in ("host", *joiners)}
+        for path in logs.values():
+            if os.path.exists(path):
+                os.remove(path)
+        common = ["--speed", str(speed), "--loss", str(loss), "--humans", str(1 + len(joiners))]
+        def peer(role, log, *more):
+            return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        procs = {"host": peer("host", logs["host"], flag, str(leave))}
+        for j in joiners:
+            time.sleep(0.3)
+            procs[j] = peer("join", logs[j])
+        outs, rcs = {}, {}
+        for role, p in procs.items():
+            try:
+                out, _ = p.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                out, _ = p.communicate()
+            outs[role] = out or ""
+            rcs[role] = p.returncode
+        lost = {j: next((l.split("reason=")[1].strip() for l in outs[j].splitlines()
+                         if "join: lost the host at turn" in l), None) for j in joiners}
+        h = read_hashes(logs["host"])
+        # The host leaves before it logs turn LEAVE; a client may be a turn or two behind it.
+        js = [read_hashes(logs[j]) for j in joiners]
+        same = all(j and max(j) >= leave - 10 and all(h.get(t) == x for t, x in j.items() if t < leave) for j in js)
+        checks = {"exit codes": all(rc == 0 for rc in rcs.values()),
+                  f"reason {want}": all(r == want for r in lost.values()),
+                  "in sync until the host left": len(h) == leave - 1 and same}
+        results[kind] = checks
+        if not all(checks.values()):
+            for role, out in outs.items():
+                for line in out.splitlines():
+                    if line.startswith("[net-peer]") or "Lost the connection" in line:
+                        print(f"   {kind} {role}: {line}")
+            print(f"[net] {kind}: rc={rcs} lost={lost} host_turns={len(h)}")
+        port += 10
+    failed = [f"{kind}: {name}" for kind, checks in results.items() for name, ok in checks.items() if not ok]
+    if not failed:
+        print(f"[net] PASS host gone: the host ended the game after turn {leave} and both clients were told "
+              f"(reason 2); a host that vanished was noticed by its client on its own (reason 0)")
+        return True
+    print(f"[net] FAIL host gone: {', '.join(failed)}")
+    return False
 
 
 def run_oos_case(binary: str, seed: int, speed: float, port: int, out_dir: str, timeout: int) -> bool:
@@ -934,6 +993,8 @@ def main() -> int:
                                args.net_port + 4, out_dir, args.timeout) and net_ok
         net_ok = run_observer_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                    args.net_port + 5, out_dir, args.timeout) and net_ok
+        net_ok = run_host_gone_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                    args.net_port + 6, out_dir, args.timeout) and net_ok
 
     oos = [r for r in results if r["divergent_turn"] is not None]
     if not net_ok and not oos:
