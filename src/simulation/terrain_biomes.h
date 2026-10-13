@@ -86,6 +86,12 @@ struct BiomeFlora {
 	uint8_t tree3[5];     // tree3 options
 	uint8_t tree45[3][2]; // [tree4, tree5] options
 	uint8_t fruit;        // fruitBush
+	// ResourceSupply/Max of each slot's 0 A.D. template (gaia/tree/<name>.xml through its parents and
+	// mixins), parallel to tree12, tree3 and tree45; 0 is TREE_WOOD_SUPPLY. tools/check_tree_wood.py
+	// checks every number against the templates.
+	uint16_t tree12_wood[3][2];
+	uint16_t tree3_wood[5];
+	uint16_t tree45_wood[3][2];
 };
 
 inline const BiomeFlora *biome_flora(const char *biome) {
@@ -93,23 +99,34 @@ inline const BiomeFlora *biome_flora(const char *biome) {
 		// cypress_wild, pine_maritime_short; olive, juniper_prickly, date_palm, cretan_date_palm_short,
 		// medit_fan_palm; poplar_lombardy, carob; berry_01 or grapes.
 		{"aegean", {{FLORA_PINE, FLORA_PINE}}, {FLORA_BROADLEAF, FLORA_PINE, FLORA_PALM, FLORA_PALM, FLORA_PALM},
-		 {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, FLORA_BERRY},
+		 {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, FLORA_BERRY,
+		 {{200, 200}}, {400, 200, 200, 100, 200}, {{200, 200}}},
 		// pine, fir; oak_hungarian_autumn; fir_sapling, elm.
-		{"alpine", {{FLORA_PINE, FLORA_PINE}}, {FLORA_OAK}, {{FLORA_BUSH, FLORA_BROADLEAF}}, FLORA_BERRY},
+		{"alpine", {{FLORA_PINE, FLORA_PINE}}, {FLORA_OAK}, {{FLORA_BUSH, FLORA_BROADLEAF}}, FLORA_BERRY,
+		 {{200, 200}}, {200}, {{50, 200}}},
 		// arctic: fir_winter, pine_w.
-		{"polar", {{FLORA_PINE, FLORA_PINE}}, {FLORA_PINE}, {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY},
-		// sahara: date palms (cretan_date_palm_short/tall, date_palm, cretan_date_palm_patch); juniper_prickly.
-		{"oasis", {{FLORA_PALM, FLORA_PALM}}, {FLORA_PINE}, {{FLORA_PALM, FLORA_PALM}}, FLORA_DATE},
+		{"polar", {{FLORA_PINE, FLORA_PINE}}, {FLORA_PINE}, {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY,
+		 {{200, 200}}, {200}, {{200, 200}}},
+		// sahara: cretan_date_palm_short + date_palm or date_palm + cretan_date_palm_tall; juniper_prickly;
+		// date_palm or cretan_date_palm_patch in both tree4 and tree5.
+		{"oasis", {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_PALM}}, {FLORA_PINE},
+		 {{FLORA_PALM, FLORA_PALM}, {FLORA_PALM, FLORA_PALM}}, FLORA_DATE,
+		 {{100, 200}, {200, 200}}, {200}, {{200, 200}, {300, 300}}},
 		// oak + oak_hungarian, oak_holly + maple or oak_hungarian + oak_holly; apple (a fruit tree,
-		// drawn here as a leafy tree); pine and pine_maritime.
+		// drawn here as a leafy tree; gaia/fruit/apple holds food, not wood, so it keeps TREE_WOOD_SUPPLY);
+		// pine and pine_maritime.
 		{"temperate", {{FLORA_OAK, FLORA_OAK}, {FLORA_OAK, FLORA_BROADLEAF}, {FLORA_OAK, FLORA_OAK}}, {FLORA_BROADLEAF},
-		 {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY},
+		 {{FLORA_PINE, FLORA_PINE}}, FLORA_BERRY,
+		 {{200, 200}, {200, 300}, {200, 200}}, {0}, {{200, 200}}},
 		// bush_steppe_01-03.
-		{"steppe", {{FLORA_BUSH, FLORA_BUSH}}, {FLORA_BUSH}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY},
+		{"steppe", {{FLORA_BUSH, FLORA_BUSH}}, {FLORA_BUSH}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
+		 {{100, 100}}, {100}, {{100, 100}}},
 		// baobab, acacia; acacia; bush_tropic, bush_temperate.
-		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY},
+		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
+		 {{400, 200}}, {200}, {{50, 100}}},
 		// banyan, strangler; teak; palm_palmyra, palm_tropical; date.
-		{"india", {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, {FLORA_BROADLEAF}, {{FLORA_PALM, FLORA_PALM}}, FLORA_DATE},
+		{"india", {{FLORA_BROADLEAF, FLORA_BROADLEAF}}, {FLORA_BROADLEAF}, {{FLORA_PALM, FLORA_PALM}}, FLORA_DATE,
+		 {{600, 500}}, {500}, {{200, 200}}},
 	};
 	static const struct { const char *from, *to; } kAliases[] = {
 		{"mediterranean", "aegean"}, {"latium", "aegean"}, {"desert", "oasis"}, {"persia", "steppe"}, {"tropical", "india"}};

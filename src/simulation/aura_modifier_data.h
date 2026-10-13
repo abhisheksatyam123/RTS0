@@ -157,6 +157,53 @@ inline const CaptureRangeAura *capture_range_auras() {
 	return kAuras;
 }
 
+// Range auras on Attack/Capture/Capture of the units they reach (AURA_CAPTURE_MUL and
+// AURA_CAPTURE_ADD sources): ModifiersManager applies value x multiply + add; radius in
+// 0 A.D. metres. Which units each reaches is the hero aura's own affects (civ_roster_data.h).
+struct CaptureAttackRangeAura { const char *id; float multiply; float add; float radius; uint8_t players; };
+constexpr uint16_t CAPTURE_ATTACK_RANGE_AURA_COUNT = 11;
+inline const CaptureAttackRangeAura *capture_attack_range_auras() {
+	static const CaptureAttackRangeAura kAuras[11] = {
+		{"carnyx", 0.9f, 0.0f, 20.0f, 4},
+		{"brit_hero_boudicca", 1.0f, 2.0f, 40.0f, 1},
+		{"cart_hero_hannibal", 1.0f, 1.0f, 60.0f, 3},
+		{"gaul_hero_vercingetorix", 1.0f, 1.0f, 60.0f, 1},
+		{"han_hero_wei_qing_1", 1.0f, 2.0f, 60.0f, 1},
+		{"kush_hero_amanirenas", 1.0f, 2.0f, 60.0f, 1},
+		{"mace_hero_craterus", 1.2f, 0.0f, 60.0f, 1},
+		{"mace_hero_philip_ii", 1.0f, 2.0f, 60.0f, 1},
+		{"pers_hero_cyrus_ii", 1.0f, 1.0f, 45.0f, 1},
+		{"rome_hero_scipio", 1.0f, 2.0f, 30.0f, 1},
+		{"spart_hero_leonidas", 1.0f, 1.0f, 30.0f, 1},
+	};
+	return kAuras;
+}
+
+// Range auras on Looter/Resource of the units they reach (AURA_LOOTER sources): a kill's
+// loot is the victim's Loot x multiply + add (Looter.js Collect), per resource in the
+// order food, wood, stone, metal; radius in 0 A.D. metres.
+struct LooterRangeAura { const char *id; float multiply[4]; float add[4]; float radius; uint8_t players; };
+constexpr uint16_t LOOTER_RANGE_AURA_COUNT = 3;
+inline const LooterRangeAura *looter_range_auras() {
+	static const LooterRangeAura kAuras[3] = {
+		{"gaul_hero_brennus", {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 15.0f}, 60.0f, 1},
+		{"iber_hero_viriato_2", {2.0f, 2.0f, 2.0f, 2.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, 60.0f, 1},
+		{"kush_hero_nastasen_1", {1.5f, 1.5f, 1.5f, 1.5f}, {0.0f, 0.0f, 0.0f, 0.0f}, 60.0f, 1},
+	};
+	return kAuras;
+}
+
+// Range auras replacing Loot (xp and resources) with 0 on the entities they reach
+// (AURA_NO_LOOT sources): those give their killer nothing.
+struct NoLootRangeAura { const char *id; float radius; uint8_t players; };
+constexpr uint16_t NO_LOOT_RANGE_AURA_COUNT = 1;
+inline const NoLootRangeAura *no_loot_range_auras() {
+	static const NoLootRangeAura kAuras[1] = {
+		{"athen_hero_pericles_1", 60.0f, 1},
+	};
+	return kAuras;
+}
+
 // Structures projecting a capture range aura: BuildingType, capture_range_auras() index.
 struct CaptureStructureAura { uint8_t building; uint16_t aura; };
 constexpr uint16_t CAPTURE_STRUCTURE_AURA_COUNT = 1;

@@ -363,6 +363,9 @@ struct GameSetupParams {
 	// 0 A.D. gamesetup observers (a client assigned no player): bit k = lockstep
 	// client k watches, takes no human slot and sends no orders.
 	uint8_t observers = 0;
+	// 0 A.D. gamesetup player assignment: seats[k] = the slot the host gave lockstep
+	// client k, 0xFF = none chosen (the client takes the next free human slot).
+	uint8_t seats[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 };
 namespace detail {
 // Player names ride in the attribute string, so the separators are %-escaped; at most
@@ -449,6 +452,13 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";behavior=" + std::to_string((unsigned)p.behavior);
 	s += ";res=" + std::to_string((unsigned)p.start_res);
 	if (p.observers) s += ";obs=" + std::to_string((unsigned)p.observers);
+	{
+		std::string seats(8, '-');
+		bool any = false;
+		for (int k = 0; k < 8; ++k)
+			if (p.seats[k] < 8) { seats[k] = (char)('0' + p.seats[k]); any = true; }
+		if (any) s += ";seats=" + seats;
+	}
 	char types[9] = {0}, teamstr[64] = {0};
 	size_t tp = 0, sp = 0;
 	for (unsigned i = 0; i < p.slot_count && i < 8; ++i) {
@@ -565,6 +575,9 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "behavior") { uint8_t x; if (detail::parse_u8(v, 0, 3, x)) out.behavior = x; }
 			else if (k == "res") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.start_res = x; }
 			else if (k == "obs") { uint8_t x; if (detail::parse_u8(v, 0, 255, x)) out.observers = x; }
+			else if (k == "seats" && v.size() == 8) {
+				for (int c = 0; c < 8; ++c) out.seats[c] = (v[c] >= '0' && v[c] <= '7') ? (uint8_t)(v[c] - '0') : 0xFF;
+			}
 			else if (k.size() == 4 && k[0] == 'c' && k[1] == 'i' && k[2] == 'v' && k[3] >= '0' && k[3] <= '7') {
 				uint8_t x; if (detail::parse_u8(v, 0, 13, x)) out.civs[k[3] - '0'] = x;
 			}

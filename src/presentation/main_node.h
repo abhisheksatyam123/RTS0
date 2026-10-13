@@ -27,6 +27,7 @@
 #include <godot_cpp/classes/audio_stream_player3d.hpp>
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/time.hpp>
+#include <map>
 #include "safe_select.h"
 #include "top_panel.h"
 #include "production_queue.h"
@@ -107,6 +108,13 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	Button *lobby_observe = nullptr; // join a running match as an observer (0 A.D. observer late join)
 	Label *lobby_players = nullptr;  // in-game player list (0 A.D. NMT_PLAYER_ASSIGNMENT)
 	uint64_t players_shown_ = 0;     // the player list version lobby_players shows
+	// Host, before Start: 0 A.D.'s player assignment, a slot dropdown per client.
+	VBoxContainer *lobby_seats = nullptr;
+	std::string lobby_seats_key_;           // the clients and slots lobby_seats was built for
+	std::map<uint32_t, int> seat_choice_;   // client -> slot the host gave it, SEAT_OBSERVER to watch
+	static constexpr int SEAT_AUTO = 100, SEAT_OBSERVER = 99;
+	void refresh_lobby_seats();
+	void apply_lobby_seats(rtso::GameSetupParams &setup);
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -326,6 +334,7 @@ public:
 	void _on_lobby_host_pressed();
 	void _on_lobby_join_pressed();
 	void _on_lobby_start_pressed();
+	void _on_lobby_seat_selected(int index, int client);
 	void apply_net_game_start();
 	void apply_match_settings();
 	void sync_victory_selector();

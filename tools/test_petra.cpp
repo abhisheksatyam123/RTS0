@@ -930,6 +930,77 @@ static void test_barter() {
 	CHECK(g[RES_GOLD] >= 20 && g[RES_WOOD] == 0 && g[RES_STONE] == 0, "short on gold, none for what it has plenty of");
 }
 
+// tradeManager.js prospectForNewMarket with headquarters.js findMarketLocation: with one
+// market of its own, Petra looks for the spot in its territory farthest from it and
+// builds a second market there when the route would pay; checkRoutes then finds it.
+static void test_market_prospection() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 128.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	// A second civic centre toward the middle of the map widens our territory.
+	const float len = std::sqrt(tx * tx + tz * tz);
+	s->spawn_building_world(tx - tx / len * 50.0f, tz - tz / len * 50.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	run_for(*s, 2.0f);
+	const uint32_t first = s->spawn_building((int)((tx + 12.0f) / Simulation::GRID), (int)(tz / Simulation::GRID), BLD_MARKET, 1, 1.0f);
+	CHECK(first != 0, "a market for AI 1");
+	PlayerState &ps = s->players_[1];
+	ps.phase = 2;
+	ps.food() = ps.wood() = ps.gold() = ps.stone() = 5000.0f;
+	for (auto &a : s->petra_queues_.accounts) a = PetraQueueAccount{};
+	for (auto &w : s->petra_queues_.wants) w = PetraQueueAccount{};
+	PetraQueueAccount &trade = s->petra_queues_.accounts[Simulation::PETRA_QUEUE_TRADE];
+	trade.food = trade.wood = trade.gold = trade.stone = 5000.0f; // the queue is funded
+	const Simulation::Building *m1 = nullptr;
+	for (const auto &b : s->buildings()) if (b.id == first) m1 = &b;
+	const float m1x = m1->x, m1z = m1->z;
+
+	float x = 0.0f, z = 0.0f;
+	int gain = 0;
+	const int where = s->petra_find_market_location(x, z, gain);
+	const float d = std::sqrt((x - m1x) * (x - m1x) + (z - m1z) * (z - m1z));
+	std::printf("  market location: %d at %.1f from the first market, gain %d (minimal %d)\n", where, d, gain,
+	            s->petra_trade_minimal_gain());
+	CHECK(where != 0 && s->territory_owner_at(x, z) == 1, "a spot in our own territory");
+	CHECK((where == 1) == (gain >= s->petra_trade_minimal_gain()), "kept only when the route would pay");
+
+	Simulation::PetraTradeRoutes routes;
+	s->petra_check_routes(routes);
+	CHECK(routes.best.gain == 0 && routes.potential.gain == 0, "no route with a single market");
+	s->petra_prospect_market(routes);
+	uint32_t second = 0;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_MARKET && b.id != first) second = b.id;
+	std::printf("  second market %s\n", second ? "placed" : "not placed");
+	CHECK((second != 0) == (gain >= s->petra_trade_minimal_gain()), "a second market when the route would pay");
+	if (!second) return;
+	s->petra_check_routes(routes);
+	CHECK(routes.best.gain == 0 && routes.potential.gain >= s->petra_trade_minimal_gain(), "a foundation is only a potential route");
+	s->petra_prospect_market(routes);
+	int markets = 0;
+	for (const auto &b : s->buildings()) if (b.team == 1 && b.type == BLD_MARKET) ++markets;
+	CHECK(markets == 2, "one market foundation at a time");
+	for (auto &b : s->buildings_) if (b.id == second) { b.build_progress = 1.0f; b.hp = b.max_hp; }
+	s->petra_check_routes(routes);
+	std::printf("  route gain %d between %u and %u\n", routes.best.gain, routes.best.source, routes.best.target);
+	CHECK(routes.best.gain >= s->petra_trade_minimal_gain() &&
+	      ((routes.best.source == first && routes.best.target == second) || (routes.best.source == second && routes.best.target == first)),
+	      "the two markets make the trade route");
+	// isNewMarketWorth: a third market only if it would double the route's gain (or add 20).
+	const int third = s->petra_find_market_location(x, z, gain);
+	s->petra_prospect_market(routes);
+	markets = 0;
+	for (const auto &b : s->buildings()) if (b.team == 1 && b.type == BLD_MARKET) ++markets;
+	std::printf("  third market spot gain %d: %d markets\n", third == 1 ? gain : 0, markets);
+	CHECK((markets == 3) == (third == 1 && (gain >= 2 * routes.potential.gain || gain >= routes.potential.gain + 20)),
+	      "a third market only when it would double the route's gain");
+}
+
 static void test_civ_structures() {
 	for (uint8_t civ : { (uint8_t)CIV_KUSHITES, (uint8_t)CIV_ROMANS }) {
 		auto s = std::make_unique<Simulation>();
@@ -2265,6 +2336,7 @@ int main() {
 	test_hunting();
 	test_first_base();
 	test_barter();
+	test_market_prospection();
 	test_civ_structures();
 	test_emergency();
 	test_regicide_hero();
