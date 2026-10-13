@@ -247,6 +247,44 @@ const PLAYER_COLORS := [Color8(21, 55, 149), Color8(150, 20, 20), Color8(86, 180
 	Color8(220, 160, 220), Color8(80, 255, 190), Color8(50, 150, 255), Color8(100, 150, 30),
 	Color8(100, 60, 30), Color8(128, 0, 64), Color8(255, 200, 140), Color8(80, 80, 80)]
 const VICTORY_REGICIDE := 6
+# 0.28 settings/victory_conditions/*.json in GUIOrder: [VictoryKind bit (sim_types.h), title,
+# description]. Game Setup combines them; none checked is an endless game.
+const VICTORY_KINDS := [
+	[1, "Conquest", "Defeat opponents by killing all their units and destroying all their structures."],
+	[4, "Conquest Structures", "Defeat opponents by destroying all their structures."],
+	[2, "Conquest Units", "Defeat opponents by killing all their units."],
+	[8, "Conquest Civic Centers", "Defeat opponents by destroying all their fully built civic centers."],
+	[32, "Capture the Relic", "Capture all relics spread across the map and keep them for a certain time to win the game."],
+	[64, "Regicide", "Defeat opponents by killing their hero."],
+	[16, "Wonder", "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured."]]
+const VK_REGICIDE := 64
+# 0.28 victory condition file names (a scenario's settings VictoryConditions) -> VictoryKind bit.
+const VICTORY_NAMES := {"conquest": 1, "conquest_units": 2, "conquest_structures": 4, "conquest_civic_centers": 8,
+	"wonder": 16, "capture_the_relic": 32, "regicide": 64}
+# DisabledWhenChecked: checking a condition unchecks and disables these.
+const VICTORY_EXCLUDES := {1: 2 | 4 | 8, 2: 1, 4: 1 | 8, 8: 1 | 4}
+# victory_mask() of each single code (index == rtso::VictoryCondition); VICTORY_COMBINED | mask otherwise.
+const VICTORY_CODE_MASKS := [1, 1 | 16, 1 | 32, 0, 2, 4, 1 | 64]
+const VICTORY_COMBINED := 0x80
+var _victory_checks := {}
+
+static func victory_mask(code: int) -> int:
+	if code & VICTORY_COMBINED:
+		return code & 0x7F
+	return VICTORY_CODE_MASKS[code] if code >= 0 and code < VICTORY_CODE_MASKS.size() else 1
+
+static func victory_code(mask: int) -> int:
+	var i := VICTORY_CODE_MASKS.find(mask & 0x7F)
+	return i if i >= 0 else VICTORY_COMBINED | (mask & 0x7F)
+
+## "Conquest, Wonder" for a victory code; "Endless" when nothing is checked.
+static func victory_title(code: int) -> String:
+	var mask := victory_mask(code)
+	var names := PackedStringArray()
+	for k in VICTORY_KINDS:
+		if mask & int(k[0]):
+			names.append(k[1])
+	return ", ".join(names) if not names.is_empty() else "Endless"
 const CivAINames = preload("res://scenes/menu/civ_ai_names.gd")
 var _color_icons: Array = []
 
@@ -641,6 +679,19 @@ func _apply_map_locks() -> void:
 	_pop_type_select().disabled = scen
 	res.disabled = scen
 	cf.disabled = scen
+	# VictoryConditions.onMapChange: a scenario's list replaces the conditions (an empty
+	# one, as the sandboxes have, is an endless game); VictoryConditionCheckbox disables
+	# every box on a scenario.
+	if scen and typeof(s.get("VictoryConditions")) == TYPE_ARRAY:
+		var vmask := 0
+		for n in s["VictoryConditions"]:
+			vmask |= int(VICTORY_NAMES.get(str(n), 0))
+		_set_victory_mask(vmask)
+	else:
+		_set_victory_mask(_victory_mask())
+	if scen:
+		for bit in _victory_checks:
+			_victory_checks[bit].disabled = true
 	if not scen:
 		pop.select(pop.get_selected())  # back from "Per Player"
 		pop.tooltip_text = tr(POP_CAP_TYPES[_pop_type][4])
@@ -948,10 +999,14 @@ func _clamp_slots_to_map() -> void:
 # ---------------------------------------------------------------- options ---
 
 func _build_options() -> void:
-	var vic := _make_option($VBox/HBox/LeftScroll/Left/VictorySlot)
-	for v in VICTORIES:
-		vic.add_item(v)
-	vic.select(0)
+	for k in VICTORY_KINDS:
+		var cb := CheckBox.new()
+		cb.text = k[1]
+		cb.tooltip_text = k[2]
+		cb.toggled.connect(_on_victory_toggled.bind(int(k[0])))
+		$VBox/HBox/LeftScroll/Left/VictorySlot.add_child(cb)
+		_victory_checks[int(k[0])] = cb
+	_set_victory_mask(1)
 	var msz := _make_option($VBox/HBox/LeftScroll/Left/MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
@@ -1036,6 +1091,31 @@ func _on_reroll_seed() -> void:
 	$VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value = randi() % 1000000000
 	_update_preview()
 
+## The checked victory conditions as a VictoryKind mask.
+func _victory_mask() -> int:
+	var mask := 0
+	for bit in _victory_checks:
+		if _victory_checks[bit].button_pressed:
+			mask |= int(bit)
+	return mask
+
+## Check exactly `mask`, then disable what the checked ones exclude (VictoryConditions.js).
+func _set_victory_mask(mask: int) -> void:
+	for bit in _victory_checks:
+		_victory_checks[bit].set_pressed_no_signal((mask & int(bit)) != 0)
+	var disabled := 0
+	for bit in VICTORY_EXCLUDES:
+		if mask & int(bit):
+			disabled |= int(VICTORY_EXCLUDES[bit])
+	for bit in _victory_checks:
+		_victory_checks[bit].disabled = (disabled & int(bit)) != 0
+
+func _on_victory_toggled(on: bool, bit: int) -> void:
+	var mask := _victory_mask()
+	if on:
+		mask &= ~int(VICTORY_EXCLUDES.get(bit, 0))
+	_set_victory_mask(mask)
+
 ## The MatchSettings fields game setup restores, also the keys of the persisted file.
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap", "team_pop",
@@ -1105,11 +1185,10 @@ func _restore_settings() -> void:
 	_apply_settings(src)
 
 func _apply_settings(ms: Dictionary) -> void:
-	var vic: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictorySlot.get_child(0)
 	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
 	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
 	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
-	vic.select(clampi(int(ms.get("victory")), 0, VICTORIES.size() - 1))
+	_set_victory_mask(victory_mask(int(ms.get("victory"))))
 	$VBox/HBox/LeftScroll/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
 	$VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed = bool(ms.get("last_man_standing"))
 	$VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed = bool(ms.get("nomad"))
@@ -1197,7 +1276,7 @@ func _on_back_pressed() -> void:
 func _collect_setup() -> Dictionary:
 	var m := _selected_map()
 	var seed := int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
-	var vic: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictorySlot.get_child(0)
+	var vmask := _victory_mask()
 	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
 	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
 	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
@@ -1250,7 +1329,7 @@ func _collect_setup() -> Dictionary:
 			diff = int(_slot_rows[i]["diff"])
 			beh = int(_slot_rows[i]["beh"])
 			break
-	return {"map": m, "seed": seed, "victory": vic.get_selected(),
+	return {"map": m, "seed": seed, "victory": victory_code(vmask),
 		"waves": $VBox/HBox/LeftScroll/Left/Waves.button_pressed,
 		"lms": $VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed,
 		"pop_cap": _pop_cap_setting(),
@@ -1275,7 +1354,7 @@ func _collect_setup() -> Dictionary:
 		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
 		"nomad": $VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed and not m.is_empty() and str(m.get("kind", "")) == "Random",
-		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed and vic.get_selected() == VICTORY_REGICIDE,
+		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed and (vmask & VK_REGICIDE) != 0,
 		"lock_teams": $VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed,
 		# Cheats.js: always on in single-player, "the choice of that one player".
 		"cheats": true,

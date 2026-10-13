@@ -26,11 +26,12 @@
 //     map JSON tile encoding decodes; bad tiles are refused.
 // 10b. Random maps plant their biome's rmbiome trees and fruit (FloraKind), forests
 //     and stragglers alike, and the map JSON plant names resolve. Each tree holds its
-//     template's wood (savanna's baobabs 400, india's banyans 600).
+//     template's wood (savanna's baobabs 600, india's banyans 600).
 // 10c. Maps from 0 A.D. scripts with their own terrains paint and plant only those
 //     (script_terrains.h), with their templates' wood, unless game setup overrides the biome.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
+#include "simulation/resource_counts_data.h"
 #include "simulation/rms_generator.h"
 #include "network/net_types.h"
 #include "simulation/script_terrains.h"
@@ -507,23 +508,32 @@ int main() {
 			if (rv.alive[i] && rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
 		CHECK(odd_wood == 0, "%s: %d trees hold wood no slot's template gives", f->biome, odd_wood);
 	}
-	// 10b'. Savanna: tree1 is gaia/tree/baobab (ResourceSupply/Max 400), tree2 acacia (200) and
+	// 10b'. Savanna: tree1 is gaia/tree/baobab (ResourceSupply/Max 600), tree2 acacia (200) and
 	// tree4/tree5 bush_tropic (50) and bush_temperate (100).
 	{
 		Simulation sim;
 		sim.set_biome_override(BIOME_SAVANNA);
 		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
 		const auto rv = sim.resources();
-		int baobabs = 0, baobab_400 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
+		int baobabs = 0, baobab_600 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
 		for (size_t i = 0; i < rv.count; ++i) {
 			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
-			if (rv.flora[i] == FLORA_BAOBAB) { ++baobabs; baobab_400 += rv.amount[i] == 400; }
+			if (rv.flora[i] == FLORA_BAOBAB) { ++baobabs; baobab_600 += rv.amount[i] == 600; }
 			if (rv.flora[i] == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
 			if (rv.flora[i] == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }
 		}
-		CHECK(baobabs > 0 && baobab_400 == baobabs, "savanna: %d of %d baobabs hold 400 wood", baobab_400, baobabs);
+		CHECK(baobabs > 0 && baobab_600 == baobabs, "savanna: %d of %d baobabs hold 600 wood", baobab_600, baobabs);
 		CHECK(acacias > 0 && acacia_200 == acacias, "savanna: %d of %d acacias hold 200 wood", acacia_200, acacias);
 		CHECK(bushes > 0 && bush_ok == bushes, "savanna: %d of %d bushes hold 50 or 100 wood", bush_ok, bushes);
+		// ResourceSupply/MaxGatherers: baobab 9, the bushes 4 (mixins/bush.xml), acacia 8.
+		int mg_bad = 0;
+		for (size_t i = 0; i < rv.count; ++i) {
+			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
+			const int mg = sim.resource_max_gatherers(rv.id[i]);
+			mg_bad += rv.flora[i] == FLORA_BAOBAB ? mg != 9 : rv.flora[i] == FLORA_BUSH || rv.flora[i] == FLORA_TROPIC_BUSH ? mg != 4
+					: rv.flora[i] == FLORA_ACACIA ? mg != 8 : 0;
+		}
+		CHECK(mg_bad == 0, "savanna: %d trees with the wrong gatherer limit", mg_bad);
 		// set_resource_amount: a tree's amount; a fruit bush's regrowth Max follows it.
 		const uint32_t tree = sim.spawn_resource_world(0.0f, 0.0f, RES_WOOD, TREE_WOOD_SUPPLY);
 		sim.set_resource_amount(tree, 600);
@@ -677,6 +687,35 @@ int main() {
 		CHECK(latium >= 40, "latium: %d fish, 0.28 places scaleByMapSize(45, 65) single fish", latium);
 		CHECK(gulf >= 100, "gulf_of_bothnia: %d fish, 0.28 places 4 * scaleByMapSize(5, 30) groups of 2-3", gulf);
 		CHECK(corsica >= 250, "corsica: %d fish, 0.28 places 50 and 70 groups of 2-3 per player", corsica);
+	}
+	{
+		// Every map with a 0 A.D. script has at least the mines, fruit and hunt its script
+		// places outside the bases (resource_counts_data.h), on a Medium map for 2 players.
+		for (const MapResourceCounts &rc : kMapResourceCounts) {
+			MapType mt = MAP_TYPE_COUNT;
+			for (int t = 0; t < MAP_TYPE_COUNT; ++t)
+				if (std::strcmp(map_type_info((uint8_t)t).id, rc.map_id) == 0) mt = (MapType)t;
+			CHECK(mt != MAP_TYPE_COUNT, "%s: resource counts for a map RTS0 doesn't have", rc.map_id);
+			if (mt == MAP_TYPE_COUNT) continue;
+			static Simulation s;
+			s.reset();
+			s.generate_random_map(mt, 7, 2, 128.0f);
+			const auto rv = s.resources();
+			int metal = 0, stone = 0, fruit = 0, hunt = 0;
+			for (size_t i = 0; i < rv.count; ++i) {
+				if (rv.subtype[i] == RES_SUB_RUINS) continue;
+				metal += rv.type[i] == RES_GOLD;
+				stone += rv.type[i] == RES_STONE;
+				fruit += rv.type[i] == RES_FOOD && rv.subtype[i] == RES_SUB_NONE;
+			}
+			const auto fv = s.fauna();
+			for (size_t i = 0; i < fv.count; ++i) hunt += fauna_type_info(fv.fauna_type[i]).food_amount > 0;
+			auto want = [&](const uint16_t (&g)[4][3]) { return map_resource_count(g, 256.0f, 2); };
+			const int want_metal = want(rc.metal_large) + want(rc.metal_small), want_stone = want(rc.stone_large) + want(rc.stone_small);
+			CHECK(metal * 4 >= want_metal * 3 && stone * 4 >= want_stone * 3 && fruit * 4 >= want(rc.fruit) * 3 && hunt * 4 >= want(rc.hunt) * 3,
+			      "%s: %d metal, %d stone, %d fruit, %d hunt; its 0.28 script places %d, %d, %d, %d outside the bases", rc.map_id,
+			      metal, stone, fruit, hunt, want_metal, want_stone, want(rc.fruit), want(rc.hunt));
+		}
 	}
 	{
 		// "AQAAAQAA" is the (run - 1, name) pairs (1, 0) (0, 1) (0, 0): 0, 0, 1, 0.

@@ -37,34 +37,24 @@ inline std::string objectives_text(const Simulation &sim, uint8_t pid) {
 	if (sim.is_defeated(pid)) out += "[color=#ff6644]You have been defeated.[/color]\n\n";
 	else if (sim.is_victory_for(pid)) out += "[color=#66ff66]You have won![/color]\n\n";
 
-	switch (sim.victory_condition()) {
-		case VICTORY_ENDLESS:
-			line("Endless Game", "No winner will be determined, even if everyone is defeated.");
-			break;
-		case VICTORY_CONQUEST_UNITS:
-			line("Conquest Units", "Defeat opponents by killing all their units.");
-			break;
-		case VICTORY_CONQUEST_STRUCTURES:
-			line("Conquest Structures", "Defeat opponents by destroying all their structures.");
-			break;
-		case VICTORY_REGICIDE:
-			line("Regicide", "Defeat opponents by killing their hero.");
-			break;
-		case VICTORY_WONDER:
-			line("Conquest", "Defeat opponents by killing all their units and destroying all their structures.");
-			line("Wonder (" + plural_min(minutes(sim.wonder_duration())) + ")",
-					"Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured.");
-			break;
-		case VICTORY_RELIC:
-			line("Conquest", "Defeat opponents by killing all their units and destroying all their structures.");
-			line("Capture the Relic (" + plural_min(minutes(sim.relic_duration())) + ")",
-					"Capture all relics spread across the map and keep them for a certain time to win the game.");
-			line("Relic Count", std::to_string(sim.relics().size()));
-			break;
-		default:
-			line("Conquest", "Defeat opponents by killing all their units and destroying all their structures.");
-			break;
+	// One line per active condition, in 0.28's GUIOrder.
+	const uint8_t vk = sim.victory_conditions();
+	if (!vk) line("Endless Game", "No winner will be determined, even if everyone is defeated.");
+	if (vk & VK_CONQUEST)
+		line("Conquest", "Defeat opponents by killing all their units and destroying all their structures.");
+	if (vk & VK_CONQUEST_STRUCTURES) line("Conquest Structures", "Defeat opponents by destroying all their structures.");
+	if (vk & VK_CONQUEST_UNITS) line("Conquest Units", "Defeat opponents by killing all their units.");
+	if (vk & VK_CONQUEST_CIVIC_CENTRES)
+		line("Conquest Civic Centers", "Defeat opponents by destroying all their fully built civic centers.");
+	if (vk & VK_RELIC) {
+		line("Capture the Relic (" + plural_min(minutes(sim.relic_duration())) + ")",
+				"Capture all relics spread across the map and keep them for a certain time to win the game.");
+		line("Relic Count", std::to_string(sim.relics().size()));
 	}
+	if (vk & VK_REGICIDE) line("Regicide", "Defeat opponents by killing their hero.");
+	if (vk & VK_WONDER)
+		line("Wonder (" + plural_min(minutes(sim.wonder_duration())) + ")",
+				"Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured.");
 	line("Diplomacy", "Players can make alliances and declare war on allies.");
 	if (sim.last_man_standing())
 		line("Last Man Standing", "Only one player can win the game. If the remaining players are allies, the game continues until only one remains.");

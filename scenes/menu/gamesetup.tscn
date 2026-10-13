@@ -122,10 +122,11 @@ text = "Reroll"
 
 [node name="VictoryLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
-text = "Victory condition"
+tooltip_text = "Select the victory conditions; with none checked nobody wins."
+mouse_filter = 1
+text = "Victory conditions"
 
-[node name="VictorySlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
-custom_minimum_size = Vector2(0, 32)
+[node name="VictorySlot" type="HFlowContainer" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 
 [node name="Waves" type="CheckBox" parent="VBox/HBox/LeftScroll/Left"]

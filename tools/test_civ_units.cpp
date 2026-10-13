@@ -349,6 +349,23 @@ int main() {
 		CHECK(!tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GERMANS) && tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GAULS));
 		CHECK((civ_unit_template(roster_id("athen/support_civilian")).flags & ROSTER_CIVILIAN) &&
 		      !(civ_unit_template(roster_id("athen/support_female_citizen")).flags & ROSTER_CIVILIAN));
+		// Civilians are female or male (Identity/Phenotype "female male"), one per unit id, about half
+		// each; the women's rows and soldiers keep their one phenotype. A male Macedonian Civilian
+		// draws 0.28's Athenian citizen_male (the athen_villager model).
+		{
+			const uint16_t civ_t = roster_id("athen/support_civilian");
+			int male = 0;
+			for (uint32_t id = 1; id <= 1000; ++id) male += civilian_is_male(civ_t, id) ? 1 : 0;
+			CHECK(male > 400 && male < 600);
+			CHECK(civilian_is_male(civ_t, 7) == civilian_is_male(civ_t, 7));
+			bool other = false;
+			for (uint32_t id = 1; id <= 64; ++id)
+				other = other || civilian_is_male(roster_id("athen/support_female_citizen"), id) ||
+					civilian_is_male(roster_id("athen/infantry_spearman_b"), id);
+			CHECK(!other);
+			CHECK(std::strcmp(civ_unit_model(CIV_MACEDONIANS, UNIT_VILLAGER), "athen_villager") == 0);
+			CHECK(std::strcmp(civ_unit_model(CIV_ATHENIANS, UNIT_VILLAGER), "athen_villager") == 0);
+		}
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));

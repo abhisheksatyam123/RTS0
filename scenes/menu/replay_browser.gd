@@ -217,8 +217,11 @@ static func map_size_name(size: int) -> String:
 			return s[1]
 	return "Default"
 
+## The match's victory conditions joined with ", " (0.28 lists every one, "Conquest, Wonder").
 static func victory_name(v: int) -> String:
-	return SetupPage.VICTORIES[v].get_slice(" — ", 0) if v >= 0 and v < SetupPage.VICTORIES.size() else "Unknown"
+	if v < 0 or v > 255 or (v >= SetupPage.VICTORIES.size() and v < SetupPage.VICTORY_COMBINED):
+		return "Unknown"
+	return SetupPage.victory_title(v)
 
 ## translatePopulationCapacity.
 static func population_name(pop: int, pop_type: String) -> String:
@@ -269,7 +272,7 @@ func _init_filters() -> void:
 	_refill(_duration_filter, durations)
 	if _singleplayer_filter.item_count == 0:
 		_refill(_singleplayer_filter, SINGLEPLAYER)
-	_refill(_victory_filter, ["Any victory condition"] + range(SetupPage.VICTORIES.size()).map(victory_name))
+	_refill(_victory_filter, ["Any victory condition"] + SetupPage.VICTORY_KINDS.map(func(k): return k[1]))
 
 ## filterReplay.
 func passes(r: Dictionary) -> bool:
@@ -285,7 +288,8 @@ func passes(r: Dictionary) -> bool:
 		3:
 			if not r["campaign"]:
 				return false
-	if _victory_filter.selected > 0 and r["victory"] != _victory_filter.selected - 1:
+	# replay_filters.js: the replay's VictoryConditions include the picked one.
+	if _victory_filter.selected > 0 and not (SetupPage.victory_mask(r["victory"]) & int(SetupPage.VICTORY_KINDS[_victory_filter.selected - 1][0])):
 		return false
 	if _date_filter.selected > 0 and r["month"] != _date_filter.get_item_text(_date_filter.selected):
 		return false
