@@ -1576,7 +1576,7 @@ namespace {
 // defaults to land placement in own territory; the overrides are
 // civil_centre (own neutral, 200 m from a CivilCentre), dock (shore, own ally
 // neutral), defensive_wall and its gate and tower (land-shore), palisade
-// (land-shore, own neutral), outpost (own neutral, 50 m from an Outpost),
+// (land-shore, own neutral), rome/siege_wall (land-shore, own neutral enemy), outpost (own neutral, 50 m from an Outpost),
 // defensive_tower (60 m from a Tower) and fortress (80 m from a Fortress).
 enum : uint8_t { PLACE_LAND, PLACE_SHORE_TYPE, PLACE_LAND_SHORE };
 enum : uint8_t { TERR_OWN = 1, TERR_ALLY = 2, TERR_NEUTRAL = 4, TERR_ENEMY = 8 };
@@ -1591,6 +1591,9 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_DOCK: return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_NONE, 0.0f};
 	case BLD_WALL_SEGMENT: case BLD_GATE: case BLD_WALL_TOWER: return {PLACE_LAND_SHORE, TERR_OWN, DIST_NONE, 0.0f};
 	case BLD_PALISADE: case BLD_PALISADE_GATE: return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
+	// rome/siege_wall_*: own, neutral or enemy territory (to wall in a besieged town).
+	case BLD_SIEGE_WALL:
+		return {PLACE_LAND_SHORE, TERR_OWN | TERR_NEUTRAL | TERR_ENEMY, DIST_NONE, 0.0f};
 	case BLD_OUTPOST: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_OUTPOST, 50.0f / 4.0f};
 	case BLD_TOWER: case BLD_SENTRY_TOWER: return {PLACE_LAND, TERR_OWN, DIST_TOWER, 60.0f / 4.0f};
 	case BLD_FORTRESS: return {PLACE_LAND, TERR_OWN, DIST_FORTRESS, 80.0f / 4.0f};
@@ -1894,7 +1897,7 @@ uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z, uint8_t k
 	uint32_t id = 0;
 	for (const Building &b : buildings_) {
 		if (b.type != ws.tower || b.team != player || b.wrecked || b.hp <= 0.0f) continue;
-		if (ws.tower == ws.segment && !is_palisade_tower(b.type, b.half_size)) continue;
+		if (ws.tower == ws.segment && !is_wallset_tower_piece(b.type, b.half_size)) continue;
 		const float d2 = (b.x - x) * (b.x - x) + (b.z - z) * (b.z - z);
 		if (d2 <= best) {
 			best = d2;
@@ -2004,13 +2007,13 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 		const Building &g = buildings_[it->second];
 		const std::vector<std::pair<int, int>> c = building_cells(g);
 		ignored.insert(ignored.end(), c.begin(), c.end());
-		if (g.type != BLD_WALL_TOWER && !is_palisade_tower(g.type, g.half_size)) continue;
+		if (g.type != BLD_WALL_TOWER && !is_wallset_tower_piece(g.type, g.half_size)) continue;
 		// The segments joined to a tower share its group too (SetControlGroup2), where they reach
 		// into it: their cells around the tower.
 		const float near = g.half_size + GRID;
 		for (const Building &o : buildings_) {
 			if (o.id == g.id || o.team != g.team || !is_wallset_piece(o.type, o.half_size) ||
-					is_palisade_tower(o.type, o.half_size))
+					is_wallset_tower_piece(o.type, o.half_size))
 				continue;
 			const nav::Vec2 gap = nav::footprint_gap(o, g.x, g.z);
 			if (gap.x > g.half_size || gap.y > g.half_size) continue;
@@ -5571,6 +5574,15 @@ bool Simulation::unit_turretable(size_t i) const {
 }
 
 const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
+	if (b.type == BLD_SIEGE_WALL) {
+		// rome/siege_wall_*: the long and medium segments' and the tower's own points
+		// (siege_wall_short has none, and none of them a garrison).
+		static constexpr TurretPointSet NONE{};
+		const WallSetInfo &ws = wallset_info(WALLSET_SIEGE);
+		const int k = is_siege_wall_tower(b.type, b.half_size) ? 2
+				: b.half_size >= 0.5f * ws.lengths[0] - 0.01f ? 0 : b.half_size >= 0.5f * ws.lengths[1] - 0.01f ? 1 : -1;
+		return k < 0 ? &NONE : &TURRET_POINTS_SIEGE_WALL[k];
+	}
 	const int kind = b.type == BLD_WALL_SEGMENT ? 0 : b.type == BLD_GATE ? 1 : b.type == BLD_OUTPOST ? 2 : -1;
 	if (kind < 0) return nullptr;
 	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_ATHENIANS;
@@ -8947,7 +8959,8 @@ void Simulation::tick_repair(float dt) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
 			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
-			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER;
+			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER ||
+					b.type == BLD_SIEGE_WALL; // rome/siege_wall_* too
 			const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
 			const float repair_rate = b.max_hp / (ratio * structure_build_time(b));
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
@@ -12431,7 +12444,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (player >= MAX_PLAYERS || ceasefire_active()) return false;
 	// Attack.js Capture RestrictedClasses "Field Palisade Wall" (gates and wall towers are Wall too).
 	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || is_gate_type(b.type) ||
-			b.type == BLD_WALL_TOWER)
+			b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL)
 		return false;
 	if (b.team < MAX_PLAYERS && (b.team == player || is_ally(player, b.team))) return false; // UnitAI CanAttack: not our own
 	// Capturable.CanCapture: some of the points belong to an enemy of the capturer (or to Gaia).
@@ -23604,11 +23617,11 @@ constexpr uint8_t kSurvivalCivicCentre = 1, kSurvivalTreasureFemale = 2;
 constexpr uint8_t kSurvivalTreasures[] = {TREASURE_FOOD_BARREL, TREASURE_FOOD_BIN, TREASURE_FOOD_CRATE,
 	TREASURE_FOOD_JARS, TREASURE_METAL, TREASURE_STONE, TREASURE_WOOD, TREASURE_WOOD, TREASURE_WOOD};
 // disabledTemplates: economic structures, expansions, walls and shoreline (RTS0 has no
-// rotary mill, Roman siege walls, crannog or super dock; a stone wallset is its segments,
-// towers and gates).
+// rotary mill, crannog or super dock; a stone wallset is its segments, towers and gates, and
+// the Roman siege wallset its BLD_SIEGE_WALL pieces).
 constexpr uint8_t kSurvivalDisabledBuildings[] = {BLD_CORRAL, BLD_FARMSTEAD, BLD_FIELD, BLD_STOREHOUSE,
 	BLD_TOWN_CENTER, BLD_MILITARY_COLONY, BLD_WALL_SEGMENT, BLD_WALL_TOWER, BLD_GATE, BLD_PALISADE,
-	BLD_DOCK, BLD_LIGHTHOUSE};
+	BLD_SIEGE_WALL, BLD_DOCK, BLD_LIGHTHOUSE};
 const char *const kSurvivalDisabledUnits[] = {"maur/support_elephant"};
 
 uint16_t roster_template_named(const char *id) {
