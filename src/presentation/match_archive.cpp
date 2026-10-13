@@ -40,6 +40,8 @@ const char *const kSetupKeys[] = {
 	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
 	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
+	// The options that shape the rebuilt map before a save's state is loaded onto it.
+	"biome", "landscape", "team_placement", "water_level", "sea_level_rise_min", "trigger_difficulty", "map_daytime",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -288,6 +290,7 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	g["dialog"] = in_game;
 	g["isReplay"] = replay;
 	g["networked"] = net_lockstep();
+	g["disconnected"] = net_disconnected_; // session.js g_Disconnected
 	// session.js g_IsController (the host, or any offline game) and g_IsObserver
 	// (no seat, or a seat whose game is over).
 	g["isController"] = net_host_.getRole() == rtso::NetRole::None || net_host_.getRole() == rtso::NetRole::Host;

@@ -64,6 +64,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_call_to_arms_pressed"), &RtsoMain::_on_call_to_arms_pressed);
 	ClassDB::bind_method(D_METHOD("_on_entity_command", "name"), &RtsoMain::_on_entity_command);
 	ClassDB::bind_method(D_METHOD("_on_pause_overlay_pressed"), &RtsoMain::_on_pause_overlay_pressed);
+	ClassDB::bind_method(D_METHOD("_on_disconnected_exit_pressed"), &RtsoMain::_on_disconnected_exit_pressed);
 	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
@@ -1117,6 +1118,39 @@ void RtsoMain::_ready() {
 		pause_by_label_ = caption("", 50.0f, 14);
 	}
 	ui_layer->add_child(pause_overlay_);
+
+	// NetworkStatusOverlay.xml: the status text on sessionOverlayBackground,
+	// over the whole screen, with the disconnectedExitButton below it.
+	net_status_overlay_ = memnew(Control);
+	net_status_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
+	net_status_overlay_->set_mouse_filter(Control::MOUSE_FILTER_STOP);
+	net_status_overlay_->set_visible(false);
+	{
+		ColorRect *dim = memnew(ColorRect);
+		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
+		dim->set_color(Color(0, 0, 0, 0.6f));
+		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		net_status_overlay_->add_child(dim);
+		net_status_label_ = memnew(Label);
+		net_status_label_->set_anchors_preset(Control::PRESET_FULL_RECT);
+		net_status_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		net_status_label_->set_vertical_alignment(VERTICAL_ALIGNMENT_CENTER);
+		net_status_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+		net_status_label_->add_theme_font_size_override("font_size", 18);
+		net_status_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		net_status_overlay_->add_child(net_status_label_);
+		Button *exit = memnew(Button);
+		exit->set_name("DisconnectedExitButton");
+		exit->set_text(tr("Exit"));
+		exit->set_anchors_preset(Control::PRESET_CENTER);
+		exit->set_offset(SIDE_LEFT, -84);
+		exit->set_offset(SIDE_RIGHT, 84);
+		exit->set_offset(SIDE_TOP, 128);
+		exit->set_offset(SIDE_BOTTOM, 160);
+		exit->connect("pressed", Callable(this, "_on_disconnected_exit_pressed"));
+		net_status_overlay_->add_child(exit);
+	}
+	ui_layer->add_child(net_status_overlay_);
 
 	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
@@ -2378,6 +2412,72 @@ void RtsoMain::_on_pause_overlay_pressed() {
 	if (hotkey_paused_) toggle_pause();
 }
 
+// messages.js handleNetStatusMessage "disconnected": once the link to the host
+// is lost the match is over for this client. Dialogs close, the overlay says
+// why (network.js getDisconnectReason) and stays until Exit.
+void RtsoMain::update_net_status_overlay() {
+	if (net_disconnected_ || !net_status_overlay_ || !net_game_started_ || net_host_.isHost() ||
+			!net_host_.connectionLost())
+		return;
+	net_disconnected_ = true;
+	finished_asked_ = true; // no quit question over the overlay
+	close_open_dialogs();
+	String why;
+	switch (net_host_.disconnectReason()) {
+		case 2: why = tr("The host has ended the game."); break;
+		case 6: why = tr("You have been kicked."); break;
+		case 7: why = tr("You have been banned."); break;
+		case 14: why = tr("Password is invalid."); break;
+		default: why = tr("An unknown error occurred."); break;
+	}
+	net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
+	net_status_overlay_->set_visible(true);
+	if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+}
+
+// disconnectedExitButton: endGame(true), the summary page.
+void RtsoMain::_on_disconnected_exit_pressed() {
+	Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
+	if (q.is_valid()) q->call("end_game", this, true);
+}
+
+// messages.js handlePlayerAssignmentsMessage (onClientJoin, onClientLeave) and
+// the kicked message, as ChatMessageFormatNetwork words them.
+void RtsoMain::post_network_chat() {
+	auto who = [&](const rtso::PlayerAssignmentMsg::Entry &e) {
+		String name = String::utf8(e.name.empty() ? rtso::peer_guid(e.client).c_str() : e.name.c_str()).replace("[", "[lb]");
+		if (e.player >= rtso::MAX_PLAYERS || !sim) return name;
+		const uint32_t rgb = rtso::display_colors::rgb(*sim, e.player);
+		return "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" + name + "[/color]";
+	};
+	const auto &now = net_host_.playerAssignment();
+	if (net_host_.playerAssignments() != chat_assignments_seen_) {
+		const bool first = chat_assignments_seen_ == 0 && chat_assignments_.empty();
+		chat_assignments_seen_ = net_host_.playerAssignments();
+		auto in = [](const std::vector<rtso::PlayerAssignmentMsg::Entry> &list, uint32_t client) {
+			for (const auto &e : list)
+				if (e.client == client && e.status != rtso::PlayerAssignmentMsg::LEFT) return &e;
+			return (const rtso::PlayerAssignmentMsg::Entry *)nullptr;
+		};
+		if (!first) {
+			for (const auto &e : chat_assignments_)
+				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(now, e.client))
+					chat_window_.append_line(vformat(tr("%s has left the game."), who(e)) + "\n");
+			for (const auto &e : now)
+				if (e.status != rtso::PlayerAssignmentMsg::LEFT && !in(chat_assignments_, e.client))
+					chat_window_.append_line(vformat(e.player < rtso::MAX_PLAYERS
+							? tr("%s is starting to rejoin the game.") : tr("%s is starting to join the game."), who(e)) + "\n");
+		}
+		chat_assignments_ = now;
+	}
+	const auto &kicks = net_host_.kicks();
+	for (; kicks_chatted_ < kicks.size(); ++kicks_chatted_) {
+		const auto &k = kicks[kicks_chatted_];
+		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
+		chat_window_.append_line(vformat(k.ban ? tr("%s has been banned") : tr("%s has been kicked"), name) + "\n");
+	}
+}
+
 void RtsoMain::_on_menu_button_pressed() {
 	Node *pause = get_node_or_null(NodePath("PauseMenu"));
 	if (pause) {
@@ -3089,7 +3189,7 @@ void RtsoMain::_process(double delta) {
 					who += (who.is_empty() ? "" : ", ") + (pl < 8 ? player_display_name(pl) : String("an observer"));
 				}
 				lobby_status->set_text("Game paused by " + who);
-			} else if (lobby_status) {
+			} else if (lobby_status && !net_disconnected_) {
 				// 0 A.D. session.js network warnings: who the turn waits on, who
 				// is not responding and whose connection is bad.
 				auto name = [&](uint32_t c) {
@@ -3115,6 +3215,10 @@ void RtsoMain::_process(double delta) {
 				if (!status.is_empty() || net_status_shown_) lobby_status->set_text(status);
 				net_status_shown_ = !status.is_empty();
 			}
+		}
+		if (net_game_started_) {
+			post_network_chat();
+			update_net_status_overlay();
 		}
 		// 0 A.D. player list: who plays which player, who has left, who watches.
 		if (lobby_players && net_host_.playerAssignments() != players_shown_) {
@@ -5840,6 +5944,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_team_placement((int)ms->get("team_placement"));
 	sim->set_map_landscape((int)ms->get("landscape"));
 	sim->set_trigger_difficulty((int)ms->get("trigger_difficulty"));
+	sim->set_map_daytime_choice((int)ms->get("map_daytime"));
 	// Civs before the map: spawn_unit gives each starting unit its owner's
 	// roster template (Simulation::reset keeps civs), as 0 A.D. spawns
 	// StartEntities from the player's own civ.
@@ -6493,6 +6598,10 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["seat"] = (int)seat_player();
 	d["oos"] = turn_mgr_.has_out_of_sync();
 	d["oos_turn"] = (int64_t)turn_mgr_.oos_turn();
+	d["disconnected"] = net_disconnected_;
+	d["disconnect_reason"] = net_host_.disconnectReason();
+	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
+	d["chat"] = chat_window_.log_text();
 	return d;
 }
 
@@ -6778,6 +6887,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.team_placement = (uint8_t)std::clamp((int)ms->get("team_placement"), 0, (int)rtso::TEAM_PLACEMENT_COUNT - 1);
 		setup.landscape = (uint8_t)std::clamp((int)ms->get("landscape"), 0, 15);
 		setup.trigger_difficulty = (uint8_t)std::clamp((int)ms->get("trigger_difficulty"), 1, 5);
+		setup.daytime = (uint8_t)std::clamp((int)ms->get("map_daytime"), 0, 2);
 		setup.sea_rise_min = (uint8_t)std::clamp((int)ms->get("sea_level_rise_min"), 0, 60);
 		int msz = (int)ms->get("map_size");
 		setup.map_size = (uint16_t)((msz >= 128 && msz <= 512) ? msz : 128);
@@ -6858,6 +6968,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_team_placement(setup.team_placement);
 	sim->set_map_landscape(setup.landscape);
 	sim->set_trigger_difficulty(setup.trigger_difficulty);
+	sim->set_map_daytime_choice(setup.daytime);
 	// Civs before the map, so starting units take their owner's roster templates.
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (rtso::is_playable_civ(setup.civs[t])) sim->set_team_civ(t, setup.civs[t]);
@@ -6956,6 +7067,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("team_placement", (int)setup.team_placement);
 		ms->set("landscape", (int)setup.landscape);
 		ms->set("trigger_difficulty", (int)setup.trigger_difficulty);
+		ms->set("map_daytime", (int)setup.daytime);
 		ms->set("sea_level_rise_min", sim->sea_level_rise_minutes());
 		ms->set("map_size", random_map_size);
 		ms->set("ai_difficulty", (int)sim->petra_difficulty());

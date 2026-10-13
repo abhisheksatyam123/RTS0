@@ -1156,6 +1156,19 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	set_sim_seed(seed);
 	RmsGenerator::generate(*this, cfg);
 	triggers_.difficulty = trigger_difficulty_; // Trigger.js SetDifficulty (generate reset the triggers)
+	// Daytime (danubius.js randBool(2/3) for day, polar_sea.js randBool(1/3) for dawn): drawn
+	// from the seed alone, so the map's own random stream and the lockstep hash are untouched.
+	map_daytime_ = 0;
+	if (type == MAP_DANUBIUS || type == MAP_POLAR_SEA) {
+		map_daytime_ = map_daytime_choice_;
+		if (map_daytime_ == 0) {
+			uint64_t z = (uint64_t)seed + 0x9E3779B97F4A7C15ull; // splitmix64
+			z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+			z = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+			const bool first = (z ^ (z >> 31)) % 3 < (type == MAP_DANUBIUS ? 2u : 1u);
+			map_daytime_ = first ? 1 : 2;
+		}
+	}
 	if (biome_override_ >= 0) {
 		// The ground textures follow the chosen biome too (Assets::apply_terrain_biome).
 		static const char *kBiomeNames[BIOME_COUNT] = {"aegean", "latium", "alpine", "oasis", "temperate",
@@ -3299,6 +3312,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.range_mul[t] = m.vision[t] = m.capture[t] = m.required_xp[t] = m.spread[t] = 1.0f;
 		m.vision_add[t] = 0.0f;
 		m.armor[t][0] = m.armor[t][1] = m.armor[t][2] = 0.0f;
+		for (int k = 0; k < 3; ++k) { m.atk_mul[t][k] = 1.0f; m.atk_add[t][k] = 0.0f; }
 	}
 	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
@@ -3308,6 +3322,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
 		tm.vision_add = 0.0f;
+		for (int k = 0; k < 3; ++k) { tm.atk_mul[k] = 1.0f; tm.atk_add[k] = 0.0f; }
 	}
 
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
@@ -3340,16 +3355,19 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			auto apply = [&](float &v) {
 				v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 			};
+			// Attack/<type>/Damage/<kind>: GetTechModifiedProperty_numeric, the kind's value x every
+			// multiply + every add.
+			auto apply_damage = [&](float &mul, float &add) {
+				if (e.op == TOP_MUL) mul *= e.value;
+				else if (e.op == TOP_SET) { mul = 0.0f; add = e.value; }
+				else add += e.value;
+			};
 			// Cost/Resources/<res>: TechStat order is food, wood, stone, metal.
 			const int cost_res = e.stat == TSTAT_COST_FOOD ? RES_FOOD : e.stat == TSTAT_COST_WOOD ? RES_WOOD
 				: e.stat == TSTAT_COST_STONE ? RES_STONE : e.stat == TSTAT_COST_METAL ? RES_GOLD : -1;
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				if (!applies(unit_tech_classes(t))) continue;
-				const UnitTypeInfo &ui = unit_type_info(t);
 				bool ranged = unit_has_ranged_attack(t, civ);
-				// The damage type a unit mostly deals decides which Attack/*/Damage/* row scales it.
-				uint8_t main_dmg = (ui.crush_damage > ui.hack_damage && ui.crush_damage > ui.pierce_damage) ? 2
-					: (ui.pierce_damage > ui.hack_damage) ? 1 : 0;
 				switch (e.stat) {
 					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
@@ -3364,10 +3382,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_CARRY_STONE: m.carry[t][RES_STONE] += (int16_t)e.value; break;
 					case TSTAT_CARRY_METAL: m.carry[t][RES_GOLD] += (int16_t)e.value; break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
-						if (!ranged && e.stat - TSTAT_MELEE_HACK == main_dmg) apply(m.attack[t]);
+						if (!ranged) apply_damage(m.atk_mul[t][e.stat - TSTAT_MELEE_HACK], m.atk_add[t][e.stat - TSTAT_MELEE_HACK]);
 						break;
 					case TSTAT_RANGED_HACK: case TSTAT_RANGED_PIERCE: case TSTAT_RANGED_CRUSH:
-						if (ranged && e.stat - TSTAT_RANGED_HACK == main_dmg) apply(m.attack[t]);
+						if (ranged) apply_damage(m.atk_mul[t][e.stat - TSTAT_RANGED_HACK], m.atk_add[t][e.stat - TSTAT_RANGED_HACK]);
 						break;
 					case TSTAT_ARMOR_HACK: case TSTAT_ARMOR_PIERCE: case TSTAT_ARMOR_CRUSH:
 						apply(m.armor[t][e.stat - TSTAT_ARMOR_HACK]); break;
@@ -3390,8 +3408,6 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 				if (!applies(ct.tech_classes)) continue;
 				TechMods::Template &tm = m.tmpl[ti];
 				bool ranged = template_has_ranged_attack(ti, ct.unit_type, ct.civ);
-				uint8_t main_dmg = (ct.crush_damage > ct.hack_damage && ct.crush_damage > ct.pierce_damage) ? 2
-					: (ct.pierce_damage > ct.hack_damage) ? 1 : 0;
 				switch (e.stat) {
 					case TSTAT_GATHER_GRAIN: case TSTAT_GATHER_FRUIT: case TSTAT_GATHER_MEAT: case TSTAT_GATHER_FISH:
 					case TSTAT_GATHER_WOOD: case TSTAT_GATHER_STONE: case TSTAT_GATHER_METAL:
@@ -3402,10 +3418,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_CAPTURE_ATTACK: apply(tm.capture); break;
 					case TSTAT_REQUIRED_XP: apply(tm.required_xp); break;
 					case TSTAT_MELEE_HACK: case TSTAT_MELEE_PIERCE: case TSTAT_MELEE_CRUSH:
-						if (!ranged && e.stat - TSTAT_MELEE_HACK == main_dmg) apply(tm.attack);
+						if (!ranged) apply_damage(tm.atk_mul[e.stat - TSTAT_MELEE_HACK], tm.atk_add[e.stat - TSTAT_MELEE_HACK]);
 						break;
 					case TSTAT_RANGED_HACK: case TSTAT_RANGED_PIERCE: case TSTAT_RANGED_CRUSH:
-						if (ranged && e.stat - TSTAT_RANGED_HACK == main_dmg) apply(tm.attack);
+						if (ranged) apply_damage(tm.atk_mul[e.stat - TSTAT_RANGED_HACK], tm.atk_add[e.stat - TSTAT_RANGED_HACK]);
 						break;
 					case TSTAT_ARMOR_HACK: case TSTAT_ARMOR_PIERCE: case TSTAT_ARMOR_CRUSH:
 						apply(tm.armor[e.stat - TSTAT_ARMOR_HACK]); break;
@@ -3495,6 +3511,24 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			apply_mod(e, [&](uint64_t cls) { return relic_modifier_applies(rm, cls); });
 		}
 	}
+	// attack: the damage total after technologies over the template's, which scales attack_damage.
+	auto damage_ratio = [](const float base[3], const float mul[3], const float add[3]) {
+		const float b = base[0] + base[1] + base[2];
+		if (b <= 0.0f) return 1.0f;
+		float v = 0.0f;
+		for (int k = 0; k < 3; ++k) v += base[k] * mul[k] + add[k];
+		return v / b;
+	};
+	for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
+		const UnitTypeInfo &ui = unit_type_info(t);
+		const float base[3] = {ui.hack_damage, ui.pierce_damage, ui.crush_damage};
+		m.attack[t] = damage_ratio(base, m.atk_mul[t], m.atk_add[t]);
+	}
+	for (uint16_t ti = 0; ti < CIV_UNIT_TEMPLATE_COUNT; ++ti) {
+		const CivUnitTemplate &ct = civ_unit_template(ti);
+		const float base[3] = {ct.hack_damage, ct.pierce_damage, ct.crush_damage};
+		m.tmpl[ti].attack = damage_ratio(base, m.tmpl[ti].atk_mul, m.tmpl[ti].atk_add);
+	}
 	// Cheat.js "fastactions" (cheat/fastactions on every Structure and Unit): Cost/BuildTime,
 	// Pack/Time and Researcher/TechCostMultiplier/time x0.01, ResourceGatherer/BaseSpeed x1000.
 	if (cheat_mods_[player_id].fast_actions) {
@@ -3562,11 +3596,11 @@ Simulation::UnitTechMods Simulation::unit_tech_mods(const TechMods &m, uint8_t u
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
 		const TechMods::Template &tm = m.tmpl[tmpl];
 		return {tm.attack, tm.health, tm.speed, tm.range, tm.train_time, tm.range_mul, tm.vision, tm.vision_add, tm.spread,
-			tm.capture, tm.required_xp, tm.armor, tm.gather};
+			tm.capture, tm.required_xp, tm.armor, tm.gather, tm.atk_mul, tm.atk_add};
 	}
 	const uint8_t t = unit_type < UNIT_TYPE_COUNT ? unit_type : 0;
 	return {m.attack[t], m.health[t], m.speed[t], m.range[t], m.train_time[t], m.range_mul[t], m.vision[t],
-		m.vision_add[t], m.spread[t], m.capture[t], m.required_xp[t], m.armor[t], m.gather[t]};
+		m.vision_add[t], m.spread[t], m.capture[t], m.required_xp[t], m.armor[t], m.gather[t], m.atk_mul[t], m.atk_add[t]};
 }
 
 void Simulation::apply_tech_mods_to_unit(size_t idx) {
@@ -10980,10 +11014,9 @@ float Simulation::unit_damage_to_fauna(size_t i, size_t f) const {
 	const auto &uinfo = unit_info_at(i);
 	const FaunaTypeInfo &finfo = fauna_type_info(fauna_.fauna_type[f]);
 	if (uinfo.hack_damage + uinfo.pierce_damage + uinfo.crush_damage <= 0.0f) return units_.attack_damage[i];
-	const float scale = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
-	return (uinfo.hack_damage * scale * powf(0.9f, finfo.hack_armor) +
-			uinfo.pierce_damage * scale * powf(0.9f, finfo.pierce_armor) +
-			uinfo.crush_damage * scale * powf(0.9f, finfo.crush_armor));
+	float d[3];
+	unit_tech_damage(i, d);
+	return d[0] * powf(0.9f, finfo.hack_armor) + d[1] * powf(0.9f, finfo.pierce_armor) + d[2] * powf(0.9f, finfo.crush_armor);
 }
 
 // Projectile p lands on animal f: what its shooter's attack does to the animal (a
@@ -11198,18 +11231,31 @@ float Simulation::unit_attack_damage(size_t i, size_t t) {
 	return mul * (d[0] * powf(0.9f, target_armor[0]) + d[1] * powf(0.9f, target_armor[1]) + d[2] * powf(0.9f, target_armor[2]));
 }
 
-// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: the
-// template's, scaled by technologies and rank (attack_damage over the template total),
-// times its attack auras (hero bonuses, enemy carnyx and hero penalties).
+// Unit i's attack Damage (hack, pierce, crush) as GetAttackEffectsData gives it: each of
+// the template's kinds after its own technology rows (Attack/<type>/Damage/<kind>), scaled
+// by rank (attack_damage over the template total after technologies), times its attack
+// auras (hero bonuses, enemy carnyx and hero penalties).
 void Simulation::unit_attack_effects(size_t i, float out[3]) const {
-	const auto &uinfo = unit_info_at(i);
-	float mul = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
+	unit_tech_damage(i, out);
 	const float aura = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_ATTACK,
 		units_.tmpl[i], &unit_combat_at(i).classes);
-	if (aura > 0.0f) mul *= aura; // 0 = none in range
-	out[0] = uinfo.hack_damage * mul;
-	out[1] = uinfo.pierce_damage * mul;
-	out[2] = uinfo.crush_damage * mul;
+	if (aura > 0.0f) // 0 = none in range
+		for (int k = 0; k < 3; ++k) out[k] *= aura;
+}
+
+// Unit i's hack, pierce and crush after technologies and rank, before auras.
+void Simulation::unit_tech_damage(size_t i, float out[3]) const {
+	const auto &uinfo = unit_info_at(i);
+	const float base[3] = {uinfo.hack_damage, uinfo.pierce_damage, uinfo.crush_damage};
+	if (units_.team[i] >= MAX_PLAYERS || units_.unit_type[i] >= UNIT_TYPE_COUNT) {
+		const float r = uinfo.attack_damage > 0.0f ? units_.attack_damage[i] / uinfo.attack_damage : 1.0f;
+		for (int k = 0; k < 3; ++k) out[k] = base[k] * r;
+		return;
+	}
+	const UnitTechMods m = unit_tech_mods(units_.team[i], units_.unit_type[i], units_.tmpl[i]);
+	const float total = uinfo.attack_damage * m.attack;
+	const float r = total > 0.0f ? units_.attack_damage[i] / total : 1.0f;
+	for (int k = 0; k < 3; ++k) out[k] = (base[k] * m.atk_mul[k] + m.atk_add[k]) * r;
 }
 
 // The damage unit i's attack deals to structure b: its Damage after technologies, rank
