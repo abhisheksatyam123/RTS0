@@ -1564,7 +1564,14 @@ static const char *crowd_key_model(uint8_t civ, uint16_t key) {
 	return model;
 }
 
-static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl) {
+// A male 0.28 Civilian draws and animates as its civ's citizen_male actor, the villager
+// model (rtso::civilian_is_male); a female one keeps the female citizen model.
+static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
+	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
+}
+
+static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id) {
+	if (rtso::civilian_is_male(tmpl, id)) return rtso::UNIT_VILLAGER;
 	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
 		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
 	const int own = rtso::unit_template_draw_index(tmpl);
@@ -2487,11 +2494,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
+		t = drawn_unit_type(t, uview.tmpl[i], uview.id[i]);
 		uint8_t civ = sim->team_civ(uview.team[i]);
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
 		crowd_slot_scratch_[i] = (uint8_t)slot;
-		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i]);
+		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
 		crowd_key_utype_[key] = t;
 		counts[civ][key][slot]++;
 	}
@@ -2528,6 +2536,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		bool is_player = (uview.team[i] == local_player_);
 		uint8_t utype = uview.unit_type[i];
 		if (utype >= rtso::UNIT_TYPE_COUNT) utype = rtso::UNIT_VILLAGER;
+		utype = drawn_unit_type(utype, uview.tmpl[i], uview.id[i]);
 		uint8_t uaction = uview.action_state[i];
 		float hp = uview.hp[i];
 		float max_hp = uview.max_hp[i];
@@ -2585,7 +2594,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
-		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i]);
+		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
 		String utype_str = crowd_key_model(uciv, ckey);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);

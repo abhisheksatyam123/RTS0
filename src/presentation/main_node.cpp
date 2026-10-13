@@ -1374,7 +1374,9 @@ void RtsoMain::play_civ_voice(const char *action) {
 	auto uv = sim->units();
 	for (size_t i = 0; i < uv.count; ++i) {
 		if (uv.id[i] != first) continue;
-		session_audio_.play_voice(sim->player_civ(uv.team[i]), uv.unit_type[i], act);
+		// A male Civilian speaks with the civ's male citizen voice (rtso::civilian_is_male).
+		const uint8_t voice_type = rtso::civilian_is_male(uv.tmpl[i], uv.id[i]) ? (uint8_t)rtso::UNIT_VILLAGER : uv.unit_type[i];
+		session_audio_.play_voice(sim->player_civ(uv.team[i]), voice_type, act);
 		return;
 	}
 }
@@ -5961,7 +5963,7 @@ void RtsoMain::apply_match_settings() {
 		sim->spawn_initial();
 		return;
 	}
-	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
+	if (victory >= 0 && victory < 256 && rtso::valid_victory_code((uint8_t)victory)) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
 	{
@@ -6918,7 +6920,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	if (setup.map_id.empty()) setup.map_id = "random_continental";
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (setup.victory >= rtso::VICTORY_COUNT) setup.victory = sim->victory_condition();
+	if (!rtso::valid_victory_code(setup.victory)) setup.victory = sim->victory_condition();
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
 	if (setup.start_res >= rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT) setup.start_res = 1;
@@ -6977,7 +6979,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
 	}
-	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
+	sim->set_victory_condition(rtso::valid_victory_code(setup.victory) ? setup.victory : 0);
 	sim->set_waves_enabled(setup.waves != 0);
 	sim->set_last_man_standing(setup.lms != 0);
 	if (setup.world_pop) sim->set_world_pop_cap(setup.world_pop);
