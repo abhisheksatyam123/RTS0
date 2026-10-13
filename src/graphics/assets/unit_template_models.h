@@ -644,6 +644,11 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // germ/rts0_villager
 		1, // germ/catafalque (the Gallic model)
 		19, // germ/ship_fire_fire (the Gallic model)
+		-1, // rome/infantry_spearman_conscript
+		-1, // cart/infantry_spearman_ital_b
+		135, // rome/cavalry_javelineer_auxiliary_b
+		-1, // rome/cavalry_spearman_auxiliary_b
+		-1, // rome/champion_infantry_swordsman_first
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -805,6 +810,6 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	return nullptr;
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 450, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 455, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

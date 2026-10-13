@@ -537,7 +537,7 @@ static void test_petra_navy() {
 	run(s, 6.0f);
 	CHECK(petra_docks(false) == 0);
 	for (int k = 0; k < 8; ++k) s.spawn_unit(-40.0f + (float)k * 2.0f, 56.0f, 1, UNIT_VILLAGER);
-	run(s, 6.0f);
+	run(s, 12.0f); // the dock search runs every fifth naval turn (10 s)
 	uint32_t dock = 0;
 	for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_DOCK) dock = b.id;
 	std::printf("Petra navy: dock %s at population %d\n", dock ? "placed" : "not placed", s.pop_current(1));
@@ -938,6 +938,36 @@ static void test_petra_workers_across_water() {
 	CHECK(crossing && south_cutters >= 1 && t.player_resource(1, RES_WOOD) > 0);
 }
 
+// queueplanBuilding.js findDockPosition: Petra's dock goes on its own shore of the sea, inside
+// or near its territory, where the wood (counted twice), stone and metal within 80 m are thickest.
+static void test_petra_dock_position() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(0.0f, 36.0f, BLD_TOWN_CENTER, 1);
+	for (int k = 0; k < 6; ++k) s.spawn_resource_world(14.0f + 2.0f * k, 22.0f, RES_WOOD, 300);
+	s.petra_pid_ = 1;
+	s.petra_class_topo_pid_ = -1;
+	const uint16_t north = s.petra_land_at(0.0f, 36.0f);
+	uint16_t sea = 0;
+	{
+		auto [cx, cz] = s.nav_grid_.world_to_cell(0.0f, 0.0f);
+		sea = s.nav_grid_.global_region_at(cx, cz, PASS_SHIP);
+	}
+	int cx = 0, cz = 0;
+	const bool found = s.petra_find_dock_position(north, sea, cx, cz);
+	const int foot = building_type_info(BLD_DOCK).footprint;
+	const float x = (cx + 0.5f * foot) * Simulation::GRID, z = (cz + 0.5f * foot) * Simulation::GRID;
+	std::printf("Petra dock position: %s at (%.0f, %.0f)\n", found ? "found" : "none", x, z);
+	CHECK(found);
+	CHECK(z > 10.0f && z < 24.0f);  // the north shore
+	CHECK(x > 8.0f && x < 30.0f);   // by the wood, not straight below the civic centre
+	const uint32_t bid = found ? s.spawn_building(cx, cz, BLD_DOCK, 1, 0.0f) : 0;
+	const Simulation::Building *b = bid ? bld(s, bid) : nullptr;
+	CHECK(b && s.dock_sea(*b) == sea);
+}
+
 static void test_fire_ship() {
 	static Simulation s;
 	fresh(s);
@@ -1207,6 +1237,7 @@ int main() {
 	test_ship_treasure();
 	test_petra_ship_treasure();
 	test_petra_small_land_fields();
+	test_petra_dock_position();
 	test_petra_workers_across_water();
 	test_fire_ship();
 	test_whale_hunt();
