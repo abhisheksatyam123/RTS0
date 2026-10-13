@@ -33,7 +33,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from extract_0ad_rosters import (  # noqa: E402
-    CIVS, CIV_ENUM, TemplateLoader, SPEED_SCALE, MELEE_RANGE_SCALE, RANGED_RANGE_SCALE)
+    CIVS, CIV_COUNT, CIV_ENUM_OF, CIV_SLOTS, TemplateLoader, SPEED_SCALE, MELEE_RANGE_SCALE, RANGED_RANGE_SCALE)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_HEADER = os.path.join(REPO, "src", "simulation", "gaia_data.h")
@@ -371,15 +371,17 @@ def emit(fauna, treasures, ruins, scenery, corral):
     stems = [r["stem"] for r in fauna]
     longest = max(len(x) for x in corral[2])
     w("// The animals each civ's corral trains (structures/<civ>/corral.xml Trainer/Entities),")
-    w("// indexed by Civilization: " + ", ".join(CIV_ENUM) + ".")
+    w("// indexed by Civilization: " + ", ".join(CIV_ENUM_OF[c] if c else "CIV_GAIA (none)" for c in CIV_SLOTS) + ".")
     w(f"inline constexpr int CORRAL_TRAINABLE_MAX = {longest};")
     w("struct CorralTrainable {")
     w("\tuint8_t count;")
     w("\tuint8_t fauna[CORRAL_TRAINABLE_MAX];")
     w("};")
-    w(f"inline constexpr CorralTrainable CORRAL_TRAINABLE[{len(CIVS)}] = {{")
-    for civ, ents in zip(CIVS, corral[2]):
-        w(f"\t{{{len(ents)}, {{{', '.join(e.upper() for e in ents)}}}}}, // {civ}")
+    w(f"inline constexpr CorralTrainable CORRAL_TRAINABLE[{CIV_COUNT}] = {{")
+    by_civ = dict(zip(CIVS, corral[2]))
+    for civ in CIV_SLOTS:
+        ents = by_civ[civ] if civ else []
+        w(f"\t{{{len(ents)}, {{{', '.join(e.upper() for e in ents)}}}}}, // {civ or 'gaia'}")
         for e in ents:
             if e not in stems:
                 raise SystemExit(f"{civ} corral trains unknown {e}")
