@@ -1018,6 +1018,63 @@ static void test_petra_unreachable_target() {
 	CHECK(attack == house && rush == house && up_there == barracks);
 }
 
+// template_unit_ship_fishing.xml Harpoon and UnitAI GATHER: a fishing boat ordered onto a
+// whale harpoons it, gathers the carcass (food.fish) to a dock, and when the carcass is
+// eaten goes on to the next whale (FindNearbyResource takes live whales too).
+static void test_whale_hunt() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 0);
+	const uint32_t w1 = s.spawn_fauna(-30.0f, 4.0f, FAUNA_WHALE_FIN);
+	const uint32_t w2 = s.spawn_fauna(-14.0f, 4.0f, FAUNA_WHALE_FIN);
+	const uint32_t boat = s.spawn_unit(-40.0f, 8.0f, 0, UNIT_FISHING_BOAT);
+	auto f_alive = [&](uint32_t id) {
+		auto it = s.fauna_id_to_idx_.find(id);
+		return it != s.fauna_id_to_idx_.end() && s.fauna_.alive[it->second];
+	};
+	auto stop_roaming = [&](uint32_t id) { // keep the second whale where the test put it
+		auto it = s.fauna_id_to_idx_.find(id);
+		if (it != s.fauna_id_to_idx_.end()) s.fauna_.state_timer[it->second] = 1e6f;
+	};
+	stop_roaming(w1);
+	stop_roaming(w2);
+	s.order_hunt(&boat, 1, w1);
+	float t = 0.0f;
+	while (f_alive(w1) && t < 120.0f) { run(s, 1.0f); t += 1.0f; stop_roaming(w2); }
+	CHECK(!f_alive(w1));
+	run(s, 3.0f);
+	const uint32_t carcass = gather_target(s, boat);
+	int32_t left = 0;
+	const uint8_t *subp = carcass ? subtype_of(s, carcass, &left) : nullptr;
+	const int sub = subp ? *subp : -1;
+	std::printf("whale hunt: whale killed in %.0f s, boat gathering carcass %u (fish %d, %d left)\n", t, carcass, sub == RES_SUB_FISH, left);
+	CHECK(carcass != 0 && sub == RES_SUB_FISH);
+	run(s, 60.0f);
+	stop_roaming(w2);
+	const int food = s.player_resource(0, RES_FOOD);
+	CHECK(food > 0);
+	// The carcass runs out: the boat harpoons the next whale, within FindNearbyResource's
+	// range of where it was gathering (the first whale fled before it died).
+	if (carcass) {
+		auto it = s.res_id_to_idx_.find(carcass);
+		auto w = s.fauna_id_to_idx_.find(w2);
+		if (it != s.res_id_to_idx_.end() && w != s.fauna_id_to_idx_.end()) {
+			s.resources_.amount[it->second] = 1;
+			const float cx = s.resources_.x[it->second], cz = s.resources_.z[it->second];
+			s.fauna_.pos_x[w->second] = cx + (cx > 0.0f ? -8.0f : 8.0f);
+			s.fauna_.pos_z[w->second] = cz;
+		}
+	}
+	bool on_w2 = false;
+	for (int k = 0; k < 90 && !on_w2; ++k) { // the boat walks back from the dock first
+		run(s, 1.0f);
+		const int32_t b = s.lookup_unit(boat);
+		on_w2 = b >= 0 && (s.units_.target_unit_id[b] == w2 || !f_alive(w2));
+	}
+	std::printf("whale hunt: %d food landed, then on to the next whale: %d\n", food, on_w2);
+	CHECK(on_w2);
+}
+
 int main() {
 	test_transport();
 	test_dropsite_own_land();
@@ -1040,6 +1097,7 @@ int main() {
 	test_ship_treasure();
 	test_petra_ship_treasure();
 	test_fire_ship();
+	test_whale_hunt();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

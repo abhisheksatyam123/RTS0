@@ -626,8 +626,8 @@ inline constexpr int RELIC_REGEN_RATE = 10;
 // GetTimers (prepare 1000 ms); template_unit.xml UnitAI CheeringTime 2800 ms and
 // UnitAI notifyToCheerInRange 30; GarrisonHolder LoadingRange (1-2 m past the footprint).
 inline constexpr float HEAL_HP = 5.0f;
-// template_unit_hero_healer.xml Heal: Health 6, Range 20 (m, before COMBAT_DISTANCE_SCALE).
-inline constexpr float HERO_HEAL_HP = 6.0f;
+// 0.28 template_unit_hero_healer.xml Heal: Health 15, Range 20 (m, before COMBAT_DISTANCE_SCALE).
+inline constexpr float HERO_HEAL_HP = 15.0f;
 inline constexpr float HERO_HEAL_RANGE = 20.0f;
 inline constexpr float HEAL_INTERVAL_S = 2.0f;
 inline constexpr float HEAL_PREPARE_S = 1.0f;

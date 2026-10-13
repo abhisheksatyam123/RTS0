@@ -1541,7 +1541,7 @@ public:
 		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
 	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
-	uint32_t find_nearby_prey(size_t i, float x, float z) const;
+	uint32_t find_nearby_prey(size_t i, float x, float z, float max_d2) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
 
 	// A Capture the Relic catafalque (template_unit_catafalque.xml). id is the catafalque
@@ -2003,6 +2003,7 @@ private:
 	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
 	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
 	uint32_t spawn_carcass(size_t f);
+	void award_fauna_xp(size_t i, size_t f, float damage);
 	bool projectile_lands_in(const Projectile &p, const Building &b) const;
 	int32_t projectile_hit_structure(const Projectile &p) const;
 	void projectile_hits_structure(const Projectile &p, Building &b);
