@@ -412,7 +412,7 @@ def extract_environment(root):
 
 
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
-             terrain_only=False, environment_only=False):
+             terrain_only=False, environment_only=False, triggers_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -518,6 +518,31 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         players = {}
         structures = []
         units = []
+
+        # trigger/trigger_point_<ref> markers (TriggerPoint.js) and their owners, for the
+        # map's TriggerScripts (Simulation::add_trigger_point).
+        trigger_points = []
+        for tpl, ply, rx, rz, uid in raw_entities:
+            if tpl.lower().startswith("trigger/trigger_point_"):
+                trigger_points.append({"ref": tpl[len("trigger/trigger_point_"):], "owner": ply,
+                                       "x": round((rx - center_x) * scale, 2), "z": round((rz - center_z) * scale, 2)})
+        scripts = [os.path.splitext(os.path.basename(t))[0] for t in settings.get("TriggerScripts", [])
+                   if not t.startswith("scripts/")]
+        if triggers_only:
+            # Keep the existing map; only add or refresh its trigger points and scripts.
+            out_path = f"data/maps/{map_id}.json"
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            old["trigger_points"] = [dict(p, x=round(p["x"] * k, 2), z=round(p["z"] * k, 2)) for p in trigger_points]
+            if scripts:
+                old["trigger_scripts"] = scripts
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {len(trigger_points)} trigger points, scripts {scripts}")
+            return
 
         pos_by_uid = {uid: (rx, rz) for _, _, rx, rz, uid in raw_entities}
         unit_index = {}  # uid -> index in units
@@ -706,10 +731,10 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "units": units
         }
         # TriggerScripts, by base name; RTS0 runs its C++ port of each (Simulation::register_trigger_script).
-        scripts = [os.path.splitext(os.path.basename(t))[0] for t in settings.get("TriggerScripts", [])
-                   if not t.startswith("scripts/")]
         if scripts:
             map_data["trigger_scripts"] = scripts
+        if trigger_points:
+            map_data["trigger_points"] = trigger_points
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
@@ -831,6 +856,13 @@ if __name__ == "__main__":
                              source=GithubSource(), **only)
                 except Exception as e:
                     print(f"  !! {mid}: {e}")
+    elif len(sys.argv) > 2 and sys.argv[1] == "--triggers-only":
+        # --triggers-only <public.zip> [map ids]: refresh the trigger points and scripts of
+        # the listed maps_list maps (all by default) from a 0 A.D. public.zip.
+        for mid, xrel, prel, size, bome, hscale in maps_list:
+            if sys.argv[3:] and mid not in sys.argv[3:]:
+                continue
+            port_map(mid, xrel, prel, size, bome, hscale, source=zipfile.ZipFile(sys.argv[2]), triggers_only=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-scenarios":
         for name in sys.argv[2:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))

@@ -13,10 +13,20 @@ namespace rtso {
 // The tree slots' wood (BiomeFlora::tree*_wood) is each slot's template's
 // ResourceSupply/Max; tools/check_tree_wood.py names the template of every slot,
 // where a script's forest mixes more species than the two slots hold.
+// rmgen paintTerrainBasedOnHeight: tiles from lo to hi 0 A.D. metres above the
+// water line take one of the terrains, over whatever the generic rules painted
+// (a later band over an earlier one), though not over roads, forest floor or
+// mine dirt. Only for scripts whose synth_* keeps 0 A.D. metres (metres()).
+struct HeightBand {
+	float lo, hi;
+	const char *terrain[2];
+};
+
 struct ScriptTerrains {
 	const char *map_id; // MapTypeInfo::id
 	TerrainBiome terrain;
 	BiomeFlora flora;
+	HeightBand bands[6]; // in the script's paint order; unused ones have no terrain
 };
 
 inline const ScriptTerrains *script_terrains(const char *map_id) {
@@ -29,7 +39,9 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "medit_city_pavement", "medit_sand", "medit_sand_wet", "medit_sea_depths"},
 		 {"aegean_sea", {{FLORA_CAROB, FLORA_PALM}}, {FLORA_FAN_PALM, FLORA_POPLAR, FLORA_CYPRESS},
 		  {{FLORA_CAROB, FLORA_PALM}}, FLORA_BERRY,
-		  {{200, 100}}, {200, 200, 200}, {{200, 200}}}},
+		  {{200, 100}}, {200, 200, 200}, {{200, 200}}},
+		 {{-1e9f, 1.0f, {"medit_sand_wet"}}, {1.0f, 2.0f, {"medit_sand"}}, {-1e9f, -3.0f, {"medit_sea_depths"}},
+		  {-3.0f, -2.0f, {"medit_sea_coral_deep"}}, {-2.0f, -1.5f, {"medit_sea_coral_plants"}}}},
 		// anatolian_plateau.js: no water or cliffs, so cliff, hill and the shore slots reuse its dirt and grass.
 		{"anatolian_plateau",
 		 {"anatolian_plateau", {"steppe_grass_a", "steppe_grass_c", "steppe_grass_d"}, {"steppe_grass_c"},
@@ -45,7 +57,8 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  {"polar_cliff_a", "polar_cliff_b"}, {"polar_ice_cracked"}, {"ice_dirt"}, "ice_dirt", "ice_dirt", "polar_grass_snow",
 		  "alpine_shore_rocks", "polar_ice_b"},
 		 {"arctic_summer", {{FLORA_BUSH, FLORA_BUSH}}, {FLORA_BUSH}, {{FLORA_BUSH, FLORA_BUSH}}, FLORA_BERRY,
-		  {{100, 100}}, {100}, {{100, 100}}}},
+		  {{100, 100}}, {100}, {{100, 100}}},
+		 {{4.0f, 15.0f, {"polar_cliff_a", "polar_cliff_b"}}, {15.0f, 100.0f, {"polar_snow_rocks", "polar_ice"}}}},
 		// ardennes_forest.js: no hills, dirt or water, so hill reuses tCliff and dirt and the shore slots its mud and grass.
 		{"ardennes_forest",
 		 {"ardennes_forest", {"steppe_grass_03", "steppe_grass_03", "alpine_cliff_c", "temperate_grass_mud_01"},
@@ -99,7 +112,8 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "temp_dirt_gravel_b", "steppe_river_rocks_wet"},
 		 {"danubius", {{FLORA_OAK, FLORA_OAK}}, {FLORA_OAK, FLORA_BEECH, FLORA_ACACIA},
 		  {{FLORA_BEECH, FLORA_BEECH}, {FLORA_BEECH, FLORA_ACACIA}}, FLORA_BERRY,
-		  {{200, 200}}, {200, 200, 200}, {{200, 200}, {200, 200}}}},
+		  {{200, 200}}, {200, 200, 200}, {{200, 200}, {200, 200}}},
+		 {{-1e9f, 1.0f, {"steppe_river_rocks_wet"}}, {1.0f, 3.0f, {"temp_dirt_gravel_b"}}, {-20.0f, -3.0f, {"medit_sea_depths"}}}},
 		// dodecanese.js: carob and date palm forests; fan palm, poplar and cypress forests.
 		{"dodecanese",
 		 {"dodecanese", {"medit_grass_shrubs", "medit_grass_wild", "medit_rocks_grass_shrubs", "medit_dirt_b"}, {"medit_grass_wild"},
@@ -108,7 +122,8 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "medit_city_pavement", "medit_sand", "medit_sand_wet", "medit_sea_depths"},
 		 {"dodecanese", {{FLORA_CAROB, FLORA_PALM}}, {FLORA_POPLAR, FLORA_CYPRESS, FLORA_PALM},
 		  {{FLORA_FAN_PALM, FLORA_POPLAR}, {FLORA_POPLAR, FLORA_CYPRESS}}, FLORA_BERRY,
-		  {{200, 100}}, {200, 200, 200}, {{200, 200}, {200, 200}}}},
+		  {{200, 100}}, {200, 200, 200}, {{200, 200}, {200, 200}}},
+		 {{-1e9f, -6.0f, {"medit_sea_depths"}}, {-6.0f, -4.0f, {"medit_sea_coral_deep"}}, {-4.0f, -2.0f, {"medit_sea_coral_plants"}}}},
 		// elephantine.js: the island forest floor is pickRandom(tGrass) (first option here); no cliffs or shore,
 		// so cliff and hill reuse its rocky dirt and the shore slots its cracked dirt and tWater.
 		{"elephantine",
@@ -128,7 +143,8 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		  "temp_dirt_gravel", "temp_dirt_gravel_b"},
 		 {"english_channel", {{FLORA_BEECH, FLORA_BEECH}}, {FLORA_POPLAR}, {{FLORA_OAK, FLORA_OAK}},
 		  FLORA_BERRY,
-		  {{200, 200}}, {200}, {{200, 200}}}},
+		  {{200, 200}}, {200}, {{200, 200}}},
+		 {{-5.0f, 1.0f, {"temp_dirt_gravel_b"}}, {1.0f, 3.0f, {"temp_dirt_gravel"}}}},
 		// extinct_volcano.js: dead tree and beech forests, oak and dead oak forests; no dirt, so dirt reuses tHillMedium2.
 		{"extinct_volcano",
 		 {"extinct_volcano", {"ocean_rock_a"}, {"ocean_rock_a", "ocean_rock_b"},

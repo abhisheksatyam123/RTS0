@@ -392,6 +392,18 @@ static void check_survival() {
 		      s.get_terrain_height(b.x, b.z) > 25.0f * k, "player %d: seeker at %.1f, civic centre at %.1f", p,
 		      s.get_terrain_height(s.units_.pos_x[u], s.units_.pos_z[u]), s.get_terrain_height(b.x, b.z));
 	}
+	// 0.28's placement obstructors: no foundation in the low centre, while the plateau round a
+	// civic centre stays open.
+	auto place = [&](uint8_t player, float x, float z, uint8_t type) {
+		const float half = building_type_info(type).footprint * Simulation::GRID * 0.5f;
+		return s.check_placement(player, (int)std::floor((x - half) / Simulation::GRID), (int)std::floor((z - half) / Simulation::GRID), type);
+	};
+	CHECK(place(0, 0.0f, 0.0f, BLD_BARRACKS) == Simulation::PLACE_OBSTRUCTED, "barracks in the centre: %d", place(0, 0.0f, 0.0f, BLD_BARRACKS));
+	for (int p = 0; p < PLAYERS; ++p) {
+		const Simulation::Building &b = s.buildings_[s.building_id_to_idx_.at(cc[p])];
+		const float d = std::hypot(b.x, b.z), x = b.x + b.x / d * 10.0f, z = b.z + b.z / d * 10.0f;
+		CHECK(place((uint8_t)p, x, z, BLD_HOUSE) != Simulation::PLACE_OBSTRUCTED, "player %d: house behind the civic centre obstructed", p);
+	}
 	{
 		const int32_t u = s.lookup_unit(seeker[0]);
 		const float hp = s.units_.hp[u];
@@ -543,7 +555,74 @@ static void check_tutorials() {
 	CHECK(e.tutorial_warning() == TUTORIAL_WARN_HOLD_SHIFT, "single hoplite: warning %d", e.tutorial_warning());
 	tut_queued(e, 0, "athen/infantry_spearman_b", 5);
 	CHECK(e.tutorial_goal_index() == 10, "hoplite batch: at %d", e.tutorial_goal_index());
+	// 0.28's order: the storehouse, then the rally point removed, then a batch of civilians.
+	auto fire = [&](uint8_t event, uint32_t value, uint32_t count = 0) {
+		TriggerEventData ev;
+		ev.player = 0;
+		ev.value = value;
+		ev.count = count;
+		e.trigger_event(event, ev);
+	};
+	fire(TRIGGER_ON_TRAINING_FINISHED, 0);
+	fire(TRIGGER_ON_PLAYER_COMMAND, TRIGGER_CMD_CONSTRUCT, BLD_STOREHOUSE);
+	fire(TRIGGER_ON_STRUCTURE_BUILT, BLD_STOREHOUSE);
+	CHECK(e.tutorial_goal_index() == 13, "storehouse built: at %d", e.tutorial_goal_index());
+	tut_queued(e, 0, "athen/support_female_citizen", 5);
+	CHECK(e.tutorial_goal_index() == 13, "civilians trained before the rally point went: at %d", e.tutorial_goal_index());
+	fire(TRIGGER_ON_PLAYER_COMMAND, TRIGGER_CMD_UNSET_RALLY);
+	CHECK(e.tutorial_goal_index() == 14, "rally point removed: at %d", e.tutorial_goal_index());
+	tut_queued(e, 0, "athen/support_female_citizen", 1);
+	CHECK(e.tutorial_warning() == TUTORIAL_WARN_HOLD_SHIFT_FEMALE, "single civilian: warning %d", e.tutorial_warning());
+	tut_queued(e, 0, "athen/support_female_citizen", 5);
+	CHECK(e.tutorial_goal_index() == 15, "civilian batch: at %d", e.tutorial_goal_index());
+	fire(TRIGGER_ON_TRAINING_FINISHED, 0);
+	CHECK(e.tutorial_goal_index() == 16, "civilians trained: at %d", e.tutorial_goal_index());
+	{
+		// Every "%(hotkey)s" of a line is the player's key.
+		const TutorialGoal *g = tutorial_goal(TUTORIAL_ECONOMY, 9);
+		CHECK(g && g->lines[1].hotkey && std::strcmp(g->lines[1].hotkey, "session.batchtrain") == 0, "batch line without its hotkey");
+	}
 	if (failures == before) std::printf("tutorials: Ready, gather, training and rally goals advance; state survives a save: ok\n");
+}
+
+static void check_gallic_fields() {
+	// skirmishes/gallic_fields_3p.js: a Roman champion at each B or C point after a minute,
+	// attack-walking to its owner's A point; each wave waits 1-3 times longer and grows as much.
+	const int before = failures;
+	static Simulation s;
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	for (uint8_t p = 0; p < 2; ++p) {
+		const float side = p ? 1.0f : -1.0f;
+		s.add_trigger_point('A', side * 20.0f, 0.0f, p);
+		s.add_trigger_point('B', side * 40.0f, 30.0f, p);
+		s.add_trigger_point('C', side * 40.0f, -30.0f, p);
+	}
+	CHECK(s.register_trigger_script("gallic_fields_3p"), "gallic_fields_3p not registered");
+	const uint16_t champion = civ_unit_template_by_id("rome/champion_infantry_swordsman");
+	auto romans = [&](int *ordered) {
+		int n = 0;
+		if (ordered) *ordered = 0;
+		for (size_t i = 0; i < s.units_.count; ++i)
+			if (s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER && s.units_.tmpl[i] == champion) {
+				++n;
+				if (ordered) *ordered += s.units_.order_kind[i] != ORDER_NONE;
+			}
+		return n;
+	};
+	run_to(s, 59.9f);
+	CHECK(romans(nullptr) == 0, "%d Romans before a minute", romans(nullptr));
+	run_to(s, 60.1f);
+	int ordered = 0;
+	CHECK(romans(&ordered) == 2 && ordered == 2, "first wave: %d Romans, %d with orders", romans(nullptr), ordered);
+	const int32_t size = s.triggers_.vars[0], wait = s.triggers_.vars[1];
+	CHECK(size >= 1 && size <= 3 && wait >= 60000 && wait <= 180000, "next wave of %d after %d ms", size, wait);
+	const int alive = romans(nullptr);
+	run_to(s, 60.0f + (float)wait / 1000.0f + 0.1f);
+	CHECK(romans(nullptr) >= 2 * size && romans(nullptr) <= alive + 2 * size, "second wave: %d Romans, want %d more", romans(nullptr), 2 * size);
+	if (failures == before) std::printf("Gallic Fields: a Roman at each point after a minute, %d each after %d ms more: ok\n", size, wait);
 }
 
 static void check_death_canyon() {
@@ -554,7 +633,9 @@ static void check_death_canyon() {
 	s.set_waves_enabled(false);
 	CHECK(s.register_trigger_script("death_canyon_invasion_force_triggers"), "death_canyon_invasion_force_triggers not registered");
 	run_to(s, 0.5f);
-	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
+	// disabled_buildings is a 64-bit mask: the types past it (the siege wall gate) are reached only
+	// by an Upgrade, which no_building doesn't stop.
+	for (uint8_t t = 0; t < BLD_TYPE_COUNT && t < 64; ++t) {
 		CHECK(s.building_disabled_by_trigger(1, t) && s.building_disabled_by_trigger(3, t), "Invasion Force may build type %d", t);
 		CHECK(!s.building_disabled_by_trigger(0, t) && !s.building_disabled_by_trigger(2, t), "a base player may not build type %d", t);
 	}
@@ -585,6 +666,11 @@ static void check_elephantine() {
 	int gaia_units = 0;
 	for (size_t i = 0; i < s.units_.count; ++i) gaia_units += s.units_.alive[i] && s.units_.team[i] == GAIA_PLAYER;
 	CHECK(gaia_units >= 8, "only %d Kushites on the island", gaia_units);
+	// 0.28's fish: scaleByMapSize(125, 200) groups of 1-2 in the Nile, 12 tiles apart.
+	int fish = 0;
+	const auto res = s.resources();
+	for (size_t i = 0; i < res.count; ++i) fish += res.alive[i] && res.subtype[i] == RES_SUB_FISH;
+	CHECK(fish >= 40, "only %d fish in the Nile", fish);
 	run_to(s, 1.0f);
 	for (const Simulation::Building &b : s.buildings_) {
 		if (b.team != GAIA_PLAYER) continue;
@@ -596,6 +682,14 @@ static void check_elephantine() {
 	CHECK(holders > 0 && full == holders, "%d of %d Gaia structures garrisoned to capacity", full, holders);
 	std::vector<uint32_t> inside;
 	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
+	// "CitizenSoldier+Infantry" and "Civilian Healer": no other class inside.
+	int odd = 0;
+	for (uint32_t id : inside) {
+		const int32_t u = s.lookup_unit(id);
+		const uint64_t c = u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).tech_classes : 0;
+		odd += !((c & TC_HEALER) || ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY)) || ((c & TC_CIVILIAN) && (c & TC_WORKER)));
+	}
+	CHECK(odd == 0, "%d of %zu garrisoned Kushites neither infantry, civilians nor healers", odd, inside.size());
 	int defensive = 0, soldiers = 0;
 	for (size_t i = 0; i < s.units_.count; ++i) {
 		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER) continue;
@@ -607,7 +701,7 @@ static void check_elephantine() {
 	}
 	CHECK(soldiers > 0 && defensive == soldiers, "%d of %d island soldiers defensive", defensive, soldiers);
 	if (failures == before)
-		std::printf("Elephantine: temple, pyramid, %d uncapturable towers, %d Kushites, %d structures garrisoned: ok\n", towers, gaia_units, holders);
+		std::printf("Elephantine: temple, pyramid, %d uncapturable towers, %d Kushites, %d structures garrisoned, %d fish: ok\n", towers, gaia_units, holders, fish);
 }
 
 static void check_danubius() {
@@ -665,7 +759,23 @@ static void check_danubius() {
 	for (uint32_t id : ships) {
 		const int32_t u = s.lookup_unit(id);
 		CHECK(u >= 0 && s.units_.alive[u] && s.units_.team[u] == GAIA_PLAYER && unit_is_ship(s.units_.unit_type[u]), "ship %u", id);
+		// 0.28 "Trireme": the Gallic arrow ship, never the scout or fire ship.
+		CHECK(u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT && std::strcmp(civ_unit_template(s.units_.tmpl[u]).id, "gaul/ship_arrow") == 0,
+		      "ship %u is %s", id, u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).id : "?");
 	}
+	// Houses hold the "Civilian" and "Healer" templates (civilian workers, or the female
+	// citizens on rosters without them).
+	int house_units = 0, house_others = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER || b.type != BLD_HOUSE) continue;
+		for (uint32_t id : b.garrisoned_units) {
+			const int32_t u = s.lookup_unit(id);
+			const uint64_t c = u >= 0 && s.units_.tmpl[u] < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(s.units_.tmpl[u]).tech_classes : 0;
+			++house_units;
+			house_others += !((c & TC_HEALER) || ((c & TC_CIVILIAN) && (c & TC_WORKER)));
+		}
+	}
+	CHECK(house_units > 0 && house_others == 0, "%d of %d units in Gaia houses neither civilians nor healers", house_others, house_units);
 	// The soldiers on the ground (not the outposts' turreted slingers).
 	std::vector<uint32_t> inside;
 	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
@@ -785,6 +895,7 @@ int main() {
 	check_save_load(tm, MAP_SURVIVAL_OF_THE_FITTEST, 200.0f, 420.0f, Simulation::WATER_LEVEL_RISING, 25, "Survival of the Fittest across the first wave");
 	check_polar_sea();
 	check_treasure_islands();
+	check_gallic_fields();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_flood();

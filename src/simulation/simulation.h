@@ -162,7 +162,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 61; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 62; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
@@ -782,6 +783,9 @@ public:
 	bool is_siege_tower_at(size_t i) const;
 	// Garrisoned Infantry in a siege tower = arrows per volley (capped).
 	int siege_tower_arrows(size_t i) const;
+	// Auras.js "garrison" auras on BuildingAI (Caros' Valiant Defender) from the units `ids`
+	// that `owner` garrisons: what GarrisonArrowMultiplier and MaxArrowCount are multiplied by.
+	void garrison_arrow_auras_of(const std::vector<uint32_t> &ids, uint8_t owner, float &arrows, float &max_arrows) const;
 	// 0 A.D. BuildingAI.js GetArrowCount: arrows per RepeatTime for a finished structure.
 	int building_arrow_count(const Building &b) const;
 	// Attack/Ranged/MaxRange with technologies, measured from the structure's edge (0 = never shoots).
@@ -1310,6 +1314,7 @@ public:
 	int phase_structures(uint8_t player_id, uint8_t phase) const;
 	// UnitAI.IsGuardOf: the unit's current order is to guard someone (remove-guard button).
 	bool unit_is_guarding(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx >= 0 && (size_t)idx < units_.count && units_.order_kind[idx] == ORDER_GUARD; }
+	bool unit_has_work_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.work_kind[idx] != ORDER_NONE; } // UnitAI hasWorkOrders
 	bool unit_has_order(uint32_t uid) const { int32_t idx = lookup_unit(uid); return idx>=0 && (size_t)idx < units_.count && units_.has_order[idx]; }
 	const Grid<uint8_t>& territory_grid() const { return territory_grid_; }
 	const Grid<uint8_t>& influence_grid() const { return influence_grid_; }
@@ -1489,7 +1494,8 @@ public:
 			petra_tribute_inbox_[to][from][res] += (float)amount;
 	}
 	bool petra_in_emergency() const { return petra_emergency_.active; }
-	const PetraDefenseArmy &petra_defense_army() const { return petra_defense_army_; }
+	const std::vector<PetraDefenseArmy> &petra_defense_armies() const { return petra_defense_armies_; }
+	bool petra_is_defender(uint32_t uid) const;
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
 	const std::vector<PetraTransportPlan> &petra_transport_plans() const { return petra_transports_; }
 	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
@@ -1508,10 +1514,15 @@ public:
 		const uint8_t *fauna_type;
 		const uint8_t *behavior;
 		const uint8_t *alive;
+		const uint8_t *owner; // GAIA_PLAYER, or the player whose corral trained it
 	};
 	FaunaView fauna() const;
 
-	uint32_t spawn_fauna(float x, float z, uint8_t ftype);
+	uint32_t spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner = GAIA_PLAYER);
+	uint8_t fauna_owner(uint32_t fauna_id) const {
+		auto it = fauna_id_to_idx_.find(fauna_id);
+		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
+	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
 	uint32_t find_nearby_prey(size_t i, float x, float z) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
@@ -2039,6 +2050,10 @@ private:
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
 	} fauna_;
+	// Each animal's owner (Ownership): GAIA_PLAYER, or the player whose corral trained it
+	// (0 A.D. Trainer spawns gaia/fauna_*_trainable owned by that player). Beside fauna_, not
+	// in it, so the saved FaunaStorage layout stays; save v58 adds it.
+	uint8_t fauna_owner_[FaunaStorage::MAX_FAUNA] = {};
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
@@ -2119,6 +2134,8 @@ private:
 	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
 			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
 			const std::vector<std::pair<int, int>> *ignore_cells) const;
+	// survivalofthefittest.js's placement obstructors: whether one covers part of [x0, x1] x [z0, z1].
+	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
@@ -2252,6 +2269,7 @@ private:
 	void tick_trigger_watches();
 	void trigger_survival_init();
 	void trigger_survival_wave();
+	void trigger_gallic_fields(bool attack);
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
@@ -2327,7 +2345,7 @@ private:
 	int petra_opening_step_ = 0;
 	float petra_opening_timer_ = 0.0f;
 	PetraConfig petra_config_;
-	PetraDefenseArmy petra_defense_army_;
+	std::vector<PetraDefenseArmy> petra_defense_armies_; // defenseManager.js armies
 	PetraEmergency petra_emergency_;
 	PetraDefenseBuild petra_defense_build_;
 	PetraDropsiteCheck petra_dropsite_check_;
@@ -2497,6 +2515,9 @@ private:
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
+	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
+	bool petra_near_invading_army(float x, float z, float dist2) const;
+	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
@@ -2582,6 +2603,23 @@ private:
 	void petra_step_transport(PetraTransportPlan &tp, float dt);
 	uint32_t petra_free_transport_ship(uint16_t sea, float x, float z) const;
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
+	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
+	struct PetraBasesMap {
+		struct Anchor { float x, z; uint16_t land; };
+		std::vector<Anchor> anchors;
+		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
+		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
+		bool naval = false;
+		int at(float x, float z, float half) const;
+		// Off naval maps all land is one: RTS0's land regions, unlike 0 A.D.'s, are cut by structures.
+		uint16_t land(uint16_t l) const { return naval || !l ? l : 1; }
+	};
+	void petra_bases_map(PetraBasesMap &m) const;
+	int petra_military_base(const PetraBasesMap &m) const;
+	bool petra_find_position(uint8_t btype, const float *base_at, const float *favor_at, bool military_base, int &out_cx,
+	                         int &out_cz);
+	uint32_t petra_place_generic(uint8_t btype, uint8_t queue, const float *base_at = nullptr, const float *favor_at = nullptr,
+	                             bool military_base = false);
 
 	bool bulk_spawn_ = false;
 	int grid_res_ = MIN_GRID_RES; // nav/FoW/territory resolution, grid_res_for_map(map_half_)
@@ -2599,7 +2637,7 @@ private:
 	// and swapped in while that AI thinks (0 A.D. runs one Petra instance per AI).
 #define RTSO_PETRA_SLOT_FIELDS(X) \
 	X(petra_threat_map_) X(petra_strike_force_) X(petra_attack_plan_) X(petra_raid_plan_) \
-	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_army_) X(petra_emergency_) \
+	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_armies_) X(petra_emergency_) \
 	X(petra_queues_) X(petra_transports_) X(petra_defense_timer_) X(petra_victory_timer_) \
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \

@@ -1,9 +1,9 @@
 #ifndef RTSO_PRODUCTION_QUEUE_H
 #define RTSO_PRODUCTION_QUEUE_H
 
-// P4 stage-2 leaf widget: 8-slot visual production queue & rally-point query
+// P4 stage-2 leaf widget: 16-slot visual production queue & rally-point query
 // (0 A.D. gui/session/selection_panels.js + production_queue.xml + CCmpRallyPoint parity).
-// Owns the 8 queue slot panels, queue progress display, slot GUI input & cancel
+// Owns the 16 queue slot panels, queue progress display, slot GUI input & cancel
 // dispatch, and the rally point query helper.
 
 #include <godot_cpp/classes/control.hpp>
@@ -114,12 +114,13 @@ public:
 		queue_bar_ = memnew(HBoxContainer);
 		queue_bar_->set_position(Vector2(10, 122));
 		queue_bar_->set_size(Vector2(552, 54));
-		queue_bar_->add_theme_constant_override("separation", 6);
+		queue_bar_->add_theme_constant_override("separation", 2);
 		parent_panel->add_child(queue_bar_);
 
-		for (int q = 0; q < 8; ++q) {
+		// 0 A.D. shows the whole queue (selection_panels.js Queue: 16 items).
+		for (int q = 0; q < kSlots; ++q) {
 			Panel *sp = memnew(Panel);
-			sp->set_custom_minimum_size(Vector2(46, 48));
+			sp->set_custom_minimum_size(Vector2(32, 36));
 
 			Ref<StyleBoxFlat> slot_sb;
 			slot_sb.instantiate();
@@ -130,16 +131,16 @@ public:
 			sp->add_theme_stylebox_override("panel", slot_sb);
 
 			TextureRect *ico = memnew(TextureRect);
-			ico->set_position(Vector2(3, 2));
-			ico->set_size(Vector2(40, 36));
+			ico->set_position(Vector2(2, 2));
+			ico->set_size(Vector2(28, 26));
 			ico->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 			ico->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
 			ico->set_visible(false);
 			sp->add_child(ico);
 
 			ProgressBar *pb = memnew(ProgressBar);
-			pb->set_position(Vector2(3, 39));
-			pb->set_size(Vector2(40, 4));
+			pb->set_position(Vector2(2, 30));
+			pb->set_size(Vector2(28, 4));
 			pb->set_show_percentage(false);
 
 			Ref<StyleBoxFlat> pb_fg;
@@ -151,7 +152,7 @@ public:
 			sp->add_child(pb);
 
 			Label *chip = memnew(Label);
-			chip->set_position(Vector2(20, 1));
+			chip->set_position(Vector2(8, 1));
 			chip->set_size(Vector2(22, 12));
 			chip->add_theme_font_size_override("font_size", 9);
 			chip->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_RIGHT);
@@ -184,7 +185,7 @@ public:
 	void show(const std::vector<rtso::ProductionOrder> *queue, uint8_t researcher) {
 		using namespace godot;
 		if (queue) {
-			for (int q = 0; q < 8; ++q) {
+			for (int q = 0; q < kSlots; ++q) {
 				if (q < (int)queue->size()) {
 					const rtso::ProductionOrder &po = (*queue)[q];
 					// A technology shows its researcher's portrait; a batch shows its size.
@@ -218,7 +219,7 @@ public:
 	}
 
 	void clear() {
-		for (int q = 0; q < 8; ++q) {
+		for (int q = 0; q < kSlots; ++q) {
 			queue_slots_[q].icon->set_visible(false);
 			queue_slots_[q].progress->set_visible(false);
 			queue_slots_[q].chip->set_visible(false);
@@ -265,7 +266,8 @@ public:
 
 private:
 	godot::HBoxContainer *queue_bar_ = nullptr;
-	QueueSlotUI queue_slots_[8];
+	static constexpr int kSlots = 16; // PRODUCTION_QUEUE_MAX
+	QueueSlotUI queue_slots_[kSlots];
 	RtsoProductionQueueHost *host_ = nullptr;
 	uint32_t trainer_unit_ = 0; // the unit whose queue is shown (update_unit), else 0
 };
