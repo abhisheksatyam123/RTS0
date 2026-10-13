@@ -964,6 +964,13 @@ void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	if (it != res_id_to_idx_.end()) resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 }
 
+void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it == res_id_to_idx_.end()) return;
+	resources_.amount[it->second] = amount;
+	if (resources_.max_amount[it->second] > 0) resources_.max_amount[it->second] = amount;
+}
+
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress) {
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;

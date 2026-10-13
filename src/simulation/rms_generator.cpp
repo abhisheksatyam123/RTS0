@@ -634,8 +634,9 @@ void HeightmapGrid::carve_canyon_network(RmsRng &rng, float border_margin, float
 // `radius_frac` of the map half (a circle) sits at least 0.4 above the nav water
 // line. The invented noise maps could otherwise sink nearly everything but the
 // base pads, leaving each player on an island of their own.
-// Places n gaia/tree trees (TREE_WOOD_SUPPLY wood each) for one tree spot: the
-// first on the spot, the rest around it at `spread`, on ground above min_h. RTS0's
+// Places n gaia/tree trees (TREE_WOOD_SUPPLY wood each, until plant_flora gives
+// each its template's wood) for one tree spot: the first on the spot, the rest
+// around it at `spread`, on ground above min_h. RTS0's
 // groves were laid out for 800-wood trees; two 200-wood trees per spot bring a
 // 256 map's wood near what 0 A.D.'s random maps carry. The offsets come from a
 // hash of the spot so the generator's random stream is unchanged.
@@ -8424,11 +8425,15 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	// A set with no trees (polar_sea places none) leaves every plant to the viewer.
 	if (options(f->tree12) == 0 || options(f->tree45) == 0 || f->tree3[0] == FLORA_DEFAULT) return;
 	// setupBiome_<biome>'s pickRandom, once per map.
-	const uint8_t *t12 = f->tree12[hash(0, 0, 1) % (uint32_t)options(f->tree12)];
-	const uint8_t *t45 = f->tree45[hash(0, 0, 2) % (uint32_t)options(f->tree45)];
+	const uint32_t o12 = hash(0, 0, 1) % (uint32_t)options(f->tree12), o45 = hash(0, 0, 2) % (uint32_t)options(f->tree45);
+	const uint8_t *t12 = f->tree12[o12], *t45 = f->tree45[o45];
 	int n3 = 0;
 	while (n3 < 5 && f->tree3[n3] != FLORA_DEFAULT) ++n3;
-	const uint8_t t3 = f->tree3[hash(0, 0, 3) % (uint32_t)n3];
+	const uint32_t o3 = hash(0, 0, 3) % (uint32_t)n3;
+	const uint8_t t3 = f->tree3[o3];
+	// Each slot's template wood (0: TREE_WOOD_SUPPLY), parallel to t12, t45 and t3.
+	const uint16_t *w12 = f->tree12_wood[o12], *w45 = f->tree45_wood[o45];
+	const uint16_t w3 = f->tree3_wood[o3];
 
 	const auto rv = sim.resources();
 	// Trees per 2-tile cell, to tell forests from stragglers.
@@ -8453,16 +8458,23 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			}
 		const uint32_t h = hash(tx, tz, 4);
 		uint8_t kind;
+		uint16_t wood;
 		if (near >= 4) {
 			// createDefaultForests: each forest is either a tree1/tree2 or a tree4/tree5 mix.
 			const bool second = hash((int)std::floor(rv.x[r] / 12.0f), (int)std::floor(rv.z[r] / 12.0f), 5) & 1u;
 			kind = (second ? t45 : t12)[h & 1u];
+			wood = (second ? w45 : w12)[h & 1u];
 		} else {
 			// createStragglerTrees: [tree1, tree2, tree4, tree3].
 			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
+			const uint16_t pick_wood[4] = {w12[0], w12[1], w45[0], w3};
 			kind = pick[h % 4u];
+			wood = pick_wood[h % 4u];
 		}
 		sim.set_resource_flora(rv.id[r], kind);
+		// The template's ResourceSupply/Max, for a tree the generator spawned with TREE_WOOD_SUPPLY
+		// (the Survival of the Fittest forests keep their own 800).
+		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
 	}
 }
 

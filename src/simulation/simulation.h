@@ -436,6 +436,9 @@ public:
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
 			uint8_t flora = 0);
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
+	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
+	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
+	void set_resource_amount(uint32_t res_id, int32_t amount);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);

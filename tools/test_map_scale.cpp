@@ -25,9 +25,10 @@
 // 10. Random maps paint 0 A.D. per-tile terrains (water, forest floor, road) and the
 //     map JSON tile encoding decodes; bad tiles are refused.
 // 10b. Random maps plant their biome's rmbiome trees and fruit (FloraKind), forests
-//     and stragglers alike, and the map JSON plant names resolve.
+//     and stragglers alike, and the map JSON plant names resolve. Each tree holds its
+//     template's wood (savanna's baobabs 400, india's banyans 600).
 // 10c. Maps from 0 A.D. scripts with their own terrains paint and plant only those
-//     (script_terrains.h), unless game setup overrides the biome.
+//     (script_terrains.h), with their templates' wood, unless game setup overrides the biome.
 //  Exit: 0 = PASS, 1 = FAIL.
 #include "simulation/simulation.h"
 #include "simulation/rms_generator.h"
@@ -494,6 +495,51 @@ int main() {
 		again.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
 		const auto av = again.resources();
 		CHECK(av.count == rv.count && std::equal(rv.flora, rv.flora + rv.count, av.flora), "%s: flora differs for one seed", f->biome);
+		// Each tree holds the wood of one of its slots' templates (tree*_wood; 0: TREE_WOOD_SUPPLY).
+		std::set<int32_t> woods;
+		auto add_wood = [&](uint16_t w) { woods.insert(w ? (int32_t)w : TREE_WOOD_SUPPLY); };
+		for (const auto &o : f->tree12_wood) { add_wood(o[0]); add_wood(o[1]); }
+		for (const auto &o : f->tree45_wood) { add_wood(o[0]); add_wood(o[1]); }
+		for (uint16_t w : f->tree3_wood) add_wood(w);
+		int odd_wood = 0;
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
+		CHECK(odd_wood == 0, "%s: %d trees hold wood no slot's template gives", f->biome, odd_wood);
+	}
+	// 10b'. Savanna: tree1 is gaia/tree/baobab (ResourceSupply/Max 400), tree2 acacia (200) and
+	// tree4/tree5 bush_tropic (50) and bush_temperate (100).
+	{
+		Simulation sim;
+		sim.set_biome_override(BIOME_SAVANNA);
+		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+		const auto rv = sim.resources();
+		int baobabs = 0, baobab_400 = 0, acacias = 0, acacia_200 = 0, bushes = 0, bush_ok = 0;
+		for (size_t i = 0; i < rv.count; ++i) {
+			if (rv.type[i] != RES_WOOD || rv.subtype[i] != RES_SUB_NONE) continue;
+			if (rv.flora[i] == FLORA_BAOBAB) { ++baobabs; baobab_400 += rv.amount[i] == 400; }
+			if (rv.flora[i] == FLORA_ACACIA) { ++acacias; acacia_200 += rv.amount[i] == 200; }
+			if (rv.flora[i] == FLORA_BUSH) { ++bushes; bush_ok += rv.amount[i] == 50 || rv.amount[i] == 100; }
+		}
+		CHECK(baobabs > 0 && baobab_400 == baobabs, "savanna: %d of %d baobabs hold 400 wood", baobab_400, baobabs);
+		CHECK(acacias > 0 && acacia_200 == acacias, "savanna: %d of %d acacias hold 200 wood", acacia_200, acacias);
+		CHECK(bushes > 0 && bush_ok == bushes, "savanna: %d of %d bushes hold 50 or 100 wood", bush_ok, bushes);
+		// set_resource_amount: a tree's amount; a fruit bush's regrowth Max follows it.
+		const uint32_t tree = sim.spawn_resource_world(0.0f, 0.0f, RES_WOOD, TREE_WOOD_SUPPLY);
+		sim.set_resource_amount(tree, 600);
+		const auto v2 = sim.resources();
+		for (size_t i = 0; i < v2.count; ++i)
+			if (v2.id[i] == tree) CHECK(v2.amount[i] == 600, "set_resource_amount sets a tree's wood (%d)", v2.amount[i]);
+	}
+	// 10b''. India: tree1 banyan 600, tree2 strangler 500, tree3 teak 500.
+	{
+		Simulation sim;
+		sim.set_biome_override(BIOME_INDIA);
+		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+		const auto rv = sim.resources();
+		int big = 0;
+		for (size_t i = 0; i < rv.count; ++i)
+			big += rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE && (rv.amount[i] == 600 || rv.amount[i] == 500);
+		CHECK(big > 0, "india: %d trees hold banyan, strangler or teak wood", big);
 	}
 	// 10c. Per-script terrains and plants.
 	int scripts = 0;
@@ -522,6 +568,15 @@ int main() {
 		for (size_t i = 0; i < rv.count; ++i)
 			if (rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd += !allowed[rv.flora[i]];
 		CHECK(odd == 0, "%s plants %d trees outside its script's set", st->map_id, odd);
+		std::set<int32_t> woods;
+		auto add_wood = [&](uint16_t w) { woods.insert(w ? (int32_t)w : TREE_WOOD_SUPPLY); };
+		for (const auto &o : st->flora.tree12_wood) { add_wood(o[0]); add_wood(o[1]); }
+		for (const auto &o : st->flora.tree45_wood) { add_wood(o[0]); add_wood(o[1]); }
+		for (uint16_t w : st->flora.tree3_wood) add_wood(w);
+		int odd_wood = 0;
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE) odd_wood += !woods.count(rv.amount[i]);
+		CHECK(odd_wood == 0, "%s: %d trees hold wood no slot's template gives", st->map_id, odd_wood);
 		Simulation chosen;
 		chosen.set_biome_override(BIOME_SAVANNA);
 		chosen.generate_random_map((MapType)type, 5, 2, 64.0f);
