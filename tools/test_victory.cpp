@@ -821,6 +821,39 @@ int main() {
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.daytime == 2);
 	}
 
+	// 29. Team Population (0 A.D. 0.28 PopulationCapManager "team"): each team's cap
+	// is split by its members still in the game, a teamless player keeps all of it,
+	// a defeat raises the teammates' share, the setting survives pop_cap_setting()
+	// and peers get it as teampop=.
+	{
+		Simulation sim;
+		for (uint8_t p = 0; p < 4; ++p) sim.set_player_active(p, true, false);
+		const uint8_t teams[MAX_PLAYERS] = {1, 1, 1, 0, 0, 0, 0, 0};
+		sim.set_setup_teams(teams);
+		sim.set_team_pop_cap(400);
+		CHECK(sim.team_pop_cap() == 400 && sim.world_pop_cap() == 0);
+		CHECK(sim.pop_cap(0) == 133 && sim.pop_cap(2) == 133 && sim.pop_cap(3) == 400);
+		CHECK(sim.pop_max(3) <= 400 && sim.pop_max(0) <= 133);
+		sim.defeated_mask_ |= 1u << 2;
+		CHECK(sim.pop_cap(0) == 200 && sim.pop_cap(1) == 200 && sim.pop_cap(3) == 400);
+		const int setting = sim.pop_cap_setting();
+		Simulation copy;
+		copy.set_pop_cap_setting(setting);
+		CHECK(copy.team_pop_cap() == 400 && copy.world_pop_cap() == 0);
+		copy.set_pop_cap_setting(-600);
+		CHECK(copy.world_pop_cap() == 600 && copy.team_pop_cap() == 0);
+		copy.set_pop_cap_setting(250);
+		CHECK(copy.pop_cap(0) == 250 && copy.team_pop_cap() == 0);
+		sim.set_team_pop_cap(99999);
+		CHECK(sim.team_pop_cap() == Simulation::MAX_TEAM_POP);
+		GameSetupParams gp, back;
+		gp.team_pop = 600;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.team_pop == 600);
+		GameSetupParams none;
+		CHECK(format_game_start_full(none).find("teampop=") == std::string::npos);
+		CHECK(parse_game_start_full(format_game_start_full(none), back) && back.team_pop == 0);
+	}
+
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);
 		return 1;

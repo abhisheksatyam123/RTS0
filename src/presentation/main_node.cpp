@@ -5998,9 +5998,10 @@ void RtsoMain::apply_match_settings() {
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
 	{
-		const int pc = (int)ms->get("pop_cap"); // negative: World Population (0 A.D. WorldPopulationCap)
-		if (pc < 0) sim->set_world_pop_cap(-pc);
-		else sim->set_pop_cap(pc);
+		// negative: World Population (0 A.D. WorldPopulationCap); team_pop: Team Population
+		const int pc = (int)ms->get("pop_cap");
+		if (pc > 0 && (bool)ms->get("team_pop")) sim->set_team_pop_cap(pc);
+		else sim->set_pop_cap_setting(pc);
 	}
 	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
 	sim->set_reveal_map((bool)ms->get("reveal_map"));
@@ -6889,6 +6890,11 @@ void RtsoMain::_on_lobby_start_pressed() {
 		setup.pop_cap = (uint16_t)std::clamp((int)ms->get("pop_cap"), 0, 1000);
 		// A negative pop_cap is Game Setup's World Population.
 		setup.world_pop = (uint16_t)std::clamp(-(int)ms->get("pop_cap"), 0, rtso::Simulation::MAX_WORLD_POP);
+		// team_pop: the positive pop_cap is 0 A.D. 0.28's Team Population.
+		if (setup.pop_cap > 0 && (bool)ms->get("team_pop")) {
+			setup.team_pop = (uint16_t)std::min((int)ms->get("pop_cap"), rtso::Simulation::MAX_TEAM_POP);
+			setup.pop_cap = 0;
+		}
 		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		setup.reveal = (bool)ms->get("reveal_map") ? 1 : 0;
 		setup.explore = (bool)ms->get("explore_map") ? 1 : 0;
@@ -7012,6 +7018,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_waves_enabled(setup.waves != 0);
 	sim->set_last_man_standing(setup.lms != 0);
 	if (setup.world_pop) sim->set_world_pop_cap(setup.world_pop);
+	else if (setup.team_pop) sim->set_team_pop_cap(setup.team_pop);
 	else sim->set_pop_cap(setup.pop_cap);
 	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
 	sim->set_reveal_map(setup.reveal != 0);
@@ -7063,7 +7070,8 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("victory", (int)sim->victory_condition());
 		ms->set("waves_enabled", sim->waves_enabled());
 		ms->set("last_man_standing", sim->last_man_standing());
-		ms->set("pop_cap", sim->pop_cap_setting()); // negative: World Population
+		ms->set("pop_cap", sim->team_pop_cap() > 0 ? sim->team_pop_cap() : sim->pop_cap_setting()); // negative: World Population
+		ms->set("team_pop", sim->team_pop_cap() > 0);
 		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("reveal_map", sim->reveal_map());
 		ms->set("explore_map", sim->explore_map());

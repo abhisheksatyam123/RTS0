@@ -679,16 +679,30 @@ int Simulation::pop_max(uint8_t player) const {
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
-int Simulation::pop_cap() const {
+int Simulation::pop_cap(uint8_t player) const {
+	// A scenario's own PopulationLimit for this player (SetPerPlayerPopulationCaps) wins.
+	if (player_pop_cap(player) > 0) return player_pop_cap(player);
 	if (pop_cap_ >= 0) return pop_cap_;
 	// World Population: split among the seated players not yet defeated (players 0
-	// and 1 when no slot is seated, as petra_runs_for assumes).
+	// and 1 when no slot is seated, as petra_runs_for assumes). Team Population:
+	// the same, among the player's own team (PopulationCapManager.js).
+	const int team_cap = team_pop_cap();
+	const uint8_t team = player < MAX_PLAYERS ? players_[player].team : 0xFF;
 	bool any_active = false;
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	int live = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p)) ++live;
+		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p) &&
+		    (team_cap == 0 || (player < MAX_PLAYERS && players_[p].team == team)))
+			++live;
+	if (team_cap > 0) return std::max(1, (int)std::lround((double)team_cap / std::max(1, live)));
 	return std::max(1, -pop_cap_ / std::max(1, live));
+}
+
+void Simulation::set_pop_cap_setting(int setting) {
+	if (setting <= -TEAM_POP_FLAG) set_team_pop_cap(-setting - TEAM_POP_FLAG);
+	else if (setting < 0) set_world_pop_cap(-setting);
+	else set_pop_cap(setting);
 }
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
@@ -13556,7 +13570,8 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 	case CHEAT_MAX_POPULATION: { // "the hive master": SetPopulationBonuses((world max || MaxPopulation) + 500)
 		CheatMods &cm = cheat_mods_[player];
 		const int houses = pop_max_uncapped(player) - cm.pop_bonus;
-		const int limit = pop_cap_ < 0 && !player_pop_cap(player) ? world_pop_cap() : pop_cap(player) > 0 ? pop_limit(player) : houses;
+		const int own = player_pop_cap(player);
+		const int limit = !own && world_pop_cap() > 0 ? world_pop_cap() : !own && team_pop_cap() > 0 ? team_pop_cap() : pop_cap(player) > 0 ? pop_limit(player) : houses;
 		cm.pop_bonus = std::clamp(limit + 500 - houses, -1000000, 1000000);
 		return true;
 	}
@@ -19033,7 +19048,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 }
 
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
-// rushes only when its base has wood to spare (one per 3000 above 8000) and
+// rushes only when its base has wood to spare (one per 3000 above 8500) and
 // its personality is aggressive enough; a long ceasefire rules them out.
 void Simulation::petra_set_rushes() {
 	auto &m = petra_attack_mgr_;
@@ -19041,16 +19056,22 @@ void Simulation::petra_set_rushes() {
 	m.max_rushes = 0;
 	const PetraBase *base = get_primary_petra_base();
 	if (!base) return;
+	// startingStrategy.js getTotalResourceLevel(wood, nearby/medium/faraway): the stock plus the
+	// base's dropsite supplies, i.e. trees on the civic centre's own land (assignResourceToDropsite
+	// skips other land accesses, so another island's trees don't count) within
+	// maxDistResourceSquare, 360 m.
 	float wood = petra_ps().res[RES_WOOD];
+	const uint16_t land = petra_land_at(base->x, base->z);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
 		const float dx = resources_.x[r] - base->x, dz = resources_.z[r] - base->z;
-		if (dx * dx + dz * dz <= 60.0f * 60.0f) wood += resources_.amount[r];
+		if (dx * dx + dz * dz < 90.0f * 90.0f && petra_land_at(resources_.x[r], resources_.z[r]) == land)
+			wood += resources_.amount[r];
 	}
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
 	m.save_resources = wood < 6000.0f ? 1 : 0;
 	if (petra_config_.difficulty < PETRA_EASY) return;
-	int allowed = (int)std::ceil((wood - 8000.0f) / 3000.0f);
+	int allowed = (int)std::ceil((wood - 8500.0f) / 3000.0f);
 	if (ceasefire_remaining() > 900.0f) allowed = 0;
 	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
 	// config.js personalityCut: weak 0.3, medium 0.5, strong 0.7.

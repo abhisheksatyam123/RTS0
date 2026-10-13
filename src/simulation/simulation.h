@@ -851,11 +851,19 @@ public:
 	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
 	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
 	// still in the game (PlayerManager.RedistributeWorldPopulation), so each
-	// defeat raises everyone else's share. Stored in pop_cap_, so no save change.
+	// defeat raises everyone else's share. A setting at or below -TEAM_POP_FLAG is
+	// 0 A.D. 0.28's Team Population (PopulationCapManager "team"): each team gets
+	// the cap, split evenly by its members still in the game, and a teamless
+	// player keeps all of it. Stored in pop_cap_, so no save change.
 	static constexpr int MAX_WORLD_POP = 63000; // 0 A.D. world_population_capacities.json
-	int pop_cap() const;
+	static constexpr int MAX_TEAM_POP = 10000;  // 0 A.D. team_population_capacities.json
+	static constexpr int TEAM_POP_FLAG = 100000;
+	int pop_cap() const { return pop_cap(PETRA_PLAYER); }
+	int pop_cap(uint8_t player) const; // this player's share of the population limit, 0 = unlimited
 	int pop_cap_setting() const { return pop_cap_; }
-	int world_pop_cap() const { return pop_cap_ < 0 ? -pop_cap_ : 0; }
+	void set_pop_cap_setting(int setting); // restores pop_cap_setting(), clamped to a valid one
+	int world_pop_cap() const { return pop_cap_ < 0 && pop_cap_ > -TEAM_POP_FLAG ? -pop_cap_ : 0; }
+	int team_pop_cap() const { return pop_cap_ <= -TEAM_POP_FLAG ? -pop_cap_ - TEAM_POP_FLAG : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
 	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
 	// A scenario's own PopulationLimit for one player (0.28 PlayerData; InitGame.js gives the
@@ -866,8 +874,7 @@ public:
 		if (player < MAX_PLAYERS) player_pop_cap_[player] = std::clamp(cap, 0, MAX_PLAYER_POP_CAP);
 	}
 	int player_pop_cap(uint8_t player) const { return player < MAX_PLAYERS ? player_pop_cap_[player] : 0; }
-	// One player's population limit before Player/MaxPopulation modifiers: its own cap, else pop_cap().
-	int pop_cap(uint8_t player) const { return player_pop_cap(player) > 0 ? player_pop_cap(player) : pop_cap(); }
+	void set_team_pop_cap(int team) { pop_cap_ = team > 0 ? -TEAM_POP_FLAG - std::min(team, MAX_TEAM_POP) : 0; }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
