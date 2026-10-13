@@ -329,6 +329,7 @@ static void test_trader_goods() {
 		fresh(*w);
 		w->spawn_building_world(-80.0f, 0.0f, BLD_MARKET, 0, 1.0f);
 		w->spawn_building_world(80.0f, 0.0f, BLD_MARKET, 1, 1.0f);
+		root_markets(*w);
 		w->set_diplomacy(0, 1, Simulation::DIPLO_NEUTRAL);
 	}
 	const uint32_t m0 = s.buildings()[0].id, m1 = s.buildings()[1].id;
