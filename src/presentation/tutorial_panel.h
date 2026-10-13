@@ -29,11 +29,12 @@ inline std::string tutorial_line_text(const TutorialLine &l) {
 	std::string s = l.text ? l.text : "";
 	if (!l.hotkey) return s;
 	const std::string tag = "%(hotkey)s";
-	const size_t at = s.find(tag);
-	if (at == std::string::npos) return s;
 	std::string key = hotkeys::table().label(l.hotkey);
 	if (key.empty()) key = "(unbound)";
-	return s.replace(at, tag.size(), "[color=#ffd966]" + key + "[/color]");
+	key = "[color=#ffd966]" + key + "[/color]";
+	// sprintf fills every "%(hotkey)s" of the line.
+	for (size_t at = s.find(tag); at != std::string::npos; at = s.find(tag, at + key.size())) s.replace(at, tag.size(), key);
+	return s;
 }
 
 // The panel's text for the sim's current goal ("" when no tutorial runs).
