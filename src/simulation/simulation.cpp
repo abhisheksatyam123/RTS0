@@ -3742,6 +3742,7 @@ bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType b
 	PlayerState &ps = players_[player_id];
 	if (ps.res[sell] < (float)amount) return false;
 	ps.res[sell] -= (float)amount;
+	ps.used[sell] += (float)amount; // Barter.js pays through TrySubtractResources: counted as used
 	ps.res[buy] += (float)received;
 	stats_[player_id].resources_sold[sell] += (uint32_t)amount;
 	stats_[player_id].resources_bought[buy] += (uint32_t)received;
@@ -5980,7 +5981,6 @@ void Simulation::unload_sunk_ship(size_t ship) {
 			units_.hp[p] = 0.0f;
 			units_.alive[p] = 0;
 			units_.action_state[p] = ACTION_DYING;
-			stat_unit_lost((size_t)p, GAIA_PLAYER); // drowned: lost, but nobody's kill
 			if (units_.team[p] == 0) record_.units_lost++;
 		}
 	}
@@ -6666,7 +6666,6 @@ void Simulation::eject_or_kill(Building &b, uint8_t keep_allies_of) {
 		units_.alive[i] = 0;
 		units_.action_state[i] = ACTION_DYING; // Health.Kill
 		record_unit_death((size_t)i, 0xFF);
-		stat_unit_lost((size_t)i, 0xFF);
 		if (units_.team[i] == 0) record_.units_lost++;
 	}
 	b.garrisoned_units = std::move(kept);
@@ -7348,7 +7347,23 @@ void Simulation::record_unit_death(size_t i, uint8_t killer_team) {
 // value (the sum of its costs, as GetEntityValue... in StatisticsTracker.js),
 // and a sample of everything every 30 s for the summary charts.
 
-static uint32_t stat_cost_value(int f, int w, int g, int st) { return (uint32_t)std::max(0, f + w + g + st); }
+static uint32_t stat_cost_value(const float c[RES_COUNT]) {
+	float sum = 0.0f;
+	for (int r = 0; r < RES_COUNT; ++r) sum += c[r];
+	return (uint32_t)std::max(0.0f, sum);
+}
+// Cost.GetResourceCosts of the entity: its owner's cost after civ, team and technology bonuses.
+uint32_t Simulation::stat_unit_value(size_t idx) const {
+	float c[RES_COUNT];
+	unit_train_cost(units_.team[idx], units_.tmpl[idx], unit_info_at(idx), c);
+	return stat_cost_value(c);
+}
+uint32_t Simulation::stat_building_value(const Building &b) const {
+	float c[RES_COUNT];
+	const float piece = wallset_piece_value(b.type, b.half_size, 1); // a wall piece's own length
+	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
+	return stat_cost_value(c);
+}
 
 void Simulation::stat_unit_trained(size_t idx) {
 	const uint8_t p = units_.team[idx];
@@ -7361,13 +7376,15 @@ void Simulation::stat_unit_trained(size_t idx) {
 	st.units_trained[STAT_UNIT_TOTAL]++;
 }
 
+// Attacking.js TargetKilled is the only caller of KilledEntity / LostEntity: deaths
+// through Health.Kill (deleting, a garrison dying with its structure, floods, scripts)
+// and through regeneration or auras count nowhere, so only attack kills call these.
 void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 	const uint8_t p = units_.team[idx];
 	const uint16_t tmpl = units_.tmpl[idx];
 	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
-	const UnitTypeInfo &info = unit_info_at(idx);
-	const uint32_t value = stat_cost_value(info.food_cost, info.wood_cost, info.gold_cost, info.stone_cost);
-	// LostEntity for the owner, KilledEntity for an enemy that killed it.
+	const uint32_t value = stat_unit_value(idx);
+	// LostEntity for the owner, KilledEntity for whoever killed it.
 	if (p < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[p];
 		for (uint8_t c = 0; c < STAT_UNIT_TOTAL; ++c)
@@ -7375,7 +7392,7 @@ void Simulation::stat_unit_lost(size_t idx, uint8_t killer) {
 		st.units_lost[STAT_UNIT_TOTAL]++;
 		st.units_lost_value += value;
 	}
-	if (killer < MAX_PLAYERS && killer != p) {
+	if (killer < MAX_PLAYERS) { // KilledEntity has no owner check: friendly fire counts too
 		PlayerStatistics &st = stats_[killer];
 		for (uint8_t c = 0; c < STAT_UNIT_TOTAL; ++c)
 			if (cls & (1u << c)) st.enemy_units_killed[c]++;
@@ -7396,15 +7413,14 @@ void Simulation::stat_building_lost(const Building &b, uint8_t killer) {
 	// Foundations are not counted (StatisticsTracker.js KilledEntity / LostEntity skip them).
 	if (b.build_progress < 1.0f) return;
 	const uint8_t c = stat_building_class(b.type);
-	const BuildingTypeInfo &info = building_type_info(b.type);
-	const uint32_t value = stat_cost_value(info.food_cost, info.wood_cost, info.gold_cost, info.stone_cost);
+	const uint32_t value = stat_building_value(b);
 	if (b.team < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[b.team];
 		if (c < STAT_BLD_TOTAL) st.buildings_lost[c]++;
 		st.buildings_lost[STAT_BLD_TOTAL]++;
 		st.buildings_lost_value += value;
 	}
-	if (killer < MAX_PLAYERS && killer != b.team) {
+	if (killer < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[killer];
 		if (c < STAT_BLD_TOTAL) st.enemy_buildings_destroyed[c]++;
 		st.enemy_buildings_destroyed[STAT_BLD_TOTAL]++;
@@ -7416,8 +7432,7 @@ void Simulation::stat_building_captured(const Building &b, uint8_t from) {
 	petra_decay_events_.push_back(b.id); // OwnershipChanged for Petra's decaying structures
 	// The new owner captured it (CapturedBuilding); the old one lost it (LostEntity).
 	const uint8_t c = stat_building_class(b.type);
-	const BuildingTypeInfo &info = building_type_info(b.type);
-	const uint32_t value = stat_cost_value(info.food_cost, info.wood_cost, info.gold_cost, info.stone_cost);
+	const uint32_t value = stat_building_value(b);
 	if (b.team < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[b.team];
 		if (c < STAT_BLD_TOTAL) st.buildings_captured[c]++;
@@ -7549,9 +7564,19 @@ void Simulation::tick_statistics() {
 	// Counted in ticks so the 30 s rows land on exact game times. ticks_ counts
 	// the ticks before this one.
 	const uint64_t tick = ticks_ + 1;
-	if (tick % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0) update_statistics_explored();
-	// StatisticsTracker.updateSequences, every updateTimeInterval.
-	if (tick % (uint64_t)std::lround(STATISTICS_SAMPLE_INTERVAL / FIXED_STEP) != 0) return;
+	if (tick % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0) {
+		update_statistics_explored();
+		// StatisticsTracker.OnTerritoriesChanged / OnGlobalPlayerDefeated: the peaks follow
+		// the territory as it changes, not only the 30 s rows.
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+			if (!players_[p].active) continue;
+			stats_[p].peak_percent_map_controlled = std::max(stats_[p].peak_percent_map_controlled, percent_map_controlled(p));
+			stats_[p].team_peak_percent_map_controlled = std::max(stats_[p].team_peak_percent_map_controlled, team_percent_map_controlled(p));
+		}
+	}
+	// StatisticsTracker.UpdateSequences: a Timer interval that starts at 0, so the first
+	// row is taken on the match's first turn and then one every UpdateSequenceInterval.
+	if (tick != 1 && tick % (uint64_t)std::lround(STATISTICS_SAMPLE_INTERVAL / FIXED_STEP) != 0) return;
 	if (stat_samples_.size() >= MAX_STATISTICS_SAMPLES) return;
 	stat_samples_.push_back(statistics_snapshot());
 	stat_samples_.back().time = (float)tick * FIXED_STEP;
@@ -10865,7 +10890,6 @@ void Simulation::tick_combat(float dt) {
 		units_.hp[u] = 0.0f;
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
-		stat_unit_lost(u, units_.team[u]);
 		record_unit_death(u, units_.team[u]);
 	}
 
@@ -10885,7 +10909,6 @@ void Simulation::tick_combat(float dt) {
 			units_.hp[u] = 0.0f;
 			units_.alive[u] = 0;
 			units_.action_state[u] = ACTION_DYING;
-			stat_unit_lost(u, units_.team[u]);
 			record_unit_death(u, units_.team[u]);
 		}
 	}
@@ -13551,7 +13574,6 @@ void Simulation::destroy_building(Building &b) {
 	eject_or_kill(b);
 	b.garrisoned_units.clear();
 	cancel_upgrade(b, b.team);
-	stat_building_lost(b, 0xFF);
 	b.wrecked = true;
 	occupied_stale_ = true;
 	b.hp = 0.0f;
@@ -13572,7 +13594,6 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 			units_.action_state[i] = ACTION_DYING;
 			order_queues_.erase(id);
 			record_unit_death(i, player);
-			stat_unit_lost((size_t)i, 0xFF);
 			continue;
 		}
 		auto it = building_id_to_idx_.find(id);
@@ -13618,7 +13639,6 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 				units_.action_state[i] = ACTION_DYING;
 				order_queues_.erase(selected[k]);
 				record_unit_death(i, player);
-				stat_unit_lost((size_t)i, player);
 				continue;
 			}
 			auto it = building_id_to_idx_.find(selected[k]);
@@ -13725,11 +13745,7 @@ Simulation::BribeResult Simulation::cmd_bribe(uint8_t player, uint8_t target) {
 		if (!spied) candidates.push_back(units_.id[i]);
 	}
 	PlayerState &ps = players_[player];
-	auto pay = [&](int metal) {
-		if (ps.res[RES_GOLD] < (float)metal) return false;
-		ps.res[RES_GOLD] -= (float)metal;
-		return true;
-	};
+	auto pay = [&](int metal) { return ps.pay(0.0f, 0.0f, (float)metal, 0.0f); }; // TrySubtractResources: counted as used
 	if (candidates.empty()) {
 		pay(bribe_cost(player, target, true)); // TrySubtractResources: nothing if it can't pay
 		if (player < MAX_PLAYERS) stats_[player].failed_bribes++; // Commands.js IncreaseFailedBribesCounter
@@ -27855,7 +27871,6 @@ void Simulation::tutorial_remove_champions() {
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
 		record_unit_death(i, 0xFF);
-		stat_unit_lost(i, 0xFF);
 	}
 }
 
@@ -29091,7 +29106,6 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		units_.action_state[i] = ACTION_DYING;
 		units_.has_order[i] = 0;
 		record_unit_death(i, units_.team[i]);
-		stat_unit_lost(i, 0xFF);
 	}
 	for (size_t f = 0; f < fauna_.count; ++f)
 		if (fauna_.alive[f] && submerged(fauna_.pos_x[f], fauna_.pos_z[f])) {
@@ -29116,7 +29130,6 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		b.garrisoned_units.clear();
 		b.queue.clear();
 		// mark_building_wreck, but nobody killed it: no loot for anyone.
-		stat_building_lost(b, 0xFF);
 		b.wrecked = true;
 		occupied_stale_ = true;
 		b.hp = 0.0f;

@@ -11,6 +11,8 @@
 //   5. Resource and population counts (GetResourceCounts, GetPopulationCount),
 //      livestock bred at a corral (unitsTrained.Domestic, not in the total) and
 //      successful and failed bribes (VisionSharing.AddSpy, Commands.js).
+//   6. Deleting a unit or a structure counts as neither lost nor killed: only
+//      Attacking.js TargetKilled reports deaths, Health.Kill does not.
 //
 //   g++ -std=c++20 -O2 -Isrc tools/test_statistics.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_statistics
@@ -83,6 +85,9 @@ static void test_tribute_barter() {
 	CHECK(a.tributes_sent == 100 && b.tributes_received == 100);
 	CHECK(a.resources_sold[RES_FOOD] == 100);
 	CHECK(a.resources_bought[RES_GOLD] > 0 && a.resources_bought[RES_GOLD] < 100);
+	// Barter.js sells through TrySubtractResources, so the sale is also used (the summary
+	// shows used minus sold); a tribute is not (SubtractResourcesOrNotify).
+	CHECK(a.resources_used[RES_FOOD] == 100 && a.resources_used[RES_WOOD] == 0);
 }
 
 static bool same(const PlayerStatistics &a, const PlayerStatistics &b) {
@@ -105,7 +110,8 @@ static void test_match() {
 	run(s, minutes * 60 * 20);
 	const auto &samples = s.statistics_samples();
 	std::printf("  %zu samples after %d min\n", samples.size(), minutes);
-	CHECK(samples.size() == (size_t)(minutes * 2));
+	CHECK(samples.size() == (size_t)(minutes * 2 + 1)); // the first turn's row, then every 30 s
+	if (!samples.empty()) CHECK(samples.front().time < 0.5f && samples.front().players[0].units_trained[STAT_UNIT_TOTAL] == 0);
 	if (!samples.empty()) CHECK(std::fabs(samples.back().time - minutes * 60.0f) < 0.5f);
 	int seated = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
@@ -188,11 +194,16 @@ static void test_counts() {
 	// Bribes: none to bribe fails, a trader succeeds.
 	s.players_[0].res[RES_GOLD] = 1000.0f;
 	s.complete_research(0, TECH_UNLOCK_SPIES);
+	const int32_t gold_used_before = s.statistics(0).resources_used[RES_GOLD];
 	CHECK(s.cmd_bribe(0, 1) == Simulation::BRIBE_NO_UNITS);
 	s.spawn_unit(ex + 6.0f, ez + 6.0f, 1, UNIT_TRADER);
 	CHECK(s.cmd_bribe(0, 1) == Simulation::BRIBE_OK);
 	a = s.statistics(0);
 	CHECK(a.successful_bribes == 1 && a.failed_bribes == 1);
+	// Both bribes are paid through TrySubtractResources (Commands.js), so they count as used.
+	const int32_t bribe_spent = (int32_t)std::lround(1000.0f - s.players_[0].res[RES_GOLD]);
+	std::printf("  bribes spent %d, metal used %d -> %d\n", bribe_spent, gold_used_before, a.resources_used[RES_GOLD]);
+	CHECK(bribe_spent > 0 && a.resources_used[RES_GOLD] - gold_used_before == bribe_spent);
 	CHECK(s.statistics(1).successful_bribes == 0 && s.statistics(1).failed_bribes == 0);
 	// The 30 s rows carry the counts at their time.
 	run(s, 31 * 20);
@@ -201,8 +212,31 @@ static void test_counts() {
 	CHECK(row.players[0].population_count > 0 && row.players[0].resources_count[RES_GOLD] == (uint32_t)s.player_resource(0, RES_GOLD));
 }
 
+static void test_delete_not_lost() {
+	std::printf("deleting is not losing\n");
+	Simulation s;
+	s.reset();
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(0, true, false);
+	s.set_player_active(1, true, false);
+	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	const uint32_t ids[2] = {s.spawn_unit(-30.0f, -30.0f, 0, UNIT_FEMALE_CITIZEN, 25.0f),
+	                         s.spawn_building_world(-28.0f, -40.0f, BLD_HOUSE, 0, 1.0f)};
+	run(s, 20);
+	s.cmd_delete(0, ids, 2);
+	run(s, 40);
+	const PlayerStatistics a = s.statistics(0);
+	std::printf("  lost units %u value %u, structures %u value %u\n", a.units_lost[STAT_UNIT_TOTAL],
+	            a.units_lost_value, a.buildings_lost[STAT_BLD_TOTAL], a.buildings_lost_value);
+	CHECK(s.lookup_unit(ids[0]) < 0 || !s.units_.alive[s.lookup_unit(ids[0])]);
+	CHECK(a.units_lost[STAT_UNIT_TOTAL] == 0 && a.units_lost_value == 0);
+	CHECK(a.buildings_lost[STAT_BLD_TOTAL] == 0 && a.buildings_lost_value == 0);
+}
+
 int main() {
 	test_kill_credit();
+	test_delete_not_lost();
 	test_tribute_barter();
 	test_counts();
 	test_match();
