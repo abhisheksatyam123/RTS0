@@ -9,7 +9,7 @@
 namespace rtso {
 
 // The models roster templates draw with besides the civ class models.
-inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 173;
+inline constexpr int UNIT_TEMPLATE_DRAW_MODEL_COUNT = 183;
 
 inline const char *unit_template_draw_model(int k) {
 	static const char *const kDraw[UNIT_TEMPLATE_DRAW_MODEL_COUNT] = {
@@ -186,6 +186,16 @@ inline const char *unit_template_draw_model(int k) {
 		"spart_infantry_spearman_neodamodes",
 		"spart_ship_ram",
 		"spart_ship_scout",
+		"germ_cavalry_javelineer_b",
+		"germ_champion_cavalry",
+		"germ_champion_healer",
+		"germ_champion_infantry_axeman",
+		"germ_champion_infantry_maceman",
+		"germ_hero_boiorix",
+		"germ_hero_lugius",
+		"germ_infantry_javelineer_b",
+		"germ_ship_scout",
+		"germ_siege_ram_siege_ram_pivot",
 	};
 	return k >= 0 && k < UNIT_TEMPLATE_DRAW_MODEL_COUNT ? kDraw[k] : nullptr;
 }
@@ -617,33 +627,33 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // sele/support_civilian_house
 		-1, // han/support_civilian
 		-1, // han/support_civilian_house
-		37, // germ/cavalry_javelineer_b (the Gallic model)
+		173, // germ/cavalry_javelineer_b
 		-1, // germ/cavalry_spearman_b
-		38, // germ/champion_cavalry (the Gallic model)
-		-1, // germ/champion_healer
-		-1, // germ/champion_infantry_axeman
-		-1, // germ/champion_infantry_maceman
-		-1, // germ/hero_boiorix
-		-1, // germ/hero_lugius
+		174, // germ/champion_cavalry
+		175, // germ/champion_healer
+		176, // germ/champion_infantry_axeman
+		177, // germ/champion_infantry_maceman
+		178, // germ/hero_boiorix
+		179, // germ/hero_lugius
 		-1, // germ/hero_teutobod
-		42, // germ/infantry_javelineer_b (the Gallic model)
+		180, // germ/infantry_javelineer_b
 		-1, // germ/infantry_slinger_b
-		43, // germ/infantry_spearman_b (the Gallic model)
+		-1, // germ/infantry_spearman_b
 		-1, // germ/infantry_swordsman_b
 		-1, // germ/ship_arrow
-		19, // germ/ship_fire (the Gallic model)
+		19, // germ/ship_fire (the Iberian fireship, as for the Celts)
 		-1, // germ/ship_fishing
 		-1, // germ/ship_merchant
-		20, // germ/ship_scout (the Gallic model)
-		-1, // germ/siege_ram
+		181, // germ/ship_scout
+		182, // germ/siege_ram
 		-1, // germ/siege_ram_covered
-		21, // germ/support_civilian (the Gallic model)
-		21, // germ/support_civilian_house (the Gallic model)
+		-1, // germ/support_civilian
+		-1, // germ/support_civilian_house
 		-1, // germ/support_healer_b
 		-1, // germ/support_trader
 		-1, // germ/rts0_villager
-		1, // germ/catafalque (the Gallic model)
-		19, // germ/ship_fire_fire (the Gallic model)
+		1, // germ/catafalque (no German actor)
+		19, // germ/ship_fire_fire (the Iberian fireship, as for the Celts)
 		-1, // rome/infantry_spearman_conscript
 		-1, // cart/infantry_spearman_ital_b
 		135, // rome/cavalry_javelineer_auxiliary_b

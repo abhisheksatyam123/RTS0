@@ -27,7 +27,8 @@ enum class RigType {
 	Villager,
 	Fauna,
 	SiegeRam,
-	Healer
+	Healer,
+	Wagon
 };
 
 class AnimationController {
