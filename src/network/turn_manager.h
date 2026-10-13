@@ -382,6 +382,10 @@ private:
 	RejoinMsg rejoin_header_;
 	std::vector<uint8_t> rejoin_world_;
 	std::set<uint32_t> rejoin_chunks_;
+	// Chunks that came before their header (reliable delivery keeps no
+	// order): they are acked, so the host never resends them.
+	std::vector<RejoinMsg> rejoin_early_;
+	void take_rejoin_chunk(const RejoinMsg &msg);
 	size_t rejoin_received_ = 0;
 	std::string rejoin_dir_;
 	// Host: world chunks still to send, paced so a ~500-packet burst does not
