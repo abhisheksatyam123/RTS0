@@ -115,6 +115,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
 	ClassDB::bind_method(D_METHOD("_on_tutorial_ready_pressed"), &RtsoMain::_on_tutorial_ready_pressed);
+	ClassDB::bind_method(D_METHOD("resign"), &RtsoMain::resign);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
@@ -129,6 +130,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
+	ClassDB::bind_method(D_METHOD("_on_diplo_attack_request_pressed", "player_idx"), &RtsoMain::_on_diplo_attack_request_pressed);
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
@@ -645,6 +647,9 @@ void RtsoMain::_ready() {
 	lobby_btn->set_text("Lobby");
 	lobby_btn->add_theme_font_size_override("font_size", 12);
 	lobby_btn->connect("pressed", Callable(this, "_on_lobby_button_pressed"));
+	// 0 A.D.'s top panel shows its Lobby button only with a lobby connection
+	// (Engine.HasXmppClient); here, in a game started from the lobby screen.
+	lobby_btn->set_visible(false);
 	top_hbox->add_child(lobby_btn);
 
 	lobby_panel = memnew(Panel);
@@ -2798,9 +2803,17 @@ void RtsoMain::_process(double delta) {
 	}
 	if (sim && chat_window_.is_ready()) {
 		for (const auto &line : sim->pending_petra_chat()) {
-			if (line.to != 0xFF && line.to != local_player()) continue; // addressed to someone else
-			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + " (AI):[/color] " +
-			                         String(line.text) + "\n");
+			const uint8_t me = local_player();
+			if (line.to == rtso::PETRA_CHAT_TO_ALLIES) { // "/allies": the speaker and its allies
+				if (me >= rtso::MAX_PLAYERS || (me != line.from && !sim->is_ally(line.from, me))) continue;
+			} else if (line.to != 0xFF && line.to != me) continue; // addressed to someone else
+			// Players named as {P<id>} in the line get their display names.
+			String text(line.text);
+			for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+				text = text.replace("{P" + String::num_int64(p) + "}", player_display_name(p));
+			const bool ai = line.kind != rtso::PETRA_CHAT_ATTACK_REQUESTED || sim->player(line.from).is_ai;
+			chat_window_.append_line("[color=#88ccff]" + player_display_name(line.from) + (ai ? " (AI)" : "") + ":[/color] " +
+			                         text + "\n");
 		}
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
@@ -5737,6 +5750,7 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
 	if (lobby_panel) lobby_panel->set_visible(true);
+	if (lobby_btn) lobby_btn->set_visible(true);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
 }
@@ -6408,4 +6422,8 @@ void RtsoMain::_on_diplo_tribute_pressed(int player_idx, int res_type) {
 
 void RtsoMain::_on_diplo_spy_pressed(int player_idx) {
 	diplo_dialog_.spy_pressed(player_idx);
+}
+
+void RtsoMain::_on_diplo_attack_request_pressed(int player_idx) {
+	diplo_dialog_.attack_request_pressed(player_idx);
 }
