@@ -13569,20 +13569,20 @@ void Simulation::petra_manage_military_production(float dt) {
 			const UnitTypeInfo &ui = civ_template_unit_info(tmpl, t.unit_type);
 			float cost[RES_COUNT];
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
-			bool leaves = true;
-			for (int r = 0; r < RES_COUNT; ++r)
-				if (cost[r] > 0.0f && petra_ps().res[r] - std::floor(cost[r] * (float)batch) < reserve[r]) leaves = false;
-			if (leaves && petra_train_template(PETRA_QUEUE_MILITARY, trainer_for(tmpl), tmpl, batch)) return;
-			// A batch the plan's queue waits on (queueManager) keeps its price from the lower
-			// queues, and the military queue asks for it.
-			float price[RES_COUNT];
-			for (int r = 0; r < RES_COUNT; ++r) {
-				price[r] = std::floor(cost[r] * (float)batch);
-				reserve[r] += price[r];
+			// The military queue's account seldom holds a whole batch while the other queues draw
+			// on the same income, so a smaller batch goes when the full one cannot (RTS0).
+			for (int n = batch; n >= 1; --n) {
+				bool leaves = true;
+				for (int r = 0; r < RES_COUNT; ++r)
+					if (cost[r] > 0.0f && petra_ps().res[r] - std::floor(cost[r] * (float)n) < reserve[r]) leaves = false;
+				if (leaves && petra_train_template(PETRA_QUEUE_MILITARY, trainer_for(tmpl), tmpl, n)) return;
 			}
+			// The unit the plan's queue waits on (queueManager) keeps its price from the lower
+			// queues, and the military queue asks for one unit's price: asking for the whole
+			// batch would draw the villager queue's food away too (the tries above asked for it).
 			PetraQueueAccount &w = petra_queues_.wants[PETRA_QUEUE_MILITARY];
-			w.food = std::max(w.food, price[RES_FOOD]); w.wood = std::max(w.wood, price[RES_WOOD]);
-			w.gold = std::max(w.gold, price[RES_GOLD]); w.stone = std::max(w.stone, price[RES_STONE]);
+			for (int r = 0; r < RES_COUNT; ++r) reserve[r] += cost[r];
+			w.food = cost[RES_FOOD]; w.wood = cost[RES_WOOD]; w.gold = cost[RES_GOLD]; w.stone = cost[RES_STONE];
 			return;
 		}
 	};
