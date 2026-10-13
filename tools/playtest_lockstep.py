@@ -559,7 +559,9 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     # 0 A.D. network.observerlimit: the host takes one observer, so a second is refused.
     host = peer("host", logs["host"], "--name", "alice", "--observer-limit", "1")
     time.sleep(0.3)
-    join = peer("join", logs["join"], "--name", "bob")
+    # bob asks to rejoin again at turn 60, as a slow loader repeats its setup-time
+    # request; the host must keep him seated (his row stays '1:bob:1:0').
+    join = peer("join", logs["join"], "--name", "bob", "--stale-rejoin-turn", "60")
     # Join once the match is well under way.
     deadline = time.time() + timeout
     while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:

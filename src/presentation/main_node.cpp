@@ -1139,6 +1139,19 @@ void RtsoMain::_ready() {
 		net_status_label_->add_theme_font_size_override("font_size", 18);
 		net_status_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 		net_status_overlay_->add_child(net_status_label_);
+		// loadingClientsText: 50%-300 50%+60 50%+300 50%+110, the names in their colours.
+		net_loading_clients_ = memnew(RichTextLabel);
+		net_loading_clients_->set_use_bbcode(true);
+		net_loading_clients_->set_fit_content(true);
+		net_loading_clients_->set_anchors_preset(Control::PRESET_CENTER);
+		net_loading_clients_->set_offset(SIDE_LEFT, -300);
+		net_loading_clients_->set_offset(SIDE_RIGHT, 300);
+		net_loading_clients_->set_offset(SIDE_TOP, 60);
+		net_loading_clients_->set_offset(SIDE_BOTTOM, 110);
+		net_loading_clients_->add_theme_font_size_override("normal_font_size", 16);
+		net_loading_clients_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		net_loading_clients_->set_visible(false);
+		net_status_overlay_->add_child(net_loading_clients_);
 		Button *exit = memnew(Button);
 		exit->set_name("DisconnectedExitButton");
 		exit->set_text(tr("Exit"));
@@ -2412,27 +2425,56 @@ void RtsoMain::_on_pause_overlay_pressed() {
 	if (hotkey_paused_) toggle_pause();
 }
 
-// messages.js handleNetStatusMessage "disconnected": once the link to the host
-// is lost the match is over for this client. Dialogs close, the overlay says
-// why (network.js getDisconnectReason) and stays until Exit.
+// NetworkStatusOverlay.onNetStatusMessage: the overlay shows any status but
+// "active". Lockstep stands in for 0 A.D.'s loading handshake: the first turn
+// that needs every player's batch waits for those still loading the map, and
+// they are the clients 0 A.D. lists in NMT_CLIENTS_LOADING. Once the link to
+// the host is lost (messages.js handleNetStatusMessage) the match is over for
+// this client: dialogs close, the overlay says why (network.js
+// getDisconnectReason) and stays until Exit.
 void RtsoMain::update_net_status_overlay() {
-	if (net_disconnected_ || !net_status_overlay_ || !net_game_started_ || net_host_.isHost() ||
-			!net_host_.connectionLost())
+	if (net_disconnected_ || !net_status_overlay_) return;
+	const bool client = net_host_.getRole() == rtso::NetRole::Client;
+	if (client && net_game_started_ && net_host_.connectionLost()) {
+		net_disconnected_ = true;
+		finished_asked_ = true; // no quit question over the overlay
+		close_open_dialogs();
+		String why;
+		switch (net_host_.disconnectReason()) {
+			case 2: why = tr("The host has ended the game."); break;
+			case 6: why = tr("You have been kicked."); break;
+			case 7: why = tr("You have been banned."); break;
+			case 14: why = tr("Password is invalid."); break;
+			default: why = tr("An unknown error occurred."); break;
+		}
+		net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
+		net_loading_clients_->set_visible(false);
+		net_status_overlay_->set_visible(true);
+		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
 		return;
-	net_disconnected_ = true;
-	finished_asked_ = true; // no quit question over the overlay
-	close_open_dialogs();
-	String why;
-	switch (net_host_.disconnectReason()) {
-		case 2: why = tr("The host has ended the game."); break;
-		case 6: why = tr("You have been kicked."); break;
-		case 7: why = tr("You have been banned."); break;
-		case 14: why = tr("Password is invalid."); break;
-		default: why = tr("An unknown error occurred."); break;
 	}
-	net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
-	net_status_overlay_->set_visible(true);
-	if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+	String status, loading;
+	if (client && !net_game_started_ && turn_mgr_.rejoin_syncing() && !net_host_.connectionLost()) {
+		status = tr("Synchronizing gameplay with other players…");
+	} else if (net_game_started_ && !turn_mgr_.is_replaying() && turn_mgr_.current_turn() <= rtso::TurnManager::COMMAND_DELAY) {
+		for (uint32_t c : turn_mgr_.waiting_on()) {
+			if (c == turn_mgr_.local_client_id()) continue;
+			String name;
+			for (const auto &e : net_host_.playerAssignment())
+				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str()).replace("[", "[lb]");
+			const uint8_t pl = turn_mgr_.player_for_client(c);
+			if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
+			if (pl < rtso::MAX_PLAYERS && sim)
+				name = "[color=#" + String::num_int64(rtso::display_colors::rgb(*sim, pl), 16).lpad(6, "0") + "]" + name + "[/color]";
+			loading += (loading.is_empty() ? "" : tr(", ")) + name;
+		}
+		if (!loading.is_empty()) status = tr("Waiting for players to connect:");
+	}
+	if (net_status_label_->get_text() != status) net_status_label_->set_text(status);
+	const String centred = loading.is_empty() ? String() : "[center]" + loading + "[/center]";
+	if (net_loading_clients_->get_text() != centred) net_loading_clients_->set_text(centred);
+	net_loading_clients_->set_visible(!loading.is_empty());
+	if (net_status_overlay_->is_visible() == status.is_empty()) net_status_overlay_->set_visible(!status.is_empty());
 }
 
 // disconnectedExitButton: endGame(true), the summary page.
@@ -3216,10 +3258,8 @@ void RtsoMain::_process(double delta) {
 				net_status_shown_ = !status.is_empty();
 			}
 		}
-		if (net_game_started_) {
-			post_network_chat();
-			update_net_status_overlay();
-		}
+		if (net_game_started_) post_network_chat();
+		update_net_status_overlay();
 		// 0 A.D. player list: who plays which player, who has left, who watches.
 		if (lobby_players && net_host_.playerAssignments() != players_shown_) {
 			players_shown_ = net_host_.playerAssignments();
@@ -6599,6 +6639,7 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["disconnected"] = net_disconnected_;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
+	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	return d;
 }
@@ -7074,6 +7115,7 @@ void RtsoMain::apply_net_game_start() {
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
+	turn_mgr_.cancel_rejoin();
 	// The host numbers joiners 1, 2, ... in connect order; that id is our client id.
 	uint32_t my_client = 0;
 	if (!net_host_.isHost()) my_client = net_host_.getLocalPeerId() ? net_host_.getLocalPeerId() : 1;
