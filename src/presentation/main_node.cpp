@@ -133,6 +133,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_start_pressed"), &RtsoMain::_on_lobby_start_pressed);
+	ClassDB::bind_method(D_METHOD("_on_lobby_seat_selected", "index", "client"), &RtsoMain::_on_lobby_seat_selected);
 	ClassDB::bind_method(D_METHOD("apply_net_game_start"), &RtsoMain::apply_net_game_start);
 	ClassDB::bind_method(D_METHOD("load_map_seeded", "map_id", "seed"), &RtsoMain::load_map_seeded);
 	// 0 A.D. GUI onGameLoadProgress(progression, description): the loading page
@@ -723,6 +724,8 @@ void RtsoMain::_ready() {
 	lobby_players = memnew(Label);
 	lobby_players->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
 	lobby_box->add_child(lobby_players);
+	lobby_seats = memnew(VBoxContainer);
+	lobby_box->add_child(lobby_seats);
 
 	// =========================================================================
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
@@ -1860,16 +1863,22 @@ void RtsoMain::update_cursor() {
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			if (!*want) {
 				auto uv = sim->units();
-				bool healer = false;
-				for (int s = 0; s < selected_ids.size() && !healer; ++s)
+				bool healer = false, builder = false;
+				for (int s = 0; s < selected_ids.size() && !(healer && builder); ++s)
 					for (size_t i = 0; i < uv.count; ++i)
 						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
-							healer = rtso::unit_is_healer(uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE, uv.unit_type[i]);
+							const uint16_t tm = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+							healer = healer || rtso::unit_is_healer(tm, uv.unit_type[i]);
+							builder = builder || rtso::unit_can_build(uv.unit_type[i], tm);
 							break;
 						}
 				for (size_t i = 0; i < uv.count && !*want; ++i) {
 					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
 					if (sim->is_hostile(me, uv.team[i])) want = "action-attack";
+					// unit_actions "repair": a builder over a damaged own or allied siege engine or ship.
+					else if (builder && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])) &&
+							sim->is_repairable_unit(uv.id[i]))
+						want = "action-repair";
 					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
 					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
 						want = "action-heal";
@@ -2517,6 +2526,8 @@ void RtsoMain::_process(double delta) {
 		apply_net_game_start();
 		// Rejoin of a match in progress: the host sent its world; load it and
 		// play on in the seat our dropped client had.
+		if ((net_host_.isHost() && !net_game_started_) || (lobby_seats && lobby_seats->get_child_count()))
+			refresh_lobby_seats();
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
 			selected_ids.clear();
@@ -4643,7 +4654,36 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// 1b. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
+			// 1b. Builders right-clicking a damaged own or allied siege engine or ship repair it
+			// (0 A.D. unit_actions "repair": Repairable units, Builder.js CanRepair).
+			{
+				bool any_builder = false;
+				for (int k = 0; k < selected_ids.size() && !any_builder; ++k)
+					for (size_t i = 0; i < uview.count; ++i)
+						if (uview.id[i] == (uint32_t)selected_ids[k]) {
+							any_builder = rtso::unit_can_build(uview.unit_type[i], uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE);
+							break;
+						}
+				uint32_t repair_id = 0;
+				float best_rd2 = 2.2f * 2.2f;
+				for (size_t i = 0; any_builder && i < uview.count; ++i) {
+					if (!uview.alive[i] || uview.hp[i] >= uview.max_hp[i] || !sim->is_repairable_unit(uview.id[i])) continue;
+					if (uview.team[i] != local_player() && !sim->is_ally(local_player(), uview.team[i])) continue;
+					const float dx = uview.pos_x[i] - click_pos.x, dz = uview.pos_z[i] - click_pos.z;
+					const float d2 = dx * dx + dz * dz;
+					if (d2 < best_rd2) { best_rd2 = d2; repair_id = uview.id[i]; }
+				}
+				if (repair_id != 0) {
+					if (turn_cmds())
+						post_lockstep(16, sel_ptr, sel_n, 0, 0, repair_id, qbit);
+					else
+						sim->order_build_or_repair(sel_ptr, sel_n, repair_id, queue_shift);
+					play_civ_voice("build");
+					return;
+				}
+			}
+
+			// 1c. Healers right-clicking an injured own or allied unit heal it (0 A.D. "heal" cursor).
 			{
 				// With orderone the first healer of the selection is the one ordered
 				// (input.js firstAbleEntity).
@@ -4676,7 +4716,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 1c. A Gaia treasure: collect it (0 A.D. unit_actions "collect-treasure").
+			// 1d. A Gaia treasure: collect it (0 A.D. unit_actions "collect-treasure").
 			{
 				uint32_t treasure_id = 0;
 				float best_td2 = 2.0f * 2.0f;
@@ -5525,6 +5565,110 @@ void RtsoMain::_on_lobby_observe_toggled(bool on) {
 	if (net_lockstep() && !net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin(on);
 }
 
+// 0 A.D. gamesetup player assignment (gui/gamesetup PlayerAssignmentsControl):
+// the host gives each client a slot, or makes it an observer; a client given an
+// AI slot replaces the AI, and one given a slot another client had takes it
+// from that client, who becomes an observer. Unassigned clients take the free
+// human slots in order, as before. Shown only on the host until Start.
+void RtsoMain::refresh_lobby_seats() {
+	if (!lobby_seats) return;
+	struct Client { uint32_t id; std::string name; bool watches; };
+	std::vector<Client> clients;
+	struct Slot { char type; String name; };
+	std::vector<Slot> slots;
+	if (net_host_.isHost() && !net_game_started_) {
+		clients.push_back({0, net_host_.localPlayerName(), lobby_observe && lobby_observe->is_pressed()});
+		for (const auto &p : net_host_.getPeers())
+			if (p.connected && p.is_authenticated && !p.kick_disconnect_ms && p.id != 0 && p.id < 8)
+				clients.push_back({p.id, p.player_name, p.is_observer});
+		if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
+			Array types = ms->get("slot_types");
+			Array names = ms->get("slot_names");
+			for (int i = 0; i < 8 && i < types.size(); ++i) {
+				const int ty = (int)types[i];
+				slots.push_back({ty == 0 ? 'h' : ty == 1 ? 'a' : 'x', i < names.size() ? String(names[i]) : String()});
+			}
+		}
+	}
+	if (clients.size() < 2) clients.clear(); // nobody to assign but the host
+	for (auto it = seat_choice_.begin(); it != seat_choice_.end();) {
+		bool here = false;
+		for (const auto &c : clients) here |= c.id == it->first;
+		it = here ? std::next(it) : seat_choice_.erase(it);
+	}
+	std::string key;
+	for (const auto &c : clients) {
+		auto ch = seat_choice_.find(c.id);
+		key += std::to_string(c.id) + ":" + c.name + ":" + (c.watches ? "o" : "p") + ":" +
+				std::to_string(ch == seat_choice_.end() ? -1 : ch->second) + ";";
+	}
+	for (const auto &s : slots) key += std::string(1, s.type) + s.name.utf8().get_data() + ";";
+	if (key == lobby_seats_key_) return;
+	lobby_seats_key_ = key;
+	for (int i = lobby_seats->get_child_count() - 1; i >= 0; --i) {
+		Node *n = lobby_seats->get_child(i);
+		lobby_seats->remove_child(n);
+		n->queue_free();
+	}
+	if (clients.empty()) return;
+	Label *title = memnew(Label);
+	title->set_text("Player assignment");
+	lobby_seats->add_child(title);
+	for (const auto &c : clients) {
+		HBoxContainer *row = memnew(HBoxContainer);
+		Label *who = memnew(Label);
+		who->set_text(c.name.empty() ? String("Player") : String::utf8(c.name.c_str()));
+		who->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+		row->add_child(who);
+		OptionButton *pick = memnew(OptionButton);
+		pick->add_item("Next free slot", SEAT_AUTO);
+		pick->add_item("Observer", SEAT_OBSERVER);
+		for (int i = 0; i < (int)slots.size(); ++i) {
+			if (slots[i].type == 'x') continue;
+			String label = "Player " + String::num_int64(i + 1);
+			if (slots[i].type == 'a') label += String(" (AI") + (slots[i].name.is_empty() ? String() : ": " + slots[i].name) + String(")");
+			pick->add_item(label, i);
+		}
+		auto ch = seat_choice_.find(c.id);
+		const int chosen = ch != seat_choice_.end() ? ch->second : (c.watches ? SEAT_OBSERVER : SEAT_AUTO);
+		const int idx = pick->get_item_index(chosen);
+		pick->select(idx >= 0 ? idx : 0);
+		pick->set_meta("client", (int)c.id);
+		pick->connect("item_selected", Callable(this, "_on_lobby_seat_selected").bind((int)c.id));
+		row->add_child(pick);
+		lobby_seats->add_child(row);
+	}
+}
+
+void RtsoMain::_on_lobby_seat_selected(int index, int client) {
+	OptionButton *pick = nullptr;
+	for (int i = 0; lobby_seats && i < lobby_seats->get_child_count() && !pick; ++i)
+		if (Node *row = lobby_seats->get_child(i))
+			for (int j = 0; j < row->get_child_count(); ++j)
+				if (OptionButton *ob = Object::cast_to<OptionButton>(row->get_child(j)))
+					if ((int)ob->get_meta("client", -1) == client) pick = ob;
+	if (!pick) return;
+	const int choice = pick->get_item_id(index);
+	if (choice < 8)
+		for (auto &e : seat_choice_)
+			if (e.first != (uint32_t)client && e.second == choice) e.second = SEAT_OBSERVER;
+	seat_choice_[(uint32_t)client] = choice;
+	lobby_seats_key_.clear();
+}
+
+// Start: the host's player assignment into NMT_GAME_START (seats= and obs=).
+void RtsoMain::apply_lobby_seats(rtso::GameSetupParams &setup) {
+	for (const auto &e : seat_choice_) {
+		if (e.first >= 8) continue;
+		const uint8_t bit = (uint8_t)(1u << e.first);
+		if (e.second == SEAT_OBSERVER) { setup.observers |= bit; continue; }
+		setup.observers &= (uint8_t)~bit;
+		if (e.second < 0 || e.second >= setup.slot_count || setup.slot_types[e.second] == 'x') continue;
+		setup.seats[e.first] = (uint8_t)e.second;
+		setup.slot_types[e.second] = 'h'; // a client given an AI slot replaces the AI
+	}
+}
+
 void RtsoMain::_on_lobby_refresh_pressed() {
 	refresh_lobby_rooms();
 }
@@ -5655,14 +5799,19 @@ void RtsoMain::_on_lobby_start_pressed() {
 	// peers seat players identically in assign_slot_players).
 	{
 		// 0 A.D. game setup assigns observers no player: the host when Observe is
-		// ticked, a joiner that asked to watch (its rejoin request at connect).
+		// ticked, a joiner that asked to watch (its rejoin request at connect),
+		// and whoever the host's player assignment made an observer or seated.
 		const bool host_watches = lobby_observe && lobby_observe->is_pressed();
 		setup.observers = host_watches ? 1 : 0;
-		int need = host_watches ? 0 : 1;
+		for (const auto &p : net_host_.getPeers())
+			if (p.connected && p.id != 0 && p.id < 8 && p.is_observer) setup.observers |= (uint8_t)(1u << p.id);
+		apply_lobby_seats(setup);
+		int need = (setup.observers & 1) ? 0 : 1;
 		for (const auto &p : net_host_.getPeers()) {
 			if (!p.connected || p.id == 0) continue;
-			if (!p.is_observer) ++need;
-			else if (p.id < 8) setup.observers |= (uint8_t)(1u << p.id);
+			const bool watches = p.id < 8 && ((setup.observers >> p.id) & 1);
+			if (p.id < 8) net_host_.setPeerObserver(p.id, watches);
+			if (!watches) ++need;
 		}
 		for (uint8_t i = 0; i < setup.slot_count; ++i)
 			if (setup.slot_types[i] == 'h') --need;

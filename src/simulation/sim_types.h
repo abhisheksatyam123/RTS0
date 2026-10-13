@@ -340,7 +340,8 @@ enum UnitAction : uint8_t {
 	ACTION_GUARD  = 11,
 	ACTION_FLEE   = 12, // 0 A.D. UnitAI INDIVIDUAL.FLEEING: running from attacked_by
 	ACTION_HEAL   = 13, // UnitAI INDIVIDUAL.HEAL: walking to or healing target_unit_id
-	ACTION_CHEER  = 14  // UnitAI INDIVIDUAL.CHEERING after a kill (attack_timer counts it down)
+	ACTION_CHEER  = 14, // UnitAI INDIVIDUAL.CHEERING after a kill (attack_timer counts it down)
+	ACTION_REPAIR = 15  // UnitAI INDIVIDUAL.REPAIR on a unit (Repairable siege or ship): walking to or repairing target_unit_id
 };
 
 enum BuildingType : uint8_t {
@@ -538,7 +539,7 @@ enum UnitOrderKind : uint8_t {
 	ORDER_ATTACK = 4,         // target unit
 	ORDER_ATTACK_BUILDING = 5,// target building (capture or damage)
 	ORDER_GATHER = 6,         // target resource
-	ORDER_BUILD = 7,          // target building (build or repair)
+	ORDER_BUILD = 7,          // target building (build or repair), or a Repairable unit
 	ORDER_GARRISON = 8,       // target building
 	ORDER_GUARD = 9,          // target unit or structure (Guard.js)
 	ORDER_HEAL = 10,          // target unit (UnitAI Heal)
