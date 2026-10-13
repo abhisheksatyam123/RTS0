@@ -6467,13 +6467,44 @@ std::vector<std::pair<float, float>> pattern_locs(const HeightmapGrid &hm, RmsRn
 
 // The pattern_locs pattern for a Game Setup Team Placement (TEAM_PLACEMENT_*),
 // or the map's own random pick when it is Random.
+// The last pattern placement_pattern chose, for the bases' starting walls
+// (rmgen2 setup.js playerbaseTypes[pattern].walls).
+thread_local int g_placement_pattern = -1;
+
 int placement_pattern(uint8_t team_placement, int random_pick) {
 	switch (team_placement) {
-		case TEAM_PLACEMENT_RADIAL: return 1;
-		case TEAM_PLACEMENT_LINE: return 0;
-		case TEAM_PLACEMENT_RANDOM_GROUP: return 2;
-		case TEAM_PLACEMENT_STRONGHOLD: return 3;
-		default: return random_pick;
+		case TEAM_PLACEMENT_RADIAL: return g_placement_pattern = 1;
+		case TEAM_PLACEMENT_LINE: return g_placement_pattern = 0;
+		case TEAM_PLACEMENT_RANDOM_GROUP: return g_placement_pattern = 2;
+		case TEAM_PLACEMENT_STRONGHOLD: return g_placement_pattern = 3;
+		default: return g_placement_pattern = random_pick;
+	}
+}
+
+// The walls 0.28's map script asks placeStartingWalls for (Simulation::StartingWalls): the
+// Walls of placePlayerBases' CityPatch, else true; rmgen2's createBases only on maps over 192
+// tiles. Maps that lay out no player bases get none.
+uint8_t starting_walls_of(MapType map, int map_tiles) {
+	switch (map) {
+		case MAP_CANTABRIAN_HIGHLANDS: case MAP_CORSICA: case MAP_DANUBIUS: case MAP_FLOOD:
+		case MAP_GUADALQUIVIR_RIVER: case MAP_SCHWARZWALD: case MAP_BELGIAN_UPLANDS: case MAP_ISLAND_STRONGHOLD:
+		case MAP_EMPIRE: case MAP_HELLS_PASS: case MAP_POMPEII: case MAP_STRONGHOLD: case MAP_FORTRESS:
+		case MAP_JEBEL_BARKAL: case MAP_MEDITERRANEAN: case MAP_SURVIVAL_OF_THE_FITTEST: case MAP_LAND_GRAB:
+			return Simulation::STARTING_WALLS_NONE;
+		case MAP_ARCHIPELAGO_0AD: case MAP_CORINTHIAN_ISTHMUS: case MAP_CYCLADIC_ARCHIPELAGO: case MAP_DODECANESE:
+		case MAP_ELEPHANTINE: case MAP_EXTINCT_VOLCANO: case MAP_GEAR: case MAP_HELLAS: case MAP_ISLANDS:
+		case MAP_LORRAINE_PLAIN: case MAP_POLAR_SEA: case MAP_RATUMACOS: case MAP_SNOWFLAKE_SEAROCKS:
+			return Simulation::STARTING_WALLS_TOWERS;
+		case MAP_BAHRAIN:
+			return map_tiles > 192 ? Simulation::STARTING_WALLS_TOWERS : Simulation::STARTING_WALLS_NONE;
+		case MAP_HARBOR: case MAP_LIONS_DEN: case MAP_MARMARA: case MAP_RED_SEA: case MAP_WILD_LAKE:
+			return map_tiles > 192 ? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
+		case MAP_AMBUSH: case MAP_FRONTIER:
+			// groupedLines and stronghold: false; circle and randomGroup: true.
+			return map_tiles > 192 && (g_placement_pattern == 1 || g_placement_pattern == 2)
+					? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
+		default:
+			return Simulation::STARTING_WALLS_FORTRESS;
 	}
 }
 
@@ -7713,9 +7744,6 @@ void RmsGenerator::synth_elephantine(HeightmapGrid &hm, RmsRng &rng, float &wate
 namespace {
 namespace jebel {
 
-// getDifficulty(): RTS0 has no trigger difficulty setting yet, so the map is built at the
-// script's default, Medium (data/settings/trigger_difficulties.json: 3), as TriggerState's.
-constexpr int kDifficulty = 3;
 // jebel_barkal.png (tools/gen_heightmap_images.py) holds the PMP's raw heights 23170..33144 as
 // 0..255: 255 is 797 x 9974 / 65535 m above 0 on a 320 tile map (HeightmapPainter maps
 // 0..0xFFFF to minHeightSource 3..maxHeightSource 800).
@@ -7797,7 +7825,9 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 	const size_t N = hm.data.size();
 	auto sc = [&](float a, float b) { return seas_scale(a, b, half); };
 	const float hs = size / 320.0f, hw = std::max(hs, 1.0f);
+	const uint8_t difficulty = out.difficulty; // the caller's Trigger Difficulty
 	out = JebelBarkalLayout();
+	out.difficulty = difficulty;
 	const float h_fertile = metres(water_h, 3.0f * hw), h_desert = metres(water_h, 5.0f * hw);
 	const float h_passage = std::max(metres(water_h, -1.5f * hw), wade_height(water_h) + 0.02f);
 	const float h_canal = metres(water_h, -4.0f * hw), h_sea = metres(water_h, -8.0f * hw);
@@ -8090,7 +8120,7 @@ void RmsGenerator::synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float 
 	// of the temples (placeLinearWall, ["tower", "gate", "tower", "short", "tower", "short",
 	// "tower"]) where they keep off the hill and the temples. Each stretch between gates is laid
 	// as segments of at most a medium piece, which spawn_gaia_wall joins with towers.
-	out.wall = size < 192.0f || kDifficulty < 2 ? 0xFF : kDifficulty < 3 ? (uint8_t)WALLSET_PALISADE : (uint8_t)WALLSET_STONE;
+	out.wall = size < 192.0f || out.difficulty < 2 ? 0xFF : out.difficulty < 3 ? (uint8_t)WALLSET_PALISADE : (uint8_t)WALLSET_STONE;
 	std::vector<uint8_t> wall_mask(N, 0), gate_mask(N, 0);
 	if (out.wall != 0xFF) {
 		const WallLengths L = wall_lengths(out.wall);
@@ -8420,7 +8450,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 	// The districts (CityPainter): through each district in rows along its angle, at every free
 	// spot the first of the shuffled structures that fits and keeps its distance from its kind.
 	{
-		const uint8_t tower = size >= 256.0f && kDifficulty >= 3 ? BLD_TOWER : BLD_SENTRY_TOWER;
+		const uint8_t tower = size >= 256.0f && lay.difficulty >= 3 ? BLD_TOWER : BLD_SENTRY_TOWER;
 		struct CityBuilding {
 			uint8_t type;
 			int difficulty;
@@ -8435,7 +8465,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 		};
 		std::vector<CityBuilding> layout;
 		for (const CityBuilding &b : all)
-			if (kDifficulty >= b.difficulty) layout.push_back(b);
+			if (lay.difficulty >= b.difficulty) layout.push_back(b);
 		std::vector<std::vector<Spot>> placed(layout.size());
 		const auto to_path = seas_dist_inside(hm, lay.path);
 		std::vector<uint8_t> taken(N, 0);
@@ -8523,7 +8553,7 @@ void RmsGenerator::place_jebel_barkal_entities(Simulation &sim, const HeightmapG
 			++placed;
 		}
 	};
-	const float diff = (float)kDifficulty / 3.0f;
+	const float diff = (float)lay.difficulty / 3.0f;
 	const auto hilltop = pick_cells([&](size_t v) { return lay.hilltop[v] && to_cliff[v] > 1.0f && to_cliff[v] <= 5.0f; });
 	groups_on(hilltop, count(sc(1.0f, 5.0f) * diff), 250, 0.0f, [&](float x, float z) {
 		const int n = rng.range_int((int)sc(4.0f, 10.0f), (int)sc(6.0f, 20.0f));
@@ -9445,6 +9475,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_anatolian_plateau(hm, rng, water_h, spawns, config.num_players);
 			break;
 		case MAP_JEBEL_BARKAL:
+			jebel_barkal.difficulty = config.trigger_difficulty;
 			synth_jebel_barkal_0ad(hm, rng, water_h, spawns, config.num_players, config.teams, jebel_barkal);
 			break;
 		case MAP_MAINLAND:
@@ -9699,6 +9730,14 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
 	if (config.map_type == MAP_JEBEL_BARKAL) place_jebel_barkal_entities(sim, hm, water_h, spawns, rng, jebel_barkal);
+
+	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
+	// under them go (template_gaia_flora's DeleteUponConstruction).
+	const int map_tiles = (int)std::lround(2.0f * hm.map_half);
+	const uint8_t walls = starting_walls_of(config.map_type, map_tiles);
+	if (walls != Simulation::STARTING_WALLS_NONE)
+		for (const auto &sp : spawns)
+			sim.place_starting_walls(sp.team, sp.x, sp.z, map_tiles, walls, -0.7853982f, rng.next_u32());
 
 	return true;
 }
