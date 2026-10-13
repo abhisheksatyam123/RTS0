@@ -2466,6 +2466,98 @@ static void test_personality_draw() {
 	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
 }
 
+// headquarters.js trainEmergencyUnits: citizen infantry from the civic centre nearest the
+// threat, garrisoned inside (the centre rallies to itself while they train), and the
+// centre's unstarted items stopped; the rally goes once they are out.
+static void test_emergency_units() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 2000.0f;
+	const uint32_t cc_id = cc->id;
+	// No more than 5 s of training under way there: the started items go, the others stay.
+	for (size_t q = cc->queue.size(); q-- > 0;)
+		if (cc->queue[q].started || cc->queue[q].timer > 0.0f) s->cmd_cancel_train(1, cc_id, q);
+	const size_t before = cc->garrisoned_units.size();
+	const float far_x = cc->x + 60.0f; // 240 m: beyond distcut
+	CHECK(!s->petra_train_emergency_units({{far_x, cc->z}}), "no emergency units for a threat beyond 141 m");
+	const bool queued = s->petra_train_emergency_units({{cc->x + 10.0f, cc->z}});
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	bool infantry = false, unstarted_other = false;
+	for (const auto &o : cc->queue) {
+		const uint64_t cls = unit_tech_classes(o.unit_type);
+		if ((cls & TC_INFANTRY) && (cls & TC_CITIZENSOLDIER)) infantry = true;
+		else if (!o.started && o.timer <= 0.0f) unstarted_other = true;
+	}
+	std::printf("  emergency: queued %s, queue %zu items, rally to itself %s\n", queued ? "yes" : "no", cc->queue.size(),
+	            s->petra_emergency_rally(*cc) ? "yes" : "no");
+	CHECK(queued && infantry, "a citizen infantry unit is queued at the civic centre");
+	CHECK(s->petra_emergency_rally(*cc), "the civic centre rallies to itself (garrisonType protection)");
+	CHECK(!unstarted_other, "its other unstarted items are stopped");
+	// Trained straight into the garrison (garrisonManager lets it out again with no enemy near).
+	size_t most = before;
+	for (float t = 0.0f; t < 120.0f && !s->buildings_[s->building_id_to_idx_.at(cc_id)].queue.empty(); t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		most = std::max(most, s->buildings_[s->building_id_to_idx_.at(cc_id)].garrisoned_units.size());
+	}
+	most = std::max(most, s->buildings_[s->building_id_to_idx_.at(cc_id)].garrisoned_units.size());
+	run_for(*s, 2.0f);
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	std::printf("  emergency: garrison %zu -> %zu, rally %s\n", before, most, s->petra_emergency_rally(*cc) ? "kept" : "gone");
+	CHECK(most > before, "the emergency unit is trained into the civic centre's garrison");
+	CHECK(!s->petra_emergency_rally(*cc), "the rally goes once the queue is empty");
+}
+
+// baseManager.js neededDefenders: a civic centre Petra gains from Medium on trains
+// 3 + 2 (difficulty - 3) emergency units into its garrison, one after another.
+static void test_new_cc_defenders() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(1, PETRA_HARD);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	for (const auto &b : s->petra_bases()) CHECK(b.needed_defenders == 0, "the first civic centre trains no defenders");
+	const uint32_t tc = s->spawn_building_world(cc->x * 0.1f, cc->z * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
+	CHECK(tc != 0, "a second civic centre is placed");
+	if (!tc) return;
+	auto needed = [&]() -> int {
+		for (const auto &b : s->petra_bases()) if (b.anchor_building_id == tc) return b.needed_defenders;
+		return -1;
+	};
+	// Nothing to pay with until the base is seen, so none is queued yet.
+	for (float t = 0.0f; t < 5.0f && needed() < 0; t += Simulation::FIXED_STEP) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f;
+		s->tick(Simulation::FIXED_STEP);
+	}
+	const int start = needed();
+	size_t most = 0;
+	for (float t = 0.0f; t < 150.0f && needed() != 0; t += Simulation::FIXED_STEP) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = std::max(s->players_[1].res[r], 1000.0f);
+		s->tick(Simulation::FIXED_STEP);
+		auto it = s->building_id_to_idx_.find(tc);
+		if (it != s->building_id_to_idx_.end()) most = std::max(most, s->buildings_[it->second].garrisoned_units.size());
+	}
+	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(cc->x, cc->z), start, needed(), most);
+	CHECK(start == 5, "a new civic centre at Hard wants 5 defenders (3 + 2 (4 - 3))");
+	CHECK(needed() == 0, "it trains them all");
+	CHECK(most >= 1, "they garrison it");
+}
+
 static void test_food_fields() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2558,6 +2650,8 @@ int main() {
 	test_build_defenses();
 	test_dropsites();
 	test_food_fields();
+	test_emergency_units();
+	test_new_cc_defenders();
 	test_personality_draw();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;

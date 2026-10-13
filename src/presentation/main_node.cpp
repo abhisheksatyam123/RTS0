@@ -2149,7 +2149,10 @@ void RtsoMain::update_cursor() {
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					// A penned animal is garrisoned in its corral: nothing to do with it.
 					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
+					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
+					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
+					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
+					want = herd ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want && scenery_at(at.x, at.z) != 0) want = "action-attack";
@@ -5353,7 +5356,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_fauna_id != 0) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
-				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
+				// 0 A.D.: a right-click on livestock slaughters it, whoever owns it. RTS0 can't select
+				// animals, so Alt+right-click on your own livestock herds it to your corral instead.
+				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED &&
+				               fview.owner[best_f] == local_player() && Input::get_singleton()->is_key_pressed(KEY_ALT) ? 1 : 0;
 				if (turn_cmds())
 					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
 				else if (herd)
@@ -6040,6 +6046,16 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
+	// TriggerPoint.js markers the scripts spawn at or aim for (owner 0 is Gaia).
+	Array tp_arr = d.get("trigger_points", Array());
+	for (int i = 0; i < tp_arr.size(); ++i) {
+		Dictionary tp = tp_arr[i];
+		const String ref = tp.get("ref", "A");
+		const int owner = (int)tp.get("owner", 0);
+		if (ref.is_empty()) continue;
+		sim->add_trigger_point((uint8_t)ref.unicode_at(0), (float)tp.get("x", 0.0), (float)tp.get("z", 0.0),
+				owner <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(owner - 1, rtso::MAX_PLAYERS - 1));
+	}
 	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
 	Array trig_arr = d.get("trigger_scripts", Array());
 	for (int i = 0; i < trig_arr.size(); ++i) {
