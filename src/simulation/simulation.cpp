@@ -13446,6 +13446,7 @@ void Simulation::update_petra_bases(float dt) {
 				base.z = buildings_[it->second].z;
 			} else {
 				base.anchor_building_id = 0;
+				base.needed_defenders = 0; // anchorLost
 			}
 		}
 		if (base.is_primary) {
@@ -13481,6 +13482,9 @@ void Simulation::update_petra_bases(float dt) {
 			new_base.is_primary = false;
 			new_base.radius = 32.0f;
 			new_base.danger_level = get_threat_at(tc.x, tc.z);
+			// A civic centre we lay out or capture trains 3 + 2 (difficulty - 3) defenders from Medium.
+			const uint8_t diff = petra_difficulty();
+			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
 			petra_bases_.push_back(new_base);
 		}
 	}
@@ -13543,6 +13547,15 @@ void Simulation::update_petra_bases(float dt) {
 			}
 		}
 		base.resources_depleted = (safe_nodes <= 2 || total_amount < 1200);
+	}
+
+	// baseManager.js update: once its civic centre stands, a base trains its defenders one at a
+	// time through trainEmergencyUnits.
+	for (auto &base : petra_bases_) {
+		if (!base.needed_defenders || !base.anchor_building_id) continue;
+		auto it = building_id_to_idx_.find(base.anchor_building_id);
+		if (it == building_id_to_idx_.end() || buildings_[it->second].build_progress < 1.0f) continue;
+		if (petra_train_emergency_units({{base.x, base.z}})) --base.needed_defenders;
 	}
 
 	// Idle villagers are not walked to secondary bases here: the economy
@@ -22049,6 +22062,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.id = v.id; d.anchor_building_id = v.anchor_building_id; d.x = v.x; d.z = v.z;
 			d.is_primary = v.is_primary; d.assigned_workers = v.assigned_workers; d.radius = v.radius;
 			d.danger_level = v.danger_level; d.resources_depleted = v.resources_depleted;
+			d.needed_defenders = v.needed_defenders;
 		});
 	};
 

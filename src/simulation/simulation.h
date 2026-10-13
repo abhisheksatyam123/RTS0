@@ -1385,6 +1385,9 @@ public:
 		float radius = 32.0f;
 		float danger_level = 0.0f;
 		bool resources_depleted = false;
+		// baseManager.js neededDefenders: emergency units still to train for a civic centre we
+		// built or captured (in what was padding, so saves keep their layout).
+		uint8_t needed_defenders = 0;
 	};
 
 	enum PetraPriorityQueue : uint8_t {
