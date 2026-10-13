@@ -500,6 +500,7 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_VISION, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
 		{TSTAT_RANGE, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
 		{TSTAT_HEALTH, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack
+		{TSTAT_MELEE_FIRE, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack (hand-added: Attack/Melee/Damage/Fire)
 		{TSTAT_VISION, TOP_MUL, 71, 1, 1.1f}, // ship_vision
 		{TSTAT_VISION, TOP_MUL, 79, 1, 1.25f}, // ship_vision
 	};
@@ -589,7 +590,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0xbbff, 125, 0, "unlock_civilians_house_generic"},
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 125, 0, "unlock_civilians_house_kush"},
 		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0xbfff, 125, 2, "warship_arrow_attack"},
-		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 194, 1, "warship_fireship_attack"},
+		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 194, 2, "warship_fireship_attack"},
 		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 127, 2, "warship_health"},
 		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 129, 1, "warship_ramming_attack"},
 		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 130, 2, "warship_ranged_attack"},
@@ -633,7 +634,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Bolt Accuracy", "Bolt Shooters −20% ranged attack spread.", 0, 250, 250, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x083b, 180, 1, "siege_bolt_accuracy"},
 		{"Exploration", "Traders and Ships +20% vision range.", 100, 0, 100, 0, 40.0f, 1, BLD_DOCK, TECH_SHIP_VISION, 0x2010, 181, 1, "exploration"},
 		{"Carrier Pigeons", "Outposts +33% vision range.", 300, 0, 0, 0, 40.0f, 1, BLD_OUTPOST, TECH_NONE, 0xbfff, 182, 1, "outpost_vision"},
-		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 195, 2, "ship_vision"},
+		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 196, 2, "ship_vision"},
 		{"Crenellations", "Sentry and Stone Towers +40% more arrows per garrisoned Soldier.", 0, 0, 250, 500, 40.0f, 2, BLD_TOWER, TECH_NONE, 0xbfff, 184, 1, "tower_crenellations"},
 		{"Murder Holes", "Fortresses, Sentry Towers, and Stone Towers have 0 minimum attack range.", 0, 250, 0, 150, 40.0f, 3, BLD_TOWER, TECH_NONE, 0xbfff, 185, 1, "tower_murderholes"},
 		{"Cartography", "See what your allies see, browse their summary and check their resources and population count in the top panel.", 100, 0, 100, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 186, 0, "unlock_shared_los"},

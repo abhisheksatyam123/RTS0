@@ -476,12 +476,13 @@ def primary_attack(t):
 def raw_stats(t):
     """0 A.D. numbers in RTS0_FIELDS order (where they exist)."""
     atk, ranged = primary_attack(t)
-    hack = pierce = crush = 0.0
+    hack = pierce = crush = fire = 0.0
     rng = rep = 0.0
     if atk is not None:
         hack = atk.num("Damage/Hack")
         pierce = atk.num("Damage/Pierce")
         crush = atk.num("Damage/Crush")
+        fire = atk.num("Damage/Fire")  # fire ships (civ_attack_data.h keeps it apart)
         rng = atk.num("MaxRange")
         rep = atk.num("RepeatTime") / 1000.0
     carry = 0.0
@@ -493,7 +494,7 @@ def raw_stats(t):
         "speed": t.num("UnitMotion/WalkSpeed"),
         "vision": t.num("Vision/Range"),
         "range": rng,
-        "damage": hack + pierce + crush,
+        "damage": hack + pierce + crush + fire,
         "cooldown": rep,
         "carry": carry,
         "hack_armor": t.num("Resistance/Entity/Damage/Hack"),
@@ -508,6 +509,7 @@ def raw_stats(t):
         "hack_dmg": hack,
         "pierce_dmg": pierce,
         "crush_dmg": crush,
+        "fire_dmg": fire,
         "ranged": ranged,
     }
 
@@ -804,7 +806,7 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
             hit = True
         if hit:
             applied.append(b["id"])
-    raw["damage"] = raw["hack_dmg"] + raw["pierce_dmg"] + raw["crush_dmg"]
+    raw["damage"] = raw["hack_dmg"] + raw["pierce_dmg"] + raw["crush_dmg"] + raw["fire_dmg"]
     return applied
 
 
@@ -1200,7 +1202,7 @@ def collect(sim_root):
             raw = raw_stats(t)
             if name.endswith("_packed") and loader.exists(name[:-len("_packed")] + "_unpacked"):
                 unpacked = raw_stats(loader.load(name[:-len("_packed")] + "_unpacked"))
-                for k in ("range", "damage", "cooldown", "hack_dmg", "pierce_dmg", "crush_dmg", "ranged"):
+                for k in ("range", "damage", "cooldown", "hack_dmg", "pierce_dmg", "crush_dmg", "fire_dmg", "ranged"):
                     raw[k] = unpacked[k]
             c = classes_of(t)
             civ_bonus_ids = apply_unit_bonuses(raw, c, civ, bonuses)

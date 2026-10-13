@@ -1854,7 +1854,7 @@ private:
 		// The unit's damage total after technologies over its template's (attack_damage's scale);
 		// each damage type is its own value, x atk_mul + atk_add (Attack/<type>/Damage/<kind>).
 		float attack[UNIT_TYPE_COUNT];
-		float atk_mul[UNIT_TYPE_COUNT][3], atk_add[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
+		float atk_mul[UNIT_TYPE_COUNT][4], atk_add[UNIT_TYPE_COUNT][4]; // hack, pierce, crush, fire
 		float health[UNIT_TYPE_COUNT];
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
@@ -1904,7 +1904,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
-			float atk_mul[3], atk_add[3];
+			float atk_mul[4], atk_add[4]; // hack, pierce, crush, fire
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
@@ -1995,8 +1995,8 @@ private:
 	void attack_done(size_t i, bool in_range, float repeat);
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
-	void unit_attack_effects(size_t i, float out[3]) const;
-	void unit_tech_damage(size_t i, float out[3]) const;
+	void unit_attack_effects(size_t i, float out[4]) const; // hack, pierce, crush, fire
+	void unit_tech_damage(size_t i, float out[4]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
