@@ -16724,13 +16724,34 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	const int foot = info.footprint;
 	const float half = 0.5f * (float)foot * GRID; // halfDepth and halfWidth: a square footprint
 
+	const bool allied_victory = !last_man_standing();
+	auto ours = [&](float x, float z) {
+		const int owner = territory_owner_at(x, z);
+		return owner == (int)petra_pid_ || (allied_victory && owner >= 0 && owner < MAX_PLAYERS && is_ally(petra_pid_, (uint8_t)owner));
+	};
+	// Only tiles within 96 m of our territory can score: the box around it.
+	int bx0 = w, bz0 = w, bx1 = -1, bz1 = -1;
+	for (int iz = 0; iz < w; ++iz)
+		for (int ix = 0; ix < w; ++ix)
+			if (ours(((float)ix + 0.5f) * kCcTile - map_half_, ((float)iz + 0.5f) * kCcTile - map_half_)) {
+				bx0 = std::min(bx0, ix); bx1 = std::max(bx1, ix);
+				bz0 = std::min(bz0, iz); bz1 = std::max(bz1, iz);
+			}
+	if (bx1 < 0) return false;
+	const int reach = (int)std::ceil(96.0f / 4.0f / kCcTile);
+	bx0 = std::max(0, bx0 - reach); bz0 = std::max(0, bz0 - reach);
+	bx1 = std::min(w - 1, bx1 + reach); bz1 = std::min(w - 1, bz1 + reach);
 	// shared.js resourceMaps for wood, stone and metal: supply / 50 (wood) or / 90 over 36 m or
-	// 48 m, half of it constant and half linear, 8-bit cells.
+	// 48 m, half of it constant and half linear, 8-bit cells; only near that box (80 m + 48 m).
+	const float rmargin = (80.0f + 48.0f) / 4.0f + kCcTile;
+	const float rx0 = (float)bx0 * kCcTile - map_half_ - rmargin, rx1 = (float)(bx1 + 1) * kCcTile - map_half_ + rmargin;
+	const float rz0 = (float)bz0 * kCcTile - map_half_ - rmargin, rz1 = (float)(bz1 + 1) * kCcTile - map_half_ + rmargin;
 	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
 	std::vector<uint8_t> maps[3];
 	for (auto &m : maps) m.assign((size_t)w * w, 0);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		if (resources_.x[r] < rx0 || resources_.x[r] > rx1 || resources_.z[r] < rz0 || resources_.z[r] > rz1) continue;
 		int k = -1;
 		for (int j = 0; j < 3; ++j)
 			if (resources_.type[r] == kRes[j]) k = j;
@@ -16782,21 +16803,54 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	};
 	static constexpr float kAround[12][2] = {{1.0f, 0.0f}, {0.87f, 0.5f}, {0.5f, 0.87f}, {0.0f, 1.0f}, {-0.5f, 0.87f}, {-0.87f, 0.5f},
 	                                          {-1.0f, 0.0f}, {-0.87f, -0.5f}, {-0.5f, -0.87f}, {0.0f, -1.0f}, {0.5f, -0.87f}, {0.87f, -0.5f}};
-	const bool allied_victory = !last_man_standing();
-	auto ours = [&](float x, float z) {
-		const int owner = territory_owner_at(x, z);
-		return owner == (int)petra_pid_ || (allied_victory && owner >= 0 && owner < MAX_PLAYERS && is_ally(petra_pid_, (uint8_t)owner));
-	};
 	uint16_t home_land = 0;
 	const PetraNavalTopo &topo = petra_classified_topo(home_land);
 	const float border = 80.0f / 4.0f;
 	const float step = 24.0f / 4.0f;
+	// Tiles with that sea within reach of the dock's depth (a box blur of the sea mask): only
+	// those can be shore tiles, so the others skip isDockLocation's twelve probes.
+	const int sr = (int)std::ceil((half + 2.0f * kCcTile) / kCcTile) + 1;
+	const int mw = bx1 - bx0 + 1, mh = bz1 - bz0 + 1;
+	std::vector<uint8_t> near_sea((size_t)mw * mh, 0);
+	{
+		std::vector<int> rows((size_t)mw * mh, 0);
+		for (int iz = 0; iz < mh; ++iz) {
+			std::vector<int> pre((size_t)(mw + 2 * sr + 1), 0);
+			for (int k = 0; k < mw + 2 * sr; ++k) {
+				const int ix = bx0 - sr + k;
+				const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)(bz0 + iz) + 0.5f) * kCcTile - map_half_;
+				pre[(size_t)k + 1] = pre[(size_t)k] + (ix >= 0 && ix < w && sea_cell(x, z) == sea ? 1 : 0);
+			}
+			for (int ix = 0; ix < mw; ++ix) rows[(size_t)iz * mw + ix] = pre[(size_t)ix + 2 * sr + 1] - pre[(size_t)ix];
+		}
+		// Rows beyond the box edge: count them too, so the blur reaches across it.
+		auto row_count = [&](int iz, int ix) -> int {
+			if (iz >= 0 && iz < mh) return rows[(size_t)iz * mw + ix];
+			const int gz = bz0 + iz;
+			if (gz < 0 || gz >= w) return 0;
+			int n = 0;
+			for (int k = -sr; k <= sr; ++k) {
+				const int gx = bx0 + ix + k;
+				if (gx < 0 || gx >= w) continue;
+				n += sea_cell(((float)gx + 0.5f) * kCcTile - map_half_, ((float)gz + 0.5f) * kCcTile - map_half_) == sea;
+			}
+			return n;
+		};
+		for (int ix = 0; ix < mw; ++ix)
+			for (int iz = 0; iz < mh; ++iz) {
+				int n = 0;
+				for (int k = -sr; k <= sr && !n; ++k) n += row_count(iz + k, ix);
+				near_sea[(size_t)iz * mw + ix] = n > 0;
+			}
+	}
+	struct Cand { float val; int ix, iz, water; };
+	std::vector<Cand> cands;
 	bool found = false;
-	float best = 0.0f;
 	int best_water = 0;
-	for (int iz = 0; iz < w; ++iz) {
-		for (int ix = 0; ix < w; ++ix) {
+	for (int iz = bz0; iz <= bz1; ++iz) {
+		for (int ix = bx0; ix <= bx1; ++ix) {
 			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
+			if (!near_sea[(size_t)(iz - bz0) * mw + (ix - bx0)]) continue;
 			// isDockLocation: land or water here, our land within its depth on one side and
 			// the sea on the other.
 			const uint16_t here = land_cell(x, z);
@@ -16827,8 +16881,43 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 			float score = 40.0f * (float)prox;
 			score += 20.0f * (10.0f - std::min(10.0f, resources_around(ix, iz)));
 			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) score += 20.0f;
-			if (found && score > best + 5.0f * 16.0f) continue; // even with the most water
-			// getNonObstructedTile: the dock on this tile or one beside it.
+			// checkDockPlacement water: open water of that sea ahead, in 15 m steps along three
+			// lines from the shore, 4 a step, up to 16.
+			Building probe;
+			probe.half_size = half;
+			probe.x = x;
+			probe.z = z;
+			float sx = 0.0f, sz = 0.0f;
+			uint16_t near_sea = 0;
+			if (!nearest_ship_cell(probe, sx, sz, &near_sea) || near_sea != sea) continue;
+			float ux = sx - x, uz = sz - z;
+			const float len = std::sqrt(ux * ux + uz * uz);
+			if (len > 1e-3f) { ux /= len; uz /= len; }
+			else { ux = 0.0f; uz = 0.0f; }
+			const float side = 0.75f * half, sp = 15.0f / 4.0f;
+			int water = 0;
+			for (int i = 1; i < 5 && len > 1e-3f; ++i) {
+				bool open = true;
+				for (int k = -1; k <= 1 && open; ++k) {
+					const float px = sx + (float)i * sp * ux - (float)k * (float)i * side * uz;
+					const float pz = sz + (float)i * sp * uz + (float)k * (float)i * side * ux;
+					open = sea_cell(px, pz) == sea;
+				}
+				if (!open) break;
+				water += 4;
+			}
+			cands.push_back({score + 16.0f - (float)water, ix, iz, water});
+		}
+	}
+	// The best first: the first that fits wins (later tiles on ties, as the scan replaced them).
+	std::sort(cands.begin(), cands.end(), [w](const Cand &a, const Cand &b) {
+		return a.val != b.val ? a.val < b.val : a.iz * w + a.ix > b.iz * w + b.ix;
+	});
+	for (const Cand &c : cands) {
+		{
+			const float x = ((float)c.ix + 0.5f) * kCcTile - map_half_, z = ((float)c.iz + 0.5f) * kCcTile - map_half_;
+			// getNonObstructedTile: the dock on this tile or one beside it, out of danger
+			// (isDangerousLocation).
 			const int cx0 = (int)std::floor(x / GRID - 0.5f * (float)foot), cz0 = (int)std::floor(z / GRID - 0.5f * (float)foot);
 			int cx = 0, cz = 0;
 			bool fits = false;
@@ -16836,51 +16925,23 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 				for (int dz = -r; dz <= r && !fits; ++dz)
 					for (int dx = -r; dx <= r && !fits; ++dx) {
 						if (std::abs(dx) != r && std::abs(dz) != r) continue;
-						if (!petra_can_place(cx0 + dx, cz0 + dz, foot, BLD_DOCK)) continue;
-						Building probe;
-						probe.half_size = half;
-						probe.x = ((float)(cx0 + dx) + 0.5f * (float)foot) * GRID;
-						probe.z = ((float)(cz0 + dz) + 0.5f * (float)foot) * GRID;
-						if (dock_sea(probe) != sea || petra_building_land(probe, &topo, land) != land) continue;
+						const float px = ((float)(cx0 + dx) + 0.5f * (float)foot) * GRID, pz = ((float)(cz0 + dz) + 0.5f * (float)foot) * GRID;
+						if (!petra_cc_tile_ok(BLD_DOCK, px, pz)) continue;
+						Building p2;
+						p2.half_size = half;
+						p2.x = px;
+						p2.z = pz;
+						if (dock_sea(p2) != sea || petra_building_land(p2, &topo, land) != land) continue;
 						fits = true;
 						cx = cx0 + dx;
 						cz = cz0 + dz;
 					}
 			if (!fits) continue;
-			// checkDockPlacement water: open water of that sea ahead, in 15 m steps along three
-			// lines from the shore, 4 a step, up to 16.
-			const float bx = ((float)cx + 0.5f * (float)foot) * GRID, bz = ((float)cz + 0.5f * (float)foot) * GRID;
-			Building probe;
-			probe.half_size = half;
-			probe.x = bx;
-			probe.z = bz;
-			float sx = 0.0f, sz = 0.0f;
-			if (!nearest_ship_cell(probe, sx, sz)) continue;
-			float ux = sx - bx, uz = sz - bz;
-			const float len = std::sqrt(ux * ux + uz * uz);
-			if (len < 1e-3f) continue;
-			ux /= len;
-			uz /= len;
-			const float side = 0.75f * half, sp = 15.0f / 4.0f;
-			int water = 0;
-			for (int i = 1; i < 5; ++i) {
-				bool open = true;
-				for (int s = -1; s <= 1 && open; ++s) {
-					const float px = sx + (float)i * sp * ux - (float)s * (float)i * side * uz;
-					const float pz = sz + (float)i * sp * uz + (float)s * (float)i * side * ux;
-					open = sea_cell(px, pz) == sea;
-				}
-				if (!open) break;
-				water += 4;
-			}
-			const float val = score + 16.0f - (float)water;
-			if (found && val > best) continue;
-			if (!petra_cc_tile_ok(BLD_DOCK, bx, bz)) continue; // out of danger (isDangerousLocation)
 			found = true;
-			best = val;
-			best_water = water;
+			best_water = c.water;
 			out_cx = cx;
 			out_cz = cz;
+			break;
 		}
 	}
 	// Still in the village phase with little water around: wait for the territory to grow.
@@ -16896,6 +16957,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 void Simulation::petra_manage_naval(float dt) {
 	petra_naval_timer_ += dt;
 	if (petra_naval_timer_ < 2.0f) return;
+	const float naval_span = petra_naval_timer_;
 	petra_naval_timer_ = 0.0f;
 	if (nav_grid_.cells.blank()) return;
 
@@ -16957,8 +17019,11 @@ void Simulation::petra_manage_naval(float dt) {
 					    petra_building_land(b, &topo, land) == land && dock_sea(b) == sea) { connected = true; break; }
 				if (connected) continue;
 				started = true; // the first unconnected sea of the first base without a dock there
-				// A whole-map search: every fifth naval turn (10 s) while no spot is found.
-				if ((ticks_ / 40) % 5 != 0) break;
+				// A search over our territory's shores: once each 10 s of AI time while no spot is
+				// found, each naval turn while a dock found waits for its resources.
+				const PetraQueueAccount &want = petra_queues_.wants[PETRA_QUEUE_NAVAL];
+				const bool waiting = want.food + want.wood + want.gold + want.stone > 0.0f;
+				if (!waiting && (int)(petra_timer_ / 10.0f) == (int)((petra_timer_ - naval_span) / 10.0f)) break;
 				int cx = 0, cz = 0;
 				if (!petra_find_dock_position(land, sea, cx, cz)) break;
 				if (!petra_try_pay(PETRA_QUEUE_NAVAL, (float)info.food_cost, (float)info.wood_cost,

@@ -537,7 +537,7 @@ static void test_petra_navy() {
 	run(s, 6.0f);
 	CHECK(petra_docks(false) == 0);
 	for (int k = 0; k < 8; ++k) s.spawn_unit(-40.0f + (float)k * 2.0f, 56.0f, 1, UNIT_VILLAGER);
-	run(s, 6.0f);
+	run(s, 12.0f); // the dock search runs every fifth naval turn (10 s)
 	uint32_t dock = 0;
 	for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_DOCK) dock = b.id;
 	std::printf("Petra navy: dock %s at population %d\n", dock ? "placed" : "not placed", s.pop_current(1));
