@@ -50,6 +50,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Siege Wall Gate", "gate", "gate", 1875.0f, 1, 0, 50, 0, 0, 0, 0, 6.25f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_gate */ \
 		{"Island Settlement", "crannog", "crannog", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* structures/brit/crannog */ \
 		{"Great Hall", "great_hall", "great_hall", 2000.0f, 2, 0, 0, 200, 200, 0, 10, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/germ/great_hall */ \
+		{"Wagon Encampment", "army_camp", "army_camp", 1750.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 2500.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment */ \
+		{"Fortified Wagon Encampment", "army_camp", "army_camp", 2625.0f, 2, 0, 350, 0, 150, 20, 20, 55.0f, 3000.0f, 30.0f, 1.0f, 0.0f}, /* structures/germ/encampment_fortified */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -95,6 +97,8 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 10, 0, 0}, /* structures/rome/siege_wall_gate */ \
 		{0, 0, 60, 60, 50}, /* structures/brit/crannog */ \
 		{0, 0, 0, 40, 40}, /* structures/germ/great_hall */ \
+		{0, 0, 40, 40, 30}, /* structures/germ/encampment */ \
+		{0, 0, 40, 40, 30}, /* structures/germ/encampment_fortified */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -149,6 +153,8 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_SIEGE_WALL_GATE: return 0x0008; // rome
 		case BLD_CRANNOG: return 0x0040; // brit
 		case BLD_GREAT_HALL: return 0x8000; // germ
+		case BLD_WAGON_ENCAMPMENT: return 0x8000; // germ
+		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 0x8000; // germ
 		default: return 0xFFFF;
 	}
 }
@@ -197,6 +203,8 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_SIEGE_WALL_GATE: return 3;
 		case BLD_CRANNOG: return 2;
 		case BLD_GREAT_HALL: return 2;
+		case BLD_WAGON_ENCAMPMENT: return 2;
+		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 2;
 		default: return 0;
 	}
 }
@@ -230,6 +238,8 @@ inline float civ_building_vision(uint8_t type) {
 		case BLD_IMPERIAL_COURT: return 27.0f;
 		case BLD_TOWER_GREAT: return 27.0f;
 		case BLD_CRANNOG: return 27.0f;
+		case BLD_WAGON_ENCAMPMENT: return 27.0f;
+		case BLD_WAGON_ENCAMPMENT_FORTIFIED: return 27.0f;
 		default: return 0.0f;
 	}
 }
@@ -237,7 +247,7 @@ inline float civ_building_vision(uint8_t type) {
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {
-	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE;
+	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE || type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
 }
 
 // 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):
@@ -252,7 +262,7 @@ struct CivBuildingUpgrade {
 	uint8_t phase;
 	const char *tooltip;
 };
-inline constexpr int CIV_BUILDING_UPGRADE_COUNT = 20;
+inline constexpr int CIV_BUILDING_UPGRADE_COUNT = 21;
 inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 	static const CivBuildingUpgrade kUpgrades[CIV_BUILDING_UPGRADE_COUNT + 1] = {
 		{BLD_TOWN_CENTER, 0x2000, BLD_IMPERIAL_COURT, 0, 300, 0, 300, 40.0f, 3, "Enable training of heroes, reduce the batch training times and greatly increase the health, capture resistance and garrison capacity of this specific Civic Center."},
@@ -275,6 +285,7 @@ inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 		{BLD_TACHARA_METAL, 0x0004, BLD_TACHARA_WOOD, 0, 0, 0, 0, 10.0f, 1, "Receive free Wood tribute to your treasury from your subject peoples."},
 		{BLD_TACHARA_METAL, 0x0004, BLD_TACHARA_STONE, 0, 0, 0, 0, 10.0f, 1, "Receive free Stone tribute to your treasury from your subject peoples."},
 		{BLD_SIEGE_WALL, 0x0008, BLD_SIEGE_WALL_GATE, 0, 20, 0, 0, 12.0f, 1, "Allow units access through Walls. Can be locked to prevent access."},
+		{BLD_WAGON_ENCAMPMENT, 0x8000, BLD_WAGON_ENCAMPMENT_FORTIFIED, 0, 200, 200, 0, 30.0f, 3, "Reinforce the Wagon Encampment with a spiked log palisade. This increases the Encampment's health by +50% and adds +5 hack resistance and allows the Encampment to train log rams."},
 		{BLD_TYPE_COUNT, 0, BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr},
 	};
 	return kUpgrades;
@@ -282,7 +293,7 @@ inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 
 // True for a civ-specific structure that takes every resource (ResourceDropsite).
 inline bool civ_building_is_dropsite(uint8_t type) {
-	return type == BLD_MILITARY_COLONY || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG;
+	return type == BLD_MILITARY_COLONY || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG || type == BLD_WAGON_ENCAMPMENT || type == BLD_WAGON_ENCAMPMENT_FORTIFIED;
 }
 
 #endif // RTSO_CIV_BUILDING_DATA_H
