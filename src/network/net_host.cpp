@@ -104,6 +104,9 @@ bool NetHost::startHost(const NetConfig &c) {
 	pending_acks_.clear();
 	last_heartbeat_ms_ = get_now_ms();
 	game_start_sent_ = false;
+	game_setups_.clear();
+	setup_requests_.clear();
+	setup_refusals_.clear();
 
 	lobby_rooms_.clear();
 	LobbyRoom room;
@@ -163,6 +166,9 @@ bool NetHost::startClient(const std::string &h, uint16_t p) {
 	pending_acks_.clear();
 	last_heartbeat_ms_ = get_now_ms();
 	game_start_sent_ = false;
+	game_setups_.clear();
+	setup_requests_.clear();
+	setup_refusals_.clear();
 
 	NetPeer host_peer;
 	host_peer.id = 0;
@@ -473,13 +479,46 @@ void NetHost::sendAuthenticate(const std::string &name, const std::string &passw
 	broadcastCommand(msg.data(), msg.size());
 }
 
-void NetHost::sendReady(bool ready) {
+void NetHost::sendReady(uint8_t status, uint32_t setup_version) {
 	ReadyMsg rm;
 	rm.guid = "peer-" + std::to_string(local_peer_id_);
-	rm.status = ready ? 1 : 0;
+	rm.status = status <= 2 ? status : 1;
+	rm.setup_version = setup_version;
 	std::vector<uint8_t> payload = NetPacketSerializer::frame_ready(rm);
 	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_READY, 0, payload);
 	broadcastCommand(msg.data(), msg.size());
+}
+
+void NetHost::sendGameSetup(const std::string &attrs, uint32_t peer_id) {
+	if (!isHost()) return;
+	GameStartMsg m;
+	m.init_attributes = attrs;
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_GAME_SETUP, 0,
+			NetPacketSerializer::frame_game_start(m));
+	if (peer_id == 0xFFFFFFFF) broadcastCommand(msg.data(), msg.size());
+	else sendCommand(peer_id, msg.data(), msg.size());
+}
+
+void NetHost::clearAllReady() {
+	for (auto &p : peers_)
+		if (p.ready_status != 2) p.ready_status = 0;
+}
+
+void NetHost::sendSetupRequest(const std::string &request) {
+	if (!isClient()) return;
+	GameStartMsg m;
+	m.init_attributes = request;
+	std::vector<uint8_t> msg = NetPacketSerializer::pack_message(NetMessageType::NMT_SETUP_REQUEST, 0,
+			NetPacketSerializer::frame_game_start(m));
+	broadcastCommand(msg.data(), msg.size());
+}
+
+void NetHost::sendSetupRefusal(uint32_t peer_id, const std::string &reason) {
+	if (!isHost()) return;
+	GameStartMsg m;
+	m.init_attributes = "refused=" + reason;
+	sendCommand(peer_id, NetPacketSerializer::pack_message(NetMessageType::NMT_SETUP_REQUEST, 0,
+			NetPacketSerializer::frame_game_start(m)));
 }
 
 void NetHost::sendGameStart(const std::string &attributes) {
@@ -770,19 +809,39 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 			}
 		}
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_READY)) {
+		// 0 A.D. NetServer OnReady: the host stamps the sender, keeps its status
+		// and tells the others; a ready that comes once loading began is
+		// dropped. Clients read everyone's status from NMT_GAME_SETUP.
 		ReadyMsg rdy;
-		if (NetPacketSerializer::parse_ready(msg.payload.data(), msg.payload.size(), rdy)) {
-			NetPeer *p = getPeer(peerId);
-			if (p) {
-				p->is_ready = (rdy.status != 0);
-			}
-			if (isHost()) {
-				// Relay ready state
-				std::vector<uint8_t> payload = NetPacketSerializer::frame_ready(rdy);
-				std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_READY, 0, payload);
-				broadcastCommand(pkt.data(), pkt.size(), peerId);
-			}
+		NetPeer *p = getPeer(author);
+		if (isHost() && p && admitted(*p) && !game_start_sent_ &&
+				NetPacketSerializer::parse_ready(msg.payload.data(), msg.payload.size(), rdy)) {
+			p->ready_status = rdy.status <= 2 ? rdy.status : 1;
+			p->ready_version = rdy.setup_version;
+			rdy.guid = peer_guid(author);
+			std::vector<uint8_t> payload = NetPacketSerializer::frame_ready(rdy);
+			std::vector<uint8_t> pkt = NetPacketSerializer::pack_message(NetMessageType::NMT_READY, 0, payload);
+			broadcastCommand(pkt.data(), pkt.size(), author);
 		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_GAME_SETUP)) {
+		// 0 A.D. NetClient OnGameSetup: only the host's counts.
+		GameStartMsg m;
+		if (isClient() && author == 0 && NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), m)) {
+			if (game_setups_.size() >= 64) game_setups_.erase(game_setups_.begin());
+			game_setups_.push_back(std::move(m.init_attributes));
+		}
+	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_SETUP_REQUEST)) {
+		GameStartMsg m;
+		const NetPeer *p = getPeer(author);
+		if (isHost() && p && admitted(*p) && !game_start_sent_ && setup_requests_.size() < 64 &&
+				NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), m) &&
+				m.init_attributes.size() <= 64)
+			setup_requests_.push_back({author, std::move(m.init_attributes)});
+		// The host's answer to one of ours: why it was turned down.
+		else if (isClient() && author == 0 && setup_refusals_.size() < 64 &&
+				NetPacketSerializer::parse_game_start(msg.payload.data(), msg.payload.size(), m) &&
+				m.init_attributes.rfind("refused=", 0) == 0)
+			setup_refusals_.push_back(m.init_attributes.substr(8));
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_AUTHENTICATE)) {
 		AuthenticateMsg auth;
 		if (NetPacketSerializer::parse_authenticate(msg.payload.data(), msg.payload.size(), auth)) {
@@ -1057,6 +1116,9 @@ void NetHost::stop() {
 	server_port_ = 0;
 	local_peer_id_ = 0;
 	game_start_sent_ = false;
+	game_setups_.clear();
+	setup_requests_.clear();
+	setup_refusals_.clear();
 }
 
 } // namespace rtso

@@ -127,6 +127,37 @@ int main() {
 		CHECK(f_alive(s, deer) && gc > 0.0f && gc < fauna_type_info(FAUNA_DEER).loot_xp);
 	}
 
+	// 2c. UnitAI FINDINGNEWTARGET: a hunter whose carcass is eaten goes on only to the same
+	// template ("type.specific != 'meat' || resourceTemplate == template"), so a deer hunter
+	// passes a nearer boar for the next deer.
+	{
+		fresh(s);
+		uint32_t h = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t deer = s.spawn_fauna(2.0f, 0.0f, FAUNA_DEER);
+		run(s, 0.1f);
+		s.order_hunt(&h, 1, deer);
+		for (int t = 0; t < 400 && f_alive(s, deer); ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(!f_alive(s, deer));
+		CHECK(s.units_.hunt_fauna[uidx(s, h)] == FAUNA_DEER + 1);
+		// The others come after the kill, so they don't flee from it.
+		const float hx = s.units_.pos_x[uidx(s, h)], hz = s.units_.pos_z[uidx(s, h)];
+		uint32_t boar = s.spawn_fauna(hx - 3.0f, hz, FAUNA_BOAR);
+		uint32_t deer2 = s.spawn_fauna(hx + 9.0f, hz, FAUNA_DEER);
+		for (size_t r = 0; r < s.resources_.count; ++r)
+			if (s.resources_.subtype[r] == RES_SUB_MEAT) {
+				CHECK(s.resources_.fauna[r] == FAUNA_DEER + 1);
+				s.resources_.amount[r] = 1; // the carcass runs out
+			}
+		uint32_t next = 0;
+		for (int t = 0; t < 200 && next == 0; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			const uint32_t tu = s.units_.target_unit_id[uidx(s, h)];
+			if (tu == boar || tu == deer2) next = tu;
+		}
+		std::printf("same species: hunter went on to %s\n", next == deer2 ? "the deer" : next == boar ? "the boar" : "nothing");
+		CHECK(next == deer2);
+	}
+
 	// 2b. Citizen cavalry hunt and butcher meat (template_unit_cavalry: food.meat only, carry 20).
 	{
 		fresh(s);
