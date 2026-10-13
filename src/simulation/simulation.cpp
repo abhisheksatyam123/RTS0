@@ -16463,6 +16463,10 @@ void Simulation::petra_manage_fields() {
 		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.amount[r] <= 0) continue;
 		const uint8_t sub = resources_.subtype[r];
 		if (sub == RES_SUB_FISH || sub == RES_SUB_MEAT || field_bld_by_res_.count(resources_.id[r])) continue;
+		// Food in enemy territory, which findSupply never gathers, doesn't put off the first
+		// field: a farmstead pushed toward a close neighbour would otherwise count its berries.
+		const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
+		if (terr >= 0 && terr < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)terr)) continue;
 		for (const auto &d : drops) {
 			const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
 			if (dx * dx + dz * dz < reach * reach) { count += (float)resources_.amount[r]; break; }
@@ -17359,6 +17363,39 @@ bool Simulation::petra_can_fish_safely(float x, float z, uint16_t sea) const {
 	return true;
 }
 
+// shared.js createResourceMaps for wood, stone and metal: on the 8 m territory grid, each supply
+// adds strength amount / 50 (wood) or / 90 within 36 m (wood) or 48 m, half of it constant and
+// half falling off linearly, in 8-bit cells. Only supplies inside [x0, x1] x [z0, z1] are added:
+// callers pass the box their reads need plus the reach.
+void Simulation::petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const {
+	constexpr float kCcTile = 2.0f;
+	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
+	for (auto &m : maps) m.assign((size_t)w * w, 0);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		if (resources_.x[r] < x0 || resources_.x[r] > x1 || resources_.z[r] < z0 || resources_.z[r] > z1) continue;
+		int k = -1;
+		for (int j = 0; j < 3; ++j)
+			if (resources_.type[r] == kRes[j]) k = j;
+		if (k < 0) continue;
+		const bool sparse = k != 0;
+		const float strength = (float)resources_.amount[r] / (sparse ? 90.0f : 50.0f);
+		const float md = (sparse ? 48.0f : 36.0f) / 4.0f / kCcTile, md2 = md * md;
+		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
+		const int ix0 = (int)std::floor(std::max(0.0f, cx - md)), iy0 = (int)std::floor(std::max(0.0f, cy - md));
+		const int ix1 = (int)std::floor(std::min((float)(w - 1), cx + md)), iy1 = (int)std::floor(std::min((float)(w - 1), cy + md));
+		for (int y = iy0; y < iy1; ++y)
+			for (int x = ix0; x < ix1; ++x) {
+				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
+				if (r2 >= md2) continue;
+				uint8_t &cell = maps[k][(size_t)y * w + x];
+				cell = (uint8_t)std::clamp((float)cell + 0.5f * strength, 0.0f, 255.0f);
+				cell = (uint8_t)std::clamp((float)cell + 0.5f * strength / md * (md - std::sqrt(r2)), 0.0f, 255.0f);
+			}
+	}
+}
+
 // queueplanBuilding.js findDockPosition (no proximity, not oversea): over the territory tiles
 // (8 m) within 96 m of ours (getFrontierProximity, 40 per 24 m step), a shore spot on `land`
 // facing `sea` (isDockLocation) where a dock fits, scored by 20 per missing unit of wood (twice),
@@ -17395,33 +17432,8 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	const float rmargin = (80.0f + 48.0f) / 4.0f + kCcTile;
 	const float rx0 = (float)bx0 * kCcTile - map_half_ - rmargin, rx1 = (float)(bx1 + 1) * kCcTile - map_half_ + rmargin;
 	const float rz0 = (float)bz0 * kCcTile - map_half_ - rmargin, rz1 = (float)(bz1 + 1) * kCcTile - map_half_ + rmargin;
-	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
 	std::vector<uint8_t> maps[3];
-	auto build_maps = [&] { // only once a shore tile needs them
-	for (auto &m : maps) m.assign((size_t)w * w, 0);
-	for (size_t r = 0; r < resources_.count; ++r) {
-		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
-		if (resources_.x[r] < rx0 || resources_.x[r] > rx1 || resources_.z[r] < rz0 || resources_.z[r] > rz1) continue;
-		int k = -1;
-		for (int j = 0; j < 3; ++j)
-			if (resources_.type[r] == kRes[j]) k = j;
-		if (k < 0) continue;
-		const bool sparse = k != 0;
-		const float strength = (float)resources_.amount[r] / (sparse ? 90.0f : 50.0f);
-		const float md = (sparse ? 48.0f : 36.0f) / 4.0f / kCcTile, md2 = md * md;
-		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
-		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
-		const int x1 = (int)std::floor(std::min((float)(w - 1), cx + md)), y1 = (int)std::floor(std::min((float)(w - 1), cy + md));
-		for (int y = y0; y < y1; ++y)
-			for (int x = x0; x < x1; ++x) {
-				const float r2 = ((float)x - cx) * ((float)x - cx) + ((float)y - cy) * ((float)y - cy);
-				if (r2 >= md2) continue;
-				uint8_t &cell = maps[k][(size_t)y * w + x];
-				cell = (uint8_t)std::clamp((float)cell + 0.5f * strength, 0.0f, 255.0f);
-				cell = (uint8_t)std::clamp((float)cell + 0.5f * strength / md * (md - std::sqrt(r2)), 0.0f, 255.0f);
-			}
-	}
-	};
+	auto build_maps = [&] { petra_resource_maps(maps, rx0, rx1, rz0, rz1); }; // once a shore tile needs them
 	// getResourcesAround: the diamond of 80 m, each cell weighted by its closeness, wood twice.
 	auto resources_around = [&](int ix, int iy) {
 		if (maps[0].empty()) build_maps();
@@ -18222,7 +18234,7 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 			dc.used[k] = dc.lost[k] = 0;
 			if (ratio > 0.15f) {
 				bool no_site = false;
-				if (petra_place_dropsite(kTypes[k], 6000.0f, &no_site)) return; // the foundation resets the rest
+				if (petra_place_dropsite(kTypes[k], 50.0f, &no_site)) return; // the foundation resets the rest
 				// No good site (quality 50) and no civic centre foundation: a new base for this
 				// resource, else a poorer site.
 				bool cc_foundation = false;
@@ -18231,7 +18243,7 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 					    (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) { cc_foundation = true; break; }
 				if ((no_site || !civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) && !cc_foundation &&
 				    (petra_config_.difficulty == PETRA_SANDBOX || !petra_build_new_base(kTypes[k])) &&
-				    petra_place_dropsite(kTypes[k], 120.0f * std::min(25.0f, 50.0f * 0.15f / ratio)))
+				    petra_place_dropsite(kTypes[k], std::min(25.0f, 50.0f * 0.15f / ratio)))
 					return;
 			}
 		} else if (total == 0) {
@@ -18240,46 +18252,82 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 	}
 }
 
-// baseManager.js findBestDropsiteLocation, by resource nodes instead of 0 A.D.'s resource maps:
-// in our territory and out of danger, the most of `res` (twice) and of the other resources a
-// storehouse takes within 14 tiles, nothing within 15 tiles of a dropsite for `res` and a share
-// of it up to 20 tiles (60 m and 80 m in 0 A.D.).
+static uint8_t petra_room_bit(uint8_t t);
+
+// baseManager.js findBestDropsiteLocation for a storehouse: over our territory tiles (8 m),
+// 0.7 x (twice the resource plus wood, stone and metal) on shared.js resourceMaps, nothing
+// within 60 m of one of our dropsites (foundations too) and scaled down up to 80 m, out of
+// danger, at a free spot on the tile or one beside it (getNonObstructedTile). `min_quality`
+// is on that scale (checkResourceLevels asks for 50).
 uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *no_site) {
 	if (no_site) *no_site = false;
 	if (!civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) return 0;
-	std::vector<std::pair<float, float>> drops;
-	for (const Building &b : buildings_)
-		if (b.team == petra_pid_ && b.hp > 0.0f &&
-		    (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
-			drops.push_back({b.x, b.z});
-	float best = 0.0f, best_x = 0.0f, best_z = 0.0f;
-	for (size_t r = 0; r < resources_.count; ++r) {
-		if (!resources_.alive[r] || resources_.type[r] != res || resources_.amount[r] < 200) continue;
-		const float rx = resources_.x[r], rz = resources_.z[r];
-		if (territory_owner_at(rx, rz) != petra_pid_ || !is_position_safe(rx, rz, 5.0f)) continue;
-		float factor = 1.0f;
-		for (const auto &d : drops) {
-			const float dist = std::hypot(d.first - rx, d.second - rz);
-			if (dist < 15.0f) { factor = 0.0f; break; }
-			if (dist < 20.0f) factor *= (dist - 15.0f) / 5.0f;
-		}
-		if (factor <= 0.0f) continue;
-		float total = 0.0f;
-		for (size_t j = 0; j < resources_.count; ++j) {
-			if (!resources_.alive[j] || resources_.amount[j] <= 0 || resources_.type[j] == RES_FOOD) continue;
-			const float dx = resources_.x[j] - rx, dz = resources_.z[j] - rz;
-			if (dx * dx + dz * dz > 14.0f * 14.0f) continue;
-			total += (float)resources_.amount[j] * (resources_.type[j] == res ? 3.0f : 1.0f);
-		}
-		total *= factor;
-		if (total > best) { best = total; best_x = rx; best_z = rz; }
-	}
-	// min_quality 6000 is quality 50 on 0 A.D.'s resource maps: about ten trees' worth.
-	if (best < min_quality) {
+	const int k = res == RES_WOOD ? 0 : res == RES_STONE ? 1 : res == RES_GOLD ? 2 : -1;
+	if (k < 0) return 0;
+	constexpr float kCcTile = 2.0f;
+	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	std::vector<uint8_t> ours((size_t)w * w, 0);
+	int bx0 = w, bz0 = w, bx1 = -1, bz1 = -1;
+	for (int iz = 0; iz < w; ++iz)
+		for (int ix = 0; ix < w; ++ix)
+			if (territory_owner_at(((float)ix + 0.5f) * kCcTile - map_half_, ((float)iz + 0.5f) * kCcTile - map_half_) == (int)petra_pid_) {
+				ours[(size_t)iz * w + ix] = 1;
+				bx0 = std::min(bx0, ix); bx1 = std::max(bx1, ix);
+				bz0 = std::min(bz0, iz); bz1 = std::max(bz1, iz);
+			}
+	if (bx1 < 0) {
 		if (no_site) *no_site = true;
 		return 0;
 	}
-	const uint32_t bid = petra_place_building(BLD_STOREHOUSE, best_x, best_z, 2, 6, PETRA_Q_DROPSITES);
+	const float reach = 48.0f / 4.0f + kCcTile;
+	std::vector<uint8_t> maps[3];
+	petra_resource_maps(maps, (float)bx0 * kCcTile - map_half_ - reach, (float)(bx1 + 1) * kCcTile - map_half_ + reach,
+	                    (float)bz0 * kCcTile - map_half_ - reach, (float)(bz1 + 1) * kCcTile - map_half_ + reach);
+	std::vector<std::pair<float, float>> drops;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked &&
+		    (is_civic_centre(b.type) || b.type == BLD_STOREHOUSE || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
+			drops.push_back({b.x, b.z});
+	const BuildingTypeInfo &info = building_type_info(BLD_STOREHOUSE);
+	const int foot = info.footprint;
+	float best = 0.0f;
+	int best_cx = 0, best_cz = 0;
+	for (int iz = bz0; iz <= bz1; ++iz)
+		for (int ix = bx0; ix <= bx1; ++ix) {
+			const size_t t = (size_t)iz * w + ix;
+			if (!ours[t]) continue;
+			float total = 0.7f * (3.0f * (float)maps[k][t] + (float)maps[(k + 1) % 3][t] + (float)maps[(k + 2) % 3][t]);
+			if (total <= best) continue;
+			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
+			for (const auto &d : drops) {
+				const float d2 = (d.first - x) * (d.first - x) + (d.second - z) * (d.second - z);
+				if (d2 < 15.0f * 15.0f) { total = 0.0f; break; }
+				if (d2 < 20.0f * 20.0f) total *= (std::sqrt(d2) - 15.0f) / 5.0f;
+			}
+			if (total <= best) continue;
+			const int cx0 = (int)std::floor(x / GRID - 0.5f * (float)foot), cz0 = (int)std::floor(z / GRID - 0.5f * (float)foot);
+			bool fits = false;
+			for (int r = 0; r <= 1 && !fits; ++r)
+				for (int dz = -r; dz <= r && !fits; ++dz)
+					for (int dx = -r; dx <= r && !fits; ++dx) {
+						if (std::abs(dx) != r && std::abs(dz) != r) continue;
+						const float px = ((float)(cx0 + dx) + 0.5f * (float)foot) * GRID, pz = ((float)(cz0 + dz) + 0.5f * (float)foot) * GRID;
+						if (!petra_cc_tile_ok(BLD_STOREHOUSE, px, pz)) continue;
+						fits = true;
+						best_cx = cx0 + dx;
+						best_cz = cz0 + dz;
+					}
+			if (!fits) continue;
+			best = total;
+		}
+	if (best <= 0.0f || best < min_quality) {
+		if (no_site) *no_site = true;
+		return 0;
+	}
+	if (!petra_try_pay(PETRA_Q_DROPSITES, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
+		return 0;
+	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(BLD_STOREHOUSE);
+	const uint32_t bid = spawn_building(best_cx, best_cz, BLD_STOREHOUSE, petra_pid_, 0.0f);
 	if (bid) {
 		auto idle = get_idle_workers(petra_pid_);
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
@@ -18288,7 +18336,7 @@ uint32_t Simulation::petra_place_dropsite(uint8_t res, float min_quality, bool *
 }
 
 // headquarters.js buildFarmstead: one farmstead (foundations count), only once Petra has a
-// storehouse and a house, by the food nearest its main base.
+// storehouse and a house, where findPosition puts it (economicBuilding queue).
 void Simulation::petra_build_farmstead() {
 	bool storehouse = false, house = false;
 	for (const Building &b : buildings_) {
@@ -18299,18 +18347,7 @@ void Simulation::petra_build_farmstead() {
 	}
 	if (!storehouse || !house || !civ_can_build(petra_ps().civ, BLD_FARMSTEAD) ||
 	    triggers_.building_disabled(petra_pid_, BLD_FARMSTEAD)) return;
-	const PetraBase *home = get_primary_petra_base();
-	if (!home) return;
-	float x = home->x, z = home->z, best = 1e9f;
-	for (size_t r = 0; r < resources_.count; ++r) {
-		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.subtype[r] == RES_SUB_FISH ||
-		    resources_.amount[r] <= 0 || field_bld_by_res_.count(resources_.id[r])) continue;
-		const float d = std::hypot(resources_.x[r] - home->x, resources_.z[r] - home->z);
-		if (d < best && d < 32.0f && territory_owner_at(resources_.x[r], resources_.z[r]) == petra_pid_) {
-			best = d; x = resources_.x[r]; z = resources_.z[r];
-		}
-	}
-	const uint32_t bid = petra_place_building(BLD_FARMSTEAD, x, z, 2, 10, PETRA_Q_ECONOMIC_BUILDING);
+	const uint32_t bid = petra_place_generic(BLD_FARMSTEAD, PETRA_Q_ECONOMIC_BUILDING);
 	if (bid) {
 		auto idle = get_idle_workers(petra_pid_);
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
@@ -20669,10 +20706,10 @@ void Simulation::petra_manage_opening(float dt) {
 	int have_needed = 0;
 	if (petra_opening_step_ == 0) {
 		// buildFirstBase: the first wood dropsite goes where findBestDropsiteAndLocation puts
-		// it, if that spot's quality passes 40 (4800 here); with no such spot there is none.
+		// it, if that spot's quality passes 40; with no such spot there is none.
 		bool no_site = false;
 		if (count_ai(BLD_STOREHOUSE) > 0 || !civ_can_build(petra_ps().civ, BLD_STOREHOUSE) ||
-		    petra_place_dropsite(RES_WOOD, 4800.0f, &no_site) || no_site)
+		    petra_place_dropsite(RES_WOOD, 40.0f, &no_site) || no_site)
 			petra_opening_step_++;
 		return;
 	} else if (petra_opening_step_ == 1 || petra_opening_step_ == 2) {
@@ -21456,7 +21493,9 @@ int Simulation::petra_military_base(const PetraBasesMap &m) const {
 // territory tile, 45 on our bases' tiles (only `base`'s when given), then by each of our
 // structures (foundations too) within linear reach: fields and corrals +50 within 80 m of a
 // food dropsite, everything else -20 there; a house +40 within 60 m of a house; a fortress
-// -50 within 120 m of a house; another military structure -40 within 40 m of anything. From the
+// -50 within 120 m of a house; a farmstead -25 within 100 m of anything but fields, corrals and
+// walls, less a third of the wood resource map, halved on the map border; another military
+// structure -40 within 40 m of anything. From the
 // town phase a structure that doesn't shoot gets +10 away from the map border, `favored`'s
 // tiles +100, and tiles near an invading army are left out. `base_at` restricts it to the base
 // of that point (metadata.base), `favor_at` favours that point's base (metadata.favoredBase). The best tile that the structure
@@ -21498,8 +21537,30 @@ bool Simulation::petra_find_position(uint8_t btype, const float *base_at, const 
 		if (petra_food_dropsite(b.type)) influence(b.x, b.z, 80.0f, field ? 50.0f : -20.0f);
 		else if (house) {
 			if (b.type == BLD_HOUSE || b.type == BLD_APARTMENT) { influence(b.x, b.z, 60.0f, 40.0f); has_houses = true; }
+		} else if (btype == BLD_FARMSTEAD) {
+			// Away from everything else but fields, corrals and walls (gates count), for room.
+			const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_PALISADE || b.type == BLD_SIEGE_WALL;
+			if (b.type != BLD_FIELD && b.type != BLD_CORRAL && !wall) influence(b.x, b.z, 100.0f, -25.0f);
 		} else if (btype == BLD_FORTRESS && (b.type == BLD_HOUSE || b.type == BLD_APARTMENT)) influence(b.x, b.z, 120.0f, -50.0f);
 		else if (military) influence(b.x, b.z, 40.0f, -40.0f);
+	}
+	if (btype == BLD_FARMSTEAD) {
+		// A farmstead leaves the woods (a third of the wood resource map off) and needs room
+		// around it, so the map border halves it.
+		std::vector<uint8_t> maps[3];
+		const float reach = 36.0f / 4.0f + GRID;
+		petra_resource_maps(maps, (float)m.x0 * GRID - map_half_ - reach, (float)(m.x1 + 1) * GRID - map_half_ + reach,
+		                    (float)m.z0 * GRID - map_half_ - reach, (float)(m.z1 + 1) * GRID - map_half_ + reach);
+		const int w = std::max(1, (int)std::floor(2.0f * map_half_ / GRID));
+		const float edge = 80.0f / 4.0f;
+		for (int iz = 0; iz < bh; ++iz)
+			for (int ix = 0; ix < bw; ++ix) {
+				const size_t j = (size_t)iz * bw + ix;
+				float val = (float)v[j] - (float)maps[0][(size_t)(iz + m.z0) * w + (ix + m.x0)] / 3.0f;
+				const float x = ((float)(ix + m.x0) + 0.5f) * GRID - map_half_, z = ((float)(iz + m.z0) + 0.5f) * GRID - map_half_;
+				if (std::abs(x) >= map_half_ - edge || std::abs(z) >= map_half_ - edge) val /= 2.0f;
+				v[j] = (uint8_t)std::clamp(val, 0.0f, 255.0f);
+			}
 	}
 	const bool disfavor_border = petra_ps().phase > 1 && !building_ai_info(btype).shoots();
 	const float border = 80.0f / 4.0f;
