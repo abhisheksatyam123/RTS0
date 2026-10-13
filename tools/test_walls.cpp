@@ -4,7 +4,8 @@
 // the cells under their turned footprint, keep them through save/load, and only a long one
 // upgrades to a gate. A wall snaps onto the player's towers and stops at the first piece it can't
 // pay for. Palisades are a WallSet of their own (wallset_palisade), and a long one upgrades to a
-// palisade gate; so are the Roman siege walls (rome/wallset_siege), which go in enemy land too.
+// palisade gate; so are the Roman siege walls (rome/wallset_siege), which go in enemy land too,
+// and their long segments become siege wall gates.
 //   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
@@ -364,9 +365,53 @@ int main() {
 		// A siege wall snaps onto siege wall towers only.
 		CHECK(s.wall_snap_tower(0, 52.0f, ez, WALLSET_STONE) == 0);
 		CHECK(s.wall_snap_tower(0, 52.0f, ez, WALLSET_SIEGE) != 0);
-		// No piece upgrades (siege_wall_gate needs a BuildingType past bld_bit()'s 64).
-		CHECK(building_upgrade(BLD_SIEGE_WALL, CIV_ROMANS).to == BLD_TYPE_COUNT);
-		CHECK(s.upgrade_check(0, long_id) == Simulation::UPGRADE_ERR_NONE);
+		// Only a long segment upgrades, to the siege wall gate (siege_wall_long's Upgrade: wall_long's
+		// 20 wood and 12 s), with siege_wall_gate's 1875 health and eight turret points. Unlocked, it
+		// lets long-range paths through; locked, it doesn't.
+		uint32_t short_id = 0;
+		for (const auto &bld : s.buildings()) {
+			if (bld.type != BLD_SIEGE_WALL) continue;
+			auto &m = const_cast<Simulation::Building &>(bld);
+			m.build_progress = 1.0f;
+			m.hp = m.max_hp;
+			if (!is_siege_wall_tower(bld.type, bld.half_size) && bld.half_size < 0.5f * ws.lengths[0] - 0.01f) short_id = bld.id;
+		}
+		CHECK(short_id != 0);
+		const BuildingUpgradeInfo up = building_upgrade(BLD_SIEGE_WALL, CIV_ROMANS);
+		CHECK(up.to == BLD_SIEGE_WALL_GATE && up.wood_cost == 20 && up.stone_cost == 0 && up.time == 12.0f);
+		CHECK(building_upgrade(BLD_SIEGE_WALL, CIV_ATHENIANS).to == BLD_TYPE_COUNT);
+		CHECK(!civ_can_build(CIV_ROMANS, BLD_SIEGE_WALL_GATE) && is_gate_type(BLD_SIEGE_WALL_GATE));
+		CHECK(wallset_kind_of(BLD_SIEGE_WALL_GATE) == WALLSET_SIEGE);
+		CHECK(building_type_info(BLD_SIEGE_WALL_GATE).territory_decay_rate == 0.0f);
+		CHECK(s.upgrade_check(0, tower_id) == Simulation::UPGRADE_ERR_NONE);
+		CHECK(s.upgrade_check(0, short_id) == Simulation::UPGRADE_ERR_NONE);
+		CHECK(s.upgrade_check(0, long_id) == Simulation::UPGRADE_OK);
+		const float wood1 = s.player(0).res[RES_WOOD];
+		CHECK(s.cmd_upgrade_building(0, long_id));
+		CHECK(wood1 - s.player(0).res[RES_WOOD] == 20.0f);
+		for (int k = 0; k < (int)(12.2f / Simulation::FIXED_STEP); ++k) s.tick(Simulation::FIXED_STEP);
+		const Simulation::Building *g = find_bld(s, long_id);
+		CHECK(g && g->type == BLD_SIEGE_WALL_GATE);
+		if (g) {
+			const float gscale = s.structure_max_hp(BLD_SIEGE_WALL_GATE, 0) / building_type_info(BLD_SIEGE_WALL_GATE).max_hp;
+			CHECK(std::fabs(g->max_hp - 1875.0f * gscale) < 0.5f && g->hp == g->max_hp);
+			CHECK(g->half_size == 0.5f * ws.lengths[0] && g->half_d == SIEGE_WALL_HALF_DEPTH);
+			const TurretPointSet *tp = s.turret_points_of(*g);
+			CHECK(tp && tp->count == 8);
+			CHECK(!s.can_capture_building(1, *g));
+			auto [cx, cy] = s.nav_grid().world_to_cell(g->x, g->z);
+			const bool open_paths = s.nav_grid().cells.at(cx, cy) != NAV_OBSTRUCTED;
+			CHECK(s.cmd_lock_gate(0, long_id, true));
+			const bool locked_blocks = s.nav_grid().cells.at(cx, cy) == NAV_OBSTRUCTED;
+			std::printf("  siege wall gate: %.0f hp, %d turret points, paths %s unlocked, %s locked\n", g->max_hp,
+					tp ? (int)tp->count : 0, open_paths ? "cross" : "blocked", locked_blocks ? "blocked" : "cross");
+			CHECK(open_paths && locked_blocks);
+		}
+		// A map's siege wallset gate is the siege wall gate.
+		const size_t n0 = s.buildings().size();
+		s.spawn_gaia_gate(-20.0f, -20.0f, 0.0f, WALLSET_SIEGE);
+		CHECK(s.buildings().size() == n0 + 1 && s.buildings().back().type == BLD_SIEGE_WALL_GATE &&
+				s.buildings().back().half_size == 0.5f * ws.lengths[0]);
 		// Not for other civs.
 		s.player(0).civ = CIV_ATHENIANS;
 		CHECK(s.cmd_build_wall(0, -6.0f, 40.0f, 6.0f, 40.0f, nullptr, 0, false, WALLSET_SIEGE) == 0);

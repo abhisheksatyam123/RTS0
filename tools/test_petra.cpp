@@ -50,6 +50,14 @@ using namespace rtso;
 static int g_failures = 0;
 #define CHECK(cond, what) do { if (!(cond)) { std::fprintf(stderr, "  [FAIL] %s: %s\n", what, #cond); ++g_failures; } } while (0)
 
+// Every defense army's defenders.
+static std::vector<uint32_t> all_defenders(const Simulation &s) {
+	std::vector<uint32_t> out;
+	for (const PetraDefenseArmy &a : s.petra_defense_armies())
+		out.insert(out.end(), a.defender_ids.begin(), a.defender_ids.end());
+	return out;
+}
+
 static int count_units(const Simulation &s, uint8_t team, bool workers_only) {
 	const auto u = s.units();
 	int n = 0;
@@ -1338,7 +1346,7 @@ static void test_mustering_units_defend() {
 	const uint32_t foe = s->spawn_unit(hx + ux * 3.0f, hz + uz * 3.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
 	(void)foe;
 	run_for(*s, 3.0f);
-	const auto &def = s->petra_defense_army_.defender_ids;
+	const auto def = all_defenders(*s);
 	const bool m_def = std::find(def.begin(), def.end(), mustering) != def.end();
 	const bool w_def = std::find(def.begin(), def.end(), marching) != def.end();
 	const bool m_plan = std::find(plan.squad.begin(), plan.squad.end(), mustering) != plan.squad.end();
@@ -1705,7 +1713,7 @@ static void test_worker_mix() {
 		if (g != GATHER_INFANTRY || !s->petra_is_worker(i)) continue;
 		const uint32_t id = s->units_.id[i];
 		const auto &rush = s->petra_attack_plan_.squad;
-		const auto &defenders = s->petra_defense_army_.defender_ids;
+		const auto defenders = all_defenders(*s);
 		// A rush takes workers past the first 8, and the defense any soldier nearby.
 		if (std::find(rush.begin(), rush.end(), id) != rush.end() ||
 		    std::find(defenders.begin(), defenders.end(), id) != defenders.end()) continue;
@@ -1714,7 +1722,7 @@ static void test_worker_mix() {
 	}
 	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering), at most %d houses at once\n",
 	            supports, soldiers, start_soldiers, gathering, max_houses);
-	CHECK(soldiers + (int)s->petra_defense_army_.defender_ids.size() >= 5, "trains citizen infantry as workers");
+	CHECK(soldiers + (int)all_defenders(*s).size() >= 5, "trains citizen infantry as workers");
 	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
 	const float support_max = 0.5f * (float)s->petra_target_workers(); // supportRatio is 0.35-0.5 by difficulty
 	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
@@ -1972,7 +1980,7 @@ static void test_defense_by_strength() {
 		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
 		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
 		run_for(*s, 1.0f);
-		const size_t n = s->petra_defense_army_.defender_ids.size();
+		const size_t n = all_defenders(*s).size();
 		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
 		if (phase == 0) {
 			std::printf("  defense: 2 enemy women by the civic centre draw %zu defenders\n", n);
@@ -2013,6 +2021,44 @@ static void test_builders_per_foundation() {
 	std::printf("  builders: barracks %d, house %d\n", on(barracks), on(house));
 	CHECK(on(barracks) == 4, "a barracks foundation takes 4 builders");
 	CHECK(on(house) == 3, "a house foundation takes 3 builders");
+}
+
+// defenseManager.js makeIntoArmy / checkEnemyArmies: two groups of foes on opposite sides of
+// the civic centre make two armies, each with its own defenders; armies whose foes come
+// within armyMergeSize of each other merge.
+static void test_defense_armies() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 6), cz + 12.0f + (float)(k / 6), 1, UNIT_SPEARMAN);
+	std::vector<uint32_t> east, west;
+	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
+	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
+	run_for(*s, 1.0f);
+	const auto &armies = s->petra_defense_armies();
+	size_t with_defenders = 0;
+	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
+	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
+	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
+	// The western group joins the eastern one.
+	for (size_t k = 0; k < west.size(); ++k) {
+		const int32_t i = s->lookup_unit(west[k]);
+		if (i < 0) continue;
+		s->units_.pos_x[i] = cx + 10.0f;
+		s->units_.pos_z[i] = cz - 8.0f + (float)k;
+	}
+	run_for(*s, 1.0f);
+	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
+	CHECK(armies.size() == 1, "armies that meet merge (armyMergeSize)");
 }
 
 // defenseManager.js isDangerous / checkEvents outside our own land: Petra sends
@@ -2117,7 +2163,7 @@ static void test_retake_civic_centre() {
 		}
 	};
 	for (float t = 0.0f; t < 2.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
-	const size_t defenders = s->petra_defense_army_.defender_ids.size();
+	const size_t defenders = all_defenders(*s).size();
 	// The enemy takes the Town Center.
 	{
 		auto &b = s->buildings_[s->building_id_to_idx_.at(tc_id)];
@@ -2550,6 +2596,7 @@ int main() {
 	test_decay_garrison_from_attack();
 	test_decay_destroy();
 	test_defense_by_strength();
+	test_defense_armies();
 	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
