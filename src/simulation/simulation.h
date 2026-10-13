@@ -709,6 +709,8 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// Repairable on a unit (siege engines and ships but fire ships): a builder can repair it.
+	bool is_repairable_unit(uint32_t unit_id) const;
 	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
 	// dropsite, drop it, then take the next queued order or idle.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
@@ -1809,6 +1811,7 @@ private:
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
 	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
+	static constexpr float UNIT_REPAIR_TIME_RATIO = 4.0f; // template_unit_siege.xml, template_unit_ship.xml
 	static float foundation_build_multiplier(int builders);
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
@@ -2656,6 +2659,13 @@ private:
 	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
 	void start_heal(size_t healer, uint32_t target, uint8_t flags);
 	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
+	// ORDER_BUILD on a Repairable unit (UnitAI Repair with a unit target, Builder.js CanRepair).
+	float unit_repair_time_ratio(size_t t) const; // 0: not Repairable
+	bool can_repair_unit(size_t builder, int32_t target) const;
+	bool repair_unit_in_range(size_t builder, size_t target) const; // Builder.js IsTargetInRange
+	void order_repair_unit(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued, bool force);
+	void start_repair_unit(size_t builder, uint32_t target, uint8_t flags);
+	void tick_repair_unit(size_t builder);                      // UnitAI REPAIR.APPROACHING / REPAIRING
 	bool garrison_in_range(size_t i, const Building &b) const { return garrison_in_range(i, b, units_.pos_x[i], units_.pos_z[i]); }
 	bool garrison_in_range(size_t i, const Building &b, float x, float z) const; // as if unit i stood at (x, z)
 	void garrison_now(size_t i, Building &b);
