@@ -867,6 +867,14 @@ public:
 	// the map's triggers (TriggerState::difficulty, saved with them).
 	void set_trigger_difficulty(int d) { trigger_difficulty_ = (uint8_t)((d >= 1 && d <= 5) ? d : 3); }
 	uint8_t trigger_difficulty() const { return trigger_difficulty_; }
+	// 0 A.D. Game Setup Daytime for the maps whose json lists one (danubius.json: day,
+	// night; polar_sea.json: dawn, daylight): 0 lets the map pick as its script does
+	// (Danubius day 2/3 of the time, Polar Sea dawn 1/3), else the option, 1-based.
+	// map_daytime() is the option the last random map used (0: the map has none);
+	// presentation only (the renderer's sky, sun and water).
+	void set_map_daytime_choice(int d) { map_daytime_choice_ = (uint8_t)((d >= 0 && d <= 2) ? d : 0); }
+	uint8_t map_daytime_choice() const { return map_daytime_choice_; }
+	uint8_t map_daytime() const { return map_daytime_; }
 	// 0 A.D. Nomad (gamesettings Nomad.js, rmgen-common placePlayerBase): random maps start
 	// without any player structures, only the starting units.
 	void set_nomad(bool on) { nomad_ = on; }
@@ -1778,7 +1786,10 @@ private:
 	struct TechMods {
 		float gather[UNIT_TYPE_COUNT][GK_COUNT];
 		int16_t carry[UNIT_TYPE_COUNT][RES_COUNT];
+		// The unit's damage total after technologies over its template's (attack_damage's scale);
+		// each damage type is its own value, x atk_mul + atk_add (Attack/<type>/Damage/<kind>).
 		float attack[UNIT_TYPE_COUNT];
+		float atk_mul[UNIT_TYPE_COUNT][3], atk_add[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
 		float health[UNIT_TYPE_COUNT];
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
@@ -1827,6 +1838,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
+			float atk_mul[3], atk_add[3];
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
@@ -1847,7 +1859,7 @@ private:
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
 	// A unit's technology multipliers: its roster template's when it has one, else its unit_type's.
-	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather; };
+	struct UnitTechMods { float attack, health, speed, range, train_time, range_mul, vision, vision_add, spread, capture, required_xp; const float *armor, *gather, *atk_mul, *atk_add; };
 	static UnitTechMods unit_tech_mods(const TechMods &m, uint8_t unit_type, uint16_t tmpl);
 	UnitTechMods unit_tech_mods(uint8_t player_id, uint8_t unit_type, uint16_t tmpl) const {
 		return unit_tech_mods(tech_mods(player_id), unit_type, tmpl);
@@ -1917,6 +1929,7 @@ private:
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
 	void unit_attack_effects(size_t i, float out[3]) const;
+	void unit_tech_damage(size_t i, float out[3]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -2267,6 +2280,7 @@ private:
 	uint8_t team_placement_ = TEAM_PLACEMENT_RANDOM; // setup-time only, like biome_override_
 	uint8_t map_landscape_ = 0;                      // setup-time only, like team_placement_
 	uint8_t trigger_difficulty_ = 3;                 // setup-time; the match's copy is triggers_.difficulty
+	uint8_t map_daytime_choice_ = 0, map_daytime_ = 0; // setup-time Daytime and the one the map used
 	bool nomad_ = false;              // setup-time only: applied when a random map is generated
 	bool nomad_start_ = false;        // the map was generated Nomad: tick 0 places the top-up treasures
 	bool disable_treasures_ = false;
