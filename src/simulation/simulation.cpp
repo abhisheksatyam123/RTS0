@@ -201,7 +201,7 @@ static constexpr uint32_t SAVE_VERSION_GATHER_TIMERS = 57;
 // Each Petra attack plan's target player and its forced and requested flags.
 static constexpr uint32_t SAVE_VERSION_PETRA_ATTACK_REQUEST = 60;
 // Units' production queues (Trainer on triremes and Cyrus II; save_tick_state).
-static constexpr uint32_t SAVE_VERSION_UNIT_TRAINERS = 62;
+static constexpr uint32_t SAVE_VERSION_UNIT_TRAINERS = 64;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -1071,7 +1071,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	b.rally_z = wz + half + 2.0f;
 	b.rally_target_res_id = 0;
 	b.rally_target_bld_id = 0;
-	b.garrison_cap = binfo.garrison_cap;
+	b.civ = team < MAX_PLAYERS ? (uint8_t)civ_of(team) : (uint8_t)CIV_COUNT;
 	b.garrison_cap = structure_garrison_cap(b);
 	b.capture_points = 0.0f;
 	// 0 A.D. Capturable/TerritoryDecay template values.
@@ -5967,12 +5967,24 @@ static void turret_point_world(const Simulation::Building &b, const TurretPoint 
 int Simulation::structure_garrison_cap(const Building &b) const {
 	const TurretPointSet *pts = turret_points_of(b);
 	if (pts) return pts->count;
-	return structure_garrison_max(b.type, b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_COUNT);
+	return structure_garrison_max(b.type, b.civ);
 }
 
+// GarrisonHolder/List of the structure's own template: a captured Han storehouse keeps its
+// Minister seat, and a Han player capturing another civ's structure gains none.
 bool Simulation::structure_accepts_classes(const Building &b, uint64_t classes) const {
-	const uint8_t civ = b.team < MAX_PLAYERS ? (uint8_t)civ_of(b.team) : (uint8_t)CIV_COUNT;
-	return garrison_list_matches(structure_garrison_list(b.type, civ), classes);
+	return garrison_list_matches(structure_garrison_list(b.type, b.civ), classes);
+}
+
+void Simulation::set_team_civ(uint8_t team, uint8_t civ) {
+	if (team >= MAX_PLAYERS || civ >= CIV_COUNT) return;
+	const uint8_t was = (uint8_t)players_[team].civ;
+	players_[team].civ = (Civilization)civ;
+	for (Building &b : buildings_) {
+		if (b.team != team || b.civ != was) continue;
+		b.civ = civ;
+		b.garrison_cap = structure_garrison_cap(b);
+	}
 }
 
 bool Simulation::structure_accepts_garrison(const Building &b, size_t i) const {
@@ -13703,6 +13715,7 @@ void Simulation::update_petra_bases(float dt) {
 				base.z = buildings_[it->second].z;
 			} else {
 				base.anchor_building_id = 0;
+				base.needed_defenders = 0; // anchorLost
 			}
 		}
 		if (base.is_primary) {
@@ -13738,6 +13751,9 @@ void Simulation::update_petra_bases(float dt) {
 			new_base.is_primary = false;
 			new_base.radius = 32.0f;
 			new_base.danger_level = get_threat_at(tc.x, tc.z);
+			// A civic centre we lay out or capture trains 3 + 2 (difficulty - 3) defenders from Medium.
+			const uint8_t diff = petra_difficulty();
+			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
 			petra_bases_.push_back(new_base);
 		}
 	}
@@ -13800,6 +13816,15 @@ void Simulation::update_petra_bases(float dt) {
 			}
 		}
 		base.resources_depleted = (safe_nodes <= 2 || total_amount < 1200);
+	}
+
+	// baseManager.js update: once its civic centre stands, a base trains its defenders one at a
+	// time through trainEmergencyUnits.
+	for (auto &base : petra_bases_) {
+		if (!base.needed_defenders || !base.anchor_building_id) continue;
+		auto it = building_id_to_idx_.find(base.anchor_building_id);
+		if (it == building_id_to_idx_.end() || buildings_[it->second].build_progress < 1.0f) continue;
+		if (petra_train_emergency_units({{base.x, base.z}})) --base.needed_defenders;
 	}
 
 	// Idle villagers are not walked to secondary bases here: the economy
@@ -14013,18 +14038,7 @@ void Simulation::petra_manage_workers(float dt) {
 static constexpr float PETRA_FORTRESS_COST[RES_COUNT] = {300.0f, 200.0f, 300.0f, 0.0f};
 
 void Simulation::petra_manage_military_production(float dt) {
-	// Priority QueueManager: Priority 1 = Emergency Defense, Priority 3 = Military Strike Force
-	float max_threat = 0.0f;
-	for (const auto &b : petra_bases_) {
-		max_threat = std::max(max_threat, b.danger_level);
-	}
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_VILLAGER) {
-			max_threat = std::max(max_threat, get_threat_at(units_.pos_x[i], units_.pos_z[i]));
-		}
-	}
-	bool is_emergency = (max_threat >= 7.0f);
-
+	// The attack plans' training (emergency units are trainEmergencyUnits, from the defense).
 	// Our finished buildings that train soldiers (roster `trainers`: barracks,
 	// fortress, civ structures such as the gymnasium, and the Town Center and
 	// temple for heroes).
@@ -14058,21 +14072,7 @@ void Simulation::petra_manage_military_production(float dt) {
 		return 0;
 	};
 
-	// 1. Emergency Defense (Priority Queue 0: Threat >= 7.0f): the civ's
-	// spearmen, then its archers, from any barracks.
-	if (is_emergency) {
-		for (UnitType type : { UNIT_SPEARMAN, UNIT_ARCHER }) {
-			const uint16_t tmpl = civ_default_template(ai_civ, type);
-			if (tmpl == CIV_UNIT_TEMPLATE_NONE || civ_unit_template(tmpl).phase > phase) continue;
-			for (int n = 0; n < 4; ++n) {
-				const uint32_t bid = trainer_for(tmpl);
-				if (!bid || !petra_train_template(PETRA_QUEUE_EMERGENCY, bid, tmpl)) break;
-			}
-		}
-		return;
-	}
-
-	// 2. attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
+	// attackPlan.js trainMoreUnits: each plan still mustering trains its own unitStat, the
 	// plan whose queue has the higher priority first (Rush 250, Raid 150, HugeAttack 90, Attack 70).
 	const bool attack_musters = petra_attack_plan_.state == AttackPlan::MUSTER;
 	const bool raid_musters = petra_raid_plan_.state == AttackPlan::MUSTER &&
@@ -14333,6 +14333,110 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	return true;
 }
 
+// headquarters.js trainEmergencyUnits: ranged or melee citizen infantry, at the highest
+// priority, from the civic centre or colony nearest the positions (within 141 m, on their
+// land, with at most 5 s of training already under way), garrisoned there to defend it.
+// 0 A.D. marks the item (metadata garrisonType) and, when it starts, rallies the trainer to
+// itself (TrainingStarted). Here the rally is set as the item is queued and stays while the
+// queue lasts, so a civic centre of ours rallying to itself is training emergency units: its
+// other unstarted items are stopped as 0 A.D. does, and no worker is queued there meanwhile.
+bool Simulation::petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions) {
+	uint16_t home = 0;
+	const bool naval = petra_classified_topo(home).naval_map;
+	const uint8_t civ = petra_ps().civ;
+	Building *anchor = nullptr;
+	float dist_min = 0.0f;
+	for (const auto &[px, pz] : positions) {
+		const uint16_t access = naval ? petra_land_at(px, pz) : 0;
+		for (Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
+			if (!is_civic_centre(b.type) && b.type != BLD_MILITARY_COLONY) continue;
+			if (naval && petra_building_land(b) != access) continue;
+			// Training already started (or emergency units queued) for over 5 s.
+			const bool emergency = petra_emergency_rally(b);
+			float time = 0.0f;
+			for (const ProductionOrder &o : b.queue)
+				if (o.started || o.timer > 0.0f || emergency) time += o.duration - o.timer;
+			if (time > 5.0f) continue;
+			const float d = (b.x - px) * (b.x - px) + (b.z - pz) * (b.z - pz);
+			if (anchor && d > dist_min) continue;
+			dist_min = d;
+			anchor = &b;
+		}
+	}
+	// distcut 20000 m^2.
+	if (!anchor || dist_min > 20000.0f / 16.0f) return false;
+
+	// Ranged or melee at random, melee when the garrison is full.
+	Building &cc = *anchor;
+	const bool emergency = petra_emergency_rally(cc);
+	int garrisoned = (int)cc.garrisoned_units.size();
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_GARRISON &&
+		    units_.order_target[i] == cc.id)
+			++garrisoned;
+	if (emergency)
+		for (const ProductionOrder &o : cc.queue) garrisoned += o.count;
+	else
+		for (size_t q = cc.queue.size(); q-- > 0;)
+			if (!cc.queue[q].started && cc.queue[q].timer <= 0.0f) cmd_cancel_train(petra_pid_, cc.id, q); // stopProduction
+	const bool autogarrison = garrisoned < structure_garrison_cap(cc) && structure_has_enough_health(cc);
+	const bool ranged_wanted = sim_rng_.range_int(0, 1) == 1 && autogarrison;
+
+	const uint64_t arrow_classes = building_ai_info(cc.type).garrison_arrow_classes;
+	uint16_t found = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t tmpl : civ_roster_ids(civ)) {
+		const CivUnitTemplate &t = civ_unit_template(tmpl);
+		if (t.phase > petra_ps().phase || !can_train_at(petra_pid_, t.unit_type, cc.type, tmpl)) continue;
+		const uint64_t cls = unit_classes(tmpl, t.unit_type);
+		if (!(cls & TC_INFANTRY) || !(cls & TC_CITIZENSOLDIER)) continue;
+		if (autogarrison && arrow_classes && !(cls & arrow_classes)) continue;
+		float cost[RES_COUNT];
+		unit_train_cost(petra_pid_, tmpl, civ_template_unit_info(tmpl, t.unit_type), cost);
+		if (petra_ps().food() < cost[RES_FOOD] || petra_ps().wood() < cost[RES_WOOD] ||
+		    petra_ps().gold() < cost[RES_GOLD] || petra_ps().stone() < cost[RES_STONE])
+			continue;
+		found = tmpl;
+		if (((cls & TC_RANGED) != 0) == ranged_wanted) break;
+	}
+	if (found == CIV_UNIT_TEMPLATE_NONE) return false;
+
+	// The emergency account takes what is free, then what the other queues hold.
+	float cost[RES_COUNT];
+	unit_train_cost(petra_pid_, found, civ_template_unit_info(found, civ_unit_template(found).unit_type), cost);
+	PetraQueueAccount *acc = petra_queues_.accounts;
+	PetraQueueAccount &em = acc[PETRA_QUEUE_EMERGENCY];
+	auto field = [](PetraQueueAccount &a, int r) -> float & {
+		return r == RES_FOOD ? a.food : r == RES_WOOD ? a.wood : r == RES_GOLD ? a.gold : a.stone;
+	};
+	float stock[RES_COUNT];
+	stock[RES_WOOD] = petra_ps().wood(); stock[RES_GOLD] = petra_ps().gold();
+	stock[RES_STONE] = petra_ps().stone(); stock[RES_FOOD] = petra_ps().food();
+	for (int r = 0; r < RES_COUNT; ++r) {
+		float accounted = 0.0f;
+		for (int q = 0; q < PetraQueueManager::QUEUE_COUNT; ++q) accounted += field(acc[q], r);
+		float &mine = field(em, r);
+		mine += std::max(0.0f, std::min(cost[r] - mine, stock[r] - accounted));
+		for (int q = 0; q < PetraQueueManager::QUEUE_COUNT && mine < cost[r]; ++q) {
+			if (q == PETRA_QUEUE_EMERGENCY) continue;
+			float &other = field(acc[q], r);
+			const float take = std::min(other, cost[r] - mine);
+			other -= take;
+			mine += take;
+		}
+	}
+	if (!petra_train_template(PETRA_QUEUE_EMERGENCY, cc.id, found)) return false;
+	if (autogarrison && !emergency) cmd_set_rally_point(petra_pid_, cc.id, cc.x, cc.z, 0, cc.id);
+	return true;
+}
+
+// The emergency units trained: the civic centre forgets its rally to itself (0 A.D. unsets it
+// when an item without garrisonType starts).
+void Simulation::petra_end_emergency_rallies() {
+	for (const Building &b : buildings_)
+		if (b.queue.empty() && petra_emergency_rally(b)) cmd_unset_rally_point(petra_pid_, b.id);
+}
+
 // headquarters.js trainMoreWorkers: workers (support units and citizen infantry not in a
 // plan, queued ones included) up to Economy.targetNumWorkers, in batches of
 // min(5, workers / 10). Support units make up supportRatio of targetNumWorkers at full
@@ -14393,6 +14497,7 @@ int Simulation::petra_train_more_workers() {
 			if (b.team != petra_pid_ || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked ||
 			    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= PRODUCTION_QUEUE_MAX) continue;
 			if (cc_only && !is_civic_centre(b.type)) continue;
+			if (petra_emergency_rally(b)) continue; // its queue is for the emergency units
 			if (!can_train_at(petra_pid_, unit_type, b.type, tmpl)) continue;
 			if (!best || b.queue.size() < best_len) { best = b.id; best_len = b.queue.size(); }
 		}
@@ -14795,6 +14900,7 @@ void Simulation::petra_manage_economy(float dt) {
 	PetraHuntScan hunt_scan = petra_hunt_scan();
 
 	// headquarters.js update: trainMoreWorkers (every 4th AI turn there, every second here).
+	petra_end_emergency_rallies();
 	const int worker_shortfall = petra_train_more_workers();
 
 	// 2. headquarters.js GetCurrentGatherRates (basesManager.addGatherRates): every gatherer
@@ -20536,6 +20642,13 @@ void Simulation::petra_manage_defense(float dt) {
 			}
 		}
 	}
+	// defenseManager.js assignDefenders: a shortage of defenders trains infantry garrisoned in the
+	// civic centre nearest the armies still in need (trainEmergencyUnits).
+	if (!needs.empty()) {
+		std::vector<std::pair<float, float>> positions;
+		for (const Need &n : needs) positions.push_back({n.x, n.z});
+		petra_train_emergency_units(positions);
+	}
 
 	// defenseArmy.js assignUnit: a defender with no foe of its army to fight takes the foe
 	// attacking it, else the nearest foe with at most 2 already against it, else the
@@ -21480,7 +21593,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 units' production queues (Trainer on triremes and Cyrus II; save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -21651,6 +21764,7 @@ bool Simulation::save_state(const char *filepath) const {
 		}
 		out.write((const char *)&b.autoqueue, sizeof(b.autoqueue));
 		out.write((const char *)&b.dropsite_shared, sizeof(b.dropsite_shared));
+		out.write((const char *)&b.civ, sizeof(b.civ));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -22058,6 +22172,12 @@ bool Simulation::load_state(const char *filepath) {
 		const bool pq = version >= SAVE_VERSION_PRODUCTION_QUEUE;
 		if (pq) in.read((char *)&bld.autoqueue, sizeof(bld.autoqueue));
 		if (version >= SAVE_VERSION_DROPSITE_SHARING) in.read((char *)&bld.dropsite_shared, sizeof(bld.dropsite_shared));
+		if (version >= SAVE_VERSION_TEMPLATE_CIV) {
+			in.read((char *)&bld.civ, sizeof(bld.civ));
+		} else { // older saves: the owner's civ, and the GarrisonHolder Max of today's templates
+			bld.civ = bld.team < MAX_PLAYERS ? (uint8_t)civ_of(bld.team) : (uint8_t)CIV_COUNT;
+			bld.garrison_cap = structure_garrison_cap(bld);
+		}
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
@@ -22335,6 +22455,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			d.id = v.id; d.anchor_building_id = v.anchor_building_id; d.x = v.x; d.z = v.z;
 			d.is_primary = v.is_primary; d.assigned_workers = v.assigned_workers; d.radius = v.radius;
 			d.danger_level = v.danger_level; d.resources_depleted = v.resources_depleted;
+			d.needed_defenders = v.needed_defenders;
 		});
 	};
 
@@ -22819,7 +22940,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// v50: SetDisabledTemplates, invulnerable units and the entities OnOwnershipChanged follows.
 	if (ar.version >= 50) {
 		TriggerState &t = s.triggers_;
-		ar.pod(t.disabled_buildings);
+		if (ar.version >= Simulation::SAVE_VERSION_DISABLED_BUILDINGS_128) {
+			ar.pod(t.disabled_buildings);
+		} else { // a 64-bit mask per player before
+			uint64_t low[8] = {};
+			if constexpr (!std::decay_t<decltype(ar)>::loading)
+				for (int p = 0; p < 8; ++p) low[p] = t.disabled_buildings[p].w[0];
+			ar.pod(low);
+			if constexpr (std::decay_t<decltype(ar)>::loading)
+				for (int p = 0; p < 8; ++p) t.disabled_buildings[p] = BldMask{{low[p], 0}};
+		}
 		io_vec_pod(ar, t.disabled_templates, 1u << 12);
 		io_vec_pod(ar, t.invulnerable, 1u << 12);
 		io_vec_pod(ar, t.watched, 1u << 12);
@@ -24989,11 +25119,7 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
 			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
-			// disabled_buildings is a 64-bit mask; the one type past it, the siege wall gate, is
-			// reached only by an Upgrade, which no_building doesn't stop either.
-			static_assert(BLD_TYPE_COUNT <= 64 || (BLD_TYPE_COUNT == 65 && BLD_SIEGE_WALL_GATE == 64),
-			              "disabled_buildings is a 64-bit mask");
-			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = ~0ull;
+			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = BldMask{{~0ull, ~0ull}};
 			break;
 		default:
 			break;
@@ -25211,7 +25337,7 @@ void Simulation::trigger_survival_init() {
 				break;
 			}
 		// SetDisableTemplates.
-		for (uint8_t t : kSurvivalDisabledBuildings) triggers_.disabled_buildings[p] |= 1ull << t;
+		for (uint8_t t : kSurvivalDisabledBuildings) triggers_.disabled_buildings[p] |= bld_bit(t);
 	}
 	for (const char *name : kSurvivalDisabledUnits)
 		if (const uint16_t t = roster_template_named(name); t != CIV_UNIT_TEMPLATE_NONE) triggers_.disabled_templates.push_back(t);
