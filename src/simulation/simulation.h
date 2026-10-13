@@ -1137,6 +1137,9 @@ public:
 	// Centre of the nearest ship-passable cell around a building's footprint, and its
 	// ship region; false when none is near (ProductionQueue.js spawns ships there).
 	bool nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea = nullptr) const;
+	// The same for any passability class; building_region is that cell's region (0 = none).
+	bool nearest_pass_cell(const Building &b, uint8_t pass, float &out_x, float &out_z, uint16_t *out_region = nullptr) const;
+	uint16_t building_region(const Building &b, uint8_t pass) const;
 	// 0 A.D. Footprint.PickSpawnPoint: a free spot for a unit of `type` in rows around the
 	// footprint, the front (or the side facing the rally point) first; skip_uid is the unit left out
 	// of the overlap check (the one being placed).

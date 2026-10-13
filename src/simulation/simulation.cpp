@@ -3848,8 +3848,9 @@ bool Simulation::cmd_barter(uint8_t player_id, ResourceType sell, ResourceType b
 	stats_[player_id].resources_bought[buy] += (uint32_t)received;
 	note_session({SessionNotice::BARTER, player_id, (uint8_t)sell, (uint8_t)buy, {amount, received}});
 
-	// Each deal of 100 moves the sold resource's price down and the bought one's up by 2%.
-	const float difference = BARTER_DIFFERENCE_PER_DEAL * (float)amount / (float)BARTER_DEAL_AMOUNT;
+	// Barter.js: every 100 bought moves the sold resource's price down and the bought
+	// one's up by 2%, so the shift follows the amount received, not the amount sold.
+	const float difference = BARTER_DIFFERENCE_PER_DEAL * (float)received / (float)BARTER_DEAL_AMOUNT;
 	barter_price_diff_[sell] = std::clamp(barter_price_diff_[sell] - difference, -BARTER_MAX_DIFFERENCE, BARTER_MAX_DIFFERENCE);
 	barter_price_diff_[buy] = std::clamp(barter_price_diff_[buy] + difference, -BARTER_MAX_DIFFERENCE, BARTER_MAX_DIFFERENCE);
 	market_trade_history_[sell]++;
@@ -3975,9 +3976,10 @@ float Simulation::trader_gains(const Building *a, const Building *b) const {
 
 bool Simulation::can_trade_at(uint8_t trader_owner, const Building &b, uint8_t trader_type) const {
 	// Trader.js CanTrade: a finished market whose owner the trader's owner is not
-	// at war with. Land traders use Markets, merchant ships Docks (Market TradeType).
-	const uint8_t kind = trader_type == UNIT_MERCHANT_SHIP ? BLD_DOCK : BLD_MARKET;
-	return b.type == kind && b.build_progress >= 1.0f && b.hp > 0.0f &&
+	// at war with. Market TradeType: markets are "land", docks "land naval", so
+	// land traders use markets and docks, merchant ships docks only.
+	const bool kind = trader_type == UNIT_MERCHANT_SHIP ? b.type == BLD_DOCK : (b.type == BLD_MARKET || b.type == BLD_DOCK);
+	return kind && b.build_progress >= 1.0f && b.hp > 0.0f &&
 	       b.team < MAX_PLAYERS && trader_owner < MAX_PLAYERS && !is_hostile(trader_owner, b.team);
 }
 
@@ -3989,6 +3991,16 @@ uint16_t Simulation::dock_sea(const Building &b) const {
 
 bool Simulation::nearest_ship_cell(const Building &b, float &out_x, float &out_z, uint16_t *out_sea) const {
 	// The nearest water cell within two cells of the footprint that belongs to a sea.
+	return nearest_pass_cell(b, PASS_SHIP, out_x, out_z, out_sea);
+}
+
+uint16_t Simulation::building_region(const Building &b, uint8_t pass) const {
+	float x, z;
+	uint16_t region = 0;
+	return nearest_pass_cell(b, pass, x, z, &region) ? region : 0;
+}
+
+bool Simulation::nearest_pass_cell(const Building &b, uint8_t pass, float &out_x, float &out_z, uint16_t *out_region) const {
 	if (nav_grid_.cells.blank()) return false;
 	auto [cx, cy] = nav_grid_.world_to_cell(b.x, b.z);
 	const float cell = 2.0f * nav_grid_.map_half / (float)nav_grid_.res;
@@ -3999,16 +4011,16 @@ bool Simulation::nearest_ship_cell(const Building &b, float &out_x, float &out_z
 		for (int dx = -r; dx <= r; ++dx) {
 			const int x = cx + dx, y = cy + dy;
 			if (x < 0 || y < 0 || x >= nav_grid_.cells.w || y >= nav_grid_.cells.h) continue;
-			if (!nav_grid_.is_passable_for(x, y, PASS_SHIP)) continue;
+			if (!nav_grid_.is_passable_for(x, y, pass)) continue;
 			const int d2 = dx * dx + dy * dy;
 			if (d2 >= best_d2) continue;
-			const uint16_t reg = nav_grid_.global_region_at(x, y, PASS_SHIP);
+			const uint16_t reg = nav_grid_.global_region_at(x, y, pass);
 			if (reg) { best = reg; best_d2 = d2; bx = x; by = y; }
 		}
 	if (!best) return false;
 	out_x = ((float)bx + 0.5f) * cell - nav_grid_.map_half;
 	out_z = ((float)by + 0.5f) * cell - nav_grid_.map_half;
-	if (out_sea) *out_sea = best;
+	if (out_region) *out_region = best;
 	return true;
 }
 
@@ -4270,15 +4282,17 @@ void Simulation::order_trade_auto(const uint32_t *unit_ids, size_t count) {
 		// The gain grows with distance, so the best route is the farthest pair of
 		// markets the owner can trade at, own or not. Starting at the nearer end
 		// of that pair saves the empty first walk. A merchant ship's docks must
-		// share its own sea.
-		uint16_t my_sea = 0;
-		if (ship) {
-			auto [ucx, ucy] = nav_grid_.world_to_cell(units_.pos_x[uidx], units_.pos_z[uidx]);
-			my_sea = nav_grid_.global_region_at(ucx, ucy, PASS_SHIP);
-		}
+		// share its own sea; a land trader skips markets and docks on another
+		// landmass (0 = no navigation grid, anything goes).
+		const uint8_t pass = ship ? PASS_SHIP : PASS_INFANTRY; // land regions are tracked for infantry
+		auto [ucx, ucy] = nav_grid_.world_to_cell(units_.pos_x[uidx], units_.pos_z[uidx]);
+		const uint16_t my_region = nav_grid_.cells.blank() ? 0 : nav_grid_.global_region_at(ucx, ucy, pass);
 		markets.clear();
-		for (const auto &b : buildings_)
-			if (can_trade_at(owner, b, ttype) && (!ship || (my_sea && dock_sea(b) == my_sea))) markets.push_back(&b);
+		for (const auto &b : buildings_) {
+			if (!can_trade_at(owner, b, ttype)) continue;
+			if (ship ? (!my_region || dock_sea(b) != my_region) : (my_region && building_region(b, pass) != my_region)) continue;
+			markets.push_back(&b);
+		}
 		const Building *best_a = nullptr, *best_b = nullptr;
 		float best_d2 = -1.0f;
 		for (size_t i = 0; i < markets.size(); ++i) {
