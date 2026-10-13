@@ -2,8 +2,9 @@ extends SceneTree
 # What Rendering's 2026-10-13 late-game mouse run found, as 0 A.D. 0.28
 # gui/session shows it:
 #   1. idle-unit cycling (input.js findIdleUnit, GuiInterface FindIdleUnits):
-#      the idle-worker hotkey walks g_WorkerTypes in order, every idle female
-#      citizen first by id, then the other workers by id, then starts over;
+#      the idle-worker hotkey walks g_WorkerTypes ("Civilian", "Trader",
+#      "FishingBoat", "Citizen") in order: every idle civilian first by id
+#      (traders are civilians too), then the citizens by id, then starts over;
 #   2. technology names and tooltips read "−" as 0.28 writes it, not "â";
 #   3. the production queue shows only queued items, so an idle dock or Civic
 #      Centre shows no empty slots;
@@ -44,15 +45,15 @@ func run() -> void:
 	Input.parse_input_event(mm)
 	await frames(60)
 
-	print("1. Idle workers, female citizens first")
-	# The skirmish starts with RTS0 villagers (Citizen): add female citizens and a trader.
-	var females: Array = Array(main.debug_spawn_units("athen/support_female_citizen", 2))
+	print("1. Idle workers, civilians first")
+	# The skirmish starts with RTS0 villagers (Citizen): add civilians and a trader.
+	var females: Array = Array(main.debug_spawn_units("athen/support_civilian", 2))
 	var traders: Array = Array(main.debug_spawn_units("athen/support_trader", 1))
 	await frames(4)
 	check(females.size() == 2 and traders.size() == 1, "spawned %s and %s" % [str(females), str(traders)])
 	var units: Array = main.debug_selection_state()["units"]
 	var idle: Array = units.filter(func(u): return u["idle"]).map(func(u): return int(u["id"]))
-	check(females.all(func(id): return idle.has(id)), "the female citizens are idle")
+	check(females.all(func(id): return idle.has(id)), "the civilians are idle")
 	var picks: Array = []
 	for i in range(units.size() + 1):
 		await press(KEY_PERIOD)
@@ -64,13 +65,12 @@ func run() -> void:
 		if picks.count(id) > 1:
 			break
 	print("  picks: ", picks)
-	check(picks.slice(0, 2) == females, "the female citizens first, by id")
-	check(picks.size() > 2 and picks[2] == traders[0], "then the trader")
+	check(picks.slice(0, 3) == females + traders, "the civilians first, by id, the trader among them: " + str(picks.slice(0, 3)))
 	var rest := picks.slice(3, picks.size() - 1)
 	var sorted_rest := rest.duplicate()
 	sorted_rest.sort()
 	check(rest.size() > 0 and rest == sorted_rest and not rest.any(func(id): return females.has(id) or traders.has(id)), "then the citizens by id: " + str(rest))
-	check(picks.size() > 3 and picks[-1] == females[0], "then the first female citizen again")
+	check(picks.size() > 3 and picks[-1] == females[0], "then the first civilian again")
 
 	print("2. Technology text")
 	main.debug_train_buttons(11)  # a dock

@@ -1602,7 +1602,7 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 }
 
 // Test hook: the selection, the selected structure's rally point, and every own
-// unit with its template, rank, idleness, whether it is a female citizen,
+// unit with its template, rank, idleness, whether it is a Civilian,
 // world position and screen position.
 Dictionary RtsoMain::debug_selection_state() {
 	Dictionary d;
@@ -1624,7 +1624,7 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
 		const uint64_t tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
-		u["female"] = (tc & rtso::TC_FEMALECITIZEN) != 0;
+		u["civilian"] = (tc & rtso::TC_CIVILIAN) != 0;
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -1965,7 +1965,7 @@ void RtsoMain::cycle_idle_worker() {
 // session.js g_WorkerTypes / g_MilitaryTypes and hotkeys/misc.xml, and
 // GuiInterface FindIdleUnits / IdleUnitFilter: selects the next idle unit after
 // the last one found and centres the camera on it. The class list is walked in
-// order from the class of the last find (all idle female citizens before the
+// order from the class of the last find (all idle civilians before the
 // traders, and so on), units garrisoned or on a turret don't count, and once a
 // class runs out the next one follows. selection.add (Shift) appends;
 // selection.offscreen (Alt) selects every idle unit of the kind at once.
@@ -1973,7 +1973,7 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 	if (!sim) return;
 	std::vector<uint64_t> classes;
 	switch (kind) {
-		case IDLE_WORKER: classes = {rtso::TC_FEMALECITIZEN, rtso::TC_TRADER, rtso::TC_FISHINGBOAT, rtso::TC_CITIZEN}; break;
+		case IDLE_WORKER: classes = {rtso::TC_CIVILIAN, rtso::TC_TRADER, rtso::TC_FISHINGBOAT, rtso::TC_CITIZEN}; break;
 		case IDLE_WARRIOR: classes = {rtso::TC_MELEE, rtso::TC_RANGED}; break;
 		case IDLE_BUILDER: classes = {rtso::TC_WORKER | rtso::TC_CITIZEN}; break;
 		case IDLE_ANY: classes = {~0ull}; break;
