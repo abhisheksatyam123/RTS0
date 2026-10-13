@@ -5208,7 +5208,7 @@ int Simulation::ship_template_capacity(uint8_t unit_type, uint16_t tmpl) {
 	const char *id = civ_unit_template(tmpl).id;
 	const char *slash = std::strrchr(id, '/');
 	const char *name = slash ? slash + 1 : id;
-	if (std::strcmp(name, "ship_fire") == 0) return 0;
+	if (std::strncmp(name, "ship_fire", 9) == 0) return 0; // ship_fire and ship_fire_fire
 	if (std::strcmp(name, "ship_scout") == 0) return 10;
 	if (std::strcmp(name, "ship_siege") == 0) return 50;
 	return TRANSPORT_CAPACITY; // ship_arrow, ship_ram, ship_bireme...
@@ -11217,8 +11217,9 @@ void Simulation::eject_corral_animals(const Building &b) {
 }
 
 // 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
-// they die. Of the trained ones that is mixins/fireship.xml (brit, gaul and iber
-// ship_fire): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
+// they die. Of the trained ones that is mixins/fireship.xml, on the ignited fire ships
+// (brit, gaul and iber ship_fire_fire, which ship_fire turns into by its Ignition
+// upgrade): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
 // has one too but no civ trains it.
 static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {20.0f * AREA_DAMAGE_SCALE, 500.0f, true};
 
@@ -11229,24 +11230,30 @@ static bool template_is(uint16_t tmpl, const char *name) {
 	return std::strcmp(slash ? slash + 1 : id, name) == 0;
 }
 
-// The fire ship templates (template_unit_ship_fire.xml), looked up once: the
-// Health regen loop asks this for every unit every tick.
-static bool is_fire_ship(uint16_t tmpl) {
+// The ignited fire ship templates (units/{civ}/ship_fire_fire, mixins/fireship.xml),
+// looked up once: the Health regen loop asks this for every unit every tick. A fire
+// ship as trained doesn't burn until the player ignites it (Upgrade/Ignition).
+static bool is_ignited_fire_ship(uint16_t tmpl) {
 	static const auto table = [] {
 		std::array<bool, CIV_UNIT_TEMPLATE_COUNT> t{};
-		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire");
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire_fire");
 		return t;
 	}();
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT && table[tmpl];
 }
 
+// Either form of the fire ship (template_unit_ship_fire.xml: Repairable disable).
+static bool is_fire_ship(uint16_t tmpl) {
+	return template_is(tmpl, "ship_fire") || is_ignited_fire_ship(tmpl);
+}
+
 const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
-	return is_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
+	return is_ignited_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
 }
 
 // Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
 float Simulation::unit_template_regen(size_t i) const {
-	return is_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
+	return is_ignited_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
 }
 
 // DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the

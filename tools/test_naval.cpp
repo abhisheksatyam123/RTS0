@@ -754,14 +754,34 @@ static void test_petra_transport_ship_lost() {
 	CHECK(took == second && landed >= 3); // it sails with whoever made it aboard
 }
 
-// DeathDamage.js: a fire ship (mixins/fireship.xml) burns down at RegenRate -5 and, dying,
-// deals 500 Fire over 20 m to everyone, its own side too, with quadratic falloff.
-// Other ships and structures deal nothing when they die.
+// DeathDamage.js: a fire ship ignited (Upgrade/Ignition to ship_fire_fire, mixins/fireship.xml)
+// burns down at RegenRate -5 and, dying, deals 500 Fire over 20 m to everyone, its own side
+// too, with quadratic falloff. Before ignition it neither burns nor blasts. Other ships and
+// structures deal nothing when they die.
 static void test_fire_ship() {
 	static Simulation s;
 	fresh(s);
 	s.set_victory_condition(VICTORY_ENDLESS);
+	{
+		const uint32_t cold = s.spawn_unit(0.0f, 30.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+		const uint32_t near = s.spawn_unit(3.0f, 30.0f, 1, UNIT_TRIREME);
+		uint32_t both[2] = {cold, near};
+		s.order_set_stance(both, 1, STANCE_PASSIVE);
+		s.order_set_stance(&both[1], 1, STANCE_PASSIVE);
+		const float c0 = s.units().hp[idx(s, cold)], n0 = s.units().hp[idx(s, near)];
+		run(s, 10.0f);
+		CHECK(s.units().hp[idx(s, cold)] == c0); // not burning before ignition
+		s.set_unit_hp(cold, 1.0f);
+		s.cmd_delete(0, &cold, 1);
+		run(s, 1.0f);
+		CHECK(s.units().hp[idx(s, near)] == n0); // no blast either
+		s.cmd_delete(1, &near, 1);
+		run(s, 1.0f);
+	}
 	const uint32_t fire = s.spawn_unit(0.0f, 12.0f, 0, UNIT_TRIREME, 0.0f, tmpl_of("brit/ship_fire"));
+	CHECK(s.cmd_upgrade_units(0, &fire, 1, tmpl_of("brit/ship_fire_fire"))); // Ignition
+	run(s, 0.1f);
+	CHECK(s.units().tmpl[idx(s, fire)] == tmpl_of("brit/ship_fire_fire"));
 	const uint32_t enemy = s.spawn_unit(3.0f, 12.0f, 1, UNIT_TRIREME);
 	const uint32_t own = s.spawn_unit(-3.5f, 12.0f, 0, UNIT_TRIREME);
 	const uint32_t far_enemy = s.spawn_unit(16.0f, 12.0f, 1, UNIT_TRIREME);
