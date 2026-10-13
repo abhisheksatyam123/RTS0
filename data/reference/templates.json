@@ -9074,6 +9074,18 @@
      "Gate"
     ],
     "template": "structures/palisades_gate"
+   },
+   "63": {
+    "generic_name": "Siege Wall",
+    "specific_name": "Mūrus Circummūnītiōnis",
+    "tooltip": "Can be converted into a Gate.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Wall",
+     "SiegeWall"
+    ],
+    "template": "structures/rome/siege_wall_long"
    }
   },
   "cart": {

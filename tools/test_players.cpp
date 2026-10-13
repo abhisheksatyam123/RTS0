@@ -178,6 +178,11 @@ int main() {
 	tmc.assign_slot_players(wire);
 	CHECK(tmc.player_for_client(0) == 3 && tmc.player_for_client(1) == 0xFF && tmc.player_for_client(2) == 1);
 	CHECK(tmc.player_for_client(3) == 4);
+	{
+		uint8_t out[8];
+		TurnManager::seat_clients(wire, out); // the host's lobby shows the same seating Start makes
+		for (uint32_t c = 0; c < 8; ++c) CHECK(out[c] == tmc.player_for_client(c));
+	}
 	for (uint8_t &st : seats.seats) st = 0xFF;
 	seats.slot_count = 4;
 	tmc.reset();
