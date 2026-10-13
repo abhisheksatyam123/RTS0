@@ -322,6 +322,45 @@ int main() {
 		CHECK(near(with[0], base[0] + 1.0f) && near(with[1], base[1] + 1.0f) && near(with[2], base[2] + 1.0f));
 	}
 
+	// 11. Caros' Valiant Defender (iber_hero_caros_1, a garrison aura): the structure or siege
+	// tower holding him multiplies GarrisonArrowMultiplier and MaxArrowCount by 1.75, once.
+	{
+		fresh(s, 8);
+		s.set_team_civ(0, CIV_IBERIANS);
+		const uint16_t caros = template_named("iber/hero_caros");
+		CHECK(caros != CIV_UNIT_TEMPLATE_NONE);
+		// A sentry tower (2 arrows, max 6) with three archers: 5; with two archers and Caros:
+		// 2 + round(n x 1.75), now capped at round(6 x 1.75) = 11 instead of 6.
+		uint32_t st = s.spawn_building_world(-20.0f, -30.0f, BLD_SENTRY_TOWER, 0, 1.0f);
+		uint32_t g[2] = {s.spawn_unit(-18.0f, -26.0f, 0, UNIT_ARCHER), s.spawn_unit(-18.0f, -27.0f, 0, UNIT_ARCHER)};
+		garrison(s, g, 2, st);
+		CHECK(s.building_arrow_count(*find_bld(s, st)) == 4);
+		uint32_t hero = s.spawn_unit(-18.0f, -28.0f, 0, UNIT_HERO, 0.0f, caros);
+		const bool counts = (s.unit_classes_at((size_t)idx_of(s, hero)) & building_ai_info(BLD_SENTRY_TOWER).garrison_arrow_classes) != 0;
+		garrison(s, &hero, 1, st);
+		CHECK(s.get_garrison_count(st) == 3);
+		const int n = 2 + (counts ? 1 : 0);
+		const int want = std::min(2 + (int)std::lround(n * 1.75f), 11);
+		std::printf("sentry tower with 2 archers and Caros: %d arrows (want %d)\n", s.building_arrow_count(*find_bld(s, st)), want);
+		CHECK(s.building_arrow_count(*find_bld(s, st)) == want);
+		CHECK(want > 6); // past the sentry tower's own MaxArrowCount
+		// A siege tower carrying four spearmen and Caros: round(n x 1.75) arrows a volley.
+		uint32_t tower = s.spawn_unit(20.0f, 20.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, template_named("mace/siege_tower"));
+		const int32_t ti = idx_of(s, tower);
+		CHECK(ti >= 0 && s.is_siege_tower_at((size_t)ti));
+		std::vector<uint32_t> crew;
+		for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(25.0f, 20.0f + k, 0, UNIT_SPEARMAN));
+		s.transport_passengers_[tower] = crew;
+		CHECK(s.siege_tower_arrows((size_t)ti) == 4);
+		uint32_t hero2 = s.spawn_unit(25.0f, 26.0f, 0, UNIT_HERO, 0.0f, caros);
+		crew.push_back(hero2);
+		s.transport_passengers_[tower] = crew;
+		const bool inf = (unit_tech_classes(UNIT_HERO) & TC_INFANTRY) != 0;
+		std::printf("siege tower with 4 spearmen and Caros: %d arrows\n", s.siege_tower_arrows((size_t)ti));
+		CHECK(s.siege_tower_arrows((size_t)ti) == (int)std::lround((4 + (inf ? 1 : 0)) * 1.75f));
+		s.transport_passengers_.erase(tower);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
