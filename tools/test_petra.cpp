@@ -94,7 +94,9 @@ static void test_no_early_rush() {
 	std::printf("  arena: %.0fs in village phase, player units %d -> %d, attack launched: %s, rushes allowed %d\n",
 	            t, start_units, count_units(*s, 0, false), attacked ? "yes" : "no", s->petra_attack_manager().max_rushes);
 	CHECK(!attacked, "no village-phase attack");
-	CHECK(s->petra_attack_manager().max_rushes == 0, "no rushes on a wood-poor base (setRushes)");
+	// setRushes: one rush per 3000 wood above 8500 on the base's own land within 360 m; the
+	// arena's base has room for one at most, and none goes out in the first 300 s.
+	CHECK(s->petra_attack_manager().max_rushes <= 1, "at most one rush on the arena base (setRushes)");
 	CHECK(count_units(*s, 0, false) == start_units, "idle player loses no units");
 	CHECK(!s->is_game_over(), "match still running");
 }
@@ -330,6 +332,13 @@ static bool said_to(const Simulation &s, uint8_t from, uint8_t to, uint8_t kind)
 		if (l.from == from && l.kind == kind && (to == 0xFF ? l.to == PETRA_CHAT_EVERYONE : s.petra_chat_reaches(l, to)))
 			return true;
 	return false;
+}
+
+// Every queue funded and unpaused (checkPausedQueues pauses most of them for an AI with
+// few workers), for tests of what Petra does once it pays.
+static void fund_queues(Simulation &s) {
+	for (auto &a : s.petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+	for (auto &p : s.petra_queues_.paused) p = 0;
 }
 
 static void run_for(Simulation &s, float seconds) {
@@ -893,6 +902,61 @@ static void test_hunting() {
 	CHECK(!foreign_hunted, "no one hunts in enemy territory");
 }
 
+// worker.js and baseManager.js on 0.28: every FastMoving food gatherer is a hunter
+// (the Ptolemaic camel archers too); a chase toward an animal in enemy territory is
+// given up; a carcass with all its MaxGatherers taken is full.
+static void test_hunters_028() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->set_team_civ(1, CIV_PTOLEMIES);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float px = 0.0f, pz = 0.0f, ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings()) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { px = b.x; pz = b.z; }
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	}
+	uint16_t camel_t = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, "ptol/cavalry_archer_b") == 0) camel_t = t;
+	CHECK(camel_t != CIV_UNIT_TEMPLATE_NONE, "roster has the Nabataean camel archer");
+	const uint32_t camel = s->spawn_unit(px + 6.0f, pz + 6.0f, 1, UNIT_CAMEL, 0.0f, camel_t);
+	auto &u = s->units_;
+	bool camel_hunts = false;
+	for (float t = 0.0f; t < 40.0f && !camel_hunts; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t ci = s->lookup_unit(camel);
+		if (ci < 0) break;
+		camel_hunts = (u.action_state[ci] == ACTION_ATTACK && s->is_fauna_id(u.target_unit_id[ci])) ||
+		              u.res_type_carried[ci] == RES_FOOD;
+	}
+	std::printf("  camel archer hunts: %s\n", camel_hunts ? "yes" : "no");
+	CHECK(camel_hunts, "the Ptolemaic camel archer is a hunter (FastMoving food gatherer)");
+
+	// The camel archer sent after a deer standing in the enemy's land gives it up.
+	const uint32_t deer = s->spawn_fauna(ex + 4.0f, ez + 4.0f, FAUNA_DEER);
+	uint32_t rider = camel; // a gathering rider (the Ptolemies' default cavalry gather nothing)
+	s->order_hunt(&rider, 1, deer);
+	s->tick(Simulation::FIXED_STEP);
+	s->petra_pid_ = 1;
+	Simulation::PetraHuntScan scan = s->petra_hunt_scan();
+	s->petra_check_hunt_drift(scan);
+	const int32_t ri = s->lookup_unit(rider);
+	CHECK(ri >= 0 && u.target_unit_id[ri] != deer, "a chase into enemy territory is given up (worker.js drift check)");
+
+	// A carcass whose MaxGatherers are all taken is not picked.
+	const uint32_t meat = s->spawn_resource_world(px + 8.0f, pz - 8.0f, RES_FOOD, 100, RES_SUB_MEAT, 1);
+	Simulation::PetraHuntScan full = s->petra_hunt_scan();
+	full.on_carcass[meat] = 1;
+	bool live = false;
+	const int32_t ri2 = s->lookup_unit(rider);
+	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
+	full.on_carcass[meat] = 0;
+	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+}
+
 // startingStrategy.js buildFirstBase: Petra loses its Town Center; the wood for a
 // new one is in a treasure by its workers, so it collects that first, then
 // founds a civic centre where they stand and builds it.
@@ -950,12 +1014,12 @@ static void test_barter() {
 	for (auto &w : s->petra_queues_.wants) w = PetraQueueAccount{};
 	for (float &g : ps.gathered_window) g = 0.0f;
 	ps.food() = 3000.0f; ps.wood() = 0.0f; ps.gold() = 0.0f; ps.stone() = 0.0f;
-	s->petra_queues_.wants[Simulation::PETRA_QUEUE_MILITARY].wood = 300.0f; // a plan waits on wood
+	s->petra_queues_.wants[PETRA_Q_PLAN].wood = 300.0f; // a plan waits on wood
 	const bool necessity = s->petra_perform_barter();
 	std::printf("  barter: necessity deal %s, food %.0f wood %.0f\n", necessity ? "yes" : "no", ps.food(), ps.wood());
 	CHECK(necessity && ps.wood() > 0.0f && ps.food() < 3000.0f, "sells spare food for the wood a plan waits on");
 
-	s->petra_queues_.wants[Simulation::PETRA_QUEUE_MILITARY] = PetraQueueAccount{};
+	s->petra_queues_.wants[PETRA_Q_PLAN] = PetraQueueAccount{};
 	ps.food() = 6000.0f; ps.wood() = 2000.0f; ps.gold() = 300.0f; ps.stone() = 2000.0f;
 	const float gold_before = ps.gold();
 	const bool contingency = s->petra_perform_barter();
@@ -994,8 +1058,7 @@ static void test_market_prospection() {
 	ps.food() = ps.wood() = ps.gold() = ps.stone() = 5000.0f;
 	for (auto &a : s->petra_queues_.accounts) a = PetraQueueAccount{};
 	for (auto &w : s->petra_queues_.wants) w = PetraQueueAccount{};
-	PetraQueueAccount &trade = s->petra_queues_.accounts[Simulation::PETRA_QUEUE_TRADE];
-	trade.food = trade.wood = trade.gold = trade.stone = 5000.0f; // the queue is funded
+	fund_queues(*s); // the queues are funded
 	const Simulation::Building *m1 = nullptr;
 	for (const auto &b : s->buildings()) if (b.id == first) m1 = &b;
 	const float m1x = m1->x, m1z = m1->z;
@@ -1274,7 +1337,7 @@ static void test_entity_limit_placement() {
 			if (s->petra_can_place(cx, cz, pillar_foot, BLD_PILLAR)) ++pillar_ok;
 		}
 	const size_t before = s->buildings().size();
-	const uint32_t placed = s->petra_place_building(BLD_PILLAR, tx, tz, 2, 16, Simulation::PETRA_QUEUE_MILITARY);
+	const uint32_t placed = s->petra_place_building(BLD_PILLAR, tx, tz, 2, 16, PETRA_Q_MILITARY_BUILDING);
 	std::printf("  entity limits: Pillar limit %d without Ashoka, %d free cells, Pillar placeable on %d, placed %s\n",
 	            s->entity_limit(1, LIMIT_PILLAR), free_cells, pillar_ok, placed ? "yes" : "no");
 	CHECK(s->entity_limit(1, LIMIT_PILLAR) == 0, "no Pillar without Ashoka");
@@ -1512,8 +1575,7 @@ static void test_placement_miss_memory_exact() {
 		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { hx = b.x; hz = b.z; }
 	s->players_[1].add(5000.0f, 5000.0f, 5000.0f, 5000.0f);
 	auto fund = [&] {
-		auto &acc = s->petra_queues_.accounts[Simulation::PETRA_QUEUE_TECH];
-		acc.food = acc.wood = acc.gold = acc.stone = 5000.0f;
+		fund_queues(*s);
 	};
 	const float G = Simulation::GRID;
 	const int hcx = (int)(hx / G), hcz = (int)(hz / G);
@@ -1539,10 +1601,10 @@ static void test_placement_miss_memory_exact() {
 	fund();
 	const uint32_t old_tower = s->spawn_building(px, pz, BLD_TOWER, 1, 1.0f);
 	const float tx = (px + 0.5f) * G, tz = (pz + 0.5f) * G;
-	const bool tower_fails = !s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, Simulation::PETRA_QUEUE_TECH);
+	const bool tower_fails = !s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, PETRA_Q_DEFENSE_BUILDING);
 	const bool tower_remembered = s->petra_place_misses_.size() == 1;
 	s->destroy_building(s->buildings_[s->building_id_to_idx_.at(old_tower)]);
-	const uint32_t tower = s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, Simulation::PETRA_QUEUE_TECH);
+	const uint32_t tower = s->petra_place_building(BLD_TOWER, tx, tz, 3, 4, PETRA_Q_DEFENSE_BUILDING);
 
 	// Trees on every cell a temple could take in rings 5-6 around the Civic Centre.
 	const int foot = building_type_info(BLD_TEMPLE).footprint;
@@ -1552,8 +1614,8 @@ static void test_placement_miss_memory_exact() {
 				s->spawn_resource_world((hcx + dx + 0.5f) * G, (hcz + dz + 0.5f) * G, RES_WOOD, 200);
 	s->resource_block_tick_ = UINT64_MAX; // the obstruction cache is per tick; this is the same tick
 	fund();
-	const bool temple_fails = !s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, Simulation::PETRA_QUEUE_TECH);
-	const bool still_fails = !s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, Simulation::PETRA_QUEUE_TECH);
+	const bool temple_fails = !s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, PETRA_Q_ECONOMIC_BUILDING);
+	const bool still_fails = !s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, PETRA_Q_ECONOMIC_BUILDING);
 	// Fell the trees under candidate spots until one is free.
 	bool freed = false;
 	for (int r = 5; r <= 6 && !freed; ++r)
@@ -1568,7 +1630,7 @@ static void test_placement_miss_memory_exact() {
 				s->resource_block_tick_ = UINT64_MAX;
 				freed = s->petra_can_place(cx, cz, foot, BLD_TEMPLE);
 			}
-	const uint32_t temple = s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, Simulation::PETRA_QUEUE_TECH);
+	const uint32_t temple = s->petra_place_building(BLD_TEMPLE, hx, hz, 5, 6, PETRA_Q_ECONOMIC_BUILDING);
 	std::printf("  placement miss memory: tower %s, %s after its neighbour fell; temple %s, %s after felling\n",
 	            tower_fails ? "blocked" : "not blocked", tower ? "placed" : "not placed",
 	            temple_fails && still_fails ? "blocked" : "not blocked", temple ? "placed" : "not placed");
@@ -1612,7 +1674,7 @@ static void test_expansion_small_nodes() {
 	}
 	// checkResourceLevels' storehouse site (findBestDropsiteLocation) among the same trees.
 	s->petra_pid_ = 1;
-	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	fund_queues(*s);
 	s->petra_place_dropsite(RES_WOOD);
 	for (const auto &b : s->buildings())
 		if (b.team == 1 && b.type == BLD_STOREHOUSE && b.hp > 0.0f) ++stores;
@@ -2633,7 +2695,7 @@ static void test_build_defenses() {
 		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == type && b.hp > 0.0f;
 		return n;
 	};
-	auto fund = [&] { s->petra_queues_.accounts[Simulation::PETRA_QUEUE_MILITARY] = {5000, 5000, 5000, 5000}; };
+	auto fund = [&] { fund_queues(*s); };
 	s->players_[1].phase = 1;
 	s->petra_config_.defensive = 0.5f; // towerLapseTime 360 x (1.1 - 0.2 x 0.5)
 	s->petra_attack_mgr_.save_resources = 0;
@@ -2689,7 +2751,7 @@ static void test_dropsites() {
 				if (o.team == 1 && is_civic_centre(o.type))
 					CHECK(std::hypot(o.x - b.x, o.z - b.z) >= 15.0f, "the opening storehouse stands by wood, 15 tiles from the civic centre");
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
-	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	fund_queues(*s);
 	s->petra_pid_ = 1;
 	const int stores = count(BLD_STOREHOUSE, false);
 	auto &dc = s->petra_dropsite_check_;
@@ -2876,7 +2938,7 @@ static void test_food_fields() {
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 2.0f);
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
-	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	fund_queues(*s);
 	s->petra_pid_ = 1;
 	auto fields = [&](bool foundations_only) {
 		int n = 0;
@@ -3007,6 +3069,7 @@ static void test_missing_room_expansion() {
 	s->players_[1].phase = 2;
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	for (auto &a : s->petra_queues_.accounts) a = {5000, 5000, 5000, 5000};
+	for (auto &p : s->petra_queues_.paused) p = 0; // a 2 s old village pauses the civic centre queue
 	auto bases = [&] {
 		int n = 0;
 		for (const auto &b : s->buildings_) n += b.team == 1 && b.hp > 0.0f && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY);
@@ -3016,7 +3079,7 @@ static void test_missing_room_expansion() {
 	s->petra_attack_mgr_.missing_room = 1u << 0; // houses only
 	s->petra_check_base_expansion();
 	CHECK(bases() == before, "one kind without room: no new base");
-	const uint32_t house = s->petra_place_generic(BLD_HOUSE, Simulation::PETRA_QUEUE_VILLAGER);
+	const uint32_t house = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
 	CHECK(house != 0 && s->petra_attack_mgr_.missing_room == 0, "a house placed clears its kind");
 	s->petra_attack_mgr_.missing_room = (1u << 0) | (1u << 5); // houses and barracks
 	s->petra_check_base_expansion();
@@ -3025,7 +3088,7 @@ static void test_missing_room_expansion() {
 	// A search that finds no spot (asked for in a corner no base holds) sets its kind.
 	s->petra_attack_mgr_.missing_room = 0;
 	const float corner[2] = {-60.0f, -60.0f};
-	CHECK(s->petra_place_generic(BLD_WONDER, Simulation::PETRA_QUEUE_TECH, corner) == 0 &&
+	CHECK(s->petra_place_generic(BLD_WONDER, PETRA_Q_WONDER, corner) == 0 &&
 	          s->petra_attack_mgr_.missing_room == (1u << 7),
 	      "no room for a wonder sets its kind");
 }
@@ -3039,7 +3102,7 @@ static void test_corral_by_owner() {
 	run_for(*s, 2.0f);
 	s->petra_pid_ = 1;
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
-	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->petra_queues_.accounts[PETRA_Q_CORRAL] = {5000, 5000, 5000, 5000};
 	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_FIELD);
 	const Simulation::Building *cc = nullptr;
 	for (const auto &b : s->buildings_)
@@ -3094,6 +3157,7 @@ int main() {
 	test_diplomacy_requests();
 	test_tribute_request_paid_later();
 	test_hunting();
+	test_hunters_028();
 	test_first_base();
 	test_barter();
 	test_market_prospection();

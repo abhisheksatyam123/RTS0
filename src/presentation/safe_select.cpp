@@ -14,6 +14,7 @@ void RtsoSafeSelect::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("select", "index"), &RtsoSafeSelect::select);
 	ClassDB::bind_method(D_METHOD("get_selected"), &RtsoSafeSelect::get_selected);
 	ClassDB::bind_method(D_METHOD("get_item_id", "index"), &RtsoSafeSelect::get_item_id);
+	ClassDB::bind_method(D_METHOD("get_item_index", "id"), &RtsoSafeSelect::get_item_index);
 	ClassDB::bind_method(D_METHOD("get_item_count"), &RtsoSafeSelect::get_item_count);
 	ClassDB::bind_method(D_METHOD("clear"), &RtsoSafeSelect::clear);
 	ClassDB::bind_method(D_METHOD("_on_pressed"), &RtsoSafeSelect::_on_pressed);
@@ -97,6 +98,15 @@ int RtsoSafeSelect::get_item_id(int index) const {
 		return 0;
 	}
 	return items[(size_t)index].id;
+}
+
+int RtsoSafeSelect::get_item_index(int id) const {
+	for (size_t i = 0; i < items.size(); ++i) {
+		if (items[i].id == id) {
+			return (int)i;
+		}
+	}
+	return -1;
 }
 
 void RtsoSafeSelect::clear() {

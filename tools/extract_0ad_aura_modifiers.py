@@ -147,6 +147,9 @@ def main() -> int:
         for suffix in ["", "_1", "_2", "_3"]:
             if src.read(f"{AURA_DIR}/{civ}_catafalque{suffix}.json"):
                 names.append(f"{civ}_catafalque{suffix}")
+        # 0.28's Germanic catafalque names its aura germ_1 (units/germ/catafalque.xml).
+        if src.read(f"{AURA_DIR}/{civ}_1.json"):
+            names.append(f"{civ}_1")
     hero_dir = "simulation/data/auras/units/heroes"
     hero_names = sorted(os.path.basename(r)[:-5] for r in list_files(src, hero_dir + "/") if r.endswith(".json"))
 
@@ -262,6 +265,8 @@ def main() -> int:
     # Range auras on ResourceGatherer/Rates/<type>.<subtype>, per GatherKind (simulation.h).
     gather_keys = ["food.grain", "food.fruit", "food.meat", "food.fish", "wood.tree", "stone.rock", "metal.ore"]
     gather_auras: list[tuple[str, list[float], float, int]] = []
+    # Range auras adding to Attack/Ranged/MaxRange and Attack/Melee/MaxRange (Boiorix).
+    range_add_auras: list[tuple[str, float, float, float, int]] = []
     for rel in sorted(list_files(src, "simulation/data/auras/")):
         if not rel.endswith(".json"):
             continue
@@ -275,8 +280,11 @@ def main() -> int:
         mul, add = [1.0] * 4, [0.0] * 4
         zero = False
         rates = [1.0] * len(gather_keys)
+        range_add = {"Ranged": 0.0, "Melee": 0.0}
         for m in j.get("modifications", []):
             v = m["value"]
+            if v in ("Attack/Ranged/MaxRange", "Attack/Melee/MaxRange") and "add" in m:
+                range_add[v.split("/")[1]] += float(m["add"])
             if v.startswith("ResourceGatherer/Rates/") and v.split("/")[-1] in gather_keys and "multiply" in m:
                 rates[gather_keys.index(v.split("/")[-1])] *= float(m["multiply"])
             if v.startswith("Looter/Resource/") and v.split("/")[-1] in loot_res:
@@ -291,6 +299,8 @@ def main() -> int:
             no_loot_auras.append((name, float(j.get("radius", 0)), players))
         if rates != [1.0] * len(gather_keys):
             gather_auras.append((name, rates, float(j.get("radius", 0)), players))
+        if range_add["Ranged"] or range_add["Melee"]:
+            range_add_auras.append((name, range_add["Ranged"], range_add["Melee"], float(j.get("radius", 0)), players))
     # Unit auras' AuraManager effects of every kind (the roster keeps the strongest one).
     import extract_0ad_rosters as ros  # noqa: E402
     effect_rows: list[tuple[str, str, float, float]] = []
@@ -433,6 +443,18 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Range auras adding to the MaxRange of the units they reach (AURA_RANGE_ADD sources,")
+    w("// value = row): 0 A.D. metres added to a ranged and to a melee attack; radius in 0 A.D. metres.")
+    w("struct RangeAddRangeAura { const char *id; float ranged; float melee; float radius; uint8_t players; };")
+    w(f"constexpr uint16_t RANGE_ADD_RANGE_AURA_COUNT = {len(range_add_auras)};")
+    w("inline const RangeAddRangeAura *range_add_range_auras() {")
+    w(f"\tstatic const RangeAddRangeAura kAuras[{max(1, len(range_add_auras))}] = {{")
+    for name, ranged, melee, radius, players in range_add_auras:
+        w(f"\t\t{{\"{name}\", {ranged!r}f, {melee!r}f, {radius!r}f, {players}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
     w("// Range auras replacing Loot (xp and resources) with 0 on the entities they reach")
     w("// (AURA_NO_LOOT sources): those give their killer nothing.")
     w("struct NoLootRangeAura { const char *id; float radius; uint8_t players; };")
@@ -498,7 +520,7 @@ def main() -> int:
         f.write("\n".join(lines) + "\n")
     print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras, "
           f"{len(capatk_auras)} capture attack range auras, {len(looter_auras)} looter and "
-          f"{len(no_loot_auras)} no-loot range auras, {len(gather_auras)} gather-rate range auras, {len(build_auras)} Builder/Rate range auras, "
+          f"{len(no_loot_auras)} no-loot range auras, {len(gather_auras)} gather-rate and {len(range_add_auras)} MaxRange range auras, {len(build_auras)} Builder/Rate range auras, "
           f"{len(arrow_auras)} garrison arrow auras")
     for s in skipped:
         print("  not modelled: " + s)

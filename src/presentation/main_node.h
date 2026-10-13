@@ -458,6 +458,9 @@ public:
 
 	void toggle_diplomacy();
 	void toggle_objectives();
+	Dictionary get_match_settings_info() const;
+	String match_settings_description() const;
+	String match_settings_player_state() const;
 	void _on_tutorial_ready_pressed();
 	void resign();
 	void _toggle_session_dialog(String name);
@@ -524,6 +527,7 @@ private:
 	void update_hud();
 	void update_inspector();
 	void prune_selection();
+	uint32_t own_fauna_at(float x, float z) const;
 	void update_command_panel();
 	void keep_command_buttons(Control *bar, int old_count);
 	void enter_build_mode(bool enable, uint8_t btype = rtso::BLD_HOUSE);

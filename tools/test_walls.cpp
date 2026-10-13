@@ -491,7 +491,28 @@ int main() {
 		CHECK(longs == 10 && gates == 2 && towers == 12 && inside == 4 && side < 20.0f && gate_dot > 0.99f);
 	}
 
-	// 13. A wall piece tests its own rectangle against each tree's 1.5 m obstruction (0 A.D.
+	// 13. Ported maps lay their walls, palisades and gates as turned WallSet pieces
+	// (port_0ad_maps.py wall_piece): a piece runs along its Position angle, (cos a, -sin a).
+	{
+		setup(s, 0.0f);
+		const float a = 0.6f;
+		const uint32_t wid = s.spawn_map_wall_piece(0, WALLSET_STONE, Simulation::MAP_WALL_SEGMENT, 0.0f, 30.0f, a, 9.0f);
+		const auto *w = find_bld(s, wid);
+		CHECK(w && w->type == BLD_WALL_SEGMENT && w->half_size == 4.5f && w->build_progress >= 1.0f);
+		// Its footprint's long axis is the wall's run.
+		const bool along = w && std::fabs(w->ux - std::cos(a)) < 1e-3f && std::fabs(w->uz + std::sin(a)) < 1e-3f && w->hu == 4.5f;
+		CHECK(along);
+		const uint32_t gid = s.spawn_map_wall_piece(GAIA_PLAYER, WALLSET_STONE, Simulation::MAP_WALL_GATE, 20.0f, -30.0f, 0.0f, 9.0f);
+		const auto *g = find_bld(s, gid);
+		CHECK(g && g->type == BLD_GATE && !s.can_capture_building(0, *g));
+		const auto *pt = find_bld(s, s.spawn_map_wall_piece(0, WALLSET_PALISADE, Simulation::MAP_WALL_TOWER, -20.0f, -30.0f, 1.0f, 1.0f));
+		CHECK(pt && is_palisade_tower(pt->type, pt->half_size));
+		const auto *sg = find_bld(s, s.spawn_map_wall_piece(0, WALLSET_SIEGE, Simulation::MAP_WALL_GATE, -30.0f, 20.0f, 0.0f, 9.0f));
+		CHECK(sg && sg->type == BLD_SIEGE_WALL_GATE);
+		std::printf("  map wall piece at 0.6 rad: runs along (%.2f, %.2f)\n", w ? w->ux : 0.0f, w ? w->uz : 0.0f);
+	}
+
+	// 14. A wall piece tests its own rectangle against each tree's 1.5 m obstruction (0 A.D.
 	// CheckFoundation), not the 8 m cells it touches: a tree beside the wall leaves it free, one on
 	// it blocks it, and so does a turned wall's segment only where it really crosses the tree.
 	{

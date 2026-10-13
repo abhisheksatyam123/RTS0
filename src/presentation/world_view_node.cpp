@@ -185,7 +185,7 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_MINISTER].load_rig(rtso::RigType::Healer); // robed, like the healer model it borrows
 	anim_controllers[rtso::UNIT_SIEGE_RAM].load_rig(rtso::RigType::SiegeRam);
 	anim_controllers[rtso::UNIT_CATAFALQUE].load_rig(rtso::RigType::SiegeRam); // a wheeled bier, on the ram model
-	anim_controllers[rtso::UNIT_WAGON].load_rig(rtso::RigType::SiegeRam); // on the ram model until it has its own
+	anim_controllers[rtso::UNIT_WAGON].load_rig(rtso::RigType::Wagon);
 	anim_controllers[rtso::UNIT_HERO].load_rig(rtso::RigType::Biped);
 	anim_controllers[rtso::UNIT_TRADER].load("trader");
 	anim_controllers[rtso::UNIT_ARCHER_MAIDEN].load_rig(rtso::RigType::Archer);
@@ -1455,11 +1455,11 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_size) {
 	if (type == rtso::BLD_WALL_SEGMENT && half_size >= 1.25f) {
 		const char *len = half_size >= 3.75f ? "wall_long" : half_size >= 2.25f ? "wall_medium" : "wall_short";
-		return String(rtso::civ_art_code(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS)) + "_" + len;
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_" + len;
 	}
 	// Only a long segment becomes a gate; it keeps the segment's length.
 	if (type == rtso::BLD_GATE && half_size >= 3.75f)
-		return String(rtso::civ_art_code(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS)) + "_wall_gate";
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
 	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
 	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
 	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
@@ -1564,7 +1564,14 @@ static const char *crowd_key_model(uint8_t civ, uint16_t key) {
 	return model;
 }
 
-static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl) {
+// A male 0.28 Civilian draws and animates as its civ's citizen_male actor, the villager
+// model (rtso::civilian_is_male); a female one keeps the female citizen model.
+static uint8_t drawn_unit_type(uint8_t utype, uint16_t tmpl, uint32_t id) {
+	return rtso::civilian_is_male(tmpl, id) ? (uint8_t)rtso::UNIT_VILLAGER : utype;
+}
+
+static uint16_t crowd_key_of(uint8_t civ, uint8_t utype, uint8_t pack_state, uint16_t tmpl, uint32_t id) {
+	if (rtso::civilian_is_male(tmpl, id)) return rtso::UNIT_VILLAGER;
 	if (shows_packed(pack_state) && rtso::packed_siege_model(rtso::civ_unit_model(civ, utype)))
 		return (uint16_t)(rtso::UNIT_TYPE_COUNT + utype);
 	const int own = rtso::unit_template_draw_index(tmpl);
@@ -2487,11 +2494,12 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint8_t t = uview.unit_type[i];
 		if (t >= rtso::UNIT_TYPE_COUNT) t = rtso::UNIT_VILLAGER;
+		t = drawn_unit_type(t, uview.tmpl[i], uview.id[i]);
 		uint8_t civ = sim->team_civ(uview.team[i]);
 		if (civ >= rtso::CIV_COUNT) civ = rtso::CIV_ATHENIANS;
 		const int slot = crowd_slot_of(anim_of(i).clip);
 		crowd_slot_scratch_[i] = (uint8_t)slot;
-		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i]);
+		const uint16_t key = crowd_key_of(civ, t, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
 		crowd_key_utype_[key] = t;
 		counts[civ][key][slot]++;
 	}
@@ -2528,6 +2536,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		bool is_player = (uview.team[i] == local_player_);
 		uint8_t utype = uview.unit_type[i];
 		if (utype >= rtso::UNIT_TYPE_COUNT) utype = rtso::UNIT_VILLAGER;
+		utype = drawn_unit_type(utype, uview.tmpl[i], uview.id[i]);
 		uint8_t uaction = uview.action_state[i];
 		float hp = uview.hp[i];
 		float max_hp = uview.max_hp[i];
@@ -2585,7 +2594,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 		uint8_t uciv = sim->team_civ(uview.team[i]);
 		if (uciv >= rtso::CIV_COUNT) uciv = rtso::CIV_ATHENIANS;
-		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i]);
+		const uint16_t ckey = crowd_key_of(uciv, utype, uview.pack_state[i], uview.tmpl[i], uview.id[i]);
 		String utype_str = crowd_key_model(uciv, ckey);
 		String cat_units3 = "units";
 		auto entry = rtso::ModelLibrary::get(cat_units3, utype_str);
@@ -3253,6 +3262,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 	int f_written[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
+	size_t rings_used = 0;
 	for (size_t f = 0; f < fview.count; ++f) {
 		if (!entity_visible(fview.pos_x[f], fview.pos_z[f], 255)) continue;
 		uint8_t ft = fview.fauna_type[f];
@@ -3275,5 +3285,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		if (fauna_mm[ft][clip].is_valid()) {
 			fauna_mm[ft][clip]->set_instance_transform(fslot, xf);
 		}
+		if (!sel_set.empty() && sel_set.count((int32_t)fview.id[f])) {
+			// The player's own selected livestock (0 A.D. livestock are units).
+			if (rings_used == fauna_rings_.size()) {
+				MeshInstance3D *r = memnew(MeshInstance3D);
+				r->set_mesh(ring_mesh);
+				r->set_material_override(ring_sel_mat);
+				add_child(r);
+				fauna_rings_.push_back(r);
+			}
+			MeshInstance3D *r = fauna_rings_[rings_used++];
+			const float rs = std::max(1.0f, fsc * 1.4f);
+			r->set_transform(Transform3D(Basis().scaled(Vector3(rs, 0.12f, rs)), Vector3(fx, fy + 0.04f, fz)));
+			r->set_visible(true);
+		}
 	}
+	for (size_t k = rings_used; k < fauna_rings_.size(); ++k) fauna_rings_[k]->set_visible(false);
 }

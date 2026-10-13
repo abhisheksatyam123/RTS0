@@ -201,6 +201,7 @@ class RtsoWorldView : public Node3D {
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;
+	std::vector<MeshInstance3D *> fauna_rings_; // selection rings of the player's own selected livestock
 	Ref<StandardMaterial3D> ring_enemy_mat;
 
 	Ref<BoxMesh> hp_bg_mesh;

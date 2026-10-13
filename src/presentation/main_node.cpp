@@ -124,6 +124,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
+	ClassDB::bind_method(D_METHOD("get_match_settings_info"), &RtsoMain::get_match_settings_info);
 	ClassDB::bind_method(D_METHOD("_on_tutorial_ready_pressed"), &RtsoMain::_on_tutorial_ready_pressed);
 	ClassDB::bind_method(D_METHOD("resign"), &RtsoMain::resign);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
@@ -359,6 +360,17 @@ static uint8_t map_building_type(const String &n) {
 	return rtso::BLD_TYPE_COUNT;
 }
 
+// A map's wall, palisade or gate laid as a turned WallSet piece (port_0ad_maps.py wall_piece:
+// "wallset" stone, palisade or siege; "piece" wall, tower or gate; Position "angle"; "length").
+static uint32_t spawn_map_wall(rtso::Simulation &sim, const Dictionary &b, uint8_t player) {
+	const String ws = b.get("wallset", "stone"), piece = b.get("piece", "wall");
+	const uint8_t kind = ws == "palisade" ? rtso::WALLSET_PALISADE : ws == "siege" ? rtso::WALLSET_SIEGE : rtso::WALLSET_STONE;
+	const uint8_t p = piece == "tower" ? rtso::Simulation::MAP_WALL_TOWER
+			: piece == "gate" ? rtso::Simulation::MAP_WALL_GATE : rtso::Simulation::MAP_WALL_SEGMENT;
+	return sim.spawn_map_wall_piece(player, kind, p, (float)b.get("x", 0.0), (float)b.get("z", 0.0), (float)b.get("angle", 0.0),
+			(float)b.get("length", 9.0));
+}
+
 // A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
 // BLD_TYPE_COUNT when RTS0 has no such building.
 static uint8_t map_building_template(const String &tmpl) {
@@ -558,7 +570,8 @@ void RtsoMain::_ready() {
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
-				first_key("session.gui.barter.toggle"), first_key("session.gui.objectives.toggle"));
+				first_key("session.gui.barter.toggle"),
+				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
 	time_notification_label_ = memnew(Label);
@@ -1374,7 +1387,9 @@ void RtsoMain::play_civ_voice(const char *action) {
 	auto uv = sim->units();
 	for (size_t i = 0; i < uv.count; ++i) {
 		if (uv.id[i] != first) continue;
-		session_audio_.play_voice(sim->player_civ(uv.team[i]), uv.unit_type[i], act);
+		// A male Civilian speaks with the civ's male citizen voice (rtso::civilian_is_male).
+		const uint8_t voice_type = rtso::civilian_is_male(uv.tmpl[i], uv.id[i]) ? (uint8_t)rtso::UNIT_VILLAGER : uv.unit_type[i];
+		session_audio_.play_voice(sim->player_civ(uv.team[i]), voice_type, act);
 		return;
 	}
 }
@@ -1701,6 +1716,8 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["chat"] = chat_window_.is_open();
 	d["diplomacy"] = diplo_dialog_.is_open();
 	d["objectives"] = objectives_dialog_.is_open();
+	d["match_settings_text"] = objectives_dialog_.text();
+	d["match_settings_state"] = objectives_dialog_.player_state();
 	Node *barter = get_node_or_null(NodePath("BarterDialog"));
 	d["barter"] = barter ? bool(barter->call("is_open")) : false;
 	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
@@ -2635,8 +2652,10 @@ void RtsoMain::_on_entity_command(const String &name) {
 		if (n == 0) return;
 		if (turn_cmds())
 			post_lockstep(2, ids, n);
-		else
+		else {
 			sim->cmd_stop(ids, n);
+			sim->order_fauna_stop(local_player(), ids, n);
+		}
 	} else if (name == "back-to-work") { // backToWork
 		if (n == 0) return;
 		if (turn_cmds())
@@ -3340,7 +3359,7 @@ void RtsoMain::_process(double delta) {
 	show_session_notices(sim->take_session_notices());
 	update_cursor();
 	chat_window_.tick_overlay();
-	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
+	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
@@ -3695,6 +3714,23 @@ void RtsoMain::update_hud() {
 // with a garrison shows the garrison grid ("Garrison").
 // EntitySelection.update (gui/session/selection.js): units that died leave the
 // selection, so its count and groups follow the battle.
+// The player's own unpenned animal nearest (x, z) within a click's reach, or 0.
+uint32_t RtsoMain::own_fauna_at(float x, float z) const {
+	if (!sim) return 0;
+	auto fview = sim->fauna();
+	uint32_t best = 0;
+	float best_d2 = 1.5f * 1.5f;
+	for (size_t f = 0; f < fview.count; ++f) {
+		if (!sim->fauna_selectable_by(local_player(), fview.id[f])) continue;
+		const float dx = fview.pos_x[f] - x, dz = fview.pos_z[f] - z, d2 = dx * dx + dz * dz;
+		if (d2 < best_d2) {
+			best_d2 = d2;
+			best = fview.id[f];
+		}
+	}
+	return best;
+}
+
 void RtsoMain::prune_selection() {
 	if (!sim || selected_ids.is_empty()) return;
 	auto uview = sim->units();
@@ -3702,6 +3738,9 @@ void RtsoMain::prune_selection() {
 	std::unordered_set<int32_t> living;
 	for (size_t i = 0; i < uview.count; ++i)
 		if (uview.alive[i] && wanted.count((int32_t)uview.id[i])) living.insert((int32_t)uview.id[i]);
+	// The player's own livestock stays selected until it dies or is penned.
+	for (int32_t id : wanted)
+		if (!living.count(id) && sim->fauna_selectable_by(local_player(), (uint32_t)id)) living.insert(id);
 	if ((int64_t)living.size() == selected_ids.size()) return;
 	PackedInt32Array kept;
 	for (int s = 0; s < selected_ids.size(); ++s)
@@ -4934,7 +4973,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		if (fired("session.gui.diplomacy.toggle")) { toggle_diplomacy(); return; }
 		if (fired("session.diplomacycolors")) { toggle_diplomacy_colors(); return; }
-		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
+		if (fired("session.gui.matchsettings.toggle") || fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
 		if (fired("session.gui.tutorial.toggle")) { tutorial_panel_.toggle(); return; }
 		if (fired("session.gui.barter.toggle")) {
 			_toggle_session_dialog("BarterDialog");
@@ -5325,6 +5364,16 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 								selected_ids.push_back((int32_t)uview.id[best_uidx]);
 							}
 							play_civ_voice("select");
+						} else if (uint32_t animal = own_fauna_at(click_pos.x, click_pos.z)) {
+							// The player's own livestock (0 A.D. livestock are units).
+							const int64_t at = selected_ids.find((int32_t)animal);
+							if (is_ctrl) {
+								if (at >= 0) selected_ids.remove_at(at);
+							} else {
+								if (!is_shift) selected_ids.clear();
+								selected_building_id = 0;
+								if (at < 0) selected_ids.push_back((int32_t)animal);
+							}
 						} else {
 							// Check building hit: any visible part (0 A.D. picks the
 							// rendered entity), then the old ground test round its base.
@@ -5383,6 +5432,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 									} else if (!selected_ids.has(uid)) {
 										selected_ids.push_back(uid);
 									}
+								}
+							}
+							// The player's own livestock in the box (not with the military,
+							// idle or wounded filters, which pick soldiers and workers).
+							auto fview = sim->fauna();
+							for (size_t f = 0; f < fview.count && !military_only && !idle_only && !wounded_only; ++f) {
+								if (!sim->fauna_selectable_by(local_player(), fview.id[f])) continue;
+								Vector3 world_pos(fview.pos_x[f], 0, fview.pos_z[f]);
+								if (cam->is_position_behind(world_pos)) continue;
+								Vector2 screen_pos = cam->unproject_position(world_pos);
+								if (screen_pos.x < min_p.x || screen_pos.x > max_p.x || screen_pos.y < min_p.y || screen_pos.y > max_p.y)
+									continue;
+								const int32_t fid = (int32_t)fview.id[f];
+								const int64_t at = selected_ids.find(fid);
+								if (is_ctrl) {
+									if (at >= 0) selected_ids.remove_at(at);
+								} else if (at < 0) {
+									selected_ids.push_back(fid);
 								}
 							}
 							if (selected_ids.size() > 0) {
@@ -5468,6 +5535,28 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				one_id = sel_ptr[0];
 				sel_ptr = &one_id;
 				sel_n = 1;
+			}
+
+			// Owned livestock alone (0 A.D. livestock are units): a right-click walks it, or
+			// sends it into the player's own corral under the cursor (UnitAI "garrison").
+			bool fauna_only = sel_n > 0;
+			for (size_t k = 0; k < sel_n && fauna_only; ++k) fauna_only = sim->fauna_selectable_by(local_player(), sel_ptr[k]);
+			if (fauna_only) {
+				uint32_t corral = 0;
+				for (const auto &b : sim->buildings()) {
+					if (b.team != local_player() || b.type != rtso::BLD_CORRAL) continue;
+					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
+					if (dx * dx + dz * dz <= hit_r * hit_r) corral = b.id;
+				}
+				if (!corral)
+					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+				if (turn_cmds()) {
+					if (corral) post_lockstep(12, sel_ptr, sel_n, 0, 0, corral, qbit);
+					else post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
+				} else {
+					sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z, corral);
+				}
+				return;
 			}
 
 			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
@@ -5880,8 +5969,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
 			if (turn_cmds())
 				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
-			else
+			else {
 				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
+				sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z);
+			}
 			play_civ_voice("move");
 		}
 	}
@@ -5962,7 +6053,7 @@ void RtsoMain::apply_match_settings() {
 		sim->spawn_initial();
 		return;
 	}
-	if (victory >= 0 && victory < rtso::VICTORY_COUNT) sim->set_victory_condition((uint8_t)victory);
+	if (victory >= 0 && victory < 256 && rtso::valid_victory_code((uint8_t)victory)) sim->set_victory_condition((uint8_t)victory);
 	sim->set_waves_enabled((bool)ms->get("waves_enabled"));
 	sim->set_last_man_standing((bool)ms->get("last_man_standing"));
 	{
@@ -6352,6 +6443,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
+		if (b.has("wallset")) {
+			spawn_map_wall(*sim, b, team);
+			continue;
+		}
 		uint8_t btype = b.has("template") ? map_building_template(b["template"]) : (uint8_t)rtso::BLD_TYPE_COUNT;
 		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(stype_str);
 		if (btype >= rtso::BLD_TYPE_COUNT) {
@@ -6366,6 +6461,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	std::vector<uint32_t> gaia_structure_ids(gaia_str_arr.size(), 0);
 	for (int i = 0; i < gaia_str_arr.size(); ++i) {
 		Dictionary b = gaia_str_arr[i];
+		if (b.has("wallset")) {
+			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
+			continue;
+		}
 		const uint8_t btype = map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
@@ -6919,7 +7018,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	}
 	if (setup.map_id.empty()) setup.map_id = "random_continental";
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
-	if (setup.victory >= rtso::VICTORY_COUNT) setup.victory = sim->victory_condition();
+	if (!rtso::valid_victory_code(setup.victory)) setup.victory = sim->victory_condition();
 	if (setup.difficulty > 5) setup.difficulty = sim->petra_difficulty();
 	if (setup.behavior > 3) setup.behavior = sim->petra_behavior();
 	if (setup.start_res >= rtso::Simulation::STARTING_RESOURCE_PRESET_COUNT) setup.start_res = 1;
@@ -6978,7 +7077,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		if (lobby_status) lobby_status->set_text("GameStart failed: map regen failed");
 		return;
 	}
-	sim->set_victory_condition(setup.victory >= rtso::VICTORY_COUNT ? 0 : setup.victory);
+	sim->set_victory_condition(rtso::valid_victory_code(setup.victory) ? setup.victory : 0);
 	sim->set_waves_enabled(setup.waves != 0);
 	sim->set_last_man_standing(setup.lms != 0);
 	if (setup.world_pop) sim->set_world_pop_cap(setup.world_pop);
@@ -7260,10 +7359,51 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 	chat_window_.send_pressed();
 }
 
+// 0 A.D. MatchSettingsDialog.toggle.
 void RtsoMain::toggle_objectives() {
 	const bool open = objectives_dialog_.is_open();
-	if (!open) close_open_dialogs();
-	objectives_dialog_.toggle(sim, local_player());
+	close_open_dialogs();
+	if (!open) objectives_dialog_.open(match_settings_description(), match_settings_player_state());
+}
+
+// The settings getGameDescription describes: the running match's own (saved with it)
+// and the Game Setup ones only the map generator used (in every replay and save).
+Dictionary RtsoMain::get_match_settings_info() const {
+	Dictionary d;
+	if (!sim) return d;
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings")))
+		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty"}) d[k] = ms->get(k);
+	d["map_id"] = String::utf8(sim->current_map_id().c_str());
+	d["map_name"] = String::utf8(sim->current_map_name().c_str());
+	d["victory_mask"] = (int)sim->victory_conditions(); // rtso::VictoryKind bits
+	d["wonder_min"] = (int)std::lround(sim->wonder_duration() / 60.0f);
+	d["relic_min"] = (int)std::lround(sim->relic_duration() / 60.0f);
+	d["relic_count"] = sim->relic_count();
+	d["regicide_garrison"] = sim->regicide_garrison();
+	d["lock_teams"] = sim->teams_locked();
+	d["last_man_standing"] = sim->last_man_standing();
+	d["ceasefire_min"] = (int)std::lround(sim->ceasefire_seconds() / 60.0f);
+	d["pop_cap"] = sim->pop_cap_setting(); // negative: World or Team Population
+	d["nomad"] = sim->nomad();
+	d["disable_treasures"] = sim->disable_treasures();
+	d["explore_map"] = sim->explore_map();
+	d["reveal_map"] = sim->reveal_map();
+	d["cheats"] = sim->cheats_enabled();
+	return d;
+}
+
+String RtsoMain::match_settings_description() const {
+	Ref<Script> desc = ResourceLoader::get_singleton()->load("res://scenes/session/game_description.gd");
+	return desc.is_valid() ? (String)desc->call("describe", get_match_settings_info()) : String();
+}
+
+// MatchSettingsDialog.rebuild: g_PlayerStateMessages for a player who has won or lost.
+String RtsoMain::match_settings_player_state() const {
+	const uint8_t me = local_player();
+	if (!sim || me >= rtso::MAX_PLAYERS) return String();
+	if (sim->is_victory_for(me)) return "You have won!";
+	if (sim->is_defeated(me)) return "You have been defeated!";
+	return String();
 }
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
@@ -7306,7 +7446,7 @@ void RtsoMain::_on_tutorial_ready_pressed() {
 	post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TUTORIAL_READY, nullptr, 0, 0.0f, 0.0f, 0, 0);
 }
 
-// Top panel IconButtons: DiplomacyDialogButton, TradeDialogButton, ObjectivesDialogButton.
+// Top panel IconButtons: DiplomacyDialogButton, TradeDialogButton, MatchSettingsDialogButton.
 void RtsoMain::_toggle_session_dialog(String name) {
 	if (name == "DiplomacyDialog") toggle_diplomacy();
 	else if (name == "Objectives") toggle_objectives();
