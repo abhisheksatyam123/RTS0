@@ -161,7 +161,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 60; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 61; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
@@ -1488,10 +1489,15 @@ public:
 		const uint8_t *fauna_type;
 		const uint8_t *behavior;
 		const uint8_t *alive;
+		const uint8_t *owner; // GAIA_PLAYER, or the player whose corral trained it
 	};
 	FaunaView fauna() const;
 
-	uint32_t spawn_fauna(float x, float z, uint8_t ftype);
+	uint32_t spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner = GAIA_PLAYER);
+	uint8_t fauna_owner(uint32_t fauna_id) const {
+		auto it = fauna_id_to_idx_.find(fauna_id);
+		return it == fauna_id_to_idx_.end() ? GAIA_PLAYER : fauna_owner_[it->second];
+	}
 	void order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fauna_id);
 	uint32_t find_nearby_prey(size_t i, float x, float z) const;
 	bool is_fauna_id(uint32_t id) const { return fauna_id_to_idx_.count(id) != 0; }
@@ -2015,6 +2021,10 @@ private:
 		float home_x[MAX_FAUNA] = {}; // UnitAI heldPosition: where a hold-ground animal returns
 		float home_z[MAX_FAUNA] = {};
 	} fauna_;
+	// Each animal's owner (Ownership): GAIA_PLAYER, or the player whose corral trained it
+	// (0 A.D. Trainer spawns gaia/fauna_*_trainable owned by that player). Beside fauna_, not
+	// in it, so the saved FaunaStorage layout stays; save v58 adds it.
+	uint8_t fauna_owner_[FaunaStorage::MAX_FAUNA] = {};
 	std::unordered_map<uint32_t, size_t> fauna_id_to_idx_;
 	std::unordered_map<uint32_t, std::vector<uint32_t>> transport_passengers_;
 	// Turret units (unit id -> point height), rebuilt from the holders' garrison lists each
@@ -2230,6 +2240,7 @@ private:
 	void tick_trigger_watches();
 	void trigger_survival_init();
 	void trigger_survival_wave();
+	void trigger_gallic_fields(bool attack);
 	void trigger_survival_treasures();
 	void trigger_survival_ownership(const TriggerEventData &data);
 	// Tutorial.js NextGoal and the goals of maps/tutorials/*.js (simulation.cpp, "Tutorials").
