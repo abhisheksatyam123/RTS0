@@ -78,6 +78,8 @@ static void check(bool ok, const char *what) {
 static void setup(Simulation &s) {
 	s.set_sim_seed(4242);
 	s.reset();
+	// Human seats: Petra would defend its passive targets and walk them home (defenseArmy.js clear).
+	for (uint8_t p = 0; p < 2; ++p) s.player(p).active = 1, s.player(p).is_ai = 0;
 	// Far-off town centers for both sides keep the match running (tick() stops once it ends).
 	s.spawn_building_world(-52.0f, -52.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(52.0f, 52.0f, BLD_TOWN_CENTER, 1, 1.0f);
