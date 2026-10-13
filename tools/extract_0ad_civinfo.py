@@ -11,7 +11,7 @@ import os
 import sys
 
 # RTS0 civ ids (src/simulation/sim_types.h Civilization).
-CODES = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul", "iber", "maur", "kush", "ptol", "sele", "han"]
+CODES = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul", "iber", "maur", "kush", "ptol", "sele", "han", "germ"]
 
 
 def main():

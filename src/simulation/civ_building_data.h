@@ -49,6 +49,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Siege Wall", "wall_segment", "wall", 2250.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_long */ \
 		{"Siege Wall Gate", "gate", "gate", 1875.0f, 1, 0, 50, 0, 0, 0, 0, 6.25f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_gate */ \
 		{"Island Settlement", "crannog", "crannog", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* structures/brit/crannog */ \
+		{"Great Hall", "great_hall", "great_hall", 2000.0f, 2, 0, 0, 200, 200, 0, 10, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/germ/great_hall */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -93,16 +94,17 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 12, 0, 0}, /* structures/rome/siege_wall_long */ \
 		{0, 0, 10, 0, 0}, /* structures/rome/siege_wall_gate */ \
 		{0, 0, 60, 60, 50}, /* structures/brit/crannog */ \
+		{0, 0, 0, 40, 40}, /* structures/germ/great_hall */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
 // ones, and generic ones only for the civs whose 0 A.D. Builder lists name them.
 inline uint16_t civ_building_civ_mask(uint8_t type) {
 	switch (type) {
-		case BLD_GATE: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
-		case BLD_WALL_SEGMENT: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_GATE: return 0xbffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han germ
+		case BLD_WALL_SEGMENT: return 0xbffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han germ
 		case BLD_RANGE: return 0x0000; // none
-		case BLD_WALL_TOWER: return 0x3ffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_WALL_TOWER: return 0xbffd; // athen pers rome cart mace brit gaul iber maur kush ptol sele han germ
 		case BLD_ELEPHANT_STABLE: return 0x1e14; // pers cart maur kush ptol sele
 		case BLD_THEATER: return 0x1823; // athen spart mace ptol sele
 		case BLD_EMBASSY: return 0x0010; // cart
@@ -116,7 +118,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_LIBRARY: return 0x1820; // mace ptol sele
 		case BLD_KENNEL: return 0x0040; // brit
 		case BLD_ASSEMBLY: return 0x0080; // gaul
-		case BLD_MONUMENT: return 0x0100; // iber
+		case BLD_MONUMENT: return 0x8100; // iber germ
 		case BLD_PALACE: return 0x0200; // maur
 		case BLD_PILLAR: return 0x0200; // maur
 		case BLD_PYRAMID_LARGE: return 0x0400; // kush
@@ -140,12 +142,13 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_APARTMENT: return 0x0010; // cart
 		case BLD_IMPERIAL_COURT: return 0x2000; // han
 		case BLD_TOWER_GREAT: return 0x2000; // han
-		case BLD_PALISADE_GATE: return 0x3fff; // athen spart pers rome cart mace brit gaul iber maur kush ptol sele han
+		case BLD_PALISADE_GATE: return 0xbfff; // athen spart pers rome cart mace brit gaul iber maur kush ptol sele han germ
 		case BLD_EMBASSY_IBERIAN: return 0x0010; // cart
 		case BLD_EMBASSY_ITALIC: return 0x0010; // cart
 		case BLD_SIEGE_WALL: return 0x0008; // rome
 		case BLD_SIEGE_WALL_GATE: return 0x0008; // rome
 		case BLD_CRANNOG: return 0x0040; // brit
+		case BLD_GREAT_HALL: return 0x8000; // germ
 		default: return 0xFFFF;
 	}
 }
@@ -193,6 +196,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_SIEGE_WALL: return 3;
 		case BLD_SIEGE_WALL_GATE: return 3;
 		case BLD_CRANNOG: return 2;
+		case BLD_GREAT_HALL: return 2;
 		default: return 0;
 	}
 }
