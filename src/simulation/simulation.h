@@ -416,6 +416,9 @@ public:
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
 	float rank_melee_armor(size_t i) const;
 	float unit_capture_attack_at(size_t i) const;
+	bool loot_denied_unit(size_t i) const;
+	bool loot_denied_building(const Building &b) const;
+	float unit_loot_xp(size_t victim) const;
 	// Read-only, for the renderer: unit i is attacking a structure it captures
 	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
 	bool unit_capturing(size_t i) const;
