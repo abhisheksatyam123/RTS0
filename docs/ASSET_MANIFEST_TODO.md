@@ -152,7 +152,8 @@ Textures:
 
 ## Open todos (moved here from ASSET_MAPPING.md, checked 2026-10-08)
 
-- **No specular or parallax maps.** `shaders/player_color.gdshader` and the imported materials sample 0 A.D.'s normal maps (normal maps PR) but not `specTex` or the parallax height in `normTex` alpha.
+- **Specular maps: done (specular maps PR).** `tools/extract_specular_maps.py` pairs each skin with the `specTex` its 0 A.D. actor names when the actor's material is `*_spec*`, and writes 361 maps (`assets/textures/specular_maps/`, 8 MB: brightness in red, the material's specular power in green) for 3123 GLB images (1185 building, 1938 unit). `shaders/player_color.gdshader` draws model_common.fs's Blinn-Phong highlight from them, and opaque skins with a specular map but no player colour use that shader too.
+- **No parallax maps.** The parallax height in `normTex` alpha is not used.
 - **UI coverage.** Files on disk under `assets/textures/ui/`:
   - Emblems: 13 civs (`emblems/`, athenians through seleucids).
   - Phase icons: 3 (`phases/`: village, town, city).
