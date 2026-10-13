@@ -105,7 +105,6 @@ public:
 	void carve_crater_lake(float center_wx, float center_wz, float radius, float blend_margin, float depth, float water_height);
 	void raise_plateau(float center_wx, float center_wz, float radius, float ramp_angle, float ramp_width_rad, float height_gain, float cliff_blend);
 	void apply_sinusoidal_dunes(float angle_rad, float wavelength, float amplitude, float secondary_amp);
-	void raise_sandstone_mesa(float center_wx, float center_wz, float radius_base, float radius_top, float height_gain, float ramp1_angle_rad, float ramp2_angle_rad, float ramp_width_rad);
 	void carve_canyon_network(RmsRng &rng, float border_margin, float canyon_width, float canyon_depth);
 };
 
@@ -171,7 +170,6 @@ private:
 	static void synth_peloponnese(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
 	static void synth_saharan_oases(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
 	static void synth_anatolian_plateau(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
-	static void synth_jebel_barkal(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
 	static void synth_mainland(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
 	static void synth_alpine_lakes(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
 	static void synth_lake(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players);
@@ -230,6 +228,24 @@ private:
 	                               const uint8_t *teams, DanubiusLayout &out);
 	static void place_danubius_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
 	                                    RmsRng &rng, const DanubiusLayout &layout);
+	// What jebel_barkal.js's terrain pass hands its entity pass: the city grid of Napata (row 0
+	// at the hill's foot), its temples, walls and ritual place, the pyramids and the tile classes
+	// the entities keep to or away from (per heightmap vertex).
+	struct JebelBarkalLayout {
+		int grid_x = 0, grid_y = 0;               // gridPointsX (one per temple), gridPointsY
+		std::vector<float> grid, grid_angle;      // [y * grid_x + x]: x, z pairs, and cityGridAngle (the script's, z mirrored)
+		std::vector<uint8_t> temples;             // BuildingType of each temple, by grid column
+		std::vector<float> temple_pos;            // x, z pairs
+		float ritual[2] = {}, ritual_angle = 0.0f, pyramids[2] = {}, pyramids_r = 0.0f;
+		uint8_t wall = 0xFF;                      // WallSetKind of the Napata wall, 0xFF for none
+		std::vector<float> wall_spans, gates;     // x0, z0, x1, z1 per span; x, z, rot per gate
+		float height_hill = 0.0f, height_hilltop = 0.0f, height_archers = 0.0f;
+		std::vector<uint8_t> fertile, desert, water, hill, hilltop, cliff, path, crossing, city, keep_clear;
+	};
+	static void synth_jebel_barkal_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+	                                   const uint8_t *teams, JebelBarkalLayout &out);
+	static void place_jebel_barkal_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+	                                        RmsRng &rng, const JebelBarkalLayout &layout);
 	static void synth_archipelago_0ad(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_islands(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);
 	static void synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players, const uint8_t *teams);

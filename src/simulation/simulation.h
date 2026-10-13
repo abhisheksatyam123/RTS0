@@ -1551,6 +1551,10 @@ public:
 	// to (ex, ez), built and uncapturable, joined to Gaia towers already at the ends. Pieces
 	// that would stand in water are left out.
 	void spawn_gaia_wall(float sx, float sz, float ex, float ez, uint8_t kind);
+	// A map script's Gaia gate of the `kind` WallSet (its 0 A.D. WallPiece length: kush wall_gate
+	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
+	// built and uncapturable.
+	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -2166,6 +2170,12 @@ private:
 	void trigger_danubius_unload_order();
 	void trigger_danubius_ship_range();
 	void trigger_danubius_ownership(const TriggerEventData &data);
+	// maps/random/jebel_barkal_triggers.js
+	std::vector<uint16_t> jebel_barkal_free_heroes() const;
+	void trigger_jebel_barkal_init();
+	void trigger_jebel_barkal_city_patrol();
+	void trigger_jebel_barkal_attack();
+	void trigger_jebel_barkal_ownership(const TriggerEventData &data);
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
