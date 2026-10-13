@@ -3553,31 +3553,32 @@ void RtsoMain::_process(double delta) {
 			}
 
 			uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
-			auto tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_foundation(rtso::BLD_TOWER)));
-			if (!tower_entry.valid) {
-				tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_TOWER)));
-			}
 			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
 			const uint32_t snapped[2] = {start_tower, end_tower};
-			const float yaw = std::atan2(drag_curr_pos.x - wall_drag_start_pos.x, drag_curr_pos.z - wall_drag_start_pos.z);
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
-				const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
 				MeshInstance3D *g = wall_ghosts[i];
-				// Along the wall (the box's z): the segment's length; across it: its 0 A.D. depth.
-				if (is_tower && tower_entry.valid && wall_kind == rtso::WALLSET_STONE) {
-					g->set_mesh(tower_entry.mesh);
-					g->set_scale(Vector3(tower_entry.scale, tower_entry.scale, tower_entry.scale));
+				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
+				// tower): the model the world view will draw for it, turned the same way.
+				const auto entry = rtso::ModelLibrary::get("buildings", RtsoWorldView::building_visual_id(pciv, p.type, p.half_w));
+				const float h = sim ? sim->get_terrain_height(p.x, p.z) : 0.0f;
+				if (entry.valid && entry.mesh.is_valid()) {
+					const float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
+					g->set_mesh(entry.mesh);
+					g->set_scale(Vector3(sc, sc, sc));
+					g->set_global_position(Vector3(p.x, h + entry.y_offset, p.z));
 				} else {
+					const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
 					Ref<BoxMesh> box;
 					box.instantiate();
+					// Along the box's x: the piece's length (its u axis); across it: its 0 A.D. depth.
 					box->set_size(is_tower ? Vector3(2.2f * p.half_w, 4.5f, 2.2f * p.half_w)
-							: Vector3(2.0f * wall_set.half_depth, 2.5f, 2.0f * p.half_w));
+							: Vector3(2.0f * p.half_w, 2.5f, 2.0f * wall_set.half_depth));
 					g->set_mesh(box);
 					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
+					g->set_global_position(Vector3(p.x, h + 0.05f, p.z));
 				}
-				g->set_global_position(Vector3(p.x, (sim ? sim->get_terrain_height(p.x, p.z) : 0.0f) + 0.05f, p.z));
-				g->set_rotation(Vector3(0.0f, yaw, 0.0f));
+				g->set_rotation(Vector3(0.0f, p.rot - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
