@@ -16655,25 +16655,53 @@
       "id": 1,
       "team": 0,
       "start_x": -136.83,
-      "start_z": -136.49
+      "start_z": -136.49,
+      "civ": 1,
+      "resources": {
+        "food": 100,
+        "metal": 100,
+        "stone": 100,
+        "wood": 100
+      }
     },
     {
       "id": 3,
       "team": 2,
       "start_x": -136.1,
-      "start_z": 135.93
+      "start_z": 135.93,
+      "civ": 5,
+      "resources": {
+        "food": 100,
+        "metal": 100,
+        "stone": 100,
+        "wood": 100
+      }
     },
     {
       "id": 2,
       "team": 1,
       "start_x": 133.39,
-      "start_z": 133.63
+      "start_z": 133.63,
+      "civ": 0,
+      "resources": {
+        "food": 100,
+        "metal": 100,
+        "stone": 100,
+        "wood": 100
+      }
     },
     {
       "id": 4,
       "team": 3,
       "start_x": 134.9,
-      "start_z": -137.76
+      "start_z": -137.76,
+      "civ": 0,
+      "resources": {
+        "food": 100,
+        "metal": 100,
+        "stone": 100,
+        "wood": 100
+      }
     }
   ],
   "resources": [

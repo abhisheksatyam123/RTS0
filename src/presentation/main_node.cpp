@@ -5750,6 +5750,7 @@ void RtsoMain::apply_map_player_overrides() {
 		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
 		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
 	}
+	if (map_pop_limit_ > 0) sim->set_pop_cap(map_pop_limit_);
 	if (map_has_teams_) {
 		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
 		sim->set_setup_teams(map_team_);
@@ -5766,6 +5767,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		map_team_[p] = 0;
 	}
 	map_has_teams_ = false;
+	map_pop_limit_ = -1;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
@@ -5848,6 +5850,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 	sim->set_sim_seed(seed);
 	sim->reset();
+	map_pop_limit_ = (int)d.get("pop_limit", -1);
 	{
 		Array pl = d.get("players", Array());
 		for (int i = 0; i < pl.size(); ++i) {
