@@ -7397,10 +7397,14 @@
       "z": -42.38
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -56.7,
-      "z": -32.36
+      "z": -32.36,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 6.25
     },
     {
       "type": "house",
@@ -7448,13 +7452,21 @@
       "type": "wall_segment",
       "player": 1,
       "x": -94.84,
-      "z": -36.4
+      "z": -36.4,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.1718,
+      "length": 6.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -92.29,
-      "z": -33.2
+      "z": -33.2,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -2.4863,
+      "length": 2.75
     },
     {
       "type": "house",
@@ -7517,10 +7529,14 @@
       "z": -61.1
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -33.24,
-      "z": -83.23
+      "z": -83.23,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 6.25
     },
     {
       "type": "town_center",
@@ -7541,10 +7557,14 @@
       "z": 68.4
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -97.12,
-      "z": -40.2
+      "z": -40.2,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.1848,
+      "length": 2.75
     },
     {
       "type": "tower",
