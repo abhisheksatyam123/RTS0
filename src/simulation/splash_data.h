@@ -17,16 +17,16 @@ inline constexpr uint8_t SPLASH_PROFILE_COUNT = 11; // row 0 = no splash
 inline const SplashProfile *splash_profiles() {
 	static const SplashProfile kTable[SPLASH_PROFILE_COUNT] = {
 		{SPLASH_NONE, 0.0f, false, 0.0f, 0.0f, 0.0f},
-		{SPLASH_CIRCULAR, 1.0f, false, 0.0f, 0.0f, 100.0f},
+		{SPLASH_CIRCULAR, 1.5f, false, 0.0f, 0.0f, 120.0f},
 		{SPLASH_LINEAR, 9.0f, false, 0.0f, 80.0f, 0.0f},
-		{SPLASH_CIRCULAR, 2.0f, false, 22.0f, 0.0f, 0.0f},
-		{SPLASH_CIRCULAR, 2.0f, false, 0.0f, 0.0f, 50.0f},
-		{SPLASH_CIRCULAR, 4.0f, false, 0.0f, 0.0f, 80.0f},
-		{SPLASH_CIRCULAR, 2.0f, false, 18.0f, 0.0f, 0.0f},
-		{SPLASH_CIRCULAR, 2.0f, false, 40.0f, 0.0f, 0.0f},
-		{SPLASH_CIRCULAR, 2.0f, false, 4.0f, 0.0f, 0.0f},
-		{SPLASH_LINEAR, 9.0f, false, 0.0f, 50.0f, 0.0f},
-		{SPLASH_CIRCULAR, 2.0f, false, 20.0f, 0.0f, 0.0f},
+		{SPLASH_CIRCULAR, 2.5f, false, 33.0f, 0.0f, 0.0f},
+		{SPLASH_CIRCULAR, 4.0f, false, 0.0f, 0.0f, 100.0f},
+		{SPLASH_CIRCULAR, 4.0f, false, 0.0f, 0.0f, 160.0f},
+		{SPLASH_CIRCULAR, 2.5f, false, 27.0f, 0.0f, 0.0f},
+		{SPLASH_CIRCULAR, 2.0f, false, 45.0f, 0.0f, 0.0f},
+		{SPLASH_CIRCULAR, 2.5f, false, 6.0f, 0.0f, 0.0f},
+		{SPLASH_LINEAR, 9.0f, false, 0.0f, 44.0f, 0.0f},
+		{SPLASH_CIRCULAR, 2.5f, false, 30.0f, 0.0f, 0.0f},
 	};
 	return kTable;
 }
