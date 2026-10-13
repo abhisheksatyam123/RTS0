@@ -138,8 +138,9 @@ static void test_roster_army() {
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
 		// rates) still has something to fire at. They stand on dry land: no land unit wades out
-		// to one at sea.
-		for (const float *at : {(const float[2]){24.0f, 37.0f}, (const float[2]){40.0f, 6.0f}, (const float[2]){6.0f, 22.0f}}) {
+		// to one at sea. The one at (20, 4) keeps Petra's second Civic Center off the neutral
+		// strip below it (findEconomicCCLocation), where the forts would shoot its gatherers.
+		for (const float *at : {(const float[2]){24.0f, 37.0f}, (const float[2]){20.0f, 4.0f}, (const float[2]){6.0f, 22.0f}}) {
 			const uint32_t fort = s->spawn_building_world(at[0], at[1], BLD_FORTRESS, 0, 1.0f);
 			std::vector<uint32_t> men;
 			for (int k = 0; k < 10; ++k)
@@ -462,9 +463,10 @@ static void test_attack_plans() {
 	};
 	{
 		// A storehouse more than 80 m from the idle player's Town Center is the
-		// only structure a rush may target (rushTargetFinder).
+		// only structure a rush may target (rushTargetFinder); still in that Town
+		// Center's territory, so it doesn't decay to Gaia.
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
-		const uint32_t store = s->spawn_building_world(-36.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
+		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false;
 		int attack_size = 0, huge_size = 0;
 		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
@@ -498,9 +500,10 @@ static void test_attack_plans() {
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		// Fortresses on dry land around its base keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
-		// still a target to plan the HugeAttack against.
+		// still a target to plan the HugeAttack against. The one at (20, 4) keeps Petra's second
+		// Civic Center off the neutral strip below it, as in test_roster_army.
 		s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(40.0f, 6.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(20.0f, 4.0f, BLD_FORTRESS, 0, 1.0f);
 		s->spawn_building_world(6.0f, 22.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
@@ -547,9 +550,10 @@ static void test_attack_plans() {
 		      "a defensive AI plans no rush");
 	}
 	{
-		// Raid: an enemy house in Petra's territory, cavalry and spearmen at hand.
+		// Raid: an enemy outpost in Petra's territory, cavalry and spearmen at hand. (An
+		// outpost claims no territory; a house's TerritoryInfluence would own its own ground.)
 		auto s = match(PETRA_BEHAVIOR_BALANCED);
-		const uint32_t house = s->spawn_building_world(-10.0f, -40.0f, BLD_HOUSE, 0, 1.0f);
+		const uint32_t outpost = s->spawn_building_world(-10.0f, -40.0f, BLD_OUTPOST, 0, 1.0f);
 		for (int i = 0; i < 4; ++i) {
 			s->spawn_unit(-30.0f + 2.0f * (float)i, -12.0f, 1, UNIT_CAVALRY);
 			s->spawn_unit(-30.0f + 2.0f * (float)i, -10.0f, 1, UNIT_SPEARMAN);
@@ -559,7 +563,7 @@ static void test_attack_plans() {
 		for (float t = 0.0f; t < 20.0f && !raided; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			const auto &raid = s->petra_raid_plan();
-			if (raid.state != Simulation::AttackPlan::WALKING || raid.target_building_id != house) continue;
+			if (raid.state != Simulation::AttackPlan::WALKING || raid.target_building_id != outpost) continue;
 			raided = true;
 			raiders = raid.squad.size();
 			const auto u = s->units();
@@ -567,7 +571,7 @@ static void test_attack_plans() {
 				for (size_t i = 0; i < u.count; ++i)
 					if (u.id[i] == id && u.unit_type[i] != UNIT_CAVALRY) cavalry_only = false;
 		}
-		std::printf("  raid on a house in Petra's territory: %s with %zu riders, cavalry only %s\n",
+		std::printf("  raid on an outpost in Petra's territory: %s with %zu riders, cavalry only %s\n",
 		            raided ? "yes" : "no", raiders, cavalry_only ? "yes" : "no");
 		CHECK(raided && raiders >= 3, "raids an enemy structure in its territory");
 		CHECK(cavalry_only, "raids with cavalry only");
@@ -861,8 +865,13 @@ static void test_first_base() {
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 1.0f);
 	float tx = 0.0f, tz = 0.0f;
+	// The rest of its base goes too: without the Town Center's territory it would be
+	// decaying to Gaia on neutral land, drawing Petra's workers off the treasure.
 	for (auto &b : s->buildings_)
-		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; s->destroy_building(b); }
+		if (b.team == 1) {
+			if (b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+			s->destroy_building(b);
+		}
 	run_for(*s, 0.1f);
 	auto &u = s->units_;
 	for (size_t i = 0; i < u.count; ++i) // a nomad start: everyone stands idle
