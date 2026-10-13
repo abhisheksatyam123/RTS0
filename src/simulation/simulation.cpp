@@ -9769,7 +9769,9 @@ void Simulation::tick_combat(float dt) {
 				bgrid.visit_radius(pxi, pzi, scan_range + bld_half_max, [&](int32_t bi) {
 					if (!bld_live[bi]) return;
 					const Building &b = buildings_[bi];
-					if (!can_attack(my_team, b.team) && !(capture && can_capture_building(my_team, b))) return;
+					// Only enemies' structures (FindWalkAndFightTargets): none of ours to recapture.
+					const bool friendly = b.team < MAX_PLAYERS && (b.team == my_team || is_ally(my_team, b.team));
+					if (!can_attack(my_team, b.team) && !(capture && !friendly && can_capture_building(my_team, b))) return;
 					if (!capture && !unit_can_target_building(i, b.type)) return;
 					if (units_.order_kind[i] == ORDER_WALK_AND_FIGHT && attack_move_avoids(units_.order_flags[i], b.type)) return;
 					const nav::Vec2 gap = nav::footprint_gap(b, pxi, pzi);
@@ -10045,7 +10047,7 @@ void Simulation::tick_combat(float dt) {
 			// strength divided by 0.1 + 0.9 * hp / maxHp (up to x10).
 			const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 			capture_attack_[bit->second][units_.team[i]] += capture_strength / (0.1f + 0.9f * health);
-			if (b.team == 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
+			if (b.team == 0 && units_.team[i] != 0) raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
@@ -12917,15 +12919,15 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 	if (b.type == BLD_FIELD || b.type == BLD_PALISADE || b.type == BLD_WALL_SEGMENT || is_gate_type(b.type) ||
 			b.type == BLD_WALL_TOWER || b.type == BLD_SIEGE_WALL)
 		return false;
-	if (b.team < MAX_PLAYERS && (b.team == player || is_ally(player, b.team))) return false; // UnitAI CanAttack: not our own
 	// Capturable.CanCapture: some of the points belong to an enemy of the capturer (or to Gaia).
+	// That holds for one's own or an ally's structure too, which then recovers them.
 	float held = 0.0f;
 	for (int t = 0; t < MAX_PLAYERS; ++t) {
 		const float p = b.capture_points_by_team[t];
 		held += p;
 		if (p > 0.0f && t != player && is_hostile(player, (uint8_t)t)) return true;
 	}
-	return b.team >= MAX_PLAYERS && held < b.max_capture_points;
+	return held < b.max_capture_points;
 }
 
 void Simulation::destroy_building(Building &b) {
@@ -18262,8 +18264,8 @@ bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
 // entityExtend.js allowCapture: capture a structure only when the squad's
 // capture strength beats its regeneration plus a share of its points (1/50 of
 // them for a garrisoned structure that shoots, 1/80 otherwise); a damaged
-// structure is easier. (0 A.D.'s always-recapture-from-an-ally case can't arise:
-// can_capture_building refuses allied structures.) The strength is the summed
+// structure is easier; points on our own or an ally's structure are always taken back
+// unless it decays. The strength is the summed
 // Capture attack of the squad's units on the target or capturing within 20 m of
 // it (HQ.capturableTargets), with no capture bonuses in RTS0.
 bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const {
@@ -18273,6 +18275,8 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 	const int ground = territory_owner_at(b.x, b.z);
 	const bool decaying = b.territory_decay_rate > 0.0f && b.team < MAX_PLAYERS && ground >= 0 && ground < MAX_PLAYERS &&
 			ground != b.team && !is_ally((uint8_t)ground, b.team);
+	// Always recapture points from our own or an ally's structure, unless it decays.
+	if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return !decaying;
 
 	float anti = b.capture_regen_rate + b.capture_garrison_regen_rate * (float)b.garrisoned_units.size();
 	if (decaying) anti -= b.territory_decay_rate;
@@ -20414,10 +20418,35 @@ void Simulation::petra_remove_defender(uint32_t uid) {
 		a.defender_ids.erase(std::remove(a.defender_ids.begin(), a.defender_ids.end(), uid), a.defender_ids.end());
 }
 
+// defenseArmy.js "capturing": an army whose one foe is a structure, to capture it (Gaia's)
+// or to win back the points enemies hold on one of ours. Units and structures share one id
+// space, so a structure among the foes marks the army and no type is saved.
+bool Simulation::petra_army_capturing(const PetraDefenseArmy &army) const {
+	return army.foe_ids.size() == 1 && building_id_to_idx_.count(army.foe_ids[0]);
+}
+
+// The capture points our enemies hold on a structure, Gaia's share included.
+float Simulation::petra_enemy_capture_points(const Building &b) const {
+	float held = 0.0f, enemy = 0.0f;
+	for (int t = 0; t < MAX_PLAYERS; ++t) {
+		const float p = b.capture_points_by_team[t];
+		held += p;
+		if (p > 0.0f && t != petra_pid_ && is_hostile(petra_pid_, (uint8_t)t)) enemy += p;
+	}
+	return enemy + std::max(0.0f, b.max_capture_points - held);
+}
+
 // defenseArmy.js recalculatePosition: the centre of the army's foes (false with none left).
 bool Simulation::petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const {
 	x = z = 0.0f;
 	int n = 0;
+	if (petra_army_capturing(army)) {
+		const Building &b = buildings_[building_id_to_idx_.at(army.foe_ids[0])];
+		if (b.wrecked) return false;
+		x = b.x;
+		z = b.z;
+		return true;
+	}
 	for (uint32_t fid : army.foe_ids) {
 		const int32_t fi = lookup_unit(fid);
 		if (fi < 0 || !units_.alive[fi]) continue;
@@ -20534,7 +20563,7 @@ void Simulation::petra_manage_defense(float dt) {
 		if (fi < 0 || army_of_foe(fid) >= 0) return;
 		for (PetraDefenseArmy &a : armies) {
 			float ax, az;
-			if (!petra_army_position(a, ax, az)) continue;
+			if (petra_army_capturing(a) || !petra_army_position(a, ax, az)) continue;
 			const float dx = units_.pos_x[fi] - ax, dz = units_.pos_z[fi] - az;
 			if (dx * dx + dz * dz > compact2) continue;
 			a.foe_ids.push_back(fid);
@@ -20561,6 +20590,7 @@ void Simulation::petra_manage_defense(float dt) {
 	// target turns into an attack on that target alone (attackManager.js
 	// switchDefenseToAttack with uniqueTarget), starting where the army stands.
 	auto switch_to_attack = [&](PetraDefenseArmy &a) {
+		if (petra_army_capturing(a)) return; // only a "default" army
 		for (const Building &b : buildings_) {
 			if (!defense_target(b)) continue;
 			const uint16_t land = petra_land_at(b.x, b.z);
@@ -20613,10 +20643,11 @@ void Simulation::petra_manage_defense(float dt) {
 	// defenseArmy.js checkEvents: a foe that died, garrisoned or stopped being an enemy leaves
 	// its army, and so does a defender that died or changed hands.
 	for (PetraDefenseArmy &a : armies) {
-		a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
-			const int32_t fi = lookup_unit(fid);
-			return fi < 0 || !units_.alive[fi] || !petra_foe(units_.team[fi]) || units_.action_state[fi] == ACTION_GARRISONED;
-		}), a.foe_ids.end());
+		if (!petra_army_capturing(a)) // a capturing army's structure is checked below
+			a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
+				const int32_t fi = lookup_unit(fid);
+				return fi < 0 || !units_.alive[fi] || !petra_foe(units_.team[fi]) || units_.action_state[fi] == ACTION_GARRISONED;
+			}), a.foe_ids.end());
 		a.defender_ids.erase(std::remove_if(a.defender_ids.begin(), a.defender_ids.end(), [&](uint32_t uid) {
 			const int32_t idx = lookup_unit(uid);
 			return idx < 0 || !units_.alive[idx] || units_.team[idx] != petra_pid_;
@@ -20642,6 +20673,24 @@ void Simulation::petra_manage_defense(float dt) {
 		}
 	}
 
+	// defenseArmy.js update for a capturing army: it disbands once no enemy holds points on
+	// its structure (or the structure is gone), and defenseManager.js checkEvents aborts it
+	// when one of its units is attacked, so that it can fight back.
+	for (size_t k = 0; k < armies.size(); ++k) {
+		if (!petra_army_capturing(armies[k])) continue;
+		const Building &b = buildings_[building_id_to_idx_.at(armies[k].foe_ids[0])];
+		bool done = b.wrecked || b.hp <= 0.0f || petra_enemy_capture_points(b) <= 0.0f;
+		for (size_t d = 0; d < armies[k].defender_ids.size() && !done; ++d) {
+			const int32_t idx = lookup_unit(armies[k].defender_ids[d]);
+			if (idx < 0) continue;
+			const int32_t a = units_.attacked_by[idx] ? lookup_unit(units_.attacked_by[idx]) : -1;
+			done = a >= 0 && units_.alive[a] && petra_foe(units_.team[a]);
+		}
+		if (!done) continue;
+		clear_army(armies[k]);
+		armies.erase(armies.begin() + (ptrdiff_t)k--);
+	}
+
 	// checkEnemyArmies: foes farther than armyBreakawaySize from their army's position break
 	// away into armies of their own, an army without foes disbands, and armies closer than
 	// armyMergeSize merge.
@@ -20649,7 +20698,7 @@ void Simulation::petra_manage_defense(float dt) {
 	if (breakaway_check) {
 		for (PetraDefenseArmy &a : armies) {
 			float ax, az;
-			if (!petra_army_position(a, ax, az)) continue;
+			if (petra_army_capturing(a) || !petra_army_position(a, ax, az)) continue;
 			a.foe_ids.erase(std::remove_if(a.foe_ids.begin(), a.foe_ids.end(), [&](uint32_t fid) {
 				const int32_t fi = lookup_unit(fid);
 				const float dx = units_.pos_x[fi] - ax, dz = units_.pos_z[fi] - az;
@@ -20668,10 +20717,10 @@ void Simulation::petra_manage_defense(float dt) {
 	for (uint32_t fid : breakaways) make_into_army(fid);
 	for (size_t i = 0; i + 1 < armies.size(); ++i) {
 		float ix, iz;
-		if (!petra_army_position(armies[i], ix, iz)) continue;
+		if (petra_army_capturing(armies[i]) || !petra_army_position(armies[i], ix, iz)) continue;
 		for (size_t j = i + 1; j < armies.size(); ++j) {
 			float jx, jz;
-			if (!petra_army_position(armies[j], jx, jz)) continue;
+			if (petra_army_capturing(armies[j]) || !petra_army_position(armies[j], jx, jz)) continue;
 			const float dx = ix - jx, dz = iz - jz;
 			if (dx * dx + dz * dz > PETRA_ARMY_MERGE_SQ / 16.0f) continue;
 			PetraDefenseArmy &a = armies[i], &b = armies[j];
@@ -20749,6 +20798,37 @@ void Simulation::petra_manage_defense(float dt) {
 			if (dx * dx + dz * dz <= 18.0f * 18.0f) make_into_army(units_.id[i]);
 		}
 	}
+	// checkEnemyUnits on our own turn: with no army about, the first structure of ours not
+	// decaying on which enemies hold at least a quarter of what we hold gets a capturing army
+	// to win the points back. On Gaia's turn, with at most one army and an active base, so
+	// does each Gaia structure in our land that can be captured or shoots.
+	auto in_army = [&](uint32_t id) {
+		for (const PetraDefenseArmy &a : armies)
+			if (std::find(a.foe_ids.begin(), a.foe_ids.end(), id) != a.foe_ids.end()) return true;
+		return false;
+	};
+	if (armies.empty()) {
+		for (const Building &b : buildings_) {
+			if (b.team != petra_pid_ || b.wrecked || b.build_progress < 1.0f || b.max_capture_points <= 0.0f) continue;
+			const int ground = territory_owner_at(b.x, b.z);
+			if (b.territory_decay_rate > 0.0f && ground != b.team && !(ground >= 0 && ground < MAX_PLAYERS && is_ally((uint8_t)ground, b.team))) continue;
+			const float lost = petra_enemy_capture_points(b);
+			if (lost <= 0.0f || lost < std::ceil(0.25f * b.capture_points_by_team[petra_pid_])) continue;
+			armies.emplace_back();
+			armies.back().foe_ids.push_back(b.id);
+			break;
+		}
+	}
+	if (armies.size() <= 1 && home) {
+		for (const Building &b : buildings_) {
+			if (armies.size() >= 64) break; // the saved army list holds at most 64
+			if (b.team < MAX_PLAYERS || b.wrecked || b.hp <= 0.0f || in_army(b.id)) continue;
+			if (!can_capture_building(petra_pid_, b) && !building_ai_info(b.type).shoots()) continue;
+			if (territory_owner_at(b.x, b.z) != petra_pid_) continue;
+			armies.emplace_back();
+			armies.back().foe_ids.push_back(b.id);
+		}
+	}
 	if (armies.empty()) return;
 
 	// assignDefenders: defenseArmy.js needsDefenders is the foes' strength x defenseRatio
@@ -20760,6 +20840,14 @@ void Simulation::petra_manage_defense(float dt) {
 		Need n{a, 0.0f, 0.0f, 0.0f, 0, -1};
 		if (!petra_army_position(armies[a], n.x, n.z)) continue;
 		float foe_strength = 0.0f, own_strength = 0.0f;
+		if (petra_army_capturing(armies[a])) {
+			// evaluateStrength: 6 per default arrow of a foe structure (else 4), and a small
+			// 2 for one of ours that only needs its points back.
+			const Building &b = buildings_[building_id_to_idx_.at(armies[a].foe_ids[0])];
+			const int arrows = building_ai_info(b.type).default_arrows;
+			foe_strength = b.team == petra_pid_ ? 2.0f : arrows ? 6.0f * (float)arrows : 4.0f;
+			n.land = petra_land_at(b.x, b.z);
+		}
 		for (uint32_t fid : armies[a].foe_ids) {
 			const int32_t fi = lookup_unit(fid);
 			if (fi < 0) continue;
@@ -20802,6 +20890,16 @@ void Simulation::petra_manage_defense(float dt) {
 			candidates.push_back({best, i});
 		}
 		std::sort(candidates.begin(), candidates.end());
+		// A defender must be able to attack some foe of the army: a capturing army's structure
+		// is captured (ours or an ally's only while allowCapture) or else damaged.
+		auto can_take_on = [&](size_t i, const PetraDefenseArmy &a) {
+			if (!petra_army_capturing(a)) return true;
+			const Building &b = buildings_[building_id_to_idx_.at(a.foe_ids[0])];
+			if (petra_allow_capture(a.defender_ids, units_.id[i], b)) return true;
+			if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return false;
+			return (unit_capture_strength(units_.unit_type[i]) > 0.0f && can_capture_building(petra_pid_, b)) ||
+				(can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type));
+		};
 		// Each goes to the nearest army still in need, on its own land in the first pass and
 		// any in the second. Helping outside our land, up to 12 units farther than 200 m
 		// (40000 m², x0.28) from that army stay home as a backup.
@@ -20815,6 +20913,7 @@ void Simulation::petra_manage_defense(float dt) {
 				float best_d2 = 1e18f;
 				for (size_t k = 0; k < needs.size(); ++k) {
 					if (land && needs[k].land && needs[k].land != land) continue;
+					if (!can_take_on(i, armies[needs[k].army])) continue;
 					const float dx = units_.pos_x[i] - needs[k].x, dz = units_.pos_z[i] - needs[k].z;
 					if (dx * dx + dz * dz < best_d2) { best_d2 = dx * dx + dz * dz; best = (int)k; }
 				}
@@ -20845,6 +20944,19 @@ void Simulation::petra_manage_defense(float dt) {
 	// attacking it, else the nearest foe with at most 2 already against it, else the
 	// nearest with at most 5 (8 for a hero or siege engine).
 	for (PetraDefenseArmy &army : armies) {
+		if (petra_army_capturing(army)) {
+			// Each defender captures the structure where allowCapture says so, else damages it.
+			const uint32_t bid = army.foe_ids[0];
+			const Building &b = buildings_[building_id_to_idx_.at(bid)];
+			for (uint32_t uid : army.defender_ids) {
+				const int32_t idx = lookup_unit(uid);
+				if (idx < 0 || (units_.action_state[idx] == ACTION_ATTACK && units_.target_building_id[idx] == bid)) continue;
+				const bool capture = petra_allow_capture(army.defender_ids, uid, b);
+				if (!capture && b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) continue;
+				order_attack_building(&uid, 1, bid, false, capture);
+			}
+			continue;
+		}
 		auto is_foe = [&](uint32_t uid) {
 			return std::find(army.foe_ids.begin(), army.foe_ids.end(), uid) != army.foe_ids.end();
 		};
