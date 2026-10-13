@@ -59,6 +59,7 @@
 #include "attack_detection.h"
 #include "selection_grid.h"
 #include "objectives_dialog.h"
+#include "tutorial_panel.h"
 #include "range_overlays.h"
 #include "music_manager.h"
 #include "session_audio.h"
@@ -175,6 +176,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoChatWindow chat_window_;
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
+	rtso::RtsoTutorialPanel tutorial_panel_;
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -205,6 +207,15 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	int random_map_size = 128;
 	int random_map_players = 2; // seated slots: random maps get one base per player
 	uint8_t random_map_teams[8] = {}; // 1-based setup team per seat (0 = none), for team placement
+	// A scenario's own civs and starting resources (0 A.D. ScriptSettings PlayerData, e.g. the
+	// tutorials): they win over Game Setup's, as 0 A.D. locks them on such maps. -1: none.
+	int8_t map_civ_[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
+	int32_t map_res_[8][4] = {}; // food, wood, stone, metal
+	bool map_has_res_[8] = {};
+	// The map's fixed teams (0 A.D. PlayerData Team; 0 none, else team + 1), when it has any.
+	uint8_t map_team_[8] = {};
+	bool map_has_teams_ = false;
+	void apply_map_player_overrides();
 
 	bool dragging = false;
 	bool paused_via_menu = false;
@@ -385,6 +396,7 @@ public:
 
 	void toggle_diplomacy();
 	void toggle_objectives();
+	void _on_tutorial_ready_pressed();
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests

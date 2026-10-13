@@ -67,6 +67,37 @@ static uint64_t rejoin_now_ms();
 static constexpr uint8_t CMD_PEER_JOINED = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_JOINED);
 static constexpr uint8_t CMD_PEER_LEFT = static_cast<uint8_t>(NetCommandType::NET_CMD_PEER_LEFT);
 
+// Commands.js ProcessCommand calls the triggers' OnPlayerCommand before it runs the
+// command; the tutorials look at gathering, building and rally points.
+static void note_player_command(Simulation &sim, uint8_t pl, const NetCommand &c) {
+	if (!sim.has_map_triggers()) return;
+	uint16_t kind = TRIGGER_CMD_OTHER;
+	uint32_t target = c.target_id, other = 0;
+	uint8_t hunt = 0;
+	uint16_t count = 0;
+	const uint8_t param = (uint8_t)(c.param & ~NET_PARAM_QUEUED);
+	switch (c.cmd_type) {
+		case 4: kind = TRIGGER_CMD_GATHER; break;
+		case 17:
+			if (param == 0) { kind = TRIGGER_CMD_GATHER; hunt = 1; }
+			break;
+		case 5: kind = TRIGGER_CMD_CONSTRUCT; target = 0; count = c.param; break;
+		case 16: kind = TRIGGER_CMD_REPAIR; break;
+		case 14:
+			if (param == 1) {
+				kind = TRIGGER_CMD_UNSET_RALLY;
+			} else {
+				kind = TRIGGER_CMD_SET_RALLY;
+				target = c.entity_ids.size() > 0 ? c.entity_ids[0] : 0;
+				other = c.entity_ids.size() > 1 ? c.entity_ids[1] : 0;
+			}
+			break;
+		case (uint8_t)NetCommandType::NET_CMD_TUTORIAL_READY: kind = TRIGGER_CMD_DIALOG_READY; break;
+		default: break;
+	}
+	sim.note_player_command(pl, kind, target, other, hunt, count);
+}
+
 // A train command's batch size (target_z): a whole number 1..200, else one unit.
 static int batch_count(float z) {
 	return (z >= 1.0f && z <= 200.0f && z == (float)(int)z) ? (int)z : 1;
@@ -1256,6 +1287,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const size_t n = owned.size();
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
+		note_player_command(sim, pl, c);
 		if (c.cmd_type == 1) { // Move (a player's walk: forced, ignores enemies)
 			sim.order_walk(ids, n, c.target_x, c.target_z, queued, true);
 		} else if (c.cmd_type == 2) { // Stop
@@ -1266,8 +1298,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_gather(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 5) { // Build
 			uint32_t bid = sim.cmd_build(pl, (int)c.target_x, (int)c.target_z, c.param, Simulation::unpack_angle(c.target_id));
-			if (bid && n)
+			if (bid && n) {
+				// TryConstructBuilding hands the builders a "repair" of the new foundation.
+				if (sim.has_map_triggers()) sim.note_player_command(pl, TRIGGER_CMD_REPAIR, bid, 0, 0, 0);
 				sim.order_build_or_repair(ids, n, bid);
+			}
 		} else if (c.cmd_type == 6) { // Train
 			// At a corral target_x names the animal (corral Trainer list); 0 is the civ's default.
 			if (c.param == UNIT_TYPE_NONE && c.target_x > 0.0f)

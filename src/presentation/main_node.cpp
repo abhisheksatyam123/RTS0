@@ -1,6 +1,7 @@
 #include "main_node.h"
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
+#include <cstring>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -112,6 +113,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
 	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
 	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
+	ClassDB::bind_method(D_METHOD("_on_tutorial_ready_pressed"), &RtsoMain::_on_tutorial_ready_pressed);
 	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
 	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
 	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
@@ -302,6 +304,27 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "corral") return rtso::BLD_CORRAL;
 	if (n == "field_plot") return rtso::BLD_FIELD; // a Gaia field (map "field" stays a farmstead)
 	if (n == "mercenary_camp") return rtso::BLD_MERCENARY_CAMP;
+	return rtso::BLD_TYPE_COUNT;
+}
+
+// A player structure's 0 A.D. template ("athen/field", "spart/gerousia"; port_0ad_maps.py),
+// BLD_TYPE_COUNT when RTS0 has no such building.
+static uint8_t map_building_template(const String &tmpl) {
+	const String n = tmpl.get_slice("/", tmpl.get_slice_count("/") - 1);
+	static const struct { const char *name; uint8_t type; } kNames[] = {
+		{"civil_centre", rtso::BLD_TOWN_CENTER}, {"house", rtso::BLD_HOUSE}, {"barracks", rtso::BLD_BARRACKS},
+		{"storehouse", rtso::BLD_STOREHOUSE}, {"farmstead", rtso::BLD_FARMSTEAD}, {"field", rtso::BLD_FIELD},
+		{"market", rtso::BLD_MARKET}, {"temple", rtso::BLD_TEMPLE}, {"forge", rtso::BLD_FORGE},
+		{"outpost", rtso::BLD_OUTPOST}, {"sentry_tower", rtso::BLD_SENTRY_TOWER}, {"defense_tower", rtso::BLD_TOWER},
+		{"arsenal", rtso::BLD_ARSENAL}, {"stable", rtso::BLD_STABLE}, {"range", rtso::BLD_RANGE},
+		{"dock", rtso::BLD_DOCK}, {"fortress", rtso::BLD_FORTRESS}, {"wonder", rtso::BLD_WONDER},
+		{"corral", rtso::BLD_CORRAL},
+	};
+	for (const auto &k : kNames)
+		if (n == k.name) return k.type;
+	// Civ structures go by their model id (civ_building_data.h: "gerousia", "syssiton").
+	for (uint8_t t = rtso::BLD_GYMNASIUM; t < rtso::BLD_TYPE_COUNT; ++t)
+		if (n == rtso::building_type_info(t).model_id) return t;
 	return rtso::BLD_TYPE_COUNT;
 }
 
@@ -984,6 +1007,7 @@ void RtsoMain::_ready() {
 	chat_window_.build(this, ui_layer, this);
 	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
+	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -1357,7 +1381,7 @@ Dictionary RtsoMain::debug_guard_step(int step) {
 }
 
 // Test hook: a finished structure of `btype` next to the Civic Centre, selected;
-// returns the production buttons it shows.
+// returns the units it offers and the production buttons it shows.
 PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	PackedStringArray out;
 	if (!sim || net_lockstep()) return out;
@@ -1369,6 +1393,9 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	clear_selection();
 	selected_building_id = id;
 	update_command_panel();
+	// The units it trains (the civ's roster list), then its other buttons.
+	if (roster_list && roster_list->is_visible())
+		for (int i = 0; i < roster_list->get_item_count(); ++i) out.push_back(roster_list->get_item_text(i));
 	for (int i = 0; i < production_bar->get_child_count(); ++i)
 		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) out.push_back(btn->get_text());
 	return out;
@@ -2690,6 +2717,7 @@ void RtsoMain::_process(double delta) {
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.refresh(sim, local_player());
+	tutorial_panel_.refresh(sim);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
@@ -3215,56 +3243,8 @@ void RtsoMain::update_command_panel() {
 
 		if (found_b && found_b->build_progress >= 1.0f) {
 			uint8_t pciv = sim->player_civ(local_player());
-			uint8_t pphase = sim->player_phase(local_player());
-			uint32_t roster = rtso::civ_train_mask(pciv);
-			auto add_train = [&](rtso::UnitType t, const char *label) {
-				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
-				if (!building_trains_class(pciv, (uint8_t)t, found_b->type)) return;
-				Button *btn = memnew(Button);
-				btn->set_text(label);
-				// Champions wait for their unlock technology (0 A.D. unlock_champion_*).
-				uint8_t gate = sim->train_unlock_tech(local_player(), (uint8_t)t, found_b->type,
-						rtso::civ_default_template(sim->player_civ(local_player()), (uint8_t)t));
-				if (gate != rtso::TECH_NONE && !sim->player(local_player()).has_tech(gate)) {
-					btn->set_disabled(true);
-					btn->set_tooltip_text(String("Requires ") + rtso::tech_info(gate).name);
-				}
-				btn->connect("pressed", Callable(this, "_on_train_pressed").bind((int)t));
-				production_bar->add_child(btn);
-			};
-
-			// Class buttons: each shows only where one of the civ's units of that class
-			// lists this structure as its Trainer (add_train's building_trains_class).
-			add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
-			add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
-			add_train(rtso::UNIT_HEALER, "Healer (80f,60g)");
-			add_train(rtso::UNIT_SWORDSMAN, "Swordsman (60g,30w)");
-			add_train(rtso::UNIT_ARCHER, "Archer (40g,50w)");
-			add_train(rtso::UNIT_SPEARMAN, "Spearman (30f,40w,20g)");
-			add_train(rtso::UNIT_CAVALRY, "Cavalry (80g,50f)");
-			add_train(rtso::UNIT_CAMEL, "Camel Rider (60f,70g)");
-			add_train(rtso::UNIT_CHARIOT, "Celtic Chariot (80f,100w,60g)");
-			add_train(rtso::UNIT_WAR_DOG, "War Dog (60f)");
-			add_train(rtso::UNIT_CARNYX, "Carnyx Herald (70f,40w,30g)");
-			add_train(rtso::UNIT_ARCHER_MAIDEN, "Archer Maiden (40f,60w,40g)");
-			add_train(rtso::UNIT_WORKER_ELEPHANT, "Worker Elephant (180f,80w)");
-			if (pciv == rtso::CIV_MAURYANS && pphase >= 2)
-				add_train(rtso::UNIT_ELEPHANT, "Elephant Archer (175f,75w)");
-			if (pphase >= 2) {
-				add_train(rtso::UNIT_HERO, "Champion Hero (200f,200g)");
-				add_train(rtso::UNIT_BOLT_SHOOTER, "Bolt Shooter (120w,80g)");
-			}
-			if (pphase >= 3) {
-				add_train(rtso::UNIT_CATAPULT, "Catapult Artillery (150w,100g,50s)");
-				add_train(rtso::UNIT_SIEGE_RAM, "Siege Ram (200w,100g)");
-				if (pciv != rtso::CIV_MAURYANS)
-					add_train(rtso::UNIT_ELEPHANT, "War Elephant (250f,200g)");
-				add_train(rtso::UNIT_SCYTHED_CHARIOT, "Scythed Chariot (100f,80w,120g)");
-			}
-			add_train(rtso::UNIT_FISHING_BOAT, "Fishing Boat (75w)");
-			add_train(rtso::UNIT_MERCHANT_SHIP, "Merchant Ship (120w,40g)");
-			add_train(rtso::UNIT_TRIREME, "War Trireme (200w,150g)");
-			add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
+			// Units train from the civ's own list only (update_roster_list, 0 A.D. ProductionQueue's
+			// per-template Trainer/Entities), never from generic class buttons.
 
 			// Technologies researched here (0 A.D. ProductionQueue "technologies"):
 			// one button per tech whose researcher is this building type, greyed
@@ -3812,6 +3792,9 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 	for (uint16_t i : rtso::civ_roster_ids(civ)) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+		// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
+		// 0 A.D. has no such unit, so players don't see it.
+		if (std::strstr(u.id, "/rts0_")) continue;
 		float cost[rtso::RES_COUNT];
 		sim->unit_train_cost(pid, i, rtso::civ_template_unit_info(i, u.unit_type), cost);
 		String costs;
@@ -3984,6 +3967,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.gui.diplomacy.toggle")) { toggle_diplomacy(); return; }
 		if (fired("session.diplomacycolors")) { toggle_diplomacy_colors(); return; }
 		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
+		if (fired("session.gui.tutorial.toggle")) { tutorial_panel_.toggle(); return; }
 		if (fired("session.gui.barter.toggle")) {
 			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
 			return;
@@ -4989,6 +4973,7 @@ void RtsoMain::apply_match_settings() {
 		int sc = (int)slot_civs[t];
 		if (sc >= 0 && sc < rtso::CIV_COUNT) sim->set_team_civ((uint8_t)t, (uint8_t)sc);
 	}
+	apply_map_player_overrides();
 	// Seat the lobby's slots so every AI slot runs its own Petra (as apply_game_setup does).
 	if (seats > 0) {
 		for (int t = 0; t < rtso::MAX_PLAYERS; ++t) {
@@ -5093,9 +5078,27 @@ bool RtsoMain::load_map(String map_id) {
 	return load_map_seeded(map_id, seed);
 }
 
+void RtsoMain::apply_map_player_overrides() {
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
+		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
+	}
+	if (map_has_teams_) {
+		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
+		sim->set_setup_teams(map_team_);
+		sim->apply_team_diplomacy();
+	}
+}
+
 bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	if (!sim || !view) return false;
 	clear_selection();
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		map_civ_[p] = -1;
+		map_has_res_[p] = false;
+		map_team_[p] = 0;
+	}
+	map_has_teams_ = false;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
@@ -5178,6 +5181,31 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 	sim->set_sim_seed(seed);
 	sim->reset();
+	{
+		Array pl = d.get("players", Array());
+		for (int i = 0; i < pl.size(); ++i) {
+			Dictionary p = pl[i];
+			const int id = (int)p.get("id", 1);
+			const uint8_t team = id <= 1 ? 0 : (uint8_t)(id - 1);
+			if (team >= rtso::MAX_PLAYERS) continue;
+			const int c = (int)p.get("civ", -1);
+			if (c >= 0 && c < rtso::CIV_COUNT) map_civ_[team] = (int8_t)c;
+			if (p.has("resources")) {
+				Dictionary r = p["resources"];
+				const char *keys[4] = {"food", "wood", "stone", "metal"};
+				for (int k = 0; k < 4; ++k) map_res_[team][k] = (int)r.get(keys[k], 300); // Player.js: 300 of each unless set
+				map_has_res_[team] = true;
+			}
+			if (p.has("team")) {
+				const int t = (int)p["team"];
+				map_team_[team] = (uint8_t)(t >= 0 && t < rtso::MAX_PLAYERS ? t + 1 : 0);
+				map_has_teams_ = true;
+			}
+		}
+		// Civs before the units: spawn_unit takes its owner's roster.
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+			if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
+	}
 
 	String name = d.get("name", map_id);
 	String biome = d.get("biome", "mediterranean");
@@ -5272,8 +5300,12 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
-		uint8_t btype = map_building_type(stype_str);
-		if (btype >= rtso::BLD_TYPE_COUNT) btype = rtso::BLD_HOUSE;
+		uint8_t btype = b.has("template") ? map_building_template(b["template"]) : (uint8_t)rtso::BLD_TYPE_COUNT;
+		if (btype >= rtso::BLD_TYPE_COUNT) btype = map_building_type(stype_str);
+		if (btype >= rtso::BLD_TYPE_COUNT) {
+			if (stype_str.is_empty()) continue; // a civ structure RTS0 doesn't have
+			btype = rtso::BLD_HOUSE;
+		}
 		sim->spawn_building_world(bx, bz, btype, team, 1.0f);
 	}
 	// Gaia-owned structures (Player 0 in 0 A.D.'s map: towers, palisades, houses, docks,
@@ -5309,6 +5341,13 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		uint8_t team = (player <= 1) ? 0 : (uint8_t)(player - 1);
 		if (team >= rtso::MAX_PLAYERS) team = 1;
 
+		// The map's own roster template when RTS0 has it ("spart/infantry_javelineer_b").
+		const uint16_t tmpl = u.has("template")
+				? rtso::civ_unit_template_by_id(String(u["template"]).utf8().get_data()) : rtso::CIV_UNIT_TEMPLATE_NONE;
+		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
+			unit_ids[i] = sim->spawn_unit(ux, uz, team, (rtso::UnitType)rtso::civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+			continue;
+		}
 		const rtso::UnitType utype = map_unit_type(utype_str);
 		const auto &uinfo = rtso::unit_type_info(utype);
 		unit_ids[i] = sim->spawn_unit(ux, uz, team, utype, uinfo.hp);
@@ -5372,6 +5411,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		}
 	}
 
+	apply_map_player_overrides();
 	UtilityFunctions::print("[RtsoMain] Loaded 0 A.D. map '", name, "' (", world_size, "m, ", sim->resource_count(), " resources, ", sim->building_count(), " structures, ", sim->unit_count(), " units)");
 	return true;
 }
@@ -5683,6 +5723,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS && t < setup.slot_count; ++t) {
 		if (setup.civs[t] < rtso::CIV_COUNT) sim->set_team_civ(t, setup.civs[t]);
 	}
+	apply_map_player_overrides();
 	// Seat every slot: Petra runs only for 'a' slots, so a second human in
 	// slot 1 plays their own units instead of sharing them with the AI.
 	for (uint8_t t = 0; t < rtso::MAX_PLAYERS; ++t) {
@@ -5900,6 +5941,17 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 
 void RtsoMain::toggle_objectives() {
 	objectives_dialog_.toggle(sim, local_player());
+}
+
+// 0 A.D. messages.js onTutorialReady: "dialog-answer" to the trigger script; the
+// last goal's Leave opens the session menu (0 A.D. ends the game there).
+void RtsoMain::_on_tutorial_ready_pressed() {
+	if (!sim || !sim->tutorial_ready_button()) return;
+	if (tutorial_panel_.on_last_goal(*sim)) {
+		_on_menu_button_pressed();
+		return;
+	}
+	post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TUTORIAL_READY, nullptr, 0, 0.0f, 0.0f, 0, 0);
 }
 
 // Top panel IconButtons: DiplomacyDialogButton, TradeDialogButton, ObjectivesDialogButton.
