@@ -5,8 +5,8 @@ and hosts; the other signs in, finds the game in the list and joins it; the
 host presses Start, and both play to a turn whose lockstep hash must match. The client freezes
 for a few seconds as the match starts, so the host must show "Waiting for
 players to connect:" with its name.
-In game setup the client asks for Germans, team 2 and colour 5 and then
-presses Ready; the host's Start must be refused until then, and both must
+In game setup the client asks for the host's colour (refused, with the
+reason), then for Germans, team 2 and colour 5, and presses Ready; the host's Start must be refused until then, and both must
 play with those picks at the host's game speed (1.5x).
 Meanwhile the lobby must show the game running with two players and both
 players as in a game, as 0 A.D.'s lobby does.
@@ -140,6 +140,7 @@ def play(args, lobby, leave):
     waited = said("host", "waiting")
     ok = ok and waited == "Waiting for players to connect: bob"
     ok = ok and said("host", "start_refused") == "true"
+    ok = ok and said("join", "refused") == "Another player has that color"
     picks = {k: (h.get(k), j.get(k)) for k in ("speed", "civ1", "team1", "color1")}
     ok = ok and picks == {"speed": ("1.5", "1.5"), "civ1": ("15", "15"), "team1": ("2", "2"), "color1": ("5", "5")}
     if leave == "join":

@@ -94,6 +94,7 @@ func _run() -> void:
 	var asked := false
 	var refused := false
 	var ready_for := -1
+	var refusals: Array = []
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -102,6 +103,7 @@ func _run() -> void:
 		if main == null and scene != null and scene.has_method("get_lobby_state"):
 			main = scene
 			_say("in the match scene")
+			main.net_setup_refused.connect(func(why): refusals.append(why))
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
@@ -114,6 +116,7 @@ func _run() -> void:
 			if role == "join" and slot >= 0:
 				if not asked:
 					asked = true
+					main.request_net_player_setting("color", 0) # the host's: refused
 					main.request_net_player_setting("civ", 15)
 					main.request_net_player_setting("team", 2)
 					main.request_net_player_setting("color", 5)
@@ -122,9 +125,10 @@ func _run() -> void:
 				var teams: Array = ms.slot_teams
 				var cols: Array = ms.slot_colors
 				var got: bool = slot < civs.size() and int(civs[slot]) == 15 and int(teams[slot]) == 2 and int(cols[slot]) == 5
-				if got and int(ns.get("settings_version", 0)) != ready_for:
+				if got and refusals.size() and int(ns.get("settings_version", 0)) != ready_for:
+					_say("refused=%s" % refusals[0])
 					ready_for = int(ns.get("settings_version", 0))
-					main.set_net_ready(true)
+					main.set_net_ready(1)
 					_say("ready for settings version %d" % ready_for)
 			if role == "host" and not started and int(st.get("players", 0)) >= 2:
 				if not bool(ns.get("can_start", false)):

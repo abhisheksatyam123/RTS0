@@ -733,6 +733,7 @@ static bool run_game_setup_wire(const char *ph) {
 	n.slot_client[2] = 1;
 	n.clients = 0x7;
 	n.ready = 0x2;
+	n.stay_ready = 0x1;
 	n.observers = 0x4;
 	n.names[0] = "alice";
 	n.names[1] = "b;o,b=%";
@@ -743,11 +744,14 @@ static bool run_game_setup_wire(const char *ph) {
 	CHECK(back.setup.speed == 150 && back.setup.lock_players == 1, "game speed and the scenario lock survive", ph);
 	CHECK(back.settings_version == 7 && back.seq == 12, "versions survive", ph);
 	CHECK(back.slot_client[0] == 0 && back.slot_client[1] == -1 && back.slot_client[2] == 1, "seats survive", ph);
-	CHECK(back.clients == 0x7 && back.ready == 0x2 && back.observers == 0x4, "clients, ready and observers survive", ph);
+	CHECK(back.clients == 0x7 && back.ready == 0x2 && back.stay_ready == 0x1 && back.observers == 0x4,
+	      "clients, ready, stay ready and observers survive", ph);
 	CHECK(back.names[1] == "b;o,b=%" && back.names[2] == "carol", "names with separators survive", ph);
 	CHECK(back.slot_of(1) == 2 && back.slot_of(2) == -1 && back.all_ready(), "slot_of and all_ready", ph);
 	back.ready = 0;
 	CHECK(!back.all_ready(), "a seated client not ready holds the start", ph);
+	back.stay_ready = 0x2;
+	CHECK(back.all_ready(), "stay ready counts as ready", ph);
 	GameSetupParams plain;
 	CHECK(!parse_net_setup(format_game_start_full(plain), back), "a GAME_START string is no setup", ph);
 	GameSetupParams g;
@@ -768,7 +772,7 @@ static bool run_game_setup_wire(const char *ph) {
 	host.sendGameSetup(format_net_setup(n));
 	joiner.sendGameSetup("map=x;seed=1;nsv=99"); // a client cannot send one
 	joiner.sendSetupRequest("civ=3");
-	joiner.sendReady(true, 7);
+	joiner.sendReady(1, 7);
 	pump(host, joiner, arena, 40, 5);
 	auto got = joiner.takeGameSetups();
 	CHECK(got.size() == 1 && parse_net_setup(got.empty() ? "" : got[0], back) && back.seq == 12, "the joiner gets the host's setup", ph);
@@ -777,14 +781,25 @@ static bool run_game_setup_wire(const char *ph) {
 	auto reqs = host.takeSetupRequests();
 	CHECK(reqs.size() == 1 && reqs[0].client == cid && reqs[0].request == "civ=3", "the host gets the request, stamped", ph);
 	const NetPeer *p = host.getPeer(cid);
-	CHECK(p && p->is_ready && p->ready_version == 7, "the host keeps the ready and its version", ph);
+	CHECK(p && p->ready_status == 1 && p->ready_version == 7, "the host keeps the ready and its version", ph);
+	host.sendSetupRefusal(cid, "Another player has that color");
+	pump(host, joiner, arena, 40, 5);
+	auto why = joiner.takeSetupRefusals();
+	CHECK(why.size() == 1 && why[0] == "Another player has that color", "the joiner hears why it was refused", ph);
+	CHECK(host.takeSetupRequests().empty(), "a refusal is no request", ph);
 	host.clearAllReady();
-	CHECK(p && !p->is_ready, "clear all ready", ph);
+	CHECK(p && p->ready_status == 0, "clear all ready", ph);
+	joiner.sendReady(2, 7);
+	pump(host, joiner, arena, 40, 5);
+	host.clearAllReady();
+	CHECK(p && p->ready_status == 2, "clear all ready keeps stay ready", ph);
+	joiner.sendReady(0, 7);
+	pump(host, joiner, arena, 40, 5);
 	host.note_game_start_sent();
 	joiner.sendSetupRequest("team=2");
-	joiner.sendReady(true, 7);
+	joiner.sendReady(1, 7);
 	pump(host, joiner, arena, 40, 5);
-	CHECK(host.takeSetupRequests().empty() && p && !p->is_ready, "nothing is taken once the game started", ph);
+	CHECK(host.takeSetupRequests().empty() && p && p->ready_status == 0, "nothing is taken once the game started", ph);
 	host.stop();
 	joiner.stop();
 	return g_failures == 0;

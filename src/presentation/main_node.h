@@ -129,15 +129,20 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::NetSetupState net_setup_;      // host: the setup it sent last; client: the host's latest
 	std::string net_setup_key_;          // host: the settings and seats net_setup_ was versioned for
 	std::string net_setup_sent_;         // host: what it sent last, but for the sequence
-	bool net_ready_ = false;             // client: ready for net_setup_.settings_version
+	uint8_t net_ready_ = 0;              // client: 0 not ready, 1 ready for net_ready_version_, 2 stay ready
 	uint32_t net_ready_version_ = 0;
 	void match_settings_setup(rtso::GameSetupParams &setup);
 	void host_net_setup_tick(bool force);
 	void client_net_setup_tick();
-	void apply_net_setup_request(uint32_t client, const std::string &request);
+	const char *apply_net_setup_request(uint32_t client, const std::string &request);
 	void store_net_setup_in_match_settings(const rtso::GameSetupParams &setup);
 	void assign_lobby_seat(int client, int choice);
 	void start_net_speed(uint16_t speed);
+	Node *net_setup_overlay_ = nullptr;     // scenes/menu/gamesetup.tscn, networked
+	CanvasLayer *net_setup_layer_ = nullptr;
+	bool net_setup_overlay_unsupported_ = false;
+	Button *lobby_start_btn_ = nullptr;
+	void update_net_setup_overlay();
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
@@ -397,7 +402,8 @@ public:
 	void push_net_setup();
 	void assign_net_client(int client, int slot);
 	void request_net_player_setting(const String &key, int value);
-	void set_net_ready(bool ready);
+	void set_net_ready(int status);
+	void leave_net_game();
 	// The lockstep state hash this client computed for a turn (0 if not kept).
 	int64_t get_turn_hash(int64_t turn) const;
 	void refresh_lobby_rooms();

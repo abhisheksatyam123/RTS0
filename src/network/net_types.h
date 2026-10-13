@@ -78,7 +78,8 @@ enum class NetMessageType : uint8_t {
 	// A client's change to its own slot in game setup, "civ=3" / "team=2" /
 	// "color=5" (0 A.D.'s NetServer lets only the controller send
 	// NMT_GAME_SETUP; its TODO asks for player requests like this). The host
-	// checks it and rebroadcasts NMT_GAME_SETUP. See NetSetupState.
+	// checks it and rebroadcasts NMT_GAME_SETUP, or answers that client
+	// "refused=<why>". See NetSetupState.
 	NMT_SETUP_REQUEST             = 35,
 	NMT_COUNT                     = 36
 };
@@ -250,8 +251,8 @@ struct NetPeer {
 	bool is_observer = false;  // observer vs active player
 	std::string guid;
 	std::string player_name;
-	bool is_ready = false;
-	uint32_t ready_version = 0;    // host: the setup version is_ready was given for
+	uint8_t ready_status = 0;      // host: 0.28 ReadyController 0 not ready, 1 ready, 2 stay ready
+	uint32_t ready_version = 0;    // host: the setup version ready_status was given for
 	bool is_authenticated = false; // host: admitted to the session (right password, not banned)
 	uint64_t kick_disconnect_ms = 0; // host: kicked; the link closes at this time, after NMT_KICKED got there
 	uint64_t last_seen_ms = 0;
@@ -315,7 +316,7 @@ struct AuthenticateResultMsg {
 
 struct ReadyMsg {
 	std::string guid;
-	uint8_t status = 1; // 1 = ready, 0 = not ready
+	uint8_t status = 1; // 0.28 ReadyController: 0 not ready, 1 ready, 2 stay ready (kept over setup changes)
 	// The NetSetupState settings_version the client was ready for (RTS0;
 	// optional on the wire). The host drops a ready for older settings, so
 	// a ready sent just before a change cannot count for the new settings.
@@ -654,7 +655,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 // ready (0 A.D.'s NMT_PLAYER_ASSIGNMENT statuses). Extra keys, which
 // parse_game_start_full ignores:
 //   nsv=<settings version> nsq=<broadcast sequence> nsc=<8 chars: slot i's
-//   client '0'..'7', '-' none> ncl=<connected clients mask> nsr=<ready mask>
+//   client '0'..'7', '-' none> ncl=<connected clients mask> nsr=<ready mask> nss=<stay ready mask>
 //   nso=<observers mask> nsn=<client names, by client id>
 struct NetSetupState {
 	GameSetupParams setup;
@@ -662,7 +663,8 @@ struct NetSetupState {
 	uint32_t seq = 0;              // bumps on every broadcast; clients keep the newest
 	int8_t slot_client[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	uint8_t clients = 0;   // bit k: client k is in the game (the host is client 0)
-	uint8_t ready = 0;     // bit k: client k is ready (the host never needs to be)
+	uint8_t ready = 0;     // bit k: client k is ready for these settings (the host never needs to be)
+	uint8_t stay_ready = 0; // bit k: client k stays ready whatever changes
 	uint8_t observers = 0; // bit k: client k watches
 	std::string names[8];  // by client id
 	// The slot client k plays, -1 if none.
@@ -674,7 +676,7 @@ struct NetSetupState {
 	// 0 A.D. gamesetup start button: every client that plays is ready.
 	bool all_ready() const {
 		for (int i = 1; i < 8; ++i)
-			if (((clients >> i) & 1) && slot_of(i) >= 0 && !((ready >> i) & 1)) return false;
+			if (((clients >> i) & 1) && slot_of(i) >= 0 && !(((ready | stay_ready) >> i) & 1)) return false;
 		return true;
 	}
 };
@@ -685,6 +687,7 @@ inline std::string format_net_setup(const NetSetupState &n) {
 		if (n.slot_client[i] >= 0 && n.slot_client[i] < 8) seats[i] = (char)('0' + n.slot_client[i]);
 	s += ";nsv=" + std::to_string(n.settings_version) + ";nsq=" + std::to_string(n.seq) + ";nsc=" + seats;
 	s += ";ncl=" + std::to_string((unsigned)n.clients) + ";nsr=" + std::to_string((unsigned)n.ready) +
+	     ";nss=" + std::to_string((unsigned)n.stay_ready) +
 	     ";nso=" + std::to_string((unsigned)n.observers) + ";nsn=";
 	for (int i = 0; i < 8; ++i) s += (i ? "," : "") + detail::escape_name(n.names[i]);
 	return s;
@@ -710,9 +713,10 @@ inline bool parse_net_setup(const std::string &attrs, NetSetupState &out) {
 				}
 			} else if (k == "nsc" && v.size() == 8) {
 				for (int i = 0; i < 8; ++i) out.slot_client[i] = (v[i] >= '0' && v[i] <= '7') ? (int8_t)(v[i] - '0') : -1;
-			} else if (k == "ncl" || k == "nsr" || k == "nso") {
+			} else if (k == "ncl" || k == "nsr" || k == "nss" || k == "nso") {
 				uint8_t x;
-				if (detail::parse_u8(v, 0, 255, x)) (k == "ncl" ? out.clients : k == "nsr" ? out.ready : out.observers) = x;
+				if (detail::parse_u8(v, 0, 255, x))
+					(k == "ncl" ? out.clients : k == "nsr" ? out.ready : k == "nss" ? out.stay_ready : out.observers) = x;
 			} else if (k == "nsn") {
 				size_t a = 0;
 				for (int c = 0; c < 8 && a <= v.size(); ++c) {

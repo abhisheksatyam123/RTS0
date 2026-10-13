@@ -10,6 +10,7 @@
 #include <godot_cpp/classes/viewport.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
+#include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include "user_config.h"
 #include "display_colors.h"
@@ -158,13 +159,15 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("push_net_setup"), &RtsoMain::push_net_setup);
 	ClassDB::bind_method(D_METHOD("assign_net_client", "client", "slot"), &RtsoMain::assign_net_client);
 	ClassDB::bind_method(D_METHOD("request_net_player_setting", "key", "value"), &RtsoMain::request_net_player_setting);
-	ClassDB::bind_method(D_METHOD("set_net_ready", "ready"), &RtsoMain::set_net_ready);
+	ClassDB::bind_method(D_METHOD("set_net_ready", "status"), &RtsoMain::set_net_ready);
+	ClassDB::bind_method(D_METHOD("leave_net_game"), &RtsoMain::leave_net_game);
 	ClassDB::bind_method(D_METHOD("_on_lobby_seat_selected", "index", "client"), &RtsoMain::_on_lobby_seat_selected);
 	ClassDB::bind_method(D_METHOD("apply_net_game_start"), &RtsoMain::apply_net_game_start);
 	ClassDB::bind_method(D_METHOD("load_map_seeded", "map_id", "seed"), &RtsoMain::load_map_seeded);
 	// 0 A.D. GUI onGameLoadProgress(progression, description): the loading page
 	// (scenes/menu/loading.gd) listens while the match is set up.
 	ADD_SIGNAL(MethodInfo("net_setup_changed"));
+	ADD_SIGNAL(MethodInfo("net_setup_refused", PropertyInfo(Variant::STRING, "reason")));
 	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
 	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
@@ -786,6 +789,7 @@ void RtsoMain::_ready() {
 	ref_b->connect("pressed", Callable(this, "_on_lobby_refresh_pressed"));
 	lobby_actions->add_child(ref_b);
 	Button *start_b = memnew(Button);
+	lobby_start_btn_ = start_b;
 	start_b->set_text("Start");
 	start_b->set_tooltip_text("Host: regenerate map with a fresh seed and broadcast map+seed (NMT_GAME_START)");
 	start_b->connect("pressed", Callable(this, "_on_lobby_start_pressed"));
@@ -3173,6 +3177,7 @@ void RtsoMain::_process(double delta) {
 			refresh_lobby_seats();
 		if (net_host_.isHost()) host_net_setup_tick(false);
 		else client_net_setup_tick();
+		update_net_setup_overlay();
 		// A host that turned us away mid-match says why (0 A.D. disconnect reasons).
 		if (!net_host_.isHost() && !net_game_started_ && lobby_status) {
 			const uint8_t why = turn_mgr_.rejoin_reject_reason();
@@ -7174,7 +7179,8 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		net_setup_.clients = now | 1;
 		return;
 	}
-	for (const auto &r : net_host_.takeSetupRequests()) apply_net_setup_request(r.client, r.request);
+	for (const auto &r : net_host_.takeSetupRequests())
+		if (const char *why = apply_net_setup_request(r.client, r.request)) net_host_.sendSetupRefusal(r.client, why);
 	rtso::NetSetupState n;
 	match_settings_setup(n.setup);
 	uint8_t eff[8];
@@ -7205,8 +7211,10 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		net_host_.clearAllReady();
 	}
 	for (const auto &p : net_host_.getPeers())
-		if (p.id > 0 && p.id < 8 && ((n.clients >> p.id) & 1) && p.is_ready && p.ready_version == n.settings_version)
-			n.ready |= (uint8_t)(1u << p.id);
+		if (p.id > 0 && p.id < 8 && ((n.clients >> p.id) & 1)) {
+			if (p.ready_status == 2) n.stay_ready |= (uint8_t)(1u << p.id);
+			else if (p.ready_status == 1 && p.ready_version == n.settings_version) n.ready |= (uint8_t)(1u << p.id);
+		}
 	const std::string body = rtso::format_net_setup(n);
 	n.seq = net_setup_.seq;
 	const bool changed = body != net_setup_sent_;
@@ -7220,31 +7228,34 @@ void RtsoMain::host_net_setup_tick(bool force) {
 }
 
 // Host: a client asks to change its own slot ("civ=3", "team=2", "color=5"),
-// as the host's own Game Setup could; anything else is ignored.
-void RtsoMain::apply_net_setup_request(uint32_t client, const std::string &request) {
+// as the host's own Game Setup could. Returns why it was refused, or nullptr.
+const char *RtsoMain::apply_net_setup_request(uint32_t client, const std::string &request) {
 	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
 	const int slot = net_setup_.slot_of(client);
 	const size_t eq = request.find('=');
-	if (!ms || slot < 0 || eq == std::string::npos || (bool)ms->get("map_locks_players")) return;
+	if (!ms || eq == std::string::npos) return "Unknown request";
+	if (slot < 0) return "You have no player slot";
+	if ((bool)ms->get("map_locks_players")) return "This map sets every player's civilization, team and color";
 	const std::string key = request.substr(0, eq);
 	const String sv = String(request.substr(eq + 1).c_str());
-	if (!sv.is_valid_int()) return;
-	const int value = (int)sv.to_int();
 	const char *field = key == "civ" ? "slot_civs" : key == "team" ? "slot_teams" : key == "color" ? "slot_colors" : nullptr;
-	if (!field) return;
-	if (key == "civ" && value != -1 && !rtso::is_playable_civ(value)) return;
-	if (key == "team" && (value < 0 || value > 4)) return;
+	if (!field || !sv.is_valid_int()) return "Unknown request";
+	const int value = (int)sv.to_int();
+	if (key == "civ" && value != -1 && !rtso::is_playable_civ(value)) return "Unknown civilization";
+	if (key == "team" && (value < 0 || value > 4)) return "Unknown team";
 	Array arr = ms->get(field);
-	if (slot >= arr.size()) return;
+	if (slot >= arr.size()) return "You have no player slot";
 	if (key == "color") {
-		if (value < 0 || value >= rtso::PLAYER_COLOR_COUNT) return;
+		if (value < 0 || value >= rtso::PLAYER_COLOR_COUNT) return "Unknown color";
 		// Two players never share a colour.
 		Array types = ms->get("slot_types");
 		for (int j = 0; j < arr.size(); ++j)
-			if (j != slot && (int)arr[j] == value && (j >= types.size() || (int)types[j] != 2)) return;
+			if (j != slot && (int)arr[j] == value && (j >= types.size() || (int)types[j] != 2))
+				return "Another player has that color";
 	}
 	arr[slot] = value;
 	ms->set(field, arr);
+	return nullptr;
 }
 
 // Client: the host's setup into our MatchSettings, so Game Setup shows it.
@@ -7306,6 +7317,8 @@ void RtsoMain::store_net_setup_in_match_settings(const rtso::GameSetupParams &se
 // Client, before Start: take the host's newest setup.
 void RtsoMain::client_net_setup_tick() {
 	if (net_host_.isHost() || net_game_started_) return;
+	for (const auto &why : net_host_.takeSetupRefusals())
+		emit_signal("net_setup_refused", String::utf8(why.c_str()));
 	rtso::NetSetupState best;
 	bool have = false;
 	for (const auto &attrs : net_host_.takeGameSetups()) {
@@ -7318,7 +7331,7 @@ void RtsoMain::client_net_setup_tick() {
 	if (!have) return;
 	net_setup_ = std::move(best);
 	// 0.28 ReadyController: a change to the settings takes our ready back.
-	if (net_ready_ && net_ready_version_ != net_setup_.settings_version) net_ready_ = false;
+	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) net_ready_ = 0;
 	store_net_setup_in_match_settings(net_setup_.setup);
 	emit_signal("net_setup_changed");
 }
@@ -7329,6 +7342,7 @@ bool RtsoMain::is_net_pregame() const {
 
 Dictionary RtsoMain::get_net_setup_state() const {
 	Dictionary d;
+	if (!net_lockstep()) return d; // not a networked match
 	const bool host = net_host_.isHost();
 	const uint32_t me = host ? 0 : (net_host_.getLocalPeerId() ? net_host_.getLocalPeerId() : 1);
 	d["controller"] = host;
@@ -7340,7 +7354,8 @@ Dictionary RtsoMain::get_net_setup_state() const {
 		const int c = net_setup_.slot_client[i];
 		e["client"] = c;
 		e["name"] = c >= 0 ? String::utf8(net_setup_.names[c].c_str()) : String();
-		e["ready"] = c == 0 || (c > 0 && ((net_setup_.ready >> c) & 1));
+		// 0.28 ReadyController: 0 not ready, 1 ready, 2 stay ready (the host is).
+		e["ready"] = c == 0 ? 2 : c < 0 ? 0 : ((net_setup_.stay_ready >> c) & 1) ? 2 : ((net_setup_.ready >> c) & 1) ? 1 : 0;
 		slots.push_back(e);
 	}
 	d["slots"] = slots;
@@ -7355,11 +7370,54 @@ Dictionary RtsoMain::get_net_setup_state() const {
 	d["observers"] = observers;
 	d["all_ready"] = net_setup_.all_ready();
 	d["can_start"] = host && !net_game_started_ && net_setup_.all_ready();
-	d["ready"] = host || net_ready_;
+	d["ready"] = host ? 2 : (int)net_ready_;
 	d["locked"] = net_setup_.setup.lock_players != 0;
 	d["version"] = (int64_t)net_setup_.seq;
 	d["settings_version"] = (int64_t)net_setup_.settings_version;
 	return d;
+}
+
+// The networked Game Setup (scenes/menu/gamesetup.gd with net_main set) over
+// the match until Start, in place of the lobby panel's seat rows and Start.
+// Shown once the host is up or has let us in; gone at Start, on a rejoin and
+// when the connection drops.
+void RtsoMain::update_net_setup_overlay() {
+	const bool want = is_net_pregame() && !net_disconnected_ && !turn_mgr_.rejoin_syncing() &&
+			(net_host_.isHost() || net_host_.authResult() == rtso::ARC_OK);
+	if (want && !net_setup_overlay_ && !net_setup_overlay_unsupported_) {
+		Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/menu/gamesetup.tscn");
+		Node *gs = scene.is_valid() ? scene->instantiate() : nullptr;
+		bool networked = false; // a gamesetup.gd without a networked mode is not shown
+		if (gs) {
+			const TypedArray<Dictionary> props = gs->get_property_list();
+			for (int64_t i = 0; i < props.size() && !networked; ++i)
+				networked = String(((Dictionary)props[i]).get("name", "")) == "net_main";
+		}
+		if (!networked) {
+			if (gs) memdelete(gs);
+			net_setup_overlay_unsupported_ = true;
+		} else {
+			gs->set("net_main", this);
+			net_setup_layer_ = memnew(CanvasLayer);
+			net_setup_layer_->set_layer(20);
+			add_child(net_setup_layer_);
+			net_setup_layer_->add_child(gs);
+			net_setup_overlay_ = gs;
+		}
+	} else if (!want && net_setup_overlay_) {
+		net_setup_layer_->queue_free();
+		net_setup_layer_ = nullptr;
+		net_setup_overlay_ = nullptr;
+	}
+	const bool shown = net_setup_overlay_ != nullptr;
+	if (lobby_seats) lobby_seats->set_visible(!shown);
+	if (lobby_start_btn_) lobby_start_btn_->set_visible(!shown);
+}
+
+// Game Setup's Back in a networked game: leave it for the lobby.
+void RtsoMain::leave_net_game() {
+	net_host_.stop();
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) ms->call("go", "res://scenes/menu/lobby.tscn");
 }
 
 void RtsoMain::push_net_setup() {
@@ -7376,18 +7434,18 @@ void RtsoMain::request_net_player_setting(const String &key, int value) {
 	if (!is_net_pregame()) return;
 	const std::string req = std::string(key.utf8().get_data()) + "=" + std::to_string(value);
 	if (net_host_.isHost()) {
-		apply_net_setup_request(0, req);
+		if (const char *why = apply_net_setup_request(0, req)) emit_signal("net_setup_refused", String(why));
 		host_net_setup_tick(false);
 	} else {
 		net_host_.sendSetupRequest(req);
 	}
 }
 
-void RtsoMain::set_net_ready(bool ready) {
-	if (net_host_.isHost() || !is_net_pregame()) return;
-	net_ready_ = ready;
+void RtsoMain::set_net_ready(int status) {
+	if (net_host_.isHost() || !is_net_pregame() || status < 0 || status > 2) return;
+	net_ready_ = (uint8_t)status;
 	net_ready_version_ = net_setup_.settings_version;
-	net_host_.sendReady(ready, net_ready_version_);
+	net_host_.sendReady(net_ready_, net_ready_version_);
 }
 
 void RtsoMain::_on_lobby_refresh_pressed() {
@@ -7425,7 +7483,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();
-	net_ready_ = false;
+	net_ready_ = 0;
 	std::ostringstream js;
 	// No host_ip: the lobby records the address this request comes from.
 	js << "{\"id\":\"room-" << cfg.port << "\",\"host_port\":"
@@ -7537,6 +7595,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	if (!net_setup_.all_ready()) {
 		// 0 A.D. gamesetup: Start waits until every player is ready.
 		if (lobby_status) lobby_status->set_text("Not every player is ready");
+		emit_signal("net_setup_refused", String("Not every player is ready"));
 		return;
 	}
 	rtso::GameSetupParams setup;
@@ -7771,7 +7830,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();
-	net_ready_ = false;
+	net_ready_ = 0;
 	// Once connected, ask to rejoin: a host still in its lobby declines and its
 	// NMT_GAME_START starts us as usual; a host mid-match sends its world.
 	net_host_.onPeerConnected([this](uint32_t) {
