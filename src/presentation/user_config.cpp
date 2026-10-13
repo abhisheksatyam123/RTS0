@@ -51,6 +51,8 @@ const Default kDefaults[] = {
 	{"sound.uigain", "0.7"},
 	{"gui.gamesetup.aidifficulty", "3"},
 	{"gui.gamesetup.aibehavior", "random"},
+	{"gui.gamesetup.assignplayers", "everyone"},
+	{"lobby.buddies", ","},
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
 	{"gui.session.flarelifetime", "6"},
