@@ -186,11 +186,12 @@ inline const RelicGlobalAura *relic_global_auras() {
 
 // Range auras multiplying Promotion/RequiredXp (AURA_REQUIRED_XP sources).
 struct RequiredXpRangeAura { const char *id; float multiply; };
-constexpr uint16_t REQUIRED_XP_RANGE_AURA_COUNT = 3;
+constexpr uint16_t REQUIRED_XP_RANGE_AURA_COUNT = 4;
 inline const RequiredXpRangeAura *required_xp_range_auras() {
-	static const RequiredXpRangeAura kAuras[3] = {
+	static const RequiredXpRangeAura kAuras[4] = {
 		{"centurion", 0.75f},
 		{"centurion_1", 0.75f},
+		{"germ_seer_2", 0.8f},
 		{"han_hero_han_xin_1", 0.8f},
 	};
 	return kAuras;
@@ -237,10 +238,11 @@ inline const CaptureAttackRangeAura *capture_attack_range_auras() {
 // loot is the victim's Loot x multiply + add (Looter.js Collect), per resource in the
 // order food, wood, stone, metal; radius in 0 A.D. metres.
 struct LooterRangeAura { const char *id; float multiply[4]; float add[4]; float radius; uint8_t players; };
-constexpr uint16_t LOOTER_RANGE_AURA_COUNT = 3;
+constexpr uint16_t LOOTER_RANGE_AURA_COUNT = 4;
 inline const LooterRangeAura *looter_range_auras() {
-	static const LooterRangeAura kAuras[3] = {
+	static const LooterRangeAura kAuras[4] = {
 		{"gaul_hero_brennus", {1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 15.0f}, 60.0f, 1},
+		{"germ_hero_lugius_1", {1.0f, 1.0f, 1.0f, 1.0f}, {15.0f, 15.0f, 0.0f, 0.0f}, 60.0f, 1},
 		{"iber_hero_viriato_2", {2.0f, 2.0f, 2.0f, 2.0f}, {0.0f, 0.0f, 0.0f, 0.0f}, 60.0f, 1},
 		{"kush_hero_nastasen_1", {1.5f, 1.5f, 1.5f, 1.5f}, {0.0f, 0.0f, 0.0f, 0.0f}, 60.0f, 1},
 	};

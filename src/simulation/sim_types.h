@@ -67,8 +67,22 @@ enum Civilization : uint8_t {
 	CIV_PTOLEMIES = 11,
 	CIV_SELEUCIDS = 12,
 	CIV_HAN = 13, // appended so saved games and network messages keep civ ids
-	CIV_COUNT = 14
+	// Not a playable civ: the civ saved on Gaia's structures (Building::civ, save v62). Every
+	// per-civ table keeps an empty row for it; loops over playable civs skip it (is_playable_civ).
+	CIV_GAIA = 14,
+	CIV_GERMANS = 15, // 0.28's Germans (germ), after CIV_GAIA so saved Gaia structures keep 14
+	CIV_COUNT = 16
 };
+inline constexpr uint8_t PLAYABLE_CIV_COUNT = CIV_COUNT - 1;
+
+// A civ a player can play (0 A.D. data/civs/*.json SelectableInGameSetup): every
+// Civilization but CIV_GAIA.
+inline constexpr bool is_playable_civ(int civ) { return civ >= 0 && civ < CIV_COUNT && civ != CIV_GAIA; }
+// The k-th playable civ (k taken modulo PLAYABLE_CIV_COUNT): for random civ picks.
+inline constexpr uint8_t playable_civ(uint32_t k) {
+	const uint8_t c = (uint8_t)(k % PLAYABLE_CIV_COUNT);
+	return c < CIV_GAIA ? c : (uint8_t)(c + 1);
+}
 
 enum MapType : uint8_t {
 	MAP_AEGEAN_ARCHIPELAGO = 0,
@@ -157,7 +171,11 @@ enum MapType : uint8_t {
 	MAP_LATIUM = 81,
 	MAP_UNKNOWN = 82,
 	MAP_SURVIVAL_OF_THE_FITTEST = 83,
-	MAP_TYPE_COUNT = 84
+	MAP_LOWER_NUBIA = 84,
+	MAP_MIGRATION = 85,
+	MAP_NGORONGORO = 86,
+	MAP_RIVER_ARCHIPELAGO = 87,
+	MAP_TYPE_COUNT = 88
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -270,7 +288,11 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_POMPEII, "pompeii", "Pompeii (RMS)", "volcanic", true, "Pompeii, an ancient Roman coastal city in Campania, buried under ash and pumice when Mount Vesuvius erupted in AD 79."},
 		{MAP_LATIUM, "latium", "Latium (RMS)", "latium", true, "The Italian peninsula: the fertile volcanic region of central western Italy where Rome was founded."},
 		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."},
-		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."}
+		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."},
+		{MAP_LOWER_NUBIA, "lower_nubia", "Lower Nubia (RMS)", "savanna", true, "Known in the Greco-Roman world as the Triakontaschoinos, Lower Nubia was the area between the first and second cataracts of the Nile and formed the traditional border region between Kush and Egypt. The scorching desert, steep valleys and towering cliffs of the area make this an inhospitable place to live, but the control of this ancient corridor was vital for any power seeking to control the lucrative trade routes on the Nile and affords access to the rich goldfields of the Nubian desert."},
+		{MAP_MIGRATION, "migration", "Migration (RMS)", "temperate", true, "Players start on islands towards the outside of the map and must move to take advantage of the middle island before their resources run out."},
+		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
+		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -289,6 +311,8 @@ inline bool map_is_naval(int type) {
 		case MAP_AEGEAN_SEA: case MAP_ARCHIPELAGO_0AD: case MAP_ISLANDS: case MAP_CYCLADIC_ARCHIPELAGO:
 		case MAP_CORSICA: case MAP_BAHRAIN:
 		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN: case MAP_DANUBIUS:
+		case MAP_MIGRATION:
+		case MAP_RIVER_ARCHIPELAGO:
 			return true;
 		default:
 			return false;
@@ -420,7 +444,8 @@ enum BuildingType : uint8_t {
 	BLD_SIEGE_WALL = 63,      // rome/wallset_siege: siege_wall_long/medium/short and siege_wall_tower
 	BLD_SIEGE_WALL_GATE = 64, // rome/siege_wall_gate (a siege_wall_long Upgrade)
 	BLD_CRANNOG = 65,         // brit/crannog (a Civic Center on the shore: is_civic_centre)
-	BLD_TYPE_COUNT = 66
+	BLD_GREAT_HALL = 66,      // germ/great_hall (Town phase; champions and the ram)
+	BLD_TYPE_COUNT = 67
 };
 
 #include "civ_building_data.h"
@@ -1016,13 +1041,13 @@ inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	return kTable[type];
 }
 
-// 0 A.D. structures/{athen,spart,mace,sele,kush,cart,pers,rome,han}/house.xml take
+// 0 A.D. structures/{athen,spart,mace,sele,kush,cart,pers,rome,han,germ}/house.xml take
 // template_structure_civic_house_big (Population/Bonus 10, 150 wood, BuildTime 50, Health
 // 1200); the other civs keep template_structure_civic_house (5, 75, 30, 800).
 inline bool civ_has_big_house(uint8_t civ) {
 	switch (civ) {
 		case CIV_ATHENIANS: case CIV_SPARTANS: case CIV_MACEDONIANS: case CIV_SELEUCIDS: case CIV_KUSHITES:
-		case CIV_CARTHAGINIANS: case CIV_PERSIANS: case CIV_ROMANS: case CIV_HAN: return true;
+		case CIV_CARTHAGINIANS: case CIV_PERSIANS: case CIV_ROMANS: case CIV_HAN: case CIV_GERMANS: return true;
 		default: return false;
 	}
 }
@@ -2418,10 +2443,22 @@ inline const CivInfo &civ_info(uint8_t civ) {
 		 1.0f, 1.0f, 1.0f, 0.0f},
 		{CIV_HAN, "han", "Han Chinese", "res://assets/textures/ui/emblems/han.png",
 		 civ_bonus_text(CIV_HAN),
+		 1.0f, 1.0f, 1.0f, 0.0f},
+		// Gaia's row: names Gaia's structures (Building::civ); never offered as a civ.
+		{CIV_GAIA, "gaia", "Gaia", "res://assets/textures/ui/emblems/athenians.png", "", 1.0f, 1.0f, 1.0f, 0.0f},
+		// The Gallic emblem until the Germans' own is extracted (ASSET_MANIFEST_TODO.md).
+		{CIV_GERMANS, "germ", "Germans", "res://assets/textures/ui/emblems/gauls.png",
+		 civ_bonus_text(CIV_GERMANS),
 		 1.0f, 1.0f, 1.0f, 0.0f}
 	};
 	if (civ >= CIV_COUNT) return kTable[CIV_ATHENIANS];
 	return kTable[civ];
+}
+
+// The civ code whose models a civ draws with: its own, except the Germans, who borrow the
+// Gauls' until their 0 A.D. actors are extracted (docs/ASSET_MANIFEST_TODO.md).
+inline const char *civ_art_code(uint8_t civ) {
+	return civ == CIV_GERMANS ? civ_info(CIV_GAULS).code : civ_info(civ).code;
 }
 
 // Prefer extracted `{civcode}_{model}` GLB; ModelLibrary falls back to the generic mesh.
@@ -2430,7 +2467,7 @@ inline const char *civ_unit_model(uint8_t civ, uint8_t type) {
 	static bool ready = false;
 	if (!ready) {
 		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
-			const char *code = civ_info(c).code;
+			const char *code = civ_art_code(c);
 			for (uint8_t t = 0; t < UNIT_TYPE_COUNT; ++t) {
 				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, unit_type_info(t).model_id);
 			}
@@ -2447,7 +2484,7 @@ inline const char *civ_building_model(uint8_t civ, uint8_t type) {
 	static bool ready = false;
 	if (!ready) {
 		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
-			const char *code = civ_info(c).code;
+			const char *code = civ_art_code(c);
 			for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
 				std::snprintf(names[c][t], sizeof(names[c][t]), "%s_%s", code, building_type_info(t).model_id);
 			}
@@ -2464,7 +2501,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 	static bool ready = false;
 	if (!ready) {
 		for (uint8_t c = 0; c < CIV_COUNT; ++c)
-			std::snprintf(cc_rubble[c], sizeof(cc_rubble[c]), "%s_town_center_rubble", civ_info(c).code);
+			std::snprintf(cc_rubble[c], sizeof(cc_rubble[c]), "%s_town_center_rubble", civ_art_code(c));
 		ready = true;
 	}
 	if (civ >= CIV_COUNT) civ = CIV_ATHENIANS;

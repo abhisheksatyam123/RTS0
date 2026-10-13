@@ -275,6 +275,17 @@ custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="DaytimeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
+layout_mode = 2
+tooltip_text = "Select whether the match starts by day or by night."
+mouse_filter = 1
+text = "Daytime"
+
+[node name="DaytimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
+custom_minimum_size = Vector2(110, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="PopCapLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Population limit"

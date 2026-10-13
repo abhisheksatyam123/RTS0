@@ -67,7 +67,7 @@ inline const std::vector<godot::String> &sound_group(const char *dir, const char
 // nearest one RTS0 ships.
 inline const char *voice_language(uint8_t civ) {
 	switch (civ) {
-		case CIV_ROMANS: case CIV_BRITONS: case CIV_GAULS: case CIV_IBERIANS: return "latin";
+		case CIV_ROMANS: case CIV_BRITONS: case CIV_GAULS: case CIV_IBERIANS: case CIV_GERMANS: return "latin";
 		case CIV_PERSIANS: case CIV_CARTHAGINIANS: case CIV_MAURYANS: case CIV_HAN: return "persian";
 		case CIV_KUSHITES: return "napatan";
 		default: return "greek";

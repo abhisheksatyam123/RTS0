@@ -57,6 +57,10 @@
   "han": {
    "name": "Han",
    "history": "The Han dynasty (206 BC – AD 220) was the second imperial dynasty of China, preceded by the Qin dynasty (221–207 BC) and succeeded by the Three Kingdoms period (AD 220–280). It is considered a golden age in Chinese history, and China made significant progress in arts and sciences during the Han period. The core of the Han empire was around the Wei River, and the Han capital was Chang'an, very close to the Qin capital Xianyang (both are now part of Xi'an, Shaanxi)."
+  },
+  "germ": {
+   "name": "Germans",
+   "history": "The largest migration in Europe of this period was that of the Cimbri people. The Cimbri were a large group of Germanic peoples originally from the Jutland region, in the north of modern-day Denmark. In the late 2nd century BC, their migration south into Italy and France would spark the decade-long Cimbrian War against the Roman Republic, bringing \"Terror Germanicus\" to the hearts of the Roman people."
   }
  },
  "units": {
@@ -7624,6 +7628,497 @@
     "Ignited"
    ],
    "builds": []
+  },
+  "germ/cavalry_javelineer_b": {
+   "generic_name": "Tigurinian Light Cavalry",
+   "specific_name": "Skeutazridjô",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Citizen",
+    "Soldier",
+    "Cavalry",
+    "Ranged",
+    "Javelineer"
+   ],
+   "builds": []
+  },
+  "germ/cavalry_spearman_b": {
+   "generic_name": "Cimbrian Spear Cavalry",
+   "specific_name": "Gaizazridjô",
+   "tooltip": "Counters: 2× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Citizen",
+    "Soldier",
+    "Cavalry",
+    "Melee",
+    "Spearman"
+   ],
+   "builds": []
+  },
+  "germ/champion_cavalry": {
+   "generic_name": "Cimbrian Noble Cavalry",
+   "specific_name": "Aþalazridjô",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Cavalry",
+    "Melee",
+    "Swordsman"
+   ],
+   "builds": []
+  },
+  "germ/champion_healer": {
+   "generic_name": "Seeress",
+   "specific_name": "Vǫlva",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Champion",
+    "Healer"
+   ],
+   "builds": []
+  },
+  "germ/champion_infantry_axeman": {
+   "generic_name": "Cimbri Raider",
+   "specific_name": "Slōgijanōz",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Axeman",
+    "Guerilla"
+   ],
+   "builds": []
+  },
+  "germ/champion_infantry_maceman": {
+   "generic_name": "Cimbrian Clubman",
+   "specific_name": "Kulbawigô",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Melee",
+    "Maceman",
+    "Champion"
+   ],
+   "builds": []
+  },
+  "germ/hero_boiorix": {
+   "generic_name": "Hero Cavalry Swordsman",
+   "specific_name": "Boiorix",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Cavalry",
+    "Melee",
+    "Swordsman"
+   ],
+   "builds": []
+  },
+  "germ/hero_lugius": {
+   "generic_name": "Hero Cavalry Spearman",
+   "specific_name": "Lugius",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Cavalry",
+    "Melee",
+    "Spearman"
+   ],
+   "builds": []
+  },
+  "germ/hero_teutobod": {
+   "generic_name": "Hero Swordsman",
+   "specific_name": "Teutobod",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Hero",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "builds": []
+  },
+  "germ/infantry_javelineer_b": {
+   "generic_name": "Ambronian Skirmisher",
+   "specific_name": "Gaizawerpanaz",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Ranged",
+    "Javelineer"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ]
+  },
+  "germ/infantry_slinger_b": {
+   "generic_name": "Celto-Germanic Slinger",
+   "specific_name": "Slingwanaz",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Ranged",
+    "Slinger"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ]
+  },
+  "germ/infantry_spearman_b": {
+   "generic_name": "Cimbrian Spearman",
+   "specific_name": "Gaizamannaz",
+   "tooltip": "Counters: 3× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Melee",
+    "Spearman",
+    "Guerilla"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ]
+  },
+  "germ/infantry_swordsman_b": {
+   "generic_name": "Teutonic Swordsman",
+   "specific_name": "Swerdamannaz",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Melee",
+    "Swordsman"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ]
+  },
+  "germ/ship_arrow": {
+   "generic_name": "Arrow Ship",
+   "specific_name": "Harjaskipą",
+   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "ArrowShip",
+    "Ranged"
+   ],
+   "builds": []
+  },
+  "germ/ship_fire": {
+   "generic_name": "Germanic Fire Ship",
+   "specific_name": "Brandabaitaz",
+   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "Fireship",
+    "Melee",
+    "Fire"
+   ],
+   "builds": []
+  },
+  "germ/ship_fishing": {
+   "generic_name": "Germanic Fisherman",
+   "specific_name": "Fiskārijaz",
+   "tooltip": "Fish the waters for food.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "FishingBoat"
+   ],
+   "builds": []
+  },
+  "germ/ship_merchant": {
+   "generic_name": "Rhineland Merchantman",
+   "specific_name": "Mangārī",
+   "tooltip": "Trade between docks. Garrison a Trader aboard for additional profit (+20% for each garrisoned). Gather profitable aquatic treasures. Improve sea trading at the Market.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Trader",
+    "Bribable"
+   ],
+   "builds": []
+  },
+  "germ/ship_scout": {
+   "generic_name": "Scout Ship",
+   "specific_name": "Skeutabaitaz",
+   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "ScoutShip",
+    "Ranged"
+   ],
+   "builds": []
+  },
+  "germ/siege_ram": {
+   "generic_name": "Log Ram",
+   "specific_name": "Rammabagmaz",
+   "tooltip": "Cannot attack Fields or Organic Units.",
+   "history": "",
+   "classes": [
+    "Siege",
+    "Melee",
+    "Ram"
+   ],
+   "builds": []
+  },
+  "germ/siege_ram_covered": {
+   "generic_name": "Covered Gate Smasher",
+   "specific_name": "Gataslahanaz",
+   "tooltip": "Cannot attack Fields or Organic Units.",
+   "history": "",
+   "classes": [
+    "Siege",
+    "Melee",
+    "Ram"
+   ],
+   "builds": []
+  },
+  "germ/support_civilian": {
+   "generic_name": "Germanic Worker",
+   "specific_name": "Būraz",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ]
+  },
+  "germ/support_civilian_house": {
+   "generic_name": "Germanic Worker",
+   "specific_name": "Būraz",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22
+   ]
+  },
+  "germ/support_healer_b": {
+   "generic_name": "Germanic Priest",
+   "specific_name": "Gudjô",
+   "tooltip": "Heal units.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Healer"
+   ],
+   "builds": []
+  },
+  "germ/support_trader": {
+   "generic_name": "Germanic Trader",
+   "specific_name": "Kaupô",
+   "tooltip": "Trade resources between your own markets and those of your allies.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Trader",
+    "Bribable"
+   ],
+   "builds": []
+  },
+  "germ/catafalque": {
+   "generic_name": "Catafalque",
+   "specific_name": "Ganna the Seeress",
+   "tooltip": "A catafalque that holds the remains of a great leader.",
+   "history": "",
+   "classes": [
+    "Relic"
+   ],
+   "builds": []
+  },
+  "germ/ship_fire_fire": {
+   "generic_name": "Germanic Fire Ship",
+   "specific_name": "Brandabaitaz",
+   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "history": "",
+   "classes": [
+    "Ship",
+    "Warship",
+    "Fireship",
+    "Melee",
+    "Fire",
+    "Ignited"
+   ],
+   "builds": []
   }
  },
  "structures": {
@@ -12657,6 +13152,351 @@
      "Gate"
     ],
     "template": "structures/han/palisades_gate"
+   }
+  },
+  "germ": {
+   "0": {
+    "generic_name": "Civic Center",
+    "specific_name": "Fulkasrēdaz",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "CivilCentre"
+    ],
+    "template": "structures/germ/civil_centre"
+   },
+   "1": {
+    "generic_name": "House",
+    "specific_name": "Hūsą",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Village",
+     "House"
+    ],
+    "template": "structures/germ/house"
+   },
+   "2": {
+    "generic_name": "Barracks",
+    "specific_name": "Druthislegra",
+    "tooltip": "Train Infantry and research Infantry technologies.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Village",
+     "Barracks"
+    ],
+    "template": "structures/germ/barracks"
+   },
+   "3": {
+    "generic_name": "Storehouse",
+    "specific_name": "Skattasfriþuz",
+    "tooltip": "Research gathering technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Storehouse"
+    ],
+    "template": "structures/germ/storehouse"
+   },
+   "4": {
+    "generic_name": "Stone Tower",
+    "specific_name": "Warīnīz Staupilaz",
+    "tooltip": "Garrison Infantry for additional arrows. Needs the “Murder Holes” technology to protect its foot.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "StoneTower"
+    ],
+    "template": "structures/germ/defense_tower"
+   },
+   "5": {
+    "generic_name": "Farmstead",
+    "specific_name": "Kurnahūsą",
+    "tooltip": "Research food gathering technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Village",
+     "Farmstead"
+    ],
+    "template": "structures/germ/farmstead"
+   },
+   "6": {
+    "generic_name": "Market",
+    "specific_name": "Kaupôsbōþlą",
+    "tooltip": "Barter resources. Establish trade routes. Train Traders and research trade and barter technologies.",
+    "history": "",
+    "classes": [
+     "Economic",
+     "Trade",
+     "Town",
+     "Market"
+    ],
+    "template": "structures/germ/market"
+   },
+   "7": {
+    "generic_name": "Fortress",
+    "specific_name": "Burgz",
+    "tooltip": "Garrison Soldiers for additional arrows.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Defensive",
+     "Fortress"
+    ],
+    "template": "structures/germ/fortress"
+   },
+   "8": {
+    "generic_name": "Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Walls. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Wall",
+     "Gate"
+    ],
+    "template": "structures/germ/wall_gate"
+   },
+   "9": {
+    "generic_name": "Temple",
+    "specific_name": "Hailagastadiz",
+    "tooltip": "Train Healers and research healing technologies.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Town",
+     "Temple"
+    ],
+    "template": "structures/germ/temple"
+   },
+   "10": {
+    "generic_name": "Germania Triumphant",
+    "specific_name": "",
+    "tooltip": "Bring glory to your civilization and add large tracts of land to your empire.",
+    "history": "",
+    "classes": [
+     "City",
+     "Wonder"
+    ],
+    "template": "structures/germ/wonder"
+   },
+   "11": {
+    "generic_name": "Dock",
+    "specific_name": "Habanō",
+    "tooltip": "Build upon a shoreline in own, neutral, or allied territory. Establish trade routes. Construct Ships and research Ship technologies.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Economic",
+     "Naval",
+     "Trade",
+     "Village",
+     "Dock"
+    ],
+    "template": "structures/germ/dock"
+   },
+   "12": {
+    "generic_name": "Wall",
+    "specific_name": "Wallaz",
+    "tooltip": "Can be converted into a Gate.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Wall"
+    ],
+    "template": "structures/germ/wall_long"
+   },
+   "13": {
+    "generic_name": "Corral",
+    "specific_name": "Kurnahūsą",
+    "tooltip": "Raise Domestic Animals for food. Garrison animals to gain a trickle of food.",
+    "history": "",
+    "classes": [
+     "Resource",
+     "Economic",
+     "Village",
+     "Corral"
+    ],
+    "template": "structures/germ/corral"
+   },
+   "14": {
+    "generic_name": "Field",
+    "specific_name": "Fuldō",
+    "tooltip": "Harvest grain for food. Each subsequent gatherer works less efficiently.",
+    "history": "",
+    "classes": [
+     "Resource",
+     "Field"
+    ],
+    "template": "structures/germ/field"
+   },
+   "15": {
+    "generic_name": "Stable",
+    "specific_name": "Stallaz",
+    "tooltip": "Train Cavalry and research Cavalry technologies.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Village",
+     "Stable"
+    ],
+    "template": "structures/germ/stable"
+   },
+   "16": {
+    "generic_name": "Practice Range",
+    "specific_name": "",
+    "tooltip": "Train Ranged Infantry and research technologies.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Village",
+     "Range"
+    ],
+    "template": "structures/germ/range"
+   },
+   "17": {
+    "generic_name": "Forge",
+    "specific_name": "Smiþjǭ",
+    "tooltip": "Research attack damage and damage resistance technologies.",
+    "history": "",
+    "classes": [
+     "Military",
+     "Town",
+     "Forge"
+    ],
+    "template": "structures/germ/forge"
+   },
+   "18": {
+    "generic_name": "Arsenal",
+    "specific_name": "Wēpnasfriþuz",
+    "tooltip": "Train Champion Infantry Crossbowmen, construct Siege Engines, and research Siege Engine technologies.",
+    "history": "",
+    "classes": [
+     "Military",
+     "City",
+     "Arsenal"
+    ],
+    "template": "structures/germ/arsenal"
+   },
+   "19": {
+    "generic_name": "Sentry Tower",
+    "specific_name": "Warīnīz Staupilaz",
+    "tooltip": "Garrison Infantry for additional arrows. Needs the “Murder Holes” technology to protect its foot.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "SentryTower"
+    ],
+    "template": "structures/germ/sentry_tower"
+   },
+   "20": {
+    "generic_name": "Outpost",
+    "specific_name": "Staupilaz",
+    "tooltip": "Build in own or neutral territory.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Outpost"
+    ],
+    "template": "structures/germ/outpost"
+   },
+   "21": {
+    "generic_name": "Palisade",
+    "specific_name": "",
+    "tooltip": "Can be converted into a Palisade Gate.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade"
+    ],
+    "template": "structures/palisades_long"
+   },
+   "22": {
+    "generic_name": "Wall Turret",
+    "specific_name": "Wallaz Staupilaz",
+    "tooltip": "Wall off your town for a stout defense.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Wall"
+    ],
+    "template": "structures/germ/wall_tower"
+   },
+   "23": {
+    "generic_name": "Elephant Stable",
+    "specific_name": "",
+    "tooltip": "Train Elephants and research Elephant technologies.",
+    "history": "",
+    "classes": [
+     "Military",
+     "City",
+     "ElephantStable"
+    ],
+    "template": "template_structure_military_elephant_stable"
+   },
+   "24": {
+    "generic_name": "Theater",
+    "specific_name": "",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "City",
+     "Theater"
+    ],
+    "template": "template_structure_special_theater"
+   },
+   "25": {
+    "generic_name": "Embassy",
+    "specific_name": "",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Military",
+     "Town",
+     "Embassy"
+    ],
+    "template": "template_structure_military_embassy"
+   },
+   "36": {
+    "generic_name": "Cerannus Totem",
+    "specific_name": "Irminsu",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Monument",
+     "Town"
+    ],
+    "template": "structures/germ/totem"
+   },
+   "60": {
+    "generic_name": "Palisade Gate",
+    "specific_name": "",
+    "tooltip": "Allow units access through Palisades. Can be locked to prevent access.",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Palisade",
+     "Gate"
+    ],
+    "template": "structures/palisades_gate"
+   },
+   "66": {
+    "generic_name": "Great Hall",
+    "specific_name": "Kuningashallō",
+    "tooltip": "Train Champions and Light Siege.",
+    "history": "",
+    "classes": [
+     "City"
+    ],
+    "template": "structures/germ/great_hall"
    }
   }
  },
