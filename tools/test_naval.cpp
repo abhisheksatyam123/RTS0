@@ -786,6 +786,23 @@ static void test_ship_treasure() {
 	CHECK(s.treasures().empty());
 }
 
+// navalManager.js moveApart / entityExtend.js gatherTreasure(water): Petra's idle ship goes
+// for the nearest treasure on its own sea, not a nearer one on land.
+static void test_petra_ship_treasure() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	const uint32_t tri = s.spawn_unit(0.0f, 10.0f, 1, UNIT_TRIREME);
+	const uint32_t wreck = s.spawn_treasure(-10.0f, 0.0f, TREASURE_SHIPWRECK);
+	s.spawn_treasure(10.0f, 19.0f, TREASURE_SHIPWRECK_DEBRIS); // nearer, but on land
+	s.petra_pid_ = 1;
+	s.petra_manage_naval(2.0f); // one naval update (every 2 s)
+	const auto o = s.unit_order(tri);
+	std::printf("Petra ship treasure: order %d target %u (wreck %u)\n", (int)o.kind, o.target, wreck);
+	CHECK(o.kind == ORDER_COLLECT_TREASURE && o.target == wreck);
+}
+
 static void test_fire_ship() {
 	static Simulation s;
 	fresh(s);
@@ -996,6 +1013,7 @@ int main() {
 	test_petra_transport_ship_lost();
 	test_petra_cothon();
 	test_ship_treasure();
+	test_petra_ship_treasure();
 	test_fire_ship();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
