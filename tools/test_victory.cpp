@@ -796,6 +796,97 @@ int main() {
 		gp.daytime = 2;
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.daytime == 2);
 	}
+	// 29. Combined victory conditions (0.28 VictoryConditions.js): codes 0..6 keep their
+	// meaning, any other set is VICTORY_COMBINED | mask; each condition defeats on its own;
+	// Conquest Civic Centers needs a civic centre lost first; victory= carries the code.
+	{
+		for (uint8_t c = 0; c < VICTORY_COUNT; ++c) CHECK(victory_code(victory_mask(c)) == c);
+		CHECK(victory_mask(VICTORY_WONDER) == (VK_CONQUEST | VK_WONDER));
+		CHECK(victory_code(VK_CONQUEST | VK_WONDER | VK_RELIC) == (VICTORY_COMBINED | VK_CONQUEST | VK_WONDER | VK_RELIC));
+		CHECK(victory_code(0) == VICTORY_ENDLESS && valid_victory_code(0x85) && !valid_victory_code(7));
+		CHECK((victory_excludes(VK_CONQUEST) & VK_CONQUEST_UNITS) && !(victory_excludes(VK_WONDER) & VK_RELIC));
+		auto combined = [](uint8_t mask) {
+			Simulation *sim = fresh(VICTORY_CONQUEST);
+			sim->set_victory_conditions(mask);
+			return sim;
+		};
+		// Units + Structures: razing the structures is enough, as with Structures alone.
+		Simulation *sim = combined(VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES);
+		CHECK(sim->victory_condition() == (VICTORY_COMBINED | VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES));
+		wipe(*sim, 1, false, true);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+		// Wonder and Relic together both run.
+		sim = combined(VK_CONQUEST | VK_WONDER | VK_RELIC);
+		CHECK(sim->has_victory(VK_WONDER) && sim->has_victory(VK_RELIC) && !sim->has_victory(VK_REGICIDE));
+		delete sim;
+		// Regicide alone: heroes spawn; the enemy losing its structures doesn't end it.
+		sim = combined(VK_REGICIDE);
+		run(*sim, 0.05f);
+		wipe(*sim, 1, false, true);
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over());
+		for (size_t i = 0; i < sim->units_.count; ++i)
+			if (sim->units_.alive[i] && sim->units_.unit_type[i] == UNIT_HERO && sim->units_.team[i] == 1) kill_unit(*sim, i);
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+		// Conquest Civic Centers: losing the last finished civic centre defeats; a player
+		// that never had one (its civic centre removed outright) is still in.
+		sim = combined(VK_CONQUEST_CIVIC_CENTRES);
+		std::erase_if(sim->buildings_, [](const auto &b) { return b.team == 1 && is_civic_centre(b.type); });
+		run(*sim, 1.0f);
+		CHECK(!sim->is_game_over());
+		delete sim;
+		sim = combined(VK_CONQUEST_CIVIC_CENTRES);
+		for (auto &b : sim->buildings_)
+			if (b.team == 1 && is_civic_centre(b.type)) sim->mark_building_wreck(b, 0);
+		sim->record_.buildings_destroyed++;
+		run(*sim, 1.0f);
+		CHECK(sim->is_victory());
+		delete sim;
+		GameSetupParams gp, back;
+		gp.victory = VICTORY_COMBINED | VK_CONQUEST | VK_WONDER | VK_RELIC;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.victory == gp.victory);
+		GameSetupParams bad, back2;
+		bad.victory = 7;
+		parse_game_start_full(format_game_start_full(bad), back2);
+		CHECK(back2.victory == 0);
+	}
+
+	// 29. Team Population (0 A.D. 0.28 PopulationCapManager "team"): each team's cap
+	// is split by its members still in the game, a teamless player keeps all of it,
+	// a defeat raises the teammates' share, the setting survives pop_cap_setting()
+	// and peers get it as teampop=.
+	{
+		Simulation sim;
+		for (uint8_t p = 0; p < 4; ++p) sim.set_player_active(p, true, false);
+		const uint8_t teams[MAX_PLAYERS] = {1, 1, 1, 0, 0, 0, 0, 0};
+		sim.set_setup_teams(teams);
+		sim.set_team_pop_cap(400);
+		CHECK(sim.team_pop_cap() == 400 && sim.world_pop_cap() == 0);
+		CHECK(sim.pop_cap(0) == 133 && sim.pop_cap(2) == 133 && sim.pop_cap(3) == 400);
+		CHECK(sim.pop_max(3) <= 400 && sim.pop_max(0) <= 133);
+		sim.defeated_mask_ |= 1u << 2;
+		CHECK(sim.pop_cap(0) == 200 && sim.pop_cap(1) == 200 && sim.pop_cap(3) == 400);
+		const int setting = sim.pop_cap_setting();
+		Simulation copy;
+		copy.set_pop_cap_setting(setting);
+		CHECK(copy.team_pop_cap() == 400 && copy.world_pop_cap() == 0);
+		copy.set_pop_cap_setting(-600);
+		CHECK(copy.world_pop_cap() == 600 && copy.team_pop_cap() == 0);
+		copy.set_pop_cap_setting(250);
+		CHECK(copy.pop_cap(0) == 250 && copy.team_pop_cap() == 0);
+		sim.set_team_pop_cap(99999);
+		CHECK(sim.team_pop_cap() == Simulation::MAX_TEAM_POP);
+		GameSetupParams gp, back;
+		gp.team_pop = 600;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.team_pop == 600);
+		GameSetupParams none;
+		CHECK(format_game_start_full(none).find("teampop=") == std::string::npos);
+		CHECK(parse_game_start_full(format_game_start_full(none), back) && back.team_pop == 0);
+	}
 
 	if (failures) {
 		std::printf("%d check(s) failed\n", failures);

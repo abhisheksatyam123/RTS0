@@ -662,6 +662,8 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     // A squad the host forms up (cmd 8, 0 A.D. Formation.js), walks and attack-moves.
     std::vector<uint32_t> host_squad;
     for (int i = 0; i < 4; ++i) host_squad.push_back(sim.spawn_unit(-36.0f + 2.0f * (float)i, 22.0f, 0, UNIT_SPEARMAN));
+    // Standing ground, all four are still there to form up when an AI unit passes in sight.
+    sim.order_set_stance(host_squad.data(), host_squad.size(), STANCE_STAND_GROUND);
     // A villager carrying wood the host sends to drop it off (cmd 34, UnitAI ReturnResource).
     // Half a load: a full one (ResourceGatherer Capacities wood 10) goes back by itself.
     const uint32_t host_carrier = sim.spawn_unit(-40.0f, 2.0f, 0, UNIT_VILLAGER, 100.0f);

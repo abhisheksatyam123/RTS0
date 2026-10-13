@@ -1336,10 +1336,16 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
 		note_player_command(sim, pl, c);
+		// The sender's own livestock in the selection walks, stops and garrisons in a
+		// corral too (0 A.D. livestock are units; filter_owned_units keeps units only).
+		const uint32_t *raw = c.entity_ids.data();
+		const size_t raw_n = c.entity_ids.size();
 		if (c.cmd_type == 1) { // Move (a player's walk: forced, ignores enemies)
 			sim.order_walk(ids, n, c.target_x, c.target_z, queued, true);
+			if (raw_n > n) sim.order_fauna_walk(pl, raw, raw_n, c.target_x, c.target_z);
 		} else if (c.cmd_type == 2) { // Stop
 			sim.cmd_stop(ids, n);
+			if (raw_n > n) sim.order_fauna_stop(pl, raw, raw_n);
 		} else if (c.cmd_type == 3) { // Attack
 			sim.order_attack(ids, n, c.target_id, queued);
 		} else if (c.cmd_type == 4) { // Gather
@@ -1369,6 +1375,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			sim.order_patrol(ids, n, c.target_x, c.target_z, queued);
 		} else if (c.cmd_type == 12) { // Garrison
 			sim.order_garrison(ids, n, c.target_id, queued);
+			if (raw_n > n) sim.order_fauna_walk(pl, raw, raw_n, 0.0f, 0.0f, c.target_id);
 		} else if (c.cmd_type == 13) { // Ungarrison / disembark-all
 			if (c.param == 1) {
 				if (n) sim.order_disembark_all(ids[0]);

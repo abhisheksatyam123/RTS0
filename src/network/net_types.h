@@ -321,7 +321,7 @@ struct GameStartMsg {
 //   "map=<map_id>;seed=<u32>"  (extra keys ignored on parse)
 // Full game setup rides as extra keys (0 A.D. NetServer game-start
 // attributes broadcast before the first turn, NetMessages.h NMT_GAME_START):
-//   victory=<0..6>;waves=<0|1>;lms=<0|1>;popcap=<0..1000>;ceasefire=<0..60 min>;mapsize=<128..512>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
+//   victory=<0..6 or 128..255>;waves=<0|1>;lms=<0|1>;popcap=<0..1000>;ceasefire=<0..60 min>;mapsize=<128..512>;diff=<0..5>;behavior=<0..3>;res=<0..3>;
 //   civ0=<civ>;civ1=<civ>;teams=<t0,t1,...> (+ up to 8 slots: civ2..civ7,
 //   types=<ht,ht,...> with h=human a=ai x=closed, slots count = teams len)
 // Old peers parse map+seed and ignore the rest.
@@ -329,11 +329,13 @@ struct GameSetupParams {
 	std::string map_id;
 	uint32_t seed = 0;
 	uint8_t victory = 0;    // rtso::VictoryCondition: 0 conquest, 1 wonder, 2 relic, 3 endless,
-	                        // 4 conquest units, 5 conquest structures, 6 regicide
+	                        // 4 conquest units, 5 conquest structures, 6 regicide; 0x80|mask a
+	                        // combination (VICTORY_COMBINED, sim_types.h)
 	uint8_t waves = 0;      // 1 = legacy wave-defense mode on
 	uint8_t lms = 0;        // 1 = Last Man Standing (no allied victory)
 	uint16_t pop_cap = 200;  // per-player population limit, 0 = unlimited
 	uint16_t world_pop = 0;  // 0 A.D. World Population (shared by live players), 0 = off; wins over pop_cap
+	uint16_t team_pop = 0;   // 0 A.D. 0.28 Team Population (per team, shared by its live players), 0 = off; wins over pop_cap
 	uint8_t ceasefire = 0;  // minutes of ceasefire at match start
 	uint8_t reveal = 0;     // 1 = revealed map (everything visible)
 	uint8_t explore = 0;    // 1 = explored map (terrain known from the start)
@@ -412,6 +414,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	s += ";lms=" + std::to_string((unsigned)p.lms);
 	s += ";popcap=" + std::to_string((unsigned)p.pop_cap);
 	if (p.world_pop) s += ";worldpop=" + std::to_string((unsigned)p.world_pop);
+	if (p.team_pop) s += ";teampop=" + std::to_string((unsigned)p.team_pop);
 	s += ";ceasefire=" + std::to_string((unsigned)p.ceasefire);
 	s += ";reveal=" + std::to_string((unsigned)p.reveal);
 	s += ";explore=" + std::to_string((unsigned)p.explore);
@@ -523,7 +526,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				out.seed = val;
 				have_seed = true;
 			}
-			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 6, x)) out.victory = x; }
+			else if (k == "victory") { uint8_t x; if (detail::parse_u8(v, 0, 255, x) && (x <= 6 || x >= 0x80)) out.victory = x; }
 			else if (k == "waves") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.waves = x; }
 			else if (k == "lms") { uint8_t x; if (detail::parse_u8(v, 0, 1, x)) out.lms = x; }
 			else if (k == "ceasefire") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.ceasefire = x; }
@@ -575,6 +578,10 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "worldpop" && !v.empty() && v.size() <= 5 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
 				if (x <= 63000) out.world_pop = (uint16_t)x;
+			}
+			else if (k == "teampop" && !v.empty() && v.size() <= 5 && v.find_first_not_of("0123456789") == std::string::npos) {
+				unsigned x = (unsigned)std::stoul(v);
+				if (x <= 10000) out.team_pop = (uint16_t)x;
 			}
 			else if (k == "mapsize" && !v.empty() && v.size() <= 3 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
