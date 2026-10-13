@@ -672,7 +672,9 @@ static void test_allow_capture() {
 	s->order_garrison(guards.data(), guards.size(), fort);
 	run_for(*s, 20.0f);
 	std::vector<uint32_t> squad;
-	for (int i = 0; i < 4; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, -2.0f, 1, UNIT_SPEARMAN));
+	// Five spearmen (12.5 a second) beat a house's RegenRate 5 plus an 80th of its points, also
+	// once one of six is sent at the fortress.
+	for (int i = 0; i < 6; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, -2.0f, 1, UNIT_SPEARMAN));
 	const uint32_t ram = s->spawn_unit(-40.0f, -4.0f, 1, UNIT_SIEGE_RAM);
 	auto bld = [&](uint32_t id) -> const Simulation::Building & { return s->buildings()[s->building_id_to_idx_.at(id)]; };
 	const auto &f = bld(fort);
@@ -2729,15 +2731,18 @@ static void test_decay_garrison_from_attack() {
 		plan.state = Simulation::AttackPlan::ATTACKED;
 		const std::vector<uint32_t> army = plan.squad;
 		s->petra_started_attacks_.push_back(plan);
-		// A tower's garrison (5 of the 20 it needs) can't stop its decay. Neither can a stock
-		// fortress's (GarrisonHolder/Max 20 of the 30 it needs), so this one is given room
-		// for 30 to exercise the garrison that does.
+		// A tower's garrison (5 of the 10 it needs) can't stop its decay. A stock fortress needs
+		// none (RegenRate 45 outdoes DecayRate 40), so this one regains only 10 a second (needing
+		// 30) and is given room for 30 to exercise the garrison that does.
 		const uint32_t held = s->spawn_building_world(tx + (holdable ? 4.0f : 0.0f), tz, holdable ? BLD_FORTRESS : BLD_TOWER, 1);
 		int need = 0, cap = 0;
 		if (auto it = s->building_id_to_idx_.find(held); it != s->building_id_to_idx_.end()) {
 			need = s->petra_decay_garrison_min(s->buildings_[it->second]);
 			if (holdable) {
-				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "a stock fortress holds 20 of the 30 its decay needs");
+				CHECK(need == 0, "a stock fortress outregenerates its decay");
+				s->buildings_[it->second].capture_regen_rate = 10.0f;
+				need = s->petra_decay_garrison_min(s->buildings_[it->second]);
+				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "regaining 10 a second it holds 20 of the 30 its decay needs");
 				s->buildings_[it->second].garrison_cap = need;
 			}
 			cap = s->buildings_[it->second].garrison_cap;

@@ -4430,7 +4430,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		const bool captures = allow_capture && unit_capture_strength(units_.unit_type[uidx]) > 0.0f;
+		const bool captures = allow_capture && unit_capture_attack(units_.tmpl[uidx], units_.unit_type[uidx]) > 0.0f;
 		if (!captures && (units_.attack_damage[uidx] <= 0.0f || !unit_can_target_building((size_t)uidx, b.type))) { // CanAttack
 			float sx = b.x, sz = b.z;
 			stand_outside(b, units_.id[uidx], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz);
@@ -5138,7 +5138,7 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 		const int32_t idx = lookup_unit(id);
 		if (idx < 0 || !units_.alive[idx]) continue;
 		float r = units_.attack_damage[idx] > 0.0f ? attack_reach((size_t)idx) : 0.0f;
-		if (fc.target_building && (fc.task_flags & FTASK_CAPTURE) && unit_capture_strength(units_.unit_type[idx]) > 0.0f)
+		if (fc.target_building && (fc.task_flags & FTASK_CAPTURE) && unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) > 0.0f)
 			r = std::max(r, CAPTURE_RANGE);
 		range = std::max(range, r);
 	}
@@ -10170,7 +10170,7 @@ void Simulation::tick_combat(float dt) {
 			// "units only" (FindWalkAndFightTargets targetClasses), and only they capture.
 			if (have_bgrid && !(walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_UNITS_ONLY))) {
 				const bool capture = walk_and_fight && (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
-						unit_capture_strength(units_.unit_type[i]) > 0.0f;
+						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f;
 				bgrid.visit_radius(pxi, pzi, scan_range + bld_half_max, [&](int32_t bi) {
 					if (!bld_live[bi]) return;
 					const Building &b = buildings_[bi];
@@ -11127,7 +11127,7 @@ void Simulation::tick_capture(float dt) {
 				if (dx * dx + dz * dz <= 11.0f * 11.0f) {
 					CaptureTally &t = capture_tally_[b.building];
 					t.count[units_.team[u]]++;
-					t.strength[units_.team[u]] += unit_capture_strength(units_.unit_type[u]);
+					t.strength[units_.team[u]] += unit_capture_attack(units_.tmpl[u], units_.unit_type[u]);
 				}
 			}
 		}
@@ -19400,7 +19400,7 @@ bool Simulation::petra_raid_target_ok(uint32_t bld_id) const {
 // it (HQ.capturableTargets), with no capture bonuses in RTS0.
 bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_t uid, const Building &b) const {
 	const int32_t idx = lookup_unit(uid);
-	if (idx < 0 || !units_.alive[idx] || unit_capture_strength(units_.unit_type[idx]) <= 0.0f) return false;
+	if (idx < 0 || !units_.alive[idx] || unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) <= 0.0f) return false;
 	if (!can_capture_building(petra_pid_, b)) return false;
 	const int ground = territory_owner_at(b.x, b.z);
 	const bool decaying = b.territory_decay_rate > 0.0f && b.team < MAX_PLAYERS && ground >= 0 && ground < MAX_PLAYERS &&
@@ -19410,14 +19410,14 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 
 	float anti = b.capture_regen_rate + b.capture_garrison_regen_rate * (float)b.garrisoned_units.size();
 	if (decaying) anti -= structure_decay_rate(b);
-	float capture = unit_capture_strength(units_.unit_type[idx]);
+	float capture = unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]);
 	for (uint32_t other : squad) {
 		const int32_t j = lookup_unit(other);
 		if (other == uid || j < 0 || !units_.alive[j]) continue;
 		// Squad mates on the structure, or capturing ones closing in on it.
 		const float dx = units_.pos_x[j] - b.x, dz = units_.pos_z[j] - b.z;
 		const bool near = (units_.order_flags[j] & ORDER_FLAG_ALLOW_CAPTURE) && dx * dx + dz * dz <= 400.0f;
-		if (units_.target_building_id[j] == b.id || near) capture += unit_capture_strength(units_.unit_type[j]);
+		if (units_.target_building_id[j] == b.id || near) capture += unit_capture_attack(units_.tmpl[j], units_.unit_type[j]);
 	}
 	const float health = b.max_hp > 0.0f ? std::clamp(b.hp / b.max_hp, 0.0f, 1.0f) : 1.0f;
 	capture /= 0.1f + 0.9f * health;
@@ -21598,7 +21598,7 @@ void Simulation::petra_garrison_units_inside(size_t holder_idx, bool allow_melee
 		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 		const uint64_t c = unit_tech_classes(units_.unit_type[i]);
 		if (!(c & TC_INFANTRY) || units_.unit_type[i] == UNIT_HERO || (!allow_melee && (c & TC_MELEE)) || !unit_garrisonable(i)) continue;
-		if (decay && unit_capture_strength(units_.unit_type[i]) <= 0.0f) continue;
+		if (decay && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f) continue;
 		if (units_.order_kind[i] == ORDER_GARRISON || units_.id[i] == petra_scout_unit_id_) continue;
 		if (units_.action_state[i] == ACTION_GARRISONED || petra_passenger(units_.id[i])) continue;
 		if (!structure_accepts_garrison(holder, i)) continue; // garrisonManager.garrison: the holder's List
@@ -21781,7 +21781,7 @@ void Simulation::petra_manage_garrisons() {
 		for (uint32_t uid : b.garrisoned_units) {
 			const int32_t idx = lookup_unit(uid);
 			if (idx < 0 || units_.team[idx] != petra_pid_) continue;
-			if (decay_min > 0 && unit_capture_strength(units_.unit_type[idx]) > 0.0f) continue; // keepGarrisoned TYPE_DECAY
+			if (decay_min > 0 && unit_capture_attack(units_.tmpl[idx], units_.unit_type[idx]) > 0.0f) continue; // keepGarrisoned TYPE_DECAY
 			if (!petra_keep_garrisoned((size_t)idx, b, around)) leave.push_back(uid);
 		}
 		for (uint32_t uid : leave) order_ungarrison_single(b.id, uid);
@@ -22194,7 +22194,7 @@ void Simulation::petra_manage_defense(float dt) {
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || !petra_foe(units_.team[i]) || army_of_foe(units_.id[i]) >= 0) continue;
 		if (petra_is_support_unit(units_.unit_type[i]) || (unit_tech_classes(units_.unit_type[i]) & TC_HEALER) ||
-		    (units_.attack_damage[i] <= 0.0f && unit_capture_strength(units_.unit_type[i]) <= 0.0f)) continue;
+		    (units_.attack_damage[i] <= 0.0f && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f)) continue;
 		const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]); // -1 neutral
 		bool dangerous = terr == petra_pid_ && near_own_structure(i);
 		// checkEvents makeIntoArmy: a unit attacking one of ours in our territory joins the
@@ -22328,7 +22328,7 @@ void Simulation::petra_manage_defense(float dt) {
 			const Building &b = buildings_[building_id_to_idx_.at(a.foe_ids[0])];
 			if (petra_allow_capture(a.defender_ids, units_.id[i], b)) return true;
 			if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return false;
-			return (unit_capture_strength(units_.unit_type[i]) > 0.0f && can_capture_building(petra_pid_, b)) ||
+			return (unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f && can_capture_building(petra_pid_, b)) ||
 				(can_attack(petra_pid_, b.team) && unit_can_target_building(i, b.type));
 		};
 		// Each goes to the nearest army still in need, on its own land in the first pass and
