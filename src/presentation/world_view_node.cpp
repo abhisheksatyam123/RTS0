@@ -339,10 +339,12 @@ void RtsoWorldView::_ready() {
 			{ nullptr, 1.0f, true }, { "tree", 1.0f, true }, { "pine", 1.0f, true }, { "palm", 1.0f, true },
 			{ "oak", 1.15f, true }, { "baobab", 0.45f, true }, { "acacia", 0.6f, true }, { "bamboo", 1.0f, true },
 			{ "tree", 0.45f, true }, { "fruit_bush", 1.0f, false }, { "apple", 1.0f, false }, { "palm", 0.7f, false },
-			{ "carob", 0.75f, true }, { "poplar", 1.0f, true }, { "fan_palm", 0.6f, true }, { "beech", 0.8f, true },
-			{ "dead_tree", 0.7f, true }, { "cypress", 1.0f, true }, { "aleppo_pine", 0.9f, true }, { "fir", 1.0f, true },
-			{ "tropic_bush", 0.35f, true }, { "olive", 0.6f, true }, { "banyan", 0.9f, true }, { "tropic_palm", 0.9f, true },
-			{ "maple", 0.8f, true }, { "juniper", 0.5f, true }, { "teak", 0.85f, true },
+			// fetch_0ad_trees.py keeps 0 A.D.'s metres; 0.3 brings them to the trees above
+			// (a 17 m fir is 5 units), the tallest a little lower and the small cypress higher.
+			{ "carob", 0.3f, true }, { "poplar", 0.3f, true }, { "fan_palm", 0.3f, true }, { "beech", 0.3f, true },
+			{ "dead_tree", 0.4f, true }, { "cypress", 0.45f, true }, { "aleppo_pine", 0.3f, true }, { "fir", 0.3f, true },
+			{ "tropic_bush", 0.3f, true }, { "olive", 0.3f, true }, { "banyan", 0.28f, true }, { "tropic_palm", 0.23f, true },
+			{ "maple", 0.3f, true }, { "juniper", 0.3f, true }, { "teak", 0.21f, true },
 		};
 		for (int k = 1; k < FLORA_KINDS; ++k) {
 			auto e = rtso::ModelLibrary::get("vegetation", kKinds[k].id);
