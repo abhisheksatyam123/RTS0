@@ -14747,9 +14747,9 @@ void Simulation::petra_manage_military_production(float dt) {
 			unit_train_cost(petra_pid_, tmpl, ui, cost);
 			// trainMoreUnits: siege engines and heroes in the plan's siege queue, champions in its
 			// champion queue, the rest in its own.
-			const uint64_t tc = classes_of(tmpl, t.unit_type);
-			const uint8_t queue = (tc & (TC_SIEGE | TC_HERO)) ? PETRA_Q_PLAN_SIEGE
-			                    : (tc & TC_CHAMPION) ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
+			const TechClasses tc = classes_of(tmpl, t.unit_type);
+			const uint8_t queue = (tc & (TC_SIEGE | TC_HERO)).any() ? PETRA_Q_PLAN_SIEGE
+			                    : (tc & TC_CHAMPION).any() ? PETRA_Q_PLAN_CHAMP : PETRA_Q_PLAN;
 			// The military queue's account seldom holds a whole batch while the other queues draw
 			// on the same income, so a smaller batch goes when the full one cannot (RTS0).
 			for (int n = batch; n >= 1; --n) {
