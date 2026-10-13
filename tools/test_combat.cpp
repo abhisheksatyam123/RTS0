@@ -581,7 +581,7 @@ static void test_structure_auras() {
 	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= cc_r) cc_theater = r.radius;
 	check(cc_plain == cc_r && std::fabs(cc_theater - cc_r * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
 
-	// Hippocrates' Hippocratic Oath: own and allied healers +1 health per heal, anywhere.
+	// Hippocrates' Hippocratic Oath: own and allied healers +3 health per heal (0.28), anywhere.
 	Simulation h;
 	setup(h);
 	h.set_mutual_ally(0, 2);
@@ -591,8 +591,8 @@ static void test_structure_auras() {
 	const float plain = h.heal_amount_of((size_t)idx(h, own_healer));
 	h.spawn_unit(-40.0f, -40.0f, 0, UNIT_HERO, 0.0f, template_named("athen/hero_hippocrates"));
 	h.rebuild_auras();
-	check(std::fabs(h.heal_amount_of((size_t)idx(h, own_healer)) - plain - 1.0f) < 1e-4f, "Hippocrates: own healer +1 per heal");
-	check(std::fabs(h.heal_amount_of((size_t)idx(h, ally_healer)) - plain - 1.0f) < 1e-4f, "Hippocrates: allied healer +1 per heal");
+	check(std::fabs(h.heal_amount_of((size_t)idx(h, own_healer)) - plain - 3.0f) < 1e-4f, "Hippocrates: own healer +3 per heal");
+	check(std::fabs(h.heal_amount_of((size_t)idx(h, ally_healer)) - plain - 3.0f) < 1e-4f, "Hippocrates: allied healer +3 per heal");
 	check(h.heal_amount_of((size_t)idx(h, foe_healer)) == plain, "Hippocrates: enemy healer unchanged");
 
 	// Antiochus IV's Renowned Conqueror: enemy structures within 80 m -20% max and current health.
