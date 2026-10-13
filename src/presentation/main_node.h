@@ -167,6 +167,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// 3. Command & Action Panel (Right of Inspector)
 	Panel *command_panel = nullptr;
 	HBoxContainer *stances_bar = nullptr;
+	Button *stance_buttons_[5] = {}; // indexed by UnitStance
 	HBoxContainer *actions_bar = nullptr;
 	// Wraps its buttons; the scroll keeps a long build menu inside the panel.
 	ScrollContainer *production_scroll = nullptr;
@@ -336,6 +337,8 @@ public:
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
+	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
+	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
 	void _on_formation_selected(int formation);
@@ -396,6 +399,7 @@ public:
 	// P4.1 host hooks for chat_window.h / diplomacy_dialog.h: thin inline
 	// forwards to the existing sim/net path (NMT_CHAT + cmd 22 unchanged).
 	String chat_civ_name() { return rtso::civ_info(sim->player_civ(local_player())).name; }
+	String chat_user(const String &sender_guid) override;
 	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
@@ -454,6 +458,7 @@ public:
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
+	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
 	Dictionary debug_unset_rally_step(int step);
 	uint32_t trade_origin_market_ = 0;
@@ -561,6 +566,14 @@ private:
 	// Single player with no Human slot (0 A.D. Game Setup lets every slot be AI):
 	// you watch the AIs play with the map revealed and give no orders.
 	bool local_observer_ = false;
+	// 0 A.D. PauseOverlay: "Game Paused", "Click to Resume Game" for your own pause,
+	// and in multiplayer "Paused by" the pausing players.
+	Button *pause_overlay_ = nullptr;
+	Label *pause_resume_label_ = nullptr;
+	Label *pause_by_label_ = nullptr;
+	void update_pause_overlay();
+	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
+	void _on_pause_overlay_pressed();
 	bool loading_replay_start_ = false; // load_game is restoring a replay's starting save
 	void build_replay_view_picker();
 	void begin_recording_from_save(const String &save_path);

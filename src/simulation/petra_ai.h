@@ -295,14 +295,17 @@ struct PetraChatLine {
 	char text[96] = {};
 };
 
-// defenseArmy.js — one compact home army
+// defenseArmy.js: one group of foes close together and the defenders sent against it.
+// Its position (foePosition) and strengths are computed from the live units when used.
 struct PetraDefenseArmy {
 	std::vector<uint32_t> defender_ids;
 	std::vector<uint32_t> foe_ids;
-	float cx = 0.0f;
-	float cz = 0.0f;
-	bool active = false;
 };
+// config.js Defense, squared metres: a foe joins an army within armyCompactSize of its
+// position (PetraConfig::army_compact_sq), breaks away beyond armyBreakawaySize, and two
+// armies closer than armyMergeSize merge.
+inline constexpr float PETRA_ARMY_BREAKAWAY_SQ = 3500.0f;
+inline constexpr float PETRA_ARMY_MERGE_SQ = 1400.0f;
 
 // headquarters.js buildDefenses: when each kind was last queued (seconds of game time) and the
 // defenseBuilding queue's plan, the structure type + 1 (0: none).
