@@ -201,7 +201,7 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_DANUBIUS, "danubius", "Danubius (RMS)", "temperate", true, "Players start along the banks of the river Danube, where Gallic villages and the ships of Celtic reinforcements attack all of them."},
 		{MAP_SAHARAN_OASES, "saharan_oases", "Saharan Oases (RMS)", "oasis", true, "Arid desert with sinusoidal sand dunes, date palm groves, and freshwater oases."},
 		{MAP_ANATOLIAN_PLATEAU, "anatolian_plateau", "Anatolian Plateau (RMS)", "steppe", true, "High plateau steppe surrounded by perimeter canyon ravines and rich mineral outcrops."},
-		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "Iconic central sandstone mesa landmark with high-ground elevation advantage and surrounding savanna quarries."},
+		{MAP_JEBEL_BARKAL, "jebel_barkal", "Jebel Barkal (RMS)", "savanna", true, "The Nile and the hill of Jebel Barkal: the walled Kushite city of Napata, guarded by archers and siege, sends patrols and attacks against the players."},
 		{MAP_MAINLAND, "mainland", "Mainland (RMS)", "mediterranean", true, "Open rolling land with no water barriers, scattered woods and mines. 0 A.D.'s standard land map."},
 		{MAP_ALPINE_LAKES, "alpine_lakes", "Alpine Lakes (RMS)", "alpine", true, "High mountain ridges cradling cold lakes, with valleys between the player bases."},
 		{MAP_LAKE, "lake", "Lake (RMS)", "temperate", true, "A great lake fills the middle of the map, ringed by the players' lands."},
@@ -1469,8 +1469,23 @@ inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) 
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
-static_assert(BLD_TYPE_COUNT <= 64, "bld_bit() masks are uint64_t");
-inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << type) : 0ull; }
+// A set of BuildingTypes (roster trainers, civ and team bonus targets): 128 bits,
+// as BuildingType outgrew 64 ids. Read-only data; nothing saved uses it.
+struct BldMask {
+	uint64_t w[2] = {};
+	constexpr BldMask operator|(BldMask o) const { BldMask r; r.w[0] = w[0] | o.w[0]; r.w[1] = w[1] | o.w[1]; return r; }
+	constexpr BldMask operator&(BldMask o) const { BldMask r; r.w[0] = w[0] & o.w[0]; r.w[1] = w[1] & o.w[1]; return r; }
+	constexpr BldMask &operator|=(BldMask o) { w[0] |= o.w[0]; w[1] |= o.w[1]; return *this; }
+	constexpr bool operator==(const BldMask &) const = default;
+	constexpr explicit operator bool() const { return (w[0] | w[1]) != 0; }
+	constexpr bool test(uint8_t type) const { return type < 128 && ((w[type >> 6] >> (type & 63)) & 1u); }
+};
+static_assert(BLD_TYPE_COUNT <= 128, "widen BldMask");
+inline constexpr BldMask bld_bit(uint8_t type) {
+	BldMask m;
+	if (type < 128) m.w[type >> 6] = 1ull << (type & 63);
+	return m;
+}
 
 // ---------------------------------------------------------------------------
 // Per-civ unit rosters, generated from 0 A.D.'s templates by
@@ -1549,7 +1564,7 @@ enum CivBonusStat : uint8_t {
 struct CivPlayerBonus {
 	uint16_t civs; // civ_bit() mask
 	uint8_t stat; // CivBonusStat
-	uint64_t buildings; // bld_bit() mask (0 for player-wide stats)
+	BldMask buildings; // bld_bit() mask (empty for player-wide stats)
 	float mult;
 	const char *id;
 	const char *tooltip;
@@ -1572,7 +1587,7 @@ struct CivTeamBonus {
 	uint8_t stat; // TeamBonusStat
 	int8_t res; // ResourceType for cost stats, -1 otherwise
 	bool allies_only; // 0 A.D. ExclusiveMutualAlly: not the owner itself
-	uint64_t buildings; // bld_bit() mask
+	BldMask buildings; // bld_bit() mask
 	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE
 	const char *id;
 	const char *name;
@@ -1588,7 +1603,7 @@ struct CivUnitTemplate {
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
 	uint16_t flags; // CivRosterFlag bits
-	uint64_t trainers; // bld_bit() of each BuildingType that trains it
+	BldMask trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
 	float attack_range;
@@ -1759,6 +1774,18 @@ inline uint8_t unit_gather_class(uint8_t unit_type, uint16_t tmpl) {
 		return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
 	}
 	return infantry ? GATHER_INFANTRY : cavalry ? GATHER_CAVALRY : GATHER_NONE;
+}
+
+// 0 A.D. Attack/Slaughter (1000 hack at 2 m on Domestic animals) is on template_unit_infantry,
+// template_unit_cavalry and template_unit_support_female_citizen only: citizen soldiers (and the
+// citizen champions and mercenaries that inherit them) and women. Heroes, champions, dogs,
+// healers, traders, ships and siege use their own attack on livestock.
+inline bool unit_has_slaughter(uint8_t unit_type, uint16_t tmpl) {
+	if (unit_type == UNIT_FEMALE_CITIZEN || unit_type == UNIT_VILLAGER) return true;
+	const bool soldier = unit_type == UNIT_SWORDSMAN || unit_type == UNIT_SPEARMAN || unit_type == UNIT_ARCHER ||
+	                     unit_type == UNIT_CAVALRY || unit_type == UNIT_CAMEL;
+	if (!soldier) return false;
+	return tmpl == CIV_UNIT_TEMPLATE_NONE || (civ_unit_template(tmpl).flags & ROSTER_CITIZEN) != 0;
 }
 
 // 0 A.D. Builder (mixins/builder): citizen infantry (template_unit_infantry) and the support
