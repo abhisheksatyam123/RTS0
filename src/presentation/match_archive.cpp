@@ -40,8 +40,12 @@ const char *const kSetupKeys[] = {
 	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
 	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
-	// The options that shape the rebuilt map before a save's state is loaded onto it.
+	// Everything else apply_match_settings reads: the options that shape the rebuilt map
+	// before a save's state is loaded onto it, and the rest, so a replay never picks up
+	// a setting changed in the Game Setup since it was recorded.
 	"biome", "landscape", "team_placement", "water_level", "sea_level_rise_min", "trigger_difficulty", "map_daytime",
+	"nomad", "regicide_garrison", "cheats", "disable_spies", "disable_treasures",
+	"slot_diffs", "slot_behs", "slot_colors", "slot_names",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -159,11 +163,11 @@ Dictionary RtsoMain::match_settings_snapshot(uint32_t seed) const {
 void RtsoMain::apply_settings_snapshot(const Dictionary &settings) {
 	Node *ms = get_node_or_null(NodePath("/root/MatchSettings"));
 	if (!ms) return;
-	for (const char *k : kSetupKeys)
+	// A key an older replay or save lacks gets its default, not the last Game Setup's value.
+	Ref<Script> script = ms->get_script();
+	for (const char *k : kSetupKeys) {
 		if (settings.has(k)) ms->set(k, settings[k]);
-	if (!settings.has("campaign_run")) { // a game from outside a campaign (or from before campaigns)
-		ms->set("campaign_run", String());
-		ms->set("campaign_level", String());
+		else if (script.is_valid()) ms->set(k, script->get_property_default_value(k));
 	}
 	if (settings.has("seed")) ms->set("seed", settings["seed"]);
 }
