@@ -7355,7 +7355,7 @@ Dictionary RtsoMain::get_match_settings_info() const {
 		for (const char *k : {"map_size", "start_res", "team_placement", "trigger_difficulty"}) d[k] = ms->get(k);
 	d["map_id"] = String::utf8(sim->current_map_id().c_str());
 	d["map_name"] = String::utf8(sim->current_map_name().c_str());
-	d["victory"] = (int)sim->victory_condition();
+	d["victory_mask"] = (int)sim->victory_conditions(); // rtso::VictoryKind bits
 	d["wonder_min"] = (int)std::lround(sim->wonder_duration() / 60.0f);
 	d["relic_min"] = (int)std::lround(sim->relic_duration() / 60.0f);
 	d["relic_count"] = sim->relic_count();
@@ -7363,7 +7363,7 @@ Dictionary RtsoMain::get_match_settings_info() const {
 	d["lock_teams"] = sim->teams_locked();
 	d["last_man_standing"] = sim->last_man_standing();
 	d["ceasefire_min"] = (int)std::lround(sim->ceasefire_seconds() / 60.0f);
-	d["pop_cap"] = sim->pop_cap_setting(); // negative: World Population
+	d["pop_cap"] = sim->pop_cap_setting(); // negative: World or Team Population
 	d["nomad"] = sim->nomad();
 	d["disable_treasures"] = sim->disable_treasures();
 	d["explore_map"] = sim->explore_map();
