@@ -36,10 +36,14 @@ uniform float water_level = -1000.0;
 
 // Per-tile terrain (0 A.D. CTerrain tiles, Simulation::terrain_tiles): tile_index
 // holds each tile's layer of tile_layers over [-tile_half, tile_half]^2, tile_res
-// tiles a side. Terrains meet along smooth ragged curves (see the blend below), as 0 A.D.
-// blends a tile over its lower-priority neighbours. tile_res 0 = paint by biome.
+// tiles a side. tile_blends (src/presentation/terrain_blend.h, 0 A.D.'s
+// CPatchRData::BuildBlends) holds, per tile, up to 4 higher-priority neighbour
+// terrains drawn over it, each masked by one of 0 A.D.'s alpha maps (alpha_maps,
+// turned and flipped to fit). tile_res 0 = paint by biome.
 uniform sampler2DArray tile_layers : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D tile_index : filter_nearest, repeat_disable;
+uniform sampler2D tile_blends : filter_nearest, repeat_disable;
+uniform sampler2DArray alpha_maps : filter_linear, repeat_disable;
 uniform float tile_res = 0.0;
 uniform float tile_half = 0.0;
 // World units a terrain texture spans (0 A.D. terrains repeat every 8 tiles).
@@ -103,44 +107,32 @@ void fragment() {
 	vec3 final_color = grass_sample * grass_weight + dirt_sample * dirt_weight + rock_sample * rock_weight;
 
 	if (tile_res > 0.0) {
-		// Each of the 3x3 tiles round this point pulls towards its terrain with a
-		// weight falling off over 1.5 tiles from its centre (the point is warped by
-		// noise first); the two terrains pulling hardest blend across a narrow band
-		// where their pulls are even. Borders between terrains follow smooth,
-		// ragged curves instead of the tile grid, as 0 A.D.'s blend masks round off
-		// a tile's corners into its neighbours.
-		vec2 en = vec2(texture(noise_tex, v_world_pos.xz * 0.37).r, texture(noise_tex, v_world_pos.xz * 0.37 + vec2(0.53, 0.21)).r);
-		vec2 tc = (v_world_pos.xz + vec2(tile_half)) / (2.0 * tile_half) * tile_res + (en - 0.5) * 0.6;
-		ivec2 ci = ivec2(floor(tc));
+		vec2 tc = (v_world_pos.xz + vec2(tile_half)) / (2.0 * tile_half) * tile_res;
 		int last = int(tile_res) - 1;
-		float lay[9];
-		float score[9];
-		int n = 0;
-		for (int dz = -1; dz <= 1; dz++) {
-			for (int dx = -1; dx <= 1; dx++) {
-				ivec2 c = ci + ivec2(dx, dz);
-				vec2 d = tc - (vec2(c) + 0.5);
-				float w = max(0.0, 1.0 - dot(d, d) * (1.0 / 2.25));
-				w *= w;
-				float l = floor(texelFetch(tile_index, clamp(c, ivec2(0), ivec2(last)), 0).r * 255.0 + 0.5);
-				int k = 0;
-				while (k < n && lay[k] != l) k++;
-				if (k == n) { lay[n] = l; score[n] = 0.0; n++; }
-				score[k] += w;
-			}
-		}
-		int b1 = 0;
-		for (int k = 1; k < n; k++) if (score[k] > score[b1]) b1 = k;
-		int b2 = b1;
-		for (int k = 0; k < n; k++) if (k != b1 && (b2 == b1 || score[k] > score[b2])) b2 = k;
-		// a = 0.5 on the border (both pull evenly), 1 where only the first pulls.
-		float a = b2 == b1 ? 1.0 : score[b1] / max(score[b1] + score[b2], 1e-5);
-		float f2 = 0.5 * (1.0 - smoothstep(0.5, 0.7, a));
-		// Both sampled unconditionally so mip selection stays smooth across borders.
+		ivec2 ti = clamp(ivec2(floor(tc)), ivec2(0), ivec2(last));
+		vec2 st = clamp(tc - vec2(ti), 0.0, 1.0);
 		vec2 tuv = v_world_pos.xz / tile_repeat;
-		vec3 t1 = texture(tile_layers, vec3(tuv, lay[b1])).rgb;
-		vec3 t2 = texture(tile_layers, vec3(tuv, lay[b2])).rgb;
-		final_color = mix(t1, t2, f2);
+		// Explicit gradients: the layer loop below is not uniform control flow.
+		vec2 gx = dFdx(tuv), gy = dFdy(tuv);
+		float own = floor(texelFetch(tile_index, ti, 0).r * 255.0 + 0.5);
+		final_color = textureGrad(tile_layers, vec3(tuv, own), gx, gy).rgb;
+		for (int k = 0; k < 4; k++) {
+			vec4 b = texelFetch(tile_blends, ivec2(ti.x * 4 + k, ti.y), 0);
+			if (b.a < 0.5) break;
+			int flags = int(b.b * 255.0 + 0.5);
+			// AddBlend: flip the alpha map's corners, then turn them round the tile;
+			// u runs along +x, v along +z, (0, 0) the image's top left.
+			vec2 c0 = vec2(float((flags & 2) != 0), float((flags & 1) != 0));
+			vec2 c2 = vec2(1.0) - c0;
+			vec2 corner[4] = vec2[4](c0, vec2(c2.x, c0.y), c2, vec2(c0.x, c2.y));
+			int turn = (flags & 4) != 0 ? 1 : ((flags & 8) != 0 ? 2 : ((flags & 16) != 0 ? 3 : 0));
+			vec2 a0 = corner[(4 - turn) % 4], a1 = corner[(5 - turn) % 4], a2 = corner[(6 - turn) % 4], a3 = corner[(7 - turn) % 4];
+			vec2 auv = mix(mix(a0, a1, st.x), mix(a3, a2, st.x), st.y);
+			auv = auv * (62.0 / 64.0) + vec2(1.0 / 64.0);
+			float alpha = 1.0 - textureLod(alpha_maps, vec3(auv, floor(b.g * 255.0 + 0.5)), 0.0).r;
+			vec3 over = textureGrad(tile_layers, vec3(tuv, floor(b.r * 255.0 + 0.5)), gx, gy).rgb;
+			final_color = mix(final_color, over, alpha);
+		}
 	}
 
 	// Painted tiles go under cliffs: rock keeps its share.
