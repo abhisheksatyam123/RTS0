@@ -4294,7 +4294,7 @@ void Simulation::attack_unit_one_by_one(const uint32_t *unit_ids, size_t count, 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (units_.attack_damage[uidx] <= 0.0f) {
+		if (units_.attack_damage[uidx] <= 0.0f || !unit_can_target((size_t)uidx, (size_t)tidx)) { // CanAttack
 			walk_to_attack_target((size_t)uidx, tx, tz, 0.0f, tx, tz);
 			continue;
 		}
@@ -4322,8 +4322,9 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 	attack_building_one_by_one(now.data(), now.size(), target_building_id, allow_capture);
 }
 
-// UnitAI Attack: a unit that can't attack walks to the target instead (WalkToTarget, to
-// (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
+// UnitAI Attack: a unit that can't attack the target (no attack, or the target is in its
+// RestrictedClasses: a ram and a unit, a dog and a structure) walks to it instead (WalkToTarget,
+// to (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
 // killed (0.28 WalkToTargetRange; one already in range stops there). RTS0's walk goes to where
 // the target stands now, where 0 A.D.'s follows it. A player's order: the walk is forced.
 void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz) {
@@ -4358,7 +4359,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		const bool captures = allow_capture && unit_capture_strength(units_.unit_type[uidx]) > 0.0f;
-		if (units_.attack_damage[uidx] <= 0.0f && !captures) {
+		if (!captures && (units_.attack_damage[uidx] <= 0.0f || !unit_can_target_building((size_t)uidx, b.type))) { // CanAttack
 			float sx = b.x, sz = b.z;
 			stand_outside(b, units_.id[uidx], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz);
 			walk_to_attack_target((size_t)uidx, b.x, b.z, b.half_size, sx, sz);
@@ -14994,6 +14995,8 @@ void Simulation::petra_manage_economy(float dt) {
 		if (r > 0.0f) cur_rate[res] += std::log(1.0f + r) / 1.1f;
 	};
 	std::vector<size_t> reassignable_workers;
+	uint16_t naval_home = 0;
+	const bool naval_workers = petra_classified_topo(naval_home).naval_map;
 
 	// worker.js: citizen soldiers gather too (most of 0 A.D. Petra's workforce, Economy.supportRatio
 	// 0.3); the ones serving in a started attack or raid, citizen cavalry (hunters) and the scout
@@ -15047,6 +15050,16 @@ void Simulation::petra_manage_economy(float dt) {
 		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
 			add_rate(i, GK_MEAT, RES_FOOD); // hunting: the carcass is gathered next
 		} else if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE) {
+			// A full gatherer with no dropsite on its land waits (tick_gather takes only a reachable
+			// one); 0 A.D.'s UnitAI gives up instead and worker.js startGathering finds it new work,
+			// a crossing to another base included.
+			if (units_.action_state[i] == ACTION_RETURN_DROPSITE && naval_workers &&
+			    std::none_of(buildings_.begin(), buildings_.end(), [&](const Building &b) {
+				    return dropsite_accepts(i, b) && petra_same_land(i, b);
+			    }) && !petra_passenger(units_.id[i])) {
+				reassignable_workers.push_back(i);
+				continue;
+			}
 			auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 			if (rit != res_id_to_idx_.end()) {
 				const size_t r = rit->second;
@@ -15214,7 +15227,7 @@ void Simulation::petra_manage_economy(float dt) {
 			}
 		}
 		// Our finished dropsites, by base, with the resources each takes.
-		struct Drop { float x, z; int base; uint8_t takes; };
+		struct Drop { float x, z; int base; uint8_t takes; uint16_t land; };
 		std::vector<Drop> drops;
 		for (const auto &b : buildings_) {
 			if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress < 1.0f) continue;
@@ -15224,7 +15237,7 @@ void Simulation::petra_manage_economy(float dt) {
 			else if (b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) takes = 1 << RES_FOOD;
 			if (!takes) continue;
 			const int base = bmap.at(b.x, b.z, map_half_);
-			if (base > 0) drops.push_back({b.x, b.z, base, takes});
+			if (base > 0) drops.push_back({b.x, b.z, base, takes, bmap.land(petra_building_land(b))});
 		}
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
@@ -15254,10 +15267,11 @@ void Simulation::petra_manage_economy(float dt) {
 			                      field ? bmap.at(resources_.x[r], resources_.z[r], map_half_) : -1});
 			if (field) continue;
 			const uint8_t type = resources_.type[r];
+			const uint16_t rland = candidates.back().land;
 			for (size_t a = 1; a < supplies.size(); ++a) {
 				float d2 = 1e30f;
-				for (const Drop &d : drops)
-					if (d.base == (int)a && (d.takes & (1 << type)))
+				for (const Drop &d : drops) // a dropsite's supplies are on its own land (accessIndex)
+					if (d.base == (int)a && (d.takes & (1 << type)) && d.land == rland)
 						d2 = std::min(d2, (d.x - resources_.x[r]) * (d.x - resources_.x[r]) + (d.z - resources_.z[r]) * (d.z - resources_.z[r]));
 				// maxDistResourceSquare 360 m: nearby within a quarter, medium within half.
 				if (d2 < 22.5f * 22.5f) supplies[a].nearby[type].push_back({d2, ci});
@@ -15327,10 +15341,11 @@ void Simulation::petra_manage_economy(float dt) {
 
 		// findSupply: the first listed supply with room, that the worker gathers, and that is
 		// worth one more gatherer (amount / (1 + gatherers) of at least 30).
-		auto find_supply = [&](const std::vector<Listed> &list) -> Candidate * {
+		auto find_supply = [&](const std::vector<Listed> &list, uint16_t land = 0) -> Candidate * {
+			if (!land) land = wland;
 			for (const Listed &l : list) {
 				Candidate &c = candidates[l.c];
-				if (c.slots <= 0 || c.land != wland || carry_cap(widx, c.type) <= 0) continue;
+				if (c.slots <= 0 || c.land != land || carry_cap(widx, c.type) <= 0) continue;
 				if (c.users > 0 && (float)c.amount / (float)(1 + c.users) < 30.0f) continue;
 				return &c;
 			}
@@ -15339,11 +15354,12 @@ void Simulation::petra_manage_economy(float dt) {
 		// gatherNearestField: the base's field with room nearest the worker, 0.9 per gatherer
 		// on it costing 400 m (diminishing returns); none while it is down to 70% and the base
 		// has a field foundation to build.
-		auto nearest_field = [&](int base) -> Candidate * {
+		auto nearest_field = [&](int base, uint16_t land = 0) -> Candidate * {
+			if (!land) land = wland;
 			Candidate *best = nullptr;
 			float best_d = 0.0f, best_rate = 1.0f;
 			for (Candidate &c : candidates) {
-				if (c.base != base || c.slots <= 0 || c.land != wland || carry_cap(widx, c.type) <= 0) continue;
+				if (c.base != base || c.slots <= 0 || c.land != land || carry_cap(widx, c.type) <= 0) continue;
 				const float rate = c.users > 0 ? std::pow(FIELD_DIMINISHING_RETURNS, (float)c.users) : 1.0f;
 				const float d = (c.x - wx) * (c.x - wx) + (c.z - wz) * (c.z - wz) + (1.0f - rate) * (160000.0f / 16.0f);
 				if (!best || d < best_d) { best = &c; best_d = d; best_rate = rate; }
@@ -15356,14 +15372,15 @@ void Simulation::petra_manage_economy(float dt) {
 			return best;
 		};
 		// buildAnyField: the base's field foundation nearest the worker with builder room.
-		auto any_field = [&](int base) -> std::pair<uint32_t, int> * {
+		auto any_field = [&](int base, uint16_t land = 0) -> std::pair<uint32_t, int> * {
 			if (!builder) return nullptr;
+			if (!land) land = wland;
 			std::pair<uint32_t, int> *fb = nullptr;
 			float fbest = 1e30f;
 			for (auto &e : field_builders) {
 				if (e.second >= FIELD_MAX_GATHERERS) continue;
 				const Building &f = buildings_[building_id_to_idx_.at(e.first)];
-				if (bmap.at(f.x, f.z, map_half_) != base || bmap.land(petra_building_land(f)) != wland) continue;
+				if (bmap.at(f.x, f.z, map_half_) != base || bmap.land(petra_building_land(f)) != land) continue;
 				const float d2 = (f.x - wx) * (f.x - wx) + (f.z - wz) * (f.z - wz);
 				if (d2 <= fbest) { fbest = d2; fb = &e; }
 			}
@@ -15414,14 +15431,57 @@ void Simulation::petra_manage_economy(float dt) {
 					order_build_or_repair(&uid, 1, b.id);
 					return true;
 				}
-			// Faraway supplies, ours then the other bases' on our land; for food only when
-			// neither a field nor a corral can be built (allowDistantFood).
+			// Still nothing: the bases on other lands, across the water (requireTransport), their
+			// nearby supplies, then (food) their fields and field foundations, then their medium
+			// supplies, then a dropsite foundation there.
+			auto ship_to = [&](uint16_t land, float x, float z) {
+				return petra_require_worker_transport(widx, wland, land, x, z);
+			};
+			if (bmap.naval) {
+				for (size_t a = 1; a < supplies.size(); ++a) {
+					const uint16_t land = bmap.anchors[a - 1].land;
+					if (land == wland) continue;
+					if (Candidate *c = find_supply(supplies[a].nearby[rt], land); c && ship_to(land, c->x, c->z)) return true;
+				}
+				if (rt == RES_FOOD)
+					for (size_t a = 1; a < supplies.size(); ++a) {
+						const uint16_t land = bmap.anchors[a - 1].land;
+						if (land == wland) continue;
+						if (Candidate *c = nearest_field((int)a, land); c && ship_to(land, c->x, c->z)) return true;
+						if (auto *fb = any_field((int)a, land)) {
+							const Building &f = buildings_[building_id_to_idx_.at(fb->first)];
+							if (ship_to(land, f.x, f.z)) return true;
+						}
+					}
+				for (size_t a = 1; a < supplies.size(); ++a) {
+					const uint16_t land = bmap.anchors[a - 1].land;
+					if (land == wland) continue;
+					if (Candidate *c = find_supply(supplies[a].medium[rt], land); c && ship_to(land, c->x, c->z)) return true;
+				}
+				if (builder)
+					for (const auto &b : buildings_) {
+						if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || b.build_progress >= 1.0f) continue;
+						const bool takes = is_civic_centre(b.type) || civ_building_is_dropsite(b.type) ||
+						                   (b.type == BLD_STOREHOUSE && rt != RES_FOOD) ||
+						                   ((b.type == BLD_FARMSTEAD || b.type == BLD_DOCK) && rt == RES_FOOD);
+						const uint16_t land = takes ? bmap.land(petra_building_land(b)) : 0;
+						if (land && land != wland && ship_to(land, b.x, b.z)) return true;
+					}
+			}
+			// Faraway supplies, ours then the other bases' on our land, then across the water;
+			// for food only when neither a field nor a corral can be built (allowDistantFood).
 			if (rt == RES_FOOD && !allow_distant_food) return false;
 			if (my_base > 0)
 				if (Candidate *c = find_supply(supplies[my_base].faraway[rt])) { gather(c); return true; }
 			for (size_t a = 1; a < supplies.size(); ++a)
 				if ((int)a != my_base && bmap.anchors[a - 1].land == wland)
 					if (Candidate *c = find_supply(supplies[a].faraway[rt])) { gather(c); return true; }
+			if (bmap.naval)
+				for (size_t a = 1; a < supplies.size(); ++a) {
+					const uint16_t land = bmap.anchors[a - 1].land;
+					if (land == wland) continue;
+					if (Candidate *c = find_supply(supplies[a].faraway[rt], land); c && ship_to(land, c->x, c->z)) return true;
+				}
 			return false;
 		};
 		// The worker fails and the next pass picks another resource: the others, most needed
@@ -16494,6 +16554,31 @@ size_t Simulation::petra_go_home(const std::vector<uint32_t> &squad, float x, fl
 		if (sea) petra_start_transport(away, ax / (float)away.size(), az / (float)away.size(), x, z, sea, owner);
 	}
 	return n_away;
+}
+
+// navalManager.requireTransport for a worker: it joins our workers' crossing from its land to
+// that one while the ship still boards, or a new crossing starts (one at a time, on a ship
+// already on that sea).
+bool Simulation::petra_require_worker_transport(size_t i, uint16_t from_land, uint16_t to_land, float to_x, float to_z) {
+	const uint32_t uid = units_.id[i];
+	if (!from_land || !to_land || from_land == to_land || petra_passenger(uid) || petra_aboard(uid)) return false;
+	uint16_t home = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home);
+	for (auto &tp : petra_transports_) {
+		if (tp.owner != PETRA_TRANSPORT_WORKERS) continue;
+		if (tp.state != PetraTransportPlan::BOARDING || petra_land_at(tp.pickup_x, tp.pickup_z) != from_land ||
+		    petra_land_at(tp.drop_x, tp.drop_z) != to_land || !tp.ship_id ||
+		    tp.passenger_ids.size() >= (size_t)get_transport_capacity(tp.ship_id))
+			return false;
+		const int32_t sidx = lookup_unit(tp.ship_id);
+		if (sidx < 0 || !can_board((size_t)sidx, i)) return false;
+		tp.passenger_ids.push_back(uid);
+		order_walk(&units_.id[i], 1, tp.pickup_x, tp.pickup_z, false);
+		return true;
+	}
+	const uint16_t sea = topo.sea_between(from_land, to_land);
+	if (!sea) return false;
+	return petra_start_transport({uid}, units_.pos_x[i], units_.pos_z[i], to_x, to_z, sea, PETRA_TRANSPORT_WORKERS);
 }
 
 const PetraTransportPlan *Simulation::petra_transport_for(uint8_t owner) const {
