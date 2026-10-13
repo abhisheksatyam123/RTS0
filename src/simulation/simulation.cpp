@@ -23420,8 +23420,6 @@ uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
 	return spawn_resource_world(x, z, r.res_type, r.amount, RES_SUB_RUINS, (uint8_t)std::clamp<int>(r.max_gatherers, 1, 255));
 }
 
-// UnitAI Order.CollectTreasure: walk to the treasure. Ships, war dogs and animals have no
-// TreasureCollector (template_unit_ship.xml, template_unit_dog.xml disable it).
 // 0.28 TreasureCollector MaxDistance: template_unit.xml 2 m; template_unit_ship.xml 12 m for
 // every ship (merchants, arrow and ram warships, fire ships), fishing boats 5, scout ships 7,
 // siege warships 24; template_unit_dog, template_unit_siege (siege towers too) and
@@ -23447,6 +23445,7 @@ float Simulation::treasure_reach(size_t i) const {
 	return m * 0.6f + 1.0f;
 }
 
+// UnitAI Order.CollectTreasure: walk to the treasure, for units with a TreasureCollector.
 void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued) {
 	const Treasure *t = nullptr;
 	for (const auto &tr : treasures_) if (tr.id == treasure_id) t = &tr;

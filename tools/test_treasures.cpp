@@ -47,6 +47,13 @@ int main() {
 		CHECK(treasure_type_for_resource(RES_GOLD) == TREASURE_METAL);
 		CHECK(ruins_type_by_name("unfinished_greek_temple") < RUINS_TYPE_COUNT);
 		CHECK(ruins_type_info(ruins_type_by_name("column_doric")).max_gatherers == 1);
+		// 0.28's ruins and scenery: the Unfinished Greek Temple holds 1000 stone, the bronze
+		// statues are metal, and new scenery (wicker fences) comes after the saved ids.
+		CHECK(ruins_type_info(ruins_type_by_name("unfinished_greek_temple")).amount == 1000);
+		CHECK(ruins_type_info(ruins_type_by_name("metal_statue_wolf")).res_type == RES_GOLD);
+		CHECK(scenery_type_by_name("table_square") == 18);
+		CHECK(scenery_type_by_name("fence_wicker_long") >= 19 && scenery_type_by_name("fence_wicker_long") < SCENERY_TYPE_COUNT);
+		CHECK(scenery_type_info(scenery_type_by_name("fence_wicker_short")).wooden);
 	}
 
 	static Simulation s;

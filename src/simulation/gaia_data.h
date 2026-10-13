@@ -412,15 +412,21 @@ struct RuinsTypeInfo {
 	uint8_t max_gatherers;
 };
 
-static constexpr uint8_t RUINS_TYPE_COUNT = 17;
+static constexpr uint8_t RUINS_TYPE_COUNT = 23;
 
 inline const RuinsTypeInfo &ruins_type_info(uint8_t t) {
 	static const RuinsTypeInfo kTable[RUINS_TYPE_COUNT] = {
 		{"column_doric", "Doric Column", RES_STONE, 500, 1},
+		{"metal_statue_apollo", "Apollo", RES_GOLD, 800, 1},
+		{"metal_statue_discobolus", "Discobolus", RES_GOLD, 400, 1},
 		{"metal_statue_isis", "Isis Cult Image", RES_GOLD, 800, 1},
+		{"metal_statue_poseidon", "Poseidon", RES_GOLD, 400, 1},
+		{"metal_statue_wolf", "Capitoline Wolf", RES_GOLD, 800, 1},
 		{"pyramid_great", "Great Pyramid", RES_STONE, 10000, 120},
 		{"pyramid_minor", "Minor Pyramid", RES_STONE, 5000, 90},
+		{"roman_rostrum", "Roman Rostrum", RES_STONE, 500, 1},
 		{"standing_stone", "Celtic Standing Stone", RES_STONE, 300, 1},
+		{"stone_column_roman", "Roman Column", RES_STONE, 400, 1},
 		{"stone_statues_egyptian", "Egyptian Statue", RES_STONE, 300, 1},
 		{"stone_statues_kushite", "Kushite Statue", RES_STONE, 300, 1},
 		{"stone_statues_kushite_bird", "Kushite Bird Statue", RES_STONE, 200, 1},
@@ -432,7 +438,7 @@ inline const RuinsTypeInfo &ruins_type_info(uint8_t t) {
 		{"stone_structure_house", "Ruined House", RES_STONE, 500, 1},
 		{"stone_structure_small", "Ruined Structure", RES_STONE, 300, 1},
 		{"stone_structure_tower", "Ruined Tower", RES_STONE, 500, 1},
-		{"unfinished_greek_temple", "Unfinished Greek Temple", RES_STONE, 2000, 30},
+		{"unfinished_greek_temple", "Unfinished Greek Temple", RES_STONE, 1000, 30},
 	};
 	return kTable[t < RUINS_TYPE_COUNT ? t : 0];
 }
@@ -458,7 +464,7 @@ struct SceneryTypeInfo {
 	bool wooden;              // a wooden fence, bench or table: drawn as wood, not stone
 };
 
-static constexpr uint8_t SCENERY_TYPE_COUNT = 19;
+static constexpr uint8_t SCENERY_TYPE_COUNT = 22;
 
 inline const SceneryTypeInfo &scenery_type_info(uint8_t t) {
 	static const SceneryTypeInfo kTable[SCENERY_TYPE_COUNT] = {
@@ -481,6 +487,9 @@ inline const SceneryTypeInfo &scenery_type_info(uint8_t t) {
 		{"sele_colonnade", "Corinthian Colonnade", 200.0f, 1.5f, 1.5f, 4.0f, {0, 0, 20, 0}, 500, false},
 		{"table_rectangle", "Rectangle Table", 100.0f, 3.5f, 4.75f, 4.0f, {0, 20, 0, 0}, 500, true},
 		{"table_square", "Square Table", 100.0f, 4.0f, 4.0f, 4.0f, {0, 20, 0, 0}, 500, true},
+		{"fence_wicker_long", "Wicker Fence", 220.0f, 15.0f, 1.5f, 4.0f, {0, 0, 20, 0}, 0, true},
+		{"fence_wicker_medium", "Wicker Fence", 220.0f, 8.0f, 1.5f, 4.0f, {0, 0, 10, 0}, 0, true},
+		{"fence_wicker_short", "Wicker Fence", 220.0f, 4.0f, 1.5f, 4.0f, {0, 0, 5, 0}, 0, true},
 	};
 	return kTable[t < SCENERY_TYPE_COUNT ? t : 0];
 }
