@@ -73,7 +73,17 @@ struct PlayerStatistics {
 	uint32_t loot_collected = 0;
 	float peak_percent_map_controlled = 0.0f;
 	float team_peak_percent_map_controlled = 0.0f;
+	// Appended in save v65 (older saves load the fields above and start these at zero).
+	// resourcesCount and populationCount: the stockpile and population when the row was
+	// taken (GetResourceCounts, GetPopulationCount), indexed like resources_gathered.
+	uint32_t resources_count[RES_COUNT] = {};
+	uint32_t population_count = 0;
+	uint32_t livestock_bred = 0; // unitsTrained.Domestic: animals trained at a corral
+	uint32_t successful_bribes = 0;
+	uint32_t failed_bribes = 0;
 };
+// The fields saved before v65, which older saves hold.
+inline constexpr size_t PLAYER_STATISTICS_V30_FIELDS = 91;
 
 // One row of the sequences: every player's counters at `time` seconds.
 struct StatisticsSample {
