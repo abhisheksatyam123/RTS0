@@ -554,7 +554,9 @@ static void check_death_canyon() {
 	s.set_waves_enabled(false);
 	CHECK(s.register_trigger_script("death_canyon_invasion_force_triggers"), "death_canyon_invasion_force_triggers not registered");
 	run_to(s, 0.5f);
-	for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t) {
+	// disabled_buildings is a 64-bit mask: the types past it (the siege wall gate) are reached only
+	// by an Upgrade, which no_building doesn't stop.
+	for (uint8_t t = 0; t < BLD_TYPE_COUNT && t < 64; ++t) {
 		CHECK(s.building_disabled_by_trigger(1, t) && s.building_disabled_by_trigger(3, t), "Invasion Force may build type %d", t);
 		CHECK(!s.building_disabled_by_trigger(0, t) && !s.building_disabled_by_trigger(2, t), "a base player may not build type %d", t);
 	}

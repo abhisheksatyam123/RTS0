@@ -184,6 +184,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
 	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
 	bind_enum("BuildingType", "SIEGE_WALL", rtso::BLD_SIEGE_WALL);
+	bind_enum("BuildingType", "SIEGE_WALL_GATE", rtso::BLD_SIEGE_WALL_GATE);
 	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
 	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
@@ -298,6 +299,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
 	if (n == "palisade_gate" || n == "palisades_gate") return rtso::BLD_PALISADE_GATE;
 	if (n == "siege_wall" || n == "wallset_siege") return rtso::BLD_SIEGE_WALL;
+	if (n == "siege_wall_gate") return rtso::BLD_SIEGE_WALL_GATE;
 	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
 	if (n == "wonder") return rtso::BLD_WONDER;
 	if (n == "dock") return rtso::BLD_DOCK;

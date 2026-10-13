@@ -213,20 +213,21 @@ UNIQUE_BUILDINGS = [
     ("BLD_EMBASSY_ITALIC", ["embassy_italic"], "embassy", "embassy"),
     # The Roman siege wall (rome/wallset_siege): its segments and towers are one type, read from
     # siege_wall_long (sim_types.h wallset_info has each piece's values); drawn with the stone
-    # wall until it has its own model. Its gate (a siege_wall_long Upgrade) has no BuildingType:
-    # bld_bit()'s uint64_t masks hold no more than 64.
+    # wall until it has its own model.
     ("BLD_SIEGE_WALL", ["siege_wall_long"], "wall_segment", "wall"),
+    # Its gate (a siege_wall_long Upgrade), drawn with the stone gate until it has its own model.
+    ("BLD_SIEGE_WALL_GATE", ["siege_wall_gate"], "gate", "gate"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
-WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege"}
+WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
 # WallSet pieces keep one cell like the stone wall's: their turned footprint is their length
 # (sim_types.h wallset_info), not a square.
-ONE_CELL = {"BLD_SIEGE_WALL"}
+ONE_CELL = {"BLD_SIEGE_WALL", "BLD_SIEGE_WALL_GATE"}
 # Civ structures named by Identity/SpecificName rather than a GenericName they share.
 SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC"}
 # Structures no Builder list names: only an Upgrade reaches them.
 UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
-                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE"}
+                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE"}
 # Generic structures (structures/<stem>.xml) in UNIQUE_BUILDINGS -> the generic BuildingType
 # whose civs have them too.
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}

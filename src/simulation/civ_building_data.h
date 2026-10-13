@@ -47,6 +47,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Iberian Embassy", "embassy", "embassy", 2000.0f, 2, 0, 0, 0, 200, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
 		{"Italic Embassy", "embassy", "embassy", 1500.0f, 1, 0, 0, 200, 0, 0, 6, 37.5f, 500.0f, 0.5f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
 		{"Siege Wall", "wall_segment", "wall", 2250.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 0.5f, 1.0f, 0.0f}, /* structures/rome/siege_wall_long */ \
+		{"Siege Wall Gate", "gate", "gate", 1875.0f, 1, 0, 50, 0, 0, 0, 0, 6.25f, 500.0f, 0.5f, 1.0f, 0.0f}, /* structures/rome/siege_wall_gate */ \
 
 
 // LootInfo rows (xp, food, wood, stone, metal) for building_loot(), in BuildingType order.
@@ -89,6 +90,7 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{0, 0, 0, 40, 0}, /* structures/cart/embassy_iberian */ \
 		{0, 0, 0, 0, 40}, /* structures/cart/embassy_italic */ \
 		{0, 0, 12, 0, 0}, /* structures/rome/siege_wall_long */ \
+		{0, 0, 10, 0, 0}, /* structures/rome/siege_wall_gate */ \
 
 
 // Civilizations (bit per Civilization) that may build a structure: the civ-specific
@@ -140,6 +142,7 @@ inline uint16_t civ_building_civ_mask(uint8_t type) {
 		case BLD_EMBASSY_IBERIAN: return 0x0010; // cart
 		case BLD_EMBASSY_ITALIC: return 0x0010; // cart
 		case BLD_SIEGE_WALL: return 0x0008; // rome
+		case BLD_SIEGE_WALL_GATE: return 0x0008; // rome
 		default: return 0xFFFF;
 	}
 }
@@ -185,6 +188,7 @@ inline uint8_t civ_building_phase(uint8_t type) {
 		case BLD_EMBASSY_IBERIAN: return 2;
 		case BLD_EMBASSY_ITALIC: return 2;
 		case BLD_SIEGE_WALL: return 3;
+		case BLD_SIEGE_WALL_GATE: return 3;
 		default: return 0;
 	}
 }
@@ -223,7 +227,7 @@ inline float civ_building_vision(uint8_t type) {
 // True for a structure only an Upgrade reaches (the Tachara's tribute forms, the apartment):
 // no civ lays its foundation.
 inline bool civ_building_upgrade_only(uint8_t type) {
-	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE;
+	return type == BLD_TACHARA_FOOD || type == BLD_TACHARA_WOOD || type == BLD_TACHARA_STONE || type == BLD_TACHARA_METAL || type == BLD_APARTMENT || type == BLD_IMPERIAL_COURT || type == BLD_TOWER_GREAT || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE;
 }
 
 // 0 A.D. Upgrade choices of the civs' own structures (structures/<civ>/*.xml):
@@ -238,7 +242,7 @@ struct CivBuildingUpgrade {
 	uint8_t phase;
 	const char *tooltip;
 };
-inline constexpr int CIV_BUILDING_UPGRADE_COUNT = 19;
+inline constexpr int CIV_BUILDING_UPGRADE_COUNT = 20;
 inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 	static const CivBuildingUpgrade kUpgrades[CIV_BUILDING_UPGRADE_COUNT + 1] = {
 		{BLD_TOWN_CENTER, 0x2000, BLD_IMPERIAL_COURT, 0, 300, 0, 300, 40.0f, 3, "Enable training of heroes, reduce the batch training times and greatly increase the health, capture resistance and garrison capacity of this specific Civic Center."},
@@ -260,6 +264,7 @@ inline const CivBuildingUpgrade *civ_building_upgrade_table() {
 		{BLD_TACHARA_METAL, 0x0004, BLD_TACHARA_FOOD, 0, 0, 0, 0, 10.0f, 1, "Receive free Food tribute to your treasury from your subject peoples."},
 		{BLD_TACHARA_METAL, 0x0004, BLD_TACHARA_WOOD, 0, 0, 0, 0, 10.0f, 1, "Receive free Wood tribute to your treasury from your subject peoples."},
 		{BLD_TACHARA_METAL, 0x0004, BLD_TACHARA_STONE, 0, 0, 0, 0, 10.0f, 1, "Receive free Stone tribute to your treasury from your subject peoples."},
+		{BLD_SIEGE_WALL, 0x0008, BLD_SIEGE_WALL_GATE, 0, 20, 0, 0, 12.0f, 1, "Allow units access through Walls. Can be locked to prevent access."},
 		{BLD_TYPE_COUNT, 0, BLD_TYPE_COUNT, 0, 0, 0, 0, 0.0f, 1, nullptr},
 	};
 	return kUpgrades;
