@@ -65,6 +65,9 @@ static var selection := {"panel": 0, "category": [0, 0], "value": [0, 1], "type"
 ## How the page was opened (0 A.D. data.gui): isInGame, dialog, isReplay,
 ## replayDirectory, assignedPlayer, shownPlayers, fromReplayMenu.
 var gui: Dictionary = {}
+## Set by QuitConfirmation.end_game (session.js endGame) before switching to
+## this scene: {gui, data}, the page of the match that was just left.
+static var pending: Dictionary = {}
 var data: Dictionary = {}
 ## The players shown: {id, name, civ, team, state, color, tooltip, si, final}.
 var players: Array = []
@@ -94,6 +97,11 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if ClassDB.class_exists("RtsoHotkeyConfig"):
 		_hotkeys = ClassDB.instantiate("RtsoHotkeyConfig")
+	if not pending.is_empty() and get_parent() == get_tree().root:
+		var p := pending
+		pending = {}
+		configure(p["gui"])
+		show_summary(false, p["data"], float(p["data"].get("game_time", 0.0)))
 
 func is_open() -> bool:
 	return visible
@@ -539,7 +547,7 @@ func _build() -> void:
 	_pickers.clear()
 	var dialog: bool = gui.get("dialog", false)
 	var fade := ColorRect.new() # ModernFade
-	fade.color = Color(0, 0, 0, 0.6 if dialog else 0.85)
+	fade.color = Color(0, 0, 0, 0.6 if dialog else (1.0 if get_parent() == get_tree().root else 0.85))
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fade)
 	_window = Panel.new() # summaryWindow: ModernDialog in game, else ModernWindow

@@ -35,7 +35,12 @@ func _on_save_pressed():
 func _on_load_pressed():
 	SavegameDialog.open(get_parent(), "load", get_parent())
 
+# 0 A.D. MenuButtons Exit: QuitConfirmationMenu asks first (Stay, Quit and View Summary, Quit).
 func _on_exit_pressed():
+	var main := get_parent()
+	if main.has_method("get_summary_gui"):
+		load("res://scenes/session/quit_confirmation.gd").menu(main)
+		return
 	get_tree().paused = false
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
 
