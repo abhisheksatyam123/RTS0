@@ -35,7 +35,7 @@ inline const FormationTemplate *formation_template_table() {
 
 // Player.js GetFormations: template_player.xml plus special/players/<civ>.xml, bit = UnitFormation.
 inline uint32_t civ_formation_mask(uint8_t civ) {
-	static const uint32_t kMasks[14] = {
+	static const uint32_t kMasks[16] = {
 		0x03fffu, // CIV_ATHENIANS
 		0x03fffu, // CIV_SPARTANS
 		0x03fffu, // CIV_PERSIANS
@@ -50,8 +50,10 @@ inline uint32_t civ_formation_mask(uint8_t civ) {
 		0x07fffu, // CIV_PTOLEMIES
 		0x07fffu, // CIV_SELEUCIDS
 		0x13fefu, // CIV_HAN
+		0x00000u, // CIV_GAIA
+		0x13fefu, // CIV_GERMANS
 	};
-	return civ < 14 ? kMasks[civ] : 0u;
+	return civ < 16 ? kMasks[civ] : 0u;
 }
 
 // Per civ roster row (civ_unit_template_table order): UnitAI/Formations as UnitFormation bits,
@@ -453,39 +455,66 @@ inline const FormationUnitInfo *formation_unit_table() {
 		{0x00000u, 0x008u}, // brit/ship_fire_fire
 		{0x00000u, 0x008u}, // gaul/ship_fire_fire
 		{0x00000u, 0x008u}, // iber/ship_fire_fire
-		{0x00000u, 0x000u}, // athen/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // athen/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // spart/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // spart/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // pers/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // pers/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // rome/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // rome/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // cart/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // cart/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // mace/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // mace/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // brit/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // brit/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // gaul/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // gaul/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // iber/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // iber/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // maur/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // maur/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // kush/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // kush/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // ptol/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // ptol/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // sele/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // sele/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // han/support_civilian (RTS0-only)
-		{0x00000u, 0x000u}, // han/support_civilian_house (RTS0-only)
-		{0x00000u, 0x000u}, // rome/infantry_spearman_conscript (RTS0-only)
-		{0x00000u, 0x000u}, // cart/infantry_spearman_ital_b (RTS0-only)
-		{0x00000u, 0x000u}, // rome/cavalry_javelineer_auxiliary_b (RTS0-only)
-		{0x00000u, 0x000u}, // rome/cavalry_spearman_auxiliary_b (RTS0-only)
-		{0x00000u, 0x000u}, // rome/champion_infantry_swordsman_first (RTS0-only)
+		{0x00000u, 0x000u}, // athen/support_civilian
+		{0x00000u, 0x000u}, // athen/support_civilian_house
+		{0x00000u, 0x000u}, // spart/support_civilian
+		{0x00000u, 0x000u}, // spart/support_civilian_house
+		{0x00000u, 0x000u}, // pers/support_civilian
+		{0x00000u, 0x000u}, // pers/support_civilian_house
+		{0x00000u, 0x000u}, // rome/support_civilian
+		{0x00000u, 0x000u}, // rome/support_civilian_house
+		{0x00000u, 0x000u}, // cart/support_civilian
+		{0x00000u, 0x000u}, // cart/support_civilian_house
+		{0x00000u, 0x000u}, // mace/support_civilian
+		{0x00000u, 0x000u}, // mace/support_civilian_house
+		{0x00000u, 0x000u}, // brit/support_civilian
+		{0x00000u, 0x000u}, // brit/support_civilian_house
+		{0x00000u, 0x000u}, // gaul/support_civilian
+		{0x00000u, 0x000u}, // gaul/support_civilian_house
+		{0x00000u, 0x000u}, // iber/support_civilian
+		{0x00000u, 0x000u}, // iber/support_civilian_house
+		{0x00000u, 0x000u}, // maur/support_civilian
+		{0x00000u, 0x000u}, // maur/support_civilian_house
+		{0x00000u, 0x000u}, // kush/support_civilian
+		{0x00000u, 0x000u}, // kush/support_civilian_house
+		{0x00000u, 0x000u}, // ptol/support_civilian
+		{0x00000u, 0x000u}, // ptol/support_civilian_house
+		{0x00000u, 0x000u}, // sele/support_civilian
+		{0x00000u, 0x000u}, // sele/support_civilian_house
+		{0x00000u, 0x000u}, // han/support_civilian
+		{0x00000u, 0x000u}, // han/support_civilian_house
+		{0x007efu, 0x114u}, // germ/cavalry_javelineer_b
+		{0x007afu, 0x10cu}, // germ/cavalry_spearman_b
+		{0x007afu, 0x00eu}, // germ/champion_cavalry
+		{0x0078fu, 0x002u}, // germ/champion_healer
+		{0x0078fu, 0x02au}, // germ/champion_infantry_axeman
+		{0x0878fu, 0x12au}, // germ/champion_infantry_maceman
+		{0x007afu, 0x00du}, // germ/hero_boiorix
+		{0x007afu, 0x00du}, // germ/hero_lugius
+		{0x0878fu, 0x029u}, // germ/hero_teutobod
+		{0x007cfu, 0x130u}, // germ/infantry_javelineer_b
+		{0x007cfu, 0x130u}, // germ/infantry_slinger_b
+		{0x1878fu, 0x128u}, // germ/infantry_spearman_b
+		{0x0878fu, 0x128u}, // germ/infantry_swordsman_b
+		{0x00000u, 0x010u}, // germ/ship_arrow
+		{0x00000u, 0x008u}, // germ/ship_fire
+		{0x00000u, 0x000u}, // germ/ship_fishing
+		{0x00000u, 0x000u}, // germ/ship_merchant
+		{0x00000u, 0x010u}, // germ/ship_scout
+		{0x0078fu, 0x008u}, // germ/siege_ram
+		{0x0078fu, 0x008u}, // germ/siege_ram_covered
+		{0x00000u, 0x000u}, // germ/support_civilian
+		{0x00000u, 0x000u}, // germ/support_civilian_house
+		{0x0078fu, 0x100u}, // germ/support_healer_b
+		{0x00000u, 0x000u}, // germ/support_trader
+		{0x00000u, 0x000u}, // germ/rts0_villager (RTS0-only)
+		{0x00000u, 0x000u}, // germ/catafalque
+		{0x00000u, 0x008u}, // germ/ship_fire_fire
+		{0x1878fu, 0x128u}, // rome/infantry_spearman_conscript
+		{0x0879fu, 0x128u}, // cart/infantry_spearman_ital_b
+		{0x007efu, 0x114u}, // rome/cavalry_javelineer_auxiliary_b
+		{0x007afu, 0x10cu}, // rome/cavalry_spearman_auxiliary_b
+		{0x0878fu, 0x02au}, // rome/champion_infantry_swordsman_first
 	};
 	return kRows;
 }

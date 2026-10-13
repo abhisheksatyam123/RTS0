@@ -617,6 +617,33 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		-1, // sele/support_civilian_house
 		-1, // han/support_civilian
 		-1, // han/support_civilian_house
+		37, // germ/cavalry_javelineer_b (the Gallic model)
+		-1, // germ/cavalry_spearman_b
+		38, // germ/champion_cavalry (the Gallic model)
+		-1, // germ/champion_healer
+		-1, // germ/champion_infantry_axeman
+		-1, // germ/champion_infantry_maceman
+		-1, // germ/hero_boiorix
+		-1, // germ/hero_lugius
+		-1, // germ/hero_teutobod
+		42, // germ/infantry_javelineer_b (the Gallic model)
+		-1, // germ/infantry_slinger_b
+		43, // germ/infantry_spearman_b (the Gallic model)
+		-1, // germ/infantry_swordsman_b
+		-1, // germ/ship_arrow
+		19, // germ/ship_fire (the Gallic model)
+		-1, // germ/ship_fishing
+		-1, // germ/ship_merchant
+		20, // germ/ship_scout (the Gallic model)
+		-1, // germ/siege_ram
+		-1, // germ/siege_ram_covered
+		21, // germ/support_civilian (the Gallic model)
+		21, // germ/support_civilian_house (the Gallic model)
+		-1, // germ/support_healer_b
+		-1, // germ/support_trader
+		-1, // germ/rts0_villager
+		1, // germ/catafalque (the Gallic model)
+		19, // germ/ship_fire_fire (the Gallic model)
 		-1, // rome/infantry_spearman_conscript
 		-1, // cart/infantry_spearman_ital_b
 		135, // rome/cavalry_javelineer_auxiliary_b
@@ -783,6 +810,6 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	return nullptr;
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 428, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 455, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso

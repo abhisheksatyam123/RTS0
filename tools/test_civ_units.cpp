@@ -70,6 +70,32 @@ int main() {
 	uint32_t gsp = s.spawn_unit(12.0f, 4.0f, 4, UNIT_SPEARMAN);
 	CHECK(civ_unit_template(s.unit_template(bsp)).speed > civ_unit_template(s.unit_template(gsp)).speed * 1.04f);
 
+	// The Germans (civ 15) spawn their own units; Gaia's id is never a player's civ.
+	s.set_team_civ(5, CIV_GERMANS);
+	s.set_team_civ(5, CIV_GAIA);
+	CHECK(s.team_civ(5) == CIV_GERMANS);
+	uint32_t germ_sp = s.spawn_unit(16.0f, 0.0f, 5, UNIT_SPEARMAN);
+	CHECK(std::strcmp(civ_unit_template(s.unit_template(germ_sp)).id, "germ/infantry_spearman_b") == 0);
+	// Grove of Fetters: Priests and Seeresses +50% health (its effect row, not one past the table).
+	CHECK(tech_effects_table()[tech_info(TECH_GROVE_OF_FETTERS).effect_begin].stat == TSTAT_HEALTH);
+	{
+		static Simulation g;
+		g.set_sim_seed(7);
+		g.set_team_civ(0, CIV_GERMANS);
+		g.reset();
+		g.set_player_resources(0, 5000, 5000, 5000, 5000);
+		g.player(0).phase = 3;
+		g.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t temple = g.spawn_building(-10, -30, BLD_TEMPLE, 0, 1.0f);
+		const uint32_t priest = g.spawn_unit(-12.0f, -20.0f, 0, UNIT_HEALER);
+		const float hp0 = g.units().max_hp[index_of(g, priest)];
+		CHECK(g.cmd_research(0, temple, TECH_GROVE_OF_FETTERS));
+		for (int k = 0; k < (int)((tech_info(TECH_GROVE_OF_FETTERS).research_time + 1.0f) / Simulation::FIXED_STEP); ++k)
+			g.tick(Simulation::FIXED_STEP);
+		CHECK(g.player(0).has_tech(TECH_GROVE_OF_FETTERS));
+		CHECK(g.units().max_hp[index_of(g, priest)] > hp0 * 1.49f);
+	}
+
 	// Training a hero by template: Pericles, with his own aura. A fresh match, so
 	// the extra players above don't end it early.
 	static Simulation m;
@@ -301,6 +327,7 @@ int main() {
 		// Center trains support_civilian, houses support_civilian_house after Fertility Festival, and
 		// the women's rows stay for saves but train nowhere.
 		for (uint8_t c = 0; c < CIV_COUNT; ++c) {
+			if (!is_playable_civ(c)) continue;
 			const uint16_t civ_t = civ_default_template(c, UNIT_FEMALE_CITIZEN);
 			CHECK(civ_t != CIV_UNIT_TEMPLATE_NONE && std::strstr(civ_unit_template(civ_t).id, "/support_civilian"));
 		}
@@ -310,6 +337,16 @@ int main() {
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen")).trainers);
 		CHECK(!civ_unit_template(roster_id("athen/support_female_citizen_house")).trainers);
 		CHECK(std::strcmp(civ_unit_template(roster_id("athen/support_civilian")).name, "Athenian Artisan") == 0);
+		// 0.28's Germans (civ 15, after Gaia's 14): rows appended after the Civilians, the Great
+		// Hall trains the noble cavalry, the Fortress the three heroes; Gallic art meanwhile.
+		CHECK(civ_unit_template(roster_id("germ/champion_cavalry")).trainers == bld_bit(BLD_GREAT_HALL));
+		CHECK(civ_can_build(CIV_GERMANS, BLD_GREAT_HALL) && !civ_can_build(CIV_GAULS, BLD_GREAT_HALL));
+		CHECK(civ_can_train(CIV_GERMANS, UNIT_HERO) && civ_unit_template(roster_id("germ/hero_teutobod")).civ == CIV_GERMANS);
+		CHECK(std::strstr(civ_unit_template(civ_default_template(CIV_GERMANS, UNIT_FEMALE_CITIZEN)).id, "germ/support_civilian"));
+		CHECK(civ_unit_template(roster_id("germ/support_civilian")).tech_classes & TC_CIVILIAN); // Bovine Tradition
+		CHECK(std::strcmp(civ_art_code(CIV_GERMANS), "gaul") == 0 && std::strcmp(civ_art_code(CIV_GAULS), "gaul") == 0);
+		CHECK(tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GERMANS) && !tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GAULS));
+		CHECK(!tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GERMANS) && tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GAULS));
 		CHECK((civ_unit_template(roster_id("athen/support_civilian")).flags & ROSTER_CIVILIAN) &&
 		      !(civ_unit_template(roster_id("athen/support_female_citizen")).flags & ROSTER_CIVILIAN));
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).

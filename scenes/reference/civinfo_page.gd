@@ -54,8 +54,9 @@ func _ready() -> void:
 	set_civ(civ)
 
 func _on_civ_selected(index: int) -> void:
-	set_civ(index)
-	civ_changed.emit(index)
+	var id: int = _select.get_item_id(index)
+	set_civ(id)
+	civ_changed.emit(id)
 
 func _on_meta(meta) -> void:
 	var parts := str(meta).split(":")
@@ -66,7 +67,7 @@ func set_civ(index: int) -> void:
 	civ = index
 	if _gameplay == null:
 		return
-	_select.select(index)
+	_select.select(_select.get_item_index(index))
 	var d: Dictionary = Common.ref().get_civ_info(civ)
 	_emblem.texture = Common.texture(d.get("emblem", ""))
 	_gameplay.text = gameplay_text(d)

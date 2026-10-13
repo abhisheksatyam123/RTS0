@@ -48,12 +48,28 @@ int main()
 {
 	char msg[256];
 
-	check(CIV_HAN == 13 && CIV_COUNT == 14, "Han appended after Seleucids");
+	check(CIV_HAN == 13 && CIV_GAIA == 14 && CIV_GERMANS == 15 && CIV_COUNT == 16,
+		"Han after Seleucids, Gaia's saved building civ 14, Germans appended after it");
 	check(std::strcmp(civ_info(CIV_HAN).code, "han") == 0, "Han civ code");
+	check(std::strcmp(civ_info(CIV_GERMANS).code, "germ") == 0, "Germans civ code");
+	// Gaia holds a civ id but no roster: every per-civ table keeps an empty row for it and
+	// loops over playable civs skip it.
+	{
+		int playable = 0;
+		bool picks_ok = true;
+		for (uint8_t c = 0; c < CIV_COUNT; ++c) playable += is_playable_civ(c);
+		for (uint32_t k = 0; k < 2u * PLAYABLE_CIV_COUNT; ++k) picks_ok = picks_ok && is_playable_civ(playable_civ(k));
+		check(playable == PLAYABLE_CIV_COUNT && !is_playable_civ(CIV_GAIA) && !is_playable_civ(CIV_COUNT) &&
+			!is_playable_civ(-1) && picks_ok && playable_civ(CIV_GAIA) == CIV_GERMANS, "playable civs skip Gaia");
+		check(civ_roster_ids(CIV_GAIA).empty() && civ_roster_begin(CIV_GAIA) == civ_roster_end(CIV_GAIA),
+			"Gaia has no roster");
+	}
 
 	// Rows are grouped by civ and the offsets cover the table exactly.
 	check(civ_roster_begin(CIV_ATHENIANS) == 0, "first civ starts at row 0");
 	check(civ_roster_end(CIV_COUNT - 1) == CIV_ROSTER_PROMOTION_ONLY_FIRST, "last civ ends where promotion-only rows start");
+	for (uint8_t c = 0; c + 1 < CIV_COUNT; ++c)
+		check(civ_roster_end(c) == civ_roster_begin(c + 1), "civ blocks are contiguous");
 	// After every civ's block: units no structure trains, each a promotion target.
 	bool tail_ok = CIV_ROSTER_PROMOTION_ONLY_FIRST < CIV_UNIT_TEMPLATE_COUNT;
 	for (uint16_t i = CIV_ROSTER_PROMOTION_ONLY_FIRST; i < CIV_UNIT_TEMPLATE_COUNT; ++i) {
@@ -71,10 +87,13 @@ int main()
 	}
 	check(tail_ok, "promotion-only and upgrade-only rows (Antesignani, Olympic champion, Immortal archer, ...) follow the civ blocks");
 	for (uint8_t c = 0; c < CIV_COUNT; ++c) {
-		uint16_t b = civ_roster_begin(c), e = civ_roster_end(c);
+		if (!is_playable_civ(c)) continue; // Gaia: checked above
+		// The civ's block plus the rows appended after the promotion-only ones (the Germans'
+		// whole roster, everyone's Civilians).
+		const std::vector<uint16_t> &ids = civ_roster_ids(c);
 		int heroes = 0;
 		bool rows_ok = true;
-		for (uint16_t i = b; i < e; ++i) {
+		for (uint16_t i : ids) {
 			const CivUnitTemplate &u = civ_unit_template(i);
 			const bool retired = is_retired(u.id);
 			if (u.civ != c || u.unit_type >= UNIT_TYPE_COUNT || u.hp <= 0.0f || u.speed <= 0.0f ||
@@ -100,8 +119,8 @@ int main()
 		}
 		std::snprintf(msg, sizeof msg, "%s rows valid", civ_info(c).name);
 		check(rows_ok, msg);
-		std::snprintf(msg, sizeof msg, "%s has its own roster (%d units)", civ_info(c).name, e - b);
-		check(e - b >= 15, msg);
+		std::snprintf(msg, sizeof msg, "%s has its own roster (%d units)", civ_info(c).name, (int)ids.size());
+		check(ids.size() >= 15, msg);
 		std::snprintf(msg, sizeof msg, "%s has at least 3 heroes (%d)", civ_info(c).name, heroes);
 		check(heroes >= 3, msg);
 
@@ -189,7 +208,7 @@ int main()
 		const CivUnitTemplate &u = civ_unit_template(i);
 		if (u.unlock_tech == TECH_NONE) continue;
 		++gated;
-		if (!(u.flags & ROSTER_CHAMPION) && tech_info(u.unlock_tech).civ_mask == (1u << CIV_COUNT) - 1)
+		if (!(u.flags & ROSTER_CHAMPION) && tech_info(u.unlock_tech).civ_mask == (uint16_t)(((1u << CIV_COUNT) - 1) & ~(1u << CIV_GAIA)))
 			check(false, u.id);
 	}
 	check(gated >= 20, "champion rows carry their unlock technology");
