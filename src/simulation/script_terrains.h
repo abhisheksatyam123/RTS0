@@ -369,6 +369,18 @@ inline const ScriptTerrains *script_terrains(const char *map_id) {
 		 {"syria", {{FLORA_PALM, FLORA_PALM}}, {FLORA_PALM, FLORA_BROADLEAF, FLORA_ALEPPO_PINE}, {{FLORA_BROADLEAF, FLORA_BROADLEAF}},
 		  FLORA_BERRY,
 		  {{200, 200}}, {200, 200, 200}, {{200, 200}}}},
+		// the_nile.js: date and short Cretan date palms only; no cliffs or hills, so they reuse its cracked dirt and
+		// half sand; the river and ponds are wet sand. Its bank strips go in an area (synth_the_nile) painted dry,
+		// half-lush, then lush from 0.09 of the map out (widths of a 256-tile map).
+		{"the_nile",
+		 {"the_nile", {"desert_sand_dunes_100"}, {"desert_forestfloor_palms"},
+		  {"desert_dirt_rough_2", "desert_sand_dunes_50", "desert_dirt_rough", "desert_sand_smooth"}, {"desert_dirt_cracks"},
+		  {"desert_sand_dunes_50"}, {"desert_dirt_rough", "desert_dirt_cracks"}, "desert_city_tile", "desert_city_tile_plaza",
+		  "desert_grass_a_sand", "desert_sand_wet", "desert_sand_wet"},
+		 {"the_nile", {{FLORA_PALM, FLORA_PALM}}, {FLORA_PALM, FLORA_PALM}, {{FLORA_PALM, FLORA_PALM}}, FLORA_BERRY,
+		  {{200, 100}}, {200, 100}, {{200, 100}}},
+		 {{-1e9f, 0.0f, {"desert_sand_wet"}, true}},
+		 {{AREA_MARSH, {{"desert_plants_b"}, {"desert_grass_a_sand"}, {"desert_grass_a"}}, {8, 5}}}},
 		// volcanic_lands.js: dead trees only and no fruit bush; no hills, dirt or water, so hill reuses tCliff and dirt
 		// and the shore slots its ash rocks.
 		{"volcanic_lands",

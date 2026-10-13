@@ -115,6 +115,8 @@ const RMS_MAPS := [
 	["random_island_stronghold", "Island Stronghold (RMS)", "Random", 8, 128, "temperate", "Each team starts packed together on its own island. Supports 2-8 players."],
 	["random_pompeii", "Pompeii (RMS)", "Random", 8, 128, "volcanic", "The Bay of Naples under Vesuvius from a real elevation map. Supports 2-8 players."],
 	["random_latium", "Latium (RMS)", "Random", 8, 128, "latium", "Rolling Italian land between two seas, with cliffs and plateaus. Supports 2-8 players."],
+	["random_land_grab", "Land Grab (RMS)", "Random", 8, 128, "temperate", "Players start on small islands on one side of the map; a big continent on the other side waits for expansion. Supports 2-8 players."],
+	["random_the_nile", "The Nile (RMS)", "Random", 8, 128, "desert", "A calm wide river divides the map into western and eastern parts. Supports 2-8 players."],
 	["random_unknown", "Unknown (RMS)", "Random", 8, 128, "temperate", "One of 13 land and naval landscapes, picked at random. Supports 2-8 players."],
 ]
 
