@@ -323,7 +323,7 @@ public:
 	~Simulation();
 
 	void reset();
-	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); }
+	void set_sim_seed(uint32_t seed) { sim_seed_ = seed ? seed : 1337; sim_rng_.set_seed(sim_seed_); reroll_petra_personalities(); }
 	uint32_t sim_seed() const { return sim_seed_; }
 	uint32_t sim_rng_state() const { return sim_rng_.state(); }
 	uint32_t next_id() const { return next_id_; }
@@ -819,7 +819,7 @@ public:
 	void set_regicide_garrison(bool on) { set_setup_flag(SETUP_REGICIDE_GARRISON, on); }
 	bool regicide_garrison() const { return setup_flags_ & SETUP_REGICIDE_GARRISON; }
 	// 0 A.D. LockTeams (Diplomacy.LockTeam): no player can change diplomacy all match.
-	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); }
+	void set_lock_teams(bool on) { set_setup_flag(SETUP_LOCK_TEAMS, on); reroll_petra_personalities(); }
 	bool teams_locked() const { return setup_flags_ & SETUP_LOCK_TEAMS; }
 	// 0 A.D. CheatsEnabled: chat cheat codes work for every player (cmd_cheat).
 	void set_cheats_enabled(bool on) { set_setup_flag(SETUP_CHEATS, on); }
@@ -1726,8 +1726,10 @@ private:
 	// (0 A.D. ModificationsManager: a modifier changes every entity it affects).
 	void refresh_tech_mods(uint8_t player_id);
 	// Bit g set: relic_global_auras()[g] reaches `player` (a relic it or a partner owns).
-	uint32_t relic_aura_mask(uint8_t player) const;
-	std::array<uint32_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
+	uint64_t relic_aura_mask(uint8_t player) const;
+	void global_aura_masks(uint64_t masks[MAX_PLAYERS]) const;
+	void tick_global_auras();
+	std::array<uint64_t, MAX_PLAYERS> relic_aura_masks_{}; // derived, as last applied to tech_mods_
 	void complete_research(uint8_t player_id, uint8_t tech_id);
 	void apply_tech_mods_to_unit(size_t idx);
 	const TechMods &tech_mods(uint8_t player_id) const { return tech_mods_[player_id < MAX_PLAYERS ? player_id : 0]; }
@@ -2446,6 +2448,9 @@ private:
 	void petra_manage_emergency(float dt);
 	void petra_manage_transport(float dt);
 	void apply_petra_config();
+	// config.js setConfig personality draw: per-player seed from the match seed, + teamsLocked.
+	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
+	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
 	void petra_staff_foundations();
 	void petra_manage_fields();

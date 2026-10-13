@@ -28,6 +28,7 @@
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <map>
+#include <set>
 #include "safe_select.h"
 #include "top_panel.h"
 #include "production_queue.h"
@@ -112,9 +113,12 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	VBoxContainer *lobby_seats = nullptr;
 	std::string lobby_seats_key_;           // the clients and slots lobby_seats was built for
 	std::map<uint32_t, int> seat_choice_;   // client -> slot the host gave it, SEAT_OBSERVER to watch
+	std::set<uint32_t> seat_seen_;          // clients the host has auto-assigned (0 A.D. onClientJoin)
+	std::map<std::string, uint8_t> seat_last_; // a client name's last slot (0 A.D. lastAssigned)
 	static constexpr int SEAT_AUTO = 100, SEAT_OBSERVER = 99;
 	void refresh_lobby_seats();
-	void apply_lobby_seats(rtso::GameSetupParams &setup);
+	void prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit);
+	void lobby_effective_seats(uint8_t out[8]);
 	rtso::NetHost net_host_;
 	rtso::TurnManager turn_mgr_;
 	rtso::Arena net_arena_{64 * 1024};
