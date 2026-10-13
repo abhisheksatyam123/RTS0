@@ -1,6 +1,7 @@
 #include "main_node.h"
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
+#include <cstring>
 #include <godot_cpp/classes/theme.hpp>
 #include "popup_safe.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -1380,7 +1381,7 @@ Dictionary RtsoMain::debug_guard_step(int step) {
 }
 
 // Test hook: a finished structure of `btype` next to the Civic Centre, selected;
-// returns the production buttons it shows.
+// returns the units it offers and the production buttons it shows.
 PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	PackedStringArray out;
 	if (!sim || net_lockstep()) return out;
@@ -1392,6 +1393,9 @@ PackedStringArray RtsoMain::debug_train_buttons(int btype) {
 	clear_selection();
 	selected_building_id = id;
 	update_command_panel();
+	// The units it trains (the civ's roster list), then its other buttons.
+	if (roster_list && roster_list->is_visible())
+		for (int i = 0; i < roster_list->get_item_count(); ++i) out.push_back(roster_list->get_item_text(i));
 	for (int i = 0; i < production_bar->get_child_count(); ++i)
 		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) out.push_back(btn->get_text());
 	return out;
@@ -1881,6 +1885,7 @@ void RtsoMain::update_cursor() {
 					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
 				}
 			}
+			if (!*want && scenery_at(at.x, at.z) != 0) want = "action-attack";
 			if (!*want) {
 				auto rv = sim->resources();
 				for (size_t r = 0; r < rv.count && !*want; ++r) {
@@ -2175,6 +2180,18 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 		return;
 	}
 	try_train_template(selected_building_id, (uint16_t)meta, train_batch());
+}
+
+// The Gaia scenery whose rotated rectangle (with a little slack) holds (x, z), 0 if none.
+uint32_t RtsoMain::scenery_at(float x, float z) const {
+	if (!sim) return 0;
+	for (const auto &sc : sim->scenery()) {
+		const float c = std::cos(sc.angle), s = std::sin(sc.angle);
+		const float rx = x - sc.x, rz = z - sc.z;
+		const float lu = rx * c - rz * s, lv = rx * s + rz * c;
+		if (std::fabs(lu) <= sc.half_w + 0.5f && std::fabs(lv) <= sc.half_d + 0.5f) return sc.id;
+	}
+	return 0;
 }
 
 // Corral training (0 A.D. Trainer at the corral): the lockstep Train command with no unit
@@ -3240,56 +3257,8 @@ void RtsoMain::update_command_panel() {
 
 		if (found_b && found_b->build_progress >= 1.0f) {
 			uint8_t pciv = sim->player_civ(local_player());
-			uint8_t pphase = sim->player_phase(local_player());
-			uint32_t roster = rtso::civ_train_mask(pciv);
-			auto add_train = [&](rtso::UnitType t, const char *label) {
-				if ((roster & rtso::unit_bit((uint8_t)t)) == 0) return;
-				if (!building_trains_class(pciv, (uint8_t)t, found_b->type)) return;
-				Button *btn = memnew(Button);
-				btn->set_text(label);
-				// Champions wait for their unlock technology (0 A.D. unlock_champion_*).
-				uint8_t gate = sim->train_unlock_tech(local_player(), (uint8_t)t, found_b->type,
-						rtso::civ_default_template(sim->player_civ(local_player()), (uint8_t)t));
-				if (gate != rtso::TECH_NONE && !sim->player(local_player()).has_tech(gate)) {
-					btn->set_disabled(true);
-					btn->set_tooltip_text(String("Requires ") + rtso::tech_info(gate).name);
-				}
-				btn->connect("pressed", Callable(this, "_on_train_pressed").bind((int)t));
-				production_bar->add_child(btn);
-			};
-
-			// Class buttons: each shows only where one of the civ's units of that class
-			// lists this structure as its Trainer (add_train's building_trains_class).
-			add_train(rtso::UNIT_VILLAGER, "Villager (50f)");
-			add_train(rtso::UNIT_FEMALE_CITIZEN, "Female Citizen (40f)");
-			add_train(rtso::UNIT_HEALER, "Healer (80f,60g)");
-			add_train(rtso::UNIT_SWORDSMAN, "Swordsman (60g,30w)");
-			add_train(rtso::UNIT_ARCHER, "Archer (40g,50w)");
-			add_train(rtso::UNIT_SPEARMAN, "Spearman (30f,40w,20g)");
-			add_train(rtso::UNIT_CAVALRY, "Cavalry (80g,50f)");
-			add_train(rtso::UNIT_CAMEL, "Camel Rider (60f,70g)");
-			add_train(rtso::UNIT_CHARIOT, "Celtic Chariot (80f,100w,60g)");
-			add_train(rtso::UNIT_WAR_DOG, "War Dog (60f)");
-			add_train(rtso::UNIT_CARNYX, "Carnyx Herald (70f,40w,30g)");
-			add_train(rtso::UNIT_ARCHER_MAIDEN, "Archer Maiden (40f,60w,40g)");
-			add_train(rtso::UNIT_WORKER_ELEPHANT, "Worker Elephant (180f,80w)");
-			if (pciv == rtso::CIV_MAURYANS && pphase >= 2)
-				add_train(rtso::UNIT_ELEPHANT, "Elephant Archer (175f,75w)");
-			if (pphase >= 2) {
-				add_train(rtso::UNIT_HERO, "Champion Hero (200f,200g)");
-				add_train(rtso::UNIT_BOLT_SHOOTER, "Bolt Shooter (120w,80g)");
-			}
-			if (pphase >= 3) {
-				add_train(rtso::UNIT_CATAPULT, "Catapult Artillery (150w,100g,50s)");
-				add_train(rtso::UNIT_SIEGE_RAM, "Siege Ram (200w,100g)");
-				if (pciv != rtso::CIV_MAURYANS)
-					add_train(rtso::UNIT_ELEPHANT, "War Elephant (250f,200g)");
-				add_train(rtso::UNIT_SCYTHED_CHARIOT, "Scythed Chariot (100f,80w,120g)");
-			}
-			add_train(rtso::UNIT_FISHING_BOAT, "Fishing Boat (75w)");
-			add_train(rtso::UNIT_MERCHANT_SHIP, "Merchant Ship (120w,40g)");
-			add_train(rtso::UNIT_TRIREME, "War Trireme (200w,150g)");
-			add_train(rtso::UNIT_TRADER, "Merchant Trader (60f,60w)");
+			// Units train from the civ's own list only (update_roster_list, 0 A.D. ProductionQueue's
+			// per-template Trainer/Entities), never from generic class buttons.
 
 			// Technologies researched here (0 A.D. ProductionQueue "technologies"):
 			// one button per tech whose researcher is this building type, greyed
@@ -3837,6 +3806,9 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 	for (uint16_t i : rtso::civ_roster_ids(civ)) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
+		// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
+		// 0 A.D. has no such unit, so players don't see it.
+		if (std::strstr(u.id, "/rts0_")) continue;
 		float cost[rtso::RES_COUNT];
 		sim->unit_train_cost(pid, i, rtso::civ_template_unit_info(i, u.unit_type), cost);
 		String costs;
@@ -4770,6 +4742,17 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				else
 					sim->order_hunt(sel_ptr, sel_n, clicked_fauna_id);
 				play_civ_voice(herd ? "gather" : "attack");
+				return;
+			}
+
+			// Right click on Gaia scenery (a fence, column, obelisk): attack it (template_structure
+			// Health; capturing scenery is not modelled).
+			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
+				if (turn_cmds())
+					post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, 0);
+				else
+					sim->order_attack_scenery(sel_ptr, sel_n, sid);
+				play_civ_voice("attack");
 				return;
 			}
 
