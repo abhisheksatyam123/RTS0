@@ -293,6 +293,7 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	g["dialog"] = in_game;
 	g["isReplay"] = replay;
 	g["networked"] = net_lockstep();
+	g["disconnected"] = net_disconnected_; // session.js g_Disconnected
 	// session.js g_IsController (the host, or any offline game) and g_IsObserver
 	// (no seat, or a seat whose game is over).
 	g["isController"] = net_host_.getRole() == rtso::NetRole::None || net_host_.getRole() == rtso::NetRole::Host;
