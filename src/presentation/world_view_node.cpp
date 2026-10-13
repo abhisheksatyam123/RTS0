@@ -1459,6 +1459,13 @@ String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_s
 	// Only a long segment becomes a gate; it keeps the segment's length.
 	if (type == rtso::BLD_GATE && half_size >= 3.75f)
 		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
+	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
+	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
+	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
+	if (type == rtso::BLD_PALISADE && rtso::is_wallset_piece(type, half_size)) {
+		if (rtso::is_palisade_tower(type, half_size)) return "palisade_tower";
+		return half_size >= 1.5f ? "palisade_long" : half_size >= 0.9f ? "palisade_medium" : "palisade_short";
+	}
 	return String(rtso::civ_building_model(civ, type));
 }
 

@@ -395,6 +395,9 @@ jobs:
       - name: Nav parity probe
         run: python3 tools/check_parity.py --unit nav-live
 
+      - name: Lobby server
+        run: python3 tools/test_lobby_server.py
+
       - name: Lockstep playtest
         run: python3 tools/playtest_lockstep.py
 
