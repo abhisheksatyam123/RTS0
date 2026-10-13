@@ -216,6 +216,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	int8_t map_civ_[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int32_t map_res_[8][4] = {}; // food, wood, stone, metal
 	bool map_has_res_[8] = {};
+	// The map's fixed teams (0 A.D. PlayerData Team; 0 none, else team + 1), when it has any.
+	uint8_t map_team_[8] = {};
+	bool map_has_teams_ = false;
 	void apply_map_player_overrides();
 
 	bool dragging = false;
@@ -469,6 +472,7 @@ private:
 	// The batch the next train click queues: gui.session.batchtrainingsize while Shift is held.
 	int train_batch() const;
 	void try_breed(uint32_t building_id, uint8_t ftype, int count = 1);
+	uint32_t scenery_at(float x, float z) const; // Gaia scenery under a ground point, 0 if none
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	void update_roster_list(const rtso::Simulation::Building *b);
 	void cycle_idle_worker();

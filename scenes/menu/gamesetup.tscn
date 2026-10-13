@@ -237,6 +237,17 @@ custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="LandscapeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
+layout_mode = 2
+tooltip_text = "Select one of the landscapes of this map."
+mouse_filter = 1
+text = "Landscape"
+
+[node name="LandscapeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
+custom_minimum_size = Vector2(160, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+
 [node name="PopCapLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Population limit"
