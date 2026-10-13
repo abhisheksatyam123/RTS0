@@ -4,11 +4,13 @@
 // the cells under their turned footprint, keep them through save/load, and only a long one
 // upgrades to a gate. A wall snaps onto the player's towers and stops at the first piece it can't
 // pay for. Palisades are a WallSet of their own (wallset_palisade), and a long one upgrades to a
-// palisade gate.
+// palisade gate; so are the Roman siege walls (rome/wallset_siege), which go in enemy land too.
 //   g++ -std=c++20 -O2 -Isrc tools/test_walls.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
 //       src/network/net_host.cpp -lpthread -o /tmp/test_walls && /tmp/test_walls
+#define private public // rebuild_territory, territory_owner_at
 #include "simulation/simulation.h"
+#undef private
 #include <cmath>
 #include <cstdio>
 
@@ -281,6 +283,93 @@ int main() {
 			std::printf("  own spearman through the palisade gate: z %.1f, crossed at x %.2f (gate at %.2f)\n", z, cross_x, gx);
 			CHECK(z >= 13.5f && std::fabs(cross_x - gx) < 1.2f);
 		}
+	}
+
+	// 10. Roman siege walls (rome/wallset_siege): wood pieces laid from the city phase in own,
+	//     neutral or enemy territory, with siege_wall_*'s health, turret points and no territory
+	//     decay.
+	setup(s, 0.0f);
+	{
+		s.player(0).civ = CIV_ROMANS;
+		s.player(0).res[RES_WOOD] = 5000.0f;
+		const uint32_t enemy_cc = s.spawn_building_world(60.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		CHECK(enemy_cc != 0);
+		s.rebuild_territory();
+		const WallSetInfo &ws = wallset_info(WALLSET_SIEGE);
+		CHECK(civ_can_build(CIV_ROMANS, BLD_SIEGE_WALL) && !civ_can_build(CIV_ATHENIANS, BLD_SIEGE_WALL));
+		CHECK(building_type_info(BLD_SIEGE_WALL).territory_decay_rate == 0.0f);
+		// Town phase: not yet.
+		CHECK(s.cmd_build_wall(0, -4.5f, 10.0f, 4.5f, 10.0f, nullptr, 0, false, WALLSET_SIEGE) == 0);
+		s.player(0).phase = 3;
+		// Every length gets a placement within MinTowerOverlap 0.05 and MaxTowerOverlap 1.00.
+		bool all_ok = true;
+		for (float d = ws.tower_length + 0.1f; d < 60.0f; d += 0.37f) {
+			const auto p = s.wall_placement(0, -d * 0.5f, 30.0f, d * 0.5f, 30.0f, nullptr, nullptr, WALLSET_SIEGE);
+			bool ok = p.size() >= 3 && p.size() % 2 == 1;
+			for (size_t i = 0; ok && i < p.size(); ++i)
+				ok = p[i].type == BLD_SIEGE_WALL && (i % 2 == 0) == is_siege_wall_tower(p[i].type, p[i].half_w);
+			for (size_t i = 1; ok && i + 1 < p.size(); i += 2) {
+				const float reach_l = (p[i].half_w - (p[i].x - p[i - 1].x) + 0.5f * ws.tower_length) / ws.tower_length;
+				const float reach_r = (p[i].half_w - (p[i + 1].x - p[i].x) + 0.5f * ws.tower_length) / ws.tower_length;
+				for (float r : {reach_l, reach_r}) ok = ok && r >= ws.min_overlap - 1e-3f && r <= ws.max_overlap + 1e-3f;
+			}
+			if (!ok) {
+				std::printf("  no valid siege wall placement over %.2f\n", d);
+				all_ok = false;
+			}
+		}
+		CHECK(all_ok);
+
+		// In the enemy's territory, where a stone wall may not go.
+		const float ez = 6.0f;
+		CHECK(s.territory_owner_at(52.0f, ez) == 1 && s.territory_owner_at(42.0f, ez) == 1);
+		s.player(0).res[RES_STONE] = 5000.0f;
+		CHECK(s.cmd_build_wall(0, 42.0f, ez, 52.0f, ez) == 0);
+		const auto plan = s.wall_placement(0, 42.0f, ez, 52.0f, ez, nullptr, nullptr, WALLSET_SIEGE);
+		float want = 0.0f;
+		for (const auto &p : plan) want += wallset_piece_value(p.type, p.half_w, 1);
+		const float wood0 = s.player(0).res[RES_WOOD];
+		const size_t laid = s.cmd_build_wall(0, 42.0f, ez, 52.0f, ez, nullptr, 0, false, WALLSET_SIEGE);
+		const float paid = wood0 - s.player(0).res[RES_WOOD];
+		std::printf("  a 10-unit siege wall in enemy land: %zu of %zu pieces, %.0f wood\n", laid, plan.size(), paid);
+		CHECK(laid == plan.size() && laid >= 3 && paid == want);
+
+		// Finished, each piece has its template's health and turret points.
+		uint32_t long_id = 0, tower_id = 0;
+		const float scale = s.structure_max_hp(BLD_SIEGE_WALL, 0) / building_type_info(BLD_SIEGE_WALL).max_hp;
+		for (const auto &bld : s.buildings()) {
+			if (bld.type != BLD_SIEGE_WALL) continue;
+			auto &m = const_cast<Simulation::Building &>(bld);
+			m.build_progress = 1.0f;
+			m.hp = m.max_hp;
+			if (is_siege_wall_tower(bld.type, bld.half_size)) {
+				tower_id = bld.id;
+				CHECK(std::fabs(bld.max_hp - 3000.0f * scale) < 0.5f && bld.garrison_cap == 4 && bld.half_d == SIEGE_WALL_TOWER_HALF);
+			} else if (bld.half_size == 0.5f * ws.lengths[0]) {
+				long_id = bld.id;
+				CHECK(std::fabs(bld.max_hp - 2250.0f * scale) < 0.5f && bld.garrison_cap == 7 && bld.half_d == SIEGE_WALL_HALF_DEPTH);
+			} else {
+				CHECK(bld.garrison_cap == (bld.half_size == 0.5f * ws.lengths[1] ? 4 : 0));
+			}
+		}
+		CHECK(tower_id != 0);
+		// On own land, a 10.5-unit wall starts with a long segment (Walls.js tries the longest first).
+		CHECK(s.cmd_build_wall(0, -5.25f, 30.0f, 5.25f, 30.0f, nullptr, 0, false, WALLSET_SIEGE) >= 3);
+		for (const auto &bld : s.buildings())
+			if (bld.type == BLD_SIEGE_WALL && bld.half_size == 0.5f * ws.lengths[0]) {
+				long_id = bld.id;
+				CHECK(std::fabs(bld.max_hp - 2250.0f * scale) < 0.5f && bld.garrison_cap == 7 && bld.half_d == SIEGE_WALL_HALF_DEPTH);
+			}
+		CHECK(long_id != 0);
+		// A siege wall snaps onto siege wall towers only.
+		CHECK(s.wall_snap_tower(0, 52.0f, ez, WALLSET_STONE) == 0);
+		CHECK(s.wall_snap_tower(0, 52.0f, ez, WALLSET_SIEGE) != 0);
+		// No piece upgrades (siege_wall_gate needs a BuildingType past bld_bit()'s 64).
+		CHECK(building_upgrade(BLD_SIEGE_WALL, CIV_ROMANS).to == BLD_TYPE_COUNT);
+		CHECK(s.upgrade_check(0, long_id) == Simulation::UPGRADE_ERR_NONE);
+		// Not for other civs.
+		s.player(0).civ = CIV_ATHENIANS;
+		CHECK(s.cmd_build_wall(0, -6.0f, 40.0f, 6.0f, 40.0f, nullptr, 0, false, WALLSET_SIEGE) == 0);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
