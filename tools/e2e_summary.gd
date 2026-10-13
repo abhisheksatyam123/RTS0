@@ -6,7 +6,8 @@ extends SceneTree
 #   2. the counters follow counters.js (scores, units, percentages, ratios);
 #   3. the Charts tab charts any counter per player or per team;
 #   4. Ctrl+Tab goes back to the game;
-#   5. Exit asks QuitConfirmation's question; Stay goes back, Quit and View
+#   5. Exit asks QuitConfirmation's question and Stay goes back; Resign asks
+#      first, puts the player out and asks whether to quit; Quit and View
 #      Summary leaves for the summary page and Continue for the main menu;
 #   6. the replay menu's Summary shows "Scores at the end of the game." with
 #      Watch Replay, and Continue closes it.
@@ -163,6 +164,32 @@ func run() -> void:
 	check(d.title == "VICTORIOUS!" and d.caption == "You have won!" and d.button_texts() == ["OK"], "a host with humans still playing is only told")
 	d.press(0)
 	await frames(1)
+	pm.toggle()
+	check(not pm.get_node("CenterContainer/Panel/VBox/BtnResign").disabled, "the menu's Resign is open to a player")
+	pm._on_resign_pressed()
+	await frames(1)
+	q = m.get_children().filter(func(c): return c.get_script() == QuitConfirmation)
+	check(q.size() == 1 and q[0].caption == "Are you sure you want to resign?" and q[0].button_texts() == ["No", "Yes"],
+		"Resign asks ResignConfirmation's question")
+	if q.size() == 1:
+		q[0].press(1)
+	var asked = null
+	for i in 120:
+		await process_frame
+		var found = m.get_children().filter(func(c): return c.get_script() == QuitConfirmation)
+		if not found.is_empty():
+			asked = found[0]
+			break
+	check(m.get_summary_gui(false).get("isObserver", false), "Yes resigns: the player is out and watches")
+	check(asked != null and asked.title == "DEFEATED!" and asked.caption == "You have been defeated!\nDo you want to quit?",
+		"and is asked whether to quit")
+	if asked:
+		asked.press(0)
+	await frames(1)
+	pm.toggle()
+	check(pm.get_node("CenterContainer/Panel/VBox/BtnResign").disabled, "a resigned player can't resign again")
+	pm.toggle()
+	await frames(1)
 	pm._on_exit_pressed()
 	await frames(1)
 	q = m.get_children().filter(func(c): return c.get_script() == QuitConfirmation)
@@ -175,7 +202,7 @@ func run() -> void:
 	var page = current_scene
 	check(page != null and page.has_method("summary_text") and page.is_open() and not paused, "Quit and View Summary opens the summary page")
 	if page and page.has_method("summary_text"):
-		check(page.find_child("SummaryText", true, false).text == "You have abandoned the game.", "it reads You have abandoned the game.")
+		check(page.find_child("SummaryText", true, false).text == "You have been defeated…", "it reads You have been defeated…")
 		check(page.players.size() == 4 and page.find_child("ReplayButton", true, false).visible, "every player, with Watch Replay")
 		page.continue_pressed()
 		await frames(5)

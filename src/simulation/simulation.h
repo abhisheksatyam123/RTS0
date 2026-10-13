@@ -880,6 +880,10 @@ public:
 	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
 	// structures turn Gaia and it watches the rest of the match.
 	void defeat_player(uint8_t pid);
+	// 0 A.D. "resign" (Commands.js: cmpPlayer.Defeat("%(player)s has resigned.")): the
+	// issuing player is defeated as by conquest. Its units and structures turn Gaia, its
+	// allies play on, and it watches the rest of the match. False when it is already out.
+	bool cmd_resign(uint8_t pid);
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
@@ -2494,6 +2498,11 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan); // entityExtend.js gatherTreasure
 	void petra_manage_hunters(PetraHuntScan &scan);
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
+	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
+	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)
+	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
+	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
+	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
