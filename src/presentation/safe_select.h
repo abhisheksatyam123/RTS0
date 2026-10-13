@@ -40,6 +40,7 @@ public:
 	void select(int index);
 	int get_selected() const { return selected; }
 	int get_item_id(int index) const;
+	int get_item_index(int id) const; // OptionButton.get_item_index: -1 when no item has the id
 	int get_item_count() const { return (int)items.size(); }
 	void clear();
 
