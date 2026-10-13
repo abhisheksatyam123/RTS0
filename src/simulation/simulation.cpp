@@ -2363,8 +2363,10 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 	uint16_t tmpl = civ_default_template(civ_of(b.team), (uint8_t)u_type);
 	if (tmpl == CIV_UNIT_TEMPLATE_NONE) return false; // not in this civ's roster
 	// The civ's unit of this class that this building trains (0 A.D. Trainer
-	// lists), cheapest phase first; else the class's standard unit, except that
-	// heroes and champions only ever come from their own structures.
+	// lists), cheapest phase first; a building whose Trainer lists none of the
+	// class trains nothing for it (Trainer.js only queues entities it lists). RTS0's
+	// own villager, in no Trainer list, trains at a house as women do there
+	// (support_female_citizen_house); can_train_at checks the festival.
 	if (!(civ_unit_template(tmpl).trainers & bld_bit(b.type))) {
 		const uint8_t civ = civ_of(b.team);
 		uint16_t best = CIV_UNIT_TEMPLATE_NONE;
@@ -2374,8 +2376,9 @@ bool Simulation::cmd_train(uint8_t player_id, uint32_t building_id, UnitType u_t
 			if (best == CIV_UNIT_TEMPLATE_NONE || u.phase < civ_unit_template(best).phase) best = i;
 		}
 		if (best != CIV_UNIT_TEMPLATE_NONE) tmpl = best;
-		else if (civ_unit_template(tmpl).flags & (ROSTER_HERO | ROSTER_CHAMPION)) return false;
-		else return cmd_train_template_at(player_id, building_id, tmpl, false, count);
+		else if ((b.type == BLD_HOUSE || b.type == BLD_APARTMENT) && (unit_tech_classes((uint8_t)u_type) & TC_CIVILIAN))
+			return cmd_train_template_at(player_id, building_id, tmpl, false, count);
+		else return false;
 	}
 	return cmd_train_template(player_id, building_id, tmpl, count);
 }
