@@ -472,9 +472,9 @@ enum ResourceSubtype : uint8_t {
 // Only the drawing reads it; FLORA_DEFAULT lets the viewer pick from the map's biome.
 enum FloraKind : uint8_t {
 	FLORA_DEFAULT = 0,
-	FLORA_BROADLEAF = 1, // elm, maple, poplar, olive, carob, teak, banyan and other leafy trees
-	FLORA_PINE = 2,      // pine, fir, cedar, cypress, juniper
-	FLORA_PALM = 3,      // date, fan, palmyra and tropical palms
+	FLORA_BROADLEAF = 1, // elm, tamarix and other leafy trees without their own model
+	FLORA_PINE = 2,      // pine, cedar, larch, spruce, yew
+	FLORA_PALM = 3,      // date palms
 	FLORA_OAK = 4,
 	FLORA_BAOBAB = 5,
 	FLORA_ACACIA = 6,
@@ -483,14 +483,31 @@ enum FloraKind : uint8_t {
 	FLORA_BERRY = 9,     // gaia/fruit/berry_*, grapes
 	FLORA_APPLE = 10,    // gaia/fruit/apple, fig
 	FLORA_DATE = 11,     // gaia/fruit/date
-	FLORA_COUNT = 12
+	FLORA_CAROB = 12,
+	FLORA_POPLAR = 13,
+	FLORA_FAN_PALM = 14,    // medit_fan_palm
+	FLORA_BEECH = 15,
+	FLORA_DEAD = 16,        // dead, oak_dead, poplar_dead
+	FLORA_CYPRESS = 17,
+	FLORA_ALEPPO_PINE = 18, // aleppo_pine, pine_maritime, pine_black
+	FLORA_FIR = 19,         // fir, fir_winter, pine_w
+	FLORA_TROPIC_BUSH = 20,
+	FLORA_OLIVE = 21,
+	FLORA_BANYAN = 22,      // banyan, strangler
+	FLORA_TROPIC_PALM = 23, // palm_tropic, palm_palmyra, palm_doum, senegal_date_palm
+	FLORA_MAPLE = 24,
+	FLORA_JUNIPER = 25,
+	FLORA_TEAK = 26,        // teak, toona
+	FLORA_COUNT = 27
 };
 
 // The FloraKind a map JSON "resources" type names ("pine", "berry", ...; tools/port_0ad_maps.py),
 // or FLORA_COUNT for a name that is not a plant ("tree" and "food" are FLORA_DEFAULT).
 inline uint8_t flora_kind_by_name(const char *name) {
 	static const char *const kNames[FLORA_COUNT] = {
-		"tree", "broadleaf", "pine", "palm", "oak", "baobab", "acacia", "bamboo", "bush", "berry", "apple", "date"};
+		"tree", "broadleaf", "pine", "palm", "oak", "baobab", "acacia", "bamboo", "bush", "berry", "apple", "date",
+		"carob", "poplar", "fan_palm", "beech", "dead", "cypress", "aleppo_pine", "fir", "tropic_bush", "olive",
+		"banyan", "tropic_palm", "maple", "juniper", "teak"};
 	for (int k = 0; k < FLORA_COUNT; ++k)
 		if (std::strcmp(name, kNames[k]) == 0) return (uint8_t)k;
 	if (std::strcmp(name, "food") == 0 || std::strcmp(name, "fruit") == 0) return FLORA_DEFAULT;
