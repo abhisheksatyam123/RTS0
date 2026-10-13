@@ -14840,133 +14840,221 @@
       "type": "wall_segment",
       "player": 4,
       "x": 72.98,
-      "z": -101.93
+      "z": -101.93,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 3.9591,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 68.67,
-      "z": -97.34
+      "z": -97.34,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 1.3483,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 79.94,
-      "z": -112.24
+      "z": -112.24,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 4.278,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 77.29,
-      "z": -106.53
+      "z": -106.53,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.977,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 82.59,
-      "z": -117.96
+      "z": -117.96,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.7593,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 100.19,
-      "z": -120.47
+      "z": -120.47,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.7865,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 94.28,
-      "z": -122.66
+      "z": -122.66,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.0136,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 111.77,
-      "z": -115.53
+      "z": -115.53,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.6911,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 106.1,
-      "z": -118.28
+      "z": -118.28,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.4028,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 117.44,
-      "z": -112.79
+      "z": -112.79,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.1053,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 118.79,
-      "z": -95.33
+      "z": -95.33,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.2021,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 115.07,
-      "z": -100.41
+      "z": -100.41,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.3498,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 119.14,
-      "z": -84.91
+      "z": -84.91,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 1.0079,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 122.5,
-      "z": -90.24
+      "z": -90.24,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.5366,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 115.78,
-      "z": -79.59
+      "z": -79.59,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -2.5134,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 97.73,
-      "z": -74.12
+      "z": -74.12,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.3858,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 103.57,
-      "z": -76.49
+      "z": -76.49,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -2.8245,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 85.84,
-      "z": -73.48
+      "z": -73.48,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 6.0045,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 91.89,
-      "z": -71.75
+      "z": -71.75,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -3.0881,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 79.78,
-      "z": -75.21
+      "z": -75.21,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.5231,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 4,
       "x": 70.6,
-      "z": -91.43
+      "z": -91.43,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 5.0286,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 4,
       "x": 72.54,
-      "z": -85.52
+      "z": -85.52,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.0362,
+      "length": 3.0
     },
     {
       "type": "town_center",
@@ -14996,541 +15084,901 @@
       "type": "wall_segment",
       "player": 1,
       "x": -101.91,
-      "z": 112.49
+      "z": 112.49,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -3.138,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -91.05,
-      "z": 112.43
+      "z": 112.43,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.0016,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -80.48,
-      "z": 111.17
+      "z": 111.17,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -2.9096,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -69.18,
-      "z": 96.84
+      "z": 96.84,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -2.7426,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -69.07,
-      "z": 81.3
+      "z": 81.3,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -61.59,
-      "z": 89.03
+      "z": 89.03,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -60.65,
-      "z": 93.86
+      "z": 93.86,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -2.9207,
+      "length": 7.2
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -111.45,
-      "z": 108.89
+      "z": 108.89,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -84.84,
-      "z": 66.46
+      "z": 66.46,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.5005,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -94.34,
-      "z": 62.32
+      "z": 62.32,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.9721,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -105.12,
-      "z": 61.65
+      "z": 61.65,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.0703,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -113.59,
-      "z": 66.29
+      "z": 66.29,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.9551,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -126.13,
-      "z": 84.95
+      "z": 84.95,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.9661,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -126.42,
-      "z": 93.43
+      "z": 93.43,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.2717,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -57.77,
-      "z": 93.48
+      "z": 93.48,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -64.16,
-      "z": 95.07
+      "z": 95.07,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.4499,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -74.07,
-      "z": 99.32
+      "z": 99.32,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -75.18,
-      "z": 109.95
+      "z": 109.95,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -85.88,
-      "z": 112.5
+      "z": 112.5,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.1925,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -96.58,
-      "z": 112.5
+      "z": 112.5,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 1.5768,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -107.58,
-      "z": 112.59
+      "z": 112.59,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 1.2869,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -115.47,
-      "z": 105.38
+      "z": 105.38,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.4533,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -122.98,
-      "z": 97.83
+      "z": 97.83,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -129.36,
-      "z": 89.66
+      "z": 89.66,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.4889,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -122.92,
-      "z": 80.61
+      "z": 80.61,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -116.88,
-      "z": 71.23
+      "z": 71.23,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.7605,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -110.72,
-      "z": 62.01
+      "z": 62.01,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -2.7848,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -99.8,
-      "z": 61.5
+      "z": 61.5,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.0865,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -88.98,
-      "z": 63.73
+      "z": 63.73,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.6889,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -80.14,
-      "z": 69.97
+      "z": 69.97,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -72.85,
-      "z": 77.72
+      "z": 77.72,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.8245,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -65.08,
-      "z": 85.43
+      "z": 85.43,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.7679,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -108.05,
-      "z": -79.09
+      "z": -79.09,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -98.61,
-      "z": -74.32
+      "z": -74.32,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.9785,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -87.7,
-      "z": -72.94
+      "z": -72.94,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 3.0334,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -79.41,
-      "z": -76.51
+      "z": -76.51,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.9307,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -70.87,
-      "z": -81.62
+      "z": -81.62,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -3.0542,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -63.16,
-      "z": -95.14
+      "z": -95.14,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -70.91,
-      "z": -102.86
+      "z": -102.86,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -76.11,
-      "z": -112.98
+      "z": -112.98,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 1.7917,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -89.91,
-      "z": -125.79
+      "z": -125.79,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -3.1048,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -99.59,
-      "z": -121.91
+      "z": -121.91,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.7057,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -115.98,
-      "z": -109.52
+      "z": -109.52,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.7104,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -123.51,
-      "z": -94.84
+      "z": -94.84,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 3,
       "x": -123.91,
-      "z": -102.39
+      "z": -102.39,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -2.4361,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -111.72,
-      "z": -82.43
+      "z": -82.43,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -119.61,
-      "z": -90.78
+      "z": -90.78,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -127.8,
-      "z": -98.84
+      "z": -98.84,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.2904,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -104.32,
-      "z": -75.31
+      "z": -75.31,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.3898,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -93.1,
-      "z": -73.43
+      "z": -73.43,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.7131,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -82.53,
-      "z": -72.23
+      "z": -72.23,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -2.8191,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -76.33,
-      "z": -80.69
+      "z": -80.69,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -65.79,
-      "z": -82.22
+      "z": -82.22,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.502,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -59.53,
-      "z": -91.08
+      "z": -91.08,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.7022,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -74.69,
-      "z": -106.86
+      "z": -106.86,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.076,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -67.36,
-      "z": -98.86
+      "z": -98.86,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.7202,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -77.26,
-      "z": -118.0
+      "z": -118.0,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.3297,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -84.78,
-      "z": -125.74
+      "z": -125.74,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.2032,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -95.72,
-      "z": -125.43
+      "z": -125.43,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -103.55,
-      "z": -118.53
+      "z": -118.53,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -112.5,
-      "z": -112.5
+      "z": -112.5,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 3,
       "x": -120.14,
-      "z": -105.52
+      "z": -105.52,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 103.69,
-      "z": 116.29
+      "z": 116.29,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -3.0248,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 113.82,
-      "z": 114.72
+      "z": 114.72,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": -3.0405,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 118.51,
-      "z": 108.67
+      "z": 108.67,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 1.6725,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 114.62,
-      "z": 88.74
+      "z": 88.74,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 1.7084,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 111.09,
-      "z": 79.38
+      "z": 79.38,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.1044,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 81.46,
-      "z": 116.02
+      "z": 116.02,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.9705,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 72.24,
-      "z": 110.69
+      "z": 110.69,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 64.35,
-      "z": 102.74
+      "z": 102.74,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 62.55,
-      "z": 93.76
+      "z": 93.76,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 1.1738,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 67.78,
-      "z": 84.41
+      "z": 84.41,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.9278,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 84.35,
-      "z": 70.26
+      "z": 70.26,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 0.54,
+      "length": 10.8
     },
     {
       "type": "wall_segment",
       "player": 2,
       "x": 94.12,
-      "z": 67.88
+      "z": 67.88,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.9655,
+      "length": 10.8
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 60.38,
-      "z": 98.98
+      "z": 98.98,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.2399,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 68.35,
-      "z": 107.25
+      "z": 107.25,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 76.2,
-      "z": 114.86
+      "z": 114.86,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.9661,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 86.73,
-      "z": 117.15
+      "z": 117.15,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.0225,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 97.92,
-      "z": 116.98
+      "z": 116.98,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.5299,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 108.36,
-      "z": 115.52
+      "z": 115.52,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 1.7036,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 118.91,
-      "z": 114.24
+      "z": 114.24,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.6072,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 117.72,
-      "z": 103.82
+      "z": 103.82,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 1.9588,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 115.41,
-      "z": 93.86
+      "z": 93.86,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -1.3762,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 113.69,
-      "z": 83.78
+      "z": 83.78,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 108.27,
-      "z": 74.81
+      "z": 74.81,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": -0.5808,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 98.84,
-      "z": 68.79
+      "z": 68.79,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 1.1943,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 88.92,
-      "z": 67.26
+      "z": 67.26,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.2542,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 79.96,
-      "z": 73.0
+      "z": 73.0,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 70.98,
-      "z": 79.89
+      "z": 79.89,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.2014,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 2,
       "x": 64.42,
-      "z": 89.1
+      "z": 89.1,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 0.8004,
+      "length": 3.0
     }
   ],
   "units": [

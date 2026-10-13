@@ -1687,6 +1687,11 @@ public:
 	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
 	// built and uncapturable.
 	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
+	// A ported map's WallSet piece (tools/port_0ad_maps.py wall_piece): `player`'s built `kind`
+	// (WallSetKind) wall, tower or gate (MapWallPiece) at (x, z), turned to its 0 A.D. Position
+	// `angle`; a wall or gate is `length` long. Gaia's can't be captured. Returns its id.
+	enum MapWallPiece : uint8_t { MAP_WALL_SEGMENT, MAP_WALL_TOWER, MAP_WALL_GATE };
+	uint32_t spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t piece, float x, float z, float angle, float length);
 	// rmgen-common player.js placeStartingWalls, the Iberian "Starting Walls" civ bonus: on a map
 	// over 128 tiles across (`map_tiles`), an Iberian player's base at (x, z) gets built stone
 	// walls, either a ring of long walls, gates and towers (STARTING_WALLS_FORTRESS,

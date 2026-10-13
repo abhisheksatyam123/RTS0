@@ -30,7 +30,7 @@ const CIVS := [
 	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
 	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
 	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
-	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/gauls.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
+	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
 ]
 ## A slot's "civ" is the rtso::Civilization id (14 is Gaia, never listed); this one is "Random".
 const RANDOM_CIV := -1

@@ -6292,6 +6292,21 @@ void Simulation::spawn_gaia_gate(float x, float z, float rot, uint8_t kind) {
 	if (!bulk) rebuild_nav_grid();
 }
 
+uint32_t Simulation::spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t piece, float x, float z, float angle,
+		float length) {
+	const WallSetInfo &ws = wallset_info(kind < WALLSET_COUNT ? kind : (uint8_t)WALLSET_STONE);
+	WallPiece p{ws.segment, x, z, angle, 0.5f * length};
+	if (piece == MAP_WALL_TOWER) {
+		p.type = ws.tower;
+		p.half_w = ws.tower_half;
+	} else if (piece == MAP_WALL_GATE) {
+		p.type = kind == WALLSET_PALISADE ? (uint8_t)BLD_PALISADE_GATE : kind == WALLSET_SIEGE ? (uint8_t)BLD_SIEGE_WALL_GATE : (uint8_t)BLD_GATE;
+	}
+	const uint32_t id = spawn_wall_piece(p, player, 1.0f);
+	if (player == GAIA_PLAYER) set_structure_uncapturable(id);
+	return id;
+}
+
 void Simulation::clear_resources_near(float x, float z, float r) {
 	for (size_t i = 0; i < resources_.count; ++i) {
 		if (!resources_.alive[i] || resources_.subtype[i] == RES_SUB_FISH) continue;

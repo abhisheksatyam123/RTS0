@@ -15,7 +15,10 @@ skin it was baked from, and writes:
 the shader can divide it back out: out = baked * mix(player, 1, a) / mix(tint, 1, a).
 Only skins used by a player_trans actor get a mask; other alpha is transparency.
 
-Usage: python3 tools/extract_player_masks.py [--ref master] [--only id,id]
+With --zip it reads a 0 A.D. release's public.zip instead (0.28's Germans and
+the skins under skeletal/germ/ are not on GitHub's master).
+
+Usage: python3 tools/extract_player_masks.py [--ref master | --zip public.zip] [--only id,id]
 """
 import argparse
 import concurrent.futures as cf
@@ -26,6 +29,7 @@ import struct
 import sys
 import urllib.request
 import xml.etree.ElementTree as ET
+import zipfile
 
 from PIL import Image
 
@@ -40,7 +44,17 @@ MATCH_LIMIT = 24.0
 KNOWN_TINTS = [(1.0, 1.0, 1.0), (0.36, 0.62, 0.94), (0.92, 0.32, 0.28), (0.92, 0.9, 0.82)]  # mean |RGB| difference on unmasked texels (0-765)
 
 
+ZIP = None
+
+
 def fetch(ref, path):
+    if ZIP is not None:
+        for name in (path, path + ".cached.dds"):
+            try:
+                return ZIP.read(name)
+            except KeyError:
+                pass
+        return None
     url = f"https://raw.githubusercontent.com/0ad/0ad/{ref}/binaries/data/mods/public/{path}"
     for attempt in range(4):
         try:
@@ -126,8 +140,12 @@ def estimate_tint(baked, src):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ref", default="master")
+    ap.add_argument("--zip", help="read a 0 A.D. release public.zip instead of GitHub")
     ap.add_argument("--only", default="")
     args = ap.parse_args()
+    global ZIP
+    if args.zip:
+        ZIP = zipfile.ZipFile(args.zip)
     os.chdir(ROOT)
 
     models = json.load(open("assets/models/manifest.json"))["models"]
@@ -216,7 +234,8 @@ def main():
             if tint is None:
                 unmatched += 1
                 continue
-            if rel not in written:
+            # A partial run keeps the masks on disk: other models use them.
+            if rel not in written and not (only and os.path.exists(path)):
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 r.getchannel("A").point(lambda a: 255 - a if a < 250 else 0).save(path, optimize=True)
                 written.add(rel)
