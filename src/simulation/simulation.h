@@ -162,7 +162,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 67; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 69; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -261,6 +262,9 @@ public:
 		uint8_t arrow_round = 0;      // currentRound
 		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
 		bool arrow_timer_on = false;  // a FireArrows timer is set
+		// focusTargets (0 A.D. "focus-fire", AddFocusTarget): entity ids its arrows go to first,
+		// in order; empty: FireArrows picks its own. Saved in save_tick_state (SAVE_VERSION_FOCUS_FIRE).
+		std::vector<uint32_t> focus_targets;
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -383,7 +387,7 @@ public:
 	// hashed or read by the simulation; at most kMaxAttackedEvents wait between reads
 	// so a headless sim without a reader stays bounded.
 	struct AttackedEvent {
-		uint32_t attacker_id; // unit or structure, 0 for none (DeathDamage, fauna)
+		uint32_t attacker_id; // unit, structure or animal; 0 for none (DeathDamage)
 		uint32_t target_id;
 		uint8_t attacker_owner;
 		uint8_t target_owner;
@@ -397,6 +401,17 @@ public:
 	std::vector<AttackedEvent> take_attacked_events() {
 		std::vector<AttackedEvent> out;
 		out.swap(attacked_events_);
+		return out;
+	}
+	// A unit's melee or Slaughter strike on an animal: presentation only like
+	// AttackedEvent (the striker's attack_melee or attack_slaughter sound plays on it).
+	struct FaunaStrikeEvent {
+		uint32_t attacker_id;
+		uint8_t slaughter;
+	};
+	std::vector<FaunaStrikeEvent> take_fauna_strikes() {
+		std::vector<FaunaStrikeEvent> out;
+		out.swap(fauna_strikes_);
 		return out;
 	}
 	// 0 A.D. session chat notifications (gui/session/messages.js "tribute",
@@ -747,6 +762,13 @@ public:
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
+	// 0 A.D. "focus-fire" (BuildingAI.AddFocusTarget): `player`'s structures in `building_ids`
+	// that shoot arrows aim at `target` (a unit, structure or dangerous animal they can
+	// attack and that is in their range) before anything else: it replaces the focus list,
+	// joins its end (queued) or goes first (push_front). Returns whether any structure took it.
+	static constexpr size_t MAX_FOCUS_TARGETS = 64;
+	bool cmd_focus_fire(uint8_t player, const uint32_t *building_ids, size_t count, uint32_t target,
+			bool queued, bool push_front = false);
 	bool cmd_raise_alert(uint8_t player, uint32_t building_id);
 	bool cmd_end_alert(uint8_t player, uint32_t building_id);
 	// target_unit_id: a unit or a structure, one's own or an ally's (Guard.js).
@@ -869,6 +891,14 @@ public:
 	int team_pop_cap() const { return pop_cap_ <= -TEAM_POP_FLAG ? -pop_cap_ - TEAM_POP_FLAG : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
 	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
+	// A scenario's own PopulationLimit for one player (0.28 PlayerData; InitGame.js gives the
+	// other players the setup's cap and PopulationCapManager.SetPerPlayerPopulationCaps). 0
+	// clears it; reset() clears every player's. Saved (SAVE_VERSION_PLAYER_POP_CAP).
+	static constexpr int MAX_PLAYER_POP_CAP = 1000000;
+	void set_player_pop_cap(uint8_t player, int cap) {
+		if (player < MAX_PLAYERS) player_pop_cap_[player] = std::clamp(cap, 0, MAX_PLAYER_POP_CAP);
+	}
+	int player_pop_cap(uint8_t player) const { return player < MAX_PLAYERS ? player_pop_cap_[player] : 0; }
 	void set_team_pop_cap(int team) { pop_cap_ = team > 0 ? -TEAM_POP_FLAG - std::min(team, MAX_TEAM_POP) : 0; }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
@@ -1356,7 +1386,7 @@ public:
 	void petra_build_defenses();
 	void petra_check_resource_levels(int32_t turn);
 	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
-	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 6000.0f, bool *no_site = nullptr);
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -1626,7 +1656,9 @@ public:
 		float half_w, half_d; // RTS0 units along the rotated x and z axes
 		float hp;
 		uint8_t type;         // SceneryType (scenery_type_info)
-		uint8_t pad[3];
+		uint8_t owner;        // Ownership: a player, or GAIA_PLAYER (0xFE)
+		uint8_t pad[2];
+		std::array<float, MAX_PLAYERS + 1> cp; // Capturable points per player, then Gaia's
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
 	// The scenery_ index of entity `id`, or -1.
@@ -1637,7 +1669,12 @@ public:
 	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
 	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
 	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
-	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	// Capturable scenery (benches, tables, obelisks, wooden fences) is captured instead, as a
+	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
+	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
+	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
 	void tick_scenery_attackers();
 	void destroy_scenery(size_t k, int32_t killer);
@@ -1867,6 +1904,7 @@ private:
 			float armor[3];
 			float cost[RES_COUNT];
 			float cost_add[RES_COUNT]; // Cost/Resources added after the multipliers (Nastasen's Gift of Warships)
+			float loot_mul[RES_COUNT], loot_add[RES_COUNT]; // the unit's own Loot/<res> (Celtic Auxiliaries)
 		} tmpl[CIV_UNIT_TEMPLATE_COUNT];
 	};
 	void compute_tech_mods(uint8_t player_id, TechMods &out) const;
@@ -2113,6 +2151,7 @@ private:
 			bool target_is_building, float damage, bool melee = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
@@ -2189,6 +2228,7 @@ private:
 	bool waves_enabled_ = false;
 	bool last_man_standing_ = false;
 	int pop_cap_ = 200;
+	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
 	std::vector<BattleAlert> pending_alerts_;
@@ -2246,6 +2286,8 @@ private:
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
 	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
+	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
@@ -2683,6 +2725,7 @@ private:
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
 	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
+	void petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
@@ -2705,6 +2748,7 @@ private:
 	// 0 when there are no markets to measure from (place it anywhere), -1 when nothing will do.
 	int petra_find_market_location(float &out_x, float &out_z, int &out_gain) const;
 	uint32_t petra_build_market(float home_x, float home_z, uint8_t queue); // ConstructionPlan for a Market
+	bool petra_find_defensive_location(uint8_t btype, int &out_cx, int &out_cz) const; // headquarters.js findDefensiveLocation
 	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
 	int petra_pop_room() const; // population left after Petra's queued batches
@@ -2722,7 +2766,9 @@ private:
 	               float x = 0.0f, float z = 0.0f, uint8_t player2 = 0xFF);
 	uint8_t petra_owner_of(uint32_t id) const; // a building's or unit's owner, 0xFF if gone
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
-	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
+	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
+	// 0 A.D.'s ProductionQueue holds an item until there is room.
+	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false);
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
 	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
 	bool petra_emergency_rally(const Building &b) const {
@@ -2826,6 +2872,7 @@ private:
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
+	bool territory_decay_targets(float x, float z, uint8_t team, bool neutral, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: each claiming structure's
 	// TerritoryInfluence in buildings_ order, the grid size and the map extent. Same inputs, same
 	// grids, so the 1 Hz refresh skips.

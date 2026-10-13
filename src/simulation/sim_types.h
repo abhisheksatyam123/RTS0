@@ -175,7 +175,9 @@ enum MapType : uint8_t {
 	MAP_MIGRATION = 85,
 	MAP_NGORONGORO = 86,
 	MAP_RIVER_ARCHIPELAGO = 87,
-	MAP_TYPE_COUNT = 88
+	MAP_LAND_GRAB = 88,
+	MAP_THE_NILE = 89,
+	MAP_TYPE_COUNT = 90
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -187,7 +189,8 @@ enum TeamPlacement : uint8_t {
 	TEAM_PLACEMENT_LINE = 2,
 	TEAM_PLACEMENT_RANDOM_GROUP = 3,
 	TEAM_PLACEMENT_STRONGHOLD = 4,
-	TEAM_PLACEMENT_COUNT = 5
+	TEAM_PLACEMENT_RIVER = 5,        // players on two parallel lines across the map
+	TEAM_PLACEMENT_COUNT = 6
 };
 
 struct MapTypeInfo {
@@ -199,9 +202,27 @@ struct MapTypeInfo {
 	const char *description;
 };
 
-// The maps that offer Team Placement: 0 A.D.'s Ambush and Frontier list
-// ["radial", "line", "randomGroup", "stronghold"].
-inline bool map_has_team_placement(uint8_t type) { return type == MAP_AMBUSH || type == MAP_FRONTIER; }
+// The Team Placement patterns a random map offers: a bit (1 << TEAM_PLACEMENT_*)
+// per pattern its 0.28 JSON lists in PlayerPlacements (circle, river,
+// groupedLines, randomGroup, stronghold); 0 for maps without the setting.
+inline uint8_t map_team_placements(uint8_t type) {
+	constexpr uint8_t C = 1 << TEAM_PLACEMENT_RADIAL, R = 1 << TEAM_PLACEMENT_RIVER, L = 1 << TEAM_PLACEMENT_LINE,
+	                  G = 1 << TEAM_PLACEMENT_RANDOM_GROUP, S = 1 << TEAM_PLACEMENT_STRONGHOLD;
+	switch (type) {
+		case MAP_AFRICAN_PLAINS: case MAP_ALPINE_LAKES: case MAP_AMBUSH: case MAP_ANATOLIAN_PLATEAU: case MAP_ARCHIPELAGO_0AD:
+		case MAP_ARCTIC_SUMMER: case MAP_ATLAS_MOUNTAINS: case MAP_BOTSWANAN_HAVEN: case MAP_FRONTIER: case MAP_MAINLAND:
+		case MAP_RHINE_MARSHLANDS: case MAP_SAHEL:
+			return C | R | L | G | S;
+		case MAP_ARDENNES_FOREST: return C | R | L | G;
+		case MAP_CANTABRIAN_HIGHLANDS: return C | S;
+		case MAP_EXTINCT_VOLCANO: return C | R | G;
+		case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
+		case MAP_LAKE: case MAP_NEARESTERN_BADLANDS: return C | R;
+		case MAP_SYRIA: return C | R | G | S;
+		default: return 0;
+	}
+}
+inline bool map_has_team_placement(uint8_t type) { return map_team_placements(type) != 0; }
 
 inline const MapTypeInfo &map_type_info(uint8_t type) {
 	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {
@@ -292,7 +313,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_LOWER_NUBIA, "lower_nubia", "Lower Nubia (RMS)", "savanna", true, "Known in the Greco-Roman world as the Triakontaschoinos, Lower Nubia was the area between the first and second cataracts of the Nile and formed the traditional border region between Kush and Egypt. The scorching desert, steep valleys and towering cliffs of the area make this an inhospitable place to live, but the control of this ancient corridor was vital for any power seeking to control the lucrative trade routes on the Nile and affords access to the rich goldfields of the Nubian desert."},
 		{MAP_MIGRATION, "migration", "Migration (RMS)", "temperate", true, "Players start on islands towards the outside of the map and must move to take advantage of the middle island before their resources run out."},
 		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
-		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."}
+		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."},
+		{MAP_LAND_GRAB, "land_grab", "Land Grab (RMS)", "temperate", true, "Players start in small islands in the eastern part of the map. There is a big continent in the west ready for expansion."},
+		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -313,6 +336,7 @@ inline bool map_is_naval(int type) {
 		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN: case MAP_DANUBIUS:
 		case MAP_MIGRATION:
 		case MAP_RIVER_ARCHIPELAGO:
+		case MAP_LAND_GRAB: case MAP_THE_NILE:
 			return true;
 		default:
 			return false;
@@ -916,24 +940,6 @@ inline float unit_collision_radius(uint8_t type) {
 	}
 }
 
-// 0 A.D. capture attack strengths by class (Attack.js Capture in template_unit_infantry,
-// _cavalry and _hero.xml: 2.5, 2.5, 10; champions 5 via unit_capture_attack).
-// Support units (women, healers, traders, worker elephants), siege and ships have no
-// Capture attack. RTS0's generic villager keeps 1.
-inline float unit_capture_strength(uint8_t type) {
-	switch (type) {
-		case UNIT_VILLAGER: return 1.0f;
-		case UNIT_CAVALRY: case UNIT_CHARIOT: case UNIT_CAMEL:
-		case UNIT_SCYTHED_CHARIOT:
-		case UNIT_SPEARMAN: case UNIT_SWORDSMAN: case UNIT_ARCHER:
-		case UNIT_ARCHER_MAIDEN: case UNIT_ELEPHANT: case UNIT_CARNYX:
-		case UNIT_WAR_DOG: return 2.5f;
-		case UNIT_HERO: return 10.0f;
-		case UNIT_MINISTER: return 8.0f; // units/han/support_minister Attack/Capture
-		default: return 0.0f;
-	}
-}
-
 inline const char *unit_type_name(uint8_t type) { return unit_type_info(type).name; }
 inline const char *unit_type_model(uint8_t type) { return unit_type_info(type).model_id; }
 inline const char *unit_type_portrait(uint8_t type) { return unit_type_info(type).portrait_id; }
@@ -1071,40 +1077,41 @@ struct BuildingTypeInfo {
 inline const BuildingTypeInfo &building_type_info(uint8_t type) {
 	static const BuildingTypeInfo kTable[BLD_TYPE_COUNT] = {
 		// name, model, portrait, hp, foot, f, w, g, s, pop, garrison, build_time,
-		// capture max, regen, garrison regen, territory decay (Capturable from
-		// template_structure.xml 500/0.5/1.0; civil centre 2500/5, fortress x8 and 10, wonder x4,
-		// farmstead 300). garrison is GarrisonHolder/Max (0: none; the house's civ value and
+		// capture max, regen, garrison regen, territory decay (0.28 Capturable from
+		// template_structure.xml 500/5/1.0; civil centre 2500/30, fortress x8 and 45, temple 15,
+		// template_structure_military and _defensive_tower 10, wonder x4, farmstead 300; the dock's
+		// TerritoryDecay is disabled). garrison is GarrisonHolder/Max (0: none; the house's civ value and
 		// other civ overrides are in structure_garrison_max, the List in structure_garrison_list).
-		{"Town Center", "town_center", "town_center", 2500.0f, 2, 0, 300, 100, 200, 20, 20, 60.0f, 2500.0f, 5.0f, 1.0f, 20.0f},
-		{"House", "house", "house", 500.0f, 1, 0, 80, 0, 0, 5, 3, 20.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Barracks", "barracks", "barracks", 1500.0f, 2, 0, 150, 50, 50, 0, 10, 35.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Defense Tower", "wall_tower", "tower", 1200.0f, 1, 0, 100, 0, 100, 0, 5, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Farmstead", "farmstead", "farmstead", 800.0f, 1, 0, 100, 0, 0, 0, 0, 25.0f, 300.0f, 0.5f, 1.0f, 20.0f},
-		{"Market", "market", "market", 1200.0f, 2, 0, 200, 100, 0, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Fortress", "fortress", "fortress", 3500.0f, 2, 0, 300, 200, 300, 0, 20, 80.0f, 4000.0f, 10.0f, 1.0f, 40.0f},
-		{"Gate", "gate", "gate", 1500.0f, 1, 0, 100, 0, 100, 0, 0, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Temple", "temple", "temple", 1200.0f, 2, 0, 150, 100, 100, 0, 20, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 500, 500, 500, 500, 0, 50, 120.0f, 2000.0f, 0.5f, 1.0f, 20.0f},
-		{"Naval Shipyard Dock", "dock", "dock", 1400.0f, 2, 0, 200, 0, 100, 0, 0, 40.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stone Wall Segment", "wall_segment", "wall", 1800.0f, 1, 0, 0, 0, 40, 0, 0, 15.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Livestock Corral", "corral", "corral", 800.0f, 2, 0, 100, 0, 0, 0, 8, 25.0f, 500.0f, 0.5f, 1.0f, 20.0f},
+		{"Town Center", "town_center", "town_center", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f},
+		{"House", "house", "house", 800.0f, 1, 0, 75, 0, 0, 5, 3, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Barracks", "barracks", "barracks", 2000.0f, 2, 0, 200, 0, 100, 0, 10, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Storehouse", "storehouse", "storehouse", 800.0f, 1, 0, 100, 0, 0, 0, 0, 10.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Defense Tower", "wall_tower", "tower", 1000.0f, 1, 0, 100, 0, 100, 0, 5, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Farmstead", "farmstead", "farmstead", 900.0f, 1, 0, 100, 0, 0, 0, 0, 11.25f, 300.0f, 5.0f, 1.0f, 20.0f},
+		{"Market", "market", "market", 1500.0f, 2, 0, 300, 0, 0, 0, 0, 37.5f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Fortress", "fortress", "fortress", 5200.0f, 2, 0, 300, 0, 600, 0, 20, 112.5f, 4000.0f, 45.0f, 1.0f, 40.0f},
+		{"Gate", "gate", "gate", 2500.0f, 1, 0, 12, 0, 18, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Temple", "temple", "temple", 2000.0f, 2, 0, 0, 0, 300, 0, 20, 50.0f, 500.0f, 15.0f, 1.0f, 20.0f},
+		{"Wonder Monument", "wonder", "wonder", 5000.0f, 2, 0, 1000, 1000, 1500, 0, 50, 250.0f, 2000.0f, 5.0f, 1.0f, 20.0f},
+		{"Naval Shipyard Dock", "dock", "dock", 2500.0f, 2, 0, 200, 0, 0, 0, 0, 37.5f, 500.0f, 10.0f, 1.0f, 0.0f},
+		{"Stone Wall Segment", "wall_segment", "wall", 3000.0f, 1, 0, 0, 0, 36, 0, 0, 9.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Livestock Corral", "corral", "corral", 500.0f, 2, 0, 100, 0, 0, 0, 8, 12.5f, 500.0f, 5.0f, 1.0f, 20.0f},
 		// 0 A.D. 0.28 template_structure_* values: Health/Max, Cost/Resources,
 		// GarrisonHolder/Max, Capturable. BuildTime is scaled by 0.25 to match
 		// RTS0's compressed build times (barracks 150s -> 35s above); footprint
 		// is 2 cells when the 0 A.D. footprint is wider than 15 m.
-		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 13.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 8.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Palisade", "palisade", "palisade", 1000.0f, 1, 0, 14, 0, 0, 0, 0, 5.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 0.5f, 1.0f, 20.0f},
-		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 38.0f, 500.0f, 0.5f, 1.0f, 20.0f}, // cart/embassy_celtic
+		{"Field", "field_plot", "field", 250.0f, 2, 0, 100, 0, 0, 0, 0, 12.5f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Stable", "stable", "stable", 2000.0f, 2, 0, 200, 0, 50, 0, 10, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Archery Range", "range", "range", 2000.0f, 2, 0, 200, 0, 0, 0, 10, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Forge", "blacksmith", "forge", 2000.0f, 2, 0, 200, 0, 0, 0, 1, 30.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Arsenal", "arsenal", "arsenal", 2000.0f, 2, 0, 300, 0, 0, 0, 5, 45.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Sentry Tower", "sentry_tower", "sentry_tower", 400.0f, 1, 0, 100, 0, 0, 0, 3, 10.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Outpost", "outpost", "outpost", 400.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Palisade", "palisade", "palisade", 600.0f, 1, 0, 12, 0, 0, 0, 0, 3.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Wall Tower", "wall_tower", "wall_tower", 4000.0f, 1, 0, 0, 0, 48, 0, 4, 12.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Elephant Stable", "stable_elephant", "elephant_stable", 3000.0f, 2, 0, 200, 0, 200, 0, 5, 45.0f, 500.0f, 10.0f, 1.0f, 20.0f},
+		{"Theater", "theater", "theater", 3000.0f, 2, 0, 200, 200, 600, 0, 5, 125.0f, 500.0f, 5.0f, 1.0f, 20.0f},
+		{"Celtic Embassy", "embassy", "embassy", 1200.0f, 2, 0, 200, 0, 0, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, // cart/embassy_celtic
 		// Civ-specific structures, BLD_GYMNASIUM onwards (civ_building_data.h).
 		RTSO_CIV_BUILDING_INFO_ROWS
 	};
@@ -1131,11 +1138,11 @@ inline bool civ_has_big_house(uint8_t civ) {
 // simulation/templates: brit/{civil_centre,house,defense_tower,fortress,wonder}.xml,
 // iber/{defense_tower,wall_tower}.xml, maur/wonder.xml, every civ's theater
 // (template_structure_special_theater.xml) and athen/prytaneion, spart/gerousia, gaul/assembly,
-// ptol/lighthouse, rome/temple_vesta and pers/ice_house.
+// ptol/lighthouse, rome/temple_vesta, pers/ice_house and brit/crannog.
 inline bool building_footprint_round(uint8_t civ, uint8_t type) {
 	switch (type) {
 		case BLD_THEATER: case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY:
-		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE:
+		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE: case BLD_CRANNOG:
 			return true;
 		case BLD_TOWN_CENTER: case BLD_HOUSE: case BLD_FORTRESS:
 			return civ == CIV_BRITONS;
@@ -1150,15 +1157,49 @@ inline bool building_footprint_round(uint8_t civ, uint8_t type) {
 	}
 }
 
-// building_type_info for a civ: the big house where the civ has one (its time and health
-// scaled from RTS0's house row by 0 A.D.'s big/small ratio). The apartment keeps its row.
+// building_type_info for a civ: where structures/<civ>/<name>.xml differs from the generic row
+// (0.28's own Health/Max, Cost and BuildTime x0.25). The big house
+// (template_structure_civic_house_big: 1200 health, 150 wood, 10 population, 50 s) where the civ
+// has one; brit/gaul/maur barracks and stables, brit/gaul temples and maur walls, gates and wall
+// towers in wood; germ/temple 150 wood and 150 stone; iber/defense_tower; cart/dock 150 wood;
+// han/field 60 wood and 30 s. GarrisonHolder/Max differences are in structure_garrison_max.
 inline BuildingTypeInfo civ_building_type_info(uint8_t civ, uint8_t type) {
 	BuildingTypeInfo info = building_type_info(type);
-	if (type == BLD_HOUSE && civ_has_big_house(civ)) {
-		info.pop_bonus = 10;
-		info.wood_cost = 150;
-		info.build_time *= 50.0f / 30.0f;
-		info.max_hp *= 1200.0f / 800.0f;
+	const bool celt_or_maur = civ == CIV_BRITONS || civ == CIV_GAULS || civ == CIV_MAURYANS;
+	auto cost = [&info](int wood, int stone) { info.wood_cost = wood; info.stone_cost = stone; };
+	switch (type) {
+		case BLD_HOUSE:
+			if (civ_has_big_house(civ)) {
+				info.max_hp = 1200.0f;
+				info.wood_cost = 150;
+				info.pop_bonus = 10;
+				info.build_time = 50.0f * 0.25f;
+			}
+			break;
+		case BLD_BARRACKS: if (celt_or_maur) cost(300, 0); break;
+		case BLD_STABLE: if (celt_or_maur) cost(250, 0); break;
+		case BLD_TEMPLE:
+			if (civ == CIV_BRITONS || civ == CIV_GAULS) cost(300, 0);
+			else if (civ == CIV_GERMANS) cost(150, 150);
+			break;
+		case BLD_GATE: if (civ == CIV_MAURYANS) cost(30, 0); break;
+		case BLD_WALL_SEGMENT: if (civ == CIV_MAURYANS) cost(36, 0); break;
+		case BLD_WALL_TOWER: if (civ == CIV_MAURYANS) cost(60, 0); break;
+		case BLD_TOWER:
+			if (civ == CIV_IBERIANS) {
+				info.max_hp = 2400.0f;
+				cost(50, 250);
+				info.build_time = 200.0f * 0.25f;
+			}
+			break;
+		case BLD_DOCK: if (civ == CIV_CARTHAGINIANS) info.wood_cost = 150; break;
+		case BLD_FIELD:
+			if (civ == CIV_HAN) {
+				info.wood_cost = 60;
+				info.build_time = 30.0f * 0.25f;
+			}
+			break;
+		default: break;
 	}
 	return info;
 }
@@ -1419,6 +1460,7 @@ enum TechStat : uint8_t {
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
 	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_TERRITORY_DECAY, // TerritoryDecay/DecayRate (Migratory Resettlement)
+	TSTAT_UNIT_LOOT_FOOD, TSTAT_UNIT_LOOT_WOOD, TSTAT_UNIT_LOOT_STONE, TSTAT_UNIT_LOOT_METAL, // Loot/<res> of the unit itself
 	TSTAT_COUNT
 };
 
@@ -1469,6 +1511,47 @@ struct TechSet {
 
 inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
+}
+
+// Can a building of this type research the tech for a player of this civ? Its research
+// base's list, with 0.28's per-structure Researcher changes ("-" drops a token):
+//  - the crannog drops phase_town and hellenistic_metropolis, the Han Imperial Court
+//    phase_town, and the military colony (template_structure_civic_civil_centre_military_colony)
+//    both phases and hellenistic_metropolis;
+//  - Han: the Civic Center (and court) drop unlock_spies and spy_counter, which the
+//    ministry researches; the forge drops archer_attack_spread, which the barracks and
+//    stable research;
+//  - the Mauryan palace researches unlock_spies and spy_counter too;
+//  - Carthage: the dock drops warship_health, and the super dock (cart/super_dock) researches
+//    it and eight other dock techs.
+inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
+	const uint8_t r = tech_info(tech_id).researcher;
+	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
+	if (civ == CIV_HAN) {
+		if (spies) return type == BLD_MINISTRY;
+		if (tech_id == TECH_ARCHER_ATTACK_SPREAD) return type == BLD_BARRACKS || type == BLD_STABLE;
+	}
+	if (spies && type == BLD_PALACE) return true;
+	if (civ == CIV_CARTHAGINIANS) {
+		if (type == BLD_DOCK && tech_id == TECH_WARSHIP_HEALTH) return false;
+		if (type == BLD_SUPER_DOCK) {
+			switch (tech_id) {
+			case TECH_DOCK_EFFICIENCY: case TECH_SHIP_VISION: case TECH_EXPLORATION:
+			case TECH_WARSHIP_ARROW_ATTACK: case TECH_WARSHIP_RAMMING_ATTACK: case TECH_WARSHIP_FIRESHIP_ATTACK:
+			case TECH_WARSHIP_SIEGE_ATTACK: case TECH_WARSHIP_RANGED_ATTACK: case TECH_WARSHIP_HEALTH: return true;
+			default: break;
+			}
+		}
+	}
+	switch (type) {
+	case BLD_CRANNOG:
+		return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN && tech_id != TECH_HELLENISTIC_METROPOLIS;
+	case BLD_IMPERIAL_COURT: return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN;
+	case BLD_MILITARY_COLONY:
+		return r == BLD_MILITARY_COLONY || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
+		                                    && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	default: return r == building_research_base(type);
+	}
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?
@@ -1563,9 +1646,7 @@ inline bool siege_garrison_allowed(uint8_t unit_type) {
 }
 
 inline uint64_t building_tech_classes(uint8_t type) {
-	uint64_t c = TC_STRUCTURE;
-	uint8_t phase = building_required_phase(type);
-	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
+	const uint64_t c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
@@ -2310,16 +2391,6 @@ inline LootInfo unit_loot(uint16_t tmpl, uint8_t type) {
 	return unit_class_loot(type);
 }
 
-// A unit's Capture attack: template_unit_hero 10, template_unit_champion 5, else by class.
-inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
-	const float base = unit_capture_strength(type);
-	if (base <= 0.0f || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return base;
-	const uint16_t flags = civ_unit_template(tmpl).flags;
-	if (flags & ROSTER_HERO) return 10.0f;
-	if (flags & ROSTER_CHAMPION) return 5.0f;
-	return base;
-}
-
 // Structures yield resources (and no xp, but for the Han Imperial Ministry). Keyed by building type; the
 // civ-specific structures (ids 26-45) take their rows from civ_building_data.h.
 inline LootInfo building_loot(uint8_t type) {
@@ -2383,6 +2454,15 @@ inline const CombatProfile &unit_combat(uint16_t tmpl, uint8_t type) {
 	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return combat_template_table()[tmpl];
 	return combat_class_table()[type < UNIT_TYPE_COUNT ? type : UNIT_VILLAGER];
 }
+// A unit's Capture attack (Attack/Capture/Capture in its 0 A.D. template, civ_attack_data.h):
+// infantry 2.5, cavalry 1.75, champions 5, champion cavalry 3.5, heroes 10 (none on hero
+// elephants and healer heroes), male civilians 1, the Han minister 4. Women, healers, traders,
+// war elephants, dogs, siege and ships have none. RTS0's own villager captures as 0.28's civilian.
+inline float unit_capture_attack(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_VILLAGER) return 1.0f;
+	return unit_combat(tmpl, type).capture;
+}
+
 // A building type past the table (a civ-unique structure added later) is a generic structure.
 inline const CombatProfile &building_combat(uint8_t type) {
 	return combat_building_table()[type < COMBAT_BUILDING_ROWS ? type : COMBAT_BUILDING_ROWS];

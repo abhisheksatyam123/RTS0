@@ -1,7 +1,7 @@
 // 0 A.D. BuildingAI.js: structure arrows. DefaultArrowCount + garrisoned
 // GarrisonArrowClasses x GarrisonArrowMultiplier (capped at MaxArrowCount) per
-// Attack/Ranged/RepeatTime, fired over ten rounds after PrepareTime, each at a random
-// target weighted towards PreferredClasses (Human), with the template's damage and range.
+// Attack/Ranged/RepeatTime, fired over twenty rounds after PrepareTime, each round at the
+// first target by PreferredClasses (Human) then distance, with the template's damage and range.
 // Of Gaia only units and dangerous animals are shot (SetupGaiaRangeQuery), and only what
 // the owner sees (CheckTargetVisible); armour auras naming Structure (Maximus) count.
 //   g++ -std=c++20 -O2 -Isrc tools/test_building_ai.cpp src/simulation/simulation.cpp \
@@ -9,6 +9,7 @@
 //       src/network/net_host.cpp -lpthread -o /tmp/test_building_ai && /tmp/test_building_ai
 #define private public
 #include "simulation/simulation.h"
+#include "network/turn_manager.h"
 #undef private
 #include <cstring>
 #include <cmath>
@@ -199,22 +200,38 @@ int main() {
 		CHECK(all_far);
 	}
 
-	// 5. PreferredClasses: with a spearman and a ram in range, arrows go to the human
-	// about 3 times as often (weights 3 and 1).
+	// 5. 0.28 FireArrows' target order: PreferredClasses (Human) first, then the nearest;
+	// every arrow of a round goes to the first target. With a ram close by and two
+	// spearmen further out, all arrows go to the nearer spearman, then to the other
+	// spearman once he is dead, never to the ram while a human is in range.
 	{
 		fresh(s, 11);
 		uint32_t fort = s.spawn_building_world(-30.0f, -30.0f, BLD_FORTRESS, 0, 1.0f);
 		const float half = find_bld(s, fort)->half_size;
-		uint32_t man = foe(s, -30.0f + half + 8.0f, -30.0f);
-		uint32_t ram = foe(s, -30.0f, -30.0f + half + 8.0f, UNIT_SIEGE_RAM);
+		uint32_t ram = foe(s, -30.0f, -30.0f + half + 3.0f, UNIT_SIEGE_RAM);
+		uint32_t near_man = foe(s, -30.0f + half + 6.0f, -30.0f);
+		uint32_t far_man = foe(s, -30.0f - half - 9.0f, -30.0f);
+		auto keep_alive = [&](uint32_t id) { s.units_.hp[(size_t)idx_of(s, id)] = 1000.0f; };
 		ArrowCounter a;
-		for (int t = 0; t < (int)std::lround(70.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, fort); }
-		int at_man = 0, at_ram = 0;
-		for (const Projectile &p : a.fired) { at_man += p.target_unit_id == man; at_ram += p.target_unit_id == ram; }
-		std::printf("fortress over 70 s: %d arrows at the spearman, %d at the ram\n", at_man, at_ram);
-		CHECK(at_man + at_ram == (int)a.fired.size() && a.fired.size() >= 180);
-		const float share = (float)at_man / (float)(at_man + at_ram);
-		CHECK(share > 0.66f && share < 0.84f);
+		for (int t = 0; t < (int)std::lround(20.0f / Simulation::FIXED_STEP); ++t) {
+			keep_alive(near_man); keep_alive(far_man);
+			s.tick(Simulation::FIXED_STEP); a.step(s, fort);
+		}
+		int at_near = 0;
+		for (const Projectile &p : a.fired) at_near += p.target_unit_id == near_man;
+		std::printf("fortress over 20 s: %d of %d arrows at the nearer spearman\n", at_near, (int)a.fired.size());
+		CHECK(a.fired.size() >= 40 && at_near == (int)a.fired.size());
+		s.units_.hp[(size_t)idx_of(s, near_man)] = 0.0f;
+		s.units_.alive[(size_t)idx_of(s, near_man)] = 0;
+		ArrowCounter c;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) {
+			keep_alive(far_man);
+			s.tick(Simulation::FIXED_STEP); c.step(s, fort);
+		}
+		int at_far = 0, at_ram = 0;
+		for (const Projectile &p : c.fired) { at_far += p.target_unit_id == far_man; at_ram += p.target_unit_id == ram; }
+		std::printf("then %d arrows at the other spearman, %d at the ram\n", at_far, at_ram);
+		CHECK(!c.fired.empty() && at_far == (int)c.fired.size() && at_ram == 0);
 	}
 
 	// 6. Enemy structures in range draw arrows too; walls never shoot.
@@ -358,6 +375,105 @@ int main() {
 		const bool inf = (unit_tech_classes(UNIT_HERO) & TC_INFANTRY) != 0;
 		std::printf("siege tower with 4 spearmen and Caros: %d arrows\n", s.siege_tower_arrows((size_t)ti));
 		CHECK(s.siege_tower_arrows((size_t)ti) == (int)std::lround((4 + (inf ? 1 : 0)) * 1.75f));
+		s.transport_passengers_.erase(tower);
+	}
+
+	// 12. Focus fire (0 A.D. "focus-fire", BuildingAI.AddFocusTarget): with a spearman and a
+	// ram in range, a fortress told to focus the ram sends every arrow there; Shift queues the
+	// spearman after it. A target out of range is refused, the focus list survives a save, a
+	// dead target drops off and the fortress goes back to its own picks, a capture clears the
+	// list, and lockstep command 50 carries the order.
+	{
+		fresh(s, 13);
+		uint32_t fort = s.spawn_building_world(-30.0f, -30.0f, BLD_FORTRESS, 0, 1.0f);
+		const float half = find_bld(s, fort)->half_size;
+		uint32_t man = foe(s, -30.0f + half + 8.0f, -30.0f);
+		uint32_t ram = foe(s, -30.0f, -30.0f + half + 8.0f, UNIT_SIEGE_RAM);
+		uint32_t far_man = foe(s, 40.0f, 40.0f);
+		CHECK(!s.cmd_focus_fire(0, &fort, 1, far_man, false));
+		CHECK(!s.cmd_focus_fire(1, &fort, 1, ram, false)); // not player 1's fortress
+		CHECK(s.cmd_focus_fire(0, &fort, 1, ram, false));
+		CHECK(s.cmd_focus_fire(0, &fort, 1, man, true));
+		CHECK((find_bld(s, fort)->focus_targets == std::vector<uint32_t>{ram, man}));
+		const char *path = "/tmp/test_building_ai_focus.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		std::remove(path);
+		CHECK((find_bld(l, fort)->focus_targets == std::vector<uint32_t>{ram, man}));
+		ArrowCounter a;
+		for (int t = 0; t < (int)std::lround(20.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, fort); }
+		int at_man = 0, at_ram = 0;
+		for (const Projectile &p : a.fired) { at_man += p.target_unit_id == man; at_ram += p.target_unit_id == ram; }
+		std::printf("focused fortress over 20 s: %d arrows at the ram, %d at the spearman\n", at_ram, at_man);
+		CHECK(at_ram > 20 && at_man == 0);
+		// The ram dies: its focus entry drops at the next round and the spearman is next.
+		s.units_.hp[(size_t)idx_of(s, ram)] = 0.0f;
+		s.units_.alive[(size_t)idx_of(s, ram)] = 0;
+		ArrowCounter b;
+		for (int t = 0; t < (int)std::lround(20.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); b.step(s, fort); }
+		int b_man = 0;
+		for (const Projectile &p : b.fired) b_man += p.target_unit_id == man;
+		CHECK(!b.fired.empty() && b_man == (int)b.fired.size());
+		CHECK((find_bld(s, fort)->focus_targets == std::vector<uint32_t>{man}));
+		// Lockstep: command 50 with Shift pushes a third target onto the end.
+		uint32_t man2 = foe(s, -30.0f - half - 8.0f, -30.0f);
+		NetCommand c;
+		c.cmd_type = (uint8_t)NetCommandType::NET_CMD_FOCUS_FIRE;
+		c.entity_ids = {fort};
+		c.target_id = man2;
+		c.param = NET_PARAM_QUEUED;
+		CHECK((uint8_t)NetCommandType::NET_CMD_FOCUS_FIRE == 50);
+		TurnManager tm;
+		tm.post_local_command(c);
+		for (int t = 0; t < 4; ++t) tm.tick(TurnManager::TURN_DURATION, s);
+		CHECK(!find_bld(s, fort)->focus_targets.empty() && find_bld(s, fort)->focus_targets.back() == man2);
+		// OnOwnershipChanged empties the list.
+		const uint8_t to = 1;
+		s.cheat_convert(to, &fort, 1);
+		CHECK(find_bld(s, fort)->team == to && find_bld(s, fort)->focus_targets.empty());
+	}
+
+	// 13. Siege towers shoot as BuildingAI (0.28: Attack.js leaves entities with BuildingAI
+	// to it): an empty tower fires nothing, even at its ordered target; a manned one with
+	// no orders shoots the nearest human in range rather than the closer ram, and once
+	// ordered onto the ram (UnitAI's target, in range) every volley goes there.
+	{
+		fresh(s, 17);
+		const uint16_t st = template_named("mace/siege_tower");
+		uint32_t tower = s.spawn_unit(20.0f, 20.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, st);
+		const int32_t ti = idx_of(s, tower);
+		CHECK(ti >= 0 && s.is_siege_tower_at((size_t)ti));
+		const float r = s.units_.attack_range[(size_t)ti];
+		uint32_t ram = foe(s, 20.0f + r * 0.4f, 20.0f, UNIT_SIEGE_RAM);
+		uint32_t man = foe(s, 20.0f, 20.0f + r * 0.7f);
+		ArrowCounter e;
+		s.order_attack(&tower, 1, ram);
+		for (int t = 0; t < (int)std::lround(8.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); e.step(s, tower); }
+		CHECK(e.fired.empty());
+		s.cmd_stop(&tower, 1);
+		std::vector<uint32_t> crew;
+		for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(25.0f, 20.0f + k, 0, UNIT_SPEARMAN));
+		s.transport_passengers_[tower] = crew;
+		for (uint32_t c : crew) {
+			const int32_t ci = idx_of(s, c);
+			s.units_.action_state[(size_t)ci] = ACTION_GARRISONED;
+			s.units_.alive[(size_t)ci] = 0;
+		}
+		auto keep = [&] { s.units_.hp[(size_t)idx_of(s, man)] = 1000.0f; s.units_.hp[(size_t)idx_of(s, ram)] = 1000.0f; };
+		ArrowCounter a;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { keep(); s.tick(Simulation::FIXED_STEP); a.step(s, tower); }
+		int at_man = 0;
+		for (const Projectile &p : a.fired) at_man += p.target_unit_id == man;
+		std::printf("idle siege tower with 4 spearmen over 10 s: %d arrows, %d at the spearman\n", (int)a.fired.size(), at_man);
+		CHECK(a.fired.size() >= 8 && at_man == (int)a.fired.size());
+		s.order_attack(&tower, 1, ram);
+		ArrowCounter b;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { keep(); s.tick(Simulation::FIXED_STEP); b.step(s, tower); }
+		int at_ram = 0;
+		for (const Projectile &p : b.fired) at_ram += p.target_unit_id == ram;
+		std::printf("ordered onto the ram: %d of %d arrows at it\n", at_ram, (int)b.fired.size());
+		CHECK(!b.fired.empty() && at_ram == (int)b.fired.size());
 		s.transport_passengers_.erase(tower);
 	}
 

@@ -201,6 +201,9 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "resign" (Commands.js, the menu's Resign and ReturnQuestion's "I resign"):
 	// the issuing player is defeated; see Simulation::cmd_resign. No fields.
 	NET_CMD_RESIGN = 49,
+	// 0 A.D. "focus-fire" (BuildingAI.AddFocusTarget): structures in entity_ids aim their arrows
+	// at target_id first. param bit NET_PARAM_QUEUED adds it to the end; NET_PARAM_PUSH_FRONT puts it first.
+	NET_CMD_FOCUS_FIRE = 50,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
@@ -218,6 +221,8 @@ enum class NetCommandType : uint8_t {
 inline constexpr uint8_t NET_PARAM_QUEUED = 0x80;     // Shift: add to the order queue (0 A.D. "queued")
 inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only (targetClasses Unit)
 inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
+inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the target first (0 A.D. "pushFront")
+inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 
 struct NetCommand {
 	uint32_t client_id = 0;
@@ -354,7 +359,7 @@ struct GameSetupParams {
 	uint8_t no_treasures = 0;      // 1 = 0 A.D. DisableTreasures
 	std::string names[8];          // per-slot player names (0 A.D. PlayerName), empty = "Player N"
 	uint8_t water_level = 0; // Flood: 0 rising, 1 shallow, 2 deep (0 A.D. WaterLevel)
-	uint8_t team_placement = 0; // 0 A.D. TeamPlacement: rtso::TeamPlacement, 0 = the map picks
+	uint8_t team_placement = 0; // 0 A.D. TeamPlacement: rtso::TeamPlacement, 0 = the map picks, 5 = River
 	uint8_t landscape = 0;      // 0 A.D. Landscape (Unknown map): RmsGenerator::UNKNOWN_LANDSCAPE_*, 0 = random
 	uint8_t trigger_difficulty = 3; // 0 A.D. TriggerDifficulty: 1 Very Easy .. 5 Very Hard
 	uint8_t daytime = 0;        // 0 A.D. Daytime: 0 = the map picks, else the map's option (1-based)
@@ -566,7 +571,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 				}
 			}
 			else if (k == "waterlevel") { uint8_t x; if (detail::parse_u8(v, 0, 2, x)) out.water_level = x; }
-			else if (k == "teamplace") { uint8_t x; if (detail::parse_u8(v, 0, 4, x)) out.team_placement = x; }
+			else if (k == "teamplace") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.team_placement = x; }
 			else if (k == "landscape") { uint8_t x; if (detail::parse_u8(v, 0, 15, x)) out.landscape = x; }
 			else if (k == "trigdiff") { uint8_t x; if (detail::parse_u8(v, 1, 5, x)) out.trigger_difficulty = x; }
 			else if (k == "daytime") { uint8_t x; if (detail::parse_u8(v, 0, 2, x)) out.daytime = x; }

@@ -76,7 +76,7 @@ int main() {
 		CHECK(ti.researcher < BLD_TYPE_COUNT);
 		CHECK(ti.required_phase >= 1 && ti.required_phase <= 3);
 		CHECK(ti.prerequisite < TECH_COUNT && ti.prerequisite != t);
-		CHECK(ti.civ_mask != 0);
+		CHECK(ti.civ_mask != 0 || t == TECH_WARSHIP_RAMMING_SPEED); // Flanking Maneuvers: not in 0.28
 		// Only the free, instant Seleucid army reforms (pair members with no researchTime) take no time.
 		CHECK(ti.research_time > 0.0f || (t == TECH_TRADITIONAL_ARMY_SELE || t == TECH_REFORMED_ARMY_SELE));
 		for (int e = 0; e < ti.effect_count; ++e)
@@ -101,6 +101,45 @@ int main() {
 	CHECK(s.phase_structures(0, 1) == 5);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, tc) == Simulation::TECH_OK);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, barracks) == Simulation::TECH_ERR_BUILDING);
+	// 0.28 crannog.xml drops -phase_town_{civ} and -hellenistic_metropolis from the
+	// Civic Center list it otherwise keeps (City Phase stays).
+	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_PHASE_TOWN, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_CRANNOG, TECH_HELLENISTIC_METROPOLIS, CIV_BRITONS));
+	CHECK(building_researches_tech(BLD_CRANNOG, TECH_PHASE_CITY, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_TOWN, CIV_HAN)); // civil_centre_court -phase_town_{civ}
+	CHECK(building_researches_tech(BLD_IMPERIAL_COURT, TECH_PHASE_CITY, CIV_HAN));
+	// The Ptolemaic military colony: the Civic Center list less both phases and the metropolis.
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_TOWN, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_PHASE_CITY, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_HELLENISTIC_METROPOLIS, CIV_BRITONS));
+	CHECK(building_researches_tech(BLD_MILITARY_COLONY, TECH_ARCHERY_TRADITION, CIV_BRITONS));
+	CHECK(!building_researches_tech(BLD_MILITARY_COLONY, TECH_FARMING_1, CIV_BRITONS));
+	// Espionage moved to the Civic Center (template_structure_civic_civil_centre); the Han
+	// research it at the ministry, the Mauryans at the palace too.
+	CHECK(building_researches_tech(BLD_TOWN_CENTER, TECH_UNLOCK_SPIES, CIV_ATHENIANS));
+	CHECK(!building_researches_tech(BLD_MARKET, TECH_UNLOCK_SPIES, CIV_ATHENIANS));
+	CHECK(!building_researches_tech(BLD_TOWN_CENTER, TECH_SPY_COUNTER, CIV_HAN));
+	CHECK(building_researches_tech(BLD_MINISTRY, TECH_SPY_COUNTER, CIV_HAN));
+	CHECK(building_researches_tech(BLD_PALACE, TECH_UNLOCK_SPIES, CIV_MAURYANS));
+	// Han archery training is at the barracks and stable, not the forge.
+	CHECK(!building_researches_tech(BLD_FORGE, TECH_ARCHER_ATTACK_SPREAD, CIV_HAN));
+	CHECK(building_researches_tech(BLD_STABLE, TECH_ARCHER_ATTACK_SPREAD, CIV_HAN));
+	CHECK(building_researches_tech(BLD_FORGE, TECH_ARCHER_ATTACK_SPREAD, CIV_ATHENIANS));
+	// Carthage's dock drops Undergirding Cables; the super dock researches it.
+	CHECK(!building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_CARTHAGINIANS));
+	CHECK(building_researches_tech(BLD_SUPER_DOCK, TECH_WARSHIP_HEALTH, CIV_CARTHAGINIANS));
+	CHECK(building_researches_tech(BLD_SUPER_DOCK, TECH_EXPLORATION, CIV_CARTHAGINIANS));
+	CHECK(building_researches_tech(BLD_DOCK, TECH_WARSHIP_HEALTH, CIV_ROMANS));
+	CHECK(!tech_available_to_civ(TECH_SHIP_MOVEMENT_SPEED, CIV_CARTHAGINIANS)); // cart/dock -ship_movement_speed
+	CHECK(!tech_available_to_civ(TECH_SIEGE_BOLT_ACCURACY, CIV_HAN)); // han/arsenal -siege_bolt_accuracy
+	{
+		Simulation c;
+		fresh(c);
+		for (int k = 0; k < 5; ++k) c.spawn_building_world(-20.0f + 6.0f * k, 20.0f, BLD_HOUSE, 0, 1.0f);
+		CHECK(c.phase_structures(0, 1) >= 5);
+		const uint32_t cr = c.spawn_building_world(40.0f, 40.0f, BLD_CRANNOG, 0, 1.0f);
+		CHECK(c.research_check(0, TECH_PHASE_TOWN, cr) == Simulation::TECH_ERR_BUILDING);
+	}
 	CHECK(s.research_check(0, TECH_WEAPONS_1) == Simulation::TECH_ERR_PHASE);
 	CHECK(s.research_check(0, TECH_ROMAN_ROADS) == Simulation::TECH_ERR_CIV);
 	s.set_player_civ(2); // Britons may research Nisean horses only after the champion unlock
@@ -342,9 +381,9 @@ int main() {
 		s.unit_train_cost(0, healer, civ_template_unit_info(healer, UNIT_HEALER), cost);
 		CHECK(cost[RES_GOLD] == 0.0f);
 
-		// Dock warship techs: Flanking Maneuvers and Bronze Ram reach ramming ships
-		// (0 A.D. NavalRam) only, Bronze Ram needs Flanking Maneuvers, and the
-		// Athenian Arsenal of Philon (after Shipwrights) repairs warships.
+		// Dock warship techs: Bronze Ram reaches ramming ships (0 A.D. NavalRam) only and
+		// needs only the City phase (0.28 has no Flanking Maneuvers), and the Athenian
+		// Arsenal of Philon (after Shipwrights) repairs warships.
 		fresh(s);
 		s.set_player_civ(CIV_ATHENIANS);
 		s.player(0).phase = 3;
@@ -354,13 +393,10 @@ int main() {
 			if (std::strcmp(civ_unit_template(i).id, "athen/ship_arrow") == 0) arrow = i;
 		}
 		CHECK(ram != CIV_UNIT_TEMPLATE_NONE && arrow != CIV_UNIT_TEMPLATE_NONE);
-		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_BRITONS)); // brit fire ships are melee warships too
-		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_WARSHIP_RAMMING_SPEED);
+		CHECK(!tech_available_to_civ(TECH_WARSHIP_RAMMING_SPEED, CIV_ATHENIANS)); // not in 0.28
+		CHECK(tech_info(TECH_WARSHIP_RAMMING_ATTACK).prerequisite == TECH_NONE);
 		CHECK(tech_info(TECH_ARSENAL_PHILON).prerequisite == TECH_DOCK_EFFICIENCY);
 		CHECK(!tech_available_to_civ(TECH_ARSENAL_PHILON, CIV_SPARTANS));
-		research(TECH_WARSHIP_RAMMING_SPEED, -10.0f);
-		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].speed - 1.25f) < 1e-4f);
-		CHECK(s.tech_mods(0).tmpl[arrow].speed == 1.0f);
 		research(TECH_WARSHIP_RAMMING_ATTACK, -30.0f);
 		// Bronze Ram multiplies Attack/Melee/Damage/Hack only: 320 x1.3 + 50 crush.
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].atk_mul[0] - 1.3f) < 1e-4f && s.tech_mods(0).tmpl[ram].atk_mul[2] == 1.0f);
@@ -373,6 +409,32 @@ int main() {
 		research(TECH_ARSENAL_PHILON, -90.0f);
 		CHECK(s.tech_mods(0).regen[UNIT_TRIREME] == 1.0f);
 		CHECK(s.tech_mods(0).regen[UNIT_FISHING_BOAT] == 0.0f);
+
+		// 0.28 naval classes: Naval Ballistae (NavalSiege range and vision x1.2), Burning
+		// Pitch (Ignited health x1.25) and Lookouts (Ship vision x1.1, ScoutShip x1.25 more).
+		auto tmpl_id = [](const char *id) {
+			for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (std::strcmp(civ_unit_template(i).id, id) == 0) return i;
+			return (uint16_t)CIV_UNIT_TEMPLATE_NONE;
+		};
+		const uint16_t siege = tmpl_id("rome/ship_siege"), scout = tmpl_id("rome/ship_scout");
+		const uint16_t ignited = tmpl_id("brit/ship_fire_fire"), unlit = tmpl_id("brit/ship_fire");
+		CHECK(siege != CIV_UNIT_TEMPLATE_NONE && scout != CIV_UNIT_TEMPLATE_NONE && ignited != CIV_UNIT_TEMPLATE_NONE);
+		fresh(s);
+		s.set_player_civ(CIV_ROMANS);
+		s.player(0).phase = 3;
+		research(TECH_WARSHIP_SIEGE_ATTACK, -10.0f);
+		research(TECH_SHIP_VISION, -30.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[siege].range_mul - 1.2f) < 1e-4f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[siege].vision - 1.2f * 1.1f) < 1e-4f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[scout].vision - 1.1f * 1.25f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[scout].range_mul == 1.0f);
+		fresh(s);
+		s.set_player_civ(CIV_BRITONS);
+		s.player(0).phase = 3;
+		research(TECH_WARSHIP_FIRESHIP_ATTACK, -10.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ignited].health - 1.25f) < 1e-4f);
+		CHECK(s.tech_mods(0).tmpl[unlit].health == 1.0f); // only the ignited form is Ignited
 
 		s.set_player_civ(civ_before);
 	}
@@ -551,7 +613,7 @@ int main() {
 		                  TECH_TOWER_CRENELLATIONS, TECH_TOWER_MURDERHOLES, TECH_HEAL_RANGE, TECH_TOWER_RANGE})
 			v.complete_research(0, t);
 		CHECK(std::fabs(v.unit_tech_mods(0, UNIT_ARCHER, v.units_.tmpl[archer]).spread - 0.8f) < 1e-6f);
-		CHECK(std::fabs(v.unit_vision_at(ship) - ship_vis * 1.1f * 1.2f) < 1e-3f);
+		CHECK(std::fabs(v.unit_vision_at(ship) - ship_vis * 1.1f * 1.2f * 1.25f) < 1e-3f); // a Carthaginian scout ship: Lookouts' ScoutShip row too
 		CHECK(std::fabs(v.unit_vision_at(healer) - (healer_vis + 5.0f * 0.28f)) < 1e-3f);
 		CHECK(std::fabs(v.building_vision_range(building(outpost)) - outpost_vis * 1.333333f) < 1e-3f);
 		CHECK(std::fabs(v.building_vision_range(building(tower)) - (tower_vis + 8.0f * 0.28f)) < 1e-3f);

@@ -219,10 +219,12 @@ func _stats(p: Dictionary, index: int) -> Dictionary:
 
 static func _by(stats: Dictionary, key: String, cls: String) -> int:
 	var d: Variant = stats.get(key, {})
-	if cls == "Unit" or cls == "Structure":
-		cls = "total"
 	if not d is Dictionary:
 		return 0
+	# The Unit and Structure class counters; only trained units carry "Unit" (livestock
+	# included), elsewhere and in older replays they equal the total.
+	if (cls == "Unit" or cls == "Structure") and not d.has(cls):
+		cls = "total"
 	# Replays and saves from before 0.28's Civilian class carry FemaleCitizen in its place.
 	if cls == "Civilian" and not d.has("Civilian"):
 		cls = "FemaleCitizen"

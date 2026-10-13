@@ -1396,6 +1396,8 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 				sim.order_herd(ids, n, c.target_id);
 			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == 2) // TreasureCollector: collect a Gaia treasure
 				sim.order_collect_treasure(ids, n, c.target_id, queued);
+			else if ((c.param & (uint8_t)~NET_PARAM_QUEUED) == NET_HUNT_SCENERY_NO_CAPTURE)
+				sim.order_attack_scenery(ids, n, c.target_id, false);
 			else
 				sim.order_hunt(ids, n, c.target_id);
 		} else if (c.cmd_type == 18) { // Board
@@ -1470,6 +1472,10 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 			               (rtso::ResourceType)(int)c.target_z, (int)c.target_id);
 		} else if (c.cmd_type == (uint8_t)NetCommandType::NET_CMD_RESIGN) { // Resign (0 A.D. "resign")
 			sim.cmd_resign(pl);
+		} else if (c.cmd_type == (uint8_t)NetCommandType::NET_CMD_FOCUS_FIRE) { // Focus fire — entity_ids=structures.
+			// cmd_focus_fire checks that `pl` owns each structure itself.
+			sim.cmd_focus_fire(pl, c.entity_ids.data(), c.entity_ids.size(), c.target_id, queued,
+					(c.param & NET_PARAM_PUSH_FRONT) != 0);
 		} else if (c.cmd_type == 39) { // Cheat (0 A.D. Cheat.js) — param=action, target_id=number,
 			// target_x=resource or tech; acts on the raw selection, whoever owns it.
 			sim.cmd_cheat(pl, c.param, (int32_t)c.target_id, (uint32_t)c.target_x, c.entity_ids.data(), c.entity_ids.size());

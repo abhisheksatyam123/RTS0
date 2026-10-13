@@ -7,6 +7,8 @@ extends Control
 # running. The match itself is the in-game lobby panel of main_node, which the
 # MatchSettings net_* keys hand the choice to. The server is
 # tools/lobby_server.py; LobbySession keeps the sign-in alive across scenes.
+# Ratings follow 0 A.D.'s: the player list's Rating column, the profile panel
+# under it (LobbyPage/ProfilePanel.js) and the Leaderboard (LeaderboardPage).
 
 const REFRESH_S := 3.0
 
@@ -14,7 +16,14 @@ var _server: LineEdit
 var _name: LineEdit
 var _sign_btn: Button
 var _games: Tree
-var _players: ItemList
+var _players: Tree
+var _profile: VBoxContainer
+var _profile_name: Label
+var _profile_values := {}
+var _requested_player := "" # ProfilePanel.requestedPlayer
+var _selected_player := "" # the player list's selection
+var _leaderboard: AcceptDialog
+var _board: Tree
 var _chat_log: RichTextLabel
 var _chat_line: LineEdit
 var _chat_send: Button
@@ -64,6 +73,7 @@ func _build() -> void:
 	title.add_theme_font_size_override("font_size", 22)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(title)
+	header.add_child(_button("Leaderboard", _on_leaderboard_pressed))
 	header.add_child(_button("Main Menu", _on_back_pressed))
 
 	var login := HBoxContainer.new()
@@ -133,9 +143,26 @@ func _build() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	body.add_child(right)
 	right.add_child(_label("Players online"))
-	_players = ItemList.new()
+	_players = Tree.new()
+	_players.columns = 3
+	_players.hide_root = true
+	_players.column_titles_visible = true
+	for i in 3:
+		_players.set_column_title(i, ["Status", "Name", "Rating"][i])
+	_players.set_column_expand_ratio(1, 2)
 	_players.custom_minimum_size = Vector2(0, 140)
+	_players.item_selected.connect(func() -> void:
+		var it := _players.get_selected()
+		var picked := str(it.get_metadata(0)) if it else ""
+		if picked == _selected_player:
+			return # the refresh re-selecting it
+		_selected_player = picked
+		_request_profile(_selected_player))
 	right.add_child(_players)
+	_profile = _build_profile()
+	right.add_child(_profile)
+	_leaderboard = _build_leaderboard()
+	add_child(_leaderboard)
 	right.add_child(_label("Chat"))
 	_chat_log = RichTextLabel.new()
 	_chat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -155,6 +182,97 @@ func _build() -> void:
 	_status = Label.new()
 	_status.add_theme_color_override("font_color", Color(0.8, 0.9, 0.8, 1))
 	root.add_child(_status)
+
+
+# LobbyPage/ProfilePanel.xml: the selected player's name and rating, then the
+# rank, highest rating, games, wins, losses and win rate from the lobby.
+func _build_profile() -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.visible = false
+	_profile_name = _label("")
+	_profile_name.add_theme_font_size_override("font_size", 16)
+	box.add_child(_profile_name)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	box.add_child(grid)
+	for row in [["rank", "Current Rank:"], ["highestRating", "Highest Rating:"], ["totalGamesPlayed", "Total Games:"],
+			["wins", "Wins:"], ["losses", "Losses:"], ["ratio", "Win Rate:"]]:
+		grid.add_child(_label(row[1]))
+		var v := _label(NOT_AVAILABLE)
+		grid.add_child(v)
+		_profile_values[row[0]] = v
+	return box
+
+
+# LeaderboardPage: rank, name and rating of the best players; selecting one
+# shows its profile, closing goes back to the player list's selection.
+func _build_leaderboard() -> AcceptDialog:
+	var dlg := AcceptDialog.new()
+	dlg.title = "Leaderboard"
+	dlg.ok_button_text = "Back"
+	dlg.min_size = Vector2i(420, 420)
+	_board = Tree.new()
+	_board.columns = 3
+	_board.hide_root = true
+	_board.column_titles_visible = true
+	for i in 3:
+		_board.set_column_title(i, ["Rank", "Name", "Rating"][i])
+	_board.set_column_expand_ratio(1, 3)
+	_board.item_selected.connect(func() -> void:
+		var it := _board.get_selected()
+		if it:
+			_request_profile(str(it.get_metadata(0))))
+	dlg.add_child(_board)
+	dlg.confirmed.connect(func() -> void: _request_profile(_selected_player))
+	dlg.canceled.connect(func() -> void: _request_profile(_selected_player))
+	return dlg
+
+
+const NOT_AVAILABLE := "N/A"
+
+
+func _request_profile(player: String) -> void:
+	_requested_player = player
+	_profile.visible = player != "" or _profile_name.text != ""
+	if player == "" or not LobbySession.signed_in():
+		return
+	_profile_name.text = player
+	for k in _profile_values:
+		_profile_values[k].text = NOT_AVAILABLE
+	LobbySession.get_json("/profile?name=" + player.uri_encode(), _on_profile)
+
+
+func _on_profile(code: int, obj) -> void:
+	if code != 200 or not (obj is Dictionary) or str(obj.get("name", "")).to_lower() != _requested_player.to_lower():
+		return
+	_profile_name.text = LobbySession.rated_name(str(obj.get("name", "")), obj.get("rating"))
+	for k in ["rank", "highestRating", "totalGamesPlayed", "wins", "losses"]:
+		_profile_values[k].text = str(obj.get(k, NOT_AVAILABLE))
+	_profile_values["ratio"].text = LobbySession.format_win_rate(obj)
+
+
+func _on_leaderboard_pressed() -> void:
+	if not LobbySession.signed_in():
+		_say("Sign in to see the leaderboard.")
+		return
+	_board.clear()
+	_leaderboard.popup_centered()
+	LobbySession.get_json("/leaderboard", _on_leaderboard)
+
+
+func _on_leaderboard(code: int, obj) -> void:
+	if code != 200 or not (obj is Dictionary):
+		return
+	_board.clear()
+	var top := _board.create_item()
+	var rank := 0
+	for p in obj.get("players", []):
+		rank += 1
+		var it := _board.create_item(top)
+		it.set_text(0, str(rank))
+		it.set_text(1, str(p.get("name", "")))
+		it.set_text(2, str(p.get("rating", "")))
+		it.set_metadata(0, str(p.get("name", "")))
 
 
 func _label(text: String) -> Label:
@@ -263,10 +381,18 @@ func _on_players(code: int, obj) -> void:
 			_say("Lost the lobby server at %s." % LobbySession.address)
 		return
 	_players.clear()
+	var top := _players.create_item()
 	for p in obj.get("players", []):
 		var st := str(p.get("status", "available"))
-		var i := _players.add_item("%s  (%s)" % [p.get("name", ""), {"available": "online", "away": "away", "playing": "in a game"}.get(st, st)])
-		_players.set_item_custom_fg_color(i, {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE))
+		var it := _players.create_item(top)
+		var col: Color = {"available": Color(0.6, 0.9, 0.6), "away": Color(0.9, 0.8, 0.4), "playing": Color(0.9, 0.5, 0.5)}.get(st, Color.WHITE)
+		it.set_text(0, {"available": "Online", "away": "Away", "playing": "Playing"}.get(st, st))
+		it.set_custom_color(0, col)
+		it.set_text(1, str(p.get("name", "")))
+		it.set_text(2, str(p.get("rating", "")))
+		it.set_metadata(0, str(p.get("name", "")))
+		if str(p.get("name", "")) == _selected_player:
+			it.select(0)
 
 
 func _on_chat(code: int, obj) -> void:

@@ -560,6 +560,30 @@ int main() {
 		CHECK(sim.pop_max(0) <= 200);
 		sim.set_pop_cap(300);
 		CHECK(sim.world_pop_cap() == 0 && sim.pop_cap() == 300);
+		// A scenario's per-player PopulationLimit (Miletus P1 1000, Death Canyon's attackers 1):
+		// that player's own cap, the others keep the setup's; it beats World Population for
+		// that player, survives a save and reset() clears it.
+		sim.set_player_pop_cap(1, 1000);
+		sim.set_player_pop_cap(2, 1);
+		CHECK(sim.pop_cap(0) == 300 && sim.pop_cap(1) == 1000 && sim.pop_cap(2) == 1 && sim.pop_limit(2) == 1);
+		CHECK(sim.pop_max(2) <= 1);
+		sim.set_world_pop_cap(600);
+		CHECK(sim.pop_cap(1) == 1000 && sim.pop_cap(0) == 200);
+		sim.set_pop_cap(300);
+		{
+			Simulation *a = fresh(VICTORY_CONQUEST), *loaded = fresh(VICTORY_CONQUEST);
+			a->set_player_pop_cap(1, 1000);
+			a->set_player_pop_cap(2, 1);
+			const char *ppath = "test_victory_popcap.sav";
+			CHECK(a->save_state(ppath));
+			CHECK(loaded->load_state(ppath) && loaded->player_pop_cap(1) == 1000 && loaded->pop_cap(2) == 1 &&
+					loaded->pop_cap(0) == a->pop_cap(0));
+			std::remove(ppath);
+			a->reset();
+			CHECK(a->player_pop_cap(1) == 0 && a->pop_cap(1) == a->pop_cap());
+			delete a;
+			delete loaded;
+		}
 		GameSetupParams gp, back;
 		gp.world_pop = 2400;
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.world_pop == 2400);
