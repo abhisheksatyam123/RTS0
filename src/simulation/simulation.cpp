@@ -6282,6 +6282,21 @@ void Simulation::spawn_gaia_gate(float x, float z, float rot, uint8_t kind) {
 	if (!bulk) rebuild_nav_grid();
 }
 
+uint32_t Simulation::spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t piece, float x, float z, float angle,
+		float length) {
+	const WallSetInfo &ws = wallset_info(kind < WALLSET_COUNT ? kind : (uint8_t)WALLSET_STONE);
+	WallPiece p{ws.segment, x, z, angle, 0.5f * length};
+	if (piece == MAP_WALL_TOWER) {
+		p.type = ws.tower;
+		p.half_w = ws.tower_half;
+	} else if (piece == MAP_WALL_GATE) {
+		p.type = kind == WALLSET_PALISADE ? (uint8_t)BLD_PALISADE_GATE : kind == WALLSET_SIEGE ? (uint8_t)BLD_SIEGE_WALL_GATE : (uint8_t)BLD_GATE;
+	}
+	const uint32_t id = spawn_wall_piece(p, player, 1.0f);
+	if (player == GAIA_PLAYER) set_structure_uncapturable(id);
+	return id;
+}
+
 void Simulation::clear_resources_near(float x, float z, float r) {
 	for (size_t i = 0; i < resources_.count; ++i) {
 		if (!resources_.alive[i] || resources_.subtype[i] == RES_SUB_FISH) continue;
@@ -7122,7 +7137,7 @@ void Simulation::gain_xp(size_t idx, float amount) {
 // own entities deal to another player's (not Gaia's, not its own). The total feeds the
 // battle music; it is presentation state, so it is neither saved nor hashed.
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-		bool target_is_building, float damage) {
+		bool target_is_building, float damage, bool melee) {
 	if (!(damage > 0.0f)) return;
 	// The Attacked message for the session's AttackDetection (presentation only).
 	if (attacked_events_.size() < kMaxAttackedEvents) {
@@ -7133,7 +7148,7 @@ void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uin
 		} else if (int32_t u = lookup_unit(target_id); u >= 0) {
 			x = units_.pos_x[u], z = units_.pos_z[u];
 		}
-		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage});
+		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage, (uint8_t)melee});
 	}
 	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
 	battle_damage_[attacker_owner] += damage;
@@ -10254,7 +10269,7 @@ void Simulation::tick_combat(float dt) {
 
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
-			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg);
+			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
 			if (!invulnerable(units_.id[t])) units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
@@ -10395,7 +10410,7 @@ void Simulation::tick_combat(float dt) {
 			           bld_dmg, units_.team[i], b.id, EFFECT_NONE, 2, true, vis, units_.id[i],
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
-			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg);
+			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg, true);
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
 				raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -15999,7 +16014,7 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_MEAT) continue;
 		auto git = scan.on_carcass.find(resources_.id[r]);
-		consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], 0,
+		consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], resources_.max_gatherers[r],
 		         git == scan.on_carcass.end() ? 0 : git->second, false, -1, false);
 	}
 	return best;
@@ -16103,11 +16118,44 @@ void Simulation::petra_build_first_base() {
 
 // worker.js "hunter" subrole: Petra's citizen cavalry hunt (baseManager.js
 // reassignIdleWorkers gives it to FastMoving units that gather food and can
-// attack animals). An idle hunter looks around itself, then around each base
-// and rides there; one that drifted into enemy territory looks again.
-void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
+// attack animals: citizen horsemen and the Ptolemaic camel archers). An idle
+// hunter looks around itself, then around each base and rides there; one that
+// drifted into enemy territory looks again.
+// worker.js update, a hunter or gatherer approaching an animal: "check that we have not
+// drifted too far when hunting". An animal in enemy territory, or in neutral land with
+// none of our food dropsites within 90000 m² (30000 m² on foot), is given up for
+// another hunt (retryWorking), or the chase is stopped when there is none.
+void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_CAVALRY) continue;
+		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.action_state[i] != ACTION_ATTACK) continue;
+		const auto fit = fauna_id_to_idx_.find(units_.target_unit_id[i]);
+		if (fit == fauna_id_to_idx_.end()) continue;
+		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
+		if (gcls != GATHER_CAVALRY && gcls != GATHER_INFANTRY && gcls != GATHER_SUPPORT) continue;
+		if (petra_unit_reserved(units_.id[i])) continue; // soldiers, the scout: not hunters or gatherers
+		if (fauna_.food_amount[fit->second] <= 0) continue; // only food supplies
+		const float tx = fauna_.pos_x[fit->second], tz = fauna_.pos_z[fit->second];
+		const int terr = territory_owner_at(tx, tz);
+		bool drifted = petra_foe(terr);
+		if (!drifted && terr < 0) {
+			const float d2 = (gcls == GATHER_CAVALRY ? 90000.0f : 30000.0f) / 16.0f;
+			drifted = true;
+			for (const auto &d : scan.food_drops)
+				if ((tx - d.first) * (tx - d.first) + (tz - d.second) * (tz - d.second) < d2) { drifted = false; break; }
+		}
+		if (!drifted) continue;
+		auto it = scan.on_animal.find(units_.target_unit_id[i]);
+		if (it != scan.on_animal.end() && it->second > 0) --it->second;
+		if (petra_start_hunting(i, scan)) continue;
+		cmd_stop(&units_.id[i], 1);
+	}
+}
+
+void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
+	petra_check_hunt_drift(scan);
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
+		if (unit_gather_class(units_.unit_type[i], units_.tmpl[i]) != GATHER_CAVALRY) continue;
 		if (carry_cap(i, RES_FOOD) <= 0) continue; // champion cavalry gather nothing
 		const uint32_t uid = units_.id[i];
 		const uint8_t st = units_.action_state[i];

@@ -902,6 +902,61 @@ static void test_hunting() {
 	CHECK(!foreign_hunted, "no one hunts in enemy territory");
 }
 
+// worker.js and baseManager.js on 0.28: every FastMoving food gatherer is a hunter
+// (the Ptolemaic camel archers too); a chase toward an animal in enemy territory is
+// given up; a carcass with all its MaxGatherers taken is full.
+static void test_hunters_028() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->set_team_civ(1, CIV_PTOLEMIES);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float px = 0.0f, pz = 0.0f, ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings()) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { px = b.x; pz = b.z; }
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+	}
+	uint16_t camel_t = CIV_UNIT_TEMPLATE_NONE;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, "ptol/cavalry_archer_b") == 0) camel_t = t;
+	CHECK(camel_t != CIV_UNIT_TEMPLATE_NONE, "roster has the Nabataean camel archer");
+	const uint32_t camel = s->spawn_unit(px + 6.0f, pz + 6.0f, 1, UNIT_CAMEL, 0.0f, camel_t);
+	auto &u = s->units_;
+	bool camel_hunts = false;
+	for (float t = 0.0f; t < 40.0f && !camel_hunts; t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t ci = s->lookup_unit(camel);
+		if (ci < 0) break;
+		camel_hunts = (u.action_state[ci] == ACTION_ATTACK && s->is_fauna_id(u.target_unit_id[ci])) ||
+		              u.res_type_carried[ci] == RES_FOOD;
+	}
+	std::printf("  camel archer hunts: %s\n", camel_hunts ? "yes" : "no");
+	CHECK(camel_hunts, "the Ptolemaic camel archer is a hunter (FastMoving food gatherer)");
+
+	// The camel archer sent after a deer standing in the enemy's land gives it up.
+	const uint32_t deer = s->spawn_fauna(ex + 4.0f, ez + 4.0f, FAUNA_DEER);
+	uint32_t rider = camel; // a gathering rider (the Ptolemies' default cavalry gather nothing)
+	s->order_hunt(&rider, 1, deer);
+	s->tick(Simulation::FIXED_STEP);
+	s->petra_pid_ = 1;
+	Simulation::PetraHuntScan scan = s->petra_hunt_scan();
+	s->petra_check_hunt_drift(scan);
+	const int32_t ri = s->lookup_unit(rider);
+	CHECK(ri >= 0 && u.target_unit_id[ri] != deer, "a chase into enemy territory is given up (worker.js drift check)");
+
+	// A carcass whose MaxGatherers are all taken is not picked.
+	const uint32_t meat = s->spawn_resource_world(px + 8.0f, pz - 8.0f, RES_FOOD, 100, RES_SUB_MEAT, 1);
+	Simulation::PetraHuntScan full = s->petra_hunt_scan();
+	full.on_carcass[meat] = 1;
+	bool live = false;
+	const int32_t ri2 = s->lookup_unit(rider);
+	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
+	full.on_carcass[meat] = 0;
+	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+}
+
 // startingStrategy.js buildFirstBase: Petra loses its Town Center; the wood for a
 // new one is in a treasure by its workers, so it collects that first, then
 // founds a civic centre where they stand and builds it.
@@ -3136,6 +3191,7 @@ int main() {
 	test_diplomacy_requests();
 	test_tribute_request_paid_later();
 	test_hunting();
+	test_hunters_028();
 	test_first_base();
 	test_barter();
 	test_market_prospection();

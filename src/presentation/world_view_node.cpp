@@ -2,6 +2,7 @@
 #include "display_colors.h"
 #include "territory_boundary.h"
 #include "terrain_blend.h"
+#include "session_audio.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -185,7 +186,7 @@ void RtsoWorldView::init_animation_controllers() {
 	anim_controllers[rtso::UNIT_MINISTER].load_rig(rtso::RigType::Healer); // robed, like the healer model it borrows
 	anim_controllers[rtso::UNIT_SIEGE_RAM].load_rig(rtso::RigType::SiegeRam);
 	anim_controllers[rtso::UNIT_CATAFALQUE].load_rig(rtso::RigType::SiegeRam); // a wheeled bier, on the ram model
-	anim_controllers[rtso::UNIT_WAGON].load_rig(rtso::RigType::SiegeRam); // on the ram model until it has its own
+	anim_controllers[rtso::UNIT_WAGON].load_rig(rtso::RigType::Wagon);
 	anim_controllers[rtso::UNIT_HERO].load_rig(rtso::RigType::Biped);
 	anim_controllers[rtso::UNIT_TRADER].load("trader");
 	anim_controllers[rtso::UNIT_ARCHER_MAIDEN].load_rig(rtso::RigType::Archer);
@@ -427,17 +428,6 @@ void RtsoWorldView::_ready() {
 		return Ref<AudioStream>();
 	};
 
-	sfx_bow_shoot[0] = load_s("res://assets/sounds/combat/bow_shoot_1.ogg");
-	sfx_bow_shoot[1] = load_s("res://assets/sounds/combat/bow_shoot_2.ogg");
-	sfx_arrow_fly = load_s("res://assets/sounds/combat/arrow_fly.ogg");
-	sfx_arrow_hit = load_s("res://assets/sounds/combat/arrow_hit.ogg");
-	sfx_catapult_blast = load_s("res://assets/sounds/combat/catapult_blast.ogg");
-	sfx_sword_hit[0] = load_s("res://assets/sounds/combat/sword_hit_1.ogg");
-	sfx_sword_hit[1] = load_s("res://assets/sounds/combat/sword_hit_2.ogg");
-	sfx_sword_hit[2] = load_s("res://assets/sounds/combat/sword_hit_3.ogg");
-	sfx_spear_hit[0] = load_s("res://assets/sounds/combat/spear_hit_1.ogg");
-	sfx_spear_hit[1] = load_s("res://assets/sounds/combat/spear_hit_2.ogg");
-	sfx_building_collapse = load_s("res://assets/sounds/building/building_collapse.ogg");
 	sfx_building_fire = load_s("res://assets/sounds/building/building_fire.ogg");
 
 	// Fog overlay: 0 A.D. model_common.fs multiplies every model by the LOS
@@ -982,6 +972,18 @@ void RtsoWorldView::play_spatial_sound(const Ref<AudioStream> &stream, Vector3 p
 	}
 }
 
+// Health.js PlaySound("death") of a structure: template_structure.xml's
+// attack/destruction/building_collapse_large.xml (attack_sound_data.h).
+static void play_structure_death(RtsoWorldView &view, uint8_t type, Vector3 pos) {
+	static std::mt19937 rng(std::random_device{}());
+	const uint8_t g = rtso::building_attack_sounds(type).c;
+	float pitch = 1.0f;
+	const String path = rtso::pick_attack_sound(g, rng, &pitch);
+	if (path.is_empty()) return;
+	const float gain = rtso::attack_sound_group(g).gain;
+	view.play_spatial_sound(rtso::load_audio(path), pos, gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, 95.0f, pitch);
+}
+
 void RtsoWorldView::play_spatial_sound_path(const String &path, Vector3 pos, float volume_db, float max_dist, float pitch_scale) {
 	String res_path = path;
 	if (!res_path.begins_with("res://")) {
@@ -1455,11 +1457,11 @@ void RtsoWorldView::set_building_site_visible(BuildingVis &v, bool foundation_on
 String RtsoWorldView::building_visual_id(uint8_t civ, uint8_t type, float half_size) {
 	if (type == rtso::BLD_WALL_SEGMENT && half_size >= 1.25f) {
 		const char *len = half_size >= 3.75f ? "wall_long" : half_size >= 2.25f ? "wall_medium" : "wall_short";
-		return String(rtso::civ_art_code(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS)) + "_" + len;
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_" + len;
 	}
 	// Only a long segment becomes a gate; it keeps the segment's length.
 	if (type == rtso::BLD_GATE && half_size >= 3.75f)
-		return String(rtso::civ_art_code(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS)) + "_wall_gate";
+		return String(rtso::civ_info(civ < rtso::CIV_COUNT ? civ : rtso::CIV_ATHENIANS).code) + "_wall_gate";
 	// Palisade WallSet pieces (WALLSET_PALISADE) draw 0 A.D.'s palisades_short, _medium,
 	// _long, _tower and _gate; a one-cell palisade from a map keeps its model.
 	if (type == rtso::BLD_PALISADE_GATE) return "palisade_gate";
@@ -2743,45 +2745,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	// 3D Positional Combat Acoustics: Melee Weapon Clash (Swords, Spears)
-	for (auto it = unit_clash_cooldown.begin(); it != unit_clash_cooldown.end(); ) {
-		it->second -= delta;
-		if (it->second <= 0.0f) {
-			it = unit_clash_cooldown.erase(it);
-		} else {
-			++it;
-		}
-	}
-	global_clash_timer -= delta;
-
-	int clashes_this_frame = 0;
-	for (size_t i = 0; i < uview.count && clashes_this_frame < 4; ++i) {
-		if (!uview.alive[i] || uview.action_state[i] != rtso::ACTION_ATTACK) continue;
-		uint8_t utype = uview.unit_type[i];
-		bool is_spear = (utype == rtso::UNIT_SPEARMAN);
-		bool is_sword = (utype == rtso::UNIT_SWORDSMAN || utype == rtso::UNIT_CAVALRY || utype == rtso::UNIT_HERO);
-		if (!is_spear && !is_sword) continue;
-
-		uint32_t uid = uview.id[i];
-		if (unit_clash_cooldown.find(uid) == unit_clash_cooldown.end()) {
-			float tx = uview.target_x[i] - uview.pos_x[i];
-			float tz = uview.target_z[i] - uview.pos_z[i];
-			float dist_sq = tx * tx + tz * tz;
-			if (dist_sq <= 14.0f) { // Within melee contact range
-				unit_clash_cooldown[uid] = 0.75f + ((float)(rand() % 40) / 100.0f);
-				Vector3 clash_pos(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]) + 1.0f, uview.pos_z[i]);
-				float pitch = 0.92f + ((float)(rand() % 20) / 100.0f);
-				if (is_spear) {
-					int s_idx = rand() % 2;
-					play_spatial_sound(sfx_spear_hit[s_idx], clash_pos, -2.0f, 65.0f, pitch);
-				} else {
-					int s_idx = rand() % 3;
-					play_spatial_sound(sfx_sword_hit[s_idx], clash_pos, -1.0f, 65.0f, pitch);
-				}
-				clashes_this_frame++;
-			}
-		}
-	}
+	// Melee, shot and impact sounds: RtsoSessionAudio::tick_combat (session_audio.h).
 
 	// =========================================================================
 	// 2. Buildings: Town Center, Barracks, Houses, Towers, Storehouses, Farms
@@ -2809,7 +2773,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (v.phase != 3 && v.phase != 4) {
 				v.phase = 3;
 				v.phase_t = 0.0f;
-				play_spatial_sound(sfx_building_collapse, Vector3(b.x, base_y + 1.0f, b.z), 3.0f, 95.0f, 0.95f);
+				play_structure_death(*this, b.type, Vector3(b.x, base_y + 1.0f, b.z));
 			}
 			v.phase_t += delta;
 			if (v.phase == 3 && v.phase_t >= 0.70f)
@@ -2946,7 +2910,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			// A mirage clearing when the viewer looks again is silent.
 			if (it->second.live) {
 				float by = sim->get_terrain_height(it->second.x, it->second.z);
-				play_spatial_sound(sfx_building_collapse, Vector3(it->second.x, by + 1.0f, it->second.z), 3.0f, 95.0f, 0.95f);
+				play_structure_death(*this, it->second.type, Vector3(it->second.x, by + 1.0f, it->second.z));
 			}
 			it = tracked_buildings.erase(it);
 		} else {
@@ -2985,13 +2949,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	if (bolt_mm.is_valid()) bolt_mm->set_instance_count(bolt_n);
 	if (stone_proj_mm.is_valid()) stone_proj_mm->set_instance_count(stone_n);
 
-	std::unordered_set<uint32_t> current_proj_ids;
 	int arrow_i = 0, bolt_i = 0, stone_i = 0;
 
 	for (size_t p = 0; p < projectiles.size(); ++p) {
 		const auto &proj = projectiles[p];
 		if (!entity_visible(proj.current_x, proj.current_z, proj.team)) continue;
-		current_proj_ids.insert(proj.id);
 		Vector3 pos(proj.current_x, proj.current_y, proj.current_z);
 
 		// Calculate direction of flight
@@ -3018,52 +2980,6 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			arrow_mm->set_instance_transform(arrow_i++, xf);
 		}
 
-		// 3D Positional Projectile Release Acoustics (Bow string whoosh / catapult launch)
-		auto pit = tracked_projectiles.find(proj.id);
-		if (pit == tracked_projectiles.end()) {
-			bool is_crush = (proj.damage_type == 2 || proj.arc_height > 4.0f);
-			PrevProjState st;
-			st.id = proj.id;
-			st.target_x = proj.target_x;
-			st.target_y = proj.target_y;
-			st.target_z = proj.target_z;
-			st.last_progress = proj.progress;
-			st.is_crush = is_crush;
-			tracked_projectiles[proj.id] = st;
-
-			Vector3 launch_pos(proj.start_x, proj.start_y, proj.start_z);
-			float pitch = 0.95f + ((float)(rand() % 15) / 100.0f);
-			if (is_crush) {
-				play_spatial_sound(sfx_catapult_blast, launch_pos, -3.0f, 90.0f, 0.75f);
-			} else if (proj.visual == 1 && sfx_arrow_fly.is_valid()) {
-				// template_unit_ship SoundGroups attack_ranged → arrowfly.xml
-				play_spatial_sound(sfx_arrow_fly, launch_pos, -1.0f, 80.0f, pitch);
-			} else {
-				int s_idx = rand() % 2;
-				play_spatial_sound(sfx_bow_shoot[s_idx], launch_pos, -2.0f, 70.0f, pitch);
-			}
-		} else {
-			pit->second.last_progress = proj.progress;
-			pit->second.target_x = proj.target_x;
-			pit->second.target_y = proj.target_y;
-			pit->second.target_z = proj.target_z;
-		}
-	}
-
-	// 3D Positional Projectile Impact Acoustics (Arrow hit / Catapult stone blast)
-	for (auto it = tracked_projectiles.begin(); it != tracked_projectiles.end(); ) {
-		if (current_proj_ids.find(it->first) == current_proj_ids.end()) {
-			Vector3 hit_pos(it->second.target_x, it->second.target_y, it->second.target_z);
-			float pitch = 0.92f + ((float)(rand() % 18) / 100.0f);
-			if (it->second.is_crush) {
-				play_spatial_sound(sfx_catapult_blast, hit_pos, 2.0f, 100.0f, pitch);
-			} else {
-				play_spatial_sound(sfx_arrow_hit, hit_pos, 0.0f, 65.0f, pitch);
-			}
-			it = tracked_projectiles.erase(it);
-		} else {
-			++it;
-		}
 	}
 
 	// =========================================================================
