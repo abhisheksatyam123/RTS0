@@ -586,6 +586,9 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		1, // sele/catafalque
 		1, // han/catafalque
 		-1, // pers/champion_infantry_archer_upgrade
+		19, // brit/ship_fire_fire (fireship_fire: the fire ship's mesh, burning)
+		19, // gaul/ship_fire_fire
+		19, // iber/ship_fire_fire
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -747,6 +750,6 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	return nullptr;
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 392, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 395, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
