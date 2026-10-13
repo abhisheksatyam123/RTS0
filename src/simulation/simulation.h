@@ -83,7 +83,7 @@ struct Projectile {
 // One item of a structure's production queue (0 A.D. ProductionQueue.js Item): a batch of
 // `count` units (Trainer.js) or one technology (Researcher.js), worked on front first.
 struct ProductionOrder {
-	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_COUNT for a technology
+	uint8_t unit_type; // UNIT_TYPE_NONE = corral livestock; UNIT_TYPE_TECH for a technology
 	float timer;
 	float duration;
 	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE; // civ roster unit to spawn (NONE = civ default for unit_type)
@@ -768,6 +768,8 @@ public:
 	// ResourceGatherer CanReturnResource's owner test: `player`'s own dropsite, or a shared one of a
 	// mutual ally once `player` has researched Diaspora (Player/sharedDropsites).
 	bool dropsite_usable_by(uint8_t player, const Building &b) const;
+	// The same test for unit `e` when it is a mobile dropsite (worker elephant, supply wagon).
+	bool mobile_dropsite_usable_by(uint8_t player, size_t e) const;
 	// 0 A.D. "set-dropsite-sharing" (ResourceDropsite.SetSharing) on one of `player`'s dropsites;
 	// only an owner with Diaspora sees the toggle. False if nothing changed.
 	bool cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared);

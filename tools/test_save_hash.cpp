@@ -269,6 +269,47 @@ static void check_reset_load(TurnManager &tm, const char *path) {
 	if (failures == before) std::printf("Town Center + wall, packed/unpacked catapults, a defeated player and a wonder hold into a reset sim: ok\n");
 }
 
+// A technology queued at a structure is saved with unit_type UNIT_TYPE_TECH. Saves since v48
+// wrote 25 there, then UNIT_TYPE_COUNT: such a save's queued technology must load as the same
+// technology and finish as one, never as a unit of type 25.
+static_assert(UNIT_TYPE_TECH == 25, "saves since v48 mark a queued technology with unit_type 25");
+static void check_queued_tech(TurnManager &tm, const char *path) {
+	static Simulation a, b;
+	a.reset();
+	for (float &r : a.players_[0].res) r = 5000.0f;
+	const uint32_t cc = a.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	const uint32_t store = a.spawn_building_world(-20.0f, 0.0f, BLD_STOREHOUSE, 0, 1.0f);
+	const int before = failures;
+	if (!a.cmd_research(0, store, TECH_WOODCUTTING_1) || !a.cmd_train(0, cc, UNIT_FEMALE_CITIZEN)) {
+		std::printf("  FAIL could not queue Iron Axe Heads and a woman\n");
+		++failures;
+		return;
+	}
+	run(a, 40);
+	if (!a.save_state(path)) { std::printf("FAIL save (queued tech)\n"); ++failures; return; }
+	b.reset();
+	if (!b.load_state(path)) { std::printf("FAIL load (queued tech)\n"); ++failures; return; }
+	const auto &q = b.buildings_[b.building_id_to_idx_[store]].queue;
+	if (q.size() != 1 || !q[0].is_tech() || q[0].tech != TECH_WOODCUTTING_1 || q[0].unit_type != UNIT_TYPE_TECH) {
+		std::printf("  FAIL the storehouse's queued technology did not load as one (%zu orders)\n", q.size());
+		++failures;
+	}
+	if (tm.compute_sim_hash(a) != tm.compute_sim_hash(b)) {
+		std::printf("  FAIL queued tech: hash %08x saved, %08x loaded\n", tm.compute_sim_hash(a), tm.compute_sim_hash(b));
+		++failures;
+	}
+	const size_t units0 = b.units().count;
+	for (int t = 0; t < 2400 && !b.players_[0].has_tech(TECH_WOODCUTTING_1); ++t) b.tick(Simulation::FIXED_STEP);
+	size_t techs_as_units = 0;
+	for (size_t i = 0; i < b.units().count; ++i) techs_as_units += b.units().unit_type[i] == UNIT_TYPE_TECH;
+	if (!b.players_[0].has_tech(TECH_WOODCUTTING_1) || techs_as_units || b.units().count > units0 + 1) {
+		std::printf("  FAIL after the load: researched %d, %zu units of type 25, %zu new units\n",
+		            b.players_[0].has_tech(TECH_WOODCUTTING_1), techs_as_units, b.units().count - units0);
+		++failures;
+	}
+	if (failures == before) std::printf("a queued technology loads as a technology and is researched: ok\n");
+}
+
 // Two identical runs must write byte-identical saves: a raw-saved struct's
 // uninitialised padding would make them differ (and break bench_sim's state_fnv64).
 static std::vector<char> read_file(const char *path) {
@@ -381,6 +422,7 @@ int main() {
 	TurnManager tm;
 	check_reused_sim(tm, "/tmp/rts0_test_save_hash.sav");
 	check_identical_saves();
+	check_queued_tech(tm, "/tmp/rts0_test_save_hash.sav");
 	check_reset_load(tm, "/tmp/rts0_test_save_hash.sav");
 	check_other_size_load(tm, "/tmp/rts0_test_save_hash.sav");
 	build(live);
