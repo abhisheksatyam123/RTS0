@@ -8543,7 +8543,7 @@ void RmsGenerator::synth_latium(HeightmapGrid &hm, RmsRng &rng, float &water_h, 
 }
 
 void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
-		const uint8_t *teams) {
+		const uint8_t *teams, uint8_t landscape_choice) {
 	// unknown.js: one of its 13 landscapes at random (Archipelago, Continent,
 	// CentralSea, Isthmus, CentralRiverLand, CentralRiverNaval,
 	// RiversAndLake, EdgeSeas, Gulf, Lakes, Passes, Lowlands, Mainland) on a
@@ -8743,7 +8743,16 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 			}
 		}
 	};
-	const int landscape = rng.range_int(0, 12);
+	// Game Setup Landscape (unknown.json): a random group picks one of its
+	// items with the map's RNG, so every peer picks the same.
+	static constexpr int kLand[] = {1, 3, 4, 7, 8, 9, 10, 11, 12}; // Continent .. Mainland
+	static constexpr int kNaval[] = {2, 0, 6};                        // Central Sea, Archipelago, Lake and rivers
+	int landscape;
+	if (landscape_choice == UNKNOWN_LANDSCAPE_RANDOM_LAND) landscape = kLand[rng.range_int(0, 8)];
+	else if (landscape_choice == UNKNOWN_LANDSCAPE_RANDOM_NAVAL) landscape = kNaval[rng.range_int(0, 2)];
+	else if (landscape_choice >= UNKNOWN_LANDSCAPE_FIRST && landscape_choice < UNKNOWN_LANDSCAPE_FIRST + UNKNOWN_LANDSCAPE_COUNT)
+		landscape = landscape_choice - UNKNOWN_LANDSCAPE_FIRST;
+	else landscape = rng.range_int(0, 12);
 	switch (landscape) {
 		case 0: { // Archipelago
 			circle(0.35f * size, rng.range_float(0.0f, kTau));
@@ -9385,7 +9394,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_latium(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
 		case MAP_UNKNOWN:
-			synth_unknown(hm, rng, water_h, spawns, config.num_players, config.teams);
+			synth_unknown(hm, rng, water_h, spawns, config.num_players, config.teams, config.landscape);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
