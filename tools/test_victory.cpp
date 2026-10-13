@@ -754,6 +754,11 @@ int main() {
 		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.landscape == 15);
 		gp.landscape = 0;
 		CHECK(format_game_start_full(gp).find("landscape=") == std::string::npos);
+		// Trigger Difficulty rides NMT_GAME_START as trigdiff= (left out at Medium).
+		CHECK(format_game_start_full(gp).find("trigdiff=") == std::string::npos);
+		gp.trigger_difficulty = 5;
+		CHECK(parse_game_start_full(format_game_start_full(gp), back) && back.trigger_difficulty == 5);
+		gp.trigger_difficulty = 3;
 	}
 
 	if (failures) {
