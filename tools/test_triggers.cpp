@@ -698,6 +698,82 @@ static void check_danubius() {
 		            houses, temples, towers, holders, defenders, aboard.size(), ashore, patrols);
 }
 
+static void check_jebel_barkal() {
+	// jebel_barkal.js / jebel_barkal_triggers.js on a 256-tile map: Napata walled round the
+	// foot of the hill, its districts filled with Kushite structures, archers on the hilltop,
+	// Gaia patrols through the city from the start and attack waves from 5-7 minutes.
+	const int before = failures;
+	static Simulation s;
+	build(s, MAP_JEBEL_BARKAL);
+	int wonders = 0, temples = 0, ccs = 0, forts = 0, houses = 0, capturable_houses = 0, walls = 0, gates = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER) continue;
+		wonders += b.type == BLD_WONDER;
+		temples += b.type == BLD_TEMPLE || b.type == BLD_TEMPLE_AMUN;
+		ccs += b.type == BLD_TOWN_CENTER;
+		forts += b.type == BLD_FORTRESS;
+		houses += b.type == BLD_HOUSE;
+		capturable_houses += b.type == BLD_HOUSE && b.max_capture_points > 0.0f;
+		walls += b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER;
+		gates += b.type == BLD_GATE;
+	}
+	CHECK(wonders == 1 && temples >= 3, "Napata: %d wonders, %d temples", wonders, temples);
+	CHECK(ccs >= 1 && forts >= 1 && houses >= 50, "Napata districts: %d civic centres, %d fortresses, %d houses", ccs, forts, houses);
+	CHECK(capturable_houses == 0, "%d Napata houses capturable", capturable_houses);
+	CHECK(walls > 0 && gates > 0, "Napata wall: %d pieces, %d gates", walls, gates);
+	int refs[256] = {};
+	for (const TriggerPoint &p : s.triggers_.points) ++refs[p.ref];
+	CHECK(refs['A'] > 0 && refs['B'] > 0, "trigger points A %d, B %d", refs['A'], refs['B']);
+
+	run_to(s, 1.0f);
+	int spawns = 0, patrols = 0;
+	for (const TriggerWatch &w : s.triggers_.watched) {
+		spawns += w.role == 1;
+		patrols += w.role == 2;
+	}
+	CHECK(spawns > 0 && s.triggers_.vars[0] == spawns, "%d spawn points, %d recorded", spawns, (int)s.triggers_.vars[0]);
+	CHECK(patrols > 0, "no city patrol at the start");
+	int holders = 0, garrisoned = 0;
+	for (const Simulation::Building &b : s.buildings_) {
+		if (b.team != GAIA_PLAYER || s.get_garrison_capacity(b.id) <= 0) continue;
+		++holders;
+		garrisoned += !b.garrisoned_units.empty();
+	}
+	CHECK(holders > 0 && garrisoned > 0, "%d of %d Gaia structures garrisoned", garrisoned, holders);
+	// The defenders placed with the map (the garrisons and patrols come after the stance is set).
+	std::vector<uint32_t> inside;
+	for (const Simulation::Building &b : s.buildings_) inside.insert(inside.end(), b.garrisoned_units.begin(), b.garrisoned_units.end());
+	int soldiers = 0, defensive = 0;
+	for (size_t i = 0; i < s.units_.count; ++i) {
+		if (!s.units_.alive[i] || s.units_.team[i] != GAIA_PLAYER || s.units_.tmpl[i] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+		if (!(civ_unit_template(s.units_.tmpl[i]).tech_classes & TC_SOLDIER)) continue;
+		if (s.turret_holder_of(s.units_.id[i]) || std::find(inside.begin(), inside.end(), s.units_.id[i]) != inside.end()) continue;
+		bool patrol = false;
+		for (const TriggerWatch &w : s.triggers_.watched) patrol |= w.role == 2 && w.id == s.units_.id[i];
+		if (patrol) continue;
+		++soldiers;
+		defensive += s.units_.stance[i] == STANCE_DEFENSIVE;
+	}
+	CHECK(soldiers > 0 && defensive == soldiers, "%d of %d Napata defenders defensive", defensive, soldiers);
+
+	run_to(s, 299.0f);
+	int early = 0;
+	for (const TriggerWatch &w : s.triggers_.watched) early += w.role == 3;
+	CHECK(early == 0, "%d attackers before 5 minutes", early);
+	run_to(s, 421.0f);
+	int attackers = 0, ordered = 0;
+	for (const TriggerWatch &w : s.triggers_.watched) {
+		if (w.role != 3) continue;
+		++attackers;
+		const int32_t u = s.lookup_unit(w.id);
+		ordered += u >= 0 && s.units_.order_kind[u] != ORDER_NONE;
+	}
+	CHECK(attackers > 0 && ordered > 0, "first wave by 7 minutes: %d attackers, %d under orders", attackers, ordered);
+	if (failures == before)
+		std::printf("Jebel Barkal: Napata (%d houses, %d CCs, %d fortresses, %d wall pieces, %d gates), %d spawn points, %d patrolling, %d in the first wave: ok\n",
+		            houses, ccs, forts, walls, gates, spawns, patrols, attackers);
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -718,6 +794,8 @@ int main() {
 	check_elephantine();
 	check_danubius();
 	check_save_load(tm, MAP_DANUBIUS, 290.0f, 400.0f, Simulation::WATER_LEVEL_RISING, 25, "Danubius with soldiers aboard and ships unloading");
+	check_jebel_barkal();
+	check_save_load(tm, MAP_JEBEL_BARKAL, 280.0f, 430.0f, Simulation::WATER_LEVEL_RISING, 25, "Jebel Barkal across the first attack");
 	std::printf("RESULT: %s (%d failed checks)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
 }
