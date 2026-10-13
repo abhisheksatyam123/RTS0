@@ -184,6 +184,44 @@ int main() {
 		for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t)
 			CHECK(group_is(building_attack_sounds(t).c, "attack/destruction", "building_collapse_large"));
 		CHECK(group_is(building_attack_sounds(BLD_TYPE_COUNT + 5).c, "attack/destruction", "building_collapse_large"));
+		// Slaughter (women's knife) and the animals' own attacks, in FaunaType order.
+		CHECK(group_is(gen[UNIT_FEMALE_CITIZEN].d, "attack/impact", "fleshstab"));
+		CHECK(ATTACK_SOUND_FAUNA_ROWS == FAUNA_COUNT);
+		CHECK(fauna_attack_sound(fauna_type_by_name("fauna_lion")) != ATTACK_SOUND_NONE &&
+				fauna_attack_sound(fauna_type_by_name("fauna_lion")) == fauna_attack_sound(fauna_type_by_name("fauna_tiger")));
+		CHECK(group_is(fauna_attack_sound(fauna_type_by_name("fauna_elephant_asian")), "actor/fauna/animal", "elephant_attack"));
+		CHECK(fauna_attack_sound(FAUNA_DEER) == ATTACK_SOUND_NONE && fauna_attack_sound(FAUNA_COUNT) == ATTACK_SOUND_NONE);
+	}
+
+	// 3. Strikes on animals and animals' bites reach the session's combat sounds: a woman
+	//    slaughtering a sheep is a Slaughter strike, a lion's bite is a melee hit by the lion.
+	{
+		fresh(s);
+		const uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t sheep = s.spawn_fauna(1.5f, 0.0f, FAUNA_SHEEP);
+		s.order_hunt(&w, 1, sheep);
+		(void)s.take_fauna_strikes();
+		int slaughters = 0;
+		for (int t = 0; t < 100 && !slaughters; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			for (const auto &e : s.take_fauna_strikes()) slaughters += e.attacker_id == w && e.slaughter;
+		}
+		CHECK(slaughters == 1);
+		const uint32_t sp = s.spawn_unit(20.0f, 20.0f, 0, UNIT_SPEARMAN, 2000.0f);
+		const uint32_t lion = s.spawn_fauna(21.0f, 20.0f, FAUNA_LION);
+		size_t lf = 0;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			if (s.fauna_.id[f] == lion) lf = f;
+		s.fauna_start_attack(lf, sp);
+		(void)s.take_attacked_events();
+		bool bit = false;
+		for (int t = 0; t < 100 && !bit; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			for (const auto &e : s.take_attacked_events()) bit = bit || (e.attacker_id == lion && e.target_id == sp && e.melee == 1);
+		}
+		CHECK(bit);
+		s.reset();
+		CHECK(s.take_fauna_strikes().empty());
 	}
 
 	if (failures) {

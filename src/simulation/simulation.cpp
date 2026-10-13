@@ -579,6 +579,7 @@ void Simulation::reset() {
 	turret_height_.clear();
 	for (double &d : battle_damage_) d = 0.0;
 	attacked_events_.clear();
+	fauna_strikes_.clear();
 	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
@@ -25275,7 +25276,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
 	                  info.crush_damage * powf(0.9f, res[2]);
 	if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
-	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg);
+	note_attacked(fauna_.id[f], GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg, true);
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
@@ -25340,6 +25341,7 @@ void Simulation::tick_hunters() {
 			}
 			dmg = unit_damage_to_fauna(i, f);
 		}
+		if (fauna_strikes_.size() < kMaxAttackedEvents) fauna_strikes_.push_back({units_.id[i], (uint8_t)slaughter});
 		award_fauna_xp(i, f, dmg);
 		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i], slaughter || units_.attack_range[i] <= 3.0f);

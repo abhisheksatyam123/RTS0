@@ -2,9 +2,11 @@
 """Generate RTS0's combat sound data from 0 A.D.'s templates and sound groups.
 
 0 A.D. plays a unit's combat sounds from its template's Sound/SoundGroups:
-  * attack_melee / attack_ranged: the actor's attack animation fires the group
-    named after the attack type on each swing or shot (BuildingAI.js FireArrows
-    plays a structure's attack_ranged itself, once per round of arrows).
+  * attack_melee / attack_ranged / attack_slaughter: the actor's attack animation
+    fires the group named after the attack type on each swing or shot (BuildingAI.js
+    FireArrows plays a structure's attack_ranged itself, once per round of arrows);
+    Slaughter is the attack on domestic animals. Animals (gaia/fauna_*) have their own
+    attack_melee.
   * attack_impact_ranged: Attack.js PerformAttack hands it to DelayedDamage.js,
     which plays it where the projectile lands, whatever it hits.
   * death: Health.js plays it as the entity dies; every structure's is
@@ -13,8 +15,9 @@ A sound group (audio/**/*.xml) lists its Sound files under Path and picks one at
 random (RandOrder) at Gain, between PitchLower and PitchUpper when RandPitch is set.
 
 One row per civ roster template (same order as civ_roster_data.h), one per RTS0
-UnitType for units without a roster template, and one per BuildingType, each
-naming its groups by index into the group table.
+UnitType for units without a roster template, one per BuildingType and one per
+FaunaType (extract_0ad_fauna.py's order), each naming its groups by index into the
+group table.
 
 Usage:
   python3 -I tools/extract_0ad_attack_sounds.py --0ad PATH/TO/0ad --audio PATH/TO/audio [--check]
@@ -43,8 +46,17 @@ atk = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(atk)
 ex = atk.ex
 
-UNIT_GROUPS = ("attack_melee", "attack_ranged", "attack_impact_ranged")
-BUILDING_GROUPS = ("attack_ranged", "attack_impact_ranged", "death")
+UNIT_GROUPS = ("attack_melee", "attack_ranged", "attack_impact_ranged", "attack_slaughter")
+BUILDING_GROUPS = ("attack_ranged", "attack_impact_ranged", "death", "")
+
+
+def fauna_stems(loader):
+    """gaia/fauna_* in FaunaType order (extract_0ad_fauna.py fauna_rows)."""
+    import glob
+    sys.path.insert(0, os.path.join(REPO, "tools"))
+    from extract_0ad_fauna import FIRST
+    stems = sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(loader.root, "gaia", "fauna_*.xml")))
+    return FIRST + [s for s in stems if s not in FIRST]
 
 
 def load_group(audio_root, path):
@@ -72,7 +84,7 @@ def load_group(audio_root, path):
 
 
 def sounds_of(t, names):
-    return [t.value("Sound/SoundGroups/" + n) or "" for n in names]
+    return [(t.value("Sound/SoundGroups/" + n) or "") if n else "" for n in names]
 
 
 def collect(sim_root):
@@ -91,7 +103,8 @@ def collect(sim_root):
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
         buildings.append((bld, name, sounds_of(loader.load(name), BUILDING_GROUPS)))
     buildings.append(("default", "template_structure", sounds_of(loader.load("template_structure"), BUILDING_GROUPS)))
-    return units, generic, buildings
+    fauna = [(stem, (loader.load("gaia/" + stem).value("Sound/SoundGroups/attack_melee") or "")) for stem in fauna_stems(loader)]
+    return units, generic, buildings, fauna
 
 
 def f(x):
@@ -99,7 +112,7 @@ def f(x):
     return (s + "0" if s.endswith(".") else s) + "f"
 
 
-def emit(groups, units, generic, buildings):
+def emit(groups, units, generic, buildings, fauna):
     index = {p: i for i, (p, _) in enumerate(groups)}
 
     def ids(paths):
@@ -133,15 +146,16 @@ def emit(groups, units, generic, buildings):
     w("\treturn kGroups[g < ATTACK_SOUND_GROUP_COUNT ? g : 0];")
     w("}")
     w("")
-    w("// attack_melee, attack_ranged and attack_impact_ranged of a unit template, or")
-    w("// attack_ranged, attack_impact_ranged and death of a structure.")
+    w("// attack_melee, attack_ranged, attack_impact_ranged and attack_slaughter of a unit")
+    w("// template, or attack_ranged, attack_impact_ranged and death of a structure.")
     w("struct EntityAttackSounds {")
-    w("\tuint8_t a, b, c;")
+    w("\tuint8_t a, b, c, d;")
     w("};")
     w("")
     w("inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = %d;" % len(units))
     w("inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = %d;" % len(generic))
     w("inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = %d;" % len(buildings[:-1]))
+    w("inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = %d;" % len(fauna))
     w("")
     w("// Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).")
     w("inline const EntityAttackSounds *roster_attack_sounds() {")
@@ -171,6 +185,15 @@ def emit(groups, units, generic, buildings):
     w("\treturn kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];")
     w("}")
     w("")
+    w("// An animal's attack_melee group by FaunaType (ATTACK_SOUND_NONE past the table).")
+    w("inline uint8_t fauna_attack_sound(uint8_t type) {")
+    w("\tstatic const uint8_t kRows[ATTACK_SOUND_FAUNA_ROWS] = {")
+    for stem, path in fauna:
+        w("\t\t%s, // %s" % (ids([path]), stem))
+    w("\t};")
+    w("\treturn type < ATTACK_SOUND_FAUNA_ROWS ? kRows[type] : ATTACK_SOUND_NONE;")
+    w("}")
+    w("")
     return "\n".join(out)
 
 
@@ -181,13 +204,13 @@ def main():
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
-    units, generic, buildings = collect(sim_root)
+    units, generic, buildings, fauna = collect(sim_root)
     paths = sorted({p for rows in (units, generic) for _, *rest in rows for p in rest[-1] if p} |
-                   {p for _, _, ps in buildings for p in ps if p})
+                   {p for _, _, ps in buildings for p in ps if p} | {p for _, p in fauna if p})
     groups = [(p, load_group(args.audio, p)) for p in paths]
     if len(groups) >= 255:
         sys.exit("more than 254 sound groups")
-    text = emit(groups, units, generic, buildings)
+    text = emit(groups, units, generic, buildings, fauna)
     if args.check:
         old = open(OUT_HEADER).read() if os.path.exists(OUT_HEADER) else ""
         if old != text:
@@ -196,8 +219,8 @@ def main():
         return
     with open(OUT_HEADER, "w") as fh:
         fh.write(text)
-    print("wrote %s (%d sound groups, %d roster rows, %d generic, %d building types)" % (
-        OUT_HEADER, len(groups), len(units), len(generic), len(buildings) - 1))
+    print("wrote %s (%d sound groups, %d roster rows, %d generic, %d building types, %d animals)" % (
+        OUT_HEADER, len(groups), len(units), len(generic), len(buildings) - 1, len(fauna)))
 
 
 if __name__ == "__main__":

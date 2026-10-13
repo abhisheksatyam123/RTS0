@@ -3377,7 +3377,7 @@ void RtsoMain::_process(double delta) {
 		session_audio_.set_listener(focus.x, focus.z);
 	}
 	session_audio_.tick(sim, local_player(), match_elapsed_time, true);
-	session_audio_.tick_combat(sim, local_player(), attacks, match_elapsed_time);
+	session_audio_.tick_combat(sim, local_player(), attacks, sim->take_fauna_strikes(), match_elapsed_time);
 	update_music_state();
 
 	// Environmental Ambience: Viewport Elevation & Coastal Water Proximity
