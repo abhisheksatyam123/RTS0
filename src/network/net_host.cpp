@@ -156,6 +156,8 @@ bool NetHost::startClient(const std::string &h, uint16_t p) {
 	auth_result_ = -1;
 	kicks_.clear();
 	kicked_self_ = false;
+	banned_self_ = false;
+	disconnect_reason_ = -1;
 	next_seq_ = 1;
 	peers_.clear();
 	pending_acks_.clear();
@@ -597,6 +599,14 @@ void NetHost::handle_incoming_packet(const uint8_t *data, size_t size, const std
 				// In the session (peer_connected_cb_) once the host accepts our
 				// authentication (NMT_AUTHENTICATE_RESULT).
 			}
+			// The host closes our link (it left, or kicked or refused us). Its
+			// header carries our own id, so the generic handler below misses it.
+			if (hdr.flags & NET_FLAG_DISCONNECT) {
+				const bool refused = auth_result_ >= 0 && auth_result_ != ARC_OK;
+				lose_host(kicked_self_ ? (banned_self_ ? 7 : 6)
+						: refused && auth_result_ == ARC_BANNED ? 7
+						: refused && auth_result_ == ARC_PASSWORD_INVALID ? 14 : 2);
+			}
 		}
 	}
 
@@ -817,7 +827,10 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 	} else if (msg.type == static_cast<uint8_t>(NetMessageType::NMT_KICKED)) {
 		KickedMsg k;
 		if (isClient() && author == 0 && NetPacketSerializer::parse_kicked(msg.payload.data(), msg.payload.size(), k)) {
-			if (k.guid == peer_guid(local_peer_id_)) kicked_self_ = true;
+			if (k.guid == peer_guid(local_peer_id_)) {
+				kicked_self_ = true;
+				banned_self_ = k.ban != 0;
+			}
 			std::cout << "[NetHost] " << k.name << (k.ban ? " was banned" : " was kicked") << "\n";
 			kicks_.push_back(std::move(k));
 		}
@@ -890,11 +903,18 @@ void NetHost::send_heartbeats(uint64_t now_ms) {
 void NetHost::check_peer_timeouts(uint64_t now_ms) {
 	for (auto &p : peers_) {
 		if (p.connected && p.kick_disconnect_ms && now_ms >= p.kick_disconnect_ms) {
-			send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
+			for (int i = 0; i < kDisconnectSends; ++i)
+				send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
 			p.connected = false;
 			continue;
 		}
 		if (p.connected && p.last_seen_ms > 0 && (now_ms - p.last_seen_ms > 10000)) {
+			if (isClient() && p.id == 0) {
+				// ENet's timeout disconnect carries no reason (NDR_UNKNOWN),
+				// unless the host already said it kicked us.
+				lose_host(kicked_self_ ? (banned_self_ ? 7 : 6) : 0);
+				continue;
+			}
 			p.connected = false;
 			std::cout << "[NetHost] Peer " << p.id << " timed out\n";
 			if (peer_disconnected_cb_) {
@@ -928,6 +948,14 @@ void NetHost::poll(Arena &arena) {
 	send_heartbeats(now);
 	check_peer_timeouts(now);
 	send_client_performance(now);
+}
+
+void NetHost::lose_host(int reason) {
+	if (disconnect_reason_ >= 0 || peers_.empty()) return;
+	disconnect_reason_ = reason;
+	peers_[0].connected = false;
+	std::cout << "[NetHost] Lost the connection to the host (reason " << reason << ")\n";
+	if (peer_disconnected_cb_) peer_disconnected_cb_(0);
 }
 
 void NetHost::refusePeer(uint32_t peer_id) {
@@ -1000,12 +1028,14 @@ void NetHost::send_client_performance(uint64_t now_ms) {
 
 void NetHost::stop() {
 	if (socket_fd_ >= 0) {
-		if (isClient() && !server_ip_.empty()) {
-			send_wire_packet(server_ip_, server_port_, 0, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
-		} else if (isHost()) {
-			for (const auto &p : peers_) {
-				if (p.connected) {
-					send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
+		for (int i = 0; i < kDisconnectSends; ++i) {
+			if (isClient() && !server_ip_.empty()) {
+				send_wire_packet(server_ip_, server_port_, 0, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
+			} else if (isHost()) {
+				for (const auto &p : peers_) {
+					if (p.connected) {
+						send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);
+					}
 				}
 			}
 		}
