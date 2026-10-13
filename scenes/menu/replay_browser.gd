@@ -24,6 +24,10 @@ const INCOMPATIBLE := Color8(96, 96, 96)
 const COLUMNS := [["months", "Date / Time", 12], ["players", "Players", 44], ["mapName", "Map Name", 14],
 	["mapSize", "Size", 10], ["popCapacity", "Population", 10], ["duration", "Duration", 10]]
 ## g_DurationFilterIntervals, in minutes (-1: open).
+## PopulationCapacities' types in order (the population sort's secondary key);
+## RTS0 has no Team Population. Caps of 10000 or more read "Unlimited".
+const POP_TYPES := ["player", "team", "world"]
+const UNLIMITED_POP := 10000
 const DURATIONS := [[-1, -1], [-1, 15], [15, 30], [30, 45], [45, 60], [60, 90], [90, 120], [120, -1]]
 const SINGLEPLAYER := ["Any", "Single-player", "Multiplayer", "Campaigns"]
 ## 0 A.D. map_sizes.json names by RTS0 width in meters.
@@ -32,12 +36,13 @@ const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Medium"], [320, "Norma
 
 ## Every replay found (replay_menu.js loadReplays, sanitized):
 ## {dir, meta, compatible, why, timestamp, date, month, players, names, map,
-##  size, pop, world_pop, duration, victory, multiplayer, map_type, map_id}
+##  size, pop, pop_type, duration, victory, multiplayer, map_type, map_id}
 var _all: Array = []
 ## The ones the filters show, in list order.
 var _replays: Array = []
 var _player_names: Array = []
 var _map_names: Array = []
+var _pop_caps: Array = []
 var sort_column := "months"
 var sort_order := -1
 var _selected_dir := ""
@@ -122,7 +127,13 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 	var map_id := str(meta.get("map_id", settings.get("map_id", "")))
 	var info := map_info(map_id)
 	var size := int(meta.get("map_size", 0)) if info["type"] == "Random" else int(info["size"])
-	var pop := int(attribs.get("popcap", settings.get("pop_cap", 300)))
+	# PopulationCap and PopulationCapType (replay_menu.js sanitizeInitAttributes):
+	# settings.pop_cap is negative for a World Population, 0 for unlimited.
+	var setting_pop := int(settings.get("pop_cap", 300))
+	var world := int(attribs.get("worldpop", -setting_pop if setting_pop < 0 else 0))
+	var pop := int(attribs.get("popcap", maxi(setting_pop, 0)))
+	var pop_type := "world" if world > 0 else "player"
+	pop = world if world > 0 else (UNLIMITED_POP if pop <= 0 else pop)
 	var victory := int(attribs.get("victory", settings.get("victory", 0)))
 	var timestamp := int(meta.get("timestamp", 0))
 	var local := timestamp + int(Time.get_time_zone_from_system().get("bias", 0)) * 60
@@ -133,7 +144,7 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 		"date": date.substr(0, 16), "month": date.substr(0, 7), "players": players,
 		"names": players.map(func(p): return str(p.get("name", ""))),
 		"map": str(meta.get("map_name", map_id)), "map_id": map_id, "map_type": info["type"], "desc": info["desc"],
-		"size": size, "pop": pop, "world_pop": int(attribs.get("worldpop", 0)),
+		"size": size, "pop": pop, "pop_type": pop_type,
 		"duration": float(meta.get("start_time", 0.0)) + float(meta.get("duration", 0.0)),
 		"victory": victory, "multiplayer": humans > 1 or str(meta.get("kind", "sp")) == "mp",
 		"campaign": str(settings.get("campaign_run", "")) != ""}
@@ -173,10 +184,20 @@ static func victory_name(v: int) -> String:
 	return SetupPage.VICTORIES[v].get_slice(" — ", 0) if v >= 0 and v < SetupPage.VICTORIES.size() else "Unknown"
 
 ## translatePopulationCapacity.
-static func population_name(pop: int, world: int) -> String:
-	if world > 0:
-		return "%d (World)" % world
-	return "Unlimited" if pop <= 0 else str(pop)
+static func population_name(pop: int, pop_type: String) -> String:
+	return "Unlimited" if pop >= UNLIMITED_POP else "%d (%s)" % [pop, pop_type]
+
+## initPopCapFilter: the caps of every population type (gamesetup.gd's
+## POP_CAPS) merged into one ascending list, unlimited as 10000.
+static func population_filter_caps() -> Array:
+	var caps := []
+	for p in SetupPage.POP_CAPS:
+		var v := int(p[0])
+		v = -v if v < 0 else (UNLIMITED_POP if v == 0 else v)
+		if not caps.has(v):
+			caps.append(v)
+	caps.sort()
+	return caps
 
 static func time_to_string(seconds: float) -> String:
 	var s := int(seconds)
@@ -203,10 +224,8 @@ func _init_filters() -> void:
 	_refill(_date_filter, ["Any"] + months)
 	_refill(_map_filter, ["Any"] + _map_names)
 	_refill(_size_filter, ["Any"] + MAP_SIZES.map(func(s): return s[1]))
-	var pops := []
-	for p in SetupPage.POP_CAPS:
-		pops.append(population_name(int(p[0]), 0))
-	_refill(_pop_filter, ["Any"] + pops)
+	_pop_caps = population_filter_caps()
+	_refill(_pop_filter, ["Any"] + _pop_caps.map(func(c): return "Unlimited" if c >= UNLIMITED_POP else str(c)))
 	var durations := []
 	for i in DURATIONS.size():
 		var d: Array = DURATIONS[i]
@@ -242,7 +261,7 @@ func passes(r: Dictionary) -> bool:
 		return false
 	if _size_filter.selected > 0 and r["size"] != MAP_SIZES[_size_filter.selected - 1][0]:
 		return false
-	if _pop_filter.selected > 0 and r["pop"] != int(SetupPage.POP_CAPS[_pop_filter.selected - 1][0]):
+	if _pop_filter.selected > 0 and r["pop"] != _pop_caps[_pop_filter.selected - 1]:
 		return false
 	if _duration_filter.selected > 0:
 		var d: Array = DURATIONS[_duration_filter.selected]
@@ -261,7 +280,7 @@ func _sort_key(r: Dictionary) -> Variant:
 		"mapSize":
 			return r["size"]
 		"popCapacity":
-			return r["pop"]
+			return [r["pop"], POP_TYPES.find(r["pop_type"])]
 	return r["timestamp"]
 
 ## filterReplays + displayReplayList: filter, sort and fill the list, keeping
@@ -281,7 +300,7 @@ func display_replay_list() -> void:
 	for r in _replays:
 		var it := replay_list.create_item(root)
 		var cells := [r["date"], ", ".join(r["names"]), r["map"], map_size_name(r["size"]),
-			population_name(r["pop"], r["world_pop"]), time_to_string(r["duration"])]
+			population_name(r["pop"], r["pop_type"]), time_to_string(r["duration"])]
 		for c in cells.size():
 			it.set_text(c, cells[c])
 			it.set_custom_color(c, Color8(172, 172, 212) if c == 0 else Color8(192, 192, 192))
