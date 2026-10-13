@@ -289,7 +289,7 @@ public:
 			case BLD_TEMPLE: n = "temple"; break;
 			case BLD_WONDER: n = "wonder"; break;
 			case BLD_DOCK: n = "dock"; break;
-			case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_WALL_TOWER: n = "wall"; break;
+			case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_SIEGE_WALL: n = "wall"; break;
 			case BLD_CORRAL: n = "corral"; break;
 			case BLD_FIELD: n = "field"; break;
 			case BLD_STABLE: n = "stable"; break;

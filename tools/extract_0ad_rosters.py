@@ -211,7 +211,17 @@ UNIQUE_BUILDINGS = [
     # its own mercenaries; drawn with the embassy until they have their own models.
     ("BLD_EMBASSY_IBERIAN", ["embassy_iberian"], "embassy", "embassy"),
     ("BLD_EMBASSY_ITALIC", ["embassy_italic"], "embassy", "embassy"),
+    # The Roman siege wall (rome/wallset_siege): its segments and towers are one type, read from
+    # siege_wall_long (sim_types.h wallset_info has each piece's values); drawn with the stone
+    # wall until it has its own model. Its gate (a siege_wall_long Upgrade) has no BuildingType:
+    # bld_bit()'s uint64_t masks hold no more than 64.
+    ("BLD_SIEGE_WALL", ["siege_wall_long"], "wall_segment", "wall"),
 ]
+# Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
+WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege"}
+# WallSet pieces keep one cell like the stone wall's: their turned footprint is their length
+# (sim_types.h wallset_info), not a square.
+ONE_CELL = {"BLD_SIEGE_WALL"}
 # Civ structures named by Identity/SpecificName rather than a GenericName they share.
 SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC"}
 # Structures no Builder list names: only an Upgrade reaches them.
@@ -1461,7 +1471,7 @@ def unique_building_rows(sim_root, generic_masks=None):
             "generic": t.value("Identity/GenericName", ""),
             "model": model, "portrait": portrait,
             "hp": t.num("Health/Max", 1000.0),
-            "foot": 2 if width > 15.0 else 1,
+            "foot": 2 if width > 15.0 and enum not in ONE_CELL else 1,
             "food": int(t.num("Cost/Resources/food")), "wood": int(t.num("Cost/Resources/wood")),
             "gold": int(t.num("Cost/Resources/metal")), "stone": int(t.num("Cost/Resources/stone")),
             "pop": int(t.num("Population/Bonus")), "garrison": int(t.num("GarrisonHolder/Max")),
@@ -1470,7 +1480,8 @@ def unique_building_rows(sim_root, generic_masks=None):
             "regen": t.num("Capturable/RegenRate", 5.0),
             "garrison_regen": t.num("Capturable/GarrisonRegenRate", 1.0),
             "decay": t.num("TerritoryDecay/DecayRate", 0.0),  # disable="" (Cothon): no decay,
-            "phase": phase_of(t),
+            "phase": (phase_of(loader.load(src.rsplit("/", 1)[0] + "/" + WALLSET_PHASE[enum]))
+                      if enum in WALLSET_PHASE else phase_of(t)),
             # TerritoryInfluence roots on RTS0's scale (0 A.D. civil centre 140 m -> 32).
             "territory": (t.num("TerritoryInfluence/Radius") * 32.0 / 140.0
                           if t.value("TerritoryInfluence/Root") == "true" else 0.0),
