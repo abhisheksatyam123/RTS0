@@ -76,7 +76,8 @@ static func replay_finished(m: Node) -> Node:
 	return _quit(m, TITLE, CAPTION_REPLAY)
 
 ## session.js endGame: leave the match, for the summary page or the menu the
-## match came from (the campaign's menu in a campaign).
+## match came from: the campaign's menu in a campaign, else the lobby while
+## signed in to it, the replay menu after a replay, else the main menu.
 static func end_game(m: Node, show_summary: bool) -> void:
 	var tree := m.get_tree()
 	tree.paused = false
@@ -91,10 +92,12 @@ static func end_game(m: Node, show_summary: bool) -> void:
 		var summary_script: GDScript = load("res://scenes/session/summary_screen.gd")
 		summary_script.pending = {"gui": g, "data": m.get_match_statistics()}
 		ms.go("res://scenes/session/summary_screen.tscn")
-	elif status.get("replaying", false):
-		ms.go("res://scenes/menu/replay_browser.tscn")
 	elif ms.campaign_run != "":
 		load("res://scenes/session/summary_screen.gd").leave_campaign(m.get_summary_gui(false).get("victory", false))
+	elif tree.root.has_node("LobbySession") and tree.root.get_node("LobbySession").signed_in():
+		ms.go("res://scenes/menu/lobby.tscn") # Engine.HasXmppClient: back to the lobby
+	elif status.get("replaying", false):
+		ms.go("res://scenes/menu/replay_browser.tscn")
 	else:
 		ms.go("res://scenes/menu/main_menu.tscn")
 

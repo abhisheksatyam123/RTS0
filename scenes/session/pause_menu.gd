@@ -40,6 +40,8 @@ func _on_summary_pressed():
 	var main := get_parent()
 	if main.has_method("_on_menu_button_pressed"):
 		main._on_menu_button_pressed() # close the menu the way Esc does
+	if main.has_method("close_open_dialogs"):
+		main.close_open_dialogs() # Summary.onPress: closeOpenDialogs
 	if main.has_method("toggle_summary"):
 		main.toggle_summary()
 

@@ -514,7 +514,7 @@ inline const TechEffect *tech_effects_table() {
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 182;
+constexpr int TECH_EFFECT_COUNT = 188;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {

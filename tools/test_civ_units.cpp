@@ -75,6 +75,25 @@ int main() {
 	CHECK(s.team_civ(5) == CIV_GERMANS);
 	uint32_t germ_sp = s.spawn_unit(16.0f, 0.0f, 5, UNIT_SPEARMAN);
 	CHECK(std::strcmp(civ_unit_template(s.unit_template(germ_sp)).id, "germ/infantry_spearman_b") == 0);
+	// Grove of Fetters: Priests and Seeresses +50% health (its effect row, not one past the table).
+	CHECK(tech_effects_table()[tech_info(TECH_GROVE_OF_FETTERS).effect_begin].stat == TSTAT_HEALTH);
+	{
+		static Simulation g;
+		g.set_sim_seed(7);
+		g.set_team_civ(0, CIV_GERMANS);
+		g.reset();
+		g.set_player_resources(0, 5000, 5000, 5000, 5000);
+		g.player(0).phase = 3;
+		g.spawn_building(-20, -20, BLD_TOWN_CENTER, 0, 1.0f);
+		const uint32_t temple = g.spawn_building(-10, -30, BLD_TEMPLE, 0, 1.0f);
+		const uint32_t priest = g.spawn_unit(-12.0f, -20.0f, 0, UNIT_HEALER);
+		const float hp0 = g.units().max_hp[index_of(g, priest)];
+		CHECK(g.cmd_research(0, temple, TECH_GROVE_OF_FETTERS));
+		for (int k = 0; k < (int)((tech_info(TECH_GROVE_OF_FETTERS).research_time + 1.0f) / Simulation::FIXED_STEP); ++k)
+			g.tick(Simulation::FIXED_STEP);
+		CHECK(g.player(0).has_tech(TECH_GROVE_OF_FETTERS));
+		CHECK(g.units().max_hp[index_of(g, priest)] > hp0 * 1.49f);
+	}
 
 	// Training a hero by template: Pericles, with his own aura. A fresh match, so
 	// the extra players above don't end it early.
@@ -327,6 +346,8 @@ int main() {
 		CHECK(std::strcmp(civ_art_code(CIV_GERMANS), "gaul") == 0 && std::strcmp(civ_art_code(CIV_GAULS), "gaul") == 0);
 		CHECK(tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GERMANS) && !tech_available_to_civ(TECH_GROVE_OF_FETTERS, CIV_GAULS));
 		CHECK(!tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GERMANS) && tech_available_to_civ(TECH_TOWER_HEALTH, CIV_GAULS));
+		CHECK((civ_unit_template(roster_id("athen/support_civilian")).flags & ROSTER_CIVILIAN) &&
+		      !(civ_unit_template(roster_id("athen/support_female_citizen")).flags & ROSTER_CIVILIAN));
 		// Carthage's three embassies each train their own mercenaries (structures/cart/embassy_*.xml).
 		CHECK(civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_IBERIAN) && civ_can_build(CIV_CARTHAGINIANS, BLD_EMBASSY_ITALIC));
 		CHECK(!civ_can_build(CIV_ROMANS, BLD_EMBASSY_ITALIC));

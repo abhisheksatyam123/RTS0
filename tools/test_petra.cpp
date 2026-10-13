@@ -2421,6 +2421,40 @@ static void test_concurrent_attacks() {
 	}
 }
 
+// attackPlan.js Abort: an aborted attack withdraws to the nearest of our bases on its
+// land, a second civic centre near the front included, not to the first one.
+static void test_abort_nearest_base() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f, ex = 0.0f, ez = 0.0f;
+	for (const auto &b : s->buildings()) {
+		if (b.type != BLD_TOWN_CENTER) continue;
+		if (b.team == 1) { tx = b.x; tz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; }
+	}
+	// A second civic centre halfway to the enemy.
+	const float fx = 0.5f * (tx + ex), fz = 0.5f * (tz + ez);
+	const uint32_t front = s->spawn_building_world(fx, fz, BLD_TOWN_CENTER, 1, 1.0f);
+	run_for(*s, 3.0f);
+	bool based = false;
+	for (const auto &pb : s->petra_bases()) based |= pb.anchor_building_id == front;
+	float bx = fx, bz = fz;
+	if (auto it = s->building_id_to_idx_.find(front); it != s->building_id_to_idx_.end()) { bx = s->buildings_[it->second].x; bz = s->buildings_[it->second].z; }
+	Simulation::AttackPlan plan;
+	plan.kind = PETRA_ATTACK_ATTACK;
+	plan.state = Simulation::AttackPlan::ABORT;
+	for (int k = 0; k < 4; ++k) plan.squad.push_back(s->spawn_unit(bx + 0.7f * (ex - bx) + 2.0f * (float)k, bz + 0.7f * (ez - bz), 1, UNIT_SPEARMAN));
+	s->petra_update_attack_plan(plan, tx, tz);
+	const float d_front = std::hypot(plan.retreat_x - bx, plan.retreat_z - bz);
+	std::printf("  abort: front base registered %s, army withdraws %.1f from it\n", based ? "yes" : "no", d_front);
+	CHECK(based, "the second civic centre is a base");
+	CHECK(plan.state == Simulation::AttackPlan::REGROUP && d_front < 1.0f, "an aborted attack withdraws to the nearest base on its land (Abort)");
+}
+
 // attackPlan.js updatePreparation "Fasten the end game": a mustering plan with siege
 // engines that outnumbers 20 + twice the enemy's units marches at once (forceStart).
 static void test_fasten_end_game() {
@@ -3007,6 +3041,7 @@ int main() {
 	test_research_choices();
 	test_concurrent_attacks();
 	test_fasten_end_game();
+	test_abort_nearest_base();
 	test_worker_mix();
 	test_build_defenses();
 	test_dropsites();

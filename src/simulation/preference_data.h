@@ -19,7 +19,7 @@ struct PrefProfile { uint8_t count; PrefTerm term[4]; }; // terms by index, over
 // A unit's PreferredClasses and its own preference classes as a target.
 struct PrefUnitRow { PrefProfile prefs; uint8_t classes; };
 
-inline constexpr uint16_t PREF_TEMPLATE_COUNT = 452; // = CIV_UNIT_TEMPLATE_COUNT
+inline constexpr uint16_t PREF_TEMPLATE_COUNT = 450; // = CIV_UNIT_TEMPLATE_COUNT
 inline const PrefUnitRow *pref_template_table() {
 	static const PrefUnitRow kTable[PREF_TEMPLATE_COUNT] = {
 		{{1, {{0, 0x01, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // athen/cavalry_javelineer_b
@@ -472,8 +472,6 @@ inline const PrefUnitRow *pref_template_table() {
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/rts0_villager
 		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x08}, // germ/catafalque
 		{{1, {{0, 0x02, 0x00}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x1a}, // germ/ship_fire_fire
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/support_wagon
-		{{0, {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}}}, 0x09}, // germ/support_wagon_house
 	};
 	return kTable;
 }
@@ -513,7 +511,7 @@ inline const PrefUnitRow *pref_class_table() {
 	return kTable;
 }
 
-inline constexpr uint8_t PREF_BUILDING_ROWS = 69; // BuildingTypes; one more row for any other structure
+inline constexpr uint8_t PREF_BUILDING_ROWS = 67; // BuildingTypes; one more row for any other structure
 // Each BuildingType's preference classes as a target.
 inline const uint8_t *pref_building_classes() {
 	static const uint8_t kTable[PREF_BUILDING_ROWS + 1] = {
@@ -584,8 +582,6 @@ inline const uint8_t *pref_building_classes() {
 		0x04, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
 		0x04, // BLD_CRANNOG: structures/brit/crannog
 		0x04, // BLD_GREAT_HALL: structures/germ/great_hall
-		0x04, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
-		0x04, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
 		0x04, // default: template_structure
 	};
 	return kTable;
