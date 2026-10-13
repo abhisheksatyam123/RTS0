@@ -19192,9 +19192,11 @@ static inline bool petra_food_dropsite(uint8_t t) {
 // from 1 in building order. Tiles are 0 A.D.'s territory tiles (8 m, one placement cell).
 void Simulation::petra_bases_map(PetraBasesMap &m) const {
 	m.anchors.clear();
+	uint16_t home = 0;
+	m.naval = petra_classified_topo(home).naval_map;
 	for (const Building &b : buildings_)
 		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY))
-			m.anchors.push_back({b.x, b.z, petra_land_at(b.x, b.z)});
+			m.anchors.push_back({b.x, b.z, m.land(petra_land_at(b.x, b.z))});
 	m.w = std::max(1, (int)std::floor(2.0f * map_half_ / GRID));
 	m.x0 = m.z0 = 0;
 	m.x1 = m.z1 = -1;
@@ -19217,7 +19219,7 @@ void Simulation::petra_bases_map(PetraBasesMap &m) const {
 			const float x = centre(ix), z = centre(iz);
 			if (territory_owner_at(x, z) != (int)petra_pid_) continue;
 			// The tile's land (getLandAccess): a tile under a structure takes the land around it.
-			const uint16_t land = petra_land_at(x, z);
+			const uint16_t land = m.land(petra_land_at(x, z));
 			if (!land) continue;
 			float best = 1e30f;
 			for (size_t a = 0; a < m.anchors.size(); ++a) {
@@ -19246,7 +19248,7 @@ int Simulation::petra_military_base(const PetraBasesMap &m) const {
 			continue;
 		const bool enemy = petra_foe(e.team);
 		if (enemy_found && !enemy) continue;
-		const uint16_t land = petra_land_at(e.x, e.z);
+		const uint16_t land = m.land(petra_land_at(e.x, e.z));
 		for (size_t a = 0; a < m.anchors.size(); ++a) {
 			if (m.anchors[a].land != land) continue;
 			const float d = (m.anchors[a].x - e.x) * (m.anchors[a].x - e.x) + (m.anchors[a].z - e.z) * (m.anchors[a].z - e.z);

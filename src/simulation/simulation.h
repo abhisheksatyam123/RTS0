@@ -2553,7 +2553,10 @@ private:
 		std::vector<Anchor> anchors;
 		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
 		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
+		bool naval = false;
 		int at(float x, float z, float half) const;
+		// Off naval maps all land is one: RTS0's land regions, unlike 0 A.D.'s, are cut by structures.
+		uint16_t land(uint16_t l) const { return naval || !l ? l : 1; }
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
 	int petra_military_base(const PetraBasesMap &m) const;
