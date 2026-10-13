@@ -1,4 +1,5 @@
 #include "main_node.h"
+#include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
 #include <cstring>
@@ -62,6 +63,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_remove_guard_pressed"), &RtsoMain::_on_remove_guard_pressed);
 	ClassDB::bind_method(D_METHOD("_on_call_to_arms_pressed"), &RtsoMain::_on_call_to_arms_pressed);
 	ClassDB::bind_method(D_METHOD("_on_entity_command", "name"), &RtsoMain::_on_entity_command);
+	ClassDB::bind_method(D_METHOD("_on_pause_overlay_pressed"), &RtsoMain::_on_pause_overlay_pressed);
 	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
@@ -132,6 +134,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
+	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
@@ -1048,6 +1051,43 @@ void RtsoMain::_ready() {
 	banner_label->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	banner_panel->add_child(banner_label);
 
+	// PauseOverlay.xml: a dimmed full-screen button with the pause captions.
+	pause_overlay_ = memnew(Button);
+	pause_overlay_->set_anchors_preset(Control::PRESET_FULL_RECT);
+	pause_overlay_->set_flat(true);
+	pause_overlay_->set_focus_mode(Control::FOCUS_NONE);
+	pause_overlay_->set_visible(false);
+	pause_overlay_->connect("pressed", Callable(this, "_on_pause_overlay_pressed"));
+	{
+		ColorRect *dim = memnew(ColorRect);
+		dim->set_anchors_preset(Control::PRESET_FULL_RECT);
+		dim->set_color(Color(0, 0, 0, 0.45f));
+		dim->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		pause_overlay_->add_child(dim);
+		auto caption = [&](const String &text, float top, int size) {
+			Label *l = memnew(Label);
+			l->set_text(text);
+			l->set_anchor(SIDE_LEFT, 0.3f);
+			l->set_anchor(SIDE_RIGHT, 0.7f);
+			l->set_anchor(SIDE_TOP, 0.4f);
+			l->set_anchor(SIDE_BOTTOM, 0.4f);
+			l->set_offset(SIDE_TOP, top);
+			l->set_offset(SIDE_BOTTOM, top + size + 8);
+			l->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			l->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+			l->add_theme_font_size_override("font_size", size);
+			l->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+			l->add_theme_constant_override("outline_size", 4);
+			l->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			pause_overlay_->add_child(l);
+			return l;
+		};
+		caption(tr("Game Paused"), -20.0f, 28);
+		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
+		pause_by_label_ = caption("", 50.0f, 14);
+	}
+	ui_layer->add_child(pause_overlay_);
+
 	// 5/6. Chat overlay + diplomacy/tribute matrix: P4.1 leaf widgets
 	// (chat_window.h / diplomacy_dialog.h own the panel trees; the bound
 	// handler methods below delegate into them).
@@ -1578,6 +1618,21 @@ Array RtsoMain::debug_command_row() {
 	return out;
 }
 
+// Test hook: which session dialogs are open, the pause overlay's state, and
+// the chat log; `chat` in the input line is sent first when given.
+Dictionary RtsoMain::debug_dialogs() {
+	Dictionary d;
+	d["chat"] = chat_window_.is_open();
+	d["diplomacy"] = diplo_dialog_.is_open();
+	d["objectives"] = objectives_dialog_.is_open();
+	Node *barter = get_node_or_null(NodePath("BarterDialog"));
+	d["barter"] = barter ? bool(barter->call("is_open")) : false;
+	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
+	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
+	d["chat_log"] = chat_window_.log_text();
+	return d;
+}
+
 // Test hook: step 0 places a barracks with a rally point and selects it; step 1
 // does what a right-click on the barracks itself does; every step reports the
 // rally point and whether the barracks centre / a far spot count as "itself".
@@ -2094,7 +2149,10 @@ void RtsoMain::update_cursor() {
 				for (size_t f = 0; f < fv.count && !*want; ++f) {
 					// A penned animal is garrisoned in its corral: nothing to do with it.
 					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					want = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() ? "action-herd" : "action-gather-meat";
+					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
+					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
+					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
+					want = herd ? "action-herd" : "action-gather-meat";
 				}
 			}
 			if (!*want && scenery_at(at.x, at.z) != 0) want = "action-attack";
@@ -2237,11 +2295,46 @@ void RtsoMain::quickload() {
 }
 
 void RtsoMain::toggle_pause() {
+	// PauseControl.js canPause: an observer who is not the host cannot pause a
+	// multiplayer match (resuming their own pause stays allowed).
+	if (!hotkey_paused_ && net_lockstep() && !turn_mgr_.is_replaying() && local_player() >= rtso::MAX_PLAYERS &&
+			!net_host_.isHost())
+		return;
 	hotkey_paused_ = !hotkey_paused_;
 	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
-	if (banner_label) banner_label->set_text(hotkey_paused_ ? "Game paused" : "");
-	if (banner_panel) banner_panel->set_visible(hotkey_paused_);
 	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
+	update_pause_overlay();
+}
+
+// PauseOverlay.rebuild: shown for your own pause and while another client
+// pauses; the resume line only for your own; "Paused by" in multiplayer.
+void RtsoMain::update_pause_overlay() {
+	if (!pause_overlay_) return;
+	const bool networked = net_lockstep() && !turn_mgr_.is_replaying();
+	String who;
+	bool others = false;
+	if (networked)
+		for (uint32_t c : turn_mgr_.paused_clients()) {
+			others = others || c != turn_mgr_.local_client_id();
+			String name;
+			for (const auto &e : net_host_.playerAssignment())
+				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str());
+			if (name.is_empty()) {
+				const uint8_t pl = turn_mgr_.player_for_client(c);
+				name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
+			}
+			who += (who.is_empty() ? "" : ", ") + name;
+		}
+	const bool show = hotkey_paused_ || others;
+	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
+	if (!show) return;
+	pause_resume_label_->set_visible(hotkey_paused_);
+	const String by = networked && !who.is_empty() ? vformat(tr("Paused by %s"), who) : String();
+	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
+}
+
+void RtsoMain::_on_pause_overlay_pressed() {
+	if (hotkey_paused_) toggle_pause();
 }
 
 void RtsoMain::_on_menu_button_pressed() {
@@ -2417,7 +2510,7 @@ void RtsoMain::_on_entity_command(const String &name) {
 	} else if (name == "unload-all") {
 		_on_ungarrison_pressed();
 	} else if (name == "select-trading-goods") {
-		if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
+		_toggle_session_dialog("BarterDialog");
 	} else if (name == "focus-rally") {
 		// The first rally point, else the structure itself.
 		for (const auto &b : sim->buildings())
@@ -2872,6 +2965,7 @@ void RtsoMain::_process(double delta) {
 		notice_until_ = 0;
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
+	update_pause_overlay();
 	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
@@ -4344,26 +4438,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		auto ids_ptr = [&]() { return (const uint32_t *)selected_ids.ptr(); };
 
 		if (fired("cancel") || fired("selection.cancel")) {
-			// 0 A.D. closeOpenDialogs(), then clearSelection() (input.js:1709).
-			if (chat_window_.is_open()) {
-				chat_window_.close();
-				return;
-			}
-			if (diplo_dialog_.is_open()) {
-				diplo_dialog_.close();
-				return;
-			}
-			if (objectives_dialog_.is_open()) {
-				objectives_dialog_.close();
-				return;
-			}
-			// The GDScript dialogs (Barter & Trade, structure tree) close the same way.
-			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) {
-				if (bool(barter->call("is_open"))) {
-					barter->call("toggle");
-					return;
-				}
-			}
+			// 0 A.D. closeOpenDialogs() closes every dialog at once, then
+			// clearSelection() (input.js:1709).
+			if (close_open_dialogs()) return;
 			if (build_mode) enter_build_mode(false);
 			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || repair_mode)
 				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
@@ -4406,7 +4483,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("teamchat") || fired("privatechat")) {
-			if (!chat_window_.is_open()) chat_window_.toggle();
+			if (!chat_window_.is_open()) toggle_chat();
 			chat_window_.select_channel(fired("teamchat") ? 1 : 0);
 			return;
 		}
@@ -4482,7 +4559,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.gui.objectives.toggle")) { toggle_objectives(); return; }
 		if (fired("session.gui.tutorial.toggle")) { tutorial_panel_.toggle(); return; }
 		if (fired("session.gui.barter.toggle")) {
-			if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
+			_toggle_session_dialog("BarterDialog");
 			return;
 		}
 		if (fired("structree")) {
@@ -5279,7 +5356,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			if (clicked_fauna_id != 0) {
 				const auto &finfo = rtso::fauna_type_info(clicked_fauna_type);
-				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED ? 1 : 0;
+				// 0 A.D.: a right-click on livestock slaughters it, whoever owns it. RTS0 can't select
+				// animals, so Alt+right-click on your own livestock herds it to your corral instead.
+				uint8_t herd = finfo.is_domestic() && fview.behavior[best_f] != rtso::FAUNA_CORRALLED &&
+				               fview.owner[best_f] == local_player() && Input::get_singleton()->is_key_pressed(KEY_ALT) ? 1 : 0;
 				if (turn_cmds())
 					post_lockstep(17, sel_ptr, sel_n, 0, 0, clicked_fauna_id, herd);
 				else if (herd)
@@ -5671,6 +5751,7 @@ void RtsoMain::apply_map_player_overrides() {
 		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
 		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
 	}
+	if (map_pop_limit_ > 0) sim->set_pop_cap(map_pop_limit_);
 	if (map_has_teams_) {
 		// A map with LockTeams sets the teams itself (0 A.D. gamesetup locks them).
 		sim->set_setup_teams(map_team_);
@@ -5687,6 +5768,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		map_team_[p] = 0;
 	}
 	map_has_teams_ = false;
+	map_pop_limit_ = -1;
 
 	// 1. Procedural Random Map Generation (RMS Engine)
 	if (map_id.begins_with("random_") || map_id.begins_with("procedural_") ||
@@ -5769,6 +5851,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 
 	sim->set_sim_seed(seed);
 	sim->reset();
+	map_pop_limit_ = (int)d.get("pop_limit", -1);
 	{
 		Array pl = d.get("players", Array());
 		for (int i = 0; i < pl.size(); ++i) {
@@ -5967,6 +6050,16 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			sim->garrison_unit_now(gaia_unit_ids[i], gaia_structure_ids[str]);
 	}
 
+	// TriggerPoint.js markers the scripts spawn at or aim for (owner 0 is Gaia).
+	Array tp_arr = d.get("trigger_points", Array());
+	for (int i = 0; i < tp_arr.size(); ++i) {
+		Dictionary tp = tp_arr[i];
+		const String ref = tp.get("ref", "A");
+		const int owner = (int)tp.get("owner", 0);
+		if (ref.is_empty()) continue;
+		sim->add_trigger_point((uint8_t)ref.unicode_at(0), (float)tp.get("x", 0.0), (float)tp.get("z", 0.0),
+				owner <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(owner - 1, rtso::MAX_PLAYERS - 1));
+	}
 	// The map's TriggerScripts (0 A.D. ScriptSettings), ported to C++ (triggers.h).
 	Array trig_arr = d.get("trigger_scripts", Array());
 	for (int i = 0; i < trig_arr.size(); ++i) {
@@ -6719,11 +6812,35 @@ void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
 }
 
 void RtsoMain::toggle_chat() {
+	if (!chat_window_.is_open()) close_open_dialogs();
 	chat_window_.toggle();
 }
 
 void RtsoMain::_on_chat_channel_btn_pressed(int channel_idx) {
 	chat_window_.select_channel(channel_idx);
+}
+
+// colorizePlayernameByGUID: the client's name in its player's colour (grey for an
+// observer); "peer-<id>" is the sender's client, empty the local player.
+String RtsoMain::chat_user(const String &sender_guid) {
+	uint32_t client = turn_mgr_.local_client_id();
+	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	String name;
+	uint8_t pl = 0xFF;
+	if (net_lockstep()) {
+		for (const auto &e : net_host_.playerAssignment())
+			if (e.client == client) {
+				name = String::utf8(e.name.c_str());
+				pl = e.player;
+			}
+		if (pl == 0xFF) pl = turn_mgr_.player_for_client(client);
+	} else {
+		pl = local_player();
+	}
+	if (name.is_empty()) name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : sender_guid;
+	char hex[8] = "b3b3b3";
+	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(sim->player_color(pl) & 0xFFFFFF));
+	return "[color=#" + String(hex) + "]" + name.replace("[", "[lb]") + "[/color]";
 }
 
 void RtsoMain::_on_chat_send_pressed() {
@@ -6736,7 +6853,38 @@ void RtsoMain::_on_chat_text_submitted(const String &text) {
 }
 
 void RtsoMain::toggle_objectives() {
+	const bool open = objectives_dialog_.is_open();
+	if (!open) close_open_dialogs();
 	objectives_dialog_.toggle(sim, local_player());
+}
+
+// session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
+// settings close together; opening one of them closes the others first.
+bool RtsoMain::close_open_dialogs() {
+	bool any = false;
+	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))
+		if (Object::cast_to<CanvasItem>(menu) ? Object::cast_to<CanvasItem>(menu)->is_visible() : bool(menu->get("visible"))) {
+			_on_menu_button_pressed();
+			any = true;
+		}
+	if (chat_window_.is_open()) {
+		chat_window_.close();
+		any = true;
+	}
+	if (diplo_dialog_.is_open()) {
+		diplo_dialog_.close();
+		any = true;
+	}
+	if (objectives_dialog_.is_open()) {
+		objectives_dialog_.close();
+		any = true;
+	}
+	if (Node *barter = get_node_or_null(NodePath("BarterDialog")))
+		if (bool(barter->call("is_open"))) {
+			barter->call("toggle");
+			any = true;
+		}
+	return any;
 }
 
 // 0 A.D. messages.js onTutorialReady: "dialog-answer" to the trigger script; the
@@ -6754,10 +6902,14 @@ void RtsoMain::_on_tutorial_ready_pressed() {
 void RtsoMain::_toggle_session_dialog(String name) {
 	if (name == "DiplomacyDialog") toggle_diplomacy();
 	else if (name == "Objectives") toggle_objectives();
-	else if (Node *n = get_node_or_null(NodePath(name))) n->call("toggle");
+	else if (Node *n = get_node_or_null(NodePath(name))) {
+		if (!(n->has_method("is_open") && bool(n->call("is_open")))) close_open_dialogs();
+		n->call("toggle");
+	}
 }
 
 void RtsoMain::toggle_diplomacy() {
+	if (!diplo_dialog_.is_open()) close_open_dialogs();
 	diplo_dialog_.toggle();
 }
 
