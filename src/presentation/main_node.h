@@ -462,6 +462,7 @@ public:
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 	void _on_diplo_spy_pressed(int player_idx);
+	void _on_diplo_attack_request_pressed(int player_idx);
 
 	bool load_map(String map_id);
 	bool load_map_seeded(String map_id, uint32_t seed);
