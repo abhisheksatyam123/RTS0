@@ -8,10 +8,15 @@
 //      30 s, like StatisticsTracker.updateSequences.
 //   4. Save/load keeps every counter and sample, and the loaded copy keeps
 //      counting the same way.
+//   5. Resource and population counts (GetResourceCounts, GetPopulationCount),
+//      livestock bred at a corral (unitsTrained.Domestic, not in the total) and
+//      successful and failed bribes (VisionSharing.AddSpy, Commands.js).
 //
 //   g++ -std=c++20 -O2 -Isrc tools/test_statistics.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_statistics
+#define private public // test 5 sets resources and finds the corral's animals
 #include "simulation/simulation.h"
+#undef private
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -154,9 +159,52 @@ static void test_match() {
 	std::remove(path);
 }
 
+static void test_counts() {
+	std::printf("resource and population counts, livestock, bribes\n");
+	Simulation s;
+	s.generate_random_map(MAP_MAINLAND, 9, 2, 64.0f);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(0, true, false);
+	s.set_player_active(1, true, false);
+	float ex = 0, ez = 0, ox = 0, oz = 0;
+	for (const auto &b : s.buildings()) {
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { ex = b.x; ez = b.z; }
+		if (b.team == 0 && b.type == BLD_TOWN_CENTER) { ox = b.x; oz = b.z; }
+	}
+	s.players_[0].res[RES_FOOD] = 1234.7f;
+	s.players_[0].res[RES_GOLD] = 1000.0f;
+	PlayerStatistics a = s.statistics(0);
+	CHECK(a.resources_count[RES_FOOD] == 1234 && a.resources_count[RES_GOLD] == 1000);
+	CHECK(a.population_count > 0 && (int)a.population_count == s.pop_current(0));
+	// Livestock: an animal from the corral counts as Domestic only.
+	const uint32_t trained_before = a.units_trained[STAT_UNIT_TOTAL];
+	const uint32_t corral = s.spawn_building_world(ox + 14.0f, oz + 14.0f, BLD_CORRAL, 0, 1.0f);
+	CHECK(s.cmd_breed_livestock(0, corral, FAUNA_SHEEP_TRAINABLE, 2));
+	run(s, 90 * 20);
+	a = s.statistics(0);
+	std::printf("  livestock %u, trained %u -> %u\n", a.livestock_bred, trained_before, a.units_trained[STAT_UNIT_TOTAL]);
+	CHECK(a.livestock_bred == 2);
+	CHECK(a.units_trained[STAT_UNIT_TOTAL] == trained_before);
+	// Bribes: none to bribe fails, a trader succeeds.
+	s.players_[0].res[RES_GOLD] = 1000.0f;
+	s.complete_research(0, TECH_UNLOCK_SPIES);
+	CHECK(s.cmd_bribe(0, 1) == Simulation::BRIBE_NO_UNITS);
+	s.spawn_unit(ex + 6.0f, ez + 6.0f, 1, UNIT_TRADER);
+	CHECK(s.cmd_bribe(0, 1) == Simulation::BRIBE_OK);
+	a = s.statistics(0);
+	CHECK(a.successful_bribes == 1 && a.failed_bribes == 1);
+	CHECK(s.statistics(1).successful_bribes == 0 && s.statistics(1).failed_bribes == 0);
+	// The 30 s rows carry the counts at their time.
+	run(s, 31 * 20);
+	const StatisticsSample &row = s.statistics_samples().back();
+	CHECK(row.players[0].successful_bribes == 1 && row.players[0].livestock_bred == 2);
+	CHECK(row.players[0].population_count > 0 && row.players[0].resources_count[RES_GOLD] == (uint32_t)s.player_resource(0, RES_GOLD));
+}
+
 int main() {
 	test_kill_credit();
 	test_tribute_barter();
+	test_counts();
 	test_match();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

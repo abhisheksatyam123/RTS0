@@ -589,6 +589,34 @@ inline int unit_template_draw_index(uint16_t tmpl) {
 		19, // brit/ship_fire_fire (fireship_fire: the fire ship's mesh, burning)
 		19, // gaul/ship_fire_fire
 		19, // iber/ship_fire_fire
+		-1, // athen/support_civilian (the civ's female citizen model until male civilian models are ported)
+		-1, // athen/support_civilian_house
+		-1, // spart/support_civilian
+		-1, // spart/support_civilian_house
+		-1, // pers/support_civilian
+		-1, // pers/support_civilian_house
+		-1, // rome/support_civilian
+		-1, // rome/support_civilian_house
+		-1, // cart/support_civilian
+		-1, // cart/support_civilian_house
+		-1, // mace/support_civilian
+		-1, // mace/support_civilian_house
+		21, // brit/support_civilian
+		21, // brit/support_civilian_house
+		21, // gaul/support_civilian
+		21, // gaul/support_civilian_house
+		-1, // iber/support_civilian
+		-1, // iber/support_civilian_house
+		-1, // maur/support_civilian
+		-1, // maur/support_civilian_house
+		-1, // kush/support_civilian
+		-1, // kush/support_civilian_house
+		-1, // ptol/support_civilian
+		-1, // ptol/support_civilian_house
+		-1, // sele/support_civilian
+		-1, // sele/support_civilian_house
+		-1, // han/support_civilian
+		-1, // han/support_civilian_house
 	};
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? kIndex[tmpl] : -1;
 }
@@ -750,6 +778,6 @@ inline const UnitTemplateModel *find_unit_template_model(const char *id) {
 	return nullptr;
 }
 
-static_assert(CIV_UNIT_TEMPLATE_COUNT == 395, "rerun tools/extract_0ad_assets.py --templates");
+static_assert(CIV_UNIT_TEMPLATE_COUNT == 423, "rerun tools/extract_0ad_assets.py --templates");
 
 } // namespace rtso
