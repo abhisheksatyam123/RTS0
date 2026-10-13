@@ -13,7 +13,12 @@ extends SceneTree
 #      (CounterManager.getAllyStatTooltip); a click on a counter changes it;
 #   5. Options' "Naming of entities" (gui.session.howtoshownames) names units
 #      as tooltips.js getEntityNames does: specific first by default, then
-#      generic first, only specific, only generic.
+#      generic first, only specific, only generic;
+#   6. training, research and construction tooltips read getEntityCostTooltip's
+#      "Cost: Food 50  Wood 50  10 seconds", formatBatchTrainingString's
+#      "Shift-click to train 5." and getNeededResourcesTooltip's
+#      "Insufficient resources:" line (checked in 3, before the defeat),
+#      in German too.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_l10n_notices.gd
 # Exit code 0 = pass.
@@ -86,6 +91,13 @@ func run() -> void:
 	main.debug_train_buttons(11)
 	tips = main.debug_command_row().map(func(e): return str(e["tip"]))
 	check(tips.any(func(t): return t.contains("Requires Town Phase")), "\"Requires Town Phase\" in English")
+	main._on_diplo_tribute_pressed(1, 0)  # 100 more wood: 100 left, under Fishing Nets' 200
+	await frames(10)
+	main.debug_train_buttons(11)
+	await frames(2)
+	var nets: Array = main.debug_command_row().map(func(e): return str(e["tip"])).filter(func(t): return t.begins_with("Fishing Nets"))
+	print("  ", nets.map(func(t): return t.replace("\n", " | ")))
+	check(nets.size() == 1 and RegEx.create_from_string("\nInsufficient resources: Wood \\d+$").search(nets[0]) != null, "Insufficient resources: Wood N")
 
 	print("4. Counters")
 	await frames(4)
@@ -132,6 +144,32 @@ func run() -> void:
 	var gen: String = names_by_mode["3"]
 	check(spec != "" and gen != "" and spec != gen, "only specific: %s, only generic: %s" % [spec, gen])
 	check(names_by_mode["0"] == "%s (%s)" % [spec, gen] and names_by_mode["1"] == "%s (%s)" % [gen, spec], "specific first, then generic first")
+
+	print("6. Cost tooltips")
+	main.debug_train_buttons(0)
+	await frames(2)
+	var roster_tip := func() -> String:
+		var ls: Array = main.find_children("*", "ItemList", true, false).filter(func(l): return l.visible and l.item_count > 0)
+		return str(ls[0].get_item_tooltip(0)) if ls.size() > 0 else ""
+	var rt: String = roster_tip.call()
+	print("  ", rt.replace("\n", " | "))
+	check(RegEx.create_from_string("\nCost: (Food|Wood|Stone|Metal) \\d+.* \\d+ seconds?").search(rt) != null, "a unit's cost with population and time")
+	check(rt.contains("\nShift-click to train "), "and the batch line")
+	main.debug_train_buttons(11)
+	await frames(2)
+	var techs: Array = main.debug_command_row().map(func(e): return str(e["tip"])).filter(func(t): return t.contains("Cost: "))
+	print("  ", techs.map(func(t): return t.replace("\n", " | ")))
+	check(techs.size() > 0, "techs show their cost")
+	check(techs.all(func(t): return not t.contains("Not enough resources")), "no bare \"Not enough resources\"")
+	TranslationServer.add_translation(de)
+	TranslationServer.set_locale("de")
+	main.debug_train_buttons(0)
+	await frames(2)
+	rt = roster_tip.call()
+	print("  ", rt.replace("\n", " | "))
+	check(rt.contains("Kosten: ") and rt.contains(TranslationServer.translate("Shift-click")), "in German: Kosten, Umschalt+Klick")
+	TranslationServer.set_locale("en")
+	TranslationServer.remove_translation(de)
 
 	print("FAILURES: ", failures)
 	quit(1 if failures else 0)

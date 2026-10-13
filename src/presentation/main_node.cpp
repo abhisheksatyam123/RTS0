@@ -2127,6 +2127,16 @@ String RtsoMain::requires_text(const String &what) const {
 	return sprintf0(tr("Requires %(technology)s"), {{"technology", tr(what)}});
 }
 
+// getNeededResourcesTooltip for the local player's stock, called once the sim
+// refused the cost; a cost multiplier the shown cost leaves out (a researcher's
+// TechCostMultiplier) still gets the label.
+String RtsoMain::needed_text(const rtso::CostTip &cost) const {
+	const auto &ps = sim->player(local_player());
+	const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+			ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD]);
+	return need.is_empty() ? rtso::tr0("Insufficient resources:").trim_suffix(":") : need;
+}
+
 // colorizePlayernameByID: the name in the player's displayed colour.
 String RtsoMain::colored_player_name(uint8_t pid) const {
 	const uint32_t rgb = sim ? rtso::display_colors::rgb(*sim, pid) : 0xFFFFFFu;
@@ -4152,7 +4162,12 @@ void RtsoMain::update_command_panel() {
 					btn->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 					btn->add_theme_constant_override("icon_max_width", 20);
 				}
-				String tip = String::utf8(ti.desc ? ti.desc : "");
+				// 0.28 Research panel: names, tooltip, cost, requirements, needed resources.
+				String tip = String::utf8(ti.name);
+				if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
+				const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+				const String tech_cost_tip = rtso::cost_tooltip(tech_cost);
+				if (!tech_cost_tip.is_empty()) tip += "\n" + tech_cost_tip;
 				String why;
 				switch (rc) {
 					case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; break;
@@ -4166,7 +4181,7 @@ void RtsoMain::update_command_panel() {
 					case rtso::Simulation::TECH_ERR_STRUCTURES:
 						why = t == rtso::TECH_PHASE_CITY ? "Requires 3 Town Phase structures"
 								: "Requires 5 Village Phase structures"; break;
-					case rtso::Simulation::TECH_ERR_COST: why = "Not enough resources"; break;
+					case rtso::Simulation::TECH_ERR_COST: why = needed_text(tech_cost); break;
 					default: break;
 				}
 				if (!why.is_empty()) {
@@ -4251,12 +4266,13 @@ void RtsoMain::update_command_panel() {
 						add_cost(up.gold_cost, "g");
 						add_cost(up.stone_cost, "s");
 						btn->set_text(String("Upgrade to ") + String::utf8(rtso::building_type_name(up.to)) + (cost.is_empty() ? String() : " (" + cost + ")"));
-						String tip = String::utf8(up.tooltip ? up.tooltip : "") + "\n" + String::num((double)up.time, 0) + "s";
+						const rtso::CostTip up_cost{up.food_cost, up.wood_cost, up.stone_cost, up.gold_cost, 0, (int64_t)std::ceil(up.time)};
+						String tip = String::utf8(up.tooltip ? up.tooltip : "") + "\n" + rtso::cost_tooltip(up_cost);
 						String why;
 						switch (check) {
 							case rtso::Simulation::UPGRADE_ERR_BUSY: why = "Busy: finish or cancel production first"; break;
 							case rtso::Simulation::UPGRADE_ERR_PHASE: why = requires_text(up.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
-							case rtso::Simulation::UPGRADE_ERR_COST: why = "Not enough resources"; break;
+							case rtso::Simulation::UPGRADE_ERR_COST: why = needed_text(up_cost); break;
 							case rtso::Simulation::UPGRADE_ERR_LIMIT: why = "Limit reached"; break;
 							default: break;
 						}
@@ -4434,7 +4450,7 @@ void RtsoMain::update_command_panel() {
 					for (int i = 0; i < selected_ids.size(); ++i) {
 						const rtso::Simulation::UpgradeCheck c = sim->unit_upgrade_check(local_player(), (uint32_t)selected_ids[i], to);
 						if (c == rtso::Simulation::UPGRADE_OK) { why = String(); break; }
-						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "Not enough resources";
+						if (c == rtso::Simulation::UPGRADE_ERR_COST) why = "\x01"; // needed resources, below
 						else if (c == rtso::Simulation::UPGRADE_ERR_PHASE) why = requires_text("City Phase");
 						else if (c == rtso::Simulation::UPGRADE_ERR_LIMIT) why = "Limit reached";
 					}
@@ -4453,8 +4469,10 @@ void RtsoMain::update_command_panel() {
 					Button *btn = memnew(Button);
 					btn->set_text(String("Upgrade to ") + String::utf8(rtso::civ_unit_template(to).name) + (cost.is_empty() ? String() : " (" + cost + ")"));
 					const rtso::CivUnitTemplate &tt = rtso::civ_unit_template(to);
+					const rtso::CostTip row_cost{row->food_cost, row->wood_cost, row->stone_cost, row->gold_cost, 0, (int64_t)std::ceil(row->time)};
 					String tip = rtso::entity_names(String::utf8(tt.name), String::utf8(tt.specific_name ? tt.specific_name : "")) +
-							"\n" + String::num((double)row->time, 0) + "s";
+							"\n" + rtso::cost_tooltip(row_cost);
+					if (why == "\x01") why = needed_text(row_cost);
 					if (!why.is_empty()) {
 						tip += "\n" + tr(why);
 						btn->set_disabled(true);
@@ -4576,7 +4594,12 @@ void RtsoMain::update_command_panel() {
 					Button *bb = memnew(Button);
 					const String label = String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")");
 					bb->set_meta("label", label);
-					String tip = String::utf8(bi.name) + (cost.is_empty() ? String() : "\nCost: " + cost);
+					const rtso::CostTip b_cost{bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost, 0, (int64_t)std::ceil(bi.build_time)};
+					String tip = String::utf8(bi.name);
+					if (!rtso::cost_tooltip(b_cost).is_empty()) tip += "\n" + rtso::cost_tooltip(b_cost);
+					if (bi.pop_bonus > 0)
+						tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s %(bonus)s"),
+								{{"label", rtso::tr0("Population Bonus:")}, {"bonus", String::num_int64(bi.pop_bonus)}});
 					Ref<Texture2D> b_ico = structure_icon(bi.portrait_id);
 					if (b_ico.is_valid()) {
 						bb->set_button_icon(b_ico);
@@ -4825,7 +4848,7 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 		const int idx = add_roster_item(pid, all[k], tip);
 		if (!(can_mask & (1ull << k))) {
 			roster_list->set_item_disabled(idx, true);
-			tip += "\nRequirements not met";
+			tip += "\n" + tr("Requirements not met");
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}
@@ -4845,10 +4868,11 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 		add_cost(ti.gold_cost, "m");
 		const int idx = roster_list->add_item(String::utf8(ti.name) + " (" + costs + ")");
 		roster_list->set_item_metadata(idx, ROSTER_TECH | (int)t);
-		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\nResearch " + String::num(ti.research_time, 0) + " s";
+		const rtso::CostTip tech_cost{ti.food_cost, ti.wood_cost, ti.stone_cost, ti.gold_cost, 0, (int64_t)std::ceil(ti.research_time)};
+		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\n" + rtso::cost_tooltip(tech_cost);
 		if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
 			roster_list->set_item_disabled(idx, true);
-			tip += "\nRequirements not met";
+			tip += "\n" + tr("Requirements not met");
 		}
 		roster_list->set_item_tooltip(idx, tip);
 	}
@@ -4876,9 +4900,17 @@ int RtsoMain::add_roster_item(uint8_t pid, uint16_t i, String &tip) {
 	label += costs.is_empty() ? String(" (free)") : " (" + costs + ")";
 	int idx = roster_list->add_item(label);
 	roster_list->set_item_metadata(idx, (int)i);
+	// 0.28 Training panel: names, cost (population and time too), health and
+	// attack, then the batch line; callers add requirements.
 	tip = rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
-	tip += "\nHP " + String::num_int64((int64_t)u.hp) + ", attack " + String::num(u.attack_damage, 1) +
-		", train " + String::num(u.train_time, 0) + " s, pop " + String::num_int64(u.pop_cost);
+	const rtso::CostTip unit_cost{(int64_t)cost[rtso::RES_FOOD], (int64_t)cost[rtso::RES_WOOD], (int64_t)cost[rtso::RES_STONE],
+			(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(u.train_time)};
+	const String cost_tip = rtso::cost_tooltip(unit_cost);
+	if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+	tip += "\n" + rtso::label_details("Health:", String::num_int64((int64_t)u.hp));
+	if (u.attack_damage > 0.0f) tip += "\n" + rtso::label_details("Attack:", String::num(u.attack_damage, 1));
+	const String batch = rtso::batch_training_string(1, user_opts_.batch_size, 0);
+	if (!batch.is_empty()) tip += "\n" + batch;
 	return idx;
 }
 

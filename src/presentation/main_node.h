@@ -31,6 +31,7 @@
 #include <godot_cpp/classes/time.hpp>
 #include <map>
 #include <set>
+#include "l10n.h"
 #include "safe_select.h"
 #include "top_panel.h"
 #include "production_queue.h"
@@ -558,6 +559,7 @@ private:
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
 	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
 	String requires_text(const String &what) const;
+	String needed_text(const rtso::CostTip &cost) const;
 	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;
