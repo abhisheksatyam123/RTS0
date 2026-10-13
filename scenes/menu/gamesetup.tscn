@@ -56,38 +56,44 @@ layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 16
 
-[node name="Left" type="VBoxContainer" parent="VBox/HBox"]
+[node name="LeftScroll" type="ScrollContainer" parent="VBox/HBox"]
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_scroll_mode = 0
+
+[node name="Left" type="VBoxContainer" parent="VBox/HBox/LeftScroll"]
 custom_minimum_size = Vector2(330, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
-[node name="MapFilterLabel" type="Label" parent="VBox/HBox/Left"]
+[node name="MapFilterLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Map filter"
 
-[node name="MapFilterSlot" type="Control" parent="VBox/HBox/Left"]
+[node name="MapFilterSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 
-[node name="MapLabel" type="Label" parent="VBox/HBox/Left"]
+[node name="MapLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Map"
 
-[node name="MapList" type="ItemList" parent="VBox/HBox/Left"]
+[node name="MapList" type="ItemList" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 190)
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="SeedRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+[node name="SeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 
-[node name="SeedLabel" type="Label" parent="VBox/HBox/Left/SeedRow"]
+[node name="SeedLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/SeedRow"]
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 text = "Seed (0 = random)"
 
-[node name="SpinSeed" type="SpinBox" parent="VBox/HBox/Left/SeedRow"]
+[node name="SpinSeed" type="SpinBox" parent="VBox/HBox/LeftScroll/Left/SeedRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 0.0
@@ -95,206 +101,206 @@ max_value = 999999999.0
 step = 1.0
 value = 0.0
 
-[node name="BtnReroll" type="Button" parent="VBox/HBox/Left/SeedRow"]
+[node name="BtnReroll" type="Button" parent="VBox/HBox/LeftScroll/Left/SeedRow"]
 custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 text = "Reroll"
 
-[node name="VictoryLabel" type="Label" parent="VBox/HBox/Left"]
+[node name="VictoryLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Victory condition"
 
-[node name="VictorySlot" type="Control" parent="VBox/HBox/Left"]
+[node name="VictorySlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 
-[node name="Waves" type="CheckBox" parent="VBox/HBox/Left"]
+[node name="Waves" type="CheckBox" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 tooltip_text = "Legacy wave defense: enemy waves attack every 35 seconds; survive the fifth to win."
 text = "Wave defense"
 
-[node name="LastManStanding" type="CheckBox" parent="VBox/HBox/Left"]
+[node name="LastManStanding" type="CheckBox" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 tooltip_text = "Allies don't share a win: the match goes on until only one player is left."
 text = "Last man standing"
 
-[node name="StartRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+[node name="StartRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 
-[node name="Nomad" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+[node name="Nomad" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/StartRow"]
 layout_mode = 2
 tooltip_text = "Random maps: players start with units only and must build their first Civic Centre."
 text = "Nomad"
 
-[node name="RegicideGarrison" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+[node name="RegicideGarrison" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/StartRow"]
 layout_mode = 2
 tooltip_text = "Regicide: the hero may garrison in structures, siege engines and ships."
 text = "Hero garrison"
 
-[node name="DisableTreasures" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+[node name="DisableTreasures" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/StartRow"]
 layout_mode = 2
 tooltip_text = "Remove every treasure from the map when the match starts."
 text = "No treasures"
 
-[node name="LockTeams" type="CheckBox" parent="VBox/HBox/Left/StartRow"]
+[node name="LockTeams" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/StartRow"]
 layout_mode = 2
 tooltip_text = "Toggle the locked teams. Players can't change diplomacy during the match."
 text = "Lock teams"
 
-[node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+[node name="MapVisRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 
-[node name="RevealMap" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+[node name="RevealMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapVisRow"]
 layout_mode = 2
 tooltip_text = "Everyone sees the whole map all match."
 text = "Revealed map"
 
-[node name="ExploreMap" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+[node name="ExploreMap" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapVisRow"]
 layout_mode = 2
 tooltip_text = "The terrain is known from the start; enemy units stay hidden outside your vision."
 text = "Explored map"
 
-[node name="Cheats" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+[node name="Cheats" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapVisRow"]
 layout_mode = 2
 tooltip_text = "Toggle the usability of cheats (chat codes)."
 text = "Cheats"
 
-[node name="DisableSpies" type="CheckBox" parent="VBox/HBox/Left/MapVisRow"]
+[node name="DisableSpies" type="CheckBox" parent="VBox/HBox/LeftScroll/Left/MapVisRow"]
 layout_mode = 2
 tooltip_text = "Disable spies during the game."
 text = "Disable Spies"
 
-[node name="VictoryTimesRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+[node name="VictoryTimesRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 
-[node name="WonderLabel" type="Label" parent="VBox/HBox/Left/VictoryTimesRow"]
+[node name="WonderLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/VictoryTimesRow"]
 layout_mode = 2
 tooltip_text = "Wonder victory: how long a finished wonder must stand."
 mouse_filter = 1
 text = "Wonder"
 
-[node name="WonderTimeSlot" type="Control" parent="VBox/HBox/Left/VictoryTimesRow"]
+[node name="WonderTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/VictoryTimesRow"]
 custom_minimum_size = Vector2(70, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="RelicLabel" type="Label" parent="VBox/HBox/Left/VictoryTimesRow"]
+[node name="RelicLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/VictoryTimesRow"]
 layout_mode = 2
 tooltip_text = "Capture the Relic: how many relics, and how long all of them must be held."
 mouse_filter = 1
 text = "Relics"
 
-[node name="RelicCountSlot" type="Control" parent="VBox/HBox/Left/VictoryTimesRow"]
+[node name="RelicCountSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/VictoryTimesRow"]
 custom_minimum_size = Vector2(50, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="RelicTimeSlot" type="Control" parent="VBox/HBox/Left/VictoryTimesRow"]
+[node name="RelicTimeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/VictoryTimesRow"]
 custom_minimum_size = Vector2(70, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="MapOptionsRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+[node name="MapOptionsRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left"]
 visible = false
 layout_mode = 2
 
-[node name="WaterLevelLabel" type="Label" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="WaterLevelLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 layout_mode = 2
 tooltip_text = "Flood: rising water floods the home islands over the match; shallow or deep keep it at one level."
 mouse_filter = 1
 text = "Water level"
 
-[node name="WaterLevelSlot" type="Control" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="WaterLevelSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SeaRiseLabel" type="Label" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="SeaRiseLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 layout_mode = 2
 tooltip_text = "Extinct Volcano: the minute the water starts to rise."
 mouse_filter = 1
 text = "Sea level rise"
 
-[node name="SeaRiseSlot" type="Control" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="SeaRiseSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="TeamPlacementLabel" type="Label" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="TeamPlacementLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 layout_mode = 2
 tooltip_text = "Select one of the starting position patterns of this map."
 mouse_filter = 1
 text = "Team placement"
 
-[node name="TeamPlacementSlot" type="Control" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="TeamPlacementSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="LandscapeLabel" type="Label" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="LandscapeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 layout_mode = 2
 tooltip_text = "Select one of the landscapes of this map."
 mouse_filter = 1
 text = "Landscape"
 
-[node name="LandscapeSlot" type="Control" parent="VBox/HBox/Left/MapOptionsRow"]
+[node name="LandscapeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/MapOptionsRow"]
 custom_minimum_size = Vector2(160, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="PopCapLabel" type="Label" parent="VBox/HBox/Left"]
+[node name="PopCapLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Population limit"
 
-[node name="PopCapSlot" type="Control" parent="VBox/HBox/Left"]
+[node name="PopCapSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 
-[node name="CeasefireLabel" type="Label" parent="VBox/HBox/Left"]
+[node name="CeasefireLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Ceasefire"
 
-[node name="CeasefireSlot" type="Control" parent="VBox/HBox/Left"]
+[node name="CeasefireSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 
-[node name="MapSizeLabel" type="Label" parent="VBox/HBox/Left"]
+[node name="MapSizeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Map size (random maps)"
 
-[node name="MapSizeSlot" type="Control" parent="VBox/HBox/Left"]
+[node name="MapSizeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 
-[node name="ResLabel" type="Label" parent="VBox/HBox/Left"]
+[node name="ResLabel" type="Label" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 text = "Starting resources"
 
-[node name="ResSlot" type="Control" parent="VBox/HBox/Left"]
+[node name="ResSlot" type="Control" parent="VBox/HBox/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 
-[node name="BiomeSpeedRow" type="HBoxContainer" parent="VBox/HBox/Left"]
+[node name="BiomeSpeedRow" type="HBoxContainer" parent="VBox/HBox/LeftScroll/Left"]
 layout_mode = 2
 
-[node name="BiomeLabel" type="Label" parent="VBox/HBox/Left/BiomeSpeedRow"]
+[node name="BiomeLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/BiomeSpeedRow"]
 layout_mode = 2
 tooltip_text = "Random maps: the map's own biome, or another one."
 mouse_filter = 1
 text = "Biome"
 
-[node name="BiomeSlot" type="Control" parent="VBox/HBox/Left/BiomeSpeedRow"]
+[node name="BiomeSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/BiomeSpeedRow"]
 custom_minimum_size = Vector2(110, 32)
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SpeedLabel" type="Label" parent="VBox/HBox/Left/BiomeSpeedRow"]
+[node name="SpeedLabel" type="Label" parent="VBox/HBox/LeftScroll/Left/BiomeSpeedRow"]
 layout_mode = 2
 tooltip_text = "Game speed at the start (the speed button in game still changes it)."
 mouse_filter = 1
 text = "Speed"
 
-[node name="SpeedSlot" type="Control" parent="VBox/HBox/Left/BiomeSpeedRow"]
+[node name="SpeedSlot" type="Control" parent="VBox/HBox/LeftScroll/Left/BiomeSpeedRow"]
 custom_minimum_size = Vector2(70, 32)
 layout_mode = 2
 size_flags_horizontal = 3
