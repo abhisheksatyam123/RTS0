@@ -993,6 +993,8 @@ public:
 	TradeGain garrisoned_trade_gain(size_t trader_idx, TradeGain g) const;
 	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
 			uint8_t trader_type = UNIT_TRADER) const;
+	// The trader's gain between two points (dx, dz) world units apart (calculate_trade_gain's `trader`).
+	int trader_gain_at(double dx, double dz, uint8_t trader_owner, uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
 	// Trader.js CanTrade: a finished market of the trader's kind (a Market for land
 	// traders, a Dock for merchant ships) whose owner `trader_owner` is not hostile to.
@@ -2453,6 +2455,26 @@ private:
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
+	// tradeManager.js checkRoutes: a route between two of our or our allies' markets
+	// (land) or docks on one sea (sea), and its gain per leg for our trader.
+	struct PetraTradeRoute { uint32_t source = 0, target = 0; int gain = 0; uint16_t land = 0, sea = 0; };
+	struct PetraTradeRoutes {
+		PetraTradeRoute best;      // tradeRoute: both ends finished
+		PetraTradeRoute potential; // potentialTradeRoute: foundations count
+		std::vector<PetraTradeRoute> finished; // every finished pair, for checkRoutes(accessIndex)
+	};
+	void petra_check_routes(PetraTradeRoutes &out) const;
+	// checkRoutes(accessIndex): the best route for a trader on that land, or a ship on that
+	// sea; for a land trader the best land route anywhere when its own land has none.
+	const PetraTradeRoute *petra_route_for(const PetraTradeRoutes &r, uint16_t access, bool ship) const;
+	int petra_trade_minimal_gain() const; // tradeManager.js minimalGain
+	int petra_target_traders() const;     // targetNumTraders as setTradingGoods sets it
+	bool petra_line_in_enemy_territory(float x1, float z1, float x2, float z2) const;
+	// headquarters.js findMarketLocation: 1 with a spot (out_x, out_z) and its expected gain,
+	// 0 when there are no markets to measure from (place it anywhere), -1 when nothing will do.
+	int petra_find_market_location(float &out_x, float &out_z, int &out_gain) const;
+	uint32_t petra_build_market(float home_x, float home_z, uint8_t queue); // ConstructionPlan for a Market
+	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui) const;
