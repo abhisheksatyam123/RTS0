@@ -81,6 +81,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
 	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
+	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
 	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
@@ -183,6 +184,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "FORTRESS", rtso::BLD_FORTRESS);
 	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
 	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
+	bind_enum("BuildingType", "SIEGE_WALL", rtso::BLD_SIEGE_WALL);
 	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
 	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
@@ -296,6 +298,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "fortress" || n == "palisades_fort" || n == "keep") return rtso::BLD_FORTRESS;
 	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
 	if (n == "palisade_gate" || n == "palisades_gate") return rtso::BLD_PALISADE_GATE;
+	if (n == "siege_wall" || n == "wallset_siege") return rtso::BLD_SIEGE_WALL;
 	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
 	if (n == "wonder") return rtso::BLD_WONDER;
 	if (n == "dock") return rtso::BLD_DOCK;
@@ -2805,7 +2808,7 @@ void RtsoMain::_process(double delta) {
 			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
-			const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
@@ -2899,12 +2902,8 @@ void RtsoMain::_process(double delta) {
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;
 		write_replay(); // the finished match, with its final statistics
-		Node *summary = get_node_or_null(NodePath("SummaryScreen"));
-		if (summary) {
-			summary->call("configure", summary_gui(false));
-			summary->call("show_summary", sim->is_victory_for(local_player()), statistics_summary(), (float)match_elapsed_time);
-		}
 	}
+	tick_quit_confirmation();
 
 	// Check Victory / Defeat Condition, from the local player's seat
 	if (sim->is_victory_for(local_player())) {
@@ -4206,7 +4205,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 
 				if (build_mode) {
-					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE) {
+					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
+							current_build_type == rtso::BLD_SIEGE_WALL) {
 						wall_drag_mode = true;
 						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
 						return;
@@ -4273,7 +4273,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
 					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 					const bool queued = rtso::hotkeys::held("session.queue");
-					const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+					const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 							drag_end_pos.x, drag_end_pos.z, nullptr, nullptr, wall_kind).empty();
 					if (any) {
@@ -5563,11 +5563,11 @@ void RtsoMain::_on_lobby_observe_toggled(bool on) {
 	if (net_lockstep() && !net_host_.isHost() && !net_game_started_) turn_mgr_.request_rejoin(on);
 }
 
-// 0 A.D. gamesetup player assignment (gui/gamesetup PlayerAssignmentsControl):
-// the host gives each client a slot, or makes it an observer; a client given an
-// AI slot replaces the AI, and one given a slot another client had takes it
-// from that client, who becomes an observer. Unassigned clients take the free
-// human slots in order, as before. Shown only on the host until Start.
+// 0 A.D. gamesetup player assignment (PlayerAssignmentsController.js): the host
+// gives each client a slot, or makes it an observer; a client given an AI slot
+// replaces the AI, and one given a slot another client plays swaps with it.
+// Unassigned clients take the free human slots in order. Shown only on the
+// host until Start.
 void RtsoMain::refresh_lobby_seats() {
 	if (!lobby_seats) return;
 	struct Client { uint32_t id; std::string name; bool watches; };
@@ -5594,11 +5594,38 @@ void RtsoMain::refresh_lobby_seats() {
 		for (const auto &c : clients) here |= c.id == it->first;
 		it = here ? std::next(it) : seat_choice_.erase(it);
 	}
+	for (auto it = seat_seen_.begin(); it != seat_seen_.end();) {
+		bool here = false;
+		for (const auto &c : clients) here |= c.id == *it;
+		it = here ? std::next(it) : seat_seen_.erase(it);
+	}
+	uint8_t eff[8];
+	lobby_effective_seats(eff);
+	// 0 A.D. onClientJoin: gui.gamesetup.assignplayers decides whether a joiner
+	// gets a slot (everyone, only the host's buddies, or nobody until the host
+	// assigns one), and a name seen before gets its last slot back when free.
+	for (const auto &c : clients) {
+		if (c.id == 0 || !seat_seen_.insert(c.id).second || seat_choice_.count(c.id)) continue;
+		const std::string opt = rtso::user_config::get("gui.gamesetup.assignplayers");
+		bool buddy = false;
+		{
+			const std::string list = "," + rtso::user_config::get("lobby.buddies") + ",";
+			buddy = !c.name.empty() && list.find("," + c.name + ",") != std::string::npos;
+		}
+		if (opt == "disabled" || (opt == "buddies" && !buddy)) { seat_choice_[c.id] = SEAT_OBSERVER; continue; }
+		auto last = seat_last_.find(c.name);
+		if (c.watches || last == seat_last_.end() || last->second >= slots.size() || slots[last->second].type == 'x') continue;
+		bool held = false;
+		for (const auto &o : clients) held |= o.id != c.id && eff[o.id] == last->second;
+		if (!held) seat_choice_[c.id] = last->second;
+	}
+	lobby_effective_seats(eff);
+	for (const auto &c : clients) seat_last_[c.name] = eff[c.id];
 	std::string key;
 	for (const auto &c : clients) {
 		auto ch = seat_choice_.find(c.id);
 		key += std::to_string(c.id) + ":" + c.name + ":" + (c.watches ? "o" : "p") + ":" +
-				std::to_string(ch == seat_choice_.end() ? -1 : ch->second) + ";";
+				std::to_string(ch == seat_choice_.end() ? -1 : ch->second) + ":" + std::to_string(eff[c.id]) + ";";
 	}
 	for (const auto &s : slots) key += std::string(1, s.type) + s.name.utf8().get_data() + ";";
 	if (key == lobby_seats_key_) return;
@@ -5619,7 +5646,7 @@ void RtsoMain::refresh_lobby_seats() {
 		who->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		row->add_child(who);
 		OptionButton *pick = memnew(OptionButton);
-		pick->add_item("Next free slot", SEAT_AUTO);
+		pick->add_item(eff[c.id] < 8 ? "Next free slot (Player " + String::num_int64(eff[c.id] + 1) + ")" : String("Next free slot"), SEAT_AUTO);
 		pick->add_item("Observer", SEAT_OBSERVER);
 		for (int i = 0; i < (int)slots.size(); ++i) {
 			if (slots[i].type == 'x') continue;
@@ -5647,15 +5674,34 @@ void RtsoMain::_on_lobby_seat_selected(int index, int client) {
 					if ((int)ob->get_meta("client", -1) == client) pick = ob;
 	if (!pick) return;
 	const int choice = pick->get_item_id(index);
+	if (client < 0 || client >= 8) return;
+	// 0 A.D. assignPlayer: a slot another client plays is swapped with this
+	// client's own slot, or leaves that client unassigned (an observer).
+	uint8_t eff[8];
+	lobby_effective_seats(eff);
 	if (choice < 8)
-		for (auto &e : seat_choice_)
-			if (e.first != (uint32_t)client && e.second == choice) e.second = SEAT_OBSERVER;
+		for (uint32_t other = 0; other < 8; ++other) {
+			if (other == (uint32_t)client || eff[other] != choice) continue;
+			bool connected = other == 0;
+			for (const auto &p : net_host_.getPeers()) connected |= p.id == other && p.connected;
+			if (connected) seat_choice_[other] = eff[client] < 8 ? (int)eff[client] : SEAT_OBSERVER;
+		}
 	seat_choice_[(uint32_t)client] = choice;
 	lobby_seats_key_.clear();
 }
 
 // Start: the host's player assignment into NMT_GAME_START (seats= and obs=).
-void RtsoMain::apply_lobby_seats(rtso::GameSetupParams &setup) {
+// 0 A.D. game setup assigns observers no player: the host when Observe is
+// ticked, a joiner that asked to watch (its rejoin request at connect), and
+// whoever the host's player assignment made an observer; a client given an AI
+// slot replaces the AI, and if too few human slots are left for the joiners
+// the first AI slots become human ones. `commit` (Start) also tells the net
+// layer who watches.
+void RtsoMain::prepare_lobby_seats(rtso::GameSetupParams &setup, bool commit) {
+	const bool host_watches = lobby_observe && lobby_observe->is_pressed();
+	setup.observers = host_watches ? 1 : 0;
+	for (const auto &p : net_host_.getPeers())
+		if (p.connected && p.id != 0 && p.id < 8 && p.is_observer) setup.observers |= (uint8_t)(1u << p.id);
 	for (const auto &e : seat_choice_) {
 		if (e.first >= 8) continue;
 		const uint8_t bit = (uint8_t)(1u << e.first);
@@ -5663,8 +5709,35 @@ void RtsoMain::apply_lobby_seats(rtso::GameSetupParams &setup) {
 		setup.observers &= (uint8_t)~bit;
 		if (e.second < 0 || e.second >= setup.slot_count || setup.slot_types[e.second] == 'x') continue;
 		setup.seats[e.first] = (uint8_t)e.second;
-		setup.slot_types[e.second] = 'h'; // a client given an AI slot replaces the AI
+		setup.slot_types[e.second] = 'h';
 	}
+	int need = (setup.observers & 1) ? 0 : 1;
+	for (const auto &p : net_host_.getPeers()) {
+		if (!p.connected || p.id == 0) continue;
+		const bool watches = p.id < 8 && ((setup.observers >> p.id) & 1);
+		if (commit && p.id < 8) net_host_.setPeerObserver(p.id, watches);
+		if (!watches) ++need;
+	}
+	for (uint8_t i = 0; i < setup.slot_count; ++i)
+		if (setup.slot_types[i] == 'h') --need;
+	for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)
+		if (setup.slot_types[i] == 'a') { setup.slot_types[i] = 'h'; --need; }
+}
+
+// The slot each client would play if the host pressed Start now (0xFF: watches).
+void RtsoMain::lobby_effective_seats(uint8_t out[8]) {
+	rtso::GameSetupParams setup;
+	setup.slot_count = 0;
+	if (Node *ms = get_node_or_null(NodePath("/root/MatchSettings"))) {
+		Array types = ms->get("slot_types");
+		for (int i = 0; i < 8 && i < types.size(); ++i) {
+			const int ty = (int)types[i];
+			setup.slot_types[i] = ty == 0 ? 'h' : ty == 1 ? 'a' : 'x';
+			setup.slot_count++;
+		}
+	}
+	prepare_lobby_seats(setup, false);
+	rtso::TurnManager::seat_clients(setup, out);
 }
 
 void RtsoMain::_on_lobby_refresh_pressed() {
@@ -5796,25 +5869,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	// few, turn the first AI slots into human ones (before broadcast, so both
 	// peers seat players identically in assign_slot_players).
 	{
-		// 0 A.D. game setup assigns observers no player: the host when Observe is
-		// ticked, a joiner that asked to watch (its rejoin request at connect),
-		// and whoever the host's player assignment made an observer or seated.
-		const bool host_watches = lobby_observe && lobby_observe->is_pressed();
-		setup.observers = host_watches ? 1 : 0;
-		for (const auto &p : net_host_.getPeers())
-			if (p.connected && p.id != 0 && p.id < 8 && p.is_observer) setup.observers |= (uint8_t)(1u << p.id);
-		apply_lobby_seats(setup);
-		int need = (setup.observers & 1) ? 0 : 1;
-		for (const auto &p : net_host_.getPeers()) {
-			if (!p.connected || p.id == 0) continue;
-			const bool watches = p.id < 8 && ((setup.observers >> p.id) & 1);
-			if (p.id < 8) net_host_.setPeerObserver(p.id, watches);
-			if (!watches) ++need;
-		}
-		for (uint8_t i = 0; i < setup.slot_count; ++i)
-			if (setup.slot_types[i] == 'h') --need;
-		for (uint8_t i = 0; i < setup.slot_count && need > 0; ++i)
-			if (setup.slot_types[i] == 'a') { setup.slot_types[i] = 'h'; --need; }
+		prepare_lobby_seats(setup, true);
 	}
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);

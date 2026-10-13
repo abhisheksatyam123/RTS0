@@ -1,0 +1,173 @@
+extends CanvasLayer
+# The session's quit questions, ports of 0 A.D. gui/session/message_box
+# (GPL-2.0-or-later): SessionMessageBox, QuitConfirmation, QuitConfirmationMenu
+# (the menu's Exit), QuitConfirmationDefeat (the player has won or lost) and
+# QuitConfirmationReplay (the replay has finished), with session.js endGame:
+# "Quit and View Summary" leaves the match for the summary page, "Quit" for the
+# main menu (the replay menu after a replay), "Stay" goes back to the game.
+#
+# Not ported: ReturnQuestion's "I resign" (RTS0 has no resign command yet), so
+# an active multiplayer client's "Yes" leaves as "I will return" does.
+
+signal pressed(index: int)
+
+const TITLE := "Confirmation"
+const CAPTION := "The game has finished, what do you want to do?"
+const BUTTONS := ["Stay", "Quit and View Summary", "Quit"]
+const CAPTION_HOST := "Are you sure you want to quit? Leaving will disconnect all other players."
+const CAPTION_CLIENT := "Are you sure you want to quit?"
+const CAPTION_REPLAY := "The replay has finished. What do you want to do?"
+const TITLE_VICTORY := "VICTORIOUS!"
+const TITLE_DEFEATED := "DEFEATED!"
+const STATE_MESSAGES := {"won": "You have won!", "defeated": "You have been defeated!"} # messages.js g_PlayerStateMessages
+const QUESTION := "Do you want to quit?"
+
+var title := ""
+var caption := ""
+var buttons: Array = []
+var main: Node
+var _paused_by_me := false
+
+## QuitConfirmationMenu: the menu's Exit. Single player, replays and observers
+## who aren't the host get QuitConfirmation; the host is told the others will
+## be disconnected; an active client is asked "Are you sure you want to quit?".
+static func menu(m: Node) -> Node:
+	var g: Dictionary = m.get_summary_gui(false)
+	var networked: bool = g.get("networked", false)
+	var controller: bool = g.get("isController", true)
+	var observer: bool = g.get("isObserver", false)
+	if networked and not controller and not observer:
+		var q := _open(m, TITLE, CAPTION_CLIENT, ["No", "Yes"])
+		q.pressed.connect(func(i): if i == 1: end_game(m, false))
+		return q
+	return _quit(m, TITLE, CAPTION_HOST if networked and controller else CAPTION)
+
+## QuitConfirmationDefeat.confirmExit: the player has won or been defeated. The
+## host isn't invited to leave while other humans still play (no buttons then).
+static func defeat(m: Node, won: bool, ask_exit: bool) -> Node:
+	var text: String = STATE_MESSAGES["won" if won else "defeated"] + ("\n" + QUESTION if ask_exit else "")
+	var t := TITLE_VICTORY if won else TITLE_DEFEATED
+	if not ask_exit:
+		return _open(m, t, text, [])
+	return _quit(m, t, text)
+
+## QuitConfirmationReplay: the replay reached its last turn.
+static func replay_finished(m: Node) -> Node:
+	return _quit(m, TITLE, CAPTION_REPLAY)
+
+## session.js endGame: leave the match, for the summary page or the menu the
+## match came from (the campaign's menu in a campaign).
+static func end_game(m: Node, show_summary: bool) -> void:
+	var tree := m.get_tree()
+	tree.paused = false
+	var ms = tree.root.get_node("MatchSettings")
+	var status: Dictionary = m.get_replay_status()
+	if show_summary:
+		var g: Dictionary = m.get_summary_gui(false)
+		g["dialog"] = false
+		# The replay is written as the match scene leaves the tree.
+		if status.get("recording", false):
+			g["replayDirectory"] = str(status.get("replay_dir", ""))
+		var summary_script: GDScript = load("res://scenes/session/summary_screen.gd")
+		summary_script.pending = {"gui": g, "data": m.get_match_statistics()}
+		ms.go("res://scenes/session/summary_screen.tscn")
+	elif status.get("replaying", false):
+		ms.go("res://scenes/menu/replay_browser.tscn")
+	elif ms.campaign_run != "":
+		load("res://scenes/session/summary_screen.gd").leave_campaign(m.get_summary_gui(false).get("victory", false))
+	else:
+		ms.go("res://scenes/menu/main_menu.tscn")
+
+static func _quit(m: Node, t: String, text: String) -> Node:
+	var q := _open(m, t, text, BUTTONS)
+	q.pressed.connect(func(i):
+		if i == 1 or i == 2:
+			end_game(m, i == 1))
+	return q
+
+## SessionMessageBox.display: close other dialogs, pause a single-player game
+## until the question is answered.
+static func _open(m: Node, t: String, text: String, b: Array) -> Node:
+	for old in m.get_children():
+		if old.get_script() == load("res://scenes/session/quit_confirmation.gd"):
+			old.queue_free()
+	var pause_menu := m.get_node_or_null("PauseMenu")
+	if pause_menu and pause_menu.visible and pause_menu.has_method("_on_resume_pressed"):
+		pause_menu._on_resume_pressed()
+	var q = load("res://scenes/session/quit_confirmation.gd").new()
+	q.main = m
+	q.title = t
+	q.caption = text
+	q.buttons = b
+	m.add_child(q)
+	return q
+
+func _ready() -> void:
+	layer = 60
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	var networked: bool = main != null and main.get_summary_gui(false).get("networked", false)
+	if not networked and not get_tree().paused:
+		_paused_by_me = true
+		get_tree().paused = true
+	_build()
+
+## A button of the box (msgbox.js): the box closes, then its action runs.
+## Every answer resumes the game ("Stay" calls resumeGame; the others leave it).
+func press(index: int) -> void:
+	if _paused_by_me:
+		get_tree().paused = false
+	_paused_by_me = false
+	queue_free()
+	pressed.emit(index)
+
+func button_texts() -> Array:
+	return buttons if not buttons.is_empty() else ["OK"]
+
+func _build() -> void:
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0.4)
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(fade)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+	var panel := PanelContainer.new()
+	panel.name = "MessageBox"
+	# SessionMessageBox 400 x 200; QuitConfirmation 600 x 200.
+	panel.custom_minimum_size = Vector2(600 if buttons == BUTTONS else 400, 200)
+	center.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	var head := Label.new()
+	head.name = "Title"
+	head.text = title
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.add_theme_font_size_override("font_size", 20)
+	head.add_theme_color_override("font_color", Color(1.0, 0.85, 0.45))
+	box.add_child(head)
+	var body := Label.new()
+	body.name = "Caption"
+	body.text = caption
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(body)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var texts := button_texts()
+	for i in texts.size():
+		var b := Button.new()
+		b.name = "Button%d" % i
+		b.text = texts[i]
+		b.custom_minimum_size = Vector2(160, 32)
+		b.pressed.connect(press.bind(i))
+		row.add_child(b)
+
+func _unhandled_input(event: InputEvent) -> void:
+	# The message box's cancel hotkey answers with the first button.
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		get_viewport().set_input_as_handled()
+		press(0)
