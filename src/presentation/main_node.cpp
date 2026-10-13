@@ -2293,7 +2293,13 @@ void RtsoMain::update_cursor() {
 					want = herd ? "action-herd" : "action-gather-meat";
 				}
 			}
-			if (!*want && scenery_at(at.x, at.z) != 0) want = "action-attack";
+			if (!*want) {
+				if (const uint32_t sid = scenery_at(at.x, at.z); sid != 0) {
+					const int32_t k = sim->scenery_index(sid);
+					const bool ctrl = rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove");
+					want = k >= 0 && sim->scenery_capturable(sim->scenery()[k]) && !ctrl ? "action-capture" : "action-attack";
+				}
+			}
 			if (!*want) {
 				auto rv = sim->resources();
 				for (size_t r = 0; r < rv.count && !*want; ++r) {
@@ -5849,6 +5855,14 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// Ctrl over an enemy structure attacks it instead of capturing it (0 A.D.
 			// session.attack); Ctrl over anything else is attack-move (session.attackmove).
 			if ((rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove")) && !attack_move_mode) {
+				if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
+					if (turn_cmds())
+						post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, rtso::NET_HUNT_SCENERY_NO_CAPTURE);
+					else
+						sim->order_attack_scenery(sel_ptr, sel_n, sid, false);
+					play_civ_voice("attack");
+					return;
+				}
 				for (const auto &b : sim->buildings()) {
 					if (b.wrecked || b.team == local_player()) continue;
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z;
@@ -6125,8 +6139,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 
-			// Right click on Gaia scenery (a fence, column, obelisk): attack it (template_structure
-			// Health; capturing scenery is not modelled).
+			// Right click on Gaia scenery (a fence, column, obelisk): capture it if it is Capturable
+			// (benches and fences), else attack it (template_structure Health).
 			if (const uint32_t sid = scenery_at(click_pos.x, click_pos.z); sid != 0) {
 				if (turn_cmds())
 					post_lockstep(17, sel_ptr, sel_n, 0, 0, sid, 0);
