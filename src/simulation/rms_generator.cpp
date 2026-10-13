@@ -2771,6 +2771,29 @@ void paint_mask_elevation(HeightmapGrid &hm, const std::vector<uint8_t> &mask, f
 	}
 }
 
+// The areas the synth_* recorded for paint_terrain (script_terrains.h AreaLayers),
+// as tile indices on paint_terrain's grid, in the order the script paints them.
+struct MapArea {
+	uint8_t kind;
+	std::vector<uint32_t> tiles;
+};
+thread_local std::vector<MapArea> t_map_areas;
+
+// Records the tiles whose centre's nearest vertex is in `mask` as an area of `kind`.
+void record_area(const HeightmapGrid &hm, const std::vector<uint8_t> &mask, AreaKind kind) {
+	const float half = hm.map_half, sp = grid_spacing(hm);
+	const int res = std::clamp((int)std::lround(2.0f * half), 1, Simulation::MAX_TERRAIN_TILE_RES);
+	const float cell = 2.0f * half / (float)res;
+	MapArea a{(uint8_t)kind, {}};
+	for (int tz = 0; tz < res; ++tz)
+		for (int tx = 0; tx < res; ++tx) {
+			const int vx = std::clamp((int)std::lround(((float)tx + 0.5f) * cell / sp), 0, hm.res - 1);
+			const int vz = std::clamp((int)std::lround(((float)tz + 0.5f) * cell / sp), 0, hm.res - 1);
+			if (mask[(size_t)vz * (size_t)hm.res + (size_t)vx]) a.tiles.push_back((uint32_t)(tz * res + tx));
+		}
+	if (!a.tiles.empty()) t_map_areas.push_back(std::move(a));
+}
+
 // Sets the vertices within r of (cx, cz) in mask.
 void mask_disk(const HeightmapGrid &hm, std::vector<uint8_t> &mask, float cx, float cz, float r) {
 	const float sp = grid_spacing(hm), half = hm.map_half;
@@ -2820,6 +2843,9 @@ void scatter_dry_hills(HeightmapGrid &hm, RmsRng &rng, const std::vector<RmsGene
 		}
 		if (!ok || hm.sample_world(hx, hz) <= water_h + 0.5f) continue;
 		hm.raise_plateau(hx, hz, r, 0.0f, 0.0f, 18.0f * kMetre, r * 0.6f);
+		std::vector<uint8_t> m(hm.data.size(), 0);
+		mask_disk(hm, m, hx, hz, r);
+		record_area(hm, m, AREA_HILL);
 		++i;
 	}
 }
@@ -2984,6 +3010,7 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 		for (size_t i = 0; i < m.size(); ++i) if (m[i]) island[i] = player_island[i] = 1;
 	}
 	paint_mask_elevation(hm, island, land, 4.0f);
+	record_area(hm, island, AREA_PLAYER_ISLAND);
 	// More islands, at most 20% of each closer than 6 to another.
 	const float sp = grid_spacing(hm);
 	const int islands = scale_by_map_size(25, 80, half);
@@ -2999,6 +3026,7 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 		std::vector<uint8_t> paint(m.size(), 0);
 		for (size_t k = 0; k < m.size(); ++k) paint[k] = m[k] && dist[k] >= 6.0f;
 		paint_mask_elevation(hm, paint, land, 4.0f);
+		record_area(hm, paint, AREA_ISLAND);
 		for (size_t k = 0; k < m.size(); ++k) if (paint[k]) island[k] = 1;
 		++i;
 	}
@@ -3028,6 +3056,7 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 			std::vector<uint8_t> m(hm.data.size(), 0);
 			mask_disk(hm, m, vx, vz, vr);
 			paint_mask_elevation(hm, m, metres(water_h, 25.0f), 6.0f);
+			record_area(hm, m, AREA_VOLCANO);
 			break;
 		}
 	}
@@ -3049,6 +3078,9 @@ void RmsGenerator::synth_dodecanese(HeightmapGrid &hm, RmsRng &rng, float &water
 			}
 			if (!ok) continue;
 			hm.raise_plateau(hx, hz, r, 0.0f, 0.0f, 5.0f * kMetre, 2.0f);
+			std::vector<uint8_t> m(hm.data.size(), 0);
+			mask_disk(hm, m, hx, hz, r);
+			record_area(hm, m, AREA_HILL);
 			++i;
 		}
 	}
@@ -3125,6 +3157,7 @@ void RmsGenerator::synth_fortress(HeightmapGrid &hm, RmsRng &rng, float &water_h
 		std::vector<uint8_t> m(hm.data.size(), 0);
 		mask_disk(hm, m, lx, lz, lake_r + 3.0f);
 		paint_mask_elevation(hm, m, metres(water_h, -4.0f), 3.0f);
+		record_area(hm, m, AREA_LAKE);
 		placed.push_back({lx, lz});
 		++i;
 	}
@@ -4514,6 +4547,7 @@ void seas_hills(HeightmapGrid &hm, RmsRng &rng, float water_h, float amount, boo
 		if (!seas_any(m)) return false;
 		if (mountains) paint_mask_elevation(hm, m, metres(water_h, std::floor(seas_scale(30, 50, half))), (float)std::floor(seas_scale(6, 12, half)));
 		else paint_mask_elevation(hm, m, metres(water_h, hill_m), 2.0f);
+		record_area(hm, m, mountains ? AREA_MOUNTAIN : AREA_HILL);
 		seas_add(hills, m);
 		to_hill = seas_dist_inside(hm, hills);
 		return true;
@@ -4591,6 +4625,7 @@ void RmsGenerator::synth_aegean_sea(HeightmapGrid &hm, RmsRng &rng, float &water
 		                          });
 		if (!seas_any(m)) return false;
 		paint_mask_elevation(hm, m, metres(water_h, 6.0f), 4.0f);
+		record_area(hm, m, AREA_ISLAND);
 		seas_add(islands, m);
 		to_island = seas_dist_inside(hm, islands);
 		return true;
@@ -5027,6 +5062,7 @@ void RmsGenerator::synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, fl
 	auto island = [&](float x, float z, float r, bool player) {
 		const auto m = seas_clump(hm, rng, kSeasPi * r * r, 0.7f, 0.1f, 1e9f, x, z, [&](int i) { return !player_mask[(size_t)i]; });
 		paint_mask_elevation(hm, m, land, 5.0f);
+		record_area(hm, m, AREA_ISLAND);
 		std::vector<int> pts;
 		for (size_t i = 0; i < m.size(); ++i) if (m[i]) pts.push_back((int)i);
 		if (!pts.empty()) areas.push_back(std::move(pts));
@@ -5070,6 +5106,7 @@ void RmsGenerator::synth_cycladic_archipelago(HeightmapGrid &hm, RmsRng &rng, fl
 		                          [&](int i) { return to_city[(size_t)i] > 15.0f && to_hill[(size_t)i] > 15.0f; });
 		if (!seas_any(m)) return false;
 		paint_mask_elevation(hm, m, metres(water_h, 12.0f), 2.0f);
+		record_area(hm, m, AREA_HILL);
 		seas_add(hills, m);
 		to_hill = seas_dist_inside(hm, hills);
 		return true;
@@ -5766,7 +5803,10 @@ void RmsGenerator::synth_phoenician_levant(HeightmapGrid &hm, RmsRng &rng, float
 		for (size_t i = 0; i < cells; ++i) blocked[i] |= water[i];
 		coast_chain_areas(hm, rng, scale_by_map_size(1, 4, half) * num_players * 3, 1.0f, std::floor(coast_sbms(4.0f, 6.0f, half)),
 		                  (int)std::floor(coast_sbms(16.0f, 40.0f, half)), 0.5f, blocked, 15.0f,
-		                  [&](const std::vector<uint8_t> &m) { paint_mask_elevation(hm, m, M(15.0f), 2.0f); });
+		                  [&](const std::vector<uint8_t> &m) {
+			                  paint_mask_elevation(hm, m, M(15.0f), 2.0f);
+			                  record_area(hm, m, AREA_HILL);
+		                  });
 	}
 	// Cyprus: stayClasses(clWater, 8) for the whole island.
 	{
@@ -5780,6 +5820,7 @@ void RmsGenerator::synth_phoenician_levant(HeightmapGrid &hm, RmsRng &rng, float
 			std::vector<uint8_t> m(cells, 0);
 			mask_disk(hm, m, cx, cz, r);
 			paint_mask_elevation(hm, m, M(6.0f), 8.0f);
+			record_area(hm, m, AREA_ISLAND);
 			break;
 		}
 	}
@@ -5871,7 +5912,10 @@ void RmsGenerator::synth_botswanan_haven(HeightmapGrid &hm, RmsRng &rng, float &
 		const auto blocked = coast_near_spots(hm, locs, 25.0f);
 		hills = coast_chain_areas(hm, rng, scale_by_map_size(1, 4, half) * num_players * 3, 1.0f, std::floor(coast_sbms(4.0f, 6.0f, half)),
 		                          (int)std::floor(coast_sbms(16.0f, 40.0f, half)), 0.5f, blocked, 15.0f,
-		                          [&](const std::vector<uint8_t> &m) { paint_mask_elevation(hm, m, M(15.0f), 2.0f); });
+		                          [&](const std::vector<uint8_t> &m) {
+			                  paint_mask_elevation(hm, m, M(15.0f), 2.0f);
+			                  record_area(hm, m, AREA_HILL);
+		                  });
 	}
 	{
 		auto blocked = coast_near_spots(hm, locs, 30.0f);
@@ -5884,7 +5928,10 @@ void RmsGenerator::synth_botswanan_haven(HeightmapGrid &hm, RmsRng &rng, float &
 			for (size_t i = 0; i < cells; ++i) b[i] |= to_water[i] < gap;
 			const auto m = coast_chain_areas(hm, rng, scale_by_map_size(4, 20, half), 1.0f, std::floor(coast_sbms(6.0f, 12.0f, half)),
 			                                 (int)std::floor(coast_sbms(15.0f, 60.0f, half)), 0.8f, b, gap,
-			                                 [&](const std::vector<uint8_t> &mm) { paint_mask_elevation(hm, mm, M(-2.0f), 3.0f); });
+			                                 [&](const std::vector<uint8_t> &mm) {
+				                                 paint_mask_elevation(hm, mm, M(-2.0f), 3.0f);
+				                                 record_area(hm, mm, AREA_MARSH);
+			                                 });
 			for (size_t i = 0; i < cells; ++i) water[i] |= m[i];
 		}
 	}
@@ -6019,7 +6066,10 @@ void RmsGenerator::synth_scythian_rivulet(HeightmapGrid &hm, RmsRng &rng, float 
 		const int count = scale_by_map_size(3, 15, half);
 		if (rng.range_int(0, 1)) {
 			coast_chain_areas(hm, rng, count, 1.0f, std::floor(coast_sbms(4.0f, 6.0f, half)), (int)std::floor(coast_sbms(16.0f, 40.0f, half)),
-			                  0.5f, blocked, 15.0f, [&](const std::vector<uint8_t> &m) { paint_mask_elevation(hm, m, M(18.0f), 2.0f); });
+			                  0.5f, blocked, 15.0f, [&](const std::vector<uint8_t> &m) {
+				                  paint_mask_elevation(hm, m, M(18.0f), 2.0f);
+				                  record_area(hm, m, AREA_HILL);
+			                  });
 		} else {
 			// createMountain: a cone of circles up to scaleByMapSize(30, 50) m.
 			const float peak = std::floor(coast_sbms(30.0f, 50.0f, half));
@@ -6031,6 +6081,7 @@ void RmsGenerator::synth_scythian_rivulet(HeightmapGrid &hm, RmsRng &rng, float 
 				                  const auto d = distance_to_mask(outside, hm.res, sp);
 				                  for (size_t k = 0; k < m.size(); ++k)
 					                  if (m[k]) hm.data[k] += (M(peak) - hm.data[k]) * smoothstep(0.0f, max_r, d[k]);
+				                  record_area(hm, m, AREA_MOUNTAIN);
 			                  });
 		}
 	}
@@ -6644,6 +6695,7 @@ void RmsGenerator::synth_arctic_summer(HeightmapGrid &hm, RmsRng &rng, float &wa
 			auto area = chain_placer(hm, rng, c.first, c.second, 1.0f, max_r, circles);
 			if (!fit_area(area, forbid, 0.5f)) continue;
 			paint_mask_elevation(hm, area, metres(water_h, 18.0f), 2.0f);
+			record_area(hm, area, AREA_HILL);
 			mask_or(hills, area);
 			forbid = forbid_fn();
 			++placed;
@@ -6661,6 +6713,7 @@ void RmsGenerator::synth_arctic_summer(HeightmapGrid &hm, RmsRng &rng, float &wa
 			const std::vector<float> before = hm.data;
 			paint_mask_elevation(hm, area, metres(water_h, -5.0f), 5.0f);
 			if (!bases_linked(hm, water_h, pts)) hm.data = before;
+			else record_area(hm, area, AREA_LAKE);
 		}
 	}
 	std::vector<PlayerSpawn> probe = spawns;
@@ -9207,6 +9260,7 @@ void ease_routes_between_bases(HeightmapGrid &hm, const std::vector<RmsGenerator
 bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	sim.reset();
 
+	t_map_areas.clear();
 	RmsRng rng(config.seed ? config.seed : 1337);
 	HeightmapGrid hm;
 	hm.init(config.heightmap_res, config.map_half, 0.0f);
@@ -9658,6 +9712,9 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	const float water = sim.water_height();
 	const bool has_water = water > -0.5f;
 	const float metre = HEIGHT_PER_METRE;
+	std::vector<float> metres_up(t.tiles.size(), 0.0f);
+	// A script paints its own shores (its height bands and areas), with no shore blend to 3 m.
+	const bool own_bands = own && own->bands[0].terrain[0];
 	for (int tz = 0; tz < res; ++tz)
 		for (int tx = 0; tx < res; ++tx) {
 			const size_t j = (size_t)tz * (size_t)res + (size_t)tx;
@@ -9668,9 +9725,9 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			const float gz = (sim.get_terrain_height(x, z + e) - sim.get_terrain_height(x, z - e)) / (2.0f * e);
 			const float slope = std::sqrt(gx * gx + gz * gz); // RTS0 height units per unit, as 0 A.D. metres per 4 m tile x 0.25
 			uint8_t v;
-			// Under water, the shore band up to 1.5 m above it, the blend to 3 m.
+			// Under water, the shore band up to 1.5 m above it, the blend to 3 m (a script map paints its own shores).
 			if (has_water && h < water) v = index_of(b.water);
-			else if (has_water && h < water + 1.5f * metre) v = index_of(b.shore);
+			else if (has_water && h < water + 1.5f * metre && !own_bands) v = index_of(b.shore);
 			// 0 A.D. rmgen paints cliffs on slopes of 2 m per tile and steeper, hills from 1.25.
 			else if (slope >= 2.0f * metre) v = pick(b.cliff, 2, tx, tz, 1);
 			else if (slope >= 1.25f * metre) v = pick(b.hill, 2, tx, tz, 2);
@@ -9679,7 +9736,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 			else if (forest[j] == 2) v = index_of(b.forest[(hash(tx, tz, 3) & 1) && b.forest[1] ? 1 : 0]);
 			else if (forest[j] == 1) v = (hash(tx, tz, 4) & 1) ? index_of(b.forest[0]) : pick(b.main, 4, tx, tz, 5);
 			else if (mine[j]) v = pick(b.dirt, 2, tx, tz, 6);
-			else if (has_water && h < water + 3.0f * metre) v = index_of(b.shore_blend);
+			else if (has_water && h < water + 3.0f * metre && !own) v = index_of(b.shore_blend);
 			else {
 				// createPatches over the main terrain: [main, tier1], [tier1, tier2],
 				// [tier2, tier3] clumps, then tier4 and dirt patches.
@@ -9691,23 +9748,89 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 				else if (n3 > 0.86f) v = pick(b.dirt, 2, tx, tz, 10);
 				else v = pick(b.main, 4, tx, tz, 11);
 			}
-			// The script's own height bands, unless a road, forest floor or mine dirt took the tile.
-			if (own && road[j] == 0 && forest[j] == 0 && mine[j] == 0) {
-				const float m = (h - water) / metre;
-				for (const HeightBand &band : own->bands)
-					if (band.terrain[0] && m >= band.lo && m < band.hi)
-						v = pick(band.terrain, 2, tx, tz, 12);
-			}
+			// To the millimetre, so land the synth set to a whole metre stays on it.
+			metres_up[j] = std::round((h - water) / metre * 1000.0f) / 1000.0f;
 			t.tiles[j] = v;
 		}
+	// The script's own height bands and areas, unless a road, forest floor or mine dirt took the tile.
+	auto free_tile = [&](size_t j) { return road[j] == 0 && forest[j] == 0 && mine[j] == 0; };
+	auto paint_bands = [&](bool late) {
+		for (const HeightBand &band : own->bands) {
+			if (!band.terrain[0] || band.late != late) continue;
+			for (size_t j = 0; j < t.tiles.size(); ++j)
+				if (free_tile(j) && metres_up[j] >= band.lo && metres_up[j] < band.hi)
+					t.tiles[j] = pick(band.terrain, 2, (int)(j % (size_t)res), (int)(j / (size_t)res), 12);
+		}
+	};
+	if (own) {
+		paint_bands(false);
+		// LayeredPainter: 8-neighbour steps in from the area's edge, 1 on the edge.
+		std::vector<uint8_t> in(t.tiles.size(), 0);
+		std::vector<uint16_t> dist(t.tiles.size(), 0);
+		std::vector<uint32_t> queue;
+		for (const MapArea &a : t_map_areas) {
+			const AreaLayers *paint = nullptr;
+			for (const AreaLayers &l : own->areas)
+				if (l.kind == a.kind && l.layer[0][0]) { paint = &l; break; }
+			if (!paint) continue;
+			int layers = 0;
+			while (layers < 6 && paint->layer[layers][0]) ++layers;
+			for (uint32_t j : a.tiles) in[j] = 1;
+			queue.clear();
+			for (uint32_t j : a.tiles) {
+				const int x = (int)(j % (uint32_t)res), z = (int)(j / (uint32_t)res);
+				bool edge = false;
+				for (int dz = -1; dz <= 1 && !edge; ++dz)
+					for (int dx = -1; dx <= 1 && !edge; ++dx) {
+						const int nx = x + dx, nz = z + dz;
+						edge = nx >= 0 && nz >= 0 && nx < res && nz < res && !in[(size_t)nz * (size_t)res + (size_t)nx];
+					}
+				dist[j] = edge ? 1 : 0;
+				if (edge) queue.push_back(j);
+			}
+			for (size_t q = 0; q < queue.size(); ++q) {
+				const uint32_t j = queue[q];
+				const int x = (int)(j % (uint32_t)res), z = (int)(j / (uint32_t)res);
+				for (int dz = -1; dz <= 1; ++dz)
+					for (int dx = -1; dx <= 1; ++dx) {
+						const int nx = x + dx, nz = z + dz;
+						if (nx < 0 || nz < 0 || nx >= res || nz >= res) continue;
+						const uint32_t k = (uint32_t)(nz * res + nx);
+						if (!in[k] || dist[k]) continue;
+						dist[k] = (uint16_t)(dist[j] + 1);
+						queue.push_back(k);
+					}
+			}
+			for (uint32_t j : a.tiles) {
+				// An area with no edge inside the map (it covers it) counts as one wide ring.
+				const int d = dist[j] ? dist[j] : 1;
+				int i = 0, width = 0;
+				for (; i < layers - 1; ++i) {
+					width += paint->width[i];
+					if (width >= d) break;
+				}
+				if (free_tile(j)) t.tiles[j] = pick(paint->layer[i], 6, (int)(j % (uint32_t)res), (int)(j / (uint32_t)res), 13 + (uint32_t)i);
+			}
+			for (uint32_t j : a.tiles) { in[j] = 0; dist[j] = 0; }
+		}
+		paint_bands(true);
+	}
 	// A tile's terrain blends over neighbours of lower priority, which the renderer
 	// takes as the name's index. rmgen gives each terrain the index of its first use,
 	// so paint order decides: the main terrain first, then water and shores, player
 	// bases, cliffs and hills, forests and the patches on top.
 	std::vector<const char *> order(b.main, b.main + 4);
 	for (const char *n : {b.water, b.shore_blend, b.shore}) order.push_back(n);
-	if (own)
-		for (const HeightBand &band : own->bands) order.insert(order.end(), band.terrain, band.terrain + 2);
+	if (own) {
+		for (const HeightBand &band : own->bands)
+			if (!band.late) order.insert(order.end(), band.terrain, band.terrain + 2);
+		for (const MapArea &a : t_map_areas)
+			for (const AreaLayers &l : own->areas)
+				if (l.kind == a.kind)
+					for (const auto &layer : l.layer) order.insert(order.end(), layer, layer + 6);
+		for (const HeightBand &band : own->bands)
+			if (band.late) order.insert(order.end(), band.terrain, band.terrain + 2);
+	}
 	for (const char *n : {b.road_wild, b.road}) order.push_back(n);
 	for (const char *const *l : {b.cliff, b.hill, b.forest}) order.insert(order.end(), l, l + 2);
 	order.insert(order.end(), b.tier, b.tier + 4);
@@ -9729,6 +9852,7 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	for (uint8_t &v : t.tiles) v = remap[v];
 	t.names = std::move(names);
 	sim.set_terrain_tiles(std::move(t));
+	t_map_areas.clear();
 }
 
 void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config) {
