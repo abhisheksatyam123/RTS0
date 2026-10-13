@@ -212,6 +212,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	int8_t map_civ_[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
 	int32_t map_res_[8][4] = {}; // food, wood, stone, metal
 	bool map_has_res_[8] = {};
+	// The map's fixed teams (0 A.D. PlayerData Team; 0 none, else team + 1), when it has any.
+	uint8_t map_team_[8] = {};
+	bool map_has_teams_ = false;
 	void apply_map_player_overrides();
 
 	bool dragging = false;

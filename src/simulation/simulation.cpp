@@ -137,6 +137,7 @@ static constexpr uint32_t SAVE_VERSION_FORMATION_ORDERS = 37;
 static constexpr uint32_t SAVE_VERSION_FORMATION_QUEUE = 43;
 static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally resource kind and Shift-added positions, each fleeing unit's flee source
 static constexpr uint32_t SAVE_VERSION_PETRA_STARTED_ATTACKS = 52;
+static constexpr uint32_t SAVE_VERSION_PATROL_WAIT = 58; // each patrolling unit's time at its waypoint
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
@@ -2122,7 +2123,8 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const WallSetInfo &ws = wallset_info(kind);
 	const Civilization civ = civ_of(player);
 	for (uint8_t t : {ws.segment, ws.tower})
-		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase) return 0;
+		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase ||
+				triggers_.building_disabled(player, t)) return 0;
 	rebuild_territory();
 	uint32_t start_tower = 0, end_tower = 0;
 	const std::vector<WallPiece> pieces = wall_placement(player, sx, sz, ex, ez, &start_tower, &end_tower, kind);
@@ -8071,7 +8073,7 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 		if (!move_failed && gx * gx + gz * gz > RELAXED_RANGE * RELAXED_RANGE) continue;
 		m.failed = 0;
 		if (st == ACTION_PATROL) {
-			patrol_next_leg(i);
+			patrol_arrive(i);
 			continue;
 		}
 		// FinishOrder: stop here; tick_unit_ai() moves on to the next order.
@@ -11322,6 +11324,7 @@ void Simulation::set_order(size_t i, uint8_t kind, uint8_t flags, uint32_t targe
 	units_.order_z[i] = z;
 	units_.order_x2[i] = units_.pos_x[i]; // a patrol starts where the unit stands
 	units_.order_z2[i] = units_.pos_z[i];
+	units_.patrol_wait[i] = 0.0f;
 	if (kind == ORDER_GATHER || kind == ORDER_BUILD) { // UnitAI workOrders, for Back to Work
 		units_.work_kind[i] = kind;
 		units_.work_target[i] = target;
@@ -11580,7 +11583,21 @@ bool Simulation::order_still_valid(size_t i, const UnitOrder &o) const {
 // UnitAI FinishOrder: a gatherer whose resource ran out first looks for more of the
 // same type nearby (GATHER "ResourceExhausted"); then the next queued order runs.
 // UnitAI PATROL: on to the other end (the queue's next order goes first).
+static constexpr float PATROL_WAIT_TIME = 1.0f; // template_unit.xml PatrolWaitTime, seconds
+
+// PATROL.CHECKINGWAYPOINT: the unit stops at the waypoint and surveys it for the template's
+// PatrolWaitTime (1 s) before the next leg; enemies found meanwhile are fought as on the walk.
+void Simulation::patrol_arrive(size_t i) {
+	if (units_.patrol_wait[i] > 0.0f) return;
+	if (i < unit_paths_.size()) unit_paths_[i].clear();
+	units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+	units_.target_x[i] = units_.pos_x[i];
+	units_.target_z[i] = units_.pos_z[i];
+	units_.patrol_wait[i] = 1.0e-6f;
+}
+
 void Simulation::patrol_next_leg(size_t i) {
+	units_.patrol_wait[i] = 0.0f;
 	// PATROLLING MovementUpdate: the patrol goes back to the end of the queue, so
 	// queued patrol points are walked round in a loop.
 	auto q = order_queues_.find(units_.id[i]);
@@ -12193,7 +12210,12 @@ void Simulation::tick_unit_ai(float dt) {
 		// Patrol: turn round at each end (the queue's next order goes first).
 		if (now == ACTION_PATROL && units_.order_kind[i] == ORDER_PATROL) {
 			const float dx = units_.order_x[i] - units_.pos_x[i], dz = units_.order_z[i] - units_.pos_z[i];
-			if (dx * dx + dz * dz <= 1.0f) patrol_next_leg(i);
+			if (units_.patrol_wait[i] > 0.0f) {
+				units_.patrol_wait[i] += dt;
+				if (units_.patrol_wait[i] > PATROL_WAIT_TIME) patrol_next_leg(i);
+			} else if (dx * dx + dz * dz <= 1.0f) {
+				patrol_arrive(i);
+			}
 			continue;
 		}
 		if (now == ACTION_ATTACK && units_.target_unit_id[i] == 0 && units_.target_building_id[i] == 0) {
@@ -19808,7 +19830,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -20665,6 +20687,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			U.flee_from[i] = 0;
 			U.flee_dist[i] = 0.0f;
 		}
+		if (ar.version >= SAVE_VERSION_PATROL_WAIT) ar.pod(U.patrol_wait[i]);
+		else U.patrol_wait[i] = 0.0f;
 		if (ar.version >= SAVE_VERSION_MOTION) {
 			ar.pod(U.short_path[i]);
 			ar.pod(U.motion[i]);
@@ -22783,6 +22807,7 @@ void Simulation::register_map_triggers(MapType type) {
 		case MAP_EXTINCT_VOLCANO: register_trigger_script("extinct_volcano_triggers"); break;
 		case MAP_POLAR_SEA: register_trigger_script("polar_sea_triggers"); break;
 		case MAP_SURVIVAL_OF_THE_FITTEST: register_trigger_script("survivalofthefittest_triggers"); break;
+		case MAP_ELEPHANTINE: register_trigger_script("elephantine_triggers"); break;
 		default: break;
 	}
 }
@@ -22795,6 +22820,8 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"polar_sea_triggers", TRIGGER_ACTION_POLAR_SEA_INIT, TUTORIAL_NONE},
 		{"treasure_islands", TRIGGER_ACTION_TREASURE_ISLANDS_INIT, TUTORIAL_NONE},
 		{"survivalofthefittest_triggers", TRIGGER_ACTION_SURVIVAL_INIT, TUTORIAL_NONE},
+		{"death_canyon_invasion_force_triggers", TRIGGER_ACTION_DEATH_CANYON_INIT, TUTORIAL_NONE},
+		{"elephantine_triggers", TRIGGER_ACTION_ELEPHANTINE_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -22967,6 +22994,15 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_TUTORIAL:
 			tutorial_event(data);
+			break;
+		case TRIGGER_ACTION_ELEPHANTINE_INIT:
+			trigger_elephantine_init();
+			break;
+		case TRIGGER_ACTION_DEATH_CANYON_INIT:
+			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
+			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
+			static_assert(BLD_TYPE_COUNT <= 64, "disabled_buildings is a 64-bit mask");
+			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = ~0ull;
 			break;
 		default:
 			break;
@@ -23226,19 +23262,8 @@ void Simulation::trigger_survival_wave() {
 	int remainder = total;
 	std::vector<std::pair<uint16_t, int>> counts;
 	auto add_templates = [&](const std::vector<uint16_t> &names, int count) {
-		std::vector<float> f(names.size());
-		float sum = 0.0f;
-		for (float &v : f) sum += (v = sim_rng_.range_float(0.0f, 1.0f));
-		int left = count;
-		for (size_t i = 0; i < names.size(); ++i) {
-			const int n = i + 1 == names.size() ? left : std::min(left, (int)std::lround(f[i] / sum * (float)count));
-			if (!n) continue;
-			auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
-			if (it == counts.end()) counts.push_back({names[i], n});
-			else it->second += n;
-			left -= n;
-			remainder -= n;
-		}
+		random_template_composition(names, count, counts);
+		remainder -= count;
 	};
 	for (const Group &g : groups)
 		if (g.count) add_templates(*g.templates, std::min(remainder, g.count));
@@ -23746,6 +23771,84 @@ void Simulation::tutorial_event(const TriggerEventData &d) {
 			}
 			break;
 		default: break;
+	}
+}
+
+void Simulation::random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts) {
+	// TriggerHelper.RandomTemplateComposition: a random share of `count` for each template.
+	if (names.empty()) return;
+	std::vector<float> f(names.size());
+	float sum = 0.0f;
+	for (float &v : f) sum += (v = sim_rng_.range_float(0.0f, 1.0f));
+	int left = count;
+	for (size_t i = 0; i < names.size(); ++i) {
+		const int n = i + 1 == names.size() ? left : std::min(left, (int)std::lround(f[i] / sum * (float)count));
+		if (!n) continue;
+		auto it = std::find_if(counts.begin(), counts.end(), [&](const auto &c) { return c.first == names[i]; });
+		if (it == counts.end()) counts.push_back({names[i], n});
+		else it->second += n;
+		left -= n;
+	}
+}
+
+void Simulation::trigger_elephantine_init() {
+	// elephantine_triggers.js InitElephantine: the Gaia soldiers hold a defensive stance, the
+	// towers fill with elite Kushite citizen infantry and the wonder, temples and pyramids
+	// with those and Kushite women and elite priests (SpawnAndGarrisonAtClasses at 100%).
+	std::vector<uint32_t> soldiers;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.team[i] != GAIA_PLAYER) continue;
+		const uint16_t t = units_.tmpl[i];
+		const uint64_t c = t < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(t).tech_classes : unit_tech_classes(units_.unit_type[i]);
+		if (c & TC_SOLDIER) soldiers.push_back(units_.id[i]);
+	}
+	if (!soldiers.empty()) order_set_stance(soldiers.data(), soldiers.size(), STANCE_DEFENSIVE);
+	// GetTemplateNamesByClasses("CitizenSoldier+Infantry", "kush", , "Elite", true) and
+	// ("FemaleCitizen Healer", "kush", , "Elite", true): the elite rank of each _b row.
+	std::vector<uint16_t> infantry, support;
+	for (uint16_t t : civ_roster_ids(CIV_KUSHITES)) {
+		const CivUnitTemplate &u = civ_unit_template(t);
+		if (std::strstr(u.id, "rts0_")) continue;
+		const uint64_t c = u.tech_classes;
+		const size_t len = std::strlen(u.id);
+		const bool basic = len > 2 && std::strcmp(u.id + len - 2, "_b") == 0;
+		if ((c & TC_CITIZENSOLDIER) && (c & TC_INFANTRY) && !std::strstr(u.id, "_merc")) {
+			if (basic) infantry.push_back(t);
+		} else if (c & TC_FEMALECITIZEN) {
+			support.push_back(t);
+		} else if ((c & TC_HEALER) && std::strstr(u.id, "_e")) {
+			support.push_back(t);
+		}
+	}
+	std::vector<uint16_t> temple = infantry;
+	temple.insert(temple.end(), support.begin(), support.end());
+	auto elite = [&](uint16_t t) {
+		const CivUnitTemplate &u = civ_unit_template(t);
+		const size_t len = std::strlen(u.id);
+		return len > 2 && std::strcmp(u.id + len - 2, "_b") == 0 ? 3 : 1;
+	};
+	std::vector<std::pair<uint32_t, bool>> holders; // the structure, and whether it is a temple
+	for (const Building &b : buildings_) {
+		if (b.team != GAIA_PLAYER || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		if (building_tech_classes(b.type) & TC_TOWER) holders.push_back({b.id, false}); // "Tower": sentry and defence towers
+		else if (b.type == BLD_WONDER || b.type == BLD_TEMPLE || b.type == BLD_TEMPLE_AMUN ||
+				b.type == BLD_PYRAMID_LARGE || b.type == BLD_PYRAMID_SMALL) holders.push_back({b.id, true});
+	}
+	for (const auto &[id, is_temple] : holders) {
+		const int cap = get_garrison_capacity(id);
+		if (cap <= 0) continue;
+		std::vector<std::pair<uint16_t, int>> counts;
+		random_template_composition(is_temple ? temple : infantry, cap, counts);
+		auto it = building_id_to_idx_.find(id);
+		if (it == building_id_to_idx_.end()) continue;
+		const float x = buildings_[it->second].x, z = buildings_[it->second].z;
+		for (const auto &[t, n] : counts) {
+			const CivUnitTemplate &u = civ_unit_template(t);
+			for (int k = 0; k < n; ++k) {
+				const uint32_t uid = spawn_gaia_unit(x, z, (UnitType)u.unit_type, u.id, elite(t));
+				if (uid) garrison_unit_now(uid, id);
+			}
+		}
 	}
 }
 
