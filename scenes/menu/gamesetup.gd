@@ -666,7 +666,7 @@ func _on_reroll_seed() -> void:
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
 	"ceasefire_min", "reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "water_level",
-	"sea_level_rise_min", "team_placement", "landscape", "map_size", "start_res", "biome", "game_speed",
+	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
@@ -708,7 +708,8 @@ func page_state() -> Dictionary:
 		"pop_cap": st["pop_cap"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
-		"team_placement": st["team_placement"], "landscape": st["landscape"], "map_size": st["map_size"],
+		"team_placement": st["team_placement"], "landscape": st["landscape"],
+		"trigger_difficulty": st["trigger_difficulty"], "map_daytime": st["map_daytime"], "map_size": st["map_size"],
 		"start_res": st["res"], "biome": st["biome"], "game_speed": st["speed"],
 		"slot_types": rows.map(func(r): return int(r["kind"])), "slot_civs": rows.map(func(r): return int(r["civ"])),
 		"slot_teams": rows.map(func(r): return int(r["team"])), "slot_diffs": rows.map(func(r): return int(r["diff"])),
@@ -772,12 +773,12 @@ func _apply_settings(ms: Dictionary) -> void:
 		if int(LANDSCAPES[i][1]) == int(ms.get("landscape")):
 			lsc.select(i)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
-	tdf.select(clampi(int(ms.get("trigger_difficulty")) - 1, 0, TRIGGER_DIFFICULTIES.size() - 1))
+	tdf.select(clampi(int(ms.get("trigger_difficulty", 3)) - 1, 0, TRIGGER_DIFFICULTIES.size() - 1))
 	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
 	if dsel.get_item_count() < 3:
 		for i in range(dsel.get_item_count(), 3):
 			dsel.add_item("Option %d" % i)
-	dsel.select(clampi(int(ms.get("map_daytime")), 0, 2))
+	dsel.select(clampi(int(ms.get("map_daytime", 0)), 0, 2))
 	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
