@@ -21,6 +21,7 @@
 #include <godot_cpp/classes/particle_process_material.hpp>
 #include <godot_cpp/classes/quad_mesh.hpp>
 #include <godot_cpp/classes/environment.hpp>
+#include <godot_cpp/classes/sky.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <memory>
 #include <unordered_map>
@@ -195,6 +196,8 @@ class RtsoWorldView : public Node3D {
 	// Per-biome sun, ambient, fog, sky and water (0 A.D. rmbiome Environment).
 	Ref<Environment> env_base_;
 	void apply_biome_environment(const std::string &biome, const std::string &map_id);
+	bool apply_sky_box(const godot::Ref<godot::Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const godot::Color &ground);
+	godot::Ref<godot::Shader> sky_box_shader_;
 
 	Ref<TorusMesh> ring_mesh;
 	Ref<StandardMaterial3D> ring_sel_mat;
@@ -368,10 +371,6 @@ private:
 	void ensure_crowd_frames(uint8_t civ, uint16_t key, const int *counts);
 	void ensure_fauna_frames(uint8_t ftype);
 	void init_animation_controllers();
-
-public:
-	// Empties the terrain texture caches; called when the extension unloads.
-	static void clear_terrain_caches();
 };
 
 #endif
