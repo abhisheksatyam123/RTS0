@@ -58,13 +58,17 @@ int main() {
 		CHECK(points_of(s, bk, 0) == find_bld(s, bk)->max_capture_points);
 	}
 
-	// 2. Neutral land: no decay while RTS0 still lets any structure be placed there
-	// (TERRITORY_DECAY_IN_NEUTRAL_LAND; 0 A.D. decays them to Gaia).
+	// 2. Neutral land: a structure decays to Gaia (template_structure Territory "neutral
+	// enemy"); an outpost doesn't (Territory "enemy").
 	{
 		fresh(s);
 		uint32_t bk = s.spawn_building_world(-40.0f, 30.0f, BLD_BARRACKS, 0, 1.0f);
+		run(s, find_bld(s, bk)->max_capture_points / find_bld(s, bk)->territory_decay_rate + 5.0f);
+		CHECK(owner_of(s, bk) == GAIA_PLAYER);
+		fresh(s);
+		uint32_t op = s.spawn_building_world(-40.0f, 30.0f, BLD_OUTPOST, 0, 1.0f);
 		run(s, 40.0f);
-		CHECK(owner_of(s, bk) == 0 && points_of(s, bk, 0) == find_bld(s, bk)->max_capture_points);
+		CHECK(owner_of(s, op) == 0 && points_of(s, op, 0) == find_bld(s, op)->max_capture_points);
 	}
 
 	// 3. An enemy's connected territory: to that enemy. An ally's: no decay.
