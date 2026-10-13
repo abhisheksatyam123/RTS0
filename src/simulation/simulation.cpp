@@ -1711,6 +1711,46 @@ bool Simulation::footprint_hits_building(const nav::Footprint &f) const {
 	return false;
 }
 
+bool Simulation::wall_piece_hits_building(const nav::Footprint &f, const std::vector<uint32_t> &ignore) const {
+	const float e = nav::footprint_extent(f);
+	for (const Building &b : buildings_) {
+		if (b.wrecked || std::find(ignore.begin(), ignore.end(), b.id) != ignore.end()) continue;
+		const float r = e + nav::footprint_extent(b);
+		if (std::fabs(b.x - f.x) >= r || std::fabs(b.z - f.z) >= r) continue;
+		if (!nav::footprints_overlap(f, b)) continue;
+		// A segment joined to one of the ignored towers shares its group where it reaches into
+		// that tower: test the rest of it.
+		bool clear = false;
+		if (is_wallset_piece(b.type, b.half_size) && !is_wallset_tower_piece(b.type, b.half_size)) {
+			for (uint32_t id : ignore) {
+				auto it = building_id_to_idx_.find(id);
+				if (it == building_id_to_idx_.end()) continue;
+				const Building &t = buildings_[it->second];
+				if (t.team != b.team || (t.type != BLD_WALL_TOWER && !is_wallset_tower_piece(t.type, t.half_size))) continue;
+				const nav::Vec2 gap = nav::footprint_gap(b, t.x, t.z);
+				if (gap.x > t.half_size || gap.y > t.half_size) continue;
+				// Its length runs along u (hu) or v (hv); cut the tower's width off the end in it.
+				const bool along_u = b.hu >= b.hv;
+				const nav::Vec2 ax = along_u ? nav::footprint_u(b) : nav::footprint_v(b);
+				const float half = along_u ? b.hu : b.hv, cut = 2.0f * t.half_size;
+				if (half <= 0.5f * cut) { clear = true; break; }
+				const float side = (t.x - b.x) * ax.x + (t.z - b.z) * ax.y >= 0.0f ? 1.0f : -1.0f;
+				nav::Footprint rest;
+				rest.x = b.x - side * ax.x * 0.5f * cut;
+				rest.z = b.z - side * ax.y * 0.5f * cut;
+				rest.ux = b.ux;
+				rest.uz = b.uz;
+				rest.hu = along_u ? b.hu - 0.5f * cut : b.hu;
+				rest.hv = along_u ? b.hv : b.hv - 0.5f * cut;
+				clear = !nav::footprints_overlap(f, rest);
+				break;
+			}
+		}
+		if (!clear) return true;
+	}
+	return false;
+}
+
 namespace {
 // 0 A.D. BuildRestrictions per structure template. template_structure.xml
 // defaults to land placement in own territory; the overrides are
@@ -1883,7 +1923,7 @@ Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell
 
 Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, uint8_t b_type,
 		const std::vector<std::pair<int, int>> &cells, float x0, float z0, float x1, float z1, float cxw, float czw,
-		const Building *rect, const std::vector<std::pair<int, int>> *ignore_cells) const {
+		const Building *rect, const std::vector<std::pair<int, int>> *ignore_cells, const std::vector<uint32_t> *ignore_ids) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
 	BuildRestriction rule = build_restriction(b_type);
 	// Athenian Long Walls: Wall BuildRestrictions/Territory "own neutral" (stone walls, their
@@ -1892,8 +1932,13 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
 	// (trees, mines, bushes; a field's grain and carcasses don't block). check_placement has
 	// tested a square's map edge and buildings with can_place. A turned footprint obstructs where
-	// it overlaps a building's (TestStaticShape), but a wall piece joining towers (`ignore_cells`)
-	// still tests whole cells.
+	// it overlaps a building's (TestStaticShape). A WallSet piece is long and thin, and often
+	// turned, so it tests its rectangle against each obstruction's own shape as 0 A.D. does: a
+	// structure, tree or scenery beside it in the same 8 m cell, or inside the bounds of a diagonal
+	// segment, doesn't block it. Only the pieces of its own control group (`ignore_cells`, and
+	// `ignore_ids` when given) may overlap it.
+	const bool exact = rect && (is_wallset_piece(rect->type, rect->half_size) || rect->type == BLD_WALL_TOWER ||
+			is_wallset_tower_piece(rect->type, rect->half_size));
 	if (rect) {
 		ensure_occupied_cells();
 		const int limit = (int)(map_half_ / GRID) - 1;
@@ -1903,11 +1948,13 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			const uint8_t m = occupied_cells_.mark(cx, cy);
 			if (!m) continue;
 			if (ignore_cells) {
-				if (std::find(ignore_cells->begin(), ignore_cells->end(), std::make_pair(cx, cy)) == ignore_cells->end())
-					return PLACE_OBSTRUCTED;
+				if (std::find(ignore_cells->begin(), ignore_cells->end(), std::make_pair(cx, cy)) == ignore_cells->end()) {
+					if (!ignore_ids) return PLACE_OBSTRUCTED;
+					part = true;
+				}
 				continue;
 			}
-			if (m == CellSet::FULL) return PLACE_OBSTRUCTED;
+			if (m == CellSet::FULL && !exact) return PLACE_OBSTRUCTED;
 			part = true;
 		}
 		if (part) {
@@ -1918,10 +1965,34 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			f.uz = rect->uz;
 			f.hu = rect->hu;
 			f.hv = rect->hv;
-			if (footprint_hits_building(f)) return PLACE_OBSTRUCTED;
+			if (ignore_ids ? wall_piece_hits_building(f, *ignore_ids) : footprint_hits_building(f)) return PLACE_OBSTRUCTED;
 		}
 	}
-	{
+	nav::Footprint piece;
+	if (exact) {
+		piece.x = rect->x;
+		piece.z = rect->z;
+		piece.ux = rect->ux;
+		piece.uz = rect->uz;
+		piece.hu = rect->hu;
+		piece.hv = rect->hv;
+		for (size_t r = 0; r < resources_.count; ++r) {
+			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+			const uint8_t sub = resources_.subtype[r];
+			if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
+			// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
+			if (resources_.x[r] + 0.375f < x0 || resources_.x[r] - 0.375f > x1 || resources_.z[r] + 0.375f < z0 ||
+					resources_.z[r] - 0.375f > z1)
+				continue;
+			nav::Footprint o;
+			o.x = resources_.x[r];
+			o.z = resources_.z[r];
+			o.ux = 1.0f;
+			o.uz = 0.0f;
+			o.hu = o.hv = 0.375f;
+			if (nav::footprints_overlap(piece, o)) return PLACE_OBSTRUCTED;
+		}
+	} else {
 		ensure_resource_block_cells();
 		const int w = resource_block_w_;
 		const int off = (int)std::lround(map_half_ / GRID);
@@ -1935,7 +2006,18 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	for (const Scenery &sc : scenery_) {
 		const float c = std::fabs(std::cos(sc.angle)), sn = std::fabs(std::sin(sc.angle));
 		const float ex = c * sc.half_w + sn * sc.half_d, ez = sn * sc.half_w + c * sc.half_d;
-		if (sc.x + ex > x0 && sc.x - ex < x1 && sc.z + ez > z0 && sc.z - ez < z1) return PLACE_OBSTRUCTED;
+		if (!(sc.x + ex > x0 && sc.x - ex < x1 && sc.z + ez > z0 && sc.z - ez < z1)) continue;
+		if (exact) {
+			nav::Footprint o;
+			bool swapped;
+			nav::footprint_axis(sc.angle, o.ux, o.uz, swapped);
+			o.x = sc.x;
+			o.z = sc.z;
+			o.hu = swapped ? sc.half_d : sc.half_w;
+			o.hv = swapped ? sc.half_w : sc.half_d;
+			if (!nav::footprints_overlap(piece, o)) continue;
+		}
+		return PLACE_OBSTRUCTED;
 	}
 	if (survival_placement_obstructed(x0, z0, x1, z1)) return PLACE_OBSTRUCTED;
 
@@ -2218,9 +2300,10 @@ Simulation::PlacementResult Simulation::check_wall_piece(uint8_t player, const W
 			}
 		}
 	}
+	std::vector<uint32_t> ids(ignore, ignore + ignore_n);
 	const float e = nav::footprint_extent(b);
 	return check_placement_cells(player, p.type, cells, b.x - e, b.z - e, b.x + e, b.z + e, b.x, b.z, &b,
-			ignored.empty() ? nullptr : &ignored);
+			ignored.empty() ? nullptr : &ignored, ignored.empty() ? nullptr : &ids);
 }
 
 uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float progress) {

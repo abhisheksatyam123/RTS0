@@ -2278,10 +2278,15 @@ private:
 	void ensure_resource_block_cells() const;
 	// check_placement over the cells `cells` of a footprint whose bounds are [x0, x1] x [z0, z1]
 	// and centre (cx, cz); `rect` is a turned footprint (a WallSet piece) or null for a square, and
-	// occupied cells in `ignore_cells` don't obstruct it.
+	// occupied cells in `ignore_cells` don't obstruct it. With `ignore_ids` (a wall piece), other
+	// structures obstruct it where their footprints overlap its own, as 0 A.D.'s obstructions do.
 	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
 			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
-			const std::vector<std::pair<int, int>> *ignore_cells) const;
+			const std::vector<std::pair<int, int>> *ignore_cells, const std::vector<uint32_t> *ignore_ids = nullptr) const;
+	// Whether a wall piece's footprint `f` overlaps a structure, leaving out `ignore` (the towers it
+	// joins and the pieces laid since) and, of the segments already joined to one of those towers,
+	// the part inside the tower (their shared obstruction control group).
+	bool wall_piece_hits_building(const nav::Footprint &f, const std::vector<uint32_t> &ignore) const;
 	// survivalofthefittest.js's placement obstructors: whether one covers part of [x0, x1] x [z0, z1].
 	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
