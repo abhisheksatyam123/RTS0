@@ -96,7 +96,7 @@ static void test_data() {
 	check(std::fabs(combat_bonus(spear, sword, CIV_ATHENIANS) - 1.0f) < 1e-4f, "spearman x1 against infantry");
 	check(std::fabs(combat_bonus(sword, cav, CIV_ATHENIANS) - 1.0f) < 1e-4f, "swordsman has no bonus");
 	const CombatProfile &cc = building_combat(BLD_TOWN_CENTER);
-	check(cc.hack_armor == 25.0f && cc.pierce_armor == 35.0f && cc.crush_armor == 3.0f, "civic centre armour 25/35/3");
+	check(cc.hack_armor == 29.0f && cc.pierce_armor == 35.0f && cc.crush_armor == 3.0f, "civic centre armour 29/35/3 (0.28)");
 	const CombatProfile &unknown = building_combat(BLD_TYPE_COUNT + 9);
 	check(unknown.classes.has(CC_STRUCTURE), "a type past the table is a generic structure");
 	const CombatProfile &ram = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_SIEGE_RAM);
@@ -177,8 +177,9 @@ static void test_structure_armour() {
 	const auto &ia = s.unit_info_at(i);
 	const CombatProfile &bc = building_combat(BLD_BARRACKS);
 	const float scale = ia.attack_damage > 0 ? s.units_.attack_damage[i] / ia.attack_damage : 1.0f;
-	const float want = std::max(1.0f, scale * (ia.hack_damage * powf(0.9f, bc.hack_armor) +
-			ia.pierce_damage * powf(0.9f, bc.pierce_armor) + ia.crush_damage * powf(0.9f, bc.crush_armor)));
+	// GetTotalAttackEffects: no minimum of 1 (#276).
+	const float want = scale * (ia.hack_damage * powf(0.9f, bc.hack_armor) +
+			ia.pierce_damage * powf(0.9f, bc.pierce_armor) + ia.crush_damage * powf(0.9f, bc.crush_armor));
 	const float got = bhp - building(s, bar)->hp;
 	std::printf("      swordsman on barracks: %.3f (want %.3f, armour %.0f/%.0f/%.0f)\n", got, want,
 			bc.hack_armor, bc.pierce_armor, bc.crush_armor);
@@ -571,13 +572,14 @@ static void test_structure_auras() {
 	check(std::fabs(l2.buildings_[l2.building_id_to_idx_[store2]].queue.front().duration - time_plain * 0.85f) < 1e-3f,
 		"library: tech time x0.85");
 	l2.rebuild_territory();
+	const float cc_r = territory_influence_info(BLD_TOWN_CENTER).radius; // 140 m (TerritoryInfluence)
 	float cc_plain = 0.0f;
-	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_plain = r.radius;
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= cc_r) cc_plain = r.radius;
 	l2.spawn_building_world(-10.0f, -40.0f, BLD_THEATER, 0, 1.0f);
 	l2.rebuild_territory();
 	float cc_theater = 0.0f;
-	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= 32.0f) cc_theater = r.radius;
-	check(cc_plain == 32.0f && std::fabs(cc_theater - 32.0f * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
+	for (const auto &r : l2.territory_roots_) if (r.team == 0 && r.radius >= cc_r) cc_theater = r.radius;
+	check(cc_plain == cc_r && std::fabs(cc_theater - cc_r * 1.2f) < 1e-3f, "theater: civic centre territory x1.2");
 
 	// Hippocrates' Hippocratic Oath: own and allied healers +1 health per heal, anywhere.
 	Simulation h;
@@ -774,6 +776,8 @@ static void test_projectile_landing() {
 		archer = s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER);
 		s.order_set_stance(&archer, 1, STANCE_STAND_GROUND);
 		bid = s.spawn_building_world(30.0f, 0.0f, BLD_BARRACKS, 1, 1.0f);
+		// Its territory: on neutral land the barracks would decay and Petra would garrison the spearman.
+		s.spawn_building_world(52.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
 		spear = dummy(s, 30.0f, building(s, bid)->half_size + 3.0f, UNIT_SPEARMAN, 500.0f); // a float this size keeps the hit exact
 		s.units_.attack_damage[idx(s, spear)] = 0.0f; // never answers
 	};
