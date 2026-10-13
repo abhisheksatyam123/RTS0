@@ -2714,7 +2714,9 @@ private:
 	               float x = 0.0f, float z = 0.0f, uint8_t player2 = 0xFF);
 	uint8_t petra_owner_of(uint32_t id) const; // a building's or unit's owner, 0xFF if gone
 	void petra_handle_diplomacy_request(uint8_t player, uint8_t type);
-	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1);
+	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
+	// 0 A.D.'s ProductionQueue holds an item until there is room.
+	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false);
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
 	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
 	bool petra_emergency_rally(const Building &b) const {
