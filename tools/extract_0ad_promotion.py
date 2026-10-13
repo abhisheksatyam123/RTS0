@@ -39,12 +39,7 @@ RANKS = {"Basic": 1, "Advanced": 2, "Elite": 3}
 # rank) that 0 A.D. promoted to before 0.28, so the chain keeps working until the roster
 # gains the 0.28 unit; RequiredXp still comes from 0.28. Remove an entry once its target
 # is a roster row.
-INTERIM_TARGETS = {
-    "rome/cavalry_javelineer_auxiliary_b": ("rome/cavalry_auxiliary_b", 1),
-    "rome/cavalry_spearman_auxiliary_b": ("rome/cavalry_auxiliary_b", 1),
-    "rome/champion_infantry_swordsman_first": ("rome/infantry_legionary", 3),
-    "rome/infantry_spearman_conscript": ("rome/infantry_legionary", 3),
-}
+INTERIM_TARGETS = {}
 # Steps of roster units 0.28 no longer has (id, rank, required_xp, target or None, target rank),
 # as their pre-0.28 templates had them.
 INTERIM_ROWS = [

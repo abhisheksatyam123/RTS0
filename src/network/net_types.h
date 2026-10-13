@@ -355,6 +355,7 @@ struct GameSetupParams {
 	uint8_t team_placement = 0; // 0 A.D. TeamPlacement: rtso::TeamPlacement, 0 = the map picks, 5 = River
 	uint8_t landscape = 0;      // 0 A.D. Landscape (Unknown map): RmsGenerator::UNKNOWN_LANDSCAPE_*, 0 = random
 	uint8_t trigger_difficulty = 3; // 0 A.D. TriggerDifficulty: 1 Very Easy .. 5 Very Hard
+	uint8_t daytime = 0;        // 0 A.D. Daytime: 0 = the map picks, else the map's option (1-based)
 	uint8_t sea_rise_min = 25; // Extinct Volcano: minutes until the water rises, 0..60 (0 A.D. SeaLevelRiseTime)
 	uint16_t map_size = 128; // random-map width in meters, 128..512
 	uint8_t difficulty = 3; // Petra 0..5 sandbox..very hard
@@ -451,6 +452,7 @@ inline std::string format_game_start_full(const GameSetupParams &p) {
 	if (p.team_placement) s += ";teamplace=" + std::to_string((unsigned)p.team_placement);
 	if (p.landscape) s += ";landscape=" + std::to_string((unsigned)p.landscape);
 	if (p.trigger_difficulty != 3) s += ";trigdiff=" + std::to_string((unsigned)p.trigger_difficulty);
+	if (p.daytime) s += ";daytime=" + std::to_string((unsigned)p.daytime);
 	s += ";searise=" + std::to_string((unsigned)p.sea_rise_min);
 	s += ";mapsize=" + std::to_string((unsigned)p.map_size);
 	s += ";diff=" + std::to_string((unsigned)p.difficulty);
@@ -564,6 +566,7 @@ inline bool parse_game_start_full(const std::string &attrs, GameSetupParams &out
 			else if (k == "teamplace") { uint8_t x; if (detail::parse_u8(v, 0, 5, x)) out.team_placement = x; }
 			else if (k == "landscape") { uint8_t x; if (detail::parse_u8(v, 0, 15, x)) out.landscape = x; }
 			else if (k == "trigdiff") { uint8_t x; if (detail::parse_u8(v, 1, 5, x)) out.trigger_difficulty = x; }
+			else if (k == "daytime") { uint8_t x; if (detail::parse_u8(v, 0, 2, x)) out.daytime = x; }
 			else if (k == "searise") { uint8_t x; if (detail::parse_u8(v, 0, 60, x)) out.sea_rise_min = x; }
 			else if (k == "popcap" && !v.empty() && v.size() <= 4 && v.find_first_not_of("0123456789") == std::string::npos) {
 				unsigned x = (unsigned)std::stoul(v);
