@@ -765,7 +765,11 @@ public:
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
 	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
-	bool ship_unload_point(size_t ship, float &out_x, float &out_z) const;
+	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
+	// this unload are in `taken`); without a passenger, the nearest dry ground.
+	struct SpawnSpot { float x, z, r; };
+	bool ship_unload_point(size_t ship, float &out_x, float &out_z, size_t passenger = SIZE_MAX,
+			std::vector<SpawnSpot> *taken = nullptr) const;
 	bool nearest_water_for_ship(size_t ship, float x, float z, float &out_x, float &out_z) const;
 	void unload_sunk_ship(size_t ship);
 
