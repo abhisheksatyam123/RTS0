@@ -1245,7 +1245,7 @@ uint32_t Simulation::player_color(uint8_t pid) const {
 }
 
 bool Simulation::unit_garrisonable(size_t unit_idx) const {
-	if (regicide_garrison() || victory_condition_ != VICTORY_REGICIDE) return true;
+	if (regicide_garrison() || !has_victory(VK_REGICIDE)) return true;
 	const uint8_t t = units_.team[unit_idx];
 	return t >= MAX_PLAYERS || regicide_hero_[t] == 0 || units_.id[unit_idx] != regicide_hero_[t];
 }
@@ -11483,14 +11483,14 @@ void Simulation::set_player_won(uint8_t pid) {
 void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
-	if (victory_condition_ == VICTORY_ENDLESS) return;
+	if (!victory_conditions()) return;
 	if (ticks_ == 0) {
 		if (disable_treasures_) clear_treasures();
 		if (nomad_start_) spawn_nomad_treasures();
 		nomad_start_ = false;
 	}
-	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
-	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && (relic_count_ > 0 || relics_.empty())) apply_relic_count();
+	if (has_victory(VK_REGICIDE) && ticks_ == 0) spawn_regicide_heroes();
+	if (has_victory(VK_RELIC) && ticks_ == 0 && (relic_count_ > 0 || relics_.empty())) apply_relic_count();
 
 	// Tally what each player still holds (ConquestCommon.js); units_.team and Building::team
 	// are player ids. Garrisoned units count as alive.
@@ -11498,6 +11498,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int tc_count[MAX_TEAMS] = {};
+	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	int hero_count[MAX_TEAMS] = {};
 	bool wonder[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
@@ -11506,6 +11507,7 @@ void Simulation::check_victory_conditions(float dt) {
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
 		structure_count[b.team]++;
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
+		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && b.build_progress >= 1.0f) built_cc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
 	}
 	for (size_t u = 0; u < units_.count; ++u) {
@@ -11519,7 +11521,7 @@ void Simulation::check_victory_conditions(float dt) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
 	}
 
-	if (victory_condition_ == VICTORY_WONDER) {
+	if (has_victory(VK_WONDER)) {
 		// Wonder Victory (VictoryManager.js / Wonder.js): a finished wonder held 10 min wins
 		// for its owner's side (allied victory) or, under Last Man Standing, its owner alone.
 		float ours = 0.0f;
@@ -11537,7 +11539,8 @@ void Simulation::check_victory_conditions(float dt) {
 			end_match(side_of((uint8_t)holder));
 			return;
 		}
-	} else if (victory_condition_ == VICTORY_RELIC) {
+	}
+	if (has_victory(VK_RELIC)) {
 		// Capture the Relic: one side (a player and its mutual allies, or one player under
 		// Last Man Standing, side_of) holds every relic for relic_duration_.
 		if (!relics_.empty()) {
@@ -11568,15 +11571,22 @@ void Simulation::check_victory_conditions(float dt) {
 		}
 	}
 
+	// Each active condition defeats on its own (every Conquest*.js query and Regicide.js
+	// call SetState("defeated") independently). Each partial conquest's second query
+	// ("ConquestCritical ...") is Conquest itself.
+	const uint8_t vk = victory_conditions();
+	constexpr uint8_t kAnyConquest = VK_CONQUEST | VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES | VK_CONQUEST_CIVIC_CENTRES;
 	auto defeated = [&](int t) {
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
-		switch (victory_condition_) {
-			case VICTORY_CONQUEST_UNITS: return no_units;
-			case VICTORY_CONQUEST_STRUCTURES: return no_structures;
-			case VICTORY_REGICIDE: return hero_count[t] == 0 || (no_units && no_structures);
-			default: return no_units && no_structures; // Conquest; Wonder and Relic include it too
-		}
+		// A query whose list starts empty never fires, so a nomad who has not built a civic
+		// centre yet is not out until one is lost.
+		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
+		return ((vk & kAnyConquest) && no_units && no_structures) ||
+		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
+		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
+		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
+		       ((vk & VK_REGICIDE) && hero_count[t] == 0);
 	};
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
@@ -15041,7 +15051,7 @@ void Simulation::petra_assign_repairs() {
 		const Building &b = buildings_[k];
 		const bool anchor = is_civic_centre(b.type);
 		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_GATE || b.type == BLD_PALISADE;
-		const bool wonder = b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER;
+		const bool wonder = b.type == BLD_WONDER && has_victory(VK_WONDER);
 		const float health = b.hp / b.max_hp;
 		if (near_invaders(b) && (health > 0.5f || !(anchor || wall || wonder))) continue;
 		if (territory_owner_at(b.x, b.z) != petra_pid_) continue; // decaying
@@ -15119,7 +15129,7 @@ void Simulation::petra_staff_foundations() {
 		// houses and wood dropsites, else 2.
 		int want = 2;
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
-		    (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER)) want = 15;
+		    (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15;
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
@@ -15164,7 +15174,7 @@ void Simulation::petra_staff_foundations() {
 	auto budget_for = [&](const Building &b) {
 		int cap = max_total;
 		if (b.type == BLD_HOUSE && house_short) cap += 2;
-		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER))
+		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY || (b.type == BLD_WONDER && has_victory(VK_WONDER)))
 			cap = std::max(cap, 15);
 		if (!has_base) cap = workers;
 		return cap - building;
@@ -15173,7 +15183,7 @@ void Simulation::petra_staff_foundations() {
 	// is built with invaders near.
 	auto near_invaders = [&](const Building &b) {
 		const bool critical = is_civic_centre(b.type) || b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER ||
-		                      b.type == BLD_GATE || b.type == BLD_PALISADE || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER);
+		                      b.type == BLD_GATE || b.type == BLD_PALISADE || (b.type == BLD_WONDER && has_victory(VK_WONDER));
 		return !critical && petra_near_invading_army(b.x, b.z, 12000.0f / 16.0f);
 	};
 
@@ -17792,7 +17802,7 @@ int Simulation::petra_work_phase3() const {
 	if (petra_config_.work_phase3 >= 999) return 999; // below Easy: never the city phase
 	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	int base = petra_config_.work_phase3;
-	if (victory_condition_ == VICTORY_WONDER) base = base * 9 / 10;
+	if (has_victory(VK_WONDER)) base = base * 9 / 10;
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
 	const int work = std::min(std::max((int)((float)base * scaling), 40), max_pop * 2 / 3);
 	return std::min(work, petra_target_workers());
@@ -18473,7 +18483,7 @@ void Simulation::petra_manage_research(float dt) {
 		// buildTemple (not while saving resources): one temple, after a market, from the city
 		// phase (the town phase in regicide, for healer guards); Rome's is the Temple of Vesta.
 		if (!saving && have_building(BLD_MARKET) && !have_building(BLD_TEMPLE) && !have_building(BLD_TEMPLE_VESTA) &&
-		    (petra_ps().phase >= 3 || victory_condition_ == VICTORY_REGICIDE)) {
+		    (petra_ps().phase >= 3 || has_victory(VK_REGICIDE))) {
 			if (can_build(BLD_TEMPLE_VESTA)) petra_place_generic(BLD_TEMPLE_VESTA, PETRA_QUEUE_TECH);
 			else if (can_build(BLD_TEMPLE)) petra_place_generic(BLD_TEMPLE, PETRA_QUEUE_TECH);
 		}
@@ -18651,7 +18661,7 @@ bool Simulation::pick_petra_safe_staging(float base_x, float base_z, float targe
 uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 	bool veto[MAX_PLAYERS] = {};
 	for (int p = 0; p < MAX_PLAYERS; ++p) veto[p] = !petra_foe(p) || is_defeated((uint8_t)p);
-	if (victory_condition_ == VICTORY_WONDER) {
+	if (has_victory(VK_WONDER)) {
 		int best = -1;
 		float progress = -1.0f;
 		for (const auto &b : buildings_) {
@@ -18663,7 +18673,7 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 	}
 	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics. Gaia's
 	// relics (tryCaptureGaiaRelic) are left to petra_capture_gaia_relics.
-	if (victory_condition_ == VICTORY_RELIC) {
+	if (has_victory(VK_RELIC)) {
 		int held[MAX_PLAYERS] = {};
 		for (const auto &rel : relics_) {
 			const int32_t r = lookup_unit(rel.id);
@@ -18771,10 +18781,10 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 	}
 	// defaultTargetFinder; a field is 100000 m2 (6250 tiles2) farther.
 	auto field = [&](const Building &b) { return kind != PETRA_ATTACK_RUSH && b.type == BLD_FIELD ? 6250.0f : 0.0f; };
-	if (victory_condition_ == VICTORY_WONDER)
+	if (has_victory(VK_WONDER))
 		for (const auto &b : buildings_)
 			if (b.type == BLD_WONDER && valid(b)) consider(b.id, b.x, b.z, 0.0f);
-	if (victory_condition_ == VICTORY_REGICIDE)
+	if (has_victory(VK_REGICIDE))
 		for (size_t i = 0; i < units_.count; ++i)
 			if (units_.alive[i] && units_.team[i] == enemy && units_.unit_type[i] == UNIT_HERO && reachable(units_.pos_x[i], units_.pos_z[i], 0.0f))
 				consider(units_.id[i], units_.pos_x[i], units_.pos_z[i], 0.0f);
@@ -21819,7 +21829,7 @@ void Simulation::petra_manage_victory(float dt) {
 
 	// victoryManager.js checkEvents (every turn): a hero attacked below high
 	// health retreats to heal; below low health to the closest holder at all.
-	if (victory_condition_ == VICTORY_REGICIDE) {
+	if (has_victory(VK_REGICIDE)) {
 		std::vector<size_t> attacked;
 		for (size_t f = 0; f < units_.count; ++f) {
 			if (!units_.alive[f] || !petra_foe(units_.team[f]) || units_.target_unit_id[f] == 0) continue;
@@ -21849,7 +21859,7 @@ void Simulation::petra_manage_victory(float dt) {
 	// update(): the rest every 10 AI turns.
 	if ((int)(petra_timer_ / 2.0f) == (int)((petra_timer_ - 0.5f) / 2.0f)) return;
 
-	if (victory_condition_ == VICTORY_WONDER && petra_ps().phase >= 3) {
+	if (has_victory(VK_WONDER) && petra_ps().phase >= 3) {
 		uint32_t wonder_id = 0;
 		bool complete = false;
 		for (const auto &b : buildings_) {
@@ -21880,9 +21890,9 @@ void Simulation::petra_manage_victory(float dt) {
 		}
 	}
 	// A finished wonder is a critical entity: manageCriticalEntGuards guards it.
-	if (victory_condition_ == VICTORY_WONDER) petra_manage_critical_ent_guards();
+	if (has_victory(VK_WONDER)) petra_manage_critical_ent_guards();
 
-	if (victory_condition_ == VICTORY_REGICIDE) {
+	if (has_victory(VK_REGICIDE)) {
 		petra_manage_critical_ent_guards();
 		// A hero back above high health fights again.
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -21895,18 +21905,18 @@ void Simulation::petra_manage_victory(float dt) {
 	}
 
 	// Capture the Relic: go for Gaia's relics and bring ours home.
-	if (victory_condition_ == VICTORY_RELIC) petra_capture_gaia_relics();
+	if (has_victory(VK_RELIC)) petra_capture_gaia_relics();
 }
 
 // victoryManager.js criticalEnts: in regicide, our heroes.
 bool Simulation::petra_is_critical_ent(size_t i) const {
-	return victory_condition_ == VICTORY_REGICIDE && i < units_.count && units_.alive[i] &&
+	return has_victory(VK_REGICIDE) && i < units_.count && units_.alive[i] &&
 		units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_HERO;
 }
 
 // victoryManager.js criticalEnts: in wonder victory, our finished wonders.
 bool Simulation::petra_is_critical_wonder(uint32_t id) const {
-	if (victory_condition_ != VICTORY_WONDER) return false;
+	if (!has_victory(VK_WONDER)) return false;
 	auto it = building_id_to_idx_.find(id);
 	if (it == building_id_to_idx_.end()) return false;
 	const Building &b = buildings_[it->second];
@@ -22515,7 +22525,7 @@ void Simulation::petra_last_man_standing_check() {
 		if (players_[p].team == players_[me].team) continue;
 		int factor = petra_player_entities(p);
 		if (get_diplomacy(me, p) == DIPLO_NEUTRAL) factor += 150; // turn on neutrals first (betrayWeighting)
-		if (victory_condition_ == VICTORY_RELIC) // and on whoever holds relics
+		if (has_victory(VK_RELIC)) // and on whoever holds relics
 			for (const Relic &r : relics_)
 				if (r.claimed && r.owner_team == p) factor += 150;
 		if (factor < best) continue;
