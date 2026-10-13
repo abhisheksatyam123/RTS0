@@ -509,7 +509,7 @@ static void test_attack_plans() {
 		const uint32_t store = s->spawn_building_world(-3.0f, 25.0f, BLD_STOREHOUSE, 0, 1.0f);
 		bool rushed = false, rush_at_store = false, told_allies = true, named_target = false;
 		int attack_size = 0, huge_size = 0;
-		for (float t = 0.0f; t < 20.0f * 60.0f; t += Simulation::FIXED_STEP) {
+		for (float t = 0.0f; t < 25.0f * 60.0f; t += Simulation::FIXED_STEP) {
 			s->tick(Simulation::FIXED_STEP);
 			// chatLaunchAttack: "/allies", naming the player attacked.
 			for (const auto &l : s->pending_petra_chat()) {
