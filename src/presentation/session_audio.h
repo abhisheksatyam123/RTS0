@@ -18,8 +18,9 @@
 // - Combat (template Sound/SoundGroups, attack_sound_data.h): a unit's attack_melee
 //   group on each melee hit, its attack_ranged group as it shoots (a structure's
 //   once per round of arrows, BuildingAI.js FireArrows) and its attack_impact_ranged
-//   group where the projectile lands (DelayedDamage.js), heard where they happen
-//   while the viewer sees that spot.
+//   group where the projectile lands (DelayedDamage.js), its attack_slaughter group
+//   on each Slaughter strike at a domestic animal, and an animal's own attack_melee
+//   on each bite; heard where they happen while the viewer sees that spot.
 
 #include <godot_cpp/classes/audio_stream_player.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
@@ -125,7 +126,7 @@ inline const std::vector<const char *> &voice_stems(const std::string &action) {
 inline EntityAttackSounds unit_attack_sounds(uint16_t tmpl, uint8_t unit_type) {
 	if (tmpl < ATTACK_SOUND_ROSTER_ROWS) return roster_attack_sounds()[tmpl];
 	if (unit_type < ATTACK_SOUND_GENERIC_ROWS) return generic_attack_sounds()[unit_type];
-	return {ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE};
+	return {ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE};
 }
 
 // One Sound of group g at random (RandOrder) and its pitch (RandPitch); empty for
@@ -294,7 +295,8 @@ public:
 
 	// Combat sounds for the hits since the last frame and the projectiles that left
 	// or landed since then (see the file comment).
-	void tick_combat(const Simulation *sim, uint8_t me, const std::vector<Simulation::AttackedEvent> &hits, double t) {
+	void tick_combat(const Simulation *sim, uint8_t me, const std::vector<Simulation::AttackedEvent> &hits,
+			const std::vector<Simulation::FaunaStrikeEvent> &strikes, double t) {
 		if (!sim || !spatial_) return;
 		if (t - combat_window_start_ >= 0.25 || combat_window_start_ > t) {
 			combat_window_start_ = t;
@@ -317,13 +319,30 @@ public:
 			return it == bld_index_.end() ? -1 : (int64_t)it->second;
 		};
 
-		// attack_melee: the actor's attack animation sounds on the swing that hits.
+		// attack_melee: the actor's attack animation sounds on the swing that hits; an
+		// animal's bite plays its own template's.
+		Simulation::FaunaView fv{};
+		bool fauna_read = false;
 		for (const auto &h : hits) {
 			if (!h.melee) continue;
-			const int64_t u = unit_at(h.attacker_id);
+			if (const int64_t u = unit_at(h.attacker_id); u >= 0) {
+				const uint8_t g = unit_attack_sounds(uv.tmpl[u], uv.unit_type[u]).a;
+				play_combat(sim, me, g, uv.pos_x[u], 1.0f, uv.pos_z[u], uv.team[u]);
+				continue;
+			}
+			if (!fauna_read) fv = sim->fauna(), fauna_read = true;
+			for (size_t f = 0; f < fv.count; ++f)
+				if (fv.id[f] == h.attacker_id) {
+					play_combat(sim, me, fauna_attack_sound(fv.fauna_type[f]), fv.pos_x[f], 1.0f, fv.pos_z[f], GAIA_PLAYER);
+					break;
+				}
+		}
+		// A hunter's melee or Slaughter strike on an animal: attack_melee or attack_slaughter.
+		for (const auto &st : strikes) {
+			const int64_t u = unit_at(st.attacker_id);
 			if (u < 0) continue;
-			const uint8_t g = unit_attack_sounds(uv.tmpl[u], uv.unit_type[u]).a;
-			play_combat(sim, me, g, uv.pos_x[u], 1.0f, uv.pos_z[u], uv.team[u]);
+			const EntityAttackSounds snd = unit_attack_sounds(uv.tmpl[u], uv.unit_type[u]);
+			play_combat(sim, me, st.slaughter ? snd.d : snd.a, uv.pos_x[u], 1.0f, uv.pos_z[u], uv.team[u]);
 		}
 
 		// attack_ranged as a projectile leaves, attack_impact_ranged where it lands.
