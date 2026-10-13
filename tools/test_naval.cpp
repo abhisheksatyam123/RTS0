@@ -389,6 +389,26 @@ static void test_transport() {
 	const int32_t iar = idx(s, archer);
 	CHECK(!aboard(s, ship3, archer) && s.units().alive[iar] && s.get_terrain_height(s.units().pos_x[iar], s.units().pos_z[iar]) > 0.15f);
 	CHECK(s.units().pos_z[idx(s, ship3)] < 16.0f); // the ship stayed on the water
+	// A full load comes ashore spread out: PickSpawnPoint gives each passenger a spot nobody
+	// stands on, so no two bodies overlap as they land.
+	uint32_t crew[8];
+	for (int k = 0; k < 8; ++k) crew[k] = s.spawn_unit(36.0f + (float)k, 18.0f, 0, UNIT_SPEARMAN);
+	s.order_board_transport(crew, 8, ship3);
+	run(s, 10.0f);
+	CHECK(s.get_transport_passenger_count(ship3) == 8);
+	s.order_disembark_all(ship3);
+	int overlaps = 0, wet = 0;
+	for (int a = 0; a < 8; ++a) {
+		const int32_t ia2 = idx(s, crew[a]);
+		if (s.get_terrain_height(s.units().pos_x[ia2], s.units().pos_z[ia2]) <= 0.15f) ++wet;
+		for (int b = a + 1; b < 8; ++b) {
+			const int32_t ib = idx(s, crew[b]);
+			const float d = std::hypot(s.units().pos_x[ia2] - s.units().pos_x[ib], s.units().pos_z[ia2] - s.units().pos_z[ib]);
+			if (d < 2.0f * unit_collision_radius(UNIT_SPEARMAN) - 1e-3f) ++overlaps;
+		}
+	}
+	std::printf("  8 passengers ashore: %d overlapping pairs, %d in the water\n", overlaps, wet);
+	CHECK(overlaps == 0 && wet == 0);
 	std::printf("transport: capacities, lists, pickup, unloading and sinking match 0 A.D.: %s\n", failures ? "see failures" : "ok");
 }
 
@@ -811,7 +831,8 @@ static void test_petra_cothon() {
 		s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 		const uint32_t dock = s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
 		s.spawn_building_world(-10.0f, 50.0f, BLD_MARKET, 1);
-		for (int k = 0; k < 60; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
+		// 0.28 popPhase2 is 100 at the default 200 population limit.
+		for (int k = 0; k < 120; ++k) s.spawn_unit(-40.0f + (float)(k % 15) * 2.0f, 50.0f + (float)(k / 15) * 2.0f, 1, UNIT_VILLAGER);
 		run(s, 8.0f);
 		const Simulation::Building *cothon = nullptr;
 		for (const auto &b : s.buildings()) if (b.team == 1 && b.type == BLD_SUPER_DOCK) cothon = &b;

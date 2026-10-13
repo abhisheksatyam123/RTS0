@@ -644,6 +644,10 @@ static void check_danubius() {
 	for (const TriggerPoint &p : s.triggers_.points)
 		if (p.ref == 'C' || p.ref == 'D') CHECK(s.danubius_is_left(p.x, p.z) == (p.ref == 'C'), "unload point %c on the wrong bank", p.ref);
 
+	// UngarrisonShipsOrder needs a player's Defensive structure on a bank; give player 1 a
+	// sentry tower so the landing doesn't hang on when its Petra builds its first.
+	for (const Simulation::Building &b : std::vector<Simulation::Building>(s.buildings_))
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) s.spawn_building_world(b.x * 0.9f, b.z * 0.9f, BLD_SENTRY_TOWER, 1);
 	run_to(s, 1.0f);
 	int holders = 0, full = 0;
 	for (const Simulation::Building &b : s.buildings_) {
