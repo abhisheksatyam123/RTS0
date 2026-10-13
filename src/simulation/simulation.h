@@ -1464,7 +1464,8 @@ public:
 			petra_tribute_inbox_[to][from][res] += (float)amount;
 	}
 	bool petra_in_emergency() const { return petra_emergency_.active; }
-	const PetraDefenseArmy &petra_defense_army() const { return petra_defense_army_; }
+	const std::vector<PetraDefenseArmy> &petra_defense_armies() const { return petra_defense_armies_; }
+	bool petra_is_defender(uint32_t uid) const;
 	const PetraQueueManager &petra_queues() const { return petra_queues_; }
 	const std::vector<PetraTransportPlan> &petra_transport_plans() const { return petra_transports_; }
 	const std::vector<PetraChatLine> &pending_petra_chat() const { return petra_chat_; }
@@ -2298,7 +2299,7 @@ private:
 	int petra_opening_step_ = 0;
 	float petra_opening_timer_ = 0.0f;
 	PetraConfig petra_config_;
-	PetraDefenseArmy petra_defense_army_;
+	std::vector<PetraDefenseArmy> petra_defense_armies_; // defenseManager.js armies
 	PetraEmergency petra_emergency_;
 	PetraDefenseBuild petra_defense_build_;
 	PetraDropsiteCheck petra_dropsite_check_;
@@ -2468,6 +2469,9 @@ private:
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
+	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
+	bool petra_near_invading_army(float x, float z, float dist2) const;
+	void petra_remove_defender(uint32_t uid);
 	float petra_builder_ratio() const;         // assignToFoundations builderRatio
 	bool petra_passenger(uint32_t uid) const;   // booked on one of our transport plans
 	void petra_retreat_critical_ent(size_t unit_idx, bool emergency, std::vector<int> &incoming);
@@ -2570,7 +2574,7 @@ private:
 	// and swapped in while that AI thinks (0 A.D. runs one Petra instance per AI).
 #define RTSO_PETRA_SLOT_FIELDS(X) \
 	X(petra_threat_map_) X(petra_strike_force_) X(petra_attack_plan_) X(petra_raid_plan_) \
-	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_army_) X(petra_emergency_) \
+	X(petra_opening_step_) X(petra_opening_timer_) X(petra_defense_armies_) X(petra_emergency_) \
 	X(petra_queues_) X(petra_transports_) X(petra_defense_timer_) X(petra_victory_timer_) \
 	X(petra_diplo_timer_) X(ai_wonder_victory_timer_) X(petra_bases_) X(petra_fnd_watch_) \
 	X(petra_timer_) X(petra_econ_timer_) X(petra_trade_timer_) X(petra_naval_timer_) \
