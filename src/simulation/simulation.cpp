@@ -18808,7 +18808,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 }
 
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
-// rushes only when its base has wood to spare (one per 3000 above 8000) and
+// rushes only when its base has wood to spare (one per 3000 above 8500) and
 // its personality is aggressive enough; a long ceasefire rules them out.
 void Simulation::petra_set_rushes() {
 	auto &m = petra_attack_mgr_;
@@ -18816,16 +18816,22 @@ void Simulation::petra_set_rushes() {
 	m.max_rushes = 0;
 	const PetraBase *base = get_primary_petra_base();
 	if (!base) return;
+	// startingStrategy.js getTotalResourceLevel(wood, nearby/medium/faraway): the stock plus the
+	// base's dropsite supplies, i.e. trees on the civic centre's own land (assignResourceToDropsite
+	// skips other land accesses, so another island's trees don't count) within
+	// maxDistResourceSquare, 360 m.
 	float wood = petra_ps().res[RES_WOOD];
+	const uint16_t land = petra_land_at(base->x, base->z);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
 		const float dx = resources_.x[r] - base->x, dz = resources_.z[r] - base->z;
-		if (dx * dx + dz * dz <= 60.0f * 60.0f) wood += resources_.amount[r];
+		if (dx * dx + dz * dz < 90.0f * 90.0f && petra_land_at(resources_.x[r], resources_.z[r]) == land)
+			wood += resources_.amount[r];
 	}
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
 	m.save_resources = wood < 6000.0f ? 1 : 0;
 	if (petra_config_.difficulty < PETRA_EASY) return;
-	int allowed = (int)std::ceil((wood - 8000.0f) / 3000.0f);
+	int allowed = (int)std::ceil((wood - 8500.0f) / 3000.0f);
 	if (ceasefire_remaining() > 900.0f) allowed = 0;
 	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
 	// config.js personalityCut: weak 0.3, medium 0.5, strong 0.7.

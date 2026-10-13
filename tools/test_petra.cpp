@@ -93,7 +93,9 @@ static void test_no_early_rush() {
 	std::printf("  arena: %.0fs in village phase, player units %d -> %d, attack launched: %s, rushes allowed %d\n",
 	            t, start_units, count_units(*s, 0, false), attacked ? "yes" : "no", s->petra_attack_manager().max_rushes);
 	CHECK(!attacked, "no village-phase attack");
-	CHECK(s->petra_attack_manager().max_rushes == 0, "no rushes on a wood-poor base (setRushes)");
+	// setRushes: one rush per 3000 wood above 8500 on the base's own land within 360 m; the
+	// arena's base has room for one at most, and none goes out in the first 300 s.
+	CHECK(s->petra_attack_manager().max_rushes <= 1, "at most one rush on the arena base (setRushes)");
 	CHECK(count_units(*s, 0, false) == start_units, "idle player loses no units");
 	CHECK(!s->is_game_over(), "match still running");
 }
