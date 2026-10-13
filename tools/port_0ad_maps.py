@@ -5,6 +5,7 @@
                                                   # libyan_oases_4p), fetched from 0 A.D.'s GitHub
   python3 tools/port_0ad_maps.py --github-builtin # the built-in list, fetched from GitHub
   python3 tools/port_0ad_maps.py --github-scenarios [NAME..]  # scenario maps, same way
+  python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
 
@@ -30,6 +31,10 @@ GITHUB_RAW = "https://raw.githubusercontent.com/0ad/0ad/master/binaries/data/mod
 NAV_WATER_MARGIN = 0.3
 # RTS0 height units per 0 A.D. metre (grid_nav.h HEIGHT_PER_METRE): a 4 m tile is one unit.
 HEIGHT_PER_METRE = 0.25
+
+
+# RTS0 Civilization ids (sim_types.h), by 0 A.D. civ code.
+CIV_CODES = ["athen", "spart", "pers", "rome", "cart", "mace", "brit", "gaul", "iber", "maur", "kush", "ptol", "sele", "han"]
 
 
 class GithubSource:
@@ -99,20 +104,26 @@ def extract_pmp_terrain(raw_pmp):
     if not names or len(names) > 255 or side > 1024 or o + side * side * 8 > len(raw_pmp):
         return None
     tiles = bytearray(side * side)
+    prio_sum = [0] * len(names)
+    prio_n = [0] * len(names)
     for pz in range(patches):
         for px in range(patches):
             for j in range(16):
                 for i in range(16):
-                    tex1 = struct.unpack_from('<H', raw_pmp, o)[0]
-                    o += 8  # tex1, tex2 (unused), priority
-                    tiles[(pz * 16 + j) * side + px * 16 + i] = tex1 if tex1 < len(names) else 0
-    # Only the names the tiles use, in first-use order.
-    used = []
-    remap = {}
-    for t in tiles:
-        if t not in remap:
-            remap[t] = len(used)
-            used.append(names[t])
+                    tex1, _tex2, prio = struct.unpack_from('<HHI', raw_pmp, o)
+                    o += 8
+                    t = tex1 if tex1 < len(names) else 0
+                    tiles[(pz * 16 + j) * side + px * 16 + i] = t
+                    prio_sum[t] += prio
+                    prio_n[t] += 1
+    # Only the names the tiles use, by priority: a tile blends over neighbours of
+    # lower priority, which RTS0 takes as the name's index (src/presentation/
+    # terrain_blend.h). 0 A.D. keeps a priority per tile; each terrain takes the
+    # mean of its tiles', ties in first-use order.
+    first = list(dict.fromkeys(tiles))
+    first.sort(key=lambda t: prio_sum[t] / prio_n[t])
+    remap = {t: k for k, t in enumerate(first)}
+    used = [names[t] for t in first]
     rle = bytearray()
     k = 0
     while k < len(tiles):
@@ -546,6 +557,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 if ply not in players:
                     players[ply] = {"id": ply, "team": ply - 1, "start_x": wx, "start_z": wz}
                 n_units = len(units)
+                n_structures = len(structures)
                 # Unit templates (units/, skirmish/units/) never match the structure
                 # names below; "default_infantry_ranged_b" used to match "range".
                 is_unit = "units/" in ltpl
@@ -583,6 +595,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     structures.append({"type": "wall_segment", "player": ply, "x": wx, "z": wz})
                 elif "corral" in ltpl:
                     structures.append({"type": "corral", "player": ply, "x": wx, "z": wz})
+                else:
+                    # A civ structure the names above miss (spart/gerousia): RTS0 finds it by template.
+                    structures.append({"type": "", "player": ply, "x": wx, "z": wz})
 
                 # Units
                 if not is_unit:
@@ -593,7 +608,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     units.append({"type": "swordsman", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["spearman", "hoplite", "phalanx", "pikeman"]):
                     units.append({"type": "spearman", "player": ply, "x": wx, "z": wz})
-                elif any(k in ltpl for k in ["infantry_ranged", "archer", "slinger", "skirmisher", "ranged"]):
+                elif any(k in ltpl for k in ["infantry_ranged", "archer", "slinger", "skirmisher", "javelin", "ranged"]):
                     units.append({"type": "archer", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["cavalry", "horse"]):
                     units.append({"type": "cavalry", "player": ply, "x": wx, "z": wz})
@@ -619,8 +634,14 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     units.append({"type": "bolt_shooter", "player": ply, "x": wx, "z": wz})
                 elif any(k in ltpl for k in ["fishing_boat", "boat"]):
                     units.append({"type": "fishing_boat", "player": ply, "x": wx, "z": wz})
+                # The 0 A.D. template ("athen/infantry_javelineer_b"): RTS0 spawns that civ roster
+                # template or building when it has one, else falls back to "type".
+                short = tpl.split("/", 1)[1] if "/" in tpl else tpl
                 if len(units) > n_units:
                     unit_index[uid] = n_units
+                    units[-1]["template"] = short
+                if len(structures) > n_structures:
+                    structures[-1]["template"] = short
 
         for uid, holder in garrisoned_in.items():
             if uid in unit_index and holder in unit_index:
@@ -631,12 +652,30 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 gaia["gaia_units"][gaia_unit_index[uid]]["garrison_in_structure"] = gaia_structure_index[holder]
 
         # Ensure every detected player has a town center / start position. Nomad maps
-        # (no civil centre at all, e.g. sicilia_nomad_2p) start with units only.
+        # (no civil centre at all, e.g. sicilia_nomad_2p) start with units only, and so
+        # does a player that starts with an army and nothing else (Death Canyon's
+        # Invasion Force).
         nomad = not any(s["type"] == "town_center" for s in structures)
         for p in ([] if nomad else players.values()):
             has_tc = any(s["type"] == "town_center" and s["player"] == p["id"] for s in structures)
-            if not has_tc:
+            army_only = not any(s["player"] == p["id"] for s in structures) and any(u["player"] == p["id"] for u in units)
+            if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
+
+        # ScriptSettings PlayerData: a scenario's fixed civs and starting resources. Its
+        # first entry is player 1, or an empty Gaia placeholder in older maps.
+        pdata = settings.get("PlayerData", [])
+        offset = 0 if pdata and not isinstance(pdata[0], dict) else 1
+        for pid, p in players.items():
+            i = pid - offset
+            pd = pdata[i] if 0 <= i < len(pdata) and isinstance(pdata[i], dict) else {}
+            if pd.get("Civ") in CIV_CODES:
+                p["civ"] = CIV_CODES.index(pd["Civ"])
+            if isinstance(pd.get("Resources"), dict):
+                p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
+            # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
+            if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+                p["team"] = pd["Team"]
 
         map_data = {
             "id": map_id,
@@ -743,6 +782,7 @@ github_skirmishes = {
 # Left out: the combat/pathfinding demos.
 github_scenarios = {
     "treasure_islands": ("treasure_islands", "mediterranean"),
+    "death_canyon_invasion_force": ("death_canyon_invasion_force", "desert"),
     "gold_rush": ("gold_rush", "savanna"),
     "laconia": ("laconia", "aegean"),
     "migration": ("migration", "mediterranean"),
@@ -752,6 +792,12 @@ github_scenarios = {
     "the_massacre_of_delphi": ("the_massacre_of_delphi", "aegean"),
     "the_persian_gates": ("the_persian_gates", "persia"),
 }
+# 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
+github_tutorials = {
+    "introductory_tutorial": ("introductory_tutorial", "mediterranean"),
+    "starting_economy_walkthrough": ("starting_economy_walkthrough", "persia"),
+}
+
 for _civ in ["athenians", "britons", "carthaginians", "gauls", "han", "iberians", "kushites",
              "macedonians", "mauryas", "persians", "ptolemies", "romans", "seleucids", "spartans"]:
     github_scenarios[f"sandbox_{_civ}"] = (f"sandbox_{_civ}", "mediterranean")
@@ -773,16 +819,22 @@ if __name__ == "__main__":
                          source=GithubSource(), **only)
             except Exception as e:
                 print(f"  !! {mid}: {e}")
-        for name, (mid, bome) in sorted(github_scenarios.items()):
-            try:
-                port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
-                         source=GithubSource(), **only)
-            except Exception as e:
-                print(f"  !! {mid}: {e}")
+        for folder, table in (("scenarios", github_scenarios), ("tutorials", github_tutorials)):
+            for name, (mid, bome) in sorted(table.items()):
+                try:
+                    port_map(mid, f"maps/{folder}/{name}.xml", f"maps/{folder}/{name}.pmp", None, bome, None,
+                             source=GithubSource(), **only)
+                except Exception as e:
+                    print(f"  !! {mid}: {e}")
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-scenarios":
         for name in sys.argv[2:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))
             port_map(mid, f"maps/scenarios/{name}.xml", f"maps/scenarios/{name}.pmp", None, bome, None,
+                     source=GithubSource())
+    elif len(sys.argv) > 1 and sys.argv[1] == "--github-tutorials":
+        for name in sys.argv[2:] or sorted(github_tutorials):
+            mid, bome = github_tutorials.get(name, (name, "mediterranean"))
+            port_map(mid, f"maps/tutorials/{name}.xml", f"maps/tutorials/{name}.pmp", None, bome, None,
                      source=GithubSource())
     elif len(sys.argv) > 1 and sys.argv[1] == "--github":
         names = sys.argv[2:] or sorted(github_skirmishes)
