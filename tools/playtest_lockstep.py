@@ -547,7 +547,8 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     def peer(role, log, *more):
         return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    host = peer("host", logs["host"], "--name", "alice")
+    # 0 A.D. network.observerlimit: the host takes one observer, so a second is refused.
+    host = peer("host", logs["host"], "--name", "alice", "--observer-limit", "1")
     time.sleep(0.3)
     join = peer("join", logs["join"], "--name", "bob")
     # Join once the match is well under way.
@@ -555,6 +556,16 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:
         time.sleep(0.1)
     obs = peer("join", logs["obs"], "--name", "watcher", "--observe", "1")
+    while time.time() < deadline and obs.poll() is None and not read_hashes(logs["obs"]):
+        time.sleep(0.1)
+    extra_log = os.path.join(out_dir, "observer_extra.log")
+    extra = peer("join", extra_log, "--name", "peeker", "--observe", "1")
+    try:
+        extra_out, _ = extra.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        extra.kill()
+        extra_out, _ = extra.communicate()
+    refused = extra.returncode == 3 and "could not rejoin (reason 7)" in (extra_out or "")
     outs, rcs = {}, {}
     for role, p in (("obs", obs), ("join", join), ("host", host)):
         try:
@@ -580,17 +591,19 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
           and after == list(range(t0 + 1, turns + 1)) and bad is None
           and all("2" not in w for w in waited.values())
           and all(r == want for r in rosters.values())
-          and observer_flags == {"host": "0", "join": "0", "obs": "1"})
+          and observer_flags == {"host": "0", "join": "0", "obs": "1"} and refused)
     if ok:
         print(f"[net] PASS observer: joined at turn {t0} as an observer, matched the host on turns {t0 + 1}-{turns}, "
-              f"never waited on; every player list shows {sorted(want)} (final hash {h[turns]})")
+              f"never waited on; every player list shows {sorted(want)}; a second observer past the limit "
+              f"of 1 was refused (reason 7) (final hash {h[turns]})")
     else:
         for role in roles:
             for line in (outs[role] or "").splitlines():
                 if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
                     print(f"   [{role}] " + line)
         print(f"[net] FAIL observer: rc={rcs} rejoin={rep} turns host/join/obs={len(h)}/{len(j)}/{len(o)} "
-              f"first_bad={bad} pair_bad={pair_bad} waited={waited} rosters={rosters} flags={observer_flags}")
+              f"first_bad={bad} pair_bad={pair_bad} waited={waited} rosters={rosters} flags={observer_flags} "
+              f"extra_rc={extra.returncode} extra={(extra_out or '').strip().splitlines()[-1:]}")
     return ok
 
 

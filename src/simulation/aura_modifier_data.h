@@ -27,10 +27,10 @@ struct RelicGlobalAura {
 	uint16_t mod_count;
 };
 
-constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 33;
+constexpr uint16_t RELIC_GLOBAL_AURA_COUNT = 34;
 
 inline const RelicAuraModifier *relic_aura_modifiers() {
-	static const RelicAuraModifier kMods[104] = {
+	static const RelicAuraModifier kMods[109] = {
 		{TSTAT_TECH_COST_FOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_WOOD, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
 		{TSTAT_TECH_COST_STONE, TOP_MUL, 0.9f, 5, {{TC_STOREHOUSE, 0}, {TC_FARMSTEAD, 0}, {TC_MARKET, 0}, {TC_DOCK, 0}, {TC_CORRAL, 0}}}, // athen_catafalque_2
@@ -114,6 +114,11 @@ inline const RelicAuraModifier *relic_aura_modifiers() {
 		{TSTAT_COST_WOOD, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_STONE, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
 		{TSTAT_COST_METAL, TOP_MUL, 0.85f, 1, {{TC_SOLDIER, 0}}}, // iber_hero_indibil
+		{TSTAT_BUILD_TIME, TOP_MUL, 0.7f, 2, {{TC_TEMPLE, 0}, {TC_CHAMPION | TC_INFANTRY | TC_MELEE, TC_SWORDSMAN}}}, // kush_hero_arakamani_1
+		{TSTAT_COST_FOOD, TOP_MUL, 0.7f, 2, {{TC_TEMPLE, 0}, {TC_CHAMPION | TC_INFANTRY | TC_MELEE, TC_SWORDSMAN}}}, // kush_hero_arakamani_1
+		{TSTAT_COST_WOOD, TOP_MUL, 0.7f, 2, {{TC_TEMPLE, 0}, {TC_CHAMPION | TC_INFANTRY | TC_MELEE, TC_SWORDSMAN}}}, // kush_hero_arakamani_1
+		{TSTAT_COST_STONE, TOP_MUL, 0.7f, 2, {{TC_TEMPLE, 0}, {TC_CHAMPION | TC_INFANTRY | TC_MELEE, TC_SWORDSMAN}}}, // kush_hero_arakamani_1
+		{TSTAT_COST_METAL, TOP_MUL, 0.7f, 2, {{TC_TEMPLE, 0}, {TC_CHAMPION | TC_INFANTRY | TC_MELEE, TC_SWORDSMAN}}}, // kush_hero_arakamani_1
 		{TSTAT_COST_WOOD, TOP_ADD, -50.0f, 1, {{TC_ARROWSHIP, 0}}}, // kush_hero_nastasen_2
 		{TSTAT_COST_METAL, TOP_ADD, -50.0f, 1, {{TC_ARROWSHIP, 0}}}, // kush_hero_nastasen_2
 		{TSTAT_BUILD_TIME, TOP_MUL, 0.5f, 1, {{TC_TEMPLE, 0}}}, // maur_hero_ashoka
@@ -169,11 +174,12 @@ inline const RelicGlobalAura *relic_global_auras() {
 		{"athen_hero_themistocles_1", 1, 73, 2},
 		{"athen_hero_themistocles_2", 1, 75, 3},
 		{"iber_hero_indibil", 1, 78, 5},
-		{"kush_hero_nastasen_2", 1, 83, 2},
-		{"maur_hero_ashoka", 1, 85, 8},
-		{"maur_hero_chanakya_1", 1, 93, 5},
-		{"ptol_hero_ptolemy_i_2", 1, 98, 4},
-		{"spart_hero_agis_1", 1, 102, 2},
+		{"kush_hero_arakamani_1", 1, 83, 5},
+		{"kush_hero_nastasen_2", 1, 88, 2},
+		{"maur_hero_ashoka", 1, 90, 8},
+		{"maur_hero_chanakya_1", 1, 98, 5},
+		{"ptol_hero_ptolemy_i_2", 1, 103, 4},
+		{"spart_hero_agis_1", 1, 107, 2},
 	};
 	return kAuras;
 }

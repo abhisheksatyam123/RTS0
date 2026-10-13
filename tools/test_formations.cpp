@@ -278,6 +278,14 @@ static void test_walk() {
 	check(std::hypot(cx - 30.0f, cz - 30.0f) < 3.0f, "it arrives");
 	check(fc && fc->order == Simulation::FORDER_IDLE && !fc->columnar, "and stands as a box again");
 	check(fc && max_slot_error(s, *fc) < 1.5f, "members are in their box slots");
+	// 0.28 UnitAI FORMATIONMEMBER.WALKING: a member already at its spot finishes the walk at
+	// once (UnitMotion.PossiblyAtDestination), so a walk to where the box stands ends.
+	if (fc) s.cmd_move(all.data(), all.size(), fc->x, fc->z);
+	run(s, 0.5f);
+	fc = ctrl(s, fid);
+	int walking = 0;
+	for (uint32_t id : all) walking += s.units().action_state[idx_of(s, id)] != ACTION_IDLE;
+	check(fc && fc->order == Simulation::FORDER_IDLE && walking == 0, "a walk to where it stands ends at once");
 }
 
 static void test_attack_walk() {

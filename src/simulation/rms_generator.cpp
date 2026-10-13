@@ -9968,28 +9968,73 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	// keeps every other placement on the map unchanged.
 	const float half = hm.map_half;
 	const float size = 2.0f * half;
-	const int groups = (int)std::lround(15.0f + 35.0f * std::clamp((size - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f));
+	auto sbms = [&](float lo, float hi) { return lo + (hi - lo) * std::clamp((size - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f); };
+	// One createObjectGroups / createFood pass: its group count, fish per group,
+	// stayClasses(clWater, water) margin, avoidClasses(clFood, spacing) and,
+	// for Corsica's shore fish, land within shore tiles.
+	struct FishPass {
+		int groups, min_n, max_n;
+		int water;
+		float spacing, spread;
+		int shore;
+	};
+	std::vector<FishPass> passes;
+	const int players = std::max(1, config.num_players);
+	switch (config.map_type) {
+		case MAP_GULF_OF_BOTHNIA:
+			// 0.28 gulf_of_bothnia.js (unfrozen): createFood of 2-3 fish,
+			// 4*scaleByMapSize(fish.min, fish.max) with the winter biome's 5-30,
+			// stayClasses(clWater, 2), avoidClasses(clFood, 12).
+			passes.push_back({(int)std::lround(4.0f * sbms(5.0f, 30.0f)), 2, 3, 2, 12.0f, 2.0f, 0});
+			break;
+		case MAP_LATIUM:
+			// 0.28 latium.js: scaleByMapSize(45, 65) single fish, stayClasses(clWater, 4),
+			// avoidClasses(clFood, 10).
+			passes.push_back({(int)std::lround(sbms(45.0f, 65.0f)), 1, 1, 4, 10.0f, 1.0f, 0});
+			break;
+		case MAP_CORSICA:
+			// 0.28 corsica.js: 50 * numPlayers groups of 2-3 fish in water 3 tiles
+			// from land, 8 apart, then 70 * numPlayers shore fish 6 apart. The
+			// script's clShore is its landing beaches' passages; RTS0 takes water
+			// within 6 tiles of land for it.
+			passes.push_back({50 * players, 2, 3, 3, 8.0f, 2.0f, 0});
+			passes.push_back({70 * players, 2, 3, 3, 6.0f, 2.0f, 6});
+			break;
+		default:
+			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
+			break;
+	}
 	RmsRng rng(config.seed ^ 0x46495348u); // 'FISH'
-	auto open_water = [&](float x, float z) {
+	auto open_water = [&](float x, float z, int margin) {
 		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
-		for (int dz = -2; dz <= 2; ++dz)
-			for (int dx = -2; dx <= 2; ++dx)
+		for (int dz = -margin; dz <= margin; ++dz)
+			for (int dx = -margin; dx <= margin; ++dx)
 				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h - 0.3f) return false;
 		return true;
 	};
+	auto near_land = [&](float x, float z, int r) {
+		for (int dz = -r; dz <= r; ++dz)
+			for (int dx = -r; dx <= r; ++dx)
+				if (dx * dx + dz * dz <= r * r && hm.sample_world(x + (float)dx, z + (float)dz) >= water_h) return true;
+		return false;
+	};
 	std::vector<std::pair<float, float>> placed;
-	for (int attempt = 0; attempt < groups * 40 && (int)placed.size() < groups; ++attempt) {
-		const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
-		if (!open_water(x, z)) continue;
-		bool crowded = false;
-		for (const auto &p : placed)
-			if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < 20.0f * 20.0f) { crowded = true; break; }
-		if (crowded) continue;
-		placed.push_back({x, z});
-		const int n = rng.range_int(2, 3);
-		for (int k = 0; k < n; ++k) {
-			const float fx = x + rng.range_float(-2.0f, 2.0f), fz = z + rng.range_float(-2.0f, 2.0f);
-			if (open_water(fx, fz)) sim.spawn_resource_world(fx, fz, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+	for (const FishPass &f : passes) {
+		const size_t first = placed.size();
+		for (int attempt = 0; attempt < f.groups * 40 && (int)(placed.size() - first) < f.groups; ++attempt) {
+			const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+			if (!open_water(x, z, f.water)) continue;
+			if (f.shore > 0 && !near_land(x, z, f.water + f.shore)) continue;
+			bool crowded = false;
+			for (const auto &p : placed)
+				if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) < f.spacing * f.spacing) { crowded = true; break; }
+			if (crowded) continue;
+			placed.push_back({x, z});
+			const int n = f.min_n == f.max_n ? f.min_n : rng.range_int(f.min_n, f.max_n);
+			for (int k = 0; k < n; ++k) {
+				const float fx = x + rng.range_float(-f.spread, f.spread), fz = z + rng.range_float(-f.spread, f.spread);
+				if (open_water(fx, fz, 2)) sim.spawn_resource_world(fx, fz, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+			}
 		}
 	}
 }

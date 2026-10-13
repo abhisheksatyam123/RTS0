@@ -18,7 +18,7 @@ struct BuildingAIInfo {
 	bool shoots() const { return default_arrows > 0 || garrison_arrow_multiplier > 0.0f; }
 };
 
-inline constexpr uint8_t BUILDING_AI_ROWS = 60;
+inline constexpr uint8_t BUILDING_AI_ROWS = 66;
 inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 	static const BuildingAIInfo kTable[BUILDING_AI_ROWS + 1] = {
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_TOWN_CENTER: template_structure_civic_civil_centre
@@ -81,6 +81,12 @@ inline const BuildingAIInfo &building_ai_info(uint8_t type) {
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_APARTMENT: structures/cart/apartment
 		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_IMPERIAL_COURT: structures/han/civil_centre_court (the Civic Center's BuildingAI)
 		{8, 10, 1.0f, TC_INFANTRY, 0.0f, 8.0f, 0.0f, 2.8f, 19.6f, 5.6f, 0.4f, 3.5f, true}, // BLD_TOWER_GREAT: structures/han/defense_tower_great (tower x2 arrows, MaxArrowCount 10, +10 m range, Origin Y 20)
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_PALISADE_GATE: structures/palisades_gate
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_EMBASSY_IBERIAN: structures/cart/embassy_iberian
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_EMBASSY_ITALIC: structures/cart/embassy_italic
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SIEGE_WALL: structures/rome/siege_wall_long
+		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
+		{6, 0, 1.0f, TC_SOLDIER, 0.0f, 8.0f, 0.0f, 0.0f, 16.8f, 0.0f, 0.4f, 4.0f, true}, // BLD_CRANNOG: structures/brit/crannog (the Civic Center's BuildingAI)
 		{0, 0, 0.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false}, // none
 	};
 	return kTable[type < BUILDING_AI_ROWS ? type : BUILDING_AI_ROWS];

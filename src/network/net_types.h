@@ -194,6 +194,10 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "dialog-answer" {"tutorial": "ready"}: the tutorial panel's Ready button
 	// (maps/scripts/Tutorial.js). The sim only passes it to the map's triggers.
 	NET_CMD_TUTORIAL_READY = 47,
+	// 0 A.D. Trainer on a unit (triremes, Cyrus II): unit target_id trains the roster template
+	// in target_x, batch size in target_z (param 0), cancels its queue item target_x (param 1), or
+	// researches technology target_x (param 2; Researcher on a unit: Athenian triremes).
+	NET_CMD_TRAIN_FROM_UNIT = 48,
 	// 0 A.D. "resign" (Commands.js, the menu's Resign and ReturnQuestion's "I resign"):
 	// the issuing player is defeated; see Simulation::cmd_resign. No fields.
 	NET_CMD_RESIGN = 49,
@@ -653,7 +657,8 @@ struct RejoinMsg {
 	uint8_t kind = REQUEST;
 	uint32_t turn = 0;
 	uint32_t total = 0;  // HEADER: saved-world size; CHUNK: offset of these bytes
-	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started, 6 = no late observers;
+	uint8_t reason = 0;  // REJECT: 1 = no free seat, 2 = match not started, 6 = no late observers,
+	                     //   7 = observer limit reached (0 A.D. NDR_SERVER_FULL);
 	                     // REQUEST: 1 = join as an observer (0 A.D. observer late join)
 	std::vector<uint8_t> bytes; // HEADER: the rest of the header; CHUNK: world bytes
 	static constexpr size_t CHUNK_BYTES = 1024;
