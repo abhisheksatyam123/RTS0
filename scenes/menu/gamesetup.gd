@@ -119,6 +119,10 @@ const RMS_MAPS := [
 	["random_pompeii", "Pompeii (RMS)", "Random", 8, 128, "volcanic", "The Bay of Naples under Vesuvius from a real elevation map. Supports 2-8 players."],
 	["random_latium", "Latium (RMS)", "Random", 8, 128, "latium", "Rolling Italian land between two seas, with cliffs and plateaus. Supports 2-8 players."],
 	["random_unknown", "Unknown (RMS)", "Random", 8, 128, "temperate", "One of 13 land and naval landscapes, picked at random. Supports 2-8 players."],
+	["random_lower_nubia", "Lower Nubia (RMS)", "Random", 8, 128, "savanna", "The Nile between its first and second cataracts, desert plateaus and cliffs from a real elevation map. Supports 2-8 players."],
+	["random_migration", "Migration (RMS)", "Random", 8, 128, "temperate", "Home islands on the outside, a rich continent in the middle; ships needed to reach it. Supports 2-8 players."],
+	["random_ngorongoro", "Ngorongoro (RMS)", "Random", 8, 128, "savanna", "Savanna lowlands round the crater's highlands and a central Eden rich in metal, from a real elevation map. Supports 2-8 players."],
+	["random_river_archipelago", "River Archipelago (RMS)", "Random", 8, 128, "india", "Narrow tropical strips of land split by waterways with few shallow bridges; Mauryan tribesmen hold the outermost islands. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
