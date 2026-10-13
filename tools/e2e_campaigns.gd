@@ -82,6 +82,10 @@ func run() -> void:
 		"the match is set up for the tutorial and the run: %s %s %s" % [ms.map_id, ms.campaign_run, ms.campaign_level])
 	check(ms.slot_types == [0, 1] and ms.cheats, "the local player in seat 1, the scenario's other player, cheats on: " + str(ms.slot_types))
 	await frames(2)
+	# The loading page's threaded load of the match scene must finish first: a
+	# summary scene loaded meanwhile comes back half-built, without its script.
+	while ResourceLoader.load_threaded_get_status("res://scenes/main.tscn") == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+		await frames(1)
 	# Stand in for the match: back to a menu scene before the summary closes.
 	change_scene_to_file("res://scenes/menu/main_menu.tscn")
 	await frames(4)
