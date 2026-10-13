@@ -64,7 +64,7 @@ var _btn_summary: Button
 var _confirm: ConfirmationDialog
 var _message: AcceptDialog
 var _hotkeys = null
-var _map_info_cache := {}
+static var _map_info_cache := {}
 
 func _ready() -> void:
 	if ClassDB.class_exists("RtsoHotkeyConfig"):
@@ -97,7 +97,7 @@ static func _attribs(game_start: String) -> Dictionary:
 	return out
 
 ## The map's own description and width (gamesetup.gd's map list).
-func _map_info(map_id: String) -> Dictionary:
+static func map_info(map_id: String) -> Dictionary:
 	if _map_info_cache.has(map_id):
 		return _map_info_cache[map_id]
 	var info := {"desc": "", "size": 0, "type": "Scenario"}
@@ -120,7 +120,7 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 	var settings: Dictionary = meta.get("settings", {})
 	var attribs := _attribs(str(meta.get("game_start", "")))
 	var map_id := str(meta.get("map_id", settings.get("map_id", "")))
-	var info := _map_info(map_id)
+	var info := map_info(map_id)
 	var size := int(meta.get("map_size", 0)) if info["type"] == "Random" else int(info["size"])
 	var pop := int(attribs.get("popcap", settings.get("pop_cap", 300)))
 	var victory := int(attribs.get("victory", settings.get("victory", 0)))
@@ -321,7 +321,7 @@ func sort_by(column: String) -> void:
 
 ## formatPlayerInfo: the players by team, each in its colour with its civ,
 ## with the outcome when spoilers are shown.
-func player_info(r: Dictionary, spoiler: bool) -> String:
+static func player_info(r: Dictionary, spoiler: bool) -> String:
 	var teams := {}
 	for p in r["players"]:
 		var t := int(p.get("team", 0))
@@ -366,6 +366,8 @@ func display_replay_details() -> void:
 	if not picked:
 		return
 	_info_labels["name"].text = r["map"]
+	_info_labels["preview"].texture = SetupPage.map_preview(r["map_id"]) if r["map_id"] != "" else null
+	_info_labels["preview"].visible = _info_labels["preview"].texture != null
 	_info_labels["type"].text = r["map_type"]
 	_info_labels["size"].text = map_size_name(r["size"])
 	_info_labels["victory"].text = victory_name(r["victory"])
@@ -589,6 +591,14 @@ func _build() -> void:
 	map_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(map_name)
 	_info_labels["name"] = map_name
+	# sgMapPreview: the map's 0 A.D. preview image (4:3).
+	var preview := TextureRect.new()
+	preview.name = "SgMapPreview"
+	preview.custom_minimum_size = Vector2(0, 165)
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	box.add_child(preview)
+	_info_labels["preview"] = preview
 	box.add_child(HSeparator.new())
 	_info_row(box, "Map Type:", "type")
 	_info_row(box, "Map Size:", "size")

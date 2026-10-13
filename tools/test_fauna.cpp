@@ -262,6 +262,7 @@ int main() {
 		fresh(s);
 		uint32_t corral0 = s.spawn_building_world(10.0f, -6.0f, BLD_CORRAL, 0, 1.0f);
 		uint32_t corral1 = s.spawn_building_world(-14.0f, 10.0f, BLD_CORRAL, 1, 1.0f);
+		s.spawn_building_world(-40.0f, 30.0f, BLD_TOWN_CENTER, 1, 1.0f); // its territory keeps corral1 from decaying
 		uint32_t herder = s.spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
 		uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP);
 		s.order_herd(&herder, 1, sheep);

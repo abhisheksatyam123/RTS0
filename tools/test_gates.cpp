@@ -34,6 +34,9 @@ static float unit_x(const Simulation &s, uint32_t id) {
 static uint32_t wall_with_gate(Simulation &s) {
 	s.set_sim_seed(5);
 	s.reset();
+	// Both sides human: with no seat, player 1 runs Petra, whose base would put idle units
+	// to work (an idle spearman builds its fields).
+	for (uint8_t p = 0; p < 2; ++p) s.player(p).active = 1, s.player(p).is_ai = 0;
 	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
 	s.spawn_building_world(40.0f, 40.0f, BLD_TOWN_CENTER, 1, 1.0f);
 	const int half_cells = (int)(s.map_half() / Simulation::GRID);
