@@ -9421,27 +9421,31 @@
   "players": [
     {
       "id": 3,
-      "team": 2,
+      "team": 1,
       "start_x": 111.45,
-      "start_z": 29.19
+      "start_z": 29.19,
+      "civ": 2
     },
     {
       "id": 4,
-      "team": 3,
+      "team": 1,
       "start_x": 113.07,
-      "start_z": -35.79
+      "start_z": -35.79,
+      "civ": 2
     },
     {
       "id": 1,
       "team": 0,
       "start_x": -104.65,
-      "start_z": 62.5
+      "start_z": 62.5,
+      "civ": 5
     },
     {
       "id": 2,
-      "team": 1,
+      "team": 0,
       "start_x": -105.24,
-      "start_z": -72.79
+      "start_z": -72.79,
+      "civ": 5
     }
   ],
   "resources": [

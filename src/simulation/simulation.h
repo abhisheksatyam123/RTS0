@@ -161,11 +161,13 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 61; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 63; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
+	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
+	static constexpr uint32_t SAVE_VERSION_DISABLED_BUILDINGS_128 = 63; // triggers' disabled_buildings as 128-bit BldMasks
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -224,6 +226,9 @@ public:
 		float half_d = 0.0f; // half its depth, along v (building_half_depth); set both with set_extents
 		uint8_t type; // BLD_*
 		uint8_t team; // 0=player, 1=enemy
+		// The civ whose template it was placed as (its builder's; CIV_COUNT for Gaia's). 0 A.D. keeps an
+		// entity's template through captures, so GarrisonHolder Max and List follow this, not the owner.
+		uint8_t civ = CIV_COUNT;
 		float hp;
 		float max_hp;
 		float aura_hp_mult = 1.0f; // Health/Max auras applied to max_hp and hp (Antiochus IV, the Persian catafalque)
@@ -1228,9 +1233,10 @@ public:
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
 	uint8_t player_phase(uint8_t pid = 0) const { return player(pid).phase; }
-	void set_player_civ(uint8_t civ) { players_[0].civ = (Civilization)civ; }
+	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
-	void set_team_civ(uint8_t team, uint8_t civ) { if (team < MAX_PLAYERS) players_[team].civ = (Civilization)civ; }
+	// A civ chosen after the player's starting structures were placed re-templates them too.
+	void set_team_civ(uint8_t team, uint8_t civ);
 	uint8_t team_civ(uint8_t team) const { return (team < MAX_PLAYERS) ? players_[team].civ : CIV_ATHENIANS; }
 	void set_biome(uint8_t b) { biome_ = b; }
 	uint8_t biome() const { return biome_; }

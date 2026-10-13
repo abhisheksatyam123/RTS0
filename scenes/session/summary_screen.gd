@@ -191,7 +191,12 @@ static func _by(stats: Dictionary, key: String, cls: String) -> int:
 	var d: Variant = stats.get(key, {})
 	if cls == "Unit" or cls == "Structure":
 		cls = "total"
-	return int(d.get(cls, 0)) if d is Dictionary else 0
+	if not d is Dictionary:
+		return 0
+	# Replays and saves from before 0.28's Civilian class carry FemaleCitizen in its place.
+	if cls == "Civilian" and not d.has("Civilian"):
+		cls = "FemaleCitizen"
+	return int(d.get(cls, 0))
 
 ## RangeManager's percentages are whole numbers in 0 A.D.
 func _percent_of(p: Dictionary, index: int, key: String) -> int:
@@ -336,8 +341,8 @@ func _food(p: Dictionary, index: int) -> float:
 func _veg(p: Dictionary, index: int) -> float:
 	return _by(_stats(p, index), "resourcesGathered", "vegetarianFood")
 
-func _female(p: Dictionary, index: int) -> float:
-	return _by(_stats(p, index), "unitsTrained", "FemaleCitizen")
+func _civilian(p: Dictionary, index: int) -> float:
+	return _by(_stats(p, index), "unitsTrained", "Civilian")
 
 func _worker(p: Dictionary, index: int) -> float:
 	return _by(_stats(p, index), "unitsTrained", "Worker")
@@ -357,15 +362,16 @@ func calc_map_exploration(p: Dictionary, index: int, _t := "") -> Dictionary:
 func calc_vegetarian(p: Dictionary, index: int, _t := "") -> Dictionary:
 	return calculate_percent(_veg(p, index), _food(p, index))
 
-func calc_feminization(p: Dictionary, index: int, _t := "") -> Dictionary:
-	return calculate_percent(_female(p, index), _worker(p, index))
+## calculateCivilianization (0.28; Feminization before).
+func calc_civilianization(p: Dictionary, index: int, _t := "") -> Dictionary:
+	return calculate_percent(_civilian(p, index), _worker(p, index))
 
 func calc_misc_team(team: int, index: int, type: String, _counters: Array, _headings: Array) -> Variant:
 	match type:
 		"vegetarianRatio":
 			return calculate_percent(_team_total(team, index, _veg), _team_total(team, index, _food))
-		"feminization":
-			return calculate_percent(_team_total(team, index, _female), _team_total(team, index, _worker))
+		"civilianization":
+			return calculate_percent(_team_total(team, index, _civilian), _team_total(team, index, _worker))
 		"killDeath":
 			return calculate_ratio(_team_total(team, index, _killed), _team_total(team, index, _lost))
 		"mapControlPeak":
@@ -440,10 +446,10 @@ func score_panels() -> Array:
 			H("mapControl", "Map control (finish)", 16, 100, {"format": "PERCENTAGE"}),
 			H("mapExploration", "Map exploration", 16, 100, {"format": "PERCENTAGE"}),
 			H("vegetarianRatio", "Vegetarian ratio", 16, 100, {"format": "PERCENTAGE"}),
-			H("feminization", "Feminization", 16, 100, {"format": "PERCENTAGE"})],
+			H("civilianization", "Civilianization", 16, 100, {"format": "PERCENTAGE"})],
 		"titles": [],
 		"counters": [C(100, calc_kill_death, 12), C(100, calc_map_peak, 12), C(100, calc_map_final, 12),
-			C(100, calc_map_exploration, 12), C(100, calc_vegetarian, 12), C(100, calc_feminization, 12)],
+			C(100, calc_map_exploration, 12), C(100, calc_vegetarian, 12), C(100, calc_civilianization, 12)],
 		"team_fn": calc_misc_team},
 	]
 
