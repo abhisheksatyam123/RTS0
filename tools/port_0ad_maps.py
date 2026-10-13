@@ -104,20 +104,26 @@ def extract_pmp_terrain(raw_pmp):
     if not names or len(names) > 255 or side > 1024 or o + side * side * 8 > len(raw_pmp):
         return None
     tiles = bytearray(side * side)
+    prio_sum = [0] * len(names)
+    prio_n = [0] * len(names)
     for pz in range(patches):
         for px in range(patches):
             for j in range(16):
                 for i in range(16):
-                    tex1 = struct.unpack_from('<H', raw_pmp, o)[0]
-                    o += 8  # tex1, tex2 (unused), priority
-                    tiles[(pz * 16 + j) * side + px * 16 + i] = tex1 if tex1 < len(names) else 0
-    # Only the names the tiles use, in first-use order.
-    used = []
-    remap = {}
-    for t in tiles:
-        if t not in remap:
-            remap[t] = len(used)
-            used.append(names[t])
+                    tex1, _tex2, prio = struct.unpack_from('<HHI', raw_pmp, o)
+                    o += 8
+                    t = tex1 if tex1 < len(names) else 0
+                    tiles[(pz * 16 + j) * side + px * 16 + i] = t
+                    prio_sum[t] += prio
+                    prio_n[t] += 1
+    # Only the names the tiles use, by priority: a tile blends over neighbours of
+    # lower priority, which RTS0 takes as the name's index (src/presentation/
+    # terrain_blend.h). 0 A.D. keeps a priority per tile; each terrain takes the
+    # mean of its tiles', ties in first-use order.
+    first = list(dict.fromkeys(tiles))
+    first.sort(key=lambda t: prio_sum[t] / prio_n[t])
+    remap = {t: k for k, t in enumerate(first)}
+    used = [names[t] for t in first]
     rle = bytearray()
     k = 0
     while k < len(tiles):
