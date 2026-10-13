@@ -175,10 +175,12 @@ enum MapType : uint8_t {
 	MAP_MIGRATION = 85,
 	MAP_NGORONGORO = 86,
 	MAP_RIVER_ARCHIPELAGO = 87,
-	MAP_CONTINENT = 88,
-	MAP_FOOTHILLS = 89,
-	MAP_COAST_RANGE = 90,
-	MAP_TYPE_COUNT = 91
+	MAP_LAND_GRAB = 88,
+	MAP_THE_NILE = 89,
+	MAP_CONTINENT = 90,
+	MAP_FOOTHILLS = 91,
+	MAP_COAST_RANGE = 92,
+	MAP_TYPE_COUNT = 93
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -317,6 +319,8 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_MIGRATION, "migration", "Migration (RMS)", "temperate", true, "Players start on islands towards the outside of the map and must move to take advantage of the middle island before their resources run out."},
 		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
 		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."},
+		{MAP_LAND_GRAB, "land_grab", "Land Grab (RMS)", "temperate", true, "Players start in small islands in the eastern part of the map. There is a big continent in the west ready for expansion."},
+		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."},
 		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
 		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
 		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."}
@@ -340,6 +344,7 @@ inline bool map_is_naval(int type) {
 		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN: case MAP_DANUBIUS:
 		case MAP_MIGRATION:
 		case MAP_RIVER_ARCHIPELAGO:
+		case MAP_LAND_GRAB: case MAP_THE_NILE:
 			return true;
 		default:
 			return false;
@@ -1137,11 +1142,11 @@ inline bool civ_has_big_house(uint8_t civ) {
 // simulation/templates: brit/{civil_centre,house,defense_tower,fortress,wonder}.xml,
 // iber/{defense_tower,wall_tower}.xml, maur/wonder.xml, every civ's theater
 // (template_structure_special_theater.xml) and athen/prytaneion, spart/gerousia, gaul/assembly,
-// ptol/lighthouse, rome/temple_vesta and pers/ice_house.
+// ptol/lighthouse, rome/temple_vesta, pers/ice_house and brit/crannog.
 inline bool building_footprint_round(uint8_t civ, uint8_t type) {
 	switch (type) {
 		case BLD_THEATER: case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY:
-		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE:
+		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE: case BLD_CRANNOG:
 			return true;
 		case BLD_TOWN_CENTER: case BLD_HOUSE: case BLD_FORTRESS:
 			return civ == CIV_BRITONS;
@@ -1425,6 +1430,7 @@ enum TechStat : uint8_t {
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
 	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_TERRITORY_DECAY, // TerritoryDecay/DecayRate (Migratory Resettlement)
+	TSTAT_UNIT_LOOT_FOOD, TSTAT_UNIT_LOOT_WOOD, TSTAT_UNIT_LOOT_STONE, TSTAT_UNIT_LOOT_METAL, // Loot/<res> of the unit itself
 	TSTAT_COUNT
 };
 
@@ -1475,6 +1481,47 @@ struct TechSet {
 
 inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
+}
+
+// Can a building of this type research the tech for a player of this civ? Its research
+// base's list, with 0.28's per-structure Researcher changes ("-" drops a token):
+//  - the crannog drops phase_town and hellenistic_metropolis, the Han Imperial Court
+//    phase_town, and the military colony (template_structure_civic_civil_centre_military_colony)
+//    both phases and hellenistic_metropolis;
+//  - Han: the Civic Center (and court) drop unlock_spies and spy_counter, which the
+//    ministry researches; the forge drops archer_attack_spread, which the barracks and
+//    stable research;
+//  - the Mauryan palace researches unlock_spies and spy_counter too;
+//  - Carthage: the dock drops warship_health, and the super dock (cart/super_dock) researches
+//    it and eight other dock techs.
+inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
+	const uint8_t r = tech_info(tech_id).researcher;
+	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
+	if (civ == CIV_HAN) {
+		if (spies) return type == BLD_MINISTRY;
+		if (tech_id == TECH_ARCHER_ATTACK_SPREAD) return type == BLD_BARRACKS || type == BLD_STABLE;
+	}
+	if (spies && type == BLD_PALACE) return true;
+	if (civ == CIV_CARTHAGINIANS) {
+		if (type == BLD_DOCK && tech_id == TECH_WARSHIP_HEALTH) return false;
+		if (type == BLD_SUPER_DOCK) {
+			switch (tech_id) {
+			case TECH_DOCK_EFFICIENCY: case TECH_SHIP_VISION: case TECH_EXPLORATION:
+			case TECH_WARSHIP_ARROW_ATTACK: case TECH_WARSHIP_RAMMING_ATTACK: case TECH_WARSHIP_FIRESHIP_ATTACK:
+			case TECH_WARSHIP_SIEGE_ATTACK: case TECH_WARSHIP_RANGED_ATTACK: case TECH_WARSHIP_HEALTH: return true;
+			default: break;
+			}
+		}
+	}
+	switch (type) {
+	case BLD_CRANNOG:
+		return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN && tech_id != TECH_HELLENISTIC_METROPOLIS;
+	case BLD_IMPERIAL_COURT: return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN;
+	case BLD_MILITARY_COLONY:
+		return r == BLD_MILITARY_COLONY || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
+		                                    && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	default: return r == building_research_base(type);
+	}
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?
@@ -1569,9 +1616,7 @@ inline bool siege_garrison_allowed(uint8_t unit_type) {
 }
 
 inline uint64_t building_tech_classes(uint8_t type) {
-	uint64_t c = TC_STRUCTURE;
-	uint8_t phase = building_required_phase(type);
-	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
+	const uint64_t c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;

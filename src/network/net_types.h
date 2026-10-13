@@ -201,6 +201,9 @@ enum class NetCommandType : uint8_t {
 	// 0 A.D. "resign" (Commands.js, the menu's Resign and ReturnQuestion's "I resign"):
 	// the issuing player is defeated; see Simulation::cmd_resign. No fields.
 	NET_CMD_RESIGN = 49,
+	// 0 A.D. "focus-fire" (BuildingAI.AddFocusTarget): structures in entity_ids aim their arrows
+	// at target_id first. param bit NET_PARAM_QUEUED adds it to the end; NET_PARAM_PUSH_FRONT puts it first.
+	NET_CMD_FOCUS_FIRE = 50,
 	// Session control, not game commands (200+ is reserved for these; game command
 	// ids keep growing from 44). Only the host sends them, inside its own turn batch,
 	// so every client learns of a seat change before the turn it affects (0 A.D.
@@ -218,6 +221,7 @@ enum class NetCommandType : uint8_t {
 inline constexpr uint8_t NET_PARAM_QUEUED = 0x80;     // Shift: add to the order queue (0 A.D. "queued")
 inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only (targetClasses Unit)
 inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
+inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the target first (0 A.D. "pushFront")
 
 struct NetCommand {
 	uint32_t client_id = 0;
