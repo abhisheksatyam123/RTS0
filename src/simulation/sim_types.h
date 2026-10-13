@@ -157,7 +157,10 @@ enum MapType : uint8_t {
 	MAP_LATIUM = 81,
 	MAP_UNKNOWN = 82,
 	MAP_SURVIVAL_OF_THE_FITTEST = 83,
-	MAP_TYPE_COUNT = 84
+	MAP_CONTINENT = 84,
+	MAP_FOOTHILLS = 85,
+	MAP_COAST_RANGE = 86,
+	MAP_TYPE_COUNT = 87
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -195,10 +198,11 @@ inline uint8_t map_team_placements(uint8_t type) {
 			return C | R | L | G | S;
 		case MAP_ARDENNES_FOREST: return C | R | L | G;
 		case MAP_CANTABRIAN_HIGHLANDS: return C | S;
+		case MAP_COAST_RANGE: return C | R | S;
 		case MAP_EXTINCT_VOLCANO: return C | R | G;
-		case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
+		case MAP_CONTINENT: case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
 		case MAP_LAKE: case MAP_NEARESTERN_BADLANDS: return C | R;
-		case MAP_SYRIA: return C | R | G | S;
+		case MAP_FOOTHILLS: case MAP_SYRIA: return C | R | G | S;
 		default: return 0;
 	}
 }
@@ -289,7 +293,10 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_POMPEII, "pompeii", "Pompeii (RMS)", "volcanic", true, "Pompeii, an ancient Roman coastal city in Campania, buried under ash and pumice when Mount Vesuvius erupted in AD 79."},
 		{MAP_LATIUM, "latium", "Latium (RMS)", "latium", true, "The Italian peninsula: the fertile volcanic region of central western Italy where Rome was founded."},
 		{MAP_UNKNOWN, "unknown", "Unknown (RMS)", "temperate", true, "The unknown: one of 13 land and naval landscapes, picked at random."},
-		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."}
+		{MAP_SURVIVAL_OF_THE_FITTEST, "survivalofthefittest", "Survival of the Fittest (RMS)", "temperate", true, "Protect your base against endless waves of enemies. Use your woman citizen to collect the treasures at the center of the map before others do, and try to build your base up. The last player remaining will be the winner! The AI does not play this map."},
+		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
+		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
+		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];

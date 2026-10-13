@@ -336,7 +336,7 @@ int main() {
 		}
 		CHECK((int)layouts.size() == patterns, "%s: the %d placements gave %zu layouts", name, patterns, layouts.size());
 	}
-	CHECK(placement_maps == 21, "%d random maps offer Team Placement", placement_maps);
+	CHECK(placement_maps == 24, "%d random maps offer Team Placement", placement_maps);
 	{
 		GameSetupParams p, q;
 		p.map_id = "random_frontier";
