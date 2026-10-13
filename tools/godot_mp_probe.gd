@@ -4,7 +4,11 @@ extends SceneTree
 # server, then hosts (and presses Start once the other player is in) or picks
 # the host's game from the list and joins it, plays to a turn, and prints that
 # turn's lockstep hash. Arguments after "--":
-#   role=host|join name=N lobby=IP:PORT port=P turns=T timeout=S
+#   role=host|join name=N lobby=IP:PORT port=P turns=T timeout=S [leave=host|join]
+# With leave, that player then quits the match: a host left behind must read
+# "<name> has left the game." in its chat, and a client whose host left must
+# get the "Connection to the server has been lost." overlay, whose Exit opens
+# the summary as a disconnected player (0 A.D. g_Disconnected).
 
 var args := {}
 
@@ -101,6 +105,30 @@ func _run() -> void:
 		if int(st.get("turn", 0)) >= turns + 5:
 			_say("done turn=%d seat=%d hash=%08X" % [turns, int(st.get("seat", -1)), int(main.get_turn_hash(turns))])
 			break
+	var leave: String = args.get("leave", "")
+	if leave == role:
+		_say("leaving the match")
+		ms.go("res://scenes/menu/main_menu.tscn")
+		await _wait(1.5)
+	elif leave != "":
+		while true:
+			if Time.get_ticks_msec() > deadline:
+				return _fail("never saw the other player leave")
+			await _wait(0.2)
+			var st: Dictionary = main.get_lobby_state()
+			if role == "host" and str(st.get("chat", "")).contains("has left the game."):
+				for line in str(st.get("chat", "")).split("\n"):
+					if line.contains("has left the game."):
+						_say("chat_left=" + line.strip_edges())
+				break
+			if role == "join" and st.get("disconnected", false):
+				_say("net_status=" + str(st.get("net_status", "")).replace("\n", " | ") +
+						" reason=%d" % int(st.get("disconnect_reason", -1)))
+				main._on_disconnected_exit_pressed()
+				var g: Dictionary = load("res://scenes/session/summary_screen.gd").pending.get("gui", {})
+				_say("summary_disconnected=%s" % str(g.get("disconnected", false)))
+				await _wait(1.0)
+				break
 	session.sign_out()
 	await _wait(0.5)
 	quit(0)

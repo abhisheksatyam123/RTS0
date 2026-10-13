@@ -362,7 +362,9 @@ int main() {
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].speed - 1.25f) < 1e-4f);
 		CHECK(s.tech_mods(0).tmpl[arrow].speed == 1.0f);
 		research(TECH_WARSHIP_RAMMING_ATTACK, -30.0f);
-		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].attack - 1.3f) < 1e-4f);
+		// Bronze Ram multiplies Attack/Melee/Damage/Hack only: 320 x1.3 + 50 crush.
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].atk_mul[0] - 1.3f) < 1e-4f && s.tech_mods(0).tmpl[ram].atk_mul[2] == 1.0f);
+		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].attack - (320.0f * 1.3f + 50.0f) / 370.0f) < 1e-4f);
 		CHECK(s.tech_mods(0).tmpl[arrow].attack == 1.0f);
 		research(TECH_WARSHIP_HEALTH, -50.0f); // Undergirding Cables: arrow and ramming ships
 		CHECK(std::fabs(s.tech_mods(0).tmpl[ram].health - 1.2f) < 1e-4f);
@@ -599,6 +601,64 @@ int main() {
 		CHECK(w.pop_limit(0) == (int)std::lround(base * 1.2f * 1.2f));
 		CHECK(w.pop_limit(1) == base);
 		std::printf("Glorious Expansion: population limit %d -> %d with two Wonders\n", base, w.pop_limit(0));
+	}
+
+	// Migratory Resettlement (resettlement.json): Germanic structures except walls keep their
+	// capture points off their own territory (TerritoryDecay/DecayRate x0.00001).
+	{
+		static Simulation g;
+		g.set_team_civ(0, CIV_GERMANS);
+		fresh(g);
+		const float far = g.map_half_ * 0.85f;
+		const uint32_t bar = g.spawn_building_world(far, far, BLD_BARRACKS, 0, 1.0f);
+		const uint32_t wall = g.spawn_building_world(-far, far, BLD_WALL_SEGMENT, 0, 1.0f);
+		auto bld = [&](uint32_t id) -> Simulation::Building & { return g.buildings_[g.building_id_to_idx_[id]]; };
+		CHECK(tech_available_to_civ(TECH_RESETTLEMENT, CIV_GERMANS) && !tech_available_to_civ(TECH_RESETTLEMENT, CIV_GAULS));
+		CHECK(tech_info(TECH_RESETTLEMENT).researcher == BLD_TOWN_CENTER && tech_info(TECH_RESETTLEMENT).required_phase == 2);
+		const float base = bld(bar).territory_decay_rate;
+		CHECK(base > 0.0f && g.structure_decay_rate(bld(bar)) == base);
+		run(g, 5.0f);
+		const float lost = bld(bar).max_capture_points - bld(bar).capture_points_by_team[0];
+		CHECK(lost > 0.0f); // decays to Gaia on neutral ground before the tech
+		g.complete_research(0, TECH_RESETTLEMENT);
+		CHECK(std::fabs(g.structure_decay_rate(bld(bar)) - base * 1e-5f) < 1e-9f);
+		CHECK(g.structure_decay_rate(bld(wall)) == bld(wall).territory_decay_rate);
+		const float held = bld(bar).capture_points_by_team[0];
+		run(g, 5.0f);
+		CHECK(bld(bar).capture_points_by_team[0] >= held - 0.01f);
+		std::printf("Migratory Resettlement: barracks decay %.2f -> %.6f points/s\n", base, g.structure_decay_rate(bld(bar)));
+	}
+
+	// Attack technologies change each damage kind on its own (Attack/<type>/Damage/<kind>,
+	// GetTechModifiedProperty_numeric: x every multiply, then + every add): Naval Oxybeles
+	// gives Arrow Ships +10 crush on top of their 32 pierce, and Poison Arrows scales each of
+	// a slinger's kinds.
+	{
+		static Simulation n;
+		fresh(n);
+		auto idx = [&](uint32_t id) { auto u = n.units(); for (size_t i = 0; i < u.count; ++i) if (u.id[i] == id) return i; return (size_t)0; };
+		const uint16_t ship_t = civ_unit_template_by_id("athen/ship_arrow");
+		const uint16_t sling_t = civ_unit_template_by_id("athen/infantry_slinger_b");
+		CHECK(ship_t < CIV_UNIT_TEMPLATE_COUNT && sling_t < CIV_UNIT_TEMPLATE_COUNT);
+		const size_t ship = idx(n.spawn_unit(0.0f, 30.0f, 0, (UnitType)civ_unit_template(ship_t).unit_type, 0.0f, ship_t));
+		const size_t sling = idx(n.spawn_unit(4.0f, 30.0f, 0, (UnitType)civ_unit_template(sling_t).unit_type, 0.0f, sling_t));
+		float d[3];
+		n.unit_tech_damage(ship, d);
+		CHECK(d[0] == 0.0f && std::fabs(d[1] - 32.0f) < 1e-3f && d[2] == 0.0f);
+		n.complete_research(0, TECH_WARSHIP_ARROW_ATTACK);
+		n.unit_tech_damage(ship, d);
+		CHECK(d[0] == 0.0f && std::fabs(d[1] - 32.0f) < 1e-3f && std::fabs(d[2] - 10.0f) < 1e-3f);
+		CHECK(std::fabs(n.units_.attack_damage[ship] - 42.0f) < 1e-3f);
+		const float ship_crush = d[2];
+		n.unit_tech_damage(sling, d);
+		const float sling_pierce = d[1], sling_crush = d[2];
+		n.complete_research(0, TECH_POISON_ARROWS);
+		n.unit_tech_damage(sling, d);
+		CHECK(std::fabs(d[1] - sling_pierce * 1.2f) < 1e-3f && std::fabs(d[2] - sling_crush * 1.2f) < 1e-3f);
+		CHECK(std::fabs(n.units_.attack_damage[sling] - (d[0] + d[1] + d[2])) < 1e-3f);
+		n.unit_tech_damage(ship, d);
+		CHECK(std::fabs(d[2] - ship_crush) < 1e-3f); // Poison Arrows is for soldiers
+		std::printf("attack per damage kind: Arrow Ship 0/32/0 -> %.1f/%.1f/%.1f with Naval Oxybeles\n", 0.0f, 32.0f, ship_crush);
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

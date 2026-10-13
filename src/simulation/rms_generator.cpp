@@ -1,5 +1,6 @@
 #include "rms_generator.h"
 #include "script_terrains.h"
+#include "tree_slot_gatherers.h"
 #include "simulation.h"
 #include "heightmap_images.h"
 #include <cmath>
@@ -3169,60 +3170,35 @@ void RmsGenerator::synth_fortress(HeightmapGrid &hm, RmsRng &rng, float &water_h
 
 namespace {
 
-// fortress.js placeCustomFortress with the "Spahbod" wall list: a square of
-// stone walls round the civic centre, wall towers at the corners and beside
-// the two gates, and a market, barracks, stable and temple set into the four
-// sides (one each). RTS0 walls are axis aligned: the gates go on the two
-// sides facing towards and away from the map centre. 2-unit wall pieces on
-// a 2-unit lattice, R (odd, 13-21) out from the centre.
-// Wall half-size for base i: 21, shrunk (odd, down to 13) when a neighbour
-// stands close (tiny maps, many players).
-float fortress_radius(const std::vector<RmsGenerator::PlayerSpawn> &spawns, size_t i) {
-	float cheb = 1e9f;
-	for (size_t j = 0; j < spawns.size(); ++j)
-		if (j != i) cheb = std::min(cheb, std::max(std::fabs(spawns[j].x - spawns[i].x), std::fabs(spawns[j].z - spawns[i].z)));
-	float R = 21.0f;
-	while (R > 13.0f && 2.0f * R + 4.0f > cheb) R -= 2.0f;
-	return R;
-}
-
+// fortress.js: each player's "Spahbod" fortress, placeCustomFortress with the player's stone
+// WallSet: a square of long walls with a gate in two opposite sides, wall towers, a cornerIn
+// tower at each corner, and a barracks, stable, temple and market set into the four sides. The
+// first gate faces the map centre. A piece nearer another base than its own is left out, so
+// fortresses that would overlap on a crowded map open into each other instead of sealing.
 void place_fortress_walls(Simulation &sim, const std::vector<RmsGenerator::PlayerSpawn> &spawns, size_t self) {
-	const RmsGenerator::PlayerSpawn &sp = spawns[self];
-	const float R = fortress_radius(spawns, self);
-	// Pieces that would fall inside a neighbour's fortress are left out, so
-	// two overlapping fortresses open into each other instead of sealing.
-	auto inside_other = [&](float x, float z) {
-		for (size_t j = 0; j < spawns.size(); ++j) {
-			if (j == self) continue;
-			const float r = fortress_radius(spawns, j) + 2.0f;
-			if (std::fabs(x - spawns[j].x) < r && std::fabs(z - spawns[j].z) < r) return true;
-		}
+	using F = Simulation::FortressPart;
+	static constexpr F kSpahbod[] = {
+		{Simulation::FORT_GATE, 0}, {Simulation::FORT_TOWER, 0}, {Simulation::FORT_LONG, 0},
+		{Simulation::FORT_CORNER_IN, 0}, {Simulation::FORT_LONG, 0}, {Simulation::FORT_BUILDING, BLD_BARRACKS},
+		{Simulation::FORT_TOWER, 0}, {Simulation::FORT_LONG, 0}, {Simulation::FORT_TOWER, 0}, {Simulation::FORT_LONG, 0},
+		{Simulation::FORT_CORNER_IN, 0}, {Simulation::FORT_LONG, 0}, {Simulation::FORT_BUILDING, BLD_STABLE},
+		{Simulation::FORT_TOWER, 0}, {Simulation::FORT_GATE, 0}, {Simulation::FORT_TOWER, 0}, {Simulation::FORT_LONG, 0},
+		{Simulation::FORT_CORNER_IN, 0}, {Simulation::FORT_LONG, 0}, {Simulation::FORT_BUILDING, BLD_TEMPLE},
+		{Simulation::FORT_TOWER, 0}, {Simulation::FORT_LONG, 0}, {Simulation::FORT_TOWER, 0}, {Simulation::FORT_LONG, 0},
+		{Simulation::FORT_CORNER_IN, 0}, {Simulation::FORT_LONG, 0}, {Simulation::FORT_BUILDING, BLD_MARKET},
+		{Simulation::FORT_TOWER, 0}};
+	struct Ctx { const std::vector<RmsGenerator::PlayerSpawn> *spawns; size_t self; } ctx{&spawns, self};
+	auto nearer_other = [](float x, float z, const void *p) {
+		const Ctx &c = *static_cast<const Ctx *>(p);
+		const auto &all = *c.spawns;
+		const float own = std::hypot(x - all[c.self].x, z - all[c.self].z);
+		for (size_t j = 0; j < all.size(); ++j)
+			if (j != c.self && std::hypot(x - all[j].x, z - all[j].z) < own) return true;
 		return false;
 	};
-	auto spawn = [&](float x, float z, uint8_t type) {
-		if (!inside_other(x, z)) sim.spawn_building_world(x, z, type, sp.team, 1.0f);
-	};
-	const bool gates_on_z = std::fabs(sp.forward_dir_z) >= std::fabs(sp.forward_dir_x);
-	struct Side { float nx, nz; uint8_t building; bool gate; };
-	const Side z_gates[4] = {{0.0f, 1.0f, BLD_MARKET, true}, {1.0f, 0.0f, BLD_BARRACKS, false}, {0.0f, -1.0f, BLD_STABLE, true}, {-1.0f, 0.0f, BLD_TEMPLE, false}};
-	const Side x_gates[4] = {{1.0f, 0.0f, BLD_MARKET, true}, {0.0f, -1.0f, BLD_BARRACKS, false}, {-1.0f, 0.0f, BLD_STABLE, true}, {0.0f, 1.0f, BLD_TEMPLE, false}};
-	for (const Side &s : gates_on_z ? z_gates : x_gates) {
-		const float tx = -s.nz, tz = s.nx;
-		auto at = [&](float along, float out) { return std::make_pair(sp.x + s.nx * out + tx * along, sp.z + s.nz * out + tz * along); };
-		// The side's building straddles the wall line 12 along, inside it.
-		const float b_along = -2.0f * std::floor((R + 3.0f) / 4.0f); // -12 at R = 21
-		const auto b = at(b_along, R - 1.0f);
-		spawn(b.first, b.second, s.building);
-		for (float along = -R + 2.0f; along <= R - 2.0f; along += 2.0f) {
-			if (std::fabs(along - b_along) < 2.0f) continue;
-			uint8_t type = BLD_WALL_SEGMENT;
-			if (std::fabs(std::fabs(along) - 5.0f) < 0.5f) type = BLD_WALL_TOWER;
-			else if (s.gate && std::fabs(along) < 2.0f) type = BLD_GATE;
-			const auto p = at(along, R);
-			spawn(p.first, p.second, type);
-		}
-	}
-	for (int c = 0; c < 4; ++c) spawn(sp.x + (c & 1 ? R : -R), sp.z + (c & 2 ? R : -R), BLD_WALL_TOWER);
+	const auto &sp = spawns[self];
+	sim.place_custom_fortress(sp.team, sp.x, sp.z, std::atan2(sp.forward_dir_z, sp.forward_dir_x), kSpahbod,
+			sizeof(kSpahbod) / sizeof(kSpahbod[0]), nearer_other, &ctx);
 }
 
 } // namespace
@@ -10858,6 +10834,11 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 	// Each slot's template wood (0: TREE_WOOD_SUPPLY), parallel to t12, t45 and t3.
 	const uint16_t *w12 = f->tree12_wood[o12], *w45 = f->tree45_wood[o45];
 	const uint16_t w3 = f->tree3_wood[o3];
+	// Each slot's template MaxGatherers (tree_slot_gatherers.h), parallel to t12, t45 and t3.
+	const char *slot_name = own ? own->map_id : sim.current_map_biome().c_str();
+	const int g12[2] = {tree_slot_gatherers(slot_name, own, 0, (int)o12, 0), tree_slot_gatherers(slot_name, own, 0, (int)o12, 1)};
+	const int g45[2] = {tree_slot_gatherers(slot_name, own, 2, (int)o45, 0), tree_slot_gatherers(slot_name, own, 2, (int)o45, 1)};
+	const int g3 = tree_slot_gatherers(slot_name, own, 1, (int)o3, 0);
 
 	const auto rv = sim.resources();
 	// Trees per 2-tile cell, to tell forests from stragglers.
@@ -10883,26 +10864,32 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 		const uint32_t h = hash(tx, tz, 4);
 		uint8_t kind;
 		uint16_t wood;
+		int gatherers;
 		if (near >= 4) {
 			// createDefaultForests: each forest is either a tree1/tree2 or a tree4/tree5 mix.
 			const bool second = hash((int)std::floor(rv.x[r] / 12.0f), (int)std::floor(rv.z[r] / 12.0f), 5) & 1u;
 			kind = (second ? t45 : t12)[h & 1u];
 			wood = (second ? w45 : w12)[h & 1u];
+			gatherers = (second ? g45 : g12)[h & 1u];
 		} else if (type == MAP_LOWER_NUBIA && own) {
 			// lower_nubia.js's lone trees are its stragglers (acacia, dead tree, bush_badlands), not palms.
 			kind = f->tree3[h % (uint32_t)n3];
 			wood = f->tree3_wood[h % (uint32_t)n3];
+			gatherers = tree_slot_gatherers(slot_name, own, 1, (int)(h % (uint32_t)n3), 0);
 		} else {
 			// createStragglerTrees: [tree1, tree2, tree4, tree3].
 			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
 			const uint16_t pick_wood[4] = {w12[0], w12[1], w45[0], w3};
 			kind = pick[h % 4u];
+			const int pick_gatherers[4] = {g12[0], g12[1], g45[0], g3};
 			wood = pick_wood[h % 4u];
+			gatherers = pick_gatherers[h % 4u];
 		}
 		sim.set_resource_flora(rv.id[r], kind);
 		// The template's ResourceSupply/Max, for a tree the generator spawned with TREE_WOOD_SUPPLY
 		// (the Survival of the Fittest forests keep their own 800).
 		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
+		if (gatherers != 8) sim.set_resource_max_gatherers(rv.id[r], gatherers);
 	}
 }
 

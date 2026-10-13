@@ -245,24 +245,35 @@ int main() {
 		CHECK(d >= 6.0f + di.flee_distance - 0.5f && s.fauna_.behavior[f] != FAUNA_FLEE);
 	}
 
-	// 7c. Hold ground (CheckTargetDistanceFromHeldPosition): a boar drops a target that is
-	// more than vision / 2 + attack range from where it was attacked.
+	// 7c. Chase leash (ShouldAbandonChase): an animal has no held position, so a hold-ground
+	// (passive-defensive) boar keeps after a target well past vision / 2 + attack range of
+	// where it started and drops it only once it is out of the boar's vision; then it lingers
+	// where it stands.
 	{
 		fresh(s);
 		const auto &bi = fauna_type_info(FAUNA_BOAR);
-		const float leash = bi.vision * 0.5f + bi.attack_range;
+		CHECK(bi.stance == FAUNA_STANCE_PASSIVE_DEFENSIVE); // respondHoldGround, like defensive
 		uint32_t boar = s.spawn_fauna(0.0f, 0.0f, FAUNA_BOAR);
 		uint32_t u = s.spawn_unit(1.5f, 0.0f, 0, UNIT_SPEARMAN, 1.0e6f);
 		s.order_set_stance(&u, 1, STANCE_PASSIVE);
 		s.fauna_attacked((size_t)fidx(s, boar), u);
 		run(s, 1.0f);
 		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
-		s.units_.pos_x[uidx(s, u)] = leash + 1.0f; // out of the leash
 		s.cmd_stop(&u, 1);
 		s.units_.speed[uidx(s, u)] = 0.0f;
+		// Past the old held-position leash, inside vision: it keeps chasing.
+		s.units_.pos_x[uidx(s, u)] = s.fauna_.pos_x[fidx(s, boar)] + bi.vision * 0.5f + bi.attack_range + 2.0f;
 		run(s, 0.5f);
-		CHECK(s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK);
-		std::printf("leash: boar leash %.1f, gave up %s\n", leash, s.fauna_.behavior[fidx(s, boar)] != FAUNA_ATTACK ? "yes" : "no");
+		CHECK(s.fauna_.behavior[fidx(s, boar)] == FAUNA_ATTACK);
+		// Out of its vision: it gives up and stays put.
+		s.units_.pos_x[uidx(s, u)] = s.fauna_.pos_x[fidx(s, boar)] + bi.vision + 2.0f;
+		run(s, 0.2f);
+		const size_t b = fidx(s, boar);
+		const float gx = s.fauna_.pos_x[b];
+		CHECK(s.fauna_.behavior[b] == FAUNA_IDLE_GRAZE);
+		run(s, 0.5f);
+		CHECK(std::fabs(s.fauna_.pos_x[fidx(s, boar)] - gx) < 0.01f);
+		std::printf("leash: boar vision %.1f, gave up at %.1f and lingered\n", bi.vision, bi.vision + 2.0f);
 	}
 
 	// 7b. Attack.js timing and resistance: a wolf's first bite waits its PrepareTime (1 s), and
