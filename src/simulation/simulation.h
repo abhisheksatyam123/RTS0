@@ -2093,6 +2093,8 @@ private:
 	PlacementResult check_placement_cells(uint8_t player, uint8_t b_type, const std::vector<std::pair<int, int>> &cells,
 			float x0, float z0, float x1, float z1, float cx, float cz, const Building *rect,
 			const std::vector<std::pair<int, int>> *ignore_cells) const;
+	// survivalofthefittest.js's placement obstructors: whether one covers part of [x0, x1] x [z0, z1].
+	bool survival_placement_obstructed(float x0, float z0, float x1, float z1) const;
 	// A wall piece laid as a foundation (progress 0) or a finished one, with its WallSet extents.
 	uint32_t spawn_wall_piece(const WallPiece &p, uint8_t team, float progress);
 	// Cost.js: pays `b_type`'s cost after civ, team and technology bonuses (stone_override, when
