@@ -177,7 +177,10 @@ enum MapType : uint8_t {
 	MAP_RIVER_ARCHIPELAGO = 87,
 	MAP_LAND_GRAB = 88,
 	MAP_THE_NILE = 89,
-	MAP_TYPE_COUNT = 90
+	MAP_CONTINENT = 90,
+	MAP_FOOTHILLS = 91,
+	MAP_COAST_RANGE = 92,
+	MAP_TYPE_COUNT = 93
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -215,10 +218,12 @@ inline uint8_t map_team_placements(uint8_t type) {
 			return C | R | L | G | S;
 		case MAP_ARDENNES_FOREST: return C | R | L | G;
 		case MAP_CANTABRIAN_HIGHLANDS: return C | S;
+		case MAP_COAST_RANGE: return C | R | S;
 		case MAP_EXTINCT_VOLCANO: return C | R | G;
-		case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
+		case MAP_CONTINENT: case MAP_INDIA: case MAP_MIGRATION: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS:
+			return C | R | S;
 		case MAP_LAKE: case MAP_NEARESTERN_BADLANDS: return C | R;
-		case MAP_SYRIA: return C | R | G | S;
+		case MAP_FOOTHILLS: case MAP_SYRIA: return C | R | G | S;
 		default: return 0;
 	}
 }
@@ -315,7 +320,10 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
 		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."},
 		{MAP_LAND_GRAB, "land_grab", "Land Grab (RMS)", "temperate", true, "Players start in small islands in the eastern part of the map. There is a big continent in the west ready for expansion."},
-		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."}
+		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."},
+		{MAP_CONTINENT, "continent", "Continent (RMS)", "temperate", true, "All players starts on a continent surrounded by water."},
+		{MAP_FOOTHILLS, "foothills", "Foothills (RMS)", "temperate", true, "A land map with rolling hills and no obstructions."},
+		{MAP_COAST_RANGE, "coast_range", "Coast Range (RMS)", "temperate", true, "All players starts on a continent surrounded by water. Designed and balanced for 2 teams only."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -492,6 +500,27 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 // territory root, a dropsite for every resource, a conquest-critical base).
 inline constexpr bool is_civic_centre(uint8_t type) {
 	return type == BLD_TOWN_CENTER || type == BLD_IMPERIAL_COURT || type == BLD_CRANNOG;
+}
+// 0 A.D. class ConquestCritical (template_structure_civic, _military and _wonder, less the
+// stoa and the forge): the structures that keep a player in a Conquest match. Towers, walls,
+// palisades, economic and other special structures don't.
+inline constexpr bool is_conquest_critical(uint8_t type) {
+	switch (type) {
+		case BLD_STOREHOUSE: case BLD_TOWER: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE:
+		case BLD_WALL_SEGMENT: case BLD_CORRAL: case BLD_FIELD: case BLD_FORGE: case BLD_SENTRY_TOWER:
+		case BLD_OUTPOST: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_THEATER: case BLD_AMPHITHEATER:
+		case BLD_LIBRARY: case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL:
+		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE:
+			return false;
+		default:
+			return type < BLD_TYPE_COUNT;
+	}
+}
+// 0 A.D. units without ConquestCritical: catafalques, traders, healers, fishing and merchant ships.
+inline constexpr bool is_conquest_critical_unit(uint8_t utype) {
+	return utype != UNIT_CATAFALQUE && utype != UNIT_TRADER && utype != UNIT_HEALER &&
+	       utype != UNIT_FISHING_BOAT && utype != UNIT_MERCHANT_SHIP;
 }
 // The defense tower and its Han Great Archery Tower form (StoneTower).
 inline constexpr bool is_defense_tower(uint8_t type) {

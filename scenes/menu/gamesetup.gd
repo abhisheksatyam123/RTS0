@@ -125,6 +125,9 @@ const RMS_MAPS := [
 	["random_migration", "Migration (RMS)", "Random", 8, 128, "temperate", "Home islands on the outside, a rich continent in the middle; ships needed to reach it. Supports 2-8 players."],
 	["random_ngorongoro", "Ngorongoro (RMS)", "Random", 8, 128, "savanna", "Savanna lowlands round the crater's highlands and a central Eden rich in metal, from a real elevation map. Supports 2-8 players."],
 	["random_river_archipelago", "River Archipelago (RMS)", "Random", 8, 128, "india", "Narrow tropical strips of land split by waterways with few shallow bridges; Mauryan tribesmen hold the outermost islands. Supports 2-8 players."],
+	["random_continent", "Continent (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. Supports 2-8 players."],
+	["random_foothills", "Foothills (RMS)", "Random", 8, 128, "temperate", "A land map with rolling hills and no obstructions. Supports 2-8 players."],
+	["random_coast_range", "Coast Range (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. This map is designed and balanced for 2 teams only. Supports 2-8 players."],
 ]
 
 # 0 A.D. 0.28 Population Cap Type and its caps (simulation/data/settings/

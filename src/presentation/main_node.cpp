@@ -344,6 +344,21 @@ static Ref<Texture2D> structure_icon(const char *portrait_id) {
 	return load_tex("res://assets/textures/ui/archive/portraits/structures/" + file + ".png");
 }
 
+// 0.28's Identity text for a civ's structure (generic_name, specific_name, tooltip) from
+// data/reference/templates.json (tools/extract_0ad_reference.py), read once.
+static Dictionary structure_template_text(uint8_t civ, int type) {
+	static Dictionary structures;
+	static bool loaded = false;
+	if (!loaded) {
+		loaded = true;
+		Ref<FileAccess> f = FileAccess::open("res://data/reference/templates.json", FileAccess::READ);
+		if (f.is_valid()) structures = Dictionary(JSON::parse_string(f->get_as_text())).get("structures", Dictionary());
+	}
+	if (civ >= rtso::CIV_COUNT) return Dictionary();
+	const Dictionary by_civ = structures.get(String(rtso::civ_info(civ).code), Dictionary());
+	return by_civ.get(String::num_int64(type), Dictionary());
+}
+
 // Building names in data/maps/*.json "structures" and "gaia_structures" (tools/port_0ad_maps.py).
 // BLD_TYPE_COUNT for a name it doesn't know.
 static uint8_t map_building_type(const String &n) {
@@ -3626,31 +3641,32 @@ void RtsoMain::_process(double delta) {
 			}
 
 			uint8_t pciv = sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_ATHENIANS;
-			auto tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_foundation(rtso::BLD_TOWER)));
-			if (!tower_entry.valid) {
-				tower_entry = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(pciv, rtso::BLD_TOWER)));
-			}
 			// Pieces of this wall don't block each other; the towers it snaps onto don't block it.
 			const uint32_t snapped[2] = {start_tower, end_tower};
-			const float yaw = std::atan2(drag_curr_pos.x - wall_drag_start_pos.x, drag_curr_pos.z - wall_drag_start_pos.z);
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
-				const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
 				MeshInstance3D *g = wall_ghosts[i];
-				// Along the wall (the box's z): the segment's length; across it: its 0 A.D. depth.
-				if (is_tower && tower_entry.valid && wall_kind == rtso::WALLSET_STONE) {
-					g->set_mesh(tower_entry.mesh);
-					g->set_scale(Vector3(tower_entry.scale, tower_entry.scale, tower_entry.scale));
+				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
+				// tower): the model the world view will draw for it, turned the same way.
+				const auto entry = rtso::ModelLibrary::get("buildings", RtsoWorldView::building_visual_id(pciv, p.type, p.half_w));
+				const float h = sim ? sim->get_terrain_height(p.x, p.z) : 0.0f;
+				if (entry.valid && entry.mesh.is_valid()) {
+					const float sc = entry.scale > 0.05f ? entry.scale : 1.0f;
+					g->set_mesh(entry.mesh);
+					g->set_scale(Vector3(sc, sc, sc));
+					g->set_global_position(Vector3(p.x, h + entry.y_offset, p.z));
 				} else {
+					const bool is_tower = p.type == wall_set.tower && p.half_w == wall_set.tower_half;
 					Ref<BoxMesh> box;
 					box.instantiate();
+					// Along the box's x: the piece's length (its u axis); across it: its 0 A.D. depth.
 					box->set_size(is_tower ? Vector3(2.2f * p.half_w, 4.5f, 2.2f * p.half_w)
-							: Vector3(2.0f * wall_set.half_depth, 2.5f, 2.0f * p.half_w));
+							: Vector3(2.0f * p.half_w, 2.5f, 2.0f * wall_set.half_depth));
 					g->set_mesh(box);
 					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
+					g->set_global_position(Vector3(p.x, h + 0.05f, p.z));
 				}
-				g->set_global_position(Vector3(p.x, (sim ? sim->get_terrain_height(p.x, p.z) : 0.0f) + 0.05f, p.z));
-				g->set_rotation(Vector3(0.0f, yaw, 0.0f));
+				g->set_rotation(Vector3(0.0f, p.rot - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
 				g->set_visible(true);
@@ -4920,27 +4936,44 @@ void RtsoMain::update_command_panel() {
 				}), menu.end());
 				for (int bt : menu) {
 					const rtso::BuildingTypeInfo bi = rtso::civ_building_type_info(my_civ, (uint8_t)bt); // the big house
+					// The price this player pays (0.28 GetTemplateData: civ, team and technology modifiers).
+					float price[rtso::RES_COUNT];
+					sim->structure_cost_for(local_player(), (uint8_t)bt, price);
 					String cost;
 					auto add_cost = [&](int amount, const char *suffix) {
 						if (amount <= 0) return;
 						if (!cost.is_empty()) cost += ",";
 						cost += String::num_int64(amount) + suffix;
 					};
-					add_cost(bi.food_cost, "f");
-					add_cost(bi.wood_cost, "w");
-					add_cost(bi.gold_cost, "g");
-					add_cost(bi.stone_cost, "s");
+					add_cost((int)price[rtso::RES_FOOD], "f");
+					add_cost((int)price[rtso::RES_WOOD], "w");
+					add_cost((int)price[rtso::RES_GOLD], "g");
+					add_cost((int)price[rtso::RES_STONE], "s");
 					uint8_t need = rtso::building_required_phase((uint8_t)bt);
 					// 0.28's Construction panel: an icon grid, name and cost on the tooltip.
 					Button *bb = memnew(Button);
 					const String label = String::utf8(bi.name) + (cost.is_empty() ? String() : " (" + cost + ")");
 					bb->set_meta("label", label);
-					const rtso::CostTip b_cost{bi.food_cost, bi.wood_cost, bi.stone_cost, bi.gold_cost, 0, (int64_t)std::ceil(bi.build_time)};
-					String tip = String::utf8(bi.name);
+					// 0.28's Construction tooltip: names, Identity/Tooltip, cost and time, garrison,
+					// population bonus (selection_panels.js Construction setupButton).
+					const Dictionary text = structure_template_text(my_civ, bt);
+					const String generic = text.get("generic_name", String::utf8(bi.name));
+					const String specific = text.get("specific_name", String());
+					String tip = specific.is_empty() || specific == generic ? generic : specific + String(" (") + generic + String(")");
+					const String identity_tip = text.get("tooltip", String());
+					if (!identity_tip.is_empty()) tip += "\n" + identity_tip;
+					const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
+							(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
+							(int64_t)std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
 					if (!rtso::cost_tooltip(b_cost).is_empty()) tip += "\n" + rtso::cost_tooltip(b_cost);
-					if (bi.pop_bonus > 0)
+					const int garrison = rtso::structure_garrison_max((uint8_t)bt, my_civ);
+					if (garrison > 0)
+						tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s: %(garrisonLimit)s"),
+								{{"label", rtso::tr0("Garrison Limit")}, {"garrisonLimit", String::num_int64(garrison)}});
+					const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
+					if (pop_bonus > 0)
 						tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s %(bonus)s"),
-								{{"label", rtso::tr0("Population Bonus:")}, {"bonus", String::num_int64(bi.pop_bonus)}});
+								{{"label", rtso::tr0("Population Bonus:")}, {"bonus", String::num_int64(pop_bonus)}});
 					Ref<Texture2D> b_ico = structure_icon(bi.portrait_id);
 					if (b_ico.is_valid()) {
 						bb->set_button_icon(b_ico);

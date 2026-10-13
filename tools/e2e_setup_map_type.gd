@@ -124,6 +124,11 @@ func run() -> void:
 		select_map(page, "random_cantabrian_highlands")
 		await frames(2)
 		check(items.call() == [0, 1, 4] and tpl.text == "Random", "Cantabrian Highlands has no River: " + tpl.text)
+		# 0.28's new maps from F's #483 (foothills.json: circle, river, randomGroup, stronghold).
+		check(select_map(page, "random_foothills") and select_map(page, "random_coast_range") and select_map(page, "random_continent"), "Continent, Foothills and Coast Range are listed")
+		select_map(page, "random_foothills")
+		await frames(2)
+		check(items.call() == [0, 1, 5, 3, 4], "Foothills: Random, Circle, River, Random Group, Stronghold: " + str(items.call()))
 		select_map(page, "random_archipelago")
 		await frames(2)
 		check(not tp_slot.is_visible_in_tree(), "RTS0's own Archipelago has no placement")
