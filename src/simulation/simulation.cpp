@@ -15418,15 +15418,24 @@ Simulation::PetraHuntScan Simulation::petra_hunt_scan() const {
 	return scan;
 }
 
-// entityExtend.js gatherTreasure: the nearest treasure on the unit's land outside
-// enemy territory, within 120000 m² (14000 m² outside our own territory, as the
-// AI has no line of sight). One collector per treasure stands in for 0 A.D.'s
-// 20 s "lastGathered" wait between tries.
-bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan) {
+// The treasures our collectors are already heading for.
+void Simulation::petra_treasures_taken(PetraHuntScan &scan) const {
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_COLLECT_TREASURE)
+			scan.treasures_taken.push_back(units_.order_target[i]);
+}
+
+// entityExtend.js gatherTreasure: the nearest treasure on the unit's land (a ship's
+// sea with water) outside enemy territory, within 120000 m² (14000 m² outside our own
+// territory, as the AI has no line of sight). One collector per treasure stands in for
+// 0 A.D.'s 20 s "lastGathered" wait between tries.
+bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water) {
 	if (treasures_.empty()) return false;
 	const uint8_t ut = units_.unit_type[u];
-	if (unit_is_ship(ut) || ut == UNIT_WAR_DOG) return false; // isTreasureCollector
-	const uint8_t pass = formation_unit_mounted(ut) ? PASS_CAVALRY : PASS_INFANTRY;
+	if (unit_is_ship(ut) != water || treasure_reach(u) < 0.0f) return false; // isTreasureCollector
+	const uint8_t pass = water ? PASS_SHIP : formation_unit_mounted(ut) ? PASS_CAVALRY : PASS_INFANTRY;
+	const uint16_t sea = water ? petra_ship_sea(u) : 0;
+	if (water && !sea) return false;
 	const float px = units_.pos_x[u], pz = units_.pos_z[u];
 	auto [ucx, ucz] = nav_grid_.world_to_cell(px, pz);
 	uint32_t best = 0;
@@ -15439,7 +15448,9 @@ bool Simulation::petra_gather_treasure(size_t u, PetraHuntScan &scan) {
 		if (d2 > 120000.0f / 16.0f || (terr != (int)petra_pid_ && d2 > 14000.0f / 16.0f)) continue;
 		if (d2 > best_d2) continue;
 		auto [cx, cz] = nav_grid_.world_to_cell(t.x, t.z);
-		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
+		if (water) {
+			if (nav_grid_.global_region_at(cx, cz, PASS_SHIP) != sea) continue; // getSeaAccess
+		} else if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) continue;
 		best_d2 = d2;
 		best = t.id;
 	}
@@ -16035,6 +16046,8 @@ void Simulation::petra_manage_trading(float dt) {
 		const PetraNavalTopo &topo = petra_classified_topo(home_land);
 		const PetraBase *pbase = get_primary_petra_base();
 		int traders = 0, sea_traders = 0;
+		PetraHuntScan treasure_scan;
+		bool treasure_scanned = false;
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_trader(units_.unit_type[i])) continue;
 			const bool ship = units_.unit_type[i] == UNIT_MERCHANT_SHIP;
@@ -16042,6 +16055,12 @@ void Simulation::petra_manage_trading(float dt) {
 			if (ship) ++sea_traders;
 			const uint32_t uid = units_.id[i];
 			if (units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
+			// updateTrader: a merchant ship takes a treasure on its sea on the way.
+			if (ship && units_.order_kind[i] == ORDER_COLLECT_TREASURE) continue;
+			if (ship && !treasures_.empty()) {
+				if (!treasure_scanned) { petra_treasures_taken(treasure_scan); treasure_scanned = true; }
+				if (petra_gather_treasure(i, treasure_scan, true)) continue;
+			}
 			const uint16_t access = ship ? petra_ship_sea(i) : (topo.naval_map ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 1);
 			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
 			if (r && !ship && r->land != access) {
@@ -16754,12 +16773,19 @@ void Simulation::petra_manage_naval(float dt) {
 		if (petra_fleets_.sea_warship_count[s] > 0) active_seas = s + 1;
 	petra_fleets_.sea_count_ = active_seas;
 
-	// 4. moveApart: an idle ship within 70 m of an allied dock on its sea moves
-	// out to 70-75 m so it leaves the dock free.
+	// 4. moveApart: an idle ship first goes for a treasure on its sea (gatherTreasure),
+	// else, within 70 m of an allied dock on its sea, moves out to 70-75 m so it leaves
+	// the dock free.
+	PetraHuntScan treasure_scan;
+	bool treasure_scanned = false;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || !unit_is_ship(units_.unit_type[i])) continue;
 		if (units_.action_state[i] != ACTION_IDLE || units_.has_order[i]) continue;
 		if (petra_ship_in_plan(units_.id[i])) continue;
+		if (!treasures_.empty()) {
+			if (!treasure_scanned) { petra_treasures_taken(treasure_scan); treasure_scanned = true; }
+			if (petra_gather_treasure(i, treasure_scan, true)) continue;
+		}
 		const uint16_t sea = petra_ship_sea(i);
 		for (const Building &b : buildings_) {
 			if (b.type != BLD_DOCK || b.wrecked || b.hp <= 0.0f || !is_ally(petra_pid_, b.team)) continue;
