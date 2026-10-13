@@ -43,6 +43,9 @@ public:
 	virtual bool net_lockstep() const = 0; // existing RtsoMain hook
 	virtual void play_sfx(const char *path) = 0; // existing RtsoMain hook
 	virtual String chat_civ_name() = 0; // sim->player_civ() display name
+	// The sender's name in their player colour as bbcode (0 A.D. colorizePlayernameByGUID);
+	// an empty guid is the local player.
+	virtual String chat_user(const String &sender_guid) = 0;
 	// -> NetHost::sendChat (net_host.cpp:327), 0 A.D. NMT_CHAT parity.
 	virtual void chat_send_wire(const std::string &wire) = 0;
 	// 0 A.D. Cheats.executeCheat: true when `text` was a cheat code (it is not sent as chat).
@@ -89,7 +92,7 @@ public:
 		HBoxContainer *chat_top_bar = memnew(HBoxContainer);
 		chat_top_bar->set_custom_minimum_size(Vector2(0, 24));
 		Label *chat_title = memnew(Label);
-		chat_title->set_text("💬 In-Game Chat");
+		chat_title->set_text(""); // 0.28's chat window has no title
 		chat_title->add_theme_font_size_override("font_size", 12);
 		chat_title->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		chat_top_bar->add_child(chat_title);
@@ -107,7 +110,6 @@ public:
 		log_->set_use_bbcode(true);
 		log_->set_scroll_follow(true);
 		log_->add_theme_font_size_override("normal_font_size", 11);
-		log_->set_text("[color=#888888]Hellenic League Session Chat. Press Enter to send messages.[/color]\n");
 		chat_vbox->add_child(log_);
 
 		// Chat addressee selector row above chat input (0 A.D. gui/session/chat/ChatWindow.js:35-58 parity)
@@ -216,22 +218,21 @@ public:
 		}
 		if (!text.is_empty()) {
 			int ch = channel_ ? channel_->get_selected() : 0;
-			String ch_prefix = "[color=#55bbff][All][/color]";
 			String wire_tag = "";
+			String context;
 			if (ch == 1) {
-				ch_prefix = "[color=#55ff55][Allies][/color]";
 				wire_tag = "[Allies] ";
+				context = "Ally";
 			} else if (ch == 2) {
-				ch_prefix = "[color=#ff5555][Enemies][/color]";
 				wire_tag = "[Enemies] ";
+				context = "Enemy";
 			} else if (ch >= 3) {
-				int p_num = ch - 2;
-				ch_prefix = "[color=#eebb22][Player-" + String::num_int64(p_num) + "][/color]";
-				wire_tag = "[Player-" + String::num_int64(p_num) + "] ";
+				wire_tag = "[Player-" + String::num_int64(ch - 2) + "] ";
+				context = "Private";
 			}
-			String civ_name = host_->chat_civ_name();
-			log_->append_text(ch_prefix + " [color=#ffffff]" + civ_name + "[/color]: " + text + "\n");
-			post_overlay(ch_prefix + " [color=#ffffff]" + civ_name + "[/color]: " + text);
+			const String line = format_line(context, host_->chat_user(""), text);
+			log_->append_text(stamp() + line + "\n");
+			post_overlay(stamp() + line);
 			input_->clear();
 			host_->play_sfx("res://assets/sounds/ui/chat.ogg");
 			// Network: 0 A.D. NMT_CHAT broadcast (NetHost::sendChat net_host.cpp:327).
@@ -250,29 +251,25 @@ public:
 	void append_incoming(const String &sender_guid, const String &raw_msg) {
 		if (!log_) return;
 		String msg = raw_msg;
-		String tag_col = "#55bbff"; // All (default channel color, 0 A.D. ChatBounce.js:15-38 parity)
-		String chan_prefix = "[All]";
+		// The wire tag is the addressee; 0.28 shows it as the context (ChatAddressees.js).
+		String context;
 		if (msg.begins_with("[Allies]")) {
-			tag_col = "#55ff55";
-			chan_prefix = "[Allies]";
+			context = "Ally";
 			msg = msg.substr(8).strip_edges();
 		} else if (msg.begins_with("[Team]")) {
-			tag_col = "#ffff55";
-			chan_prefix = "[Team]";
+			context = "Ally";
 			msg = msg.substr(6).strip_edges();
 		} else if (msg.begins_with("[Enemies]")) {
-			tag_col = "#ff5555";
-			chan_prefix = "[Enemies]";
+			context = "Enemy";
 			msg = msg.substr(9).strip_edges();
 		} else if (msg.begins_with("[Player-")) {
 			int close_b = msg.find("]");
 			if (close_b > 0) {
-				chan_prefix = msg.substr(0, close_b + 1);
-				tag_col = "#eebb22";
+				context = "Private";
 				msg = msg.substr(close_b + 1).strip_edges();
 			}
 		}
-		const String line = stamp() + "[color=" + tag_col + "]" + chan_prefix + " " + sender_guid + "[/color]: " + msg;
+		const String line = stamp() + format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
 		log_->append_text(line + String("\n"));
 		post_overlay(line);
 	}
@@ -283,6 +280,10 @@ public:
 		if (log_) log_->append_text(line);
 		post_overlay(line.strip_edges(false, true));
 	}
+
+	// Test hooks: the log as plain text, and the input line.
+	String log_text() const { return log_ ? log_->get_parsed_text() : String(); }
+	LineEdit *input() const { return input_; }
 
 	// 0 A.D. chat.timestamp: each line opens with the local time, "[HH:MM]".
 	void set_timestamps(bool on) { timestamps_ = on; }
@@ -302,6 +303,16 @@ public:
 	}
 
 private:
+	// ChatMessageFormatPlayer strings: "(context) <user> message", or with /me
+	// "(context) * user message". The text is escaped (escapeText).
+	static String format_line(const String &context, const String &user, String text) {
+		const bool me = text.begins_with("/me ");
+		if (me) text = text.substr(4);
+		text = text.replace("[", "[lb]");
+		const String ctx = context.is_empty() ? String() : "(" + context + ") ";
+		return ctx + (me ? "* " + user : "<" + user + ">") + " " + text;
+	}
+
 	String stamp() const {
 		if (!timestamps_) return String();
 		const Dictionary t = Time::get_singleton()->get_time_dict_from_system();

@@ -414,7 +414,8 @@ enum BuildingType : uint8_t {
 	BLD_EMBASSY_IBERIAN = 61, // cart/embassy_iberian (BLD_EMBASSY is the Celtic one)
 	BLD_EMBASSY_ITALIC = 62,  // cart/embassy_italic
 	BLD_SIEGE_WALL = 63,      // rome/wallset_siege: siege_wall_long/medium/short and siege_wall_tower
-	BLD_TYPE_COUNT = 64       // the most bld_bit()'s uint64_t masks hold
+	BLD_SIEGE_WALL_GATE = 64, // rome/siege_wall_gate (a siege_wall_long Upgrade)
+	BLD_TYPE_COUNT = 65
 };
 
 #include "civ_building_data.h"
@@ -1125,8 +1126,11 @@ inline const WallSetInfo &wallset_info(uint8_t kind) {
 	return kSets[kind < WALLSET_COUNT ? kind : 0];
 }
 
-// Gate.js holders: the stone gate and the palisade gate (a palisades_long Upgrade).
-inline constexpr bool is_gate_type(uint8_t type) { return type == BLD_GATE || type == BLD_PALISADE_GATE; }
+// Gate.js holders: the stone gate, the palisade gate (a palisades_long Upgrade) and the Roman
+// siege wall gate (a siege_wall_long Upgrade).
+inline constexpr bool is_gate_type(uint8_t type) {
+	return type == BLD_GATE || type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL_GATE;
+}
 
 inline bool is_palisade_tower(uint8_t type, float half_w) {
 	return type == BLD_PALISADE && std::fabs(half_w - PALISADE_TOWER_HALF) < 0.01f;
@@ -1144,7 +1148,7 @@ inline bool is_wallset_tower_piece(uint8_t type, float half_w) {
 // The WallSet a piece of `type` belongs to.
 inline uint8_t wallset_kind_of(uint8_t type) {
 	return type == BLD_PALISADE || type == BLD_PALISADE_GATE ? WALLSET_PALISADE
-	       : type == BLD_SIEGE_WALL ? WALLSET_SIEGE : WALLSET_STONE;
+	       : type == BLD_SIEGE_WALL || type == BLD_SIEGE_WALL_GATE ? WALLSET_SIEGE : WALLSET_STONE;
 }
 
 // Whether a structure of half width `half_w` is a WallSet piece. The one-cell segment (and the
@@ -1152,7 +1156,7 @@ inline uint8_t wallset_kind_of(uint8_t type) {
 // and their building_type_info row.
 inline bool is_wallset_piece(uint8_t type, float half_w) {
 	if (type == BLD_PALISADE) return std::fabs(half_w - 1.0f) > 0.01f;
-	if (type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL) return true;
+	if (type == BLD_PALISADE_GATE || type == BLD_SIEGE_WALL || type == BLD_SIEGE_WALL_GATE) return true;
 	return (type == BLD_WALL_SEGMENT || type == BLD_GATE) && half_w > 1.01f;
 }
 
@@ -1437,7 +1441,7 @@ inline float building_eject_health(uint8_t type) {
 		case BLD_CORRAL: return 0.5f;
 		case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_GATE: case BLD_DOCK:
 		case BLD_WALL_SEGMENT: case BLD_FIELD: case BLD_OUTPOST: case BLD_PALISADE: case BLD_PALISADE_GATE:
-		case BLD_SIEGE_WALL: return 0.0f;
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return 0.0f;
 		default: return 0.1f;
 	}
 }
@@ -1468,7 +1472,7 @@ inline uint64_t building_tech_classes(uint8_t type) {
 		case BLD_MARKET: return c | TC_MARKET;
 		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
 		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
-		case BLD_SIEGE_WALL: return c | TC_WALL | TC_DEFENSIVE;
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
 		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
@@ -2444,6 +2448,7 @@ inline const char *civ_building_rubble(uint8_t civ, uint8_t type) {
 		case BLD_PALISADE:
 		case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL:
+		case BLD_SIEGE_WALL_GATE:
 		case BLD_WALL_TOWER:
 			return "rubble_small";
 		default:
@@ -2474,6 +2479,7 @@ inline const char *civ_building_foundation(uint8_t type) {
 		case BLD_PALISADE:
 		case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL:
+		case BLD_SIEGE_WALL_GATE:
 		case BLD_WALL_TOWER:
 			return "foundation_wall";
 		case BLD_FIELD:
@@ -2503,6 +2509,7 @@ inline const char *civ_building_scaffold(uint8_t type) {
 		case BLD_PALISADE:
 		case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL:
+		case BLD_SIEGE_WALL_GATE:
 		case BLD_WALL_TOWER:
 		case BLD_FIELD:
 			return "scaffold_small";
