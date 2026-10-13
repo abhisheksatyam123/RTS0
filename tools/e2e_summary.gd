@@ -69,8 +69,13 @@ func run() -> void:
 	check(s.find_child("SummaryText", true, false).text == "Current Scores", "it reads Current Scores")
 	check(s.find_child("TimeElapsed", true, false).text.begins_with("Game time elapsed: 01:1"), "with the game time: " + s.find_child("TimeElapsed", true, false).text)
 	check(s.find_child("MapName", true, false).text.ends_with(" - Small"), "and the map with its size: " + s.find_child("MapName", true, false).text)
-	check(s.players.size() == 2 and s.players.map(func(p): return p.id) == [0, 1], "a player sees itself and its ally only")
-	check(s.teams.size() == 1 and s.teams.values()[0].size() == 2, "the two are grouped as one team")
+	# As 0 A.D.: allies show once the player shares their sight (Cartography).
+	check(s.players.map(func(p): return p.id) == [0], "a player sees only itself during the game")
+	# The rest checks every player's counters, as the page shows them once the game is over.
+	s.configure({"isInGame": true, "dialog": true})
+	s.show_summary(false, m.get_match_statistics(), 0.0)
+	await frames(2)
+	check(s.players.size() == 4 and s.teams.size() == 2 and s.teams[1].size() == 2, "every player, the two allies as one team")
 	check(s.find_child("Team total", true, false) != null or s.find_child("TeamHeading1", true, false) != null, "with a team heading")
 	check(s._tab_buttons.map(func(b): return b.text) == ["Score", "Structures", "Units", "Resources", "Market", "Miscellaneous", "Charts"],
 		"0 A.D.'s tabs")
@@ -106,7 +111,7 @@ func run() -> void:
 	s.select_panel(6)
 	await frames(2)
 	check(s.find_child("ChartsPanel", true, false).visible, "the Charts tab shows the charts")
-	check(s.series[0].size() == 2 and s.series[0][0].points.size() == s.sample_count() and s.sample_count() >= 3,
+	check(s.series[0].size() == 4 and s.series[0][0].points.size() == s.sample_count() and s.sample_count() >= 3,
 		"one series per player with a point per row (%d)" % s.sample_count())
 	check(not s._pickers[0][2].visible, "Score charts have no Type picker")
 	s._pickers[0][0].select(2)
@@ -117,7 +122,7 @@ func run() -> void:
 	check(int(last.y) == units.trained, "the trained chart ends at the trained count")
 	s._team_toggle.button_pressed = true
 	await frames(1)
-	check(s.series[0].size() == 1 and int(s.series[0][0].points[-1].y) == team_units.trained, "Group by team charts the team")
+	check(s.series[0].size() == 2 and int(s.series[0][0].points[-1].y) == team_units.trained, "Group by team charts each team")
 	check(s.find_child("ChartLegend", true, false).get_parsed_text().contains(", "), "the legend lists the team's players")
 	await shot("charts")
 
@@ -127,7 +132,7 @@ func run() -> void:
 	check(not s.is_open() and not paused, "Ctrl+Tab goes back to the running game")
 	m.toggle_summary()
 	await frames(2)
-	check(s.is_open() and s.panel_index == 6 and s.team_charts(), "it reopens on the last tab and charts")
+	check(s.is_open() and s.panel_index == 6 and s.selection["teamCharts"] and s.players.size() == 1, "it reopens on the last tab and remembers team charts, with only the player")
 	s.continue_pressed()
 	await frames(2)
 	check(not paused, "Continue resumes the game")
