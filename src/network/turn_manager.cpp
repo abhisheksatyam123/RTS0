@@ -905,6 +905,7 @@ uint32_t TurnManager::compute_sim_hash(const Simulation &sim) const {
 		mix_u32((uint32_t)kv.second.orders.size());
 		mix_u16(kv.second.orders.front().tmpl);
 		mix_u8(kv.second.orders.front().count);
+		mix_u8(kv.second.orders.front().tech);
 		mix_float(kv.second.orders.front().timer);
 	}
 
@@ -1402,9 +1403,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		} else if (c.cmd_type == 25) { // Train roster template — target_id=building, target_x=template.
 			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT)
 				sim.cmd_train_template(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
-		} else if (c.cmd_type == 48) { // Unit Trainer — target_id=unit, target_x=template (param 0) or
+		} else if (c.cmd_type == 48) { // Unit Trainer/Researcher — target_id=unit, target_x=template (param 0), tech (2) or
 			// queue slot (param 1 cancels), target_z=batch.
-			if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT) {
+			if (c.param == 2) { // research technology target_x (Researcher on a unit)
+				if (c.target_x > 0.0f && c.target_x < (float)TECH_COUNT) sim.cmd_research_from_unit(pl, c.target_id, (uint8_t)c.target_x);
+			} else if (c.target_x >= 0.0f && c.target_x < (float)CIV_UNIT_TEMPLATE_COUNT) {
 				if (c.param == 1) sim.cmd_cancel_unit_train(pl, c.target_id, (size_t)c.target_x);
 				else sim.cmd_train_from_unit(pl, c.target_id, (uint16_t)c.target_x, batch_count(c.target_z));
 			}

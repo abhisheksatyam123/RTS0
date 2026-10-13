@@ -177,7 +177,7 @@ public:
 	// A unit's Trainer queue (triremes, Cyrus II); a click cancels through the unit.
 	void update_unit(uint32_t unit_id, const std::vector<rtso::ProductionOrder> *queue) {
 		trainer_unit_ = unit_id;
-		if (queue) show(queue, 0);
+		if (queue) show(queue, rtso::BLD_TYPE_COUNT);
 		else clear();
 	}
 
@@ -188,7 +188,9 @@ public:
 				if (q < (int)queue->size()) {
 					const rtso::ProductionOrder &po = (*queue)[q];
 					// A technology shows its researcher's portrait; a batch shows its size.
-					const char *portrait = po.is_tech() ? rtso::building_type_info(researcher).portrait_id
+					// A unit's research shows the structure that also researches it (BLD_TYPE_COUNT).
+					const uint8_t rb = researcher < rtso::BLD_TYPE_COUNT ? researcher : rtso::tech_info(po.tech).researcher;
+					const char *portrait = po.is_tech() ? rtso::building_type_info(rb).portrait_id
 							: rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).portrait_id;
 					queue_slots_[q].icon->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(portrait) + ".png"));
 					queue_slots_[q].icon->set_visible(true);

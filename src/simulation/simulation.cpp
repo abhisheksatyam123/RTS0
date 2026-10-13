@@ -124,6 +124,19 @@ const std::vector<UnitTrainee> &unit_trainees(uint16_t trainer) {
 	return trainer < CIV_UNIT_TEMPLATE_COUNT ? table[trainer] : none;
 }
 
+// A roster unit's Researcher/Technologies (unit_trainer_data.h UNIT_RESEARCH_ROWS).
+const std::vector<uint8_t> &unit_research_list(uint16_t tmpl) {
+	static const std::vector<std::vector<uint8_t>> table = [] {
+		std::vector<std::vector<uint8_t>> t(CIV_UNIT_TEMPLATE_COUNT);
+		for (const UnitResearchRow &r : UNIT_RESEARCH_ROWS)
+			for (uint16_t i = 0; i < CIV_UNIT_TEMPLATE_COUNT; ++i)
+				if (std::strcmp(civ_unit_template(i).id, r.researcher) == 0) t[i].push_back(r.tech);
+		return t;
+	}();
+	static const std::vector<uint8_t> none;
+	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? table[tmpl] : none;
+}
+
 } // namespace
 
 // 0 A.D. BuildingAI.js roundCount: firing rounds per Attack/Ranged/RepeatTime.
@@ -2400,6 +2413,10 @@ bool Simulation::tech_queued(uint8_t player_id, uint8_t tech) const {
 		for (const auto &o : b.queue)
 			if (o.tech == tech) return true;
 	}
+	for (const auto &kv : unit_queues_)
+		if (kv.second.player == player_id)
+			for (const auto &o : kv.second.orders)
+				if (o.tech == tech) return true;
 	return false;
 }
 
@@ -2456,7 +2473,41 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 	return true;
 }
 
-bool Simulation::unit_is_trainer(uint16_t tmpl) { return !unit_trainees(tmpl).empty(); }
+bool Simulation::unit_is_trainer(uint16_t tmpl) { return !unit_trainees(tmpl).empty() || !unit_research_list(tmpl).empty(); }
+
+std::vector<uint8_t> Simulation::unit_researchables(uint16_t tmpl) { return unit_research_list(tmpl); }
+
+// Researcher.js QueueTechnology on a unit: paid now, researched when it reaches the front of
+// the unit's queue.
+bool Simulation::cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_t tech) {
+	const int32_t i = lookup_unit(unit_id);
+	if (i < 0 || player >= MAX_PLAYERS || units_.team[i] != player || !(units_.hp[i] > 0.0f)) return false;
+	if (!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) return false;
+	const std::vector<uint8_t> &list = unit_research_list(units_.tmpl[i]);
+	if (std::find(list.begin(), list.end(), tech) == list.end()) return false;
+	auto qit = unit_queues_.find(unit_id);
+	if (qit != unit_queues_.end() && qit->second.orders.size() >= PRODUCTION_QUEUE_MAX) return false;
+	if (research_check(player, tech, 0) != TECH_OK) return false;
+	const TechInfo &tinfo = tech_info(tech);
+	const uint8_t civ = civ_of(player);
+	const uint16_t allies = ally_civ_mask(player);
+	auto team = [&](uint8_t stat, int8_t r) { return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT); };
+	ProductionOrder order;
+	order.unit_type = UNIT_TYPE_COUNT;
+	order.tech = tech;
+	order.timer = 0.0f;
+	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
+	order.paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
+	order.paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
+	order.paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	if (!players_[player].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]))
+		return false;
+	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1) * ai_time_mult(player);
+	UnitQueue &q = unit_queues_[unit_id];
+	q.player = player;
+	q.orders.push_back(order);
+	return true;
+}
 
 std::vector<uint16_t> Simulation::unit_trainables(uint8_t player, uint16_t tmpl, bool all) const {
 	std::vector<uint16_t> out;
@@ -2544,6 +2595,16 @@ void Simulation::tick_unit_production(float dt) {
 			continue;
 		}
 		ProductionOrder &order = q.orders.front();
+		if (order.is_tech()) {
+			order.timer += dt;
+			if (order.timer < order.duration) { ++it; continue; }
+			const uint8_t tech = order.tech, player = q.player;
+			q.orders.erase(q.orders.begin());
+			if (q.orders.empty()) it = unit_queues_.erase(it);
+			else ++it;
+			complete_research(player, tech);
+			continue;
+		}
 		if (!order.started) {
 			if (pop_current(q.player) + order_pop(order, q.player) > pop_max(q.player)) { ++it; continue; }
 			order.started = true;
@@ -21337,10 +21398,12 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			ar.pod(kv.second.player);
 			io_vec(ar, kv.second.orders, (uint32_t)PRODUCTION_QUEUE_MAX, [&](ProductionOrder &o) {
 				ar.pod(o.unit_type); ar.pod(o.timer); ar.pod(o.duration); ar.pod(o.tmpl);
-				ar.pod(o.count); ar.pod(o.started);
+				ar.pod(o.count); ar.pod(o.tech); ar.pod(o.started);
 				for (float &p : o.paid) ar.pod(p);
 				if constexpr (Ar::loading)
-					if (o.unit_type >= UNIT_TYPE_COUNT || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT || o.count == 0) ar.ok = false;
+					if (o.is_tech() ? o.tech >= TECH_COUNT
+					                : (o.unit_type >= UNIT_TYPE_COUNT || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT || o.count == 0))
+						ar.ok = false;
 			});
 			if constexpr (Ar::loading)
 				if (kv.second.player >= MAX_PLAYERS || kv.second.orders.empty()) ar.ok = false;

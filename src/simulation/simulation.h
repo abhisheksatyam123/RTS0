@@ -547,7 +547,11 @@ public:
 	// Roster templates the unit `tmpl` trains for `player` now (Trainer/Entities with their
 	// requirements met), and every one it could train (`all`).
 	std::vector<uint16_t> unit_trainables(uint8_t player, uint16_t tmpl, bool all = false) const;
-	static bool unit_is_trainer(uint16_t tmpl);
+	static bool unit_is_trainer(uint16_t tmpl); // trains or researches (Trainer or Researcher)
+	// 0 A.D. Researcher on a unit (Athenian triremes: Iphicratean Reforms): the technologies the
+	// roster unit `tmpl` researches, and queueing one (research_check's rules, without a structure).
+	static std::vector<uint8_t> unit_researchables(uint16_t tmpl);
+	bool cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_t tech);
 	// A training unit's queue. `player` paid; Trainer.js OnOwnershipChanged refunds them when
 	// the unit dies or changes hands.
 	struct UnitQueue {

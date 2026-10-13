@@ -72,7 +72,18 @@ int main() {
 		// Both need Iphicratean Reforms (Identity/Requirements "-phase_town iphicratean_reforms").
 		CHECK(s.unit_trainables(0, athen_arrow).empty());
 		CHECK(!s.cmd_train_from_unit(0, ship, marine));
-		s.player(0).techs.set(TECH_IPHICRATEAN_REFORMS);
+		// The trireme researches it itself (Researcher/Technologies), as the dock does.
+		const std::vector<uint8_t> techs = Simulation::unit_researchables(athen_arrow);
+		CHECK(techs.size() == 1 && techs[0] == TECH_IPHICRATEAN_REFORMS);
+		CHECK(Simulation::unit_researchables(tmpl_of("pers/ship_arrow")).empty());
+		const float w0 = s.player(0).wood() + s.player(0).food() + s.player(0).gold() + s.player(0).stone();
+		CHECK(s.cmd_research_from_unit(0, ship, TECH_IPHICRATEAN_REFORMS));
+		CHECK(!s.cmd_research_from_unit(0, ship, TECH_IPHICRATEAN_REFORMS)); // in progress
+		CHECK(s.research_check(0, TECH_IPHICRATEAN_REFORMS) == Simulation::TECH_ERR_IN_PROGRESS);
+		CHECK(s.player(0).wood() + s.player(0).food() + s.player(0).gold() + s.player(0).stone() < w0);
+		run(s, tech_info(TECH_IPHICRATEAN_REFORMS).research_time + 1.0f);
+		CHECK(s.player(0).has_tech(TECH_IPHICRATEAN_REFORMS));
+		CHECK(!s.unit_queue(ship));
 		const auto can = s.unit_trainables(0, athen_arrow);
 		CHECK(has(can, marine) && has(can, archer) && can.size() == 2);
 		CHECK(!s.cmd_train_from_unit(1, ship, marine)); // not the owner

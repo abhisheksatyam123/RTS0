@@ -2180,6 +2180,14 @@ void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) 
 		return;
 	}
 	if (selected_building_id == 0 && trainer_unit_id_ != 0) {
+		if (meta & ROSTER_TECH) {
+			const uint8_t tech = (uint8_t)(meta & 0xFF);
+			if (turn_cmds())
+				post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_TRAIN_FROM_UNIT, nullptr, 0, (float)tech, 0, trainer_unit_id_, 2);
+			else
+				sim->cmd_research_from_unit(local_player(), trainer_unit_id_, tech);
+			return;
+		}
 		try_train_from_unit(trainer_unit_id_, (uint16_t)meta, train_batch());
 		return;
 	}
@@ -3861,7 +3869,11 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 	const std::vector<uint16_t> all = sim->unit_trainables(pid, tmpl, true);
 	for (size_t k = 0; k < all.size() && k < 64; ++k)
 		if (std::find(can.begin(), can.end(), all[k]) != can.end()) can_mask |= 1ull << k;
-	const uint64_t key = ((uint64_t)unit_id << 32) ^ (can_mask << 8) ^ 0x80ull ^ sim->ally_civ_mask(pid);
+	// Researcher on a unit: each technology's research_check result (researched ones drop out).
+	const std::vector<uint8_t> techs = rtso::Simulation::unit_researchables(tmpl);
+	uint64_t tech_key = 0;
+	for (uint8_t t : techs) tech_key = tech_key * 31 + (uint64_t)sim->research_check(pid, t) + 1;
+	const uint64_t key = ((uint64_t)unit_id << 32) ^ (can_mask << 8) ^ (tech_key << 20) ^ 0x80ull ^ sim->ally_civ_mask(pid);
 	if (key == roster_list_key_) return true;
 	roster_list_key_ = key;
 	roster_list->clear();
@@ -3869,6 +3881,29 @@ bool RtsoMain::update_unit_roster(uint32_t unit_id) {
 		String tip;
 		const int idx = add_roster_item(pid, all[k], tip);
 		if (!(can_mask & (1ull << k))) {
+			roster_list->set_item_disabled(idx, true);
+			tip += "\nRequirements not met";
+		}
+		roster_list->set_item_tooltip(idx, tip);
+	}
+	for (uint8_t t : techs) {
+		const auto check = sim->research_check(pid, t);
+		if (check == rtso::Simulation::TECH_ERR_RESEARCHED) continue;
+		const rtso::TechInfo &ti = rtso::tech_info(t);
+		String costs;
+		auto add_cost = [&](int v, const char *suffix) {
+			if (v <= 0) return;
+			if (!costs.is_empty()) costs += " ";
+			costs += String::num_int64(v) + suffix;
+		};
+		add_cost(ti.food_cost, "f");
+		add_cost(ti.wood_cost, "w");
+		add_cost(ti.stone_cost, "s");
+		add_cost(ti.gold_cost, "m");
+		const int idx = roster_list->add_item(String::utf8(ti.name) + " (" + costs + ")");
+		roster_list->set_item_metadata(idx, ROSTER_TECH | (int)t);
+		String tip = String::utf8(ti.name) + "\n" + String::utf8(ti.desc) + "\nResearch " + String::num(ti.research_time, 0) + " s";
+		if (check != rtso::Simulation::TECH_OK && check != rtso::Simulation::TECH_ERR_COST) {
 			roster_list->set_item_disabled(idx, true);
 			tip += "\nRequirements not met";
 		}
