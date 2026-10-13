@@ -8,6 +8,12 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
   stay with the AuraManager (civ_roster_data.h).
 - every "range" aura with a Promotion/RequiredXp modification (Han Xin's Northern
   Army, the centurion): its multiplier, registered as an AURA_REQUIRED_XP source.
+- every "range" aura on units with an Attack/Capture/Capture modification (the heroes'
+  capture strength auras, the carnyx): its multiply and add, registered as
+  AURA_CAPTURE_MUL / AURA_CAPTURE_ADD sources.
+- every "range" aura with Looter/Resource modifications (Brennus, Nastasen, Viriato):
+  its multiply and add per resource, an AURA_LOOTER source; and every one replacing
+  its victims' Loot with 0 (Pericles), an AURA_NO_LOOT source.
 
 Usage:
     python3 tools/extract_0ad_aura_modifiers.py --public PATH [--out src/simulation/aura_modifier_data.h]
@@ -189,6 +195,53 @@ def main() -> int:
                 cap_paths[key] = len(cap_auras)
                 cap_auras.append((os.path.basename(key), cap_stats[m["value"]], float(m["multiply"]),
                                   float(j.get("radius", 0)), players, civic_centre))
+    # Range auras on units' Attack/Capture/Capture (multiply and add), anywhere under auras/.
+    capatk_auras: list[tuple[str, float, float, float, int]] = []
+    for rel in sorted(list_files(src, "simulation/data/auras/")):
+        if not rel.endswith(".json"):
+            continue
+        j = json.loads(src.read(rel))
+        if j.get("type") != "range":
+            continue
+        mul, add = 1.0, 0.0
+        for m in j.get("modifications", []):
+            if m["value"] == "Attack/Capture/Capture":
+                mul *= float(m.get("multiply", 1.0))
+                add += float(m.get("add", 0.0))
+        if mul == 1.0 and add == 0.0:
+            continue
+        players = 0
+        for pl in j.get("affectedPlayers") or ["Player"]:
+            players |= PLAYERS.get(pl, 0)
+        capatk_auras.append((os.path.basename(rel)[:-5], mul, add, float(j.get("radius", 0)), players))
+    # Range auras on Looter/Resource/<res> (multiply and add) and on Loot/* (replace 0).
+    loot_res = ["food", "wood", "stone", "metal"]
+    looter_auras: list[tuple[str, list[float], list[float], float, int]] = []
+    no_loot_auras: list[tuple[str, float, int]] = []
+    for rel in sorted(list_files(src, "simulation/data/auras/")):
+        if not rel.endswith(".json"):
+            continue
+        j = json.loads(src.read(rel))
+        if j.get("type") != "range":
+            continue
+        players = 0
+        for pl in j.get("affectedPlayers") or ["Player"]:
+            players |= PLAYERS.get(pl, 0)
+        name = os.path.basename(rel)[:-5]
+        mul, add = [1.0] * 4, [0.0] * 4
+        zero = False
+        for m in j.get("modifications", []):
+            v = m["value"]
+            if v.startswith("Looter/Resource/") and v.split("/")[-1] in loot_res:
+                r = loot_res.index(v.split("/")[-1])
+                mul[r] *= float(m.get("multiply", 1.0))
+                add[r] += float(m.get("add", 0.0))
+            elif v.startswith("Loot/") and m.get("replace") == 0:
+                zero = True
+        if mul != [1.0] * 4 or add != [0.0] * 4:
+            looter_auras.append((name, mul, add, float(j.get("radius", 0)), players))
+        if zero:
+            no_loot_auras.append((name, float(j.get("radius", 0)), players))
     cap_structures: list[tuple[str, int, str]] = []
     import extract_0ad_attack as atk  # noqa: E402
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
@@ -270,6 +323,46 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Range auras on Attack/Capture/Capture of the units they reach (AURA_CAPTURE_MUL and")
+    w("// AURA_CAPTURE_ADD sources): ModifiersManager applies value x multiply + add; radius in")
+    w("// 0 A.D. metres. Which units each reaches is the hero aura's own affects (civ_roster_data.h).")
+    w("struct CaptureAttackRangeAura { const char *id; float multiply; float add; float radius; uint8_t players; };")
+    w(f"constexpr uint16_t CAPTURE_ATTACK_RANGE_AURA_COUNT = {len(capatk_auras)};")
+    w("inline const CaptureAttackRangeAura *capture_attack_range_auras() {")
+    w(f"\tstatic const CaptureAttackRangeAura kAuras[{max(1, len(capatk_auras))}] = {{")
+    for name, mul, add, radius, players in capatk_auras:
+        w(f"\t\t{{\"{name}\", {mul!r}f, {add!r}f, {radius!r}f, {players}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
+    w("// Range auras on Looter/Resource of the units they reach (AURA_LOOTER sources): a kill's")
+    w("// loot is the victim's Loot x multiply + add (Looter.js Collect), per resource in the")
+    w("// order food, wood, stone, metal; radius in 0 A.D. metres.")
+    w("struct LooterRangeAura { const char *id; float multiply[4]; float add[4]; float radius; uint8_t players; };")
+    w(f"constexpr uint16_t LOOTER_RANGE_AURA_COUNT = {len(looter_auras)};")
+    w("inline const LooterRangeAura *looter_range_auras() {")
+    w(f"\tstatic const LooterRangeAura kAuras[{max(1, len(looter_auras))}] = {{")
+    for name, mul, add, radius, players in looter_auras:
+        ms = ", ".join(f"{x!r}f" for x in mul)
+        ad = ", ".join(f"{x!r}f" for x in add)
+        w(f"\t\t{{\"{name}\", {{{ms}}}, {{{ad}}}, {radius!r}f, {players}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
+    w("// Range auras replacing Loot (xp and resources) with 0 on the entities they reach")
+    w("// (AURA_NO_LOOT sources): those give their killer nothing.")
+    w("struct NoLootRangeAura { const char *id; float radius; uint8_t players; };")
+    w(f"constexpr uint16_t NO_LOOT_RANGE_AURA_COUNT = {len(no_loot_auras)};")
+    w("inline const NoLootRangeAura *no_loot_range_auras() {")
+    w(f"\tstatic const NoLootRangeAura kAuras[{max(1, len(no_loot_auras))}] = {{")
+    for name, radius, players in no_loot_auras:
+        w(f"\t\t{{\"{name}\", {radius!r}f, {players}}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
     w("// Structures projecting a capture range aura: BuildingType, capture_range_auras() index.")
     w("struct CaptureStructureAura { uint8_t building; uint16_t aura; };")
     w(f"constexpr uint16_t CAPTURE_STRUCTURE_AURA_COUNT = {len(cap_structures)};")
@@ -284,7 +377,9 @@ def main() -> int:
     w("#endif // RTSO_AURA_MODIFIER_DATA_H")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
-    print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras")
+    print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras, "
+          f"{len(capatk_auras)} capture attack range auras, {len(looter_auras)} looter and "
+          f"{len(no_loot_auras)} no-loot range auras")
     for s in skipped:
         print("  not modelled: " + s)
     return 0

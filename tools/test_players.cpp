@@ -160,6 +160,26 @@ int main() {
 	CHECK(tmc.player_for_client(0) == 0xFF && tmc.player_for_client(1) == 1 && tmc.player_for_client(2) == 3);
 	seats.observers = 0;
 	CHECK(format_game_start_full(seats).find("obs=") == std::string::npos); // old peers see no new key
+	// 0 A.D. gamesetup player assignment: the host puts client 2 on the second human
+	// slot (3) and client 1 on the first (1); client 0 is left to the free slots.
+	CHECK(format_game_start_full(seats).find("seats=") == std::string::npos);
+	seats.slot_count = 5;
+	seats.slot_types[4] = 'h';
+	seats.seats[2] = 3;
+	seats.seats[1] = 1;
+	CHECK(parse_game_start_full(format_game_start_full(seats), wire));
+	CHECK(wire.seats[0] == 0xFF && wire.seats[1] == 1 && wire.seats[2] == 3 && wire.seats[3] == 0xFF);
+	tmc.assign_slot_players(wire);
+	CHECK(tmc.player_for_client(1) == 1 && tmc.player_for_client(2) == 3 && tmc.player_for_client(0) == 4);
+	CHECK(tmc.player_for_client(3) == 0xFF);
+	// A seat on a slot that is not human, or that another client has, falls back
+	// to the free slots; an observer bit wins over a seat.
+	wire.seats[0] = 3; wire.seats[3] = 2; wire.observers = 1u << 1;
+	tmc.assign_slot_players(wire);
+	CHECK(tmc.player_for_client(0) == 3 && tmc.player_for_client(1) == 0xFF && tmc.player_for_client(2) == 1);
+	CHECK(tmc.player_for_client(3) == 4);
+	for (uint8_t &st : seats.seats) st = 0xFF;
+	seats.slot_count = 4;
 	tmc.reset();
 	CHECK(tmc.player_for_client(1) == 1); // reset drops the seating
 

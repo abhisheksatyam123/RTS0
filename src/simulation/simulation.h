@@ -416,6 +416,9 @@ public:
 	// Rank effects (unit_advanced.json, unit_elite.json) for unit index i.
 	float rank_melee_armor(size_t i) const;
 	float unit_capture_attack_at(size_t i) const;
+	bool loot_denied_unit(size_t i) const;
+	bool loot_denied_building(const Building &b) const;
+	float unit_loot_xp(size_t victim) const;
 	// Read-only, for the renderer: unit i is attacking a structure it captures
 	// rather than damages (the tick_combat check), so it plays 0 A.D.'s capture clip.
 	bool unit_capturing(size_t i) const;
@@ -437,6 +440,9 @@ public:
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
 			uint8_t flora = 0);
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
+	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
+	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
+	void set_resource_amount(uint32_t res_id, int32_t amount);
 	// ResourceSupply/MaxGatherers of a resource (0 if there is none with that id).
 	int resource_max_gatherers(uint32_t res_id) const {
 		auto it = res_id_to_idx_.find(res_id);
@@ -703,6 +709,8 @@ public:
 	void order_guard(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
 	// UnitAI Heal: healers walk to an injured allied unit and heal it (Heal.js).
 	void order_heal(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued = false);
+	// Repairable on a unit (siege engines and ships but fire ships): a builder can repair it.
+	bool is_repairable_unit(uint32_t unit_id) const;
 	// 0 A.D. "returnresource" (UnitAI ReturnResource): carriers take their load to this
 	// dropsite, drop it, then take the next queued order or idle.
 	void order_return_resource(const uint32_t *unit_ids, size_t count, uint32_t dropsite_id, bool queued = false);
@@ -990,6 +998,8 @@ public:
 	TradeGain garrisoned_trade_gain(size_t trader_idx, TradeGain g) const;
 	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
 			uint8_t trader_type = UNIT_TRADER) const;
+	// The trader's gain between two points (dx, dz) world units apart (calculate_trade_gain's `trader`).
+	int trader_gain_at(double dx, double dz, uint8_t trader_owner, uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
 	// Trader.js CanTrade: a finished market of the trader's kind (a Market for land
 	// traders, a Dock for merchant ships) whose owner `trader_owner` is not hostile to.
@@ -1546,6 +1556,10 @@ public:
 	// to (ex, ez), built and uncapturable, joined to Gaia towers already at the ends. Pieces
 	// that would stand in water are left out.
 	void spawn_gaia_wall(float sx, float sz, float ex, float ez, uint8_t kind);
+	// A map script's Gaia gate of the `kind` WallSet (its 0 A.D. WallPiece length: kush wall_gate
+	// 36 m, palisades_gate 14 m) at (x, z) across a wall running at rot (WallPiece::rot),
+	// built and uncapturable.
+	void spawn_gaia_gate(float x, float z, float rot, uint8_t kind);
 	// Removes the trees, mines and bushes within r of (x, z): a map script placing a structure
 	// where RTS0's own scatter has put wood.
 	void clear_resources_near(float x, float z, float r);
@@ -1797,6 +1811,7 @@ private:
 	void tick_repair(float dt);
 	static constexpr float REPAIR_TIME_RATIO = 2.0f; // template_structure.xml Repairable/RepairTimeRatio
 	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
+	static constexpr float UNIT_REPAIR_TIME_RATIO = 4.0f; // template_unit_siege.xml, template_unit_ship.xml
 	static float foundation_build_multiplier(int builders);
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
@@ -1833,10 +1848,14 @@ private:
 	void tick_petra_ai_player(float dt);
 	void tick_fauna(float dt);
 	void tick_hunters();                                  // units attacking animals (UnitAI Gather on KillBeforeGather)
-	void fauna_attacked(size_t f, uint32_t attacker_id);  // UnitAI "Attacked" for an animal
+	// UnitAI "Attacked" for an animal; the attacker is a unit or a structure (its arrows).
+	void fauna_attacked(size_t f, uint32_t attacker_id, bool melee = false);
+	// Where the unit or (standing) structure an animal flees from is; false if it is gone.
+	bool fauna_threat_pos(uint32_t id, float &x, float &z) const;
 	void fauna_start_attack(size_t f, uint32_t target);  // UnitAI COMBAT for an animal (PrepareTime)
 	bool slaughters_target(size_t i) const; // unit i's target is a Domestic animal it slaughters
 	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
+	static constexpr float SLAUGHTER_PREPARE = 0.9f; // Attack/Slaughter PrepareTime 900 ms
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
@@ -1891,6 +1910,9 @@ private:
 	float unit_damage_to_fauna(size_t i, size_t f) const;
 	void fire_at_fauna(size_t i, size_t f);
 	void fauna_killed(size_t f, size_t i);
+	// The dead animal f's ResourceSupply: food.meat, or food.fish for a whale (fishing ships
+	// gather it, and it does not regrow like a shoal). 0 if it carries no food.
+	uint32_t spawn_carcass(size_t f);
 	bool projectile_lands_in(const Projectile &p, const Building &b) const;
 	int32_t projectile_hit_structure(const Projectile &p) const;
 	void projectile_hits_structure(const Projectile &p, Building &b);
@@ -2154,6 +2176,12 @@ private:
 	void trigger_danubius_unload_order();
 	void trigger_danubius_ship_range();
 	void trigger_danubius_ownership(const TriggerEventData &data);
+	// maps/random/jebel_barkal_triggers.js
+	std::vector<uint16_t> jebel_barkal_free_heroes() const;
+	void trigger_jebel_barkal_init();
+	void trigger_jebel_barkal_city_patrol();
+	void trigger_jebel_barkal_attack();
+	void trigger_jebel_barkal_ownership(const TriggerEventData &data);
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
@@ -2439,6 +2467,26 @@ private:
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
+	// tradeManager.js checkRoutes: a route between two of our or our allies' markets
+	// (land) or docks on one sea (sea), and its gain per leg for our trader.
+	struct PetraTradeRoute { uint32_t source = 0, target = 0; int gain = 0; uint16_t land = 0, sea = 0; };
+	struct PetraTradeRoutes {
+		PetraTradeRoute best;      // tradeRoute: both ends finished
+		PetraTradeRoute potential; // potentialTradeRoute: foundations count
+		std::vector<PetraTradeRoute> finished; // every finished pair, for checkRoutes(accessIndex)
+	};
+	void petra_check_routes(PetraTradeRoutes &out) const;
+	// checkRoutes(accessIndex): the best route for a trader on that land, or a ship on that
+	// sea; for a land trader the best land route anywhere when its own land has none.
+	const PetraTradeRoute *petra_route_for(const PetraTradeRoutes &r, uint16_t access, bool ship) const;
+	int petra_trade_minimal_gain() const; // tradeManager.js minimalGain
+	int petra_target_traders() const;     // targetNumTraders as setTradingGoods sets it
+	bool petra_line_in_enemy_territory(float x1, float z1, float x2, float z2) const;
+	// headquarters.js findMarketLocation: 1 with a spot (out_x, out_z) and its expected gain,
+	// 0 when there are no markets to measure from (place it anywhere), -1 when nothing will do.
+	int petra_find_market_location(float &out_x, float &out_z, int &out_gain) const;
+	uint32_t petra_build_market(float home_x, float home_z, uint8_t queue); // ConstructionPlan for a Market
+	void petra_prospect_market(const PetraTradeRoutes &routes); // prospectForNewMarket
 	int petra_train_more_workers();
 	int petra_pop_room() const; // population left after Petra's queued batches
 	float petra_template_strength(const UnitTypeInfo &ui) const;
@@ -2611,6 +2659,13 @@ private:
 	uint32_t find_heal_target(size_t healer) const;             // UnitAI FindNewHealTargets
 	void start_heal(size_t healer, uint32_t target, uint8_t flags);
 	void tick_heal(size_t healer);                              // UnitAI HEAL.APPROACHING / HEALING
+	// ORDER_BUILD on a Repairable unit (UnitAI Repair with a unit target, Builder.js CanRepair).
+	float unit_repair_time_ratio(size_t t) const; // 0: not Repairable
+	bool can_repair_unit(size_t builder, int32_t target) const;
+	bool repair_unit_in_range(size_t builder, size_t target) const; // Builder.js IsTargetInRange
+	void order_repair_unit(const uint32_t *unit_ids, size_t count, uint32_t target_unit_id, bool queued, bool force);
+	void start_repair_unit(size_t builder, uint32_t target, uint8_t flags);
+	void tick_repair_unit(size_t builder);                      // UnitAI REPAIR.APPROACHING / REPAIRING
 	bool garrison_in_range(size_t i, const Building &b) const { return garrison_in_range(i, b, units_.pos_x[i], units_.pos_z[i]); }
 	bool garrison_in_range(size_t i, const Building &b, float x, float z) const; // as if unit i stood at (x, z)
 	void garrison_now(size_t i, Building &b);
