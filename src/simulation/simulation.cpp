@@ -7407,8 +7407,7 @@ void Simulation::stat_unit_captured(size_t idx, uint8_t from) {
 	const uint8_t p = units_.team[idx];
 	const uint16_t tmpl = units_.tmpl[idx];
 	const uint32_t cls = stat_unit_classes(units_.unit_type[idx], tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).flags : 0);
-	const UnitTypeInfo &info = unit_info_at(idx);
-	const uint32_t value = stat_cost_value(info.food_cost, info.wood_cost, info.gold_cost, info.stone_cost);
+	const uint32_t value = stat_unit_value(idx);
 	if (from < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[from];
 		for (uint8_t c = 0; c < STAT_UNIT_TOTAL; ++c)
