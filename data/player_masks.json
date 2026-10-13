@@ -9287,6 +9287,30 @@
 0.94
 ]
 },
+"units/germ_cavalry_javelineer_b_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_cavalry_javelineer_b_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/furs_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_cavalry_javelineer_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/germ_cavalry_tex2": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
 "tint": [
@@ -9301,6 +9325,78 @@
 0.36,
 0.62,
 0.94
+]
+},
+"units/germ_champion_cavalry_tex10": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_10_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_champion_cavalry_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_celt_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_champion_cavalry_tex3": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_champion_cavalry_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_aristocrat_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_champion_healer_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/dress_seeress_01_256x256.png",
+"tint": [
+0.92,
+0.9,
+0.82
+]
+},
+"units/germ_champion_infantry_axeman_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/furs_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/germ_champion_infantry_axeman_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_10_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/germ_champion_infantry_maceman_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/pants_basic_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/germ_champion_infantry_maceman_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_04_256x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
 ]
 },
 "units/germ_female_citizen_tex0": {
@@ -9343,6 +9439,54 @@
 1.0
 ]
 },
+"units/germ_hero_boiorix_tex10": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_10_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_hero_boiorix_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/scale_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_hero_lugius_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_celt_512x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_hero_lugius_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/iber/hero_viriato_pants_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_hero_lugius_tex6": {
+"mask": "res://assets/textures/player_masks/props/helmet/old/rome_wolfskin_a_128x128.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_hero_lugius_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_10_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/germ_hero_tex0": {
 "mask": "res://assets/textures/player_masks/skeletal/germ/furs_01_02_256x256.png",
 "tint": [
@@ -9357,6 +9501,22 @@
 0.92,
 0.32,
 0.28
+]
+},
+"units/germ_infantry_javelineer_b_tex0": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/furs_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/germ_infantry_javelineer_b_tex4": {
+"mask": "res://assets/textures/player_masks/props/shield/germ_shield_01_256x512.png",
+"tint": [
+0.36,
+0.62,
+0.94
 ]
 },
 "units/germ_merchant_ship_tex0": {
@@ -9417,6 +9577,30 @@
 },
 "units/germ_ram_tex8": {
 "mask": "res://assets/textures/player_masks/props/shield/germ_shield_04_256x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_ship_scout_tex0": {
+"mask": "res://assets/textures/player_masks/structural/germ_boat_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_siege_ram_siege_ram_pivot_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/leather_chain_01_01_256x256.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/germ_siege_ram_siege_ram_pivot_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/germ/tunic_legwraps_01_01_256x256.png",
 "tint": [
 1.0,
 1.0,
