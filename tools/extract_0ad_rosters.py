@@ -217,6 +217,8 @@ UNIQUE_BUILDINGS = [
     ("BLD_SIEGE_WALL", ["siege_wall_long"], "wall_segment", "wall"),
     # Its gate (a siege_wall_long Upgrade), drawn with the stone gate until it has its own model.
     ("BLD_SIEGE_WALL_GATE", ["siege_wall_gate"], "gate", "gate"),
+    # The Briton crannog: a Civic Center laid on the shore (is_civic_centre).
+    ("BLD_CRANNOG", ["crannog"], "crannog", "crannog"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -792,8 +794,8 @@ BUILDING_CLASS = {
     "Storehouse": ["BLD_STOREHOUSE"],
     "House": ["BLD_HOUSE"],
     "Economic": ["BLD_STOREHOUSE", "BLD_FARMSTEAD", "BLD_MARKET", "BLD_CORRAL", "BLD_HOUSE"],
-    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
-    "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
+    "CivCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG"], "Naval": ["BLD_DOCK"], "Wonder": ["BLD_WONDER"],
+    "CivilCentre": ["BLD_TOWN_CENTER", "BLD_IMPERIAL_COURT", "BLD_CRANNOG"], "Temple": ["BLD_TEMPLE"], "Forge": ["BLD_FORGE"],
     "Barracks": ["BLD_BARRACKS"], "Stable": ["BLD_STABLE"], "Arsenal": ["BLD_ARSENAL"],
 }
 BUILDING_STAT = {
@@ -993,6 +995,11 @@ RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
 # out, so a release's stat changes land without touching what saves store.
 KEEP_TRAINERS = False
 PREVIOUS_SIM_ROOT = None
+# Building types added after the kept layout, with their structures/{civ}/ template and the
+# type whose Trainer list theirs adds to: --keep-trainers adds them to the kept trainers where
+# the release trains the unit there, or where the civ has the template and the kept trainers
+# hold that type (0.28's crannog adds ships to the civil centre's list).
+KEEP_TRAINERS_NEW_BUILDINGS = {"BLD_CRANNOG": ("crannog", "BLD_TOWN_CENTER")}
 # --append: new rows --keep-trainers still adds (after every existing row, so no id moves).
 APPEND_ROWS = set()
 
@@ -1215,7 +1222,13 @@ def collect(sim_root):
             phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
             blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
             if KEEP_TRAINERS and rid in prev_layout:
-                blds, phase = prev_layout[rid][0], prev_layout[rid][1]
+                kept = list(prev_layout[rid][0])
+                for b, (tmpl, base) in KEEP_TRAINERS_NEW_BUILDINGS.items():
+                    if b not in kept and (b in blds or (base in kept and
+                                                        loader.exists("structures/%s/%s" % (civ, tmpl)))):
+                        kept.append(b)
+                blds = kept
+                blds, phase = sorted(blds, key=BUILDING_BITS.index), prev_layout[rid][1]
             rows.append({
                 "id": rid,
                 "civ": civ,
@@ -1249,7 +1262,9 @@ def collect(sim_root):
                 "id": "%s/rts0_%s" % (civ, cls[5:].lower()),
                 "civ": civ, "class": cls, "name": label, "specific_name": "",
                 "phase": 1,
-                "trainers": ["BLD_TOWN_CENTER"],
+                "trainers": ["BLD_TOWN_CENTER"] + [  # and a civ's own civil centre that trains citizens
+                    bld for bld, (tmpl, base) in KEEP_TRAINERS_NEW_BUILDINGS.items()
+                    if base == "BLD_TOWN_CENTER" and loader.exists("structures/%s/%s" % (civ, tmpl))],
                 "trained_at_0ad": [], "flags": ["ROSTER_CITIZEN"],
                 "classes": ["Citizen", "Human", "Organic", "Unit", "Worker"],
                 "auras": [], "stats": stats,

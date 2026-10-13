@@ -9354,7 +9354,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_STABLE"
+    "BLD_STABLE",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "civil_centre",
@@ -9809,7 +9810,8 @@
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
     "BLD_RANGE",
-    "BLD_MERCENARY_CAMP"
+    "BLD_MERCENARY_CAMP",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -9873,7 +9875,8 @@
    "trainers": [
     "BLD_TOWN_CENTER",
     "BLD_BARRACKS",
-    "BLD_MERCENARY_CAMP"
+    "BLD_MERCENARY_CAMP",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "barracks",
@@ -9933,7 +9936,8 @@
    "specific_name": "Pontos",
    "phase": 2,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "crannog",
@@ -9984,7 +9988,8 @@
    "specific_name": "Briton Fire Ship",
    "phase": 2,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "crannog",
@@ -10033,7 +10038,8 @@
    "phase": 1,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "crannog",
@@ -10079,7 +10085,8 @@
    "phase": 2,
    "trainers": [
     "BLD_TOWN_CENTER",
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "crannog",
@@ -10125,7 +10132,8 @@
    "specific_name": "Skiff",
    "phase": 1,
    "trainers": [
-    "BLD_DOCK"
+    "BLD_DOCK",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [
     "crannog",
@@ -10222,7 +10230,8 @@
    "specific_name": "Bena",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [],
    "flags": [
@@ -10465,7 +10474,8 @@
    "specific_name": "",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER"
+    "BLD_TOWN_CENTER",
+    "BLD_CRANNOG"
    ],
    "trained_at_0ad": [],
    "flags": [
