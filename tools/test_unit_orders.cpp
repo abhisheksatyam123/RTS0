@@ -317,6 +317,18 @@ static void test_women_flee() {
 	});
 	check(back, "goes back to gathering afterwards");
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "the same tree");
+	// The support worker (0.28's civilian, template_unit_support) is passive too: it flees,
+	// it doesn't stab back with its dagger.
+	Simulation v;
+	setup(v);
+	const uint32_t tree2 = v.spawn_resource_world(0, 0, RES_WOOD, 5000);
+	uint32_t c = v.spawn_unit(1.5f, 0, 0, UNIT_VILLAGER);
+	check(v.units_.stance[idx_of(v, c)] == STANCE_PASSIVE, "a civilian starts passive");
+	v.order_gather(&c, 1, tree2);
+	run(v, 1.0f);
+	uint32_t e2 = v.spawn_unit(4, 0, 1, UNIT_SWORDSMAN);
+	v.order_attack(&e2, 1, c);
+	check(run_until(v, 4.0f, [&] { return act_of(v, c) == ACTION_FLEE; }), "a civilian flees when attacked");
 }
 
 static void test_rally() {
@@ -2061,6 +2073,40 @@ static void test_loot_auras() {
 			"Pericles: a soldier beside him gives no loot and no xp");
 }
 
+static void test_hero_global_auras() {
+	std::printf("55. hero global auras: Indibil, Pericles and Themistocles change costs while they live\n");
+	Simulation s;
+	setup(s);
+	const uint16_t spear = roster_named("iber/infantry_spearman_b");
+	check(spear != CIV_UNIT_TEMPLATE_NONE, "roster has the Iberian spearman");
+	auto near1 = [](float a, float b) { return std::fabs(a - b) < 1e-5f; };
+	check(near1(s.tech_mods(0).tmpl[spear].cost[RES_FOOD], 1.0f), "no hero: soldiers at full cost");
+	// Indibil's Wealth of Iberia: soldiers -15% cost and -20% training time.
+	const uint32_t ind = s.spawn_unit(-20, -20, 0, UNIT_HERO, 0.0f, roster_named("iber/hero_indibil"));
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP); // a global-aura pulse
+	check(near1(s.tech_mods(0).tmpl[spear].cost[RES_FOOD], 0.85f) && near1(s.tech_mods(0).tmpl[spear].cost[RES_GOLD], 0.85f),
+			"Indibil: his player's soldiers -15% cost");
+	check(near1(s.tech_mods(0).tmpl[spear].train_time, 0.8f), "and -20% training time");
+	check(near1(s.tech_mods(1).tmpl[spear].cost[RES_FOOD], 1.0f), "the enemy's soldiers keep theirs");
+	// Pericles' Periclean Building: technologies -10% cost and half the research time;
+	// Themistocles' Long Walls: walls half the stone. A garrisoned hero still projects them.
+	const uint32_t per = s.spawn_unit(-20, -16, 0, UNIT_HERO, 0.0f, roster_named("athen/hero_pericles"));
+	const uint32_t the = s.spawn_unit(-20, -12, 0, UNIT_HERO, 0.0f, roster_named("athen/hero_themistocles"));
+	const uint32_t bar = s.spawn_building_world(-30, -30, BLD_BARRACKS, 0, 1.0f);
+	s.garrison_now((size_t)idx_of(s, per), *bld_mut(s, bar));
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP); // a global-aura pulse
+	check(near1(s.tech_mods(0).bld_tech_cost[BLD_BARRACKS][RES_FOOD], 0.9f) && near1(s.tech_mods(0).bld_research_time[BLD_BARRACKS], 0.5f),
+			"Pericles, garrisoned: technologies -10% cost, research time halved");
+	check(near1(s.tech_mods(0).bld_cost[BLD_WALL_SEGMENT][RES_STONE], 0.5f), "Themistocles: walls half the stone");
+	check(s.aura_mgr_.has(AURA_SPEED), "his own ships' speed aura stays a range effect");
+	// A dead hero's auras end with him.
+	s.units_.hp[idx_of(s, ind)] = 0.0f;
+	s.units_.alive[idx_of(s, ind)] = 0;
+	for (int t = 0; t < 22; ++t) s.tick(Simulation::FIXED_STEP); // a global-aura pulse
+	check(near1(s.tech_mods(0).tmpl[spear].cost[RES_FOOD], 1.0f), "Indibil dead: soldiers at full cost again");
+	(void)the;
+}
+
 int main(int argc, char **argv) {
 	std::string save = (argc > 1) ? argv[1] : "/tmp/rts0_test_unit_orders.sav";
 	test_forced_walk();
@@ -2118,6 +2164,7 @@ int main(int argc, char **argv) {
 	test_capture_owner_change();
 	test_capture_attack_auras();
 	test_loot_auras();
+	test_hero_global_auras();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
