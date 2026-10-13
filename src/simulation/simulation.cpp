@@ -2628,7 +2628,7 @@ bool Simulation::cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_
 	const uint16_t allies = ally_civ_mask(player);
 	auto team = [&](uint8_t stat, int8_t r) { return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT); };
 	ProductionOrder order;
-	order.unit_type = UNIT_TYPE_COUNT;
+	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech;
 	order.timer = 0.0f;
 	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
@@ -3019,7 +3019,7 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	};
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
 	ProductionOrder order;
-	order.unit_type = UNIT_TYPE_COUNT;
+	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech_id;
 	order.timer = 0.0f;
 	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
@@ -8867,12 +8867,13 @@ void Simulation::tick_gather(float dt) {
 	}
 	// Every other supply's gatherers, for its MaxGatherers (ResourceSupply.AddActiveGatherer).
 	supply_gatherers_.clear();
-	// Mauryan worker elephants: mobile dropsites taking their owner's every resource
-	// (template_unit_support_elephant ResourceDropsite food wood stone metal).
-	std::vector<uint32_t> elephants;
+	// Mobile dropsites (worker elephants, supply wagons) taking every resource
+	// (template_unit_support_elephant and _wagon ResourceDropsite food wood stone metal).
+	std::vector<uint32_t> mobile_drops;
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i]) continue;
-		if (units_.unit_type[i] == UNIT_WORKER_ELEPHANT && units_.action_state[i] != ACTION_GARRISONED) elephants.push_back((uint32_t)i);
+		if (unit_is_mobile_dropsite(units_.unit_type[i]) && units_.action_state[i] != ACTION_GARRISONED)
+			mobile_drops.push_back((uint32_t)i);
 		const uint32_t rid = units_.target_resource_id[i];
 		// Leaving GATHERING (StopGathering) drops the rate fixed at its start.
 		if (units_.gather_res[i] != 0 && (units_.action_state[i] != ACTION_GATHER || rid != units_.gather_res[i])) {
@@ -8898,8 +8899,8 @@ void Simulation::tick_gather(float dt) {
 					units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) ||
 				units_.action_state[i] == ACTION_RETURN_DROPSITE) {
 			float best_d2 = 1e9f;
-			float drop_x = 0, drop_z = 0, drop_half = 0; // drop_half: a worker elephant's radius
-			const Building *drop = nullptr; // a structure, else the elephant at drop_x, drop_z
+			float drop_x = 0, drop_z = 0, drop_half = 0; // drop_half: a mobile dropsite's radius
+			const Building *drop = nullptr; // a structure, else the mobile dropsite at drop_x, drop_z
 			bool found_dropsite = false;
 
 			for (const auto &b : buildings_) {
@@ -8925,15 +8926,15 @@ void Simulation::tick_gather(float dt) {
 				}
 			}
 			if (units_.unit_type[i] != UNIT_FISHING_BOAT) {
-				for (uint32_t e : elephants) {
-					if (units_.team[e] != uteam) continue;
+				for (uint32_t e : mobile_drops) {
+					if (!mobile_dropsite_usable_by(uteam, e)) continue;
 					const float dx = units_.pos_x[i] - units_.pos_x[e];
 					const float dz = units_.pos_z[i] - units_.pos_z[e];
 					const float d2 = dx * dx + dz * dz;
 					if (d2 < best_d2) {
 						best_d2 = d2;
 						drop_x = units_.pos_x[e]; drop_z = units_.pos_z[e]; drop = nullptr;
-						drop_half = unit_collision_radius(UNIT_WORKER_ELEPHANT);
+						drop_half = unit_collision_radius(units_.unit_type[e]);
 						found_dropsite = true;
 					}
 				}
@@ -9891,6 +9892,7 @@ void Simulation::tick_combat(float dt) {
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
 		const bool in_range = in_parabolic_range(d2, att_y, def_y, units_.attack_range[i]) && d2 >= minr * minr; // Attack.js MinRange
+		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
 		attack_done(i, in_range, units_.attack_cooldown[i]);
@@ -10051,6 +10053,7 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
+		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
 		attack_done(i, in_range, units_.attack_cooldown[i]);
@@ -11085,6 +11088,22 @@ bool Simulation::attack_under_way(size_t i) const {
 // out of reach the unit stops attacking (and must wait the rest of RepeatTime anyway).
 void Simulation::attack_done(size_t i, bool in_range, float repeat) {
 	units_.attack_timer[i] = in_range ? -repeat : repeat;
+}
+
+// Attack.js RepeatRangeCheck (0.28): between hits, ceil(RepeatTime / 1 s) range checks
+// per RepeatTime, each half a check interval off the hits, stop an attack whose target
+// has left its range (OutOfRange), so that swing never lands. True when one of those
+// checks fell in the tick that just ran (tick_attack_timer counted it).
+bool Simulation::range_check_due(size_t i, float dt) const {
+	const float tm = units_.attack_timer[i];
+	const float repeat = units_.attack_cooldown[i];
+	if (tm >= 0.0f || repeat <= 0.0f) return false; // no swing under way, or the hit is due
+	const float checks = std::ceil(repeat);
+	const float per = repeat / checks;
+	// The checks fall per / 2 + k * per before the hit (k < checks): count those left
+	// before the tick and after it.
+	auto before = [&](float left) { return std::clamp(std::ceil((left - 0.5f * per) / per), 0.0f, checks); };
+	return before(-tm + dt) > before(-tm);
 }
 
 void Simulation::tick_status_effects(float dt) {
@@ -13324,6 +13343,15 @@ bool Simulation::dropsite_usable_by(uint8_t player, const Building &b) const {
 		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, b.team);
 }
 
+// The same rule for a unit that is a dropsite: the supply wagon is Sharable and keeps the
+// default sharing, the worker elephant takes only its owner's resources.
+bool Simulation::mobile_dropsite_usable_by(uint8_t player, size_t e) const {
+	const uint8_t owner = units_.team[e];
+	if (owner == player) return true;
+	return player < MAX_PLAYERS && owner < MAX_PLAYERS && unit_dropsite_sharable(units_.unit_type[e]) &&
+		players_[player].has_tech(TECH_UNLOCK_SHARED_DROPSITES) && is_ally(player, owner);
+}
+
 // set-dropsite-sharing (Commands.js): the owner of a dropsite turns sharing on or off; the
 // toggle exists once the owner has shared dropsites.
 bool Simulation::cmd_set_dropsite_sharing(uint8_t player, uint32_t building_id, bool shared) {
@@ -13836,6 +13864,8 @@ void Simulation::update_petra_bases(float dt) {
 			if (diff >= PETRA_MEDIUM && diff <= PETRA_VERY_HARD) new_base.needed_defenders = (uint8_t)(3 + 2 * (diff - PETRA_MEDIUM));
 			// handleNewBase: a further base should end a resource shortage, so stop saving.
 			if (!petra_bases_.empty()) petra_attack_mgr_.save_resources = 0;
+			// The territory grows: there may be room again (resetMissingRoom).
+			petra_attack_mgr_.missing_room = 0;
 			petra_bases_.push_back(new_base);
 		}
 	}
@@ -17408,6 +17438,11 @@ void Simulation::petra_check_base_expansion() {
 		++active;
 	}
 	if (active == 0) return; // petra_build_first_base
+	// Then a new base when more than one kind of structure finds no room (numberMissingRoom).
+	if (std::popcount(petra_attack_mgr_.missing_room) > 1) {
+		petra_build_new_base();
+		return;
+	}
 	// headquarters.js phasing lasts until the phase research starts (ResearchPlan.onStart).
 	const uint8_t next = petra_ps().phase == 2 ? TECH_PHASE_CITY : 0;
 	if (petra_phasing() && !(next && research_check(petra_pid_, next) == TECH_ERR_IN_PROGRESS)) return;
@@ -17804,7 +17839,7 @@ bool Simulation::petra_start_research(uint8_t tech_id) {
 	                   tinfo.gold_cost * tc[RES_GOLD], tinfo.stone_cost * tc[RES_STONE]))
 		return false;
 	ProductionOrder order;
-	order.unit_type = UNIT_TYPE_COUNT;
+	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech_id;
 	order.timer = 0.0f;
 	order.paid[RES_FOOD] = (float)tinfo.food_cost;
@@ -20046,6 +20081,19 @@ static inline bool petra_military_structure(uint8_t t) {
 	}
 }
 
+// buildManager.js counts the templates set unbuildable for want of room; RTS0 keeps a bit per
+// kind of structure Petra places by search (its Map.findPosition users).
+static uint8_t petra_room_bit(uint8_t t) {
+	if (t == BLD_HOUSE || t == BLD_APARTMENT) return 1u << 0;
+	if (t == BLD_FIELD) return 1u << 1;
+	if (t == BLD_CORRAL) return 1u << 2;
+	if (t == BLD_STOREHOUSE || t == BLD_FARMSTEAD) return 1u << 3;
+	if (t == BLD_TOWER || t == BLD_SENTRY_TOWER || t == BLD_TOWER_GREAT || t == BLD_FORTRESS) return 1u << 4;
+	if (petra_military_structure(t)) return 1u << 5;
+	if (t == BLD_MARKET || t == BLD_TEMPLE) return 1u << 6;
+	return 1u << 7;
+}
+
 // Structures that take food (ResourceDropsite food): civic centres, farmsteads, docks, colonies.
 static inline bool petra_food_dropsite(uint8_t t) {
 	return is_civic_centre(t) || t == BLD_FARMSTEAD || t == BLD_DOCK || civ_building_is_dropsite(t);
@@ -20218,11 +20266,13 @@ uint32_t Simulation::petra_place_generic(uint8_t btype, uint8_t queue, const flo
 	int cx = 0, cz = 0;
 	if (!petra_find_position(btype, base_at, favor_at, military_base, cx, cz)) {
 		petra_place_no_room_ = true;
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
 		return 0;
 	}
 	const BuildingTypeInfo &info = building_type_info(btype);
 	if (!petra_try_pay(queue, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost))
 		return 0;
+	petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
 	return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 }
 
@@ -20246,7 +20296,11 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	};
 	auto miss = remember ? std::find_if(petra_place_misses_.begin(), petra_place_misses_.end(), same_search)
 	                     : petra_place_misses_.end();
-	if (miss != petra_place_misses_.end() && miss->sig == sig) { petra_place_no_room_ = true; return 0; }
+	if (miss != petra_place_misses_.end() && miss->sig == sig) {
+		petra_place_no_room_ = true;
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
+		return 0;
+	}
 	for (int r = min_r; r <= max_r; ++r) {
 		for (int dx = -r; dx <= r; ++dx) {
 			for (int dz = -r; dz <= r; ++dz) {
@@ -20258,11 +20312,13 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 				                   (float)info.gold_cost, (float)info.stone_cost)) {
 					return 0;
 				}
+				if (remember) petra_attack_mgr_.missing_room &= (uint8_t)~petra_room_bit(btype);
 				return spawn_building(cx, cz, btype, petra_pid_, 0.0f);
 			}
 		}
 	}
 	if (remember) {
+		petra_attack_mgr_.missing_room |= petra_room_bit(btype);
 		if (miss != petra_place_misses_.end()) miss->sig = sig;
 		else {
 			if (petra_place_misses_.size() >= 64) petra_place_misses_.erase(petra_place_misses_.begin());
@@ -22692,7 +22748,7 @@ bool Simulation::load_state(const char *filepath) {
 		if (!pq && old_research_tech != TECH_NONE && old_research_duration > 0.0f) {
 			// The old research runs on as the front item, ahead of the units it held up.
 			ProductionOrder po{};
-			po.unit_type = UNIT_TYPE_COUNT;
+			po.unit_type = UNIT_TYPE_TECH;
 			po.tech = old_research_tech;
 			po.timer = old_research_timer;
 			po.duration = old_research_duration;
@@ -23513,7 +23569,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				for (float &p : o.paid) ar.pod(p);
 				if constexpr (Ar::loading)
 					if (o.is_tech() ? o.tech >= TECH_COUNT
-					                : (o.unit_type >= UNIT_TYPE_COUNT || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT || o.count == 0))
+					                : (o.unit_type >= UNIT_TYPE_COUNT || o.unit_type == UNIT_TYPE_TECH || o.tmpl >= CIV_UNIT_TEMPLATE_COUNT ||
+					                   o.count == 0))
 						ar.ok = false;
 			});
 			if constexpr (Ar::loading)
