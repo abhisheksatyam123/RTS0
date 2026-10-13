@@ -2645,6 +2645,8 @@ private:
 	bool petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z);
 	bool petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z);
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
+	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
+	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
