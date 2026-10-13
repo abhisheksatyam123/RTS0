@@ -20172,12 +20172,12 @@ void Simulation::petra_manage_defense(float dt) {
 		armies.back().foe_ids.push_back(fid);
 	};
 	const PetraBase *home = get_primary_petra_base();
-	// defenseManager.js targetList: an enemy structure going up in our territory, or an
-	// enemy civic centre within 30000 m² of one of our finished structures.
+	// defenseManager.js targetList: an enemy structure in our territory, or an enemy civic
+	// centre going up within 30000 m² of one of our finished structures.
 	auto defense_target = [&](const Building &b) {
 		if (!petra_foe(b.team) || b.hp <= 0.0f || b.wrecked) return false;
 		if (territory_owner_at(b.x, b.z) == petra_pid_) return true;
-		if (!is_civic_centre(b.type)) return false;
+		if (!is_civic_centre(b.type) || b.build_progress >= 1.0f) return false;
 		for (const Building *o : own_structures) {
 			if (o->build_progress < 1.0f) continue;
 			const float dx = o->x - b.x, dz = o->z - b.z;
