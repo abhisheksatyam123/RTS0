@@ -18151,7 +18151,7 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 	}
 	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics. Gaia's
 	// relics (tryCaptureGaiaRelic) are left to petra_capture_gaia_relics.
-	if (victory_condition_ == VICTORY_RELIC) {
+	if (has_victory(VK_RELIC)) {
 		int held[MAX_PLAYERS] = {};
 		for (const auto &rel : relics_) {
 			const int32_t r = lookup_unit(rel.id);
