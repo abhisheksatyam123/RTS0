@@ -2667,6 +2667,7 @@ private:
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
 	void petra_treasures_taken(PetraHuntScan &scan) const;
 	void petra_manage_hunters(PetraHuntScan &scan);
+	void petra_check_hunt_drift(PetraHuntScan &scan); // worker.js: a chase that left our land is given up
 	void petra_build_first_base(); // startingStrategy.js buildFirstBase
 	void petra_check_base_expansion(); // headquarters.js checkBaseExpansion
 	bool petra_build_new_base(int res = -1); // headquarters.js buildNewBase (res: RES_* or none)
