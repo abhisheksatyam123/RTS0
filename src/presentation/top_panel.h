@@ -160,7 +160,11 @@ public:
 		top_hbox->add_child(clock_label_);
 
 		wave_label_ = memnew(Label);
-		wave_label_->set_custom_minimum_size(Vector2(140, 26));
+		// Takes what the bar has left and clips the rest ("Wonder Victory in ... |
+		// Village Phase"), so the buttons after it stay on screen at 1280 wide.
+		wave_label_->set_custom_minimum_size(Vector2(100, 26));
+		wave_label_->set_clip_text(true);
+		wave_label_->set_h_size_flags(Control::SIZE_EXPAND_FILL);
 		wave_label_->add_theme_font_size_override("font_size", 12);
 		wave_label_->add_theme_color_override("font_color", Color(0.95f, 0.6f, 0.5f));
 		top_hbox->add_child(wave_label_);

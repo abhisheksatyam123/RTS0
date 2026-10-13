@@ -324,6 +324,13 @@ void RtsoMain::tick_quit_confirmation() {
 	quit_confirmation("defeat", won, ask_exit);
 }
 
+// ResignConfirmation / ReturnQuestion "Yes" / "I resign": Engine.PostNetworkCommand({"type": "resign"}).
+void RtsoMain::resign() {
+	const uint8_t me = local_player();
+	if (!sim || turn_mgr_.is_replaying() || me >= rtso::MAX_PLAYERS || sim->is_defeated(me)) return;
+	post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_RESIGN, nullptr, 0, 0.0f, 0.0f, 0, 0);
+}
+
 // The "summary" hotkey and the menu's Summary button: the page over the
 // running game, or back to the game when it is already open.
 void RtsoMain::toggle_summary() {
