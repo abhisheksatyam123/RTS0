@@ -162,7 +162,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 68; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 69; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_SCENERY_CAPTURE = 69; // each scenery entity's owner and capture points
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -1385,7 +1386,7 @@ public:
 	void petra_build_defenses();
 	void petra_check_resource_levels(int32_t turn);
 	// baseManager.js findBestDropsiteLocation for res; no_site: no spot reached min_quality.
-	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 6000.0f, bool *no_site = nullptr);
+	uint32_t petra_place_dropsite(uint8_t res, float min_quality = 50.0f, bool *no_site = nullptr);
 	void petra_build_farmstead();
 	bool entity_limit_allows_unit(uint8_t player_id, uint8_t unit_type, uint16_t tmpl, int count = 1) const;
 	bool entity_limit_allows_building(uint8_t player_id, uint8_t bld_type) const;
@@ -1655,7 +1656,9 @@ public:
 		float half_w, half_d; // RTS0 units along the rotated x and z axes
 		float hp;
 		uint8_t type;         // SceneryType (scenery_type_info)
-		uint8_t pad[3];
+		uint8_t owner;        // Ownership: a player, or GAIA_PLAYER (0xFE)
+		uint8_t pad[2];
+		std::array<float, MAX_PLAYERS + 1> cp; // Capturable points per player, then Gaia's
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
 	// The scenery_ index of entity `id`, or -1.
@@ -1666,7 +1669,12 @@ public:
 	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
 	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
 	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
-	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	// Capturable scenery (benches, tables, obelisks, wooden fences) is captured instead, as a
+	// structure is, unless `allow_capture` is false (Ctrl: session.attack).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id, bool allow_capture = true);
+	bool scenery_capturable(const Scenery &sc) const { return scenery_type_info(sc.type).capture_points > 0; }
+	void tick_scenery_capture(); // Capturable.js TimerTick: territory decay, then regeneration
+	void scenery_check_owner(Scenery &sc); // RegisterCapturePointsChanged
 	float unit_damage_to_scenery(size_t i) const;
 	void tick_scenery_attackers();
 	void destroy_scenery(size_t k, int32_t killer);
@@ -2278,6 +2286,8 @@ private:
 	// not negative, in place of its template stone). False, paying nothing, if unaffordable.
 	bool pay_for_structure(uint8_t player, uint8_t b_type, float cost_override = -1.0f);
 	void structure_cost(uint8_t player, uint8_t b_type, float cost_override, float out[RES_COUNT]) const;
+	uint32_t stat_unit_value(size_t unit_idx) const;      // StatisticsTracker's entity value (Cost)
+	uint32_t stat_building_value(const Building &b) const;
 	void refund_foundation(const Building &b);
 	// petra_place_building searches that found no spot, with the signature of what
 	// they read (petra_placement_signature). Exact, so derived state: never saved.
@@ -2715,6 +2725,7 @@ private:
 	bool petra_cc_tile_ok(uint8_t btype, float x, float z) const;
 	// queueplanBuilding.js findDockPosition: a dock site on `land` by `sea` (cell of its corner).
 	bool petra_find_dock_position(uint16_t land, uint16_t sea, int &out_cx, int &out_cz) const;
+	void petra_resource_maps(std::vector<uint8_t> (&maps)[3], float x0, float x1, float z0, float z1) const;
 	void petra_resource_demand(float out[RES_COUNT]) const;
 	bool petra_perform_barter();      // tradeManager.js performBarter
 	void petra_set_trading_goods();   // tradeManager.js setTradingGoods
@@ -2861,6 +2872,7 @@ private:
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not
 	// decay; otherwise `to` gets the weight each player receives, and `to_gaia` Gaia's.
 	bool territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
+	bool territory_decay_targets(float x, float z, uint8_t team, bool neutral, std::array<float, MAX_PLAYERS> &to, float &to_gaia);
 	// rebuild_territory()'s inputs the last time it filled the grids: each claiming structure's
 	// TerritoryInfluence in buildings_ order, the grid size and the map extent. Same inputs, same
 	// grids, so the 1 Hz refresh skips.

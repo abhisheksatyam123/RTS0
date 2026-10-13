@@ -222,6 +222,7 @@ inline constexpr uint8_t NET_PARAM_QUEUED = 0x80;     // Shift: add to the order
 inline constexpr uint8_t NET_PARAM_UNITS_ONLY = 0x01; // attack-move: units only (targetClasses Unit)
 inline constexpr uint8_t NET_PARAM_NO_CAPTURE = 0x02; // attack-move / attack-building: damage, don't capture (Ctrl)
 inline constexpr uint8_t NET_PARAM_PUSH_FRONT = 0x04; // focus-fire: put the target first (0 A.D. "pushFront")
+inline constexpr uint8_t NET_HUNT_SCENERY_NO_CAPTURE = 3; // hunt (17) on scenery: attack it, don't capture it (Ctrl)
 
 struct NetCommand {
 	uint32_t client_id = 0;
