@@ -1,4 +1,5 @@
 #include "simulation.h"
+#include "petra_chat.h"
 #include "entity_limits_data.h"
 #include "promotion_data.h"
 #include "unit_trainer_data.h"
@@ -174,6 +175,7 @@ static constexpr uint32_t SAVE_VERSION_FORMATION_QUEUE = 43;
 static constexpr uint32_t SAVE_VERSION_RALLY = 47; // each structure's rally resource kind and Shift-added positions, each fleeing unit's flee source
 static constexpr uint32_t SAVE_VERSION_PETRA_STARTED_ATTACKS = 52;
 static constexpr uint32_t SAVE_VERSION_PATROL_WAIT = 58; // each patrolling unit's time at its waypoint
+static constexpr uint32_t SAVE_VERSION_PETRA_CHAT = 66; // Petra chat lines as kind, variant and players; trade-route warnings
 // The save version that added each unit's kept short path (tick_state_io section 1) and the aura
 // sources in force (section 9).
 static constexpr uint32_t SAVE_VERSION_MOTION = 38;
@@ -654,7 +656,7 @@ int Simulation::pop_max_uncapped(uint8_t player) const {
 }
 
 int Simulation::pop_limit(uint8_t player) const {
-	const int limit = pop_cap();
+	const int limit = pop_cap(player);
 	if (limit <= 0 || player >= MAX_PLAYERS) return limit;
 	// Player/MaxPopulation modifiers, multiplied then added as ApplyValueModifications does:
 	// the Seleucid relic's Immigration, each finished Wonder's Glorious Expansion aura once
@@ -672,16 +674,28 @@ int Simulation::pop_max(uint8_t player) const {
 	return limit > 0 ? std::min(cap, limit) : cap;
 }
 
-int Simulation::pop_cap() const {
+int Simulation::pop_cap(uint8_t player) const {
 	if (pop_cap_ >= 0) return pop_cap_;
 	// World Population: split among the seated players not yet defeated (players 0
-	// and 1 when no slot is seated, as petra_runs_for assumes).
+	// and 1 when no slot is seated, as petra_runs_for assumes). Team Population:
+	// the same, among the player's own team (PopulationCapManager.js).
+	const int team_cap = team_pop_cap();
+	const uint8_t team = player < MAX_PLAYERS ? players_[player].team : 0xFF;
 	bool any_active = false;
 	for (const PlayerState &ps : players_) any_active |= ps.active != 0;
 	int live = 0;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p)) ++live;
+		if ((any_active ? players_[p].active != 0 : p < 2) && !is_defeated(p) &&
+		    (team_cap == 0 || (player < MAX_PLAYERS && players_[p].team == team)))
+			++live;
+	if (team_cap > 0) return std::max(1, (int)std::lround((double)team_cap / std::max(1, live)));
 	return std::max(1, -pop_cap_ / std::max(1, live));
+}
+
+void Simulation::set_pop_cap_setting(int setting) {
+	if (setting <= -TEAM_POP_FLAG) set_team_pop_cap(-setting - TEAM_POP_FLAG);
+	else if (setting < 0) set_world_pop_cap(-setting);
+	else set_pop_cap(setting);
 }
 
 int Simulation::ai_pop_current() const { return pop_current(PETRA_PLAYER); }
@@ -13355,7 +13369,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 	case CHEAT_MAX_POPULATION: { // "the hive master": SetPopulationBonuses((world max || MaxPopulation) + 500)
 		CheatMods &cm = cheat_mods_[player];
 		const int houses = pop_max_uncapped(player) - cm.pop_bonus;
-		const int limit = pop_cap_ < 0 ? world_pop_cap() : pop_cap() > 0 ? pop_limit(player) : houses;
+		const int limit = world_pop_cap() > 0 ? world_pop_cap() : team_pop_cap() > 0 ? team_pop_cap() : pop_cap(player) > 0 ? pop_limit(player) : houses;
 		cm.pop_bonus = std::clamp(limit + 500 - houses, -1000000, 1000000);
 		return true;
 	}
@@ -15143,7 +15157,7 @@ void Simulation::petra_staff_foundations() {
 		if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress >= 1.0f && !b.wrecked) { has_base = true; break; }
 	int max_total = (int)std::ceil((float)workers * petra_builder_ratio());
 	if (max_total < 2 && workers > 1) max_total = 2;
-	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap();
+	const bool house_short = pop_max(petra_pid_) < pop_current(petra_pid_) + 5 && pop_max(petra_pid_) < pop_cap(petra_pid_);
 	auto budget_for = [&](const Building &b) {
 		int cap = max_total;
 		if (b.type == BLD_HOUSE && house_short) cap += 2;
@@ -16259,7 +16273,7 @@ int Simulation::petra_trade_minimal_gain() const {
 // config.js Economy.targetNumTraders (2 + difficulty, times popScaling), raised by
 // setTradingGoods for each tradable resource that runs low, times popScaling again.
 int Simulation::petra_target_traders() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
 	int target = (int)std::lround((2.0f + (float)petra_config_.difficulty) * scaling);
 	float demand[RES_COUNT];
@@ -16464,6 +16478,13 @@ void Simulation::petra_manage_trading(float dt) {
 	auto crossed = [&](float period) { return (int)(petra_timer_ / period) != (int)((petra_timer_ - 2.0f) / period); };
 
 	if (routes.best.gain > 0) {
+		// checkRoutes: tell our allies once about a route with each of them (warnedAllies).
+		uint8_t partner = petra_owner_of(routes.best.source);
+		if (partner == petra_pid_) partner = petra_owner_of(routes.best.target);
+		if (partner < MAX_PLAYERS && partner != petra_pid_ && !(petra_sent_diplo_.warned_trade >> partner & 1)) {
+			petra_say(PETRA_CHAT_TRADE_ROUTE, PETRA_CHAT_ALLIES, partner);
+			petra_sent_diplo_.warned_trade |= (uint8_t)(1u << partner);
+		}
 		// updateTrader and checkTrader: a trader on another route than the best one for
 		// its land (or sea) is moved to it, an idle one is given it; with none, a land
 		// trader heads back to its base.
@@ -17749,7 +17770,7 @@ static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
 }
 
 int Simulation::petra_pop_phase2() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	int base = petra_config_.pop_phase2;
 	if (petra_attack_mgr_.save_resources) base = base * 3 / 4; // startingStrategy.js: phase sooner to expand
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
@@ -17757,7 +17778,7 @@ int Simulation::petra_pop_phase2() const {
 }
 
 int Simulation::petra_target_workers() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	const uint8_t d = petra_config_.difficulty;
 	int target = d < PETRA_EASY ? std::min(40, max_pop) : d < PETRA_MEDIUM ? std::min(60, max_pop / 2)
 	                                                                        : std::min(120, max_pop / 3);
@@ -17766,7 +17787,7 @@ int Simulation::petra_target_workers() const {
 
 int Simulation::petra_work_phase3() const {
 	if (petra_config_.work_phase3 >= 999) return 999; // below Easy: never the city phase
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	int base = petra_config_.work_phase3;
 	if (victory_condition_ == VICTORY_WONDER) base = base * 9 / 10;
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
@@ -17789,13 +17810,13 @@ int Simulation::petra_accounted_population() const {
 // popForBarracks2 (55), scaled by popScaling (times sqrt(maxPop/300) under 300): at least 12 and
 // at most a fifth of maxPop, and at least 45 and at most two thirds of it.
 int Simulation::petra_pop_for_barracks1() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	const float base = petra_config_.difficulty >= PETRA_MEDIUM && petra_config_.aggressive > 0.7f ? 12.0f : 25.0f;
 	return std::min(std::max((int)(base * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 12), max_pop / 5);
 }
 
 int Simulation::petra_pop_for_barracks2() const {
-	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	return std::min(std::max((int)(55.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
 }
 
@@ -19531,7 +19552,9 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 				} else {
 					order_walk(squad.data(), squad.size(), sx, sz, false);
 				}
-				petra_say(PETRA_CHAT_ATTACK, tx, tz);
+				// chatLaunchAttack: tell our allies whom we attack.
+				petra_say(petra_attack_mgr_.kind == PETRA_ATTACK_HUGE ? PETRA_CHAT_HUGE_ATTACK : PETRA_CHAT_ATTACK,
+				          PETRA_CHAT_ALLIES, petra_owner_of(plan.target_building_id), 0, 0, 0, tx, tz);
 				// attackPlan.js updatePreparation: warn our allies so that they can help.
 				if (!plan.requested && plan.target_player < MAX_PLAYERS) petra_attack_requests_.emplace_back(petra_pid_, plan.target_player);
 				++petra_attack_mgr_.launched[petra_attack_mgr_.kind];
@@ -20008,7 +20031,7 @@ void Simulation::petra_manage_raid(float dt) {
 		plan.state = AttackPlan::WALKING;
 		plan.state_timer = 0.0f;
 		++petra_attack_mgr_.launched[PETRA_ATTACK_RAID];
-		petra_say(PETRA_CHAT_ATTACK, tx, tz);
+		petra_say(PETRA_CHAT_ATTACK, PETRA_CHAT_ALLIES, petra_owner_of(plan.target_building_id), 0, 0, 0, tx, tz);
 		// Mirror the assault plan's transportPlan.js branch: a raid that
 		// crosses water boards a transport instead of issuing a ground move.
 		if (overseas) {
@@ -20302,39 +20325,28 @@ bool Simulation::petra_try_pay(uint8_t queue, float food, float wood, float gold
 	return true;
 }
 
-void Simulation::petra_say(uint8_t kind, float x, float z, uint8_t to, int amount, uint8_t res) {
-	// chatHelper.js lines (English only).
-	static const char *kLines[] = {
-		"I am launching an attack against you.",
-		"Here is a gift. Make good use of it.",
-		"Our alliance is over. We are now enemies.",
-		"My armies failed while defending my empire. Please honor our alliance and send help!",
-		"I will accept your offer.",
-		"I cannot accept your offer.",
-		"I will accept your offer if you send me a tribute of %d %s.",
-		"I am still waiting for your tribute of %d %s.",
-		"You did not send the tribute in time. I decline your offer.",
-		"You have declared war on me. So be it.",
-		// The two requests are shortened to fit PetraChatLine's 96 characters.
-		"An alliance would help both our civilizations. Ally with me and I will respond in kind.",
-		"I would like a neutrality pact with you. Become neutral with me and I will respond in kind.",
-		"My offer for an alliance has expired.",
-		"I have decided to revoke my offer for a neutrality pact.",
-		"I am in need of %s, can you help? I will make it up to you.",
-		"My empire regained its old strength, now it is time to seek revenge together!"
-	};
-	static const char *kRes[] = { "wood", "metal", "stone", "food" }; // ResourceType order
-	if (kind > PETRA_CHAT_EMERGENCY_EXIT) kind = PETRA_CHAT_ATTACK;
+void Simulation::petra_say(uint8_t kind, uint8_t to, uint8_t player, uint8_t sub, int amount, uint8_t res,
+                           float x, float z, uint8_t player2) {
+	const PetraChatPool pool = petra_chat_pool(kind, sub);
+	if (!pool.count) return;
 	PetraChatLine line;
 	line.kind = kind;
 	line.from = petra_pid_;
 	line.to = to;
+	line.player = player;
+	line.player2 = player2;
+	line.sub = sub;
+	line.resource = res;
+	line.amount = amount;
 	line.x = x;
 	line.z = z;
-	if (kind == PETRA_CHAT_TRIBUTE_REQUEST)
-		std::snprintf(line.text, sizeof(line.text), kLines[kind], kRes[res < RES_COUNT ? res : 0]);
-	else
-		std::snprintf(line.text, sizeof(line.text), kLines[kind], amount, kRes[res < RES_COUNT ? res : 0]);
+	// pickRandom, from a hash of the moment and the line rather than the simulation's
+	// random stream, so chat never shifts what the match draws.
+	uint64_t h = ((uint64_t)std::lround(game_time() * 1000.0f) << 24) ^ ((uint64_t)kind << 16) ^
+	             ((uint64_t)petra_pid_ << 8) ^ (uint64_t)player ^ ((uint64_t)to << 32);
+	h = (h ^ (h >> 30)) * 0xBF58476D1CE4E5B9ull;
+	h = (h ^ (h >> 27)) * 0x94D049BB133111EBull;
+	line.variant = (uint8_t)((h ^ (h >> 31)) % pool.count);
 	petra_chat_.push_back(line);
 	if (petra_chat_.size() > 16) petra_chat_.erase(petra_chat_.begin());
 }
@@ -20346,8 +20358,8 @@ void Simulation::cmd_attack_request(uint8_t player, uint8_t target) {
 	PetraChatLine line;
 	line.kind = PETRA_CHAT_ATTACK_REQUESTED;
 	line.from = player;
-	line.to = PETRA_CHAT_TO_ALLIES;
-	std::snprintf(line.text, sizeof(line.text), "Attack against {P%d} requested.", (int)target);
+	line.to = PETRA_CHAT_ALLIES;
+	line.player = target;
 	petra_chat_.push_back(line);
 	if (petra_chat_.size() > 16) petra_chat_.erase(petra_chat_.begin());
 	petra_attack_requests_.emplace_back(player, target);
@@ -20409,18 +20421,13 @@ void Simulation::petra_answer_attack_request(uint8_t source, uint8_t target) {
 		petra_attack_mgr_.target_size = (int)plan.squad.size();
 		petra_attack_mgr_.min_size = (int)plan.squad.size();
 	}
-	static const char *kJoin[] = { "Let me regroup my army and I will then join you against {P%d}.",
-	                               "I am finishing preparations to attack {P%d}." };
-	static const char *kDecline[] = { "Sorry, I do not have enough soldiers currently; but my next attack will target {P%d}.",
-	                                  "Sorry, I still need to strengthen my army. However, I will attack {P%d} next." };
-	PetraChatLine line;
-	line.kind = join ? PETRA_CHAT_ATTACK_JOIN : PETRA_CHAT_ATTACK_DECLINE;
-	line.from = petra_pid_;
-	line.to = PETRA_CHAT_TO_ALLIES;
-	const int pick = sim_rng_.range_int(0, 1);
-	std::snprintf(line.text, sizeof(line.text), (join ? kJoin : kDecline)[pick], (int)target);
-	petra_chat_.push_back(line);
-	if (petra_chat_.size() > 16) petra_chat_.erase(petra_chat_.begin());
+	petra_say(join ? PETRA_CHAT_ATTACK_JOIN : PETRA_CHAT_ATTACK_DECLINE, PETRA_CHAT_ALLIES, target);
+}
+
+uint8_t Simulation::petra_owner_of(uint32_t id) const {
+	if (auto it = building_id_to_idx_.find(id); it != building_id_to_idx_.end()) return buildings_[it->second].team;
+	const int32_t u = lookup_unit(id);
+	return u >= 0 && units_.alive[u] ? units_.team[u] : 0xFF;
 }
 
 bool Simulation::petra_path_crosses_water(float x0, float z0, float x1, float z1) const {
@@ -22128,12 +22135,16 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		PetraReceivedRequest &req = dip.received[p];
 		if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) {
-			req.paid += petra_tribute_inbox_[me][p][req.resource];
+			const float got = petra_tribute_inbox_[me][p][req.resource];
+			req.paid += got;
 			if (req.paid >= (float)req.wanted) {
 				petra_tribute_request_wanted_[p][me] = 0; // our tribute request is answered
 				req.status = PetraReceivedRequest::ACCEPTED;
 				petra_change_diplomacy(p, req.type == 0 ? DIPLO_ALLY : DIPLO_NEUTRAL);
-				petra_say(PETRA_CHAT_DIPLO_ACCEPT, 0.0f, 0.0f, p);
+			} else if (got > 0.0f) {
+				// Part of it: the reminder waits another minute.
+				req.warn_time = dip.elapsed + 60.0f;
+				req.sent_warning = false;
 			}
 		}
 		// Tribute from an ally slowly raises our cooperative trait (food counts once, the rest twice).
@@ -22172,20 +22183,27 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			continue;
 		}
 		PetraReceivedRequest &req = dip.received[p];
-		// A player that had asked for a stance changed its mind.
-		if ((req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) &&
+		const uint8_t mine = get_diplomacy(me, p);
+		if (req.status != PetraReceivedRequest::NONE &&
 		    ((theirs != DIPLO_ALLY && req.type == 0) || (theirs == DIPLO_ENEMY && req.type == 1))) {
-			req = PetraReceivedRequest{};
+			// A player that had asked for a stance changed it: an alliance we made is broken,
+			// any other request turned down.
+			if (req.status == PetraReceivedRequest::ACCEPTED) req.status = PetraReceivedRequest::ALLIANCE_BROKEN;
+			else if (req.status != PetraReceivedRequest::ALLIANCE_BROKEN) req.status = PetraReceivedRequest::DECLINED_FOREVER;
 			petra_tribute_request_wanted_[p][me] = 0;
-		}
-		if (theirs == DIPLO_ALLY && get_diplomacy(me, p) != DIPLO_ALLY)
+		} else if (theirs == DIPLO_ALLY && mine == DIPLO_ENEMY) {
+			// An enemy can't become an ally at once: refuse, or suggest neutrality first.
+			const bool refused = req.status == PetraReceivedRequest::DECLINED_FOREVER ||
+			                     req.status == PetraReceivedRequest::ALLIANCE_BROKEN;
+			petra_say(refused ? PETRA_CHAT_ANSWER_DECLINE : PETRA_CHAT_ANSWER_DECLINE_SUGGEST_NEUTRAL, p, p, 0);
+		} else if (theirs == DIPLO_ALLY && mine == DIPLO_NEUTRAL) {
 			petra_handle_diplomacy_request(p, 0);
-		else if (theirs == DIPLO_NEUTRAL && get_diplomacy(me, p) == DIPLO_ENEMY)
+		} else if (theirs == DIPLO_NEUTRAL && mine == DIPLO_ENEMY) {
 			petra_handle_diplomacy_request(p, 1);
-		else if (theirs == DIPLO_ENEMY && dip.seen_init && get_diplomacy(me, p) != DIPLO_ENEMY) {
-			petra_change_diplomacy(p, DIPLO_ENEMY);
-			petra_say(PETRA_CHAT_WAR_DECLARED, 0.0f, 0.0f, p);
 		}
+		// RTS0 also answers a declaration of war in kind, so our units fight back.
+		if (theirs == DIPLO_ENEMY && dip.seen_init && get_diplomacy(me, p) != DIPLO_ENEMY)
+			petra_change_diplomacy(p, DIPLO_ENEMY);
 	}
 	dip.seen_init = true;
 
@@ -22231,13 +22249,14 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		PetraReceivedRequest &req = dip.received[p];
 		if (req.status != PetraReceivedRequest::WAITING_FOR_TRIBUTE || dip.elapsed < req.warn_time) continue;
 		if (req.sent_warning) {
+			const uint8_t type = req.type;
 			req = PetraReceivedRequest{};
 			petra_tribute_request_wanted_[p][me] = 0; // withdrawn
-			petra_say(PETRA_CHAT_DIPLO_LAPSED, 0.0f, 0.0f, p);
+			petra_say(PETRA_CHAT_ANSWER_DECLINE, p, p, type);
 		} else {
 			req.sent_warning = true;
 			req.warn_time = dip.elapsed + 60.0f;
-			petra_say(PETRA_CHAT_DIPLO_WARNING, 0.0f, 0.0f, p, req.wanted - (int)req.paid, req.resource);
+			petra_say(PETRA_CHAT_ANSWER_WAITING_FOR_TRIBUTE, p, p, req.type, req.wanted - (int)req.paid, req.resource);
 		}
 	}
 
@@ -22268,7 +22287,7 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 			if (!sd.sent_type[p] || dip.elapsed <= sd.sent_time[p] + 60.0f || pop_current(me) <= 70 ||
 			    petra_attack_mgr_.save_resources) continue;
-			petra_say(sd.sent_type[p] == 1 ? PETRA_CHAT_ALLY_EXPIRED : PETRA_CHAT_NEUTRAL_EXPIRED, 0.0f, 0.0f, p);
+			petra_say(PETRA_CHAT_REQUEST_EXPIRED, p, p, sd.sent_type[p] == 1 ? 0 : 1);
 			sd.sent_type[p] = 0;
 		}
 	}
@@ -22314,15 +22333,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 				// Ask the rich ally for a resource we need (chatRequestTribute).
 				petra_sent_diplo_.next_tribute_request_all = dip.elapsed + 90.0f;
 				petra_sent_diplo_.next_tribute_request[r] = dip.elapsed + 240.0f;
-				petra_say(PETRA_CHAT_TRIBUTE_REQUEST, 0.0f, 0.0f, p, 0, r);
+				petra_say(PETRA_CHAT_TRIBUTE_REQUEST, PETRA_CHAT_ALLIES, 0xFF, 0, 0, r);
 			}
 		}
 		if (any && cmd_tribute(me, p, amounts)) {
 			for (uint8_t r = 0; r < RES_COUNT; ++r) available[r] -= (float)amounts[r];
-			if (const auto *pbase = get_primary_petra_base())
-				petra_say(PETRA_CHAT_TRIBUTE, pbase->x, pbase->z, p);
-			else
-				petra_say(PETRA_CHAT_TRIBUTE, 0.0f, 0.0f, p);
+			const auto *pbase = get_primary_petra_base();
+			petra_say(PETRA_CHAT_TRIBUTE, PETRA_CHAT_ALLIES, p, 0, 0, 0, pbase ? pbase->x : 0.0f, pbase ? pbase->z : 0.0f);
 		}
 	}
 }
@@ -22340,6 +22357,9 @@ void Simulation::petra_change_diplomacy(uint8_t player, uint8_t stance) {
 	// diplomacyManager.js changePlayerDiplomacy: the AI only writes its own row.
 	if (stance != DIPLO_ENEMY && player < MAX_PLAYERS && petra_foe(player)) petra_cancel_attacks_against(player);
 	cmd_set_diplomacy(petra_pid_, player, stance);
+	// chatNewDiplomacy, to everyone.
+	petra_say(PETRA_CHAT_NEW_DIPLOMACY, PETRA_CHAT_EVERYONE, player,
+	          stance == DIPLO_ALLY ? PETRA_STANCE_ALLY : stance == DIPLO_NEUTRAL ? PETRA_STANCE_NEUTRAL : PETRA_STANCE_ENEMY);
 }
 
 // attackManager.js cancelAttacksAgainstPlayer: the plan in preparation forgets the
@@ -22383,7 +22403,7 @@ void Simulation::petra_send_diplomacy_request() {
 	petra_sent_diplo_.sent_type[player] = ally ? 1 : 2;
 	petra_sent_diplo_.sent_time[player] = petra_diplo_.elapsed;
 	if (petra_runs_for((uint8_t)player)) petra_diplo_request_inbox_[player][me] = ally ? 1 : 2;
-	petra_say(ally ? PETRA_CHAT_ALLY_REQUEST : PETRA_CHAT_NEUTRAL_REQUEST, 0.0f, 0.0f, (uint8_t)player);
+	petra_say(PETRA_CHAT_SEND_REQUEST, (uint8_t)player, (uint8_t)player, ally ? 0 : 1);
 }
 
 void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
@@ -22401,22 +22421,24 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	const uint8_t current_enemy = petra_attack_enemy();
 	auto rand_bool = [&](float chance) { return sim_rng_.range_float(0.0f, 1.0f) < chance; };
 
-	if (req.status == PetraReceivedRequest::DECLINED_FOREVER) {
-		petra_say(PETRA_CHAT_DIPLO_DECLINE, 0.0f, 0.0f, player);
-		return;
-	}
-	if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE) {
-		petra_say(PETRA_CHAT_DIPLO_WARNING, 0.0f, 0.0f, player, req.wanted - (int)req.paid, req.resource);
-		return;
-	}
-	// Be likely to decline for good, and always when it would leave us with
-	// no one to fight or when we are attacking that player.
+	// Be likely to decline a first request for good, and always when it would leave us
+	// with no one to fight or when we are attacking that player.
 	if ((req.status == PetraReceivedRequest::NONE && civ_of(me) != civ_of(player) && rand_bool(0.6f)) ||
 	    !more_enemies_than_allies || player == current_enemy) {
 		req = PetraReceivedRequest{};
 		req.status = PetraReceivedRequest::DECLINED_FOREVER;
 		req.type = type;
-		petra_say(PETRA_CHAT_DIPLO_DECLINE, 0.0f, 0.0f, player);
+		petra_say(PETRA_CHAT_ANSWER_DECLINE, player, player, type);
+		return;
+	}
+	// An earlier neutrality request still decides (0 A.D. checks the stored request's type).
+	if (req.status != PetraReceivedRequest::NONE && req.status != PetraReceivedRequest::ACCEPTED && req.type != 0) {
+		if (req.status == PetraReceivedRequest::DECLINED_FOREVER)
+			petra_say(PETRA_CHAT_ANSWER_DECLINE, player, player, type);
+		else if (req.status == PetraReceivedRequest::ALLIANCE_BROKEN)
+			petra_say(PETRA_CHAT_ANSWER_DECLINE_REPEATED, player, player, type);
+		else if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE)
+			petra_say(PETRA_CHAT_ANSWER_WAITING_FOR_TRIBUTE, player, player, type, req.wanted - (int)req.paid, req.resource);
 		return;
 	}
 	if ((type == 0 && petra_player_entities(player) < petra_player_entities(me) && rand_bool(0.4f)) ||
@@ -22425,7 +22447,7 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 		req.status = PetraReceivedRequest::ACCEPTED;
 		req.type = type;
 		petra_change_diplomacy(player, type == 0 ? DIPLO_ALLY : DIPLO_NEUTRAL);
-		petra_say(PETRA_CHAT_DIPLO_ACCEPT, 0.0f, 0.0f, player);
+		petra_say(PETRA_CHAT_ANSWER_ACCEPT, player, player, type);
 		return;
 	}
 	// Accept for a tribute of the resource we are shortest of.
@@ -22441,7 +22463,7 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 	req.resource = need;
 	req.wanted = std::max(1000, own_units * (type == 0 ? 10 : 5));
 	req.warn_time = petra_diplo_.elapsed + 60.0f;
-	petra_say(PETRA_CHAT_DIPLO_TRIBUTE, 0.0f, 0.0f, player, req.wanted, need);
+	petra_say(PETRA_CHAT_ANSWER_ACCEPT_WITH_TRIBUTE, player, player, type, req.wanted, need);
 }
 
 void Simulation::petra_last_man_standing_check() {
@@ -22492,15 +22514,17 @@ void Simulation::petra_last_man_standing_check() {
 		target = p;
 	}
 	if (target >= 0) {
-		petra_change_diplomacy((uint8_t)target, DIPLO_ENEMY);
-		dip.received[target] = PetraReceivedRequest{};
-		dip.received[target].status = PetraReceivedRequest::DECLINED_FOREVER;
-		if (const auto *pbase = get_primary_petra_base()) {
-			if (target == 0) raise_alert(BattleAlert::ALERT_UNDER_ATTACK, pbase->x, pbase->z, 0, 1);
-			petra_say(PETRA_CHAT_BETRAYAL, pbase->x, pbase->z, (uint8_t)target);
-		} else {
-			petra_say(PETRA_CHAT_BETRAYAL, 0.0f, 0.0f, (uint8_t)target);
+		petra_change_diplomacy((uint8_t)target, DIPLO_ENEMY); // says so to everyone
+		PetraReceivedRequest &req = dip.received[target];
+		if (req.status != PetraReceivedRequest::NONE && req.status != PetraReceivedRequest::ALLIANCE_BROKEN) {
+			if (req.status == PetraReceivedRequest::WAITING_FOR_TRIBUTE)
+				petra_say(PETRA_CHAT_ANSWER_DECLINE, (uint8_t)target, (uint8_t)target, req.type);
+			req.status = req.status == PetraReceivedRequest::ACCEPTED ? PetraReceivedRequest::ALLIANCE_BROKEN
+			                                                          : PetraReceivedRequest::DECLINED_FOREVER;
 		}
+		petra_sent_diplo_.sent_type[target] = 0; // a request we sent it is rescinded
+		if (const auto *pbase = get_primary_petra_base())
+			if (target == 0) raise_alert(BattleAlert::ALERT_UNDER_ATTACK, pbase->x, pbase->z, 0, 1);
 	}
 	dip.betray_lapse = -1.0f;
 	dip.waiting_to_betray = false;
@@ -22525,11 +22549,7 @@ void Simulation::petra_manage_emergency(float dt) {
 	// init(): nothing to measure before the match has put anything down.
 	if (!e.active && pop == 0 && structs == 0 && e.ref_pop == 0 && e.ref_structs == 0 && e.ref_roots == 0) return;
 	// Each AI tells its own allies (chatHelper.js "/allies").
-	auto tell_allies = [&](uint8_t kind) {
-		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
-			if (p != petra_pid_ && (players_[p].active || (participant_mask_ >> p & 1)) && !is_defeated(p) && is_ally(petra_pid_, p))
-				petra_say(kind, 0.0f, 0.0f, p);
-	};
+	auto tell_allies = [&](uint8_t kind) { petra_say(kind, PETRA_CHAT_ALLIES); };
 
 	if (e.active) { // emergencyUpdate
 		if ((pop > (float)e.ref_pop * 1.2f && structs > (float)e.ref_structs * 1.2f) || roots > e.ref_roots) {
@@ -22716,7 +22736,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -23874,8 +23894,17 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 			if (ar.version >= 18) ar.pod(v);
 			else v = PetraAttackManager{};
 		} else if constexpr (std::is_same_v<T, PetraSentDiplomacy>) {
-			if (ar.version >= 27) ar.pod(v);
-			else v = PetraSentDiplomacy{};
+			if (ar.version >= SAVE_VERSION_PETRA_CHAT) {
+				ar.pod(v);
+			} else if (ar.version >= 27) {
+				// Before SAVE_VERSION_PETRA_CHAT the struct ended at sent_type, with no trade-route warnings.
+				struct Old { float sent_time[8], sent_lapse, next_all, next[4]; uint8_t sent_type[8]; } o{};
+				static_assert(sizeof(Old) == 64);
+				ar.pod(o);
+				v = PetraSentDiplomacy{};
+				arr(v.sent_time, o.sent_time); v.sent_lapse = o.sent_lapse; v.next_tribute_request_all = o.next_all;
+				arr(v.next_tribute_request, o.next); arr(v.sent_type, o.sent_type);
+			} else v = PetraSentDiplomacy{};
 		} else if constexpr (std::is_same_v<T, PetraDefenseBuild>) {
 			static_assert(sizeof(PetraDefenseBuild) == 16, "list the new PetraDefenseBuild field below");
 			if (ar.version >= SAVE_VERSION_PETRA_DEFENSES) {
@@ -23932,10 +23961,23 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		std::memset(s.petra_tribute_request_wanted_, 0, sizeof(s.petra_tribute_request_wanted_));
 		std::memset(s.petra_tribute_request_res_, 0, sizeof(s.petra_tribute_request_res_));
 	}
-	static_assert(sizeof(PetraChatLine) == 108, "list the new PetraChatLine field below");
-	io_vec(ar, s.petra_chat_, 1u << 16, [&](PetraChatLine &c) {
-		ar.padded(c, [&](PetraChatLine &d, const PetraChatLine &v) { d.kind = v.kind; d.x = v.x; d.z = v.z; arr(d.text, v.text); });
-	});
+	if (ar.version >= SAVE_VERSION_PETRA_CHAT) {
+		static_assert(sizeof(PetraChatLine) == 20, "list the new PetraChatLine field below");
+		io_vec(ar, s.petra_chat_, 1u << 16, [&](PetraChatLine &c) {
+			ar.pod(c.kind); ar.pod(c.from); ar.pod(c.to); ar.pod(c.variant); ar.pod(c.player); ar.pod(c.player2);
+			ar.pod(c.sub); ar.pod(c.resource); ar.pod(c.amount); ar.pod(c.x); ar.pod(c.z);
+			if constexpr (Ar::loading)
+				if (c.kind >= PETRA_CHAT_KIND_COUNT) ar.ok = false;
+		});
+	} else if constexpr (Ar::loading) {
+		// Before SAVE_VERSION_PETRA_CHAT a line held its finished text: lines still unread are dropped.
+		struct OldLine { uint8_t kind, from, to; float x, z; char text[96]; };
+		std::vector<OldLine> old;
+		io_vec(ar, old, 1u << 16, [&](OldLine &c) {
+			ar.padded(c, [&](OldLine &d, const OldLine &v) { d.kind = v.kind; d.x = v.x; d.z = v.z; arr(d.text, v.text); });
+		});
+		s.petra_chat_.clear();
+	}
 	// Diplomacy requests by player, in player order.
 	std::vector<std::pair<uint8_t, PetraDiplomacyRequest>> reqs(s.petra_diplomacy_requests_.begin(), s.petra_diplomacy_requests_.end());
 	std::sort(reqs.begin(), reqs.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
