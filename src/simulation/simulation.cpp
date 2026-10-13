@@ -580,6 +580,7 @@ void Simulation::reset() {
 	turret_height_.clear();
 	for (double &d : battle_damage_) d = 0.0;
 	attacked_events_.clear();
+	fauna_strikes_.clear();
 	turret_prev_stance_.clear();
 	formations_.clear();
 	next_formation_id_ = 1;
@@ -3784,6 +3785,9 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 	if (diplomacy_[player_id][target] != stance)
 		note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}}); // Commands.js "diplomacy" notification
 	set_diplomacy(player_id, target, stance);
+	// Diplomacy.js OnDiplomacyChanged, "mutual worsening of relations": the other player's
+	// stance drops to match (war declared on it is war back), with no notification of its own.
+	if (diplomacy_[target][player_id] < stance) set_diplomacy(target, player_id, stance);
 	return true;
 }
 
@@ -7156,7 +7160,7 @@ void Simulation::gain_xp(size_t idx, float amount) {
 // own entities deal to another player's (not Gaia's, not its own). The total feeds the
 // battle music; it is presentation state, so it is neither saved nor hashed.
 void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-		bool target_is_building, float damage) {
+		bool target_is_building, float damage, bool melee) {
 	if (!(damage > 0.0f)) return;
 	// The Attacked message for the session's AttackDetection (presentation only).
 	if (attacked_events_.size() < kMaxAttackedEvents) {
@@ -7167,7 +7171,7 @@ void Simulation::note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uin
 		} else if (int32_t u = lookup_unit(target_id); u >= 0) {
 			x = units_.pos_x[u], z = units_.pos_z[u];
 		}
-		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage});
+		attacked_events_.push_back({attacker_id, target_id, attacker_owner, target_owner, (uint8_t)target_is_building, x, z, damage, (uint8_t)melee});
 	}
 	if (attacker_owner >= MAX_PLAYERS || target_owner >= MAX_PLAYERS || attacker_owner == target_owner) return;
 	battle_damage_[attacker_owner] += damage;
@@ -10289,7 +10293,7 @@ void Simulation::tick_combat(float dt) {
 
 		} else {
 			award_damage_xp(units_.id[i], (size_t)t, final_dmg);
-			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg);
+			note_attacked(units_.id[i], units_.team[i], units_.id[t], units_.team[t], false, final_dmg, true);
 			if (!invulnerable(units_.id[t])) units_.hp[t] -= final_dmg;
 			if (units_.team[t] == 0) {
 				raise_alert(BattleAlert::ALERT_UNDER_ATTACK, units_.pos_x[t], units_.pos_z[t], units_.id[t], units_.team[t]);
@@ -10430,7 +10434,7 @@ void Simulation::tick_combat(float dt) {
 			           bld_dmg, units_.team[i], b.id, EFFECT_NONE, 2, true, vis, units_.id[i],
 			           unit_splash(units_.tmpl[i], ut));
 		} else {
-			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg);
+			note_attacked(units_.id[i], units_.team[i], b.id, b.team, true, bld_dmg, true);
 			b.hp -= bld_dmg;
 			if (b.team == 0) {
 				raise_alert(BattleAlert::ALERT_BUILDING_UNDER_ATTACK, b.x, b.z, b.id, b.team);
@@ -11581,7 +11585,6 @@ void Simulation::check_victory_conditions(float dt) {
 	int structure_count[MAX_TEAMS] = {};
 	int tc_count[MAX_TEAMS] = {};
 	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
-	int hero_count[MAX_TEAMS] = {};
 	bool wonder[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
 		// Unstarted foundations don't keep a player alive (an AI with no units left can still
@@ -11597,7 +11600,6 @@ void Simulation::check_victory_conditions(float dt) {
 		if (t >= MAX_TEAMS || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED)) continue;
 		if (units_.unit_type[u] == UNIT_CATAFALQUE) continue; // not ConquestCritical
 		unit_count[t]++;
-		if (units_.unit_type[u] == UNIT_HERO) hero_count[t]++;
 	}
 	for (int t = 0; t < MAX_TEAMS; ++t) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
@@ -11668,7 +11670,7 @@ void Simulation::check_victory_conditions(float dt) {
 		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
 		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
 		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
-		       ((vk & VK_REGICIDE) && hero_count[t] == 0);
+		       ((vk & VK_REGICIDE) && regicide_hero_lost(t));
 	};
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
@@ -11829,6 +11831,15 @@ void Simulation::apply_relic_count() {
 		}
 		spawn_relic(x, z, civs[k % PLAYABLE_CIV_COUNT]);
 	}
+}
+
+bool Simulation::regicide_hero_lost(int t) const {
+	// Regicide.js CheckRegicideDefeat: the hero it spawned for the player died or changed
+	// owner ("%(player)s has been defeated (lost hero)."). Heroes trained later don't count.
+	const uint32_t h = t < MAX_PLAYERS ? regicide_hero_[t] : 0;
+	if (!h) return false;
+	const int32_t u = lookup_unit(h);
+	return u < 0 || !(units_.alive[u] || units_.action_state[u] == ACTION_GARRISONED) || units_.team[u] != t;
 }
 
 void Simulation::spawn_regicide_heroes() {
@@ -15462,6 +15473,14 @@ void Simulation::petra_manage_economy(float dt) {
 					order_return_resource(&uid, 1, best);
 					continue;
 				}
+				// gameState.getOwnDropsites holds units too (supply wagons, worker elephants):
+				// with only one of those on its land, the worker returns there, tick_gather
+				// picking the nearest dropsite as for any return.
+				if (petra_mobile_dropsite_on_land(i)) {
+					units_.action_state[i] = ACTION_RETURN_DROPSITE;
+					units_.has_order[i] = 1;
+					continue;
+				}
 			}
 			reassignable_workers.push_back(i);
 		} else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i])) {
@@ -15473,7 +15492,7 @@ void Simulation::petra_manage_economy(float dt) {
 			if (units_.action_state[i] == ACTION_RETURN_DROPSITE && naval_workers &&
 			    std::none_of(buildings_.begin(), buildings_.end(), [&](const Building &b) {
 				    return dropsite_accepts(i, b) && petra_same_land(i, b);
-			    }) && !petra_passenger(units_.id[i])) {
+			    }) && !petra_mobile_dropsite_on_land(i) && !petra_passenger(units_.id[i])) {
 				reassignable_workers.push_back(i);
 				continue;
 			}
@@ -21373,6 +21392,20 @@ std::vector<int> Simulation::petra_garrison_incoming() const {
 }
 
 // PETRA.getLandAccess: the structure's land is the one next to its obstruction.
+// A mobile dropsite (template_unit_support_elephant, _wagon: every resource) unit i may
+// drop at, standing on i's land, as tick_gather would take it.
+bool Simulation::petra_mobile_dropsite_on_land(size_t i) const {
+	if (units_.unit_type[i] == UNIT_FISHING_BOAT) return false;
+	const uint16_t land = petra_land_at(units_.pos_x[i], units_.pos_z[i]);
+	for (size_t e = 0; e < units_.count; ++e) {
+		if (!units_.alive[e] || !unit_is_mobile_dropsite(units_.unit_type[e]) || units_.action_state[e] == ACTION_GARRISONED)
+			continue;
+		if (!mobile_dropsite_usable_by(units_.team[i], e)) continue;
+		if (land == 0 || petra_land_at(units_.pos_x[e], units_.pos_z[e]) == land) return true;
+	}
+	return false;
+}
+
 bool Simulation::petra_same_land(size_t i, const Building &b) const {
 	auto [ux, uz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
 	const uint16_t land = nav_grid_.global_region_at(ux, uz, PASS_INFANTRY);
@@ -25296,7 +25329,7 @@ void Simulation::fauna_hit_unit(size_t f, size_t u) {
 	const float dmg = info.hack_damage * powf(0.9f, res[0]) + info.pierce_damage * powf(0.9f, res[1]) +
 	                  info.crush_damage * powf(0.9f, res[2]);
 	if (!invulnerable(units_.id[u])) units_.hp[u] -= dmg;
-	note_attacked(0, GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg);
+	note_attacked(fauna_.id[f], GAIA_PLAYER, units_.id[u], units_.team[u], false, dmg, true);
 	if (units_.hp[u] <= 0.0f) {
 		units_.alive[u] = 0;
 		units_.action_state[u] = ACTION_DYING;
@@ -25361,6 +25394,7 @@ void Simulation::tick_hunters() {
 			}
 			dmg = unit_damage_to_fauna(i, f);
 		}
+		if (fauna_strikes_.size() < kMaxAttackedEvents) fauna_strikes_.push_back({units_.id[i], (uint8_t)slaughter});
 		award_fauna_xp(i, f, dmg);
 		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i], slaughter || units_.attack_range[i] <= 3.0f);

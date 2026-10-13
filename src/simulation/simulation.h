@@ -383,19 +383,31 @@ public:
 	// hashed or read by the simulation; at most kMaxAttackedEvents wait between reads
 	// so a headless sim without a reader stays bounded.
 	struct AttackedEvent {
-		uint32_t attacker_id; // unit or structure, 0 for none (DeathDamage, fauna)
+		uint32_t attacker_id; // unit, structure or animal; 0 for none (DeathDamage)
 		uint32_t target_id;
 		uint8_t attacker_owner;
 		uint8_t target_owner;
 		uint8_t target_is_building;
 		float x, z; // the target's position
 		float damage;
+		uint8_t melee; // a melee hit (the attacker's attack_melee sound plays on it)
 	};
 	static constexpr size_t kMaxAttackedEvents = 4096;
 	// Hands over the hits since the last call.
 	std::vector<AttackedEvent> take_attacked_events() {
 		std::vector<AttackedEvent> out;
 		out.swap(attacked_events_);
+		return out;
+	}
+	// A unit's melee or Slaughter strike on an animal: presentation only like
+	// AttackedEvent (the striker's attack_melee or attack_slaughter sound plays on it).
+	struct FaunaStrikeEvent {
+		uint32_t attacker_id;
+		uint8_t slaughter;
+	};
+	std::vector<FaunaStrikeEvent> take_fauna_strikes() {
+		std::vector<FaunaStrikeEvent> out;
+		out.swap(fauna_strikes_);
 		return out;
 	}
 	// 0 A.D. session chat notifications (gui/session/messages.js "tribute",
@@ -2113,9 +2125,10 @@ private:
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
-			bool target_is_building, float damage);
+			bool target_is_building, float damage, bool melee = false);
 	double battle_damage_[MAX_PLAYERS] = {};
 	std::vector<AttackedEvent> attacked_events_;
+	std::vector<FaunaStrikeEvent> fauna_strikes_;
 	std::vector<SessionNotice> session_notices_;
 	void note_session(const SessionNotice &n) { if (session_notices_.size() < kMaxSessionNotices) session_notices_.push_back(n); }
 	void note_phase(uint8_t kind, uint8_t player, uint8_t tech) {
@@ -2326,6 +2339,7 @@ private:
 	uint8_t setup_flags_ = 0;
 	void set_setup_flag(uint8_t flag, bool on) { setup_flags_ = on ? (setup_flags_ | flag) : (setup_flags_ & ~flag); }
 	uint32_t regicide_hero_[MAX_PLAYERS] = {};
+	bool regicide_hero_lost(int t) const;
 	uint8_t player_color_[MAX_PLAYERS] = {0, 1, 2, 3, 4, 5, 6, 7};
 	void remove_player_structures(); // Nomad
 	bool explore_map_ = false;
@@ -2616,6 +2630,7 @@ private:
 	uint32_t petra_garrison_holder_for(size_t unit_idx, bool heals_only, std::vector<int> &incoming) const;
 	std::vector<int> petra_garrison_incoming() const;
 	bool petra_same_land(size_t unit_idx, const Building &b) const; // PETRA.getLandAccess match
+	bool petra_mobile_dropsite_on_land(size_t unit_idx) const; // a supply wagon or worker elephant it may drop at, on its land
 	// defenseManager.js garrisonAttackedUnit: the nearest healing structure, or with
 	// emergency the nearest holder at all (unloading one unit when it is full).
 	bool petra_garrison_attacked_unit(size_t unit_idx, bool emergency, std::vector<int> &incoming);

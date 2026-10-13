@@ -2,7 +2,9 @@
 // other players (OnGlobalAttacked: not to Gaia, not to themselves), and the detector
 // (template_player.xml: 200 ms periods, 12-period record, 0.04 hp/ms) turns it into the
 // BATTLE / PEACE state that picks the music. Each hit is also an Attacked event for
-// AttackDetection (the under-attack alerts).
+// AttackDetection (the under-attack alerts). Melee hits are marked so the session plays
+// the attacker's attack_melee sound on them; attack_sound_data.h holds each template's
+// 0 A.D. combat sound groups (tools/extract_0ad_attack_sounds.py).
 //   g++ -std=c++20 -O2 -Isrc tools/test_battle_detection.cpp src/simulation/simulation.cpp \
 //       src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread \
 //       -o /tmp/test_battle_detection && /tmp/test_battle_detection
@@ -12,6 +14,10 @@
 #include "presentation/attack_detection.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+namespace rtso {
+#include "presentation/attack_sound_data.h"
+}
 
 using namespace rtso;
 
@@ -106,7 +112,7 @@ int main() {
 		s.order_attack_building(&sw2, 1, bar);
 		(void)s.take_attacked_events();
 		float melee = 0, arrows = 0, bld = 0;
-		bool pos_ok = true;
+		bool pos_ok = true, melee_flags = true;
 		AttackDetection det;
 		int alerts = 0;
 		for (int t = 0; t < 200; ++t) {
@@ -116,6 +122,9 @@ int main() {
 				if (e.target_id == d2 && e.attacker_id == ar) arrows += e.damage;
 				if (e.target_id == bar && e.target_is_building && e.attacker_id == sw2) bld += e.damage;
 				if (e.target_id == d) pos_ok = pos_ok && std::fabs(e.x - 1.0f) < 1.5f && std::fabs(e.z) < 1.5f;
+				// Swords hit in melee, arrows land as projectiles.
+				if (e.attacker_id == sw || e.attacker_id == sw2) melee_flags = melee_flags && e.melee == 1;
+				if (e.attacker_id == ar) melee_flags = melee_flags && e.melee == 0;
 				// main_node's filter: hits on player 1 from someone else.
 				if (e.target_owner == 1 && e.attacker_owner != 1 && det.report(e.x, e.z, t * Simulation::FIXED_STEP)) ++alerts;
 			}
@@ -127,12 +136,92 @@ int main() {
 		CHECK(lost1 > 0.0f && std::fabs(arrows - lost1) < 0.01f);
 		CHECK(b0 - bhp() > 0.0f && std::fabs(bld - (b0 - bhp())) < 0.01f);
 		CHECK(pos_ok);
+		CHECK(melee_flags);
 		// All three fights are within SuppressionRange (40 units) of each other: one alert.
 		CHECK(alerts == 1);
 		s.order_attack(&sw, 1, d, false);
 		s.tick(Simulation::FIXED_STEP);
 		s.reset();
 		CHECK(s.take_attacked_events().empty());
+	}
+
+	// 2. Combat sound groups (template Sound/SoundGroups): every listed file ships in
+	//    assets/audio/, and the groups follow the templates.
+	{
+		auto group_is = [](uint8_t g, const char *dir, const char *first) {
+			if (g >= ATTACK_SOUND_GROUP_COUNT) return false;
+			const AttackSoundGroup &grp = attack_sound_group(g);
+			return std::strcmp(grp.dir, dir) == 0 && grp.files[0] && std::strncmp(grp.files[0], first, std::strlen(first)) == 0;
+		};
+		int missing = 0;
+		for (uint8_t g = 0; g < ATTACK_SOUND_GROUP_COUNT; ++g) {
+			const AttackSoundGroup &grp = attack_sound_group(g);
+			CHECK(grp.files[0] != nullptr && grp.gain > 0.0f && grp.pitch_lo <= grp.pitch_hi);
+			for (int i = 0; grp.files[i]; ++i) {
+				char path[256];
+				std::snprintf(path, sizeof path, "assets/audio/%s/%s", grp.dir, grp.files[i]);
+				if (FILE *f = std::fopen(path, "rb")) std::fclose(f);
+				else if (++missing <= 3) std::printf("missing %s\n", path);
+			}
+		}
+		CHECK(missing == 0);
+		CHECK(ATTACK_SOUND_ROSTER_ROWS == CIV_UNIT_TEMPLATE_COUNT);
+		const EntityAttackSounds *gen = generic_attack_sounds();
+		CHECK(group_is(gen[UNIT_SWORDSMAN].a, "attack/weapon", "sword_attack"));
+		CHECK(group_is(gen[UNIT_SPEARMAN].a, "attack/weapon", "spear_attack"));
+		CHECK(group_is(gen[UNIT_ARCHER].b, "attack/weapon", "bow_attack") && group_is(gen[UNIT_ARCHER].c, "attack/impact", "arrow_dirt"));
+		CHECK(group_is(gen[UNIT_SIEGE_RAM].a, "attack/siege", "ram_attack"));
+		CHECK(gen[UNIT_HEALER].a == ATTACK_SOUND_NONE && gen[UNIT_HEALER].b == ATTACK_SOUND_NONE);
+		// Roster rows: a javelineer throws javelin_attack and lands javelin_impact.
+		bool jav = false;
+		for (uint16_t r = 0; r < CIV_UNIT_TEMPLATE_COUNT; ++r)
+			if (std::strcmp(civ_unit_template_table()[r].id, "athen/infantry_javelineer_b") == 0)
+				jav = group_is(roster_attack_sounds()[r].b, "attack/weapon", "jav_attack");
+		CHECK(jav);
+		// Defence towers shoot bow_attack; every structure collapses as template_structure.
+		CHECK(group_is(building_attack_sounds(BLD_TOWER).a, "attack/weapon", "bow_attack"));
+		CHECK(building_attack_sounds(BLD_HOUSE).a == ATTACK_SOUND_NONE);
+		for (uint8_t t = 0; t < BLD_TYPE_COUNT; ++t)
+			CHECK(group_is(building_attack_sounds(t).c, "attack/destruction", "building_collapse_large"));
+		CHECK(group_is(building_attack_sounds(BLD_TYPE_COUNT + 5).c, "attack/destruction", "building_collapse_large"));
+		// Slaughter (women's knife) and the animals' own attacks, in FaunaType order.
+		CHECK(group_is(gen[UNIT_FEMALE_CITIZEN].d, "attack/impact", "fleshstab"));
+		CHECK(ATTACK_SOUND_FAUNA_ROWS == FAUNA_COUNT);
+		CHECK(fauna_attack_sound(fauna_type_by_name("fauna_lion")) != ATTACK_SOUND_NONE &&
+				fauna_attack_sound(fauna_type_by_name("fauna_lion")) == fauna_attack_sound(fauna_type_by_name("fauna_tiger")));
+		CHECK(group_is(fauna_attack_sound(fauna_type_by_name("fauna_elephant_asian")), "actor/fauna/animal", "elephant_attack"));
+		CHECK(fauna_attack_sound(FAUNA_DEER) == ATTACK_SOUND_NONE && fauna_attack_sound(FAUNA_COUNT) == ATTACK_SOUND_NONE);
+	}
+
+	// 3. Strikes on animals and animals' bites reach the session's combat sounds: a woman
+	//    slaughtering a sheep is a Slaughter strike, a lion's bite is a melee hit by the lion.
+	{
+		fresh(s);
+		const uint32_t w = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
+		const uint32_t sheep = s.spawn_fauna(1.5f, 0.0f, FAUNA_SHEEP);
+		s.order_hunt(&w, 1, sheep);
+		(void)s.take_fauna_strikes();
+		int slaughters = 0;
+		for (int t = 0; t < 100 && !slaughters; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			for (const auto &e : s.take_fauna_strikes()) slaughters += e.attacker_id == w && e.slaughter;
+		}
+		CHECK(slaughters == 1);
+		const uint32_t sp = s.spawn_unit(20.0f, 20.0f, 0, UNIT_SPEARMAN, 2000.0f);
+		const uint32_t lion = s.spawn_fauna(21.0f, 20.0f, FAUNA_LION);
+		size_t lf = 0;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			if (s.fauna_.id[f] == lion) lf = f;
+		s.fauna_start_attack(lf, sp);
+		(void)s.take_attacked_events();
+		bool bit = false;
+		for (int t = 0; t < 100 && !bit; ++t) {
+			s.tick(Simulation::FIXED_STEP);
+			for (const auto &e : s.take_attacked_events()) bit = bit || (e.attacker_id == lion && e.target_id == sp && e.melee == 1);
+		}
+		CHECK(bit);
+		s.reset();
+		CHECK(s.take_fauna_strikes().empty());
 	}
 
 	if (failures) {
