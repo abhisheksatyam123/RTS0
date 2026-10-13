@@ -242,7 +242,7 @@ int main() {
 		CHECK(c.cmd_build(0, px, py, BLD_GEROUSIA) == 0);  // Spartan, but Town phase
 		CHECK(c.cmd_build(0, px, py, BLD_SYSSITON) != 0);  // Village phase in 0 A.D.
 		const BuildingTypeInfo &sy = building_type_info(BLD_SYSSITON);
-		CHECK(std::strcmp(sy.name, "Military Mess Hall") == 0 && sy.max_hp == 2000.0f && sy.stone_cost == 200);
+		CHECK(std::strcmp(sy.name, "Military Mess Hall") == 0 && sy.max_hp == 2000.0f && sy.stone_cost == 150 && sy.gold_cost == 150); // 0.28
 		// Spartan champions and heroes train at the Syssiton, as in 0 A.D.
 		int at_syssiton = 0;
 		for (uint16_t i = civ_roster_begin(CIV_SPARTANS); i < civ_roster_end(CIV_SPARTANS); ++i)
@@ -294,8 +294,8 @@ int main() {
 		CHECK(civ_unit_template(roster_id("cart/cavalry_swordsman_gaul_b")).trainers == bld_bit(BLD_EMBASSY));
 		CHECK(std::strcmp(building_type_info(BLD_EMBASSY).name, "Celtic Embassy") == 0 &&
 			building_type_info(BLD_EMBASSY).wood_cost == 200 && building_type_info(BLD_EMBASSY).max_hp == 1200.0f);
-		CHECK(building_type_info(BLD_EMBASSY_IBERIAN).stone_cost == 200 && building_type_info(BLD_EMBASSY_IBERIAN).wood_cost == 0);
-		CHECK(building_type_info(BLD_EMBASSY_ITALIC).gold_cost == 200 && building_type_info(BLD_EMBASSY_ITALIC).max_hp == 1500.0f);
+		CHECK(building_type_info(BLD_EMBASSY_IBERIAN).stone_cost == 100 && building_type_info(BLD_EMBASSY_IBERIAN).wood_cost == 100); // 0.28
+		CHECK(building_type_info(BLD_EMBASSY_ITALIC).stone_cost == 100 && building_type_info(BLD_EMBASSY_ITALIC).max_hp == 1500.0f); // 0.28
 		CHECK(building_required_phase(BLD_EMBASSY_IBERIAN) == 2 && building_phase_class(BLD_EMBASSY_ITALIC) == 2);
 		CHECK(building_type_info(BLD_EMBASSY_ITALIC).garrison_cap == 6 &&
 			garrison_list_matches(structure_garrison_list(BLD_EMBASSY_ITALIC, CIV_CARTHAGINIANS), TC_CAVALRY));
