@@ -1,10 +1,11 @@
 #ifndef RTSO_CELL_SET_H
 #define RTSO_CELL_SET_H
 
-// A set of integer grid cells: insert, clear and contains, with the results of the
-// std::unordered_set<std::pair<int, int>> it replaces, in a dense byte grid that grows to cover
-// every inserted cell. Simulation::can_place asks it once per footprint cell, and Petra's
-// placement search asks it for every cell of every ring around its base.
+// A set of integer grid cells, each marked FULL or PART, in a dense byte grid that grows to cover
+// every marked cell. Simulation::occupied_cells_ marks a cell FULL where a building's footprint
+// covers it wholly and PART where the footprint only reaches into it. Simulation::can_place asks
+// it once per footprint cell, and Petra's placement search asks it for every cell of every ring
+// around its base.
 
 #include <algorithm>
 #include <cstddef>
@@ -15,15 +16,20 @@ namespace rtso {
 
 class CellSet {
 public:
+	static constexpr uint8_t PART = 1, FULL = 2;
+
 	void clear() { std::fill(cells_.begin(), cells_.end(), (uint8_t)0); }
 
-	void insert(int x, int y)
+	// Marks (x, y) with `mark`; a cell keeps the higher of its marks.
+	void insert(int x, int y, uint8_t mark = FULL)
 	{
 		if (!covers(x, y)) grow(x, y);
-		cells_[index(x, y)] = 1;
+		uint8_t &c = cells_[index(x, y)];
+		c = std::max(c, mark);
 	}
 
 	bool contains(int x, int y) const { return covers(x, y) && cells_[index(x, y)]; }
+	uint8_t mark(int x, int y) const { return covers(x, y) ? cells_[index(x, y)] : (uint8_t)0; }
 
 private:
 	static constexpr int PAD = 64; // cells added beyond an insert outside the grid

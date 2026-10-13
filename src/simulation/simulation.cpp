@@ -479,6 +479,7 @@ void Simulation::reset() {
 	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 	std::fill(std::begin(regicide_hero_), std::end(regicide_hero_), 0u);
 	for (auto &v : match_trained_) v.clear();
 	for (auto &v : petra_army_ids_) v.clear();
@@ -783,6 +784,7 @@ void Simulation::spawn_war(int total_units) {
 	field_bld_by_res_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 	relics_.clear();
 	treasures_.clear();
 	scenery_.clear();
@@ -972,15 +974,15 @@ void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	if (resources_.max_amount[it->second] > 0) resources_.max_amount[it->second] = amount;
 }
 
-uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress) {
+uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress, float rot) {
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
 	float x = (cell_x + footprint * 0.5f) * GRID;
 	float z = (cell_y + footprint * 0.5f) * GRID;
-	return spawn_building_world(x, z, type, team, progress);
+	return spawn_building_world(x, z, type, team, progress, rot);
 }
 
-uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint8_t team, float progress) {
+uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint8_t team, float progress, float rot) {
 	uint32_t bid = alloc_id();
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
@@ -1015,6 +1017,8 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 	if (type == BLD_DOCK || type == BLD_SUPER_DOCK) { // GuiInterface GetFoundationSnapData: a dock faces the open water
 		const float a = dock_angle(wx, wz, half);
 		if (!std::isnan(a)) b.set_rot(a);
+	} else {
+		b.set_rot(rot);
 	}
 	b.attack_timer = 0.0f;
 	b.is_burning = false;
@@ -1041,12 +1045,7 @@ uint32_t Simulation::spawn_building_world(float wx, float wz, uint8_t type, uint
 
 	buildings_.push_back(b);
 	building_id_to_idx_[bid] = buildings_.size() - 1;
-
-	for (int dx = 0; dx < footprint; ++dx) {
-		for (int dy = 0; dy < footprint; ++dy) {
-			occupied_cells_.insert(cell_x + dx, cell_y + dy);
-		}
-	}
+	occupy_cells(buildings_.back());
 	if (progress >= 0.99f && !bulk_spawn_) {
 		rebuild_nav_grid();
 		if (has_territory_influence(b.type)) {
@@ -1125,10 +1124,11 @@ void Simulation::remove_player_structures() {
 	nomad_start_ = true;
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 	for (size_t i = 0; i < buildings_.size(); ++i) {
 		const Building &b = buildings_[i];
 		building_id_to_idx_[b.id] = i;
-		for (const auto &[cx, cy] : building_cells(b)) occupied_cells_.insert(cx, cy);
+		if (!b.wrecked) occupy_cells(b);
 	}
 }
 
@@ -1558,7 +1558,10 @@ float Simulation::get_terrain_height(float x, float z) const {
 	return h0 * (1.0f - tz) + h1 * tz;
 }
 
+// A square of whole cells overlaps every building that reaches into one of them, so occupied
+// cells, FULL or PART, decide it exactly.
 bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
+	ensure_occupied_cells();
 	int limit = (int)(map_half_ / GRID) - footprint;
 	for (int dx = 0; dx < footprint; ++dx) {
 		for (int dy = 0; dy < footprint; ++dy) {
@@ -1569,6 +1572,31 @@ bool Simulation::can_place(int cell_x, int cell_y, int footprint) const {
 		}
 	}
 	return true;
+}
+
+void Simulation::occupy_cells(const Building &b) const {
+	for (const auto &[cx, cy] : building_cells(b))
+		occupied_cells_.insert(cx, cy,
+				nav::footprint_covers_box(b, cx * GRID, cy * GRID, (cx + 1) * GRID, (cy + 1) * GRID) ? CellSet::FULL : CellSet::PART);
+}
+
+void Simulation::ensure_occupied_cells() const {
+	if (!occupied_stale_) return;
+	occupied_stale_ = false;
+	occupied_cells_.clear();
+	for (const Building &b : buildings_)
+		if (!b.wrecked) occupy_cells(b);
+}
+
+bool Simulation::footprint_hits_building(const nav::Footprint &f) const {
+	const float e = nav::footprint_extent(f);
+	for (const Building &b : buildings_) {
+		if (b.wrecked) continue;
+		const float r = e + nav::footprint_extent(b);
+		if (std::fabs(b.x - f.x) >= r || std::fabs(b.z - f.z) >= r) continue;
+		if (nav::footprints_overlap(f, b)) return true;
+	}
+	return false;
 }
 
 namespace {
@@ -1654,7 +1682,9 @@ uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int 
 	mix(fbits(map_half_));
 	mix(((uint64_t)petra_pid_ << 8) | btype);
 	for (const Building &b : buildings_) {
-		const bool in_area = b.cell_x <= ax1 && b.cell_x + b.footprint > ax0 && b.cell_y <= az1 && b.cell_y + b.footprint > az0;
+		// Its footprint's bounds (a turned or off-grid one reaches past its cell_x/cell_y square).
+		const float be = nav::footprint_extent(b);
+		const bool in_area = b.x - be < (ax1 + 1) * GRID && b.x + be > ax0 * GRID && b.z - be < (az1 + 1) * GRID && b.z + be > az0 * GRID;
 		const bool distance_rule = rule.distance_class != DIST_NONE && b.team == petra_pid_ && b.hp > 0.0f &&
 		                           distance_class_of(b.type) == rule.distance_class;
 		if (!in_area && !distance_rule) continue;
@@ -1696,17 +1726,45 @@ uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int 
 	return h;
 }
 
-Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type) const {
+Simulation::PlacementResult Simulation::check_placement(uint8_t player, int cell_x, int cell_y, uint8_t b_type, float angle) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
 	const int foot = building_type_info(b_type).footprint;
-	if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
-	std::vector<std::pair<int, int>> cells;
-	cells.reserve((size_t)(foot * foot));
-	for (int dz = 0; dz < foot; ++dz)
-		for (int dx = 0; dx < foot; ++dx) cells.emplace_back(cell_x + dx, cell_y + dz);
 	const float x0 = cell_x * GRID, z0 = cell_y * GRID;
 	const float x1 = x0 + foot * GRID, z1 = z0 + foot * GRID;
-	return check_placement_cells(player, b_type, cells, x0, z0, x1, z1, 0.5f * (x0 + x1), 0.5f * (z0 + z1), nullptr, nullptr);
+	const float cxw = 0.5f * (x0 + x1), czw = 0.5f * (z0 + z1);
+	// The footprint as spawn_building would turn it: a dock faces the sea whatever it was asked.
+	float rot = angle;
+	if (b_type == BLD_DOCK || b_type == BLD_SUPER_DOCK) {
+		const float a = dock_angle(cxw, czw, foot * GRID * 0.5f);
+		rot = std::isnan(a) ? DEFAULT_BUILDING_ROT : a;
+	}
+	float ux, uz;
+	nav::footprint_axis(rot, ux, uz);
+	if (uz == 0.0f) { // unturned, or a quarter turn of a square: its square of cells
+		if (!can_place(cell_x, cell_y, foot)) return PLACE_OBSTRUCTED;
+		std::vector<std::pair<int, int>> cells;
+		cells.reserve((size_t)(foot * foot));
+		for (int dz = 0; dz < foot; ++dz)
+			for (int dx = 0; dx < foot; ++dx) cells.emplace_back(cell_x + dx, cell_y + dz);
+		return check_placement_cells(player, b_type, cells, x0, z0, x1, z1, cxw, czw, nullptr, nullptr);
+	}
+	// Turned (CheckFoundation tests the turned square): every cell it reaches into, kept as far
+	// from the map edge as an unturned one.
+	Building turned{};
+	turned.x = cxw;
+	turned.z = czw;
+	turned.type = b_type;
+	turned.footprint = foot;
+	turned.cell_x = cell_x;
+	turned.cell_y = cell_y;
+	turned.rot = rot;
+	turned.set_extents(foot * GRID * 0.5f, building_half_depth(b_type, foot * GRID * 0.5f));
+	const std::vector<std::pair<int, int>> cells = building_cells(turned);
+	const int limit = (int)(map_half_ / GRID) - foot;
+	for (const auto &[cx, cy] : cells)
+		if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
+	const float e = nav::footprint_extent(turned);
+	return check_placement_cells(player, b_type, cells, cxw - e, czw - e, cxw + e, czw + e, cxw, czw, &turned, nullptr);
 }
 
 Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, uint8_t b_type,
@@ -1719,14 +1777,34 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
 	// 1. Obstruction (CheckFoundation): the map edge, other buildings, and resources
 	// (trees, mines, bushes; a field's grain and carcasses don't block). check_placement has
-	// tested a square's map edge and buildings with can_place.
+	// tested a square's map edge and buildings with can_place. A turned footprint obstructs where
+	// it overlaps a building's (TestStaticShape), but a wall piece joining towers (`ignore_cells`)
+	// still tests whole cells.
 	if (rect) {
+		ensure_occupied_cells();
 		const int limit = (int)(map_half_ / GRID) - 1;
+		bool part = false;
 		for (const auto &[cx, cy] : cells) {
 			if (std::abs(cx) > limit || std::abs(cy) > limit) return PLACE_OBSTRUCTED;
-			if (!occupied_cells_.contains(cx, cy)) continue;
-			if (!ignore_cells || std::find(ignore_cells->begin(), ignore_cells->end(), std::make_pair(cx, cy)) == ignore_cells->end())
-				return PLACE_OBSTRUCTED;
+			const uint8_t m = occupied_cells_.mark(cx, cy);
+			if (!m) continue;
+			if (ignore_cells) {
+				if (std::find(ignore_cells->begin(), ignore_cells->end(), std::make_pair(cx, cy)) == ignore_cells->end())
+					return PLACE_OBSTRUCTED;
+				continue;
+			}
+			if (m == CellSet::FULL) return PLACE_OBSTRUCTED;
+			part = true;
+		}
+		if (part) {
+			nav::Footprint f;
+			f.x = rect->x;
+			f.z = rect->z;
+			f.ux = rect->ux;
+			f.uz = rect->uz;
+			f.hu = rect->hu;
+			f.hv = rect->hv;
+			if (footprint_hits_building(f)) return PLACE_OBSTRUCTED;
 		}
 	}
 	{
@@ -1762,21 +1840,26 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	auto too_steep_for_dock = [&](int nx, int ny) {
 		return nav_grid_.compute_cell_slope(nx, ny, terrain_heights_, terrain_res_) > SHORE_MAX_TERRAIN_SLOPE;
 	};
+	// Whether nav cell (nx, ny) lies under the footprint: every cell of its bounds, or of a turned
+	// footprint's bounds those it overlaps.
+	auto under = [&](int nx, int ny) {
+		if (!rect) return true;
+		const float wx0 = -nav_grid_.map_half + nx * nav_cell, wz0 = -nav_grid_.map_half + ny * nav_cell;
+		return nav::footprint_overlaps_box(*rect, wx0, wz0, wx0 + nav_cell, wz0 + nav_cell);
+	};
 	if (have_nav) {
 		auto [nx0, ny0] = nav_grid_.world_to_cell(x0 + 0.01f, z0 + 0.01f);
 		auto [nx1, ny1] = nav_grid_.world_to_cell(x1 - 0.01f, z1 - 0.01f);
 		if (rule.placement == PLACE_LAND) {
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x)
-					if (is_water(x, y) || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
+					if ((is_water(x, y) || nav_grid_.is_steep(x, y)) && under(x, y)) return PLACE_TERRAIN;
 		} else if (rule.placement == PLACE_LAND_SHORE && rect) {
 			// A WallSet piece stands wholly where land units can go (CheckFoundation over its
 			// shape with default-terrain-only): no deep water or steep slope under it.
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x) {
-					if (!nav_grid_.cells.inside(x, y)) continue;
-					const float wx0 = -nav_grid_.map_half + x * nav_cell, wz0 = -nav_grid_.map_half + y * nav_cell;
-					if (!nav::footprint_overlaps_box(*rect, wx0, wz0, wx0 + nav_cell, wz0 + nav_cell)) continue;
+					if (!nav_grid_.cells.inside(x, y) || !under(x, y)) continue;
 					if (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y)) return PLACE_TERRAIN;
 				}
 		} else if (rule.placement == PLACE_LAND_SHORE) {
@@ -1788,10 +1871,10 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			bool land = false, sea = false;
 			for (int y = ny0; y <= ny1; ++y)
 				for (int x = nx0; x <= nx1; ++x)
-					if (too_steep_for_dock(x, y)) return PLACE_TERRAIN;
+					if (too_steep_for_dock(x, y) && under(x, y)) return PLACE_TERRAIN;
 			for (int y = ny0; y <= ny1 && !land; ++y)
 				for (int x = nx0; x <= nx1 && !land; ++x)
-					land = !is_water(x, y);
+					land = !is_water(x, y) && under(x, y);
 			const int ring = std::max(1, (int)std::ceil(GRID / nav_cell));
 			for (int y = ny0 - ring; y <= ny1 + ring && !sea; ++y)
 				for (int x = nx0 - ring; x <= nx1 + ring && !sea; ++x)
@@ -1820,7 +1903,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 	// 4. Distance from the player's own structures (foundations included) of the
 	// same class, measured between footprint edges.
 	if (rule.distance_class != DIST_NONE) {
-		const float half = 0.5f * (x1 - x0);
+		const float half = rect ? rect->half_size : 0.5f * (x1 - x0);
 		for (const Building &b : buildings_) {
 			if (b.team != player || b.hp <= 0.0f || distance_class_of(b.type) != rule.distance_class) continue;
 			const float d = std::hypot(b.x - cxw, b.z - czw) - half - b.half_size;
@@ -1874,11 +1957,6 @@ float Simulation::unpack_angle(uint32_t packed) {
 
 std::vector<std::pair<int, int>> Simulation::building_cells(const Building &b) const {
 	std::vector<std::pair<int, int>> cells;
-	if (!is_wallset_piece(b.type, b.half_size)) {
-		for (int dx = 0; dx < b.footprint; ++dx)
-			for (int dy = 0; dy < b.footprint; ++dy) cells.emplace_back(b.cell_x + dx, b.cell_y + dy);
-		return cells;
-	}
 	const float e = nav::footprint_extent(b);
 	const int cx0 = (int)std::floor((b.x - e) / GRID), cx1 = (int)std::floor((b.x + e) / GRID);
 	const int cy0 = (int)std::floor((b.z - e) / GRID), cy1 = (int)std::floor((b.z + e) / GRID);
@@ -2040,7 +2118,7 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 		b.max_hp *= health / building_type_info(b.type).max_hp;
 		b.hp = progress <= 0.0f ? 1.0f : b.max_hp * progress;
 	}
-	for (const auto &[cx, cy] : building_cells(b)) occupied_cells_.insert(cx, cy);
+	occupied_stale_ = true; // spawn_building_world took the unturned footprint's cells
 	if (progress >= 0.99f && !bulk_spawn_) rebuild_nav_grid();
 	return bid;
 }
@@ -2142,14 +2220,13 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	if (!civ_can_build(players_[player].civ, b_type)) return 0; // civ-specific structures
 	if (triggers_.building_disabled(player, b_type)) return 0;   // the map script's SetDisabledTemplates
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
-	if (check_placement(player, cell_x, cell_y, b_type) != PLACE_OK) return 0;
+	if (check_placement(player, cell_x, cell_y, b_type, unpack_angle(pack_angle(angle))) != PLACE_OK) return 0;
 	if (building_required_phase(b_type) > players_[player].phase) return 0;
 	if (!entity_limit_allows_building(player, b_type)) return 0; // EntityLimits.js AllowedToBuild
 
 	if (!pay_for_structure(player, b_type)) return 0;
 
-	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f);
-	if (b_type != BLD_DOCK && b_type != BLD_SUPER_DOCK) buildings_[building_id_to_idx_[bid]].set_rot(unpack_angle(pack_angle(angle)));
+	uint32_t bid = spawn_building(cell_x, cell_y, b_type, player, 0.0f, unpack_angle(pack_angle(angle)));
 	if (player == 0) record_.buildings_constructed++;
 	if (!triggers_.triggers.empty()) {
 		// The new foundation entity: OnOwnershipChanged from INVALID_PLAYER to its owner.
@@ -2507,10 +2584,11 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	const uint8_t civ = players_[pid].civ;
 	const uint16_t allies = ally_civ_mask(pid);
 	// Cost/Resources technologies (e.g. Hippocratic Oath's free healers) by the template's own classes.
-	const float *tech_cost = tmpl < CIV_UNIT_TEMPLATE_COUNT ? tech_mods(pid).tmpl[tmpl].cost : nullptr;
+	// ModifiersManager: the multipliers, then the additions (Nastasen's -50 wood and metal).
+	const TechMods::Template *tm = tmpl < CIV_UNIT_TEMPLATE_COUNT ? &tech_mods(pid).tmpl[tmpl] : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
-		out[r] = std::round(out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
-		                    (tech_cost ? tech_cost[r] : 1.0f));
+		out[r] = std::round(std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
+		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f)));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
@@ -2982,6 +3060,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	for (auto &tm : m.tmpl) {
 		for (float &g : tm.gather) g = 1.0f;
 		for (float &c : tm.cost) c = 1.0f;
+		for (float &c : tm.cost_add) c = 0.0f;
 		tm.attack = tm.health = tm.speed = tm.train_time = 1.0f;
 		tm.range = tm.armor[0] = tm.armor[1] = tm.armor[2] = 0.0f;
 		tm.range_mul = tm.vision = tm.capture = tm.required_xp = tm.spread = 1.0f;
@@ -3092,7 +3171,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_RANGE: if (ranged) apply(e.op == TOP_MUL ? tm.range_mul : tm.range); break;
 					case TSTAT_BUILD_TIME: apply(tm.train_time); break;
 					case TSTAT_COST_FOOD: case TSTAT_COST_WOOD: case TSTAT_COST_STONE: case TSTAT_COST_METAL:
-						apply(tm.cost[cost_res]); break;
+						if (e.op == TOP_ADD) tm.cost_add[cost_res] += e.value;
+						else apply(tm.cost[cost_res]);
+						break;
 					default: break;
 				}
 			}
@@ -5208,7 +5289,7 @@ int Simulation::ship_template_capacity(uint8_t unit_type, uint16_t tmpl) {
 	const char *id = civ_unit_template(tmpl).id;
 	const char *slash = std::strrchr(id, '/');
 	const char *name = slash ? slash + 1 : id;
-	if (std::strcmp(name, "ship_fire") == 0) return 0;
+	if (std::strncmp(name, "ship_fire", 9) == 0) return 0; // ship_fire and ship_fire_fire
 	if (std::strcmp(name, "ship_scout") == 0) return 10;
 	if (std::strcmp(name, "ship_siege") == 0) return 50;
 	return TRANSPORT_CAPACITY; // ship_arrow, ship_ram, ship_bireme...
@@ -6526,8 +6607,14 @@ void Simulation::collect_loot(uint32_t looter_id, uint8_t looter_player, LootInf
 
 void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, size_t victim) {
 	if (victim >= units_.count) return;
-	collect_loot(looter_id, looter_player, loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]),
-			loot_rank_multiplier(units_.rank[victim]), units_.res_type_carried[victim], units_.carry[victim]);
+	LootInfo loot = loot_denied_unit(victim) ? LootInfo{} : unit_loot(units_.tmpl[victim], units_.unit_type[victim]);
+	// Sacrificial Ritual (cost_healer.json): the victim's owner's healers yield Loot/metal 0.
+	const uint8_t owner = units_.team[victim];
+	if (owner < MAX_PLAYERS && players_[owner].has_tech(TECH_COST_HEALER) &&
+			unit_is_healer(units_.tmpl[victim], units_.unit_type[victim]))
+		loot.metal = 0;
+	collect_loot(looter_id, looter_player, loot, loot_rank_multiplier(units_.rank[victim]),
+			units_.res_type_carried[victim], units_.carry[victim]);
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
@@ -6569,6 +6656,7 @@ void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 	refund_foundation(b);
 	stat_building_lost(b, killer);
 	b.wrecked = true;
+	occupied_stale_ = true;
 	b.hp = 0.0f;
 	b.build_progress = 0.0f;
 	record_death((float)b.cell_x, (float)b.cell_y, b.team, (b.team == 0) ? 1 : 0, b.type, true);
@@ -11217,8 +11305,9 @@ void Simulation::eject_corral_animals(const Building &b) {
 }
 
 // 0 A.D. DeathDamage.js: only templates with a DeathDamage element hurt anything when
-// they die. Of the trained ones that is mixins/fireship.xml (brit, gaul and iber
-// ship_fire): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
+// they die. Of the trained ones that is mixins/fireship.xml, on the ignited fire ships
+// (brit, gaul and iber ship_fire_fire, which ship_fire turns into by its Ignition
+// upgrade): 500 Fire over 20 m, friendly fire on. template_unit_siege_flamethrower
 // has one too but no civ trains it.
 static const DeathDamageInfo FIRESHIP_DEATH_DAMAGE = {20.0f * AREA_DAMAGE_SCALE, 500.0f, true};
 
@@ -11229,24 +11318,30 @@ static bool template_is(uint16_t tmpl, const char *name) {
 	return std::strcmp(slash ? slash + 1 : id, name) == 0;
 }
 
-// The fire ship templates (template_unit_ship_fire.xml), looked up once: the
-// Health regen loop asks this for every unit every tick.
-static bool is_fire_ship(uint16_t tmpl) {
+// The ignited fire ship templates (units/{civ}/ship_fire_fire, mixins/fireship.xml),
+// looked up once: the Health regen loop asks this for every unit every tick. A fire
+// ship as trained doesn't burn until the player ignites it (Upgrade/Ignition).
+static bool is_ignited_fire_ship(uint16_t tmpl) {
 	static const auto table = [] {
 		std::array<bool, CIV_UNIT_TEMPLATE_COUNT> t{};
-		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire");
+		for (uint16_t k = 0; k < CIV_UNIT_TEMPLATE_COUNT; ++k) t[k] = template_is(k, "ship_fire_fire");
 		return t;
 	}();
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT && table[tmpl];
 }
 
+// Either form of the fire ship (template_unit_ship_fire.xml: Repairable disable).
+static bool is_fire_ship(uint16_t tmpl) {
+	return template_is(tmpl, "ship_fire") || is_ignited_fire_ship(tmpl);
+}
+
 const DeathDamageInfo *Simulation::unit_death_damage(size_t i) const {
-	return is_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
+	return is_ignited_fire_ship(units_.tmpl[i]) ? &FIRESHIP_DEATH_DAMAGE : nullptr;
 }
 
 // Health RegenRate from the template; tech modifiers (TSTAT_REGEN) add to it.
 float Simulation::unit_template_regen(size_t i) const {
-	return is_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
+	return is_ignited_fire_ship(units_.tmpl[i]) ? -5.0f : 0.0f; // mixins/fireship.xml: it burns down
 }
 
 // DeathDamage.CauseDeathDamage -> AttackHelper.CauseDamageOverArea: every entity of the
@@ -12465,6 +12560,7 @@ void Simulation::destroy_building(Building &b) {
 	cancel_upgrade(b, b.team);
 	stat_building_lost(b, 0xFF);
 	b.wrecked = true;
+	occupied_stale_ = true;
 	b.hp = 0.0f;
 	b.build_progress = 0.0f;
 	record_death((float)b.cell_x, (float)b.cell_y, b.team, b.team, b.type, true); // no killer, no loot
@@ -13068,10 +13164,37 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
-	if (!can_place(cell_x - 1, cell_y - 1, footprint + 2)) return false;
+	if (!petra_ring_clear(cell_x, cell_y, footprint)) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// The ground petra_can_place needs: its footprint's cells free and a ring of whole cells round it
+// with no building covering one (FULL). A building off the grid or turned that only reaches into
+// a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
+// the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
+// On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
+bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
+	ensure_occupied_cells();
+	const int limit = (int)(map_half_ / GRID) - (footprint + 2);
+	bool part = false;
+	for (int dx = -1; dx <= footprint; ++dx)
+		for (int dy = -1; dy <= footprint; ++dy) {
+			const int cx = cell_x + dx, cy = cell_y + dy;
+			if (std::abs(cx) > limit || std::abs(cy) > limit) return false;
+			const uint8_t m = occupied_cells_.mark(cx, cy);
+			if (!m) continue;
+			const bool ring = dx < 0 || dy < 0 || dx == footprint || dy == footprint;
+			if (!ring || m == CellSet::FULL) return false;
+			part = true;
+		}
+	if (!part) return true;
+	nav::Footprint grown;
+	grown.x = (cell_x + footprint * 0.5f) * GRID;
+	grown.z = (cell_y + footprint * 0.5f) * GRID;
+	grown.hu = grown.hv = (footprint + 1) * GRID * 0.5f;
+	return !footprint_hits_building(grown);
 }
 
 // EntityLimits for a placement search: counting the player's entities walks every
@@ -13248,7 +13371,7 @@ void Simulation::update_petra_bases(float dt) {
 
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0) continue;
-		if (is_civic_centre(b.type)) {
+		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) { // class CivCentre anchors a base
 			tc_ids.push_back(b.id);
 		} else if (b.type == BLD_FORTRESS || is_defense_tower(b.type) || b.type == BLD_STOREHOUSE) {
 			outpost_ids.push_back(b.id);
@@ -14899,7 +15022,8 @@ bool Simulation::petra_start_hunting(size_t u, PetraHuntScan &scan) {
 // its units can collect, else lays out a dock to gather from if it has none.
 void Simulation::petra_build_first_base() {
 	for (const auto &b : buildings_)
-		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && is_civic_centre(b.type)) return; // hasPotentialBase
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY))
+			return; // hasPotentialBase
 	PetraHuntScan scan = petra_hunt_scan();
 	uint8_t goal = BLD_TOWN_CENTER;
 	const BuildingTypeInfo &cc = building_type_info(BLD_TOWN_CENTER);
@@ -16143,110 +16267,8 @@ void Simulation::petra_manage_naval(float dt) {
 void Simulation::petra_manage_buildings(float dt) {
 	// (0 A.D.'s defenseManager builds no towers under attack: buildDefenses alone places them.)
 
-	// 2. Automated Multi-Base Forward Expansion when primary resources deplete or in Phase >= 2
-	bool primary_depleted = false;
-	if (const auto *pbase = get_primary_petra_base()) {
-		primary_depleted = pbase->resources_depleted;
-	}
-
-	// headquarters.js update: checkBaseExpansion every 10th played turn (2 s).
-	if ((primary_depleted || (petra_ps().phase >= 2 && petra_bases_.size() <= 1)) && ticks_ % 10 == 7) {
-		// Check if Town Center is already in progress
-		bool tc_in_progress = false;
-		for (const auto &b : buildings_) {
-			if (b.team == petra_pid_ && is_civic_centre(b.type) && b.build_progress < 1.0f) {
-				tc_in_progress = true;
-				break;
-			}
-		}
-
-		if (!tc_in_progress && petra_limit_allows_building(BLD_TOWN_CENTER)) { // EntityLimits CivilCentre
-			float p_x = 36.0f, p_z = 36.0f;
-			if (const auto *pbase = get_primary_petra_base()) {
-				p_x = pbase->x; p_z = pbase->z;
-			}
-
-			// Scan candidate resource clusters at distance 30m - 55m
-			float best_cluster_score = -1.0f;
-			int best_cx = 0, best_cz = 0;
-			// headquarters.js findEconomicCCLocation: on a naval map a new base may stand on
-			// another land of ours (landRegions), with no cut for an inaccessible one: the
-			// builders sail there (petra_staff_foundations). Home land first, as before.
-			uint16_t home_land = 0;
-			const PetraNavalTopo &topo = petra_classified_topo(home_land);
-			const bool naval_map = topo.naval_map;
-			// Resources by 24-unit bucket, so a candidate's score reads its 3x3 buckets.
-			constexpr float kScoreR = 24.0f;
-			const int nb = std::max(1, (int)std::ceil(2.0f * map_half_ / kScoreR));
-			std::vector<std::vector<uint32_t>> buckets;
-			auto bucket_of = [&](float v) { return std::clamp((int)std::floor((v + map_half_) / kScoreR), 0, nb - 1); };
-			auto scan = [&](float max_dist, bool overseas) {
-				for (size_t r = 0; r < resources_.count; ++r) {
-					// Any tree or mine may anchor a site (a 0 A.D. tree holds 200); the score
-					// below sums what lies around it, as findEconomicCCLocation reads density.
-					if (!resources_.alive[r] || resources_.amount[r] < 200 || resources_.subtype[r] == RES_SUB_FISH) continue;
-					float rx = resources_.x[r];
-					float rz = resources_.z[r];
-					float dist_from_primary = std::hypot(rx - p_x, rz - p_z);
-					if (dist_from_primary < 28.0f || dist_from_primary > max_dist) continue;
-					if (naval_map) {
-						const uint16_t l = petra_land_at(rx, rz);
-						if (!topo.land_region(l) || overseas != (l != home_land)) continue;
-					}
-					if (std::abs(rx) >= map_half_ - 8.0f || std::abs(rz) >= map_half_ - 8.0f) continue;
-					if (!is_position_safe(rx, rz, 5.0f)) continue;
-
-					// Ensure clear distance from enemy structures
-					bool near_enemy = false;
-					for (const auto &eb : buildings_) {
-						if (petra_foe(eb.team) && eb.hp > 0 && std::hypot(eb.x - rx, eb.z - rz) < 26.0f) {
-							near_enemy = true;
-							break;
-						}
-					}
-					if (near_enemy) continue;
-
-					int cx = (int)(rx / GRID);
-					int cz = (int)(rz / GRID);
-					if (petra_can_place(cx, cz, 2, BLD_TOWN_CENTER)) {
-						// Score based on surrounding resources
-						if (buckets.empty()) {
-							buckets.resize((size_t)nb * nb);
-							for (size_t j = 0; j < resources_.count; ++j)
-								if (resources_.alive[j])
-									buckets[(size_t)bucket_of(resources_.z[j]) * nb + bucket_of(resources_.x[j])].push_back((uint32_t)j);
-						}
-						int64_t sum = 0; // whole amounts: the same total in any order
-						const int bx = bucket_of(rx), bz = bucket_of(rz);
-						for (int z = std::max(0, bz - 1); z <= std::min(nb - 1, bz + 1); ++z)
-							for (int x = std::max(0, bx - 1); x <= std::min(nb - 1, bx + 1); ++x)
-								for (uint32_t j : buckets[(size_t)z * nb + x])
-									if (std::hypot(resources_.x[j] - rx, resources_.z[j] - rz) <= kScoreR) sum += resources_.amount[j];
-						const float score = (float)sum;
-						if (score > best_cluster_score) {
-							best_cluster_score = score;
-							best_cx = cx;
-							best_cz = cz;
-						}
-					}
-				}
-			};
-			scan(58.0f, false);
-			// 500 m (125 units) is where config.js disfavours an inaccessible ally CC.
-			if (best_cluster_score <= 0.0f && naval_map) scan(125.0f, true);
-
-			if (best_cluster_score > 0.0f &&
-			    petra_try_pay(PETRA_QUEUE_VILLAGER, 0.0f, 300.0f, 100.0f, 200.0f)) {
-				uint32_t bid = spawn_building(best_cx, best_cz, BLD_TOWN_CENTER, petra_pid_, 0.0f);
-				auto idle_workers = get_idle_workers(petra_pid_);
-				// Overseas, petra_staff_foundations ships the builders across.
-				const bool overseas = naval_map && petra_land_at((best_cx + 1) * GRID, (best_cz + 1) * GRID) != home_land;
-				if (!idle_workers.empty() && !overseas) {
-					petra_order_builders(idle_workers, 4, bid);
-				}
-			}
-		}
-	}
+	// 2. headquarters.js update: checkBaseExpansion every 10th played turn (2 s).
+	if (ticks_ % 10 == 7) petra_check_base_expansion();
 
 	// 2b. Dropsites. baseManager.js checkResourceLevels, each played turn (0.2 s) for wood, stone
 	// and metal: count the gatherers gathering ("used") and walking back to a dropsite ("lost");
@@ -16579,7 +16601,20 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 			const float ratio = (float)dc.lost[k] / (float)total;
 			dc.next_check[k] = turn + 20;
 			dc.used[k] = dc.lost[k] = 0;
-			if (ratio > 0.15f && petra_place_dropsite(kTypes[k])) return; // the foundation resets the rest
+			if (ratio > 0.15f) {
+				bool no_site = false;
+				if (petra_place_dropsite(kTypes[k], 6000.0f, &no_site)) return; // the foundation resets the rest
+				// No good site (quality 50) and no civic centre foundation: a new base for this
+				// resource, else a poorer site.
+				bool cc_foundation = false;
+				for (const Building &b : buildings_)
+					if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && b.build_progress < 1.0f &&
+					    (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY)) { cc_foundation = true; break; }
+				if ((no_site || !civ_can_build(petra_ps().civ, BLD_STOREHOUSE)) && !cc_foundation &&
+				    (petra_config_.difficulty == PETRA_SANDBOX || !petra_build_new_base(kTypes[k])) &&
+				    petra_place_dropsite(kTypes[k], 120.0f * std::min(25.0f, 50.0f * 0.15f / ratio)))
+					return;
+			}
 		} else if (total == 0) {
 			dc.next_check[k] = turn + 10;
 		}
@@ -16661,6 +16696,277 @@ void Simulation::petra_build_farmstead() {
 		auto idle = get_idle_workers(petra_pid_);
 		if (!idle.empty()) petra_order_builders(idle, 3, bid);
 	}
+}
+
+// A base anchor for Petra (baseManager.js anchors: class CivCentre, which in 0 A.D. includes
+// the Ptolemaic and Seleucid military colony).
+static inline bool petra_base_anchor_type(uint8_t type) {
+	return is_civic_centre(type) || type == BLD_MILITARY_COLONY;
+}
+
+// headquarters.js checkBaseExpansion, from the Town phase (canExpand: not on Sandbox). A new
+// base goes up once the units outnumber activeBases * (65 + v + (10 + v) * (activeBases - 1)),
+// v = 10 * (1 - aggressive), or past 50 units under saveResources; not while phasing up.
+// buildManager.numberMissingRoom has no counterpart (placement misses are a cache here, not
+// state). petra_check_resource_levels asks for a base by a resource.
+void Simulation::petra_check_base_expansion() {
+	if (petra_config_.difficulty == PETRA_SANDBOX || petra_ps().phase < 2) return;
+	int active = 0;
+	for (const Building &b : buildings_) {
+		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked || !petra_base_anchor_type(b.type)) continue;
+		if (b.build_progress < 1.0f) return; // a new base is already going up (civilCentre queue)
+		++active;
+	}
+	if (active == 0) return; // petra_build_first_base
+	// headquarters.js phasing lasts until the phase research starts (ResearchPlan.onStart).
+	const uint8_t next = petra_ps().phase == 2 ? TECH_PHASE_CITY : 0;
+	if (petra_phasing() && !(next && research_check(petra_pid_, next) == TECH_ERR_IN_PROGRESS)) return;
+	int units = 0;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_) ++units;
+	const float v = 10.0f * (1.0f - petra_config_.aggressive);
+	if ((float)units > (float)active * (65.0f + v + (10.0f + v) * (float)(active - 1)) ||
+	    (petra_attack_mgr_.save_resources && units > 50))
+		petra_build_new_base();
+}
+
+// headquarters.js buildNewBase: not in the Village phase unless researching Town, nor while a
+// civic centre foundation stands; a military colony once the civ's own civic centre stands,
+// else a civic centre. For a resource, placed by findEconomicCCLocation; else by
+// findStrategicCCLocation (findEconomicCCLocation for wood with the lower cut when fewer than
+// two allied civic centres stand).
+bool Simulation::petra_build_new_base(int res) {
+	if (petra_ps().phase == 1 && research_check(petra_pid_, TECH_PHASE_TOWN) != TECH_ERR_IN_PROGRESS) return false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && petra_base_anchor_type(b.type) && b.build_progress < 1.0f)
+			return false;
+	const uint8_t civ = petra_ps().civ;
+	auto can_build = [&](uint8_t t) {
+		return civ_can_build(civ, t) && building_required_phase(t) <= petra_ps().phase &&
+		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+	};
+	bool own_cc = false;
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.type == BLD_TOWN_CENTER && b.hp > 0.0f && !b.wrecked) { own_cc = true; break; }
+	uint8_t btype;
+	if (own_cc && can_build(BLD_MILITARY_COLONY)) btype = BLD_MILITARY_COLONY;
+	else if (can_build(BLD_TOWN_CENTER)) btype = BLD_TOWN_CENTER;
+	else if (!own_cc && can_build(BLD_MILITARY_COLONY)) btype = BLD_MILITARY_COLONY;
+	else return false;
+
+	float x = 0.0f, z = 0.0f;
+	if (res >= 0 ? !petra_find_economic_cc_location(btype, (uint8_t)res, false, x, z)
+	             : !petra_find_strategic_cc_location(btype, x, z))
+		return false;
+	const BuildingTypeInfo &info = building_type_info(btype);
+	const int foot = info.footprint;
+	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
+	if (!petra_try_pay(PETRA_QUEUE_VILLAGER, (float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost,
+	                   (float)info.stone_cost))
+		return false;
+	const uint32_t bid = spawn_building(cx, cz, btype, petra_pid_, 0.0f);
+	// Overseas, petra_staff_foundations ships the builders across.
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	const bool overseas = topo.naval_map && petra_land_at(x, z) != home_land;
+	auto idle = get_idle_workers(petra_pid_);
+	if (!idle.empty() && !overseas) petra_order_builders(idle, 4, bid);
+	return bid != 0;
+}
+
+// The tile of 0 A.D.'s territory map (8 m, two world units) a civic centre search walks.
+namespace {
+constexpr float kCcTile = 2.0f;
+}
+
+// Whether a civic centre of `btype` fits on the territory tile centred at (x, z) and stands
+// out of danger (getNonObstructedTile, isDangerousLocation).
+bool Simulation::petra_cc_tile_ok(uint8_t btype, float x, float z) const {
+	const int foot = building_type_info(btype).footprint;
+	const int cx = (int)std::floor(x / GRID - 0.5f * (float)foot), cz = (int)std::floor(z / GRID - 0.5f * (float)foot);
+	if (!petra_can_place(cx, cz, foot, btype)) return false;
+	if (!is_position_safe(x, z, 5.0f)) return false; // isNearInvadingArmy
+	// isUnderEnemyFire: within an enemy shooting structure's range plus the footprint's half size.
+	const float half = 0.5f * (float)foot * GRID;
+	for (const Building &eb : buildings_) {
+		if (!petra_foe(eb.team) || eb.hp <= 0.0f || eb.wrecked || eb.build_progress < 1.0f || !building_ai_info(eb.type).shoots()) continue;
+		const float range = half + building_arrow_range(eb);
+		if ((eb.x - x) * (eb.x - x) + (eb.z - z) * (eb.z - z) < range * range) return false;
+	}
+	return true;
+}
+
+// headquarters.js findStrategicCCLocation: with two allied civic centres or more, the neutral
+// tile that keeps the three nearest at the favoured distance (280 m, 220 m for a colony, less
+// 40 m * defensive), none of them nearer than 250 m nor any civic centre than 118 m, and one
+// within 412 m on a land map. Distances in world units (4 m).
+bool Simulation::petra_find_strategic_cc_location(uint8_t btype, float &out_x, float &out_z) {
+	struct Cc { float x, z; bool ally; };
+	std::vector<Cc> ccs;
+	int allies = 0;
+	for (const Building &b : buildings_) {
+		if (b.hp <= 0.0f || b.wrecked || !petra_base_anchor_type(b.type) || b.team >= MAX_PLAYERS) continue;
+		const bool ally = is_ally(petra_pid_, b.team);
+		ccs.push_back({b.x, b.z, ally});
+		allies += ally;
+	}
+	if (allies < 2) return petra_find_economic_cc_location(btype, RES_WOOD, true, out_x, out_z);
+
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	const PetraBase *pb = get_primary_petra_base();
+	const uint16_t own_land = topo.naval_map ? home_land : (pb ? petra_land_at(pb->x, pb->z) : 0);
+	const float favoured = ((btype == BLD_MILITARY_COLONY ? 220.0f : 280.0f) - 40.0f * petra_config_.defensive) / 4.0f;
+	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const float border = 80.0f / 4.0f;
+	bool found = false;
+	float best = 0.0f;
+	for (int iz = 0; iz < w; ++iz) {
+		for (int ix = 0; ix < w; ++ix) {
+			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
+			const int owner = territory_owner_at(x, z);
+			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
+			const uint16_t l = petra_land_at(x, z);
+			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
+			float min_d = 1e30f, d0 = -1.0f, d1 = -1.0f, d2 = -1.0f;
+			for (const Cc &c : ccs) {
+				const float d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z);
+				if (d < 14000.0f / 16.0f || (c.ally && d < 62000.0f / 16.0f)) { min_d = 0.0f; break; }
+				if (!c.ally) continue;
+				min_d = std::min(min_d, d);
+				if (d0 < 0.0f || d < d0) { d2 = d1; d1 = d0; d0 = d; }
+				else if (d1 < 0.0f || d < d1) { d2 = d1; d1 = d; }
+				else if (d2 < 0.0f || d < d2) d2 = d;
+			}
+			if (min_d < 1.0f / 16.0f || (min_d > 170000.0f / 16.0f && !topo.naval_map)) continue;
+			float delta = std::sqrt(d0) - favoured, val = delta * delta;
+			delta = std::sqrt(d1) - favoured;
+			val += delta * delta;
+			if (d2 >= 0.0f) { delta = std::sqrt(d2) - favoured; val += delta * delta; }
+			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) val += 10000.0f / 16.0f;
+			if (found && val > best) continue;
+			if (!petra_cc_tile_ok(btype, x, z)) continue;
+			found = true;
+			best = val;
+			out_x = x;
+			out_z = z;
+		}
+	}
+	return found;
+}
+
+// headquarters.js findEconomicCCLocation, not for a first base: the neutral tile with the most
+// of `res` (twice) and wood, stone and metal on shared.js ccResourceMaps (supply / 50 for wood,
+// / 90 for stone and metal, over 60 m and 120 m, 8-bit cells). Rejected within 120 m of any
+// civic centre, 200 m of an allied one, 410 m beyond the nearest allied one on its land, or
+// 60 m of one of our dropsites; halved within 250 m of an allied one, beyond 360 m (less 30 m
+// for a colony and 30 m * defensive), within 80 m of a dropsite and on the map border; at
+// least 60 (30 from findStrategicCCLocation). A tile across the sea by one of our docks just
+// clears the cut.
+bool Simulation::petra_find_economic_cc_location(uint8_t btype, uint8_t res, bool from_strategic, float &out_x, float &out_z) {
+	const int w = std::max(1, (int)std::floor(2.0f * map_half_ / kCcTile));
+	const size_t n = (size_t)w * (size_t)w;
+	// ccResourceMaps for wood, stone and metal.
+	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
+	std::vector<uint8_t> maps[3];
+	for (auto &m : maps) m.assign(n, 0);
+	for (size_t r = 0; r < resources_.count; ++r) {
+		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
+		int k = -1;
+		for (int j = 0; j < 3; ++j)
+			if (resources_.type[r] == kRes[j]) k = j;
+		if (k < 0) continue;
+		const bool sparse = kRes[k] != RES_WOOD;
+		const float strength = (float)resources_.amount[r] / (sparse ? 90.0f : 50.0f);
+		const float md = (sparse ? 120.0f : 60.0f) / 4.0f / kCcTile, md2 = md * md;
+		const float cx = std::floor((resources_.x[r] + map_half_) / kCcTile), cy = std::floor((resources_.z[r] + map_half_) / kCcTile);
+		const int x0 = (int)std::floor(std::max(0.0f, cx - md)), y0 = (int)std::floor(std::max(0.0f, cy - md));
+		const int x1 = (int)std::floor(std::min((float)(w - 1), cx + md)), y1 = (int)std::floor(std::min((float)(w - 1), cy + md));
+		std::vector<uint8_t> &m = maps[k];
+		for (int y = y0; y < y1; ++y) {
+			const float dy2 = ((float)y - cy) * ((float)y - cy);
+			for (int x = x0; x < x1; ++x) {
+				const float dx = (float)x - cx;
+				if (dx * dx + dy2 >= md2) continue;
+				uint8_t &cell = m[(size_t)y * w + x];
+				cell = (uint8_t)std::clamp((float)cell + strength, 0.0f, 255.0f);
+			}
+		}
+	}
+	int res_k = 0;
+	for (int j = 0; j < 3; ++j)
+		if (kRes[j] == res) res_k = j;
+
+	struct Cc { float x, z; bool ally; uint16_t land; };
+	std::vector<Cc> ccs;
+	for (const Building &b : buildings_)
+		if (b.hp > 0.0f && !b.wrecked && petra_base_anchor_type(b.type) && b.team < MAX_PLAYERS)
+			ccs.push_back({b.x, b.z, is_ally(petra_pid_, b.team), petra_land_at(b.x, b.z)});
+	struct Dp { float x, z; uint16_t land; };
+	std::vector<Dp> dps; // our dropsites but civic centres
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && !petra_base_anchor_type(b.type) &&
+		    (b.type == BLD_STOREHOUSE || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
+			dps.push_back({b.x, b.z, petra_land_at(b.x, b.z)});
+
+	uint16_t home_land = 0;
+	const PetraNavalTopo &topo = petra_classified_topo(home_land);
+	const PetraBase *pb = get_primary_petra_base();
+	const uint16_t own_land = topo.naval_map ? home_land : (pb ? petra_land_at(pb->x, pb->z) : 0);
+	const float reduce = (btype == BLD_MILITARY_COLONY ? 30.0f : 0.0f) + 30.0f * petra_config_.defensive;
+	const float near_rej = 120.0f * 120.0f / 16.0f, ally_rej = 200.0f * 200.0f / 16.0f, ally_dis = 250.0f * 250.0f / 16.0f;
+	const float max_acc_rej = 410.0f * 410.0f / 16.0f, max_acc_dis = (360.0f - reduce) * (360.0f - reduce) / 16.0f;
+	const float max_noacc_dis = 500.0f * 500.0f / 16.0f;
+	const float cut = from_strategic ? 30.0f : 60.0f;
+	const float border = 80.0f / 4.0f;
+	bool found = false;
+	float best = 0.0f;
+	for (int iz = 0; iz < w; ++iz) {
+		for (int ix = 0; ix < w; ++ix) {
+			const float x = ((float)ix + 0.5f) * kCcTile - map_half_, z = ((float)iz + 0.5f) * kCcTile - map_half_;
+			const int owner = territory_owner_at(x, z);
+			if (owner >= 0 && owner < MAX_PLAYERS) continue; // neutral or Gaia's only
+			const uint16_t l = petra_land_at(x, z);
+			if (topo.naval_map ? !topo.land_region(l) : l != own_land) continue;
+			float norm = 0.5f, min_d = 1e30f;
+			bool accessible = false;
+			for (const Cc &c : ccs) {
+				const float d = (c.x - x) * (c.x - x) + (c.z - z) * (c.z - z);
+				if (d < near_rej || (c.ally && d < ally_rej)) { norm = 0.0f; break; }
+				if (!c.ally) continue;
+				if (d < ally_dis) norm *= 0.5f;
+				min_d = std::min(min_d, d);
+				accessible = accessible || c.land == l;
+			}
+			if (norm == 0.0f || (accessible && min_d > max_acc_rej)) continue;
+			if (min_d > max_acc_dis) norm *= accessible ? 0.5f : (min_d > max_noacc_dis ? 0.5f : 0.8f);
+			bool oversea = false;
+			if (!accessible)
+				for (const Dp &d : dps)
+					if (d.land == l) { oversea = true; break; }
+			if (!oversea) {
+				for (const Dp &d : dps) {
+					const float dd = (d.x - x) * (d.x - x) + (d.z - z) * (d.z - z);
+					if (dd < 3600.0f / 16.0f) { norm = 0.0f; break; }
+					if (dd < 6400.0f / 16.0f) norm *= 0.5f;
+				}
+				if (norm == 0.0f) continue;
+			}
+			if (std::abs(x) >= map_half_ - border || std::abs(z) >= map_half_ - border) norm *= 0.5f;
+			const size_t j = (size_t)iz * w + ix;
+			float val = 2.0f * (float)maps[res_k][j] + (float)maps[0][j] + (float)maps[1][j] + (float)maps[2][j];
+			val *= norm;
+			if (oversea) val = std::max(val, cut + 0.1f);
+			// Below the cut a tile can't be taken, so it needn't be placed.
+			if (val < cut || (found && val < best)) continue;
+			if (!petra_cc_tile_ok(btype, x, z)) continue;
+			found = true;
+			best = val;
+			out_x = x;
+			out_z = z;
+		}
+	}
+	return found;
 }
 
 // headquarters.js buildDefenses. The defenseBuilding queue holds one plan at a time
@@ -20898,6 +21204,7 @@ bool Simulation::load_state(const char *filepath) {
 	buildings_.clear();
 	building_id_to_idx_.clear();
 	occupied_cells_.clear();
+	occupied_stale_ = false;
 
 	for (uint32_t b = 0; b < num_blds; ++b) {
 		Building bld;
@@ -21035,7 +21342,7 @@ bool Simulation::load_state(const char *filepath) {
 
 		buildings_.push_back(bld);
 		building_id_to_idx_[bld.id] = buildings_.size() - 1;
-		for (const auto &[cx, cy] : building_cells(bld)) occupied_cells_.insert(cx, cy);
+		if (!bld.wrecked) occupy_cells(bld);
 	}
 
 	// 5. G3 Market prices & trader routes (version 2+, fallback for v1)
@@ -23015,6 +23322,31 @@ uint32_t Simulation::spawn_ruins(float x, float z, uint8_t ruins_type) {
 
 // UnitAI Order.CollectTreasure: walk to the treasure. Ships, war dogs and animals have no
 // TreasureCollector (template_unit_ship.xml, template_unit_dog.xml disable it).
+// 0.28 TreasureCollector MaxDistance: template_unit.xml 2 m; template_unit_ship.xml 12 m for
+// every ship (merchants, arrow and ram warships, fire ships), fishing boats 5, scout ships 7,
+// siege warships 24; template_unit_dog, template_unit_siege (siege towers too) and
+// template_unit_catafalque disable it. A contact reach, x0.6 like melee ranges, plus 1 for
+// the treasure's footprint.
+float Simulation::treasure_reach(size_t i) const {
+	const uint8_t ut = units_.unit_type[i];
+	if (ut == UNIT_WAR_DOG || ut == UNIT_CATAFALQUE || unit_is_siege_engine(ut)) return -1.0f;
+	if (units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT && (civ_unit_template(units_.tmpl[i]).flags & ROSTER_SIEGE_TOWER)) return -1.0f;
+	float m = 2.0f;
+	if (ut == UNIT_FISHING_BOAT) m = 5.0f;
+	else if (unit_is_ship(ut)) {
+		m = 12.0f;
+		const uint16_t tmpl = units_.tmpl[i];
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT) {
+			const char *id = civ_unit_template(tmpl).id;
+			const char *slash = std::strrchr(id, '/');
+			const char *name = slash ? slash + 1 : id;
+			if (std::strcmp(name, "ship_scout") == 0) m = 7.0f;
+			else if (std::strcmp(name, "ship_siege") == 0) m = 24.0f;
+		}
+	}
+	return m * 0.6f + 1.0f;
+}
+
 void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued) {
 	const Treasure *t = nullptr;
 	for (const auto &tr : treasures_) if (tr.id == treasure_id) t = &tr;
@@ -23023,8 +23355,7 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 	for (size_t k = 0; k < count; ++k) {
 		int32_t u = lookup_unit(unit_ids[k]);
 		if (u < 0 || !units_.alive[u] || units_.team[u] >= MAX_PLAYERS) continue;
-		const uint8_t ut = units_.unit_type[u];
-		if (unit_is_ship(ut) || ut == UNIT_WAR_DOG || units_.action_state[u] == ACTION_GARRISONED) continue;
+		if (treasure_reach((size_t)u) < 0.0f || units_.action_state[u] == ACTION_GARRISONED) continue;
 		collectors.push_back(unit_ids[k]);
 	}
 	UnitOrder o; o.kind = ORDER_COLLECT_TREASURE; o.target = treasure_id; o.x = t->x; o.z = t->z;
@@ -23047,7 +23378,6 @@ void Simulation::order_collect_treasure(const uint32_t *unit_ids, size_t count, 
 // CollectTime to collect; Treasure.Reward gives its owner the resources and the treasure is gone.
 void Simulation::tick_treasures(float dt) {
 	if (treasures_.empty()) return;
-	const float reach = 2.0f * 0.6f + 1.0f;
 	const size_t n = units_.count;
 	std::vector<uint8_t> in_range(treasures_.size(), 0);
 	struct NextTreasure { uint32_t uid; float x, z; };
@@ -23061,7 +23391,8 @@ void Simulation::tick_treasures(float dt) {
 			Treasure &t = treasures_[k];
 			if (t.id != tid) continue;
 			const float dx = units_.pos_x[i] - t.x, dz = units_.pos_z[i] - t.z;
-			if (dx * dx + dz * dz > reach * reach) break;
+			const float reach = treasure_reach(i);
+			if (reach < 0.0f || dx * dx + dz * dz > reach * reach) break;
 			// One collector at a time; another in range takes over if it stops.
 			if (t.collector_id == 0 || lookup_unit(t.collector_id) < 0 || !units_.alive[lookup_unit(t.collector_id)] ||
 			    units_.target_unit_id[lookup_unit(t.collector_id)] != t.id) {
@@ -23952,6 +24283,15 @@ void Simulation::defeat_player(uint8_t pid) {
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
 	defeated_mask_ |= (uint8_t)(1u << pid);
+}
+
+bool Simulation::cmd_resign(uint8_t pid) {
+	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return false;
+	const uint8_t bit = (uint8_t)(1u << pid);
+	participant_mask_ |= bit; // a player that resigns before it held anything is still out
+	convert_to_gaia(bit);
+	defeated_mask_ |= bit;
+	return true;
 }
 
 void Simulation::tick_trigger_watches() {
@@ -25465,6 +25805,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 		// mark_building_wreck, but nobody killed it: no loot for anyone.
 		stat_building_lost(b, 0xFF);
 		b.wrecked = true;
+		occupied_stale_ = true;
 		b.hp = 0.0f;
 		b.build_progress = 0.0f;
 		record_death(b.x, b.z, b.team, b.team, b.type, true);
