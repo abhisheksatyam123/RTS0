@@ -232,6 +232,9 @@ const VICTORY_KINDS := [
 	[64, "Regicide", "Defeat opponents by killing their hero."],
 	[16, "Wonder", "Be the first to build or capture a Wonder and keep it for a certain time to win the game. The timer will be reset when the Wonder is destroyed or captured."]]
 const VK_REGICIDE := 64
+# 0.28 victory condition file names (a scenario's settings VictoryConditions) -> VictoryKind bit.
+const VICTORY_NAMES := {"conquest": 1, "conquest_units": 2, "conquest_structures": 4, "conquest_civic_centers": 8,
+	"wonder": 16, "capture_the_relic": 32, "regicide": 64}
 # DisabledWhenChecked: checking a condition unchecks and disables these.
 const VICTORY_EXCLUDES := {1: 2 | 4 | 8, 2: 1, 4: 1 | 8, 8: 1 | 4}
 # victory_mask() of each single code (index == rtso::VictoryCondition); VICTORY_COMBINED | mask otherwise.
@@ -525,6 +528,19 @@ func _apply_map_locks() -> void:
 	pop.disabled = scen
 	res.disabled = scen
 	cf.disabled = scen
+	# VictoryConditions.onMapChange: a scenario's list replaces the conditions (an empty
+	# one, as the sandboxes have, is an endless game); VictoryConditionCheckbox disables
+	# every box on a scenario.
+	if scen and typeof(s.get("VictoryConditions")) == TYPE_ARRAY:
+		var vmask := 0
+		for n in s["VictoryConditions"]:
+			vmask |= int(VICTORY_NAMES.get(str(n), 0))
+		_set_victory_mask(vmask)
+	else:
+		_set_victory_mask(_victory_mask())
+	if scen:
+		for bit in _victory_checks:
+			_victory_checks[bit].disabled = true
 	if not scen:
 		pop.select(pop.get_selected())  # back from "Per Player"
 		res.select(res.get_selected())
@@ -1008,7 +1024,6 @@ func _restore_settings() -> void:
 	_apply_settings(src)
 
 func _apply_settings(ms: Dictionary) -> void:
-	var vic: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictorySlot.get_child(0)
 	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
 	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
 	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
