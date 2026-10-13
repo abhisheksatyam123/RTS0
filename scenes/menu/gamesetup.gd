@@ -165,6 +165,11 @@ const TEAM_PLACEMENTS := [["random", "Random", "Select a random player placement
 # RTS0's own random maps whose script name matches a 0.28 map's (Archipelago
 # is random_archipelago_0ad): they take none of its settings.
 const OWN_RMS_MAPS := ["random_archipelago"]
+# The sim places players by pattern on every map that lists one, River (5)
+# included, from F's #429 on; before it only Ambush and Frontier do, without
+# River. #429 turns this on.
+const PLACEMENT_EVERY_MAP := false
+const PLACEMENT_MAPS_BEFORE := ["random_ambush", "random_frontier"]
 const TEAM_PLACEMENT_TOOLTIP := "Select one of the starting position patterns of this map."
 # 0 A.D. Landscape (unknown.json Landscapes, gamesettings Landscape.js): [name,
 # value, description]; value is RmsGenerator::UNKNOWN_LANDSCAPE_* (3 + landscape).
@@ -348,7 +353,7 @@ func _load_maps() -> void:
 	for r in RMS_MAPS:
 		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
 		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
-			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS else placement_values(placements.get(rms_script(r[0]), [])),
+			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
 			"players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6]})
 
@@ -400,7 +405,7 @@ static func placement_values(ids: Array) -> Array:
 	var out := []
 	for id in ids:
 		var v := TEAM_PLACEMENTS.map(func(p): return p[0]).find(str(id))
-		if v > 0:
+		if v > 0 and (v != 5 or PLACEMENT_EVERY_MAP):
 			out.append(v)
 	return out
 
