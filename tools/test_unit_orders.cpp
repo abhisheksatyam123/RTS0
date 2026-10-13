@@ -317,6 +317,18 @@ static void test_women_flee() {
 	});
 	check(back, "goes back to gathering afterwards");
 	check(s.unit_order(w).kind == ORDER_GATHER && s.unit_order(w).target == tree, "the same tree");
+	// The support worker (0.28's civilian, template_unit_support) is passive too: it flees,
+	// it doesn't stab back with its dagger.
+	Simulation v;
+	setup(v);
+	const uint32_t tree2 = v.spawn_resource_world(0, 0, RES_WOOD, 5000);
+	uint32_t c = v.spawn_unit(1.5f, 0, 0, UNIT_VILLAGER);
+	check(v.units_.stance[idx_of(v, c)] == STANCE_PASSIVE, "a civilian starts passive");
+	v.order_gather(&c, 1, tree2);
+	run(v, 1.0f);
+	uint32_t e2 = v.spawn_unit(4, 0, 1, UNIT_SWORDSMAN);
+	v.order_attack(&e2, 1, c);
+	check(run_until(v, 4.0f, [&] { return act_of(v, c) == ACTION_FLEE; }), "a civilian flees when attacked");
 }
 
 static void test_rally() {

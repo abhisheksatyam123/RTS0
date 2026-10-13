@@ -418,6 +418,8 @@ enum BuildingType : uint8_t {
 
 #include "civ_building_data.h"
 #include "territory_data.h"
+static_assert(TERRITORY_INFLUENCE_ROWS == BLD_TYPE_COUNT,
+	"a new BuildingType needs its TerritoryInfluence row: run tools/extract_0ad_territory.py");
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
@@ -876,10 +878,12 @@ inline bool unit_has_ranged_attack(uint8_t type, uint8_t civ = CIV_ATHENIANS) {
 	}
 }
 
-// 0 A.D. UnitAI/DefaultStance: support units (women, healers, traders) and
-// civilian ships are passive, so they flee when attacked; stone and bolt throwers stand ground.
+// 0 A.D. UnitAI/DefaultStance: support units (template_unit_support: civilians and women,
+// healers, traders, ministers) and civilian ships are passive, so they flee when attacked;
+// stone and bolt throwers stand ground.
 inline uint8_t unit_default_stance(uint8_t type) {
 	switch (type) {
+		case UNIT_VILLAGER: // the civ's support worker, 0 A.D. 0.28's support_civilian
 		case UNIT_FISHING_BOAT:
 		case UNIT_MERCHANT_SHIP:
 		case UNIT_TRADER:
