@@ -434,6 +434,49 @@ int main() {
 		CHECK(find_bld(s, fort)->team == to && find_bld(s, fort)->focus_targets.empty());
 	}
 
+	// 13. Siege towers shoot as BuildingAI (0.28: Attack.js leaves entities with BuildingAI
+	// to it): an empty tower fires nothing, even at its ordered target; a manned one with
+	// no orders shoots the nearest human in range rather than the closer ram, and once
+	// ordered onto the ram (UnitAI's target, in range) every volley goes there.
+	{
+		fresh(s, 17);
+		const uint16_t st = template_named("mace/siege_tower");
+		uint32_t tower = s.spawn_unit(20.0f, 20.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, st);
+		const int32_t ti = idx_of(s, tower);
+		CHECK(ti >= 0 && s.is_siege_tower_at((size_t)ti));
+		const float r = s.units_.attack_range[(size_t)ti];
+		uint32_t ram = foe(s, 20.0f + r * 0.4f, 20.0f, UNIT_SIEGE_RAM);
+		uint32_t man = foe(s, 20.0f, 20.0f + r * 0.7f);
+		ArrowCounter e;
+		s.order_attack(&tower, 1, ram);
+		for (int t = 0; t < (int)std::lround(8.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); e.step(s, tower); }
+		CHECK(e.fired.empty());
+		s.cmd_stop(&tower, 1);
+		std::vector<uint32_t> crew;
+		for (int k = 0; k < 4; ++k) crew.push_back(s.spawn_unit(25.0f, 20.0f + k, 0, UNIT_SPEARMAN));
+		s.transport_passengers_[tower] = crew;
+		for (uint32_t c : crew) {
+			const int32_t ci = idx_of(s, c);
+			s.units_.action_state[(size_t)ci] = ACTION_GARRISONED;
+			s.units_.alive[(size_t)ci] = 0;
+		}
+		auto keep = [&] { s.units_.hp[(size_t)idx_of(s, man)] = 1000.0f; s.units_.hp[(size_t)idx_of(s, ram)] = 1000.0f; };
+		ArrowCounter a;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { keep(); s.tick(Simulation::FIXED_STEP); a.step(s, tower); }
+		int at_man = 0;
+		for (const Projectile &p : a.fired) at_man += p.target_unit_id == man;
+		std::printf("idle siege tower with 4 spearmen over 10 s: %d arrows, %d at the spearman\n", (int)a.fired.size(), at_man);
+		CHECK(a.fired.size() >= 8 && at_man == (int)a.fired.size());
+		s.order_attack(&tower, 1, ram);
+		ArrowCounter b;
+		for (int t = 0; t < (int)std::lround(10.0f / Simulation::FIXED_STEP); ++t) { keep(); s.tick(Simulation::FIXED_STEP); b.step(s, tower); }
+		int at_ram = 0;
+		for (const Projectile &p : b.fired) at_ram += p.target_unit_id == ram;
+		std::printf("ordered onto the ram: %d of %d arrows at it\n", at_ram, (int)b.fired.size());
+		CHECK(!b.fired.empty() && at_ram == (int)b.fired.size());
+		s.transport_passengers_.erase(tower);
+	}
+
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }

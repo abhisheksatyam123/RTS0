@@ -9941,9 +9941,8 @@ void Simulation::tick_combat(float dt) {
 		if (t < 0 || !units_.alive[i]) continue;
 		if (units_.attack_damage[i] <= 0.0f) continue;
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
-		// Siege tower BuildingAI: DefaultArrowCount 0, one arrow per garrisoned Infantry.
-		const int volley = is_siege_tower_at(i) ? siege_tower_arrows(i) : 1;
-		if (volley <= 0) continue;
+		if (is_siege_tower_at(i)) continue; // Attack.js leaves it to BuildingAI (3b)
+		const int volley = 1;
 		float dx = units_.pos_x[i] - units_.pos_x[t];
 		float dz = units_.pos_z[i] - units_.pos_z[t];
 		float d2 = dx * dx + dz * dz;
@@ -10114,6 +10113,7 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		if (!pack_state_can_attack(units_.pack_state[i])) continue; // Pack.js: unpack before firing
+		if (is_siege_tower_at(i)) continue; // walks up to it; BuildingAI shoots (3b)
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
 		attack_done(i, in_range, units_.attack_cooldown[i]);
@@ -10183,6 +10183,121 @@ void Simulation::tick_combat(float dt) {
 	}
 
 	look_again_now();
+
+	// 3b. Siege towers: 0 A.D. 0.28 gives them BuildingAI, not Attack.js's timer (Attack.js
+	// StartAttacking skips entities with BuildingAI). Their arrows, one per garrisoned
+	// Infantry up to MaxArrowCount, go at whatever enemy is in range, walking or not: at
+	// UnitAI's attack target when it is in range (SetUnitAITarget makes it the only
+	// focus target), else at the first of the others by PreferredClasses (Human) then
+	// distance, as FireArrows sorts them. RTS0 fires the whole volley each RepeatTime
+	// (after PrepareTime) on the unit's attack timer rather than over twenty rounds, so a
+	// siege tower keeps no extra state.
+	for (size_t i = 0; i < n; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED || !is_siege_tower_at(i)) continue;
+		const int volley = siege_tower_arrows(i);
+		if (volley <= 0) continue;
+		const uint8_t team = units_.team[i];
+		const float sx = units_.pos_x[i], sz = units_.pos_z[i], sy = unit_height(i);
+		const float range = units_.attack_range[i];
+		const bool check_los = team < MAX_PLAYERS && los_.cells() != 0;
+		auto unit_ok = [&](int32_t t) {
+			if (!units_.alive[t] || units_.action_state[t] == ACTION_GARRISONED || !can_attack(team, units_.team[t])) return false;
+			if (units_.team[t] == GAIA_PLAYER && units_.attack_damage[t] <= 0.0f) return false;
+			const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
+			if (!in_parabolic_range(dx * dx + dz * dz, sy, unit_height(t), range)) return false;
+			return !check_los || los_visible(team, units_.pos_x[t], units_.pos_z[t]);
+		};
+		auto building_ok = [&](const Building &ob) {
+			if (ob.wrecked || ob.hp <= 0.0f || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
+			const float gap = structure_gap(ob, sx, sz, unit_collision_radius(units_.unit_type[i]));
+			if (!in_parabolic_range(gap * gap, sy, get_terrain_height(ob.x, ob.z), range)) return false;
+			return !check_los || los_explored(team, ob.x, ob.z);
+		};
+		const bool shoots_gaia = team != GAIA_PLAYER && is_hostile(team, GAIA_PLAYER);
+		auto fauna_ok = [&](int32_t f) {
+			const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
+			return shoots_gaia && in_parabolic_range(dx * dx + dz * dz, sy, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]), range)
+					&& (!check_los || los_visible(team, fauna_.pos_x[f], fauna_.pos_z[f]));
+		};
+		// The UnitAI target first, then the best of the rest.
+		int32_t tu = -1, tb = -1, tf = -1;
+		if (units_.target_unit_id[i]) {
+			const int32_t t = lookup_unit(units_.target_unit_id[i]);
+			if (t >= 0 && unit_ok(t)) tu = t;
+		}
+		if (tu < 0 && units_.target_building_id[i]) {
+			auto it = building_id_to_idx_.find(units_.target_building_id[i]);
+			if (it != building_id_to_idx_.end() && building_ok(buildings_[it->second])) tb = (int32_t)it->second;
+		}
+		if (tu < 0 && tb < 0) {
+			const bool prefers_human = true; // template_unit_siege_tower PreferredClasses Human
+			int best_pref = 1 << 30;
+			float best_d2 = 0.0f;
+			int best_kind = 0, best_idx = 0;
+			auto consider = [&](int pref, float d2, int kind, int idx) {
+				if (pref < best_pref || (pref == best_pref && (d2 < best_d2 || (d2 == best_d2 &&
+						(kind < best_kind || (kind == best_kind && idx < best_idx)))))) {
+					best_pref = pref; best_d2 = d2; best_kind = kind; best_idx = idx;
+				}
+			};
+			if (n) grid.visit_radius(sx, sz, range, [&](int32_t t) {
+				if (!unit_ok(t)) return;
+				const float dx = units_.pos_x[t] - sx, dz = units_.pos_z[t] - sz;
+				consider(prefers_human && unit_combat_at((size_t)t).classes.has(CC_HUMAN) ? 0 : 49, dx * dx + dz * dz, 0, t);
+			});
+			for (const int32_t f : wild) {
+				if (!fauna_ok(f)) continue;
+				const float dx = fauna_.pos_x[f] - sx, dz = fauna_.pos_z[f] - sz;
+				consider(49, dx * dx + dz * dz, 1, f);
+			}
+			for (size_t o = 0; o < buildings_.size(); ++o) {
+				if (!building_ok(buildings_[o])) continue;
+				const float dx = buildings_[o].x - sx, dz = buildings_[o].z - sz;
+				consider(49, dx * dx + dz * dz, 2, (int)o);
+			}
+			if (best_pref != 1 << 30) (best_kind == 0 ? tu : best_kind == 1 ? tf : tb) = best_idx;
+		}
+		const bool have = tu >= 0 || tb >= 0 || tf >= 0;
+		if (!attack_ready(i, have, unit_combat_at(i).prepare)) continue;
+		attack_done(i, have, units_.attack_cooldown[i]);
+		if (!have) continue;
+		const float tech_spread = team < MAX_PLAYERS ? unit_tech_mods(team, units_.unit_type[i], units_.tmpl[i]).spread : 1.0f;
+		const float spread = unit_combat_at(i).spread * spread_rank_multiplier(units_.rank[i]) * tech_spread;
+		const float launch_y = sy + 1.4f;
+		const uint8_t splash = unit_splash(units_.tmpl[i], units_.unit_type[i]);
+		if (tf >= 0) {
+			for (int v = 0; v < volley; ++v) fire_at_fauna(i, (size_t)tf);
+		} else if (tb >= 0) {
+			const Building &b = buildings_[(size_t)tb];
+			const float bld_dmg = unit_damage_to_structure(i, b);
+			const float sigma = spread * std::hypot(b.x - sx, b.z - sz) / 100.0f;
+			for (int v = 0; v < volley; ++v) {
+				float disp_x = 0.0f, disp_z = 0.0f;
+				random_normal_2d(disp_x, disp_z);
+				const float lx = b.x + disp_x * sigma, lz = b.z + disp_z * sigma;
+				fire_arrow(sx, launch_y, sz, lx, get_terrain_height(lx, lz) + 1.5f, lz,
+						bld_dmg, team, b.id, EFFECT_NONE, 2, true, 0, units_.id[i], splash);
+			}
+		} else {
+			const size_t t = (size_t)tu;
+			units_.attacked_by[t] = units_.id[i]; // UnitAI "Attacked"
+			const float dmg = unit_attack_damage(i, t);
+			const float dist = std::hypot(units_.pos_x[t] - sx, units_.pos_z[t] - sz);
+			const float flight = dist / projectile_speed_of(units_.id[i], 0);
+			const float aim_x = units_.pos_x[t] + units_.vel_x[t] * flight;
+			const float aim_z = units_.pos_z[t] + units_.vel_z[t] * flight;
+			const float sigma = spread * dist / 100.0f;
+			const float land_y = (unit_is_ship(units_.unit_type[t]) ? unit_height(t)
+					: get_terrain_height(aim_x, aim_z) + unit_height_offset(t)) + 0.8f;
+			const uint8_t effect = status_effect_bit(unit_combat_at(i).status);
+			for (int v = 0; v < volley; ++v) {
+				float disp_x = 0.0f, disp_z = 0.0f;
+				random_normal_2d(disp_x, disp_z);
+				fire_arrow(sx, launch_y, sz, aim_x + disp_x * sigma, land_y, aim_z + disp_z * sigma,
+						dmg, team, units_.id[t], effect, 1, false, 0, units_.id[i], splash);
+			}
+		}
+	}
 
 	// 4. Structure arrows: 0 A.D. 0.28 BuildingAI.js. While enemies are in range a timer
 	// fires twenty rounds per RepeatTime (after PrepareTime). Round 0 takes GetArrowCount();
