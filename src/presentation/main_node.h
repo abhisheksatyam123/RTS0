@@ -419,6 +419,7 @@ public:
 	void toggle_diplomacy();
 	void toggle_objectives();
 	void _on_tutorial_ready_pressed();
+	void resign();
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
@@ -443,6 +444,7 @@ public:
 	void _on_diplo_stance_changed(int stance, int player_idx);
 	void _on_diplo_tribute_pressed(int player_idx, int res_type);
 	void _on_diplo_spy_pressed(int player_idx);
+	void _on_diplo_attack_request_pressed(int player_idx);
 
 	bool load_map(String map_id);
 	bool load_map_seeded(String map_id, uint32_t seed);
