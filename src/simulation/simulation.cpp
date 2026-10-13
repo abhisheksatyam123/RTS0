@@ -9110,7 +9110,16 @@ void Simulation::tick_gather(float dt) {
 				auto [cx, cy] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
 				const uint32_t alt = find_free_fish(nav_grid_.global_region_at(cx, cy, PASS_SHIP),
 				                                    units_.pos_x[i], units_.pos_z[i], 40.0f, units_.target_resource_id[i]);
-				if (alt) {
+				// FindNearbyResource takes live whales too (KillBeforeGather food.fish): the boat
+				// harpoons a whale nearer than that fish, and PerformGather kills it first.
+				float alt_d2 = 40.0f * 40.0f;
+				if (auto ai = res_id_to_idx_.find(alt); alt && ai != res_id_to_idx_.end()) {
+					const float dx = resources_.x[ai->second] - units_.pos_x[i], dz = resources_.z[ai->second] - units_.pos_z[i];
+					alt_d2 = dx * dx + dz * dz;
+				}
+				if (const uint32_t whale = find_nearby_prey(i, units_.pos_x[i], units_.pos_z[i], alt_d2); whale != 0) {
+					order_hunt(&units_.id[i], 1, whale);
+				} else if (alt) {
 					fish_gatherers_[alt].total++;
 					order_gather(&units_.id[i], 1, alt, false, false);
 				} else {
@@ -10912,6 +10921,7 @@ void Simulation::projectile_hits_fauna(const Projectile &p, size_t f) {
 			dmg = structure_arrow_damage(buildings_[bit->second], res);
 		}
 	}
+	if (src >= 0) award_fauna_xp((size_t)src, f, dmg);
 	fauna_.hp[f] -= dmg;
 	fauna_attacked(f, p.source_id); // a unit, or the structure that shot
 	if (fauna_.hp[f] <= 0.0f && src >= 0) fauna_killed(f, (size_t)src);
@@ -12470,7 +12480,7 @@ void Simulation::finish_order(size_t i) {
 		if (sub == RES_SUB_MEAT) {
 			const bool forced = (units_.order_flags[i] & ORDER_FLAG_FORCE) != 0;
 			const uint32_t prey = find_nearby_prey(i, forced ? units_.order_x[i] : units_.pos_x[i],
-					forced ? units_.order_z[i] : units_.pos_z[i]);
+					forced ? units_.order_z[i] : units_.pos_z[i], NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE);
 			if (prey != 0) {
 				order_hunt(&uid, 1, prey);
 				return;
@@ -19040,6 +19050,18 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			const bool capped = pop_max(petra_pid_) - pop_current(petra_pid_) < 5;
 			bool ready = squad.size() >= target ||
 			             (squad.size() >= minimum && (capped || plan.state_timer >= 180.0f));
+			// attackPlan.js updatePreparation "Fasten the end game": every 5th AI turn, a plan
+			// with siege engines that outnumbers 20 + twice every enemy's units starts now
+			// (forceStart).
+			if (!ready && siege_units > 0 && (int)(petra_timer_ / 2.5f) != (int)((petra_timer_ - FIXED_STEP) / 2.5f)) {
+				size_t enemies = 0;
+				bool has_enemies = false;
+				for (int p = 0; p < MAX_PLAYERS; ++p)
+					has_enemies |= p != petra_pid_ && petra_foe((uint8_t)p) && !is_defeated((uint8_t)p);
+				for (size_t i = 0; i < units_.count; ++i)
+					if (units_.alive[i] && units_.team[i] < MAX_PLAYERS && petra_foe(units_.team[i]) && !is_defeated(units_.team[i])) ++enemies;
+				if (has_enemies && squad.size() > 20 + 2 * enemies) plan.forced = ready = true;
+			}
 			// A siege plan waits for its siege engines in the town phase on.
 			if (ready && !plan.forced && plan.type == AttackPlan::PLAN_SIEGE && petra_ps().phase >= 2 &&
 			    siege_units == 0 && plan.state_timer < 240.0f)
@@ -24219,18 +24241,21 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 // 0 A.D. UnitAI Gather order on a KillBeforeGather supply (an animal): the unit attacks it,
 // then gathers the carcass (tick_hunters). Any unit with an attack can hunt.
 // The nearest live animal hunter i may go for next within the FindNearbyResource range of
-// (x, z): one it can hunt, not penned or herded, and no dangerous or sea animal (RTS0 drops
-// the carcass's template, so "the same template" is approximated by the herd nearby).
-uint32_t Simulation::find_nearby_prey(size_t i, float x, float z) const {
-	if (units_.attack_damage[i] <= 0.0f || unit_is_ship(units_.unit_type[i])) return 0;
+// (x, z), nearer than max_d2: one it can hunt, not penned or herded, and no dangerous
+// animal (RTS0 drops the carcass's template, so "the same template" is approximated by the
+// herd nearby). A ship (the fishing boat's Harpoon) goes only for sea animals, which are
+// fish (type.specific "fish", not "meat", so any whale will do); a land unit never does.
+uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2) const {
+	if (units_.attack_damage[i] <= 0.0f) return 0;
+	const bool ship = unit_is_ship(units_.unit_type[i]);
 	uint32_t best = 0;
-	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
+	float best_d2 = std::min(max_d2, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE);
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
 		const uint8_t b = fauna_.behavior[f];
 		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
-		if (info.is_dangerous() || info.is_naval()) continue;
+		if (info.is_dangerous() || info.is_naval() != ship) continue;
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = fauna_.id[f]; }
@@ -24447,6 +24472,7 @@ void Simulation::tick_hunters() {
 			}
 			dmg = unit_damage_to_fauna(i, f);
 		}
+		award_fauna_xp(i, f, dmg);
 		fauna_.hp[f] -= dmg;
 		fauna_attacked(f, units_.id[i], slaughter || units_.attack_range[i] <= 3.0f);
 		if (fauna_.hp[f] > 0.0f) continue;
@@ -24472,9 +24498,20 @@ void Simulation::fire_at_fauna(size_t i, size_t f) {
 			unit_splash(units_.tmpl[i], ut));
 }
 
-// Animal f killed by unit i: Looter.js grants the animal's Loot xp, the carcass becomes a
-// meat supply, and everyone hunting it goes on: gatherers to the carcass, the killer of a
-// dangerous animal to a cheer.
+// 0 A.D. Health.js TakeDamage and helpers/Attack.js: every hit on an animal gives its
+// attacker Loot/xp * health taken / max health, so a group hunt shares the xp and a
+// wounded animal that gets away still gave some. The *_trainable templates disable Loot,
+// so only Gaia's animals give xp. Call before applying the damage.
+void Simulation::award_fauna_xp(size_t i, size_t f, float damage) {
+	if (fauna_owner_[f] < MAX_PLAYERS || !(fauna_.max_hp[f] > 0.0f)) return;
+	const float lost = std::min(damage, std::max(0.0f, fauna_.hp[f]));
+	if (!(lost > 0.0f)) return;
+	gain_xp(i, fauna_type_info(fauna_.fauna_type[f]).loot_xp * lost / fauna_.max_hp[f]);
+}
+
+// Animal f killed by unit i: the carcass becomes a meat supply (fish for a whale), and
+// everyone hunting it goes on: gatherers to the carcass, the killer of a dangerous animal
+// to a cheer.
 uint32_t Simulation::spawn_carcass(size_t f) {
 	if (fauna_.food_amount[f] <= 0) return 0;
 	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
@@ -24490,8 +24527,6 @@ void Simulation::fauna_killed(size_t f, size_t i) {
 	const auto &finfo = fauna_type_info(fauna_.fauna_type[f]);
 	const uint32_t tid = fauna_.id[f];
 	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-	// Loot: the *_trainable templates disable it, so only Gaia's animals give xp.
-	if (fauna_owner_[f] >= MAX_PLAYERS) units_.xp[i] = (uint16_t)std::min(65535.0f, (float)units_.xp[i] + finfo.loot_xp);
 	fauna_.alive[f] = 0;
 	fauna_.behavior[f] = FAUNA_CARCASS;
 	const uint32_t rid = spawn_carcass(f);
@@ -24499,7 +24534,8 @@ void Simulation::fauna_killed(size_t f, size_t i) {
 		if (units_.target_unit_id[h] != tid || !units_.alive[h]) continue;
 		units_.target_unit_id[h] = 0;
 		// A fight that broke off an order goes back to it (FINDINGNEWTARGET FinishOrder).
-		if (rid != 0 && carry_cap(h, RES_FOOD) > 0 && !unit_is_ship(units_.unit_type[h]) &&
+		// A fishing boat that harpooned a whale gathers its carcass, which is fish.
+		if (rid != 0 && carry_cap(h, RES_FOOD) > 0 &&
 				!(units_.order_flags[h] & ORDER_FLAG_INTERRUPTED)) {
 			order_gather(&units_.id[h], 1, rid, false, false);
 		} else if (h == i && finfo.is_dangerous() && !unit_is_siege_engine(units_.unit_type[h]) &&

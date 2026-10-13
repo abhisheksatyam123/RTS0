@@ -2421,6 +2421,42 @@ static void test_concurrent_attacks() {
 	}
 }
 
+// attackPlan.js updatePreparation "Fasten the end game": a mustering plan with siege
+// engines that outnumbers 20 + twice the enemy's units marches at once (forceStart).
+static void test_fasten_end_game() {
+	for (int siege = 0; siege < 2; ++siege) {
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_ENDLESS);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		size_t enemies = 0;
+		for (size_t i = 0; i < s->units_.count; ++i) enemies += s->units_.alive[i] && s->units_.team[i] == 0;
+		auto &mgr = s->petra_attack_mgr_;
+		mgr.rushes_set = 1;
+		mgr.max_rushes = 0;
+		auto &plan = s->petra_attack_plan_;
+		plan = Simulation::AttackPlan();
+		plan.kind = PETRA_ATTACK_HUGE;
+		plan.state = Simulation::AttackPlan::MUSTER;
+		const size_t n = 22 + 2 * enemies;
+		for (size_t k = 0; k < n; ++k)
+			plan.squad.push_back(s->spawn_unit(tx - 14.0f + 1.5f * (float)(k % 12), tz - 14.0f - 1.5f * (float)(k / 12), 1, UNIT_SPEARMAN));
+		if (siege) plan.squad.push_back(s->spawn_unit(tx - 16.0f, tz - 20.0f, 1, UNIT_CATAPULT));
+		mgr.kind = PETRA_ATTACK_HUGE;
+		mgr.target_size = mgr.min_size = 500;
+		run_for(*s, 3.0f);
+		const bool marched = s->petra_attack_plan_.state != Simulation::AttackPlan::MUSTER;
+		std::printf("  end game: %zu soldiers%s against %zu enemy units, marches %s\n", n, siege ? " and a catapult" : "", enemies, marched ? "yes" : "no");
+		if (siege) CHECK(marched, "a plan with siege engines that far outnumbers the enemy starts (forceStart)");
+		else CHECK(!marched, "without siege engines it keeps mustering to its size");
+	}
+}
+
 // defenseManager.js garrisonUnitsInside, TYPE_DECAY: a structure just captured in enemy
 // land takes its garrison even from an attack under way, and those units leave the plan.
 static void test_decay_garrison_from_attack() {
@@ -2970,6 +3006,7 @@ int main() {
 	test_retake_civic_centre();
 	test_research_choices();
 	test_concurrent_attacks();
+	test_fasten_end_game();
 	test_worker_mix();
 	test_build_defenses();
 	test_dropsites();

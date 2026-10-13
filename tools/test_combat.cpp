@@ -865,7 +865,8 @@ static void test_ranged_hunting() {
 	const uint8_t st = s.units_.action_state[a];
 	std::printf("      %zu shots, deer dead %d, xp %d -> %d, archer state %d\n", shots.size(), (int)dead, xp0, s.units_.xp[a], st);
 	check(!shots.empty(), "an archer hunting a deer shoots arrows at it");
-	check(dead && s.units_.xp[a] == xp0 + fauna_type_info(FAUNA_DEER).loot_xp, "the arrow that kills it gives the archer its Loot xp");
+	check(dead && std::fabs(s.units_.xp[a] + s.units_.xp_partial[a] - (xp0 + fauna_type_info(FAUNA_DEER).loot_xp)) < 0.01f,
+			"the arrows that kill it give the archer its Loot xp, a share per hit");
 	check(st == ACTION_GATHER || st == ACTION_MOVE || st == ACTION_RETURN_DROPSITE, "the archer goes on to gather the carcass");
 }
 
