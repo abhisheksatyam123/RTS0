@@ -8755,97 +8755,113 @@
       "type": "palm",
       "x": 50.42,
       "z": -31.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 81.83,
       "z": -22.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 84.23,
       "z": -9.89,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 81.02,
       "z": -11.17,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 78.3,
       "z": -11.55,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 88.13,
       "z": -16.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 74.97,
       "z": -21.17,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 76.63,
       "z": -15.59,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 79.88,
       "z": -23.46,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 85.41,
       "z": -22.49,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 78.4,
       "z": -15.12,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 85.65,
       "z": -14.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 86.64,
       "z": -16.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 85.6,
       "z": -13.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 78.32,
       "z": -16.95,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 81.48,
       "z": -23.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
@@ -11221,3931 +11237,4586 @@
       "type": "bush",
       "x": -42.7,
       "z": -20.14,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.76,
       "z": -18.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.99,
       "z": -19.34,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.79,
       "z": -18.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.61,
       "z": -15.05,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.96,
       "z": -13.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -35.88,
       "z": -12.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.24,
       "z": -10.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.7,
       "z": -9.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -48.18,
       "z": -24.37,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -49.49,
       "z": -26.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -50.81,
       "z": -27.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -53.68,
       "z": -23.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.01,
       "z": -22.05,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -48.03,
       "z": -21.59,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -44.81,
       "z": -19.55,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.51,
       "z": -7.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.04,
       "z": -4.9,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.17,
       "z": -1.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.31,
       "z": 2.1,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.1,
       "z": 1.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.85,
       "z": -12.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -43.19,
       "z": -15.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -45.09,
       "z": -16.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.13,
       "z": -16.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.02,
       "z": -18.12,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.11,
       "z": -14.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -68.39,
       "z": -12.81,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -67.48,
       "z": -14.14,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -65.91,
       "z": -15.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -71.09,
       "z": -9.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -71.56,
       "z": -10.34,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -63.69,
       "z": -22.39,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -65.07,
       "z": -21.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -67.05,
       "z": -18.73,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -64.57,
       "z": -17.03,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -68.61,
       "z": -5.0,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -68.2,
       "z": -0.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -67.12,
       "z": -4.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -64.89,
       "z": 1.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -64.21,
       "z": 4.31,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -62.19,
       "z": 7.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -60.38,
       "z": 6.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -58.86,
       "z": 8.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -59.17,
       "z": 11.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -57.64,
       "z": 12.18,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -55.63,
       "z": 12.58,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -53.9,
       "z": 12.05,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -55.49,
       "z": 10.35,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -57.82,
       "z": 11.68,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -60.97,
       "z": 10.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -67.06,
       "z": -7.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -66.56,
       "z": -10.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -66.21,
       "z": -12.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -65.27,
       "z": -11.13,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -51.96,
       "z": -25.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -52.89,
       "z": -31.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -51.72,
       "z": -33.68,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.1,
       "z": -35.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -45.64,
       "z": -33.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -47.28,
       "z": -35.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -44.22,
       "z": -35.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.1,
       "z": -36.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -45.15,
       "z": -31.44,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.92,
       "z": -30.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -47.47,
       "z": -32.13,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -49.47,
       "z": -34.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -49.57,
       "z": -35.26,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -47.36,
       "z": -34.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.31,
       "z": -29.58,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.83,
       "z": -31.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.49,
       "z": -33.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.77,
       "z": -20.85,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.32,
       "z": -22.63,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -28.43,
       "z": -22.01,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -35.41,
       "z": -15.33,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.73,
       "z": -16.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.49,
       "z": -13.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -32.34,
       "z": -4.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.72,
       "z": -2.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.22,
       "z": -2.94,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.45,
       "z": -4.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.27,
       "z": -7.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -28.39,
       "z": -7.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -26.91,
       "z": -4.63,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -26.29,
       "z": -3.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -24.85,
       "z": -4.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -24.52,
       "z": -7.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -24.23,
       "z": -5.07,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -26.0,
       "z": -7.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -28.83,
       "z": -5.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -28.01,
       "z": -5.68,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.4,
       "z": -5.73,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.48,
       "z": -6.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -28.48,
       "z": -2.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -28.29,
       "z": 2.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -70.35,
       "z": -23.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -69.93,
       "z": -25.9,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -66.94,
       "z": -28.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -68.48,
       "z": -30.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -70.35,
       "z": -30.91,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -65.49,
       "z": -29.74,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -73.39,
       "z": -27.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -74.46,
       "z": -25.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -73.76,
       "z": -24.01,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -76.66,
       "z": -22.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -74.44,
       "z": -18.21,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -76.3,
       "z": -16.93,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -74.92,
       "z": -14.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -76.68,
       "z": -12.46,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -78.19,
       "z": -9.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -77.79,
       "z": -6.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -78.56,
       "z": -8.08,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -77.23,
       "z": -0.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -75.78,
       "z": 2.08,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -74.44,
       "z": 2.33,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -73.14,
       "z": 2.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -72.19,
       "z": 3.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -70.96,
       "z": 4.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -74.5,
       "z": 6.31,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -70.25,
       "z": 8.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -69.28,
       "z": 8.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -62.94,
       "z": 16.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -60.26,
       "z": 18.44,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -58.29,
       "z": 21.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -56.99,
       "z": 18.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -55.63,
       "z": 19.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -47.1,
       "z": 36.92,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -44.32,
       "z": 39.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.86,
       "z": 37.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.45,
       "z": 39.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.44,
       "z": 39.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.36,
       "z": 37.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -35.56,
       "z": 37.94,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.55,
       "z": 37.69,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.39,
       "z": 36.01,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.73,
       "z": 34.67,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.37,
       "z": 32.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.36,
       "z": 39.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.46,
       "z": 30.38,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -35.98,
       "z": 30.15,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.11,
       "z": 39.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.07,
       "z": 43.14,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -49.48,
       "z": 17.12,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -47.73,
       "z": 14.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.23,
       "z": 17.96,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.26,
       "z": 20.34,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -50.6,
       "z": 9.37,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.97,
       "z": 15.87,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.81,
       "z": 16.73,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.17,
       "z": 17.14,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.59,
       "z": 14.74,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.85,
       "z": 13.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.01,
       "z": 11.35,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.31,
       "z": 10.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.06,
       "z": 6.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.27,
       "z": 8.44,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.4,
       "z": 6.6,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.47,
       "z": 3.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.5,
       "z": 1.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -32.22,
       "z": 2.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.43,
       "z": 5.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -32.19,
       "z": 7.69,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.63,
       "z": 10.66,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.55,
       "z": 9.64,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.74,
       "z": 6.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.13,
       "z": 4.43,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.63,
       "z": -3.13,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -33.13,
       "z": -1.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.19,
       "z": 2.13,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.49,
       "z": 3.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.05,
       "z": 6.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.98,
       "z": 8.95,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -35.01,
       "z": 10.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.12,
       "z": 8.2,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.82,
       "z": 8.49,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.58,
       "z": 12.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -51.53,
       "z": 16.6,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -51.79,
       "z": 18.69,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -50.56,
       "z": 19.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.47,
       "z": 32.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -17.58,
       "z": 41.87,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -17.89,
       "z": 37.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -14.43,
       "z": 36.08,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -13.69,
       "z": 34.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -12.3,
       "z": 35.67,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -10.41,
       "z": 35.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -8.18,
       "z": 35.37,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -5.08,
       "z": 30.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -5.34,
       "z": 33.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -4.13,
       "z": 35.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -2.44,
       "z": 37.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -1.3,
       "z": 40.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -2.88,
       "z": 30.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -1.4,
       "z": 27.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 1.33,
       "z": 28.22,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 2.74,
       "z": 26.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 4.59,
       "z": 27.97,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 5.43,
       "z": 30.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 6.36,
       "z": 30.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 7.53,
       "z": 28.93,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 10.06,
       "z": 29.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 11.47,
       "z": 31.15,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 12.83,
       "z": 31.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 47.68,
       "z": 41.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 38.71,
       "z": 37.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 37.07,
       "z": 36.44,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 51.37,
       "z": 40.31,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.14,
       "z": 40.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 30.5,
       "z": 34.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 43.23,
       "z": 40.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.76,
       "z": 42.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 46.2,
       "z": 42.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 49.21,
       "z": 39.17,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 49.75,
       "z": 41.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 53.84,
       "z": 44.22,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 55.86,
       "z": 47.0,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 54.64,
       "z": 48.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 49.1,
       "z": 48.92,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 49.24,
       "z": 50.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 50.27,
       "z": 52.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 51.42,
       "z": 54.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 53.61,
       "z": 59.4,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 56.27,
       "z": 59.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 57.87,
       "z": 58.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 56.75,
       "z": 62.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 55.19,
       "z": 64.49,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 40.51,
       "z": 76.64,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.85,
       "z": 74.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 40.5,
       "z": 84.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 43.75,
       "z": 75.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 45.09,
       "z": 78.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 46.44,
       "z": 81.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.01,
       "z": 80.6,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.92,
       "z": 82.43,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 40.6,
       "z": 82.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 38.14,
       "z": 79.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.1,
       "z": 83.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 34.66,
       "z": 85.78,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 32.02,
       "z": 90.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -10.97,
       "z": 88.58,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -14.59,
       "z": 83.97,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -16.49,
       "z": 82.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -23.69,
       "z": 83.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -27.4,
       "z": 82.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.53,
       "z": 85.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.61,
       "z": 83.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.57,
       "z": 79.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -24.71,
       "z": 79.35,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -21.69,
       "z": 79.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -19.97,
       "z": 81.31,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -13.51,
       "z": 82.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -11.52,
       "z": 87.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -8.2,
       "z": 89.58,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -10.16,
       "z": 84.43,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -12.77,
       "z": 89.85,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -16.54,
       "z": 92.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -19.45,
       "z": 100.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -10.5,
       "z": 104.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -6.86,
       "z": 104.26,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -0.76,
       "z": 101.08,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -1.97,
       "z": 95.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -1.75,
       "z": 92.95,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -3.68,
       "z": 93.13,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -12.34,
       "z": 93.81,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -14.02,
       "z": 92.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -10.55,
       "z": 90.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -6.88,
       "z": 87.38,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 1.74,
       "z": 100.4,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -6.25,
       "z": 99.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -7.58,
       "z": 100.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -8.99,
       "z": 103.36,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -11.74,
       "z": 102.5,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 0.9,
       "z": 104.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 4.16,
       "z": 105.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 4.28,
       "z": 107.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 3.04,
       "z": 108.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 3.6,
       "z": 102.21,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 6.15,
       "z": 103.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 1.17,
       "z": 97.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 8.79,
       "z": 107.46,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 9.6,
       "z": 99.36,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 6.18,
       "z": 99.05,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 3.96,
       "z": 97.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 6.85,
       "z": 95.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 5.38,
       "z": 95.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 1.94,
       "z": 95.2,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 2.11,
       "z": 94.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 0.05,
       "z": 94.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -2.42,
       "z": 98.93,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -2.65,
       "z": 91.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -4.08,
       "z": 90.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 10.01,
       "z": 89.46,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 6.6,
       "z": 89.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 5.08,
       "z": 88.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 3.71,
       "z": 88.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 1.9,
       "z": 87.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -0.26,
       "z": 86.92,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -0.84,
       "z": 85.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -1.47,
       "z": 84.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -2.77,
       "z": 83.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -3.65,
       "z": 82.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -4.8,
       "z": 81.96,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -22.91,
       "z": 77.13,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -20.61,
       "z": 76.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.39,
       "z": 78.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -19.65,
       "z": 77.92,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -18.79,
       "z": 79.21,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -17.54,
       "z": 79.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -16.03,
       "z": 80.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -15.35,
       "z": 81.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -12.55,
       "z": 84.12,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -9.51,
       "z": 87.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.89,
       "z": -109.0,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.4,
       "z": -111.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.85,
       "z": -112.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.03,
       "z": -113.89,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.34,
       "z": -115.1,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.17,
       "z": -116.67,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.06,
       "z": -117.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -37.09,
       "z": -118.94,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.71,
       "z": -120.07,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -35.15,
       "z": -122.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.67,
       "z": -120.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -33.85,
       "z": -123.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -25.13,
       "z": -123.69,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -32.12,
       "z": -124.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.51,
       "z": -126.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.57,
       "z": -128.01,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -26.66,
       "z": -122.37,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -26.69,
       "z": -127.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -23.83,
       "z": -127.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -22.58,
       "z": -127.78,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -20.86,
       "z": -127.68,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -49.14,
       "z": -110.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -48.07,
       "z": -112.36,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.27,
       "z": -115.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -44.92,
       "z": -118.5,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -44.28,
       "z": -119.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -43.43,
       "z": -118.63,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.03,
       "z": -120.33,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.6,
       "z": -121.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.3,
       "z": -123.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.96,
       "z": -123.69,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.21,
       "z": -124.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.16,
       "z": -127.15,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.76,
       "z": -128.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.15,
       "z": -130.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -33.83,
       "z": -131.96,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.67,
       "z": -131.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.54,
       "z": -133.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.21,
       "z": -133.44,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -27.58,
       "z": -133.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -25.63,
       "z": -133.68,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -23.77,
       "z": -133.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -18.21,
       "z": -128.39,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -22.98,
       "z": -131.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -21.78,
       "z": -132.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -20.12,
       "z": -133.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -49.3,
       "z": -109.4,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -51.61,
       "z": -109.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -50.41,
       "z": -111.95,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -56.85,
       "z": -114.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -57.63,
       "z": -117.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -58.26,
       "z": -120.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -60.31,
       "z": -119.36,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -62.57,
       "z": -119.79,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -62.22,
       "z": -122.38,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -63.59,
       "z": -121.67,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -66.94,
       "z": -119.92,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -67.91,
       "z": -118.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -67.77,
       "z": -116.21,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -65.36,
       "z": -115.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -62.63,
       "z": -113.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -60.58,
       "z": -115.12,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -52.0,
       "z": -119.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -51.17,
       "z": -123.89,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -48.62,
       "z": -126.57,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -46.4,
       "z": -123.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -44.62,
       "z": -120.64,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -43.11,
       "z": -125.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -43.11,
       "z": -129.87,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -40.87,
       "z": -133.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -36.27,
       "z": -132.85,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -34.18,
       "z": -133.94,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.95,
       "z": -135.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.62,
       "z": -135.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -23.5,
       "z": -135.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -12.95,
       "z": -124.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -15.02,
       "z": -129.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -10.09,
       "z": -130.63,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 19.9,
       "z": -120.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 17.11,
       "z": -123.93,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 20.69,
       "z": -110.15,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 20.78,
       "z": -102.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 23.04,
       "z": -95.46,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 19.53,
       "z": -88.93,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 21.04,
       "z": -88.97,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 20.4,
       "z": -90.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 23.39,
       "z": -92.07,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 19.63,
       "z": -78.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 18.28,
       "z": -74.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 9.66,
       "z": -58.75,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 13.99,
       "z": -57.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 7.88,
       "z": -56.9,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 11.89,
       "z": -58.1,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 15.08,
       "z": -59.07,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 14.68,
       "z": -60.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 11.43,
       "z": -61.64,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 12.8,
       "z": -63.33,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 10.43,
       "z": -65.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.04,
       "z": -74.59,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.15,
       "z": -76.31,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.25,
       "z": -77.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -28.19,
       "z": -78.18,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -26.74,
       "z": -74.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -30.61,
       "z": -75.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -27.94,
       "z": -79.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -29.97,
       "z": -78.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -31.66,
       "z": -67.67,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -33.99,
       "z": -67.96,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -35.71,
       "z": -69.85,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -33.98,
       "z": -71.03,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -32.89,
       "z": -69.44,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -38.64,
       "z": -73.64,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -39.62,
       "z": -74.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -41.43,
       "z": -76.39,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -42.18,
       "z": -79.1,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -55.51,
       "z": -72.55,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -59.62,
       "z": -73.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -60.21,
       "z": -76.68,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -61.27,
       "z": -78.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -57.6,
       "z": -75.89,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -58.27,
       "z": -74.46,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -58.4,
       "z": -51.0,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -64.61,
       "z": -52.2,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -59.24,
       "z": -52.35,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -67.9,
       "z": -50.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -58.83,
       "z": -61.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": -49.62,
       "z": -37.0,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 20.49,
       "z": 27.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 33.33,
       "z": 11.38,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 30.64,
       "z": 6.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 42.34,
       "z": 4.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 36.35,
       "z": 2.63,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 36.44,
       "z": 3.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 52.37,
       "z": -15.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 55.62,
       "z": -11.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 53.88,
       "z": -12.39,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 55.4,
       "z": -14.64,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 45.52,
       "z": 5.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 47.29,
       "z": 6.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 46.12,
       "z": 10.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.48,
       "z": 10.94,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 36.04,
       "z": 9.74,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 35.56,
       "z": 7.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 34.69,
       "z": 9.55,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 51.4,
       "z": -13.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 40.25,
       "z": 17.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 43.39,
       "z": 18.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.89,
       "z": 17.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 42.62,
       "z": 16.55,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 45.6,
       "z": 15.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 48.26,
       "z": 15.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 52.08,
       "z": 17.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 53.99,
       "z": 19.18,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 52.64,
       "z": 21.73,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.18,
       "z": 36.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 52.14,
       "z": 28.75,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 48.46,
       "z": 27.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 42.83,
       "z": 21.39,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.31,
       "z": 22.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 39.94,
       "z": 22.6,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 52.78,
       "z": 15.07,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 56.91,
       "z": 4.34,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 60.78,
       "z": 2.72,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 62.89,
       "z": 7.05,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 65.69,
       "z": 8.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 66.08,
       "z": 2.0,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 68.04,
       "z": 3.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 69.56,
       "z": 4.05,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 71.08,
       "z": 4.38,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 72.48,
       "z": 7.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 75.08,
       "z": 9.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 99.27,
       "z": 21.05,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 96.96,
       "z": 16.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 96.06,
       "z": 15.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 94.38,
       "z": 13.82,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 93.14,
       "z": 11.85,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 89.63,
       "z": 13.91,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 86.2,
       "z": 14.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 84.71,
       "z": 13.96,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 84.09,
       "z": 12.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 82.98,
       "z": 17.43,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 77.57,
       "z": 16.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 84.67,
       "z": 23.08,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 85.2,
       "z": 23.97,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 85.95,
       "z": 25.97,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 86.54,
       "z": 28.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 88.79,
       "z": 31.78,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 108.12,
       "z": 55.79,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 90.51,
       "z": 37.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 90.92,
       "z": 35.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 92.97,
       "z": 35.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 93.8,
       "z": 37.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 94.34,
       "z": 36.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 93.46,
       "z": 34.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 93.66,
       "z": 33.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 96.4,
       "z": 36.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 103.51,
       "z": 42.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 104.04,
       "z": 40.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 97.87,
       "z": 34.9,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.77,
       "z": 50.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 83.87,
       "z": 55.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 72.95,
       "z": 66.61,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 70.7,
       "z": 64.03,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 72.6,
       "z": 63.85,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 68.02,
       "z": 56.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 70.22,
       "z": 54.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 71.94,
       "z": 55.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 73.14,
       "z": 58.8,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 73.73,
       "z": 56.07,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 73.99,
       "z": 53.2,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 75.49,
       "z": 55.03,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 77.14,
       "z": 57.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 77.67,
       "z": 56.33,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 76.46,
       "z": 53.43,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 82.26,
       "z": 41.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 80.45,
       "z": 50.78,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 81.11,
       "z": 38.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 83.33,
       "z": 43.21,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 86.88,
       "z": 30.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 92.36,
       "z": 25.89,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 91.34,
       "z": 28.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 94.38,
       "z": 25.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 93.89,
       "z": 16.74,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 95.45,
       "z": 18.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 102.01,
       "z": 24.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 101.35,
       "z": 21.97,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 72.19,
       "z": 3.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 82.64,
       "z": -24.37,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 77.17,
       "z": -23.64,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.23,
       "z": -22.06,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 88.47,
       "z": -18.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 82.8,
       "z": -12.6,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 83.5,
       "z": -11.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 86.3,
       "z": -11.14,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 83.02,
       "z": -9.75,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.13,
       "z": -9.2,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 89.66,
       "z": -10.31,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 85.46,
       "z": -8.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.86,
       "z": -10.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 88.94,
       "z": -8.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 54.82,
       "z": -30.63,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 53.61,
       "z": -34.55,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 51.74,
       "z": -35.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 49.34,
       "z": -35.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 46.74,
       "z": -33.74,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.87,
       "z": -30.94,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.52,
       "z": -26.86,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 47.68,
       "z": -26.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 50.91,
       "z": -25.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 46.5,
       "z": -41.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.36,
       "z": -43.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 42.39,
       "z": -44.81,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 43.81,
       "z": -46.17,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 45.38,
       "z": -44.45,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 46.42,
       "z": -47.12,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 46.26,
       "z": -49.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.62,
       "z": -50.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.21,
       "z": -53.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 44.1,
       "z": -56.39,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 47.64,
       "z": -57.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 47.77,
       "z": -59.33,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 47.1,
       "z": -63.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 50.2,
       "z": -65.93,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 53.17,
       "z": -65.95,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 53.55,
       "z": -68.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 50.09,
       "z": -72.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 67.42,
       "z": -71.75,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 68.82,
       "z": -68.9,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 72.67,
       "z": -68.55,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 70.47,
       "z": -70.44,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 74.95,
       "z": -72.56,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 76.58,
       "z": -70.53,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 78.34,
       "z": -72.49,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 76.65,
       "z": -75.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 72.5,
       "z": -72.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 69.68,
       "z": -73.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 67.17,
       "z": -83.26,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 65.69,
       "z": -85.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 67.78,
       "z": -89.22,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 69.97,
       "z": -91.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 65.53,
       "z": -90.83,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 65.44,
       "z": -88.38,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 66.93,
       "z": -87.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 79.28,
       "z": -106.78,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 70.84,
       "z": -110.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 82.39,
       "z": -107.62,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 84.92,
       "z": -104.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 86.24,
       "z": -106.34,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.69,
       "z": -103.84,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 87.85,
       "z": -102.21,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 85.86,
       "z": -100.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 77.13,
       "z": -103.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 73.71,
       "z": -101.37,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 71.21,
       "z": -98.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 65.76,
       "z": -114.12,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 62.12,
       "z": -117.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 64.8,
       "z": -113.91,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 62.14,
       "z": -106.91,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 60.15,
       "z": -112.18,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 51.39,
       "z": -111.7,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 48.17,
       "z": -115.77,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 41.49,
       "z": -121.71,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 38.8,
       "z": -126.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 39.22,
       "z": -129.59,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 39.1,
       "z": -133.27,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 34.53,
       "z": -128.23,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 32.5,
       "z": -124.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 30.65,
       "z": -125.04,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 28.44,
       "z": -124.41,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 27.13,
       "z": -126.22,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 10.71,
       "z": -113.26,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 10.85,
       "z": -115.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 11.47,
       "z": -116.97,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 13.6,
       "z": -116.78,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 14.49,
       "z": -114.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 14.7,
       "z": -112.36,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 15.07,
       "z": -109.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 17.13,
       "z": -108.26,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 19.5,
       "z": -107.47,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 20.35,
       "z": -105.42,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 19.55,
       "z": -102.68,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 22.23,
       "z": -107.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 19.06,
       "z": -110.32,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 17.5,
       "z": -111.33,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 18.86,
       "z": -113.21,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 15.5,
       "z": -120.16,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 16.76,
       "z": -117.99,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 17.44,
       "z": -115.94,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 33.36,
       "z": -42.17,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 37.42,
       "z": -46.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 34.98,
       "z": -43.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 33.68,
       "z": -38.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 32.49,
       "z": -40.8,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 36.64,
       "z": -41.93,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 37.82,
       "z": -43.81,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 38.47,
       "z": -45.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 39.11,
       "z": -41.1,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 36.68,
       "z": -37.28,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 35.66,
       "z": -40.2,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 33.87,
       "z": -40.0,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 37.32,
       "z": -39.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 35.81,
       "z": -45.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "oak",
@@ -15421,7 +16092,8 @@
       "type": "bush",
       "x": -11.44,
       "z": 86.25,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "oak",
@@ -17362,103 +18034,120 @@
       "type": "palm",
       "x": 45.98,
       "z": -32.02,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 47.49,
       "z": -34.03,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 48.22,
       "z": -34.73,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 49.83,
       "z": -35.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 50.68,
       "z": -35.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 51.27,
       "z": -34.29,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 52.4,
       "z": -34.01,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 47.94,
       "z": -27.54,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 50.77,
       "z": -27.39,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 53.88,
       "z": -28.3,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 54.82,
       "z": -29.35,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 54.43,
       "z": -30.66,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 54.78,
       "z": -32.36,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 43.94,
       "z": -40.35,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 38.5,
       "z": -49.88,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 36.74,
       "z": -48.73,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "palm",
       "x": 38.87,
       "z": -43.65,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 6
     },
     {
       "type": "berry",
@@ -17536,91 +18225,106 @@
       "type": "bush",
       "x": 17.45,
       "z": -148.48,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 9.31,
       "z": -138.98,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 6.7,
       "z": -150.7,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 16.08,
       "z": -145.09,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 18.12,
       "z": -151.11,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 17.28,
       "z": -153.19,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 15.9,
       "z": -153.6,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 9.24,
       "z": -141.9,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 15.57,
       "z": -136.51,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 8.23,
       "z": -136.26,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 7.4,
       "z": -148.5,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 9.12,
       "z": -147.07,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 10.18,
       "z": -144.76,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 7.88,
       "z": -153.37,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 9.66,
       "z": -153.6,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "palm",
@@ -18058,13 +18762,15 @@
       "type": "bush",
       "x": 49.75,
       "z": 105.24,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "bush",
       "x": 49.1,
       "z": 101.52,
-      "amount": 100
+      "amount": 100,
+      "max_gatherers": 4
     },
     {
       "type": "palm",

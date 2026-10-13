@@ -123,7 +123,7 @@ inline const BiomeFlora *biome_flora(const char *biome) {
 		 {{100, 100}}, {100}, {{100, 100}}},
 		// baobab, acacia; acacia; bush_tropic, bush_temperate.
 		{"savanna", {{FLORA_BAOBAB, FLORA_ACACIA}}, {FLORA_ACACIA}, {{FLORA_TROPIC_BUSH, FLORA_BUSH}}, FLORA_BERRY,
-		 {{400, 200}}, {200}, {{50, 100}}},
+		 {{600, 200}}, {200}, {{50, 100}}},
 		// banyan, strangler; teak; palm_palmyra, palm_tropical; date.
 		{"india", {{FLORA_BANYAN, FLORA_BANYAN}}, {FLORA_TEAK}, {{FLORA_TROPIC_PALM, FLORA_TROPIC_PALM}}, FLORA_DATE,
 		 {{600, 500}}, {500}, {{200, 200}}},
