@@ -479,7 +479,7 @@ inline const CombatProfile *combat_template_table() {
 
 // Units without a roster template, by UnitType (extract_0ad_rosters.py GENERIC).
 inline const CombatProfile *combat_class_table() {
-	static const CombatProfile kTable[25] = {
+	static const CombatProfile kTable[27] = {
 		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f}, // UNIT_VILLAGER: template_unit_support_slave
 		{{0x0000000000000530ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f}, // UNIT_SWORDSMAN: template_unit_infantry_melee_swordsman
 		{{0x0000000000000530ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 2.25f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.8f, 100.0f, 50.0f}, // UNIT_ARCHER: template_unit_infantry_ranged_archer
@@ -505,10 +505,12 @@ inline const CombatProfile *combat_class_table() {
 		{{0x0000000000000532ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 2.394f, 0, 0.0f, 0.0f, 0, 0.375f, 0.0f, 0.0f}, // UNIT_SCYTHED_CHARIOT: template_unit_champion_cavalry_swordsman
 		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 1.5f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f}, // UNIT_MINISTER: units/han/support_minister
 		{{0x0000000000000400ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 4.37f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f}, // UNIT_CATAFALQUE: template_unit_catafalque
+		{{0x0000000000000000ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f}, // UNIT_TYPE_TECH: no template
+		{{0x0000000000000430ull, 0x0000000000000000ull}, {0x0000000000000000ull, 0x0000000000000000ull}, 0.0f, 0, {{{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}, {{0, 0}, 1.0f, 255}}, 0.0f, 0.0f, 0.0f, 5.585f, 0, 0.0f, 0.0f, 0, 0.0f, 0.0f, 0.0f}, // UNIT_WAGON: template_unit_support_wagon
 	};
 	return kTable;
 }
-inline constexpr uint8_t COMBAT_CLASS_ROWS = 25; // = UNIT_TYPE_COUNT
+inline constexpr uint8_t COMBAT_CLASS_ROWS = 27; // = UNIT_TYPE_COUNT
 
 // Structures by BuildingType; types past the table use the generic structure row.
 inline constexpr uint8_t COMBAT_BUILDING_ROWS = 66;

@@ -89,6 +89,8 @@ RTS0_CLASSES = {
     "UNIT_SCYTHED_CHARIOT": (320, 5.6, 2.2, 24.0, 1.0, 0, 5, 5, 25, 100, 80, 120, 0, 3, 26, 18, 0, 6),
     "UNIT_CATAFALQUE":      (1000, 1.76, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
     "UNIT_MINISTER":        (200, 3.204, 1.8, 10.0, 1.0, 0, 2, 4, 6, 100, 0, 100, 0, 1, 15, 10, 0, 0),
+    "UNIT_TYPE_TECH":       (0, 0.0, 0.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+    "UNIT_WAGON":           (200, 1.78, 1.0, 0.0, 1.0, 0, 4, 4, 10, 50, 50, 0, 0, 1, 12, 0, 0, 0),
 }
 RTS0_FIELDS = ("hp", "speed", "range", "damage", "cooldown", "carry",
                "hack_armor", "pierce_armor", "crush_armor",
@@ -122,6 +124,8 @@ GENERIC = {
     "UNIT_SCYTHED_CHARIOT": "template_unit_champion_cavalry_swordsman",
     "UNIT_MINISTER": "units/han/support_minister",
     "UNIT_CATAFALQUE": "template_unit_catafalque",
+    "UNIT_TYPE_TECH": "",  # a queued technology's ProductionOrder: no template, empty rows
+    "UNIT_WAGON": "template_unit_support_wagon",
 }
 
 # RTS0's male gatherer has no 0 A.D. counterpart in most civs; every civ keeps it.
@@ -438,6 +442,14 @@ class TemplateLoader:
             for m in reversed(parent.split("|")):
                 self.apply_mixin(node, m)
         merge_into(node, elem)
+
+
+def generic_template(loader, cls):
+    """The GENERIC template of an RTS0 UnitType, or an empty one where there is none:
+    UNIT_TYPE_TECH has no template, and a tree from before the Germans (2024) has no
+    template_unit_support_wagon."""
+    name = GENERIC[cls]
+    return loader.load(name) if name and loader.exists(name) else Node()
 
 # ---------------------------------------------------------------------------
 # Unit stat extraction
@@ -1097,8 +1109,8 @@ def collect(sim_root):
             civ_json[civ] = json.load(f)
 
     generic = {}
-    for cls, tmpl in GENERIC.items():
-        generic[cls] = raw_stats(loader.load(tmpl))
+    for cls in GENERIC:
+        generic[cls] = raw_stats(generic_template(loader, cls))
 
     bonuses = load_civ_bonuses(sim_root)
     prev_layout = previous_layout() if KEEP_TRAINERS else {}
