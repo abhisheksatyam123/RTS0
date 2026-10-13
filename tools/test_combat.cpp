@@ -945,6 +945,8 @@ static void test_germanic_auras() {
 
 	Simulation h;
 	setup(h);
+	h.players_[1].active = 1; // a human seat: Petra would send the dummy to build
+	h.players_[1].is_ai = 0;
 	uint32_t seer = h.spawn_unit(0.0f, -20.0f, 0, UNIT_HEALER, 0.0f, seeress);
 	h.order_set_stance(&seer, 1, STANCE_STAND_GROUND);
 	uint32_t victim = dummy(h, 3.5f, -20.0f, UNIT_SWORDSMAN, 30.0f); // beyond its own reach
