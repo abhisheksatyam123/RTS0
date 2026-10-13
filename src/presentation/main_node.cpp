@@ -136,6 +136,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
 	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
+	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
 	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
 	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
@@ -1621,7 +1622,9 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["rank"] = (int64_t)uview.rank[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
 		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
-		u["female"] = (rtso::unit_tech_classes(uview.unit_type[i]) & rtso::TC_FEMALECITIZEN) != 0;
+		const uint64_t tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
+				: rtso::unit_tech_classes(uview.unit_type[i]);
+		u["female"] = (tc & rtso::TC_FEMALECITIZEN) != 0;
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -1648,6 +1651,23 @@ Array RtsoMain::debug_command_row() {
 			e["id"] = (int64_t)btn->get_instance_id();
 			out.push_back(e);
 		}
+	return out;
+}
+
+// Test hook: spawns `count` of the roster template `template_id` (e.g.
+// "athen/support_female_citizen") for the local player by its Civic Centre.
+PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count) {
+	PackedInt32Array out;
+	if (!sim) return out;
+	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
+	if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT) return out;
+	const uint8_t me = local_player();
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : sim->buildings())
+		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
+	for (int i = 0; i < count; ++i)
+		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
+				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
 }
 
@@ -1976,7 +1996,10 @@ void RtsoMain::find_idle_unit(IdleKind kind) {
 		if (!uview.alive[i] || uview.team[i] != local_player() || uview.action_state[i] != rtso::ACTION_IDLE) continue;
 		if (sim->turret_holder_of(uview.id[i])) continue;
 		if (append && selected_ids.has((int32_t)uview.id[i])) continue;
-		const uint64_t tc = rtso::unit_tech_classes(uview.unit_type[i]);
+		// The roster row's Identity classes (a female citizen is a villager by UnitType).
+		const uint16_t tmpl = uview.tmpl[i];
+		const uint64_t tc = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).tech_classes
+				: rtso::unit_tech_classes(uview.unit_type[i]);
 		size_t bucket = n;
 		for (size_t k = 0; k < n; ++k) {
 			if (tc & classes[(idle_class_index_ + k) % n]) { bucket = k; break; }

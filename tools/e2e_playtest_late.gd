@@ -45,13 +45,14 @@ func run() -> void:
 	await frames(60)
 
 	print("1. Idle workers, female citizens first")
+	# The skirmish starts with RTS0 villagers (Citizen): add female citizens and a trader.
+	var females: Array = Array(main.debug_spawn_units("athen/support_female_citizen", 2))
+	var traders: Array = Array(main.debug_spawn_units("athen/support_trader", 1))
+	await frames(4)
+	check(females.size() == 2 and traders.size() == 1, "spawned %s and %s" % [str(females), str(traders)])
 	var units: Array = main.debug_selection_state()["units"]
-	var female := {}
-	for u in units:
-		female[int(u["id"])] = u["female"]
-	var idle_females: Array = units.filter(func(u): return u["idle"] and u["female"]).map(func(u): return int(u["id"]))
-	idle_females.sort()
-	check(idle_females.size() >= 2, "%d idle female citizens" % idle_females.size())
+	var idle: Array = units.filter(func(u): return u["idle"]).map(func(u): return int(u["id"]))
+	check(females.all(func(id): return idle.has(id)), "the female citizens are idle")
 	var picks: Array = []
 	for i in range(units.size() + 1):
 		await press(KEY_PERIOD)
@@ -59,18 +60,17 @@ func run() -> void:
 		if sel.size() != 1:
 			break
 		var id := int(sel[0])
-		if picks.has(id):
-			picks.append(id)
-			break
 		picks.append(id)
+		if picks.count(id) > 1:
+			break
 	print("  picks: ", picks)
-	var first := picks.slice(0, idle_females.size())
-	check(first == idle_females, "the female citizens by id: " + str(first))
-	var rest := picks.slice(idle_females.size(), picks.size() - 1)
+	check(picks.slice(0, 2) == females, "the female citizens first, by id")
+	check(picks.size() > 2 and picks[2] == traders[0], "then the trader")
+	var rest := picks.slice(3, picks.size() - 1)
 	var sorted_rest := rest.duplicate()
 	sorted_rest.sort()
-	check(rest.size() > 0 and rest == sorted_rest and not rest.any(func(id): return female[id]), "then the other workers by id: " + str(rest))
-	check(picks.size() > 1 and picks[-1] == idle_females[0], "then the first female citizen again")
+	check(rest.size() > 0 and rest == sorted_rest and not rest.any(func(id): return females.has(id) or traders.has(id)), "then the citizens by id: " + str(rest))
+	check(picks.size() > 3 and picks[-1] == females[0], "then the first female citizen again")
 
 	print("2. Technology text")
 	main.debug_train_buttons(11)  # a dock
