@@ -1032,6 +1032,11 @@ void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	if (resources_.max_amount[it->second] > 0) resources_.max_amount[it->second] = amount;
 }
 
+void Simulation::set_resource_max_gatherers(uint32_t res_id, int max_gatherers) {
+	auto it = res_id_to_idx_.find(res_id);
+	if (it != res_id_to_idx_.end()) resources_.max_gatherers[it->second] = (uint8_t)std::clamp(max_gatherers, 1, 255);
+}
+
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress, float rot) {
 	const BuildingTypeInfo &binfo = building_type_info(type);
 	int footprint = binfo.footprint;
@@ -1240,7 +1245,7 @@ uint32_t Simulation::player_color(uint8_t pid) const {
 }
 
 bool Simulation::unit_garrisonable(size_t unit_idx) const {
-	if (regicide_garrison() || victory_condition_ != VICTORY_REGICIDE) return true;
+	if (regicide_garrison() || !has_victory(VK_REGICIDE)) return true;
 	const uint8_t t = units_.team[unit_idx];
 	return t >= MAX_PLAYERS || regicide_hero_[t] == 0 || units_.id[unit_idx] != regicide_hero_[t];
 }
@@ -6792,6 +6797,52 @@ bool Simulation::cmd_end_alert(uint8_t player, uint32_t building_id) {
 	return true;
 }
 
+bool Simulation::fauna_selectable_by(uint8_t player, uint32_t fauna_id) const {
+	auto it = fauna_id_to_idx_.find(fauna_id);
+	if (it == fauna_id_to_idx_.end() || player >= MAX_PLAYERS) return false;
+	const size_t f = it->second;
+	return fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_owner_[f] == player && fauna_.behavior[f] != FAUNA_CORRALLED &&
+	       fauna_.behavior[f] != FAUNA_CARCASS;
+}
+
+void Simulation::order_fauna_walk(uint8_t player, const uint32_t *ids, size_t count, float x, float z, uint32_t corral_id) {
+	// "garrison": the player's own finished corral with room, else a plain walk to it.
+	auto bit = building_id_to_idx_.find(corral_id);
+	if (bit == building_id_to_idx_.end() || buildings_[bit->second].team != player || buildings_[bit->second].type != BLD_CORRAL ||
+	    buildings_[bit->second].build_progress < 1.0f || buildings_[bit->second].hp <= 0.0f)
+		corral_id = 0;
+	x = std::clamp(x, -map_half_ + 2.0f, map_half_ - 2.0f);
+	z = std::clamp(z, -map_half_ + 2.0f, map_half_ - 2.0f);
+	int k = 0;
+	for (size_t n = 0; n < count; ++n) {
+		if (!fauna_selectable_by(player, ids[n])) continue;
+		const size_t f = fauna_id_to_idx_.at(ids[n]);
+		// A loose square around the point, so a herd doesn't stand on one spot.
+		const int side = (int)std::ceil(std::sqrt((double)count));
+		const float ox = (float)(k % side) - 0.5f * (float)(side - 1), oz = (float)(k / side) - 0.5f * (float)(side - 1);
+		++k;
+		fauna_.behavior[f] = FAUNA_MOVING;
+		fauna_.target_unit_id[f] = 0;
+		fauna_.corral_id[f] = corral_id;
+		fauna_.home_x[f] = corral_id ? x : x + ox * 1.5f;
+		fauna_.home_z[f] = corral_id ? z : z + oz * 1.5f;
+	}
+}
+
+void Simulation::order_fauna_stop(uint8_t player, const uint32_t *ids, size_t count) {
+	for (size_t n = 0; n < count; ++n) {
+		if (!fauna_selectable_by(player, ids[n])) continue;
+		const size_t f = fauna_id_to_idx_.at(ids[n]);
+		if (fauna_.behavior[f] != FAUNA_MOVING && fauna_.behavior[f] != FAUNA_HERDED) continue;
+		fauna_.behavior[f] = FAUNA_IDLE_GRAZE;
+		fauna_.target_unit_id[f] = 0;
+		fauna_.corral_id[f] = 0;
+		fauna_.vel_x[f] = fauna_.vel_z[f] = 0.0f;
+		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+		fauna_.state_timer[f] = info.feed_time_min;
+	}
+}
+
 void Simulation::order_herd(const uint32_t *unit_ids, size_t count, uint32_t fauna_id) {
 	auto it = fauna_id_to_idx_.find(fauna_id);
 	if (it == fauna_id_to_idx_.end()) return;
@@ -11478,14 +11529,14 @@ void Simulation::set_player_won(uint8_t pid) {
 void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
-	if (victory_condition_ == VICTORY_ENDLESS) return;
+	if (!victory_conditions()) return;
 	if (ticks_ == 0) {
 		if (disable_treasures_) clear_treasures();
 		if (nomad_start_) spawn_nomad_treasures();
 		nomad_start_ = false;
 	}
-	if (victory_condition_ == VICTORY_REGICIDE && ticks_ == 0) spawn_regicide_heroes();
-	if (victory_condition_ == VICTORY_RELIC && ticks_ == 0 && (relic_count_ > 0 || relics_.empty())) apply_relic_count();
+	if (has_victory(VK_REGICIDE) && ticks_ == 0) spawn_regicide_heroes();
+	if (has_victory(VK_RELIC) && ticks_ == 0 && (relic_count_ > 0 || relics_.empty())) apply_relic_count();
 
 	// Tally what each player still holds (ConquestCommon.js); units_.team and Building::team
 	// are player ids. Garrisoned units count as alive.
@@ -11493,6 +11544,7 @@ void Simulation::check_victory_conditions(float dt) {
 	int unit_count[MAX_TEAMS] = {};
 	int structure_count[MAX_TEAMS] = {};
 	int tc_count[MAX_TEAMS] = {};
+	int built_cc_count[MAX_TEAMS] = {}; // CivilCentre+!Foundation (ConquestCivicCentres.js)
 	int hero_count[MAX_TEAMS] = {};
 	bool wonder[MAX_TEAMS] = {};
 	for (const auto &b : buildings_) {
@@ -11501,6 +11553,7 @@ void Simulation::check_victory_conditions(float dt) {
 		if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress <= 0.0f) continue;
 		structure_count[b.team]++;
 		if (is_civic_centre(b.type)) tc_count[b.team]++;
+		if ((is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY) && b.build_progress >= 1.0f) built_cc_count[b.team]++;
 		if (b.type == BLD_WONDER && b.build_progress >= 1.0f) wonder[b.team] = true;
 	}
 	for (size_t u = 0; u < units_.count; ++u) {
@@ -11514,7 +11567,7 @@ void Simulation::check_victory_conditions(float dt) {
 		if (unit_count[t] || structure_count[t]) participant_mask_ |= (uint8_t)(1u << t);
 	}
 
-	if (victory_condition_ == VICTORY_WONDER) {
+	if (has_victory(VK_WONDER)) {
 		// Wonder Victory (VictoryManager.js / Wonder.js): a finished wonder held 10 min wins
 		// for its owner's side (allied victory) or, under Last Man Standing, its owner alone.
 		float ours = 0.0f;
@@ -11532,7 +11585,8 @@ void Simulation::check_victory_conditions(float dt) {
 			end_match(side_of((uint8_t)holder));
 			return;
 		}
-	} else if (victory_condition_ == VICTORY_RELIC) {
+	}
+	if (has_victory(VK_RELIC)) {
 		// Capture the Relic: one side (a player and its mutual allies, or one player under
 		// Last Man Standing, side_of) holds every relic for relic_duration_.
 		if (!relics_.empty()) {
@@ -11563,15 +11617,22 @@ void Simulation::check_victory_conditions(float dt) {
 		}
 	}
 
+	// Each active condition defeats on its own (every Conquest*.js query and Regicide.js
+	// call SetState("defeated") independently). Each partial conquest's second query
+	// ("ConquestCritical ...") is Conquest itself.
+	const uint8_t vk = victory_conditions();
+	constexpr uint8_t kAnyConquest = VK_CONQUEST | VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES | VK_CONQUEST_CIVIC_CENTRES;
 	auto defeated = [&](int t) {
 		bool no_units = unit_count[t] == 0;
 		bool no_structures = structure_count[t] == 0;
-		switch (victory_condition_) {
-			case VICTORY_CONQUEST_UNITS: return no_units;
-			case VICTORY_CONQUEST_STRUCTURES: return no_structures;
-			case VICTORY_REGICIDE: return hero_count[t] == 0 || (no_units && no_structures);
-			default: return no_units && no_structures; // Conquest; Wonder and Relic include it too
-		}
+		// A query whose list starts empty never fires, so a nomad who has not built a civic
+		// centre yet is not out until one is lost.
+		bool no_ccs = built_cc_count[t] == 0 && stats_[t].buildings_lost[STAT_BLD_CIV_CENTRE] > 0;
+		return ((vk & kAnyConquest) && no_units && no_structures) ||
+		       ((vk & VK_CONQUEST_UNITS) && no_units) ||
+		       ((vk & VK_CONQUEST_STRUCTURES) && no_structures) ||
+		       ((vk & VK_CONQUEST_CIVIC_CENTRES) && no_ccs) ||
+		       ((vk & VK_REGICIDE) && hero_count[t] == 0);
 	};
 
 	// Defeat is permanent (Player.js SetState("defeated")). Wave defense keeps its old rule:
@@ -15036,7 +15097,7 @@ void Simulation::petra_assign_repairs() {
 		const Building &b = buildings_[k];
 		const bool anchor = is_civic_centre(b.type);
 		const bool wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER || b.type == BLD_GATE || b.type == BLD_PALISADE;
-		const bool wonder = b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER;
+		const bool wonder = b.type == BLD_WONDER && has_victory(VK_WONDER);
 		const float health = b.hp / b.max_hp;
 		if (near_invaders(b) && (health > 0.5f || !(anchor || wall || wonder))) continue;
 		if (territory_owner_at(b.x, b.z) != petra_pid_) continue; // decaying
@@ -15114,7 +15175,7 @@ void Simulation::petra_staff_foundations() {
 		// houses and wood dropsites, else 2.
 		int want = 2;
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
-		    (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER)) want = 15;
+		    (b.type == BLD_WONDER && has_victory(VK_WONDER))) want = 15;
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
@@ -15159,7 +15220,7 @@ void Simulation::petra_staff_foundations() {
 	auto budget_for = [&](const Building &b) {
 		int cap = max_total;
 		if (b.type == BLD_HOUSE && house_short) cap += 2;
-		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER))
+		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY || (b.type == BLD_WONDER && has_victory(VK_WONDER)))
 			cap = std::max(cap, 15);
 		if (!has_base) cap = workers;
 		return cap - building;
@@ -15168,7 +15229,7 @@ void Simulation::petra_staff_foundations() {
 	// is built with invaders near.
 	auto near_invaders = [&](const Building &b) {
 		const bool critical = is_civic_centre(b.type) || b.type == BLD_WALL_SEGMENT || b.type == BLD_WALL_TOWER ||
-		                      b.type == BLD_GATE || b.type == BLD_PALISADE || (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER);
+		                      b.type == BLD_GATE || b.type == BLD_PALISADE || (b.type == BLD_WONDER && has_victory(VK_WONDER));
 		return !critical && petra_near_invading_army(b.x, b.z, 12000.0f / 16.0f);
 	};
 
@@ -15920,7 +15981,7 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_naval() || (info.flags & FAUNA_F_FISH)) continue; // isHuntable skips SeaCreatures
 		// Herded or corralled (garrisoned) livestock is nobody's to hunt.
-		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED) continue;
+		if (fauna_.behavior[f] == FAUNA_HERDED || fauna_.behavior[f] == FAUNA_CORRALLED || fauna_.behavior[f] == FAUNA_MOVING) continue;
 		auto git = scan.on_animal.find(fauna_.id[f]);
 		consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers,
 		         git == scan.on_animal.end() ? 0 : git->second, !info.is_domestic(), -1, true);
@@ -17787,7 +17848,7 @@ int Simulation::petra_work_phase3() const {
 	if (petra_config_.work_phase3 >= 999) return 999; // below Easy: never the city phase
 	const int max_pop = pop_cap(petra_pid_) > 0 ? pop_cap(petra_pid_) : 300;
 	int base = petra_config_.work_phase3;
-	if (victory_condition_ == VICTORY_WONDER) base = base * 9 / 10;
+	if (has_victory(VK_WONDER)) base = base * 9 / 10;
 	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
 	const int work = std::min(std::max((int)((float)base * scaling), 40), max_pop * 2 / 3);
 	return std::min(work, petra_target_workers());
@@ -18592,7 +18653,7 @@ void Simulation::petra_manage_research(float dt) {
 		// buildTemple (not while saving resources): one temple, after a market, from the city
 		// phase (the town phase in regicide, for healer guards); Rome's is the Temple of Vesta.
 		if (!saving && have_building(BLD_MARKET) && !have_building(BLD_TEMPLE) && !have_building(BLD_TEMPLE_VESTA) &&
-		    (petra_ps().phase >= 3 || victory_condition_ == VICTORY_REGICIDE)) {
+		    (petra_ps().phase >= 3 || has_victory(VK_REGICIDE))) {
 			if (can_build(BLD_TEMPLE_VESTA)) petra_place_generic(BLD_TEMPLE_VESTA, PETRA_QUEUE_TECH);
 			else if (can_build(BLD_TEMPLE)) petra_place_generic(BLD_TEMPLE, PETRA_QUEUE_TECH);
 		}
@@ -18770,7 +18831,7 @@ bool Simulation::pick_petra_safe_staging(float base_x, float base_z, float targe
 uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 	bool veto[MAX_PLAYERS] = {};
 	for (int p = 0; p < MAX_PLAYERS; ++p) veto[p] = !petra_foe(p) || is_defeated((uint8_t)p);
-	if (victory_condition_ == VICTORY_WONDER) {
+	if (has_victory(VK_WONDER)) {
 		int best = -1;
 		float progress = -1.0f;
 		for (const auto &b : buildings_) {
@@ -18782,7 +18843,7 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 	}
 	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics. Gaia's
 	// relics (tryCaptureGaiaRelic) are left to petra_capture_gaia_relics.
-	if (victory_condition_ == VICTORY_RELIC) {
+	if (has_victory(VK_RELIC)) {
 		int held[MAX_PLAYERS] = {};
 		for (const auto &rel : relics_) {
 			const int32_t r = lookup_unit(rel.id);
@@ -18890,10 +18951,10 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 	}
 	// defaultTargetFinder; a field is 100000 m2 (6250 tiles2) farther.
 	auto field = [&](const Building &b) { return kind != PETRA_ATTACK_RUSH && b.type == BLD_FIELD ? 6250.0f : 0.0f; };
-	if (victory_condition_ == VICTORY_WONDER)
+	if (has_victory(VK_WONDER))
 		for (const auto &b : buildings_)
 			if (b.type == BLD_WONDER && valid(b)) consider(b.id, b.x, b.z, 0.0f);
-	if (victory_condition_ == VICTORY_REGICIDE)
+	if (has_victory(VK_REGICIDE))
 		for (size_t i = 0; i < units_.count; ++i)
 			if (units_.alive[i] && units_.team[i] == enemy && units_.unit_type[i] == UNIT_HERO && reachable(units_.pos_x[i], units_.pos_z[i], 0.0f))
 				consider(units_.id[i], units_.pos_x[i], units_.pos_z[i], 0.0f);
@@ -21953,7 +22014,7 @@ void Simulation::petra_manage_victory(float dt) {
 
 	// victoryManager.js checkEvents (every turn): a hero attacked below high
 	// health retreats to heal; below low health to the closest holder at all.
-	if (victory_condition_ == VICTORY_REGICIDE) {
+	if (has_victory(VK_REGICIDE)) {
 		std::vector<size_t> attacked;
 		for (size_t f = 0; f < units_.count; ++f) {
 			if (!units_.alive[f] || !petra_foe(units_.team[f]) || units_.target_unit_id[f] == 0) continue;
@@ -21983,7 +22044,7 @@ void Simulation::petra_manage_victory(float dt) {
 	// update(): the rest every 10 AI turns.
 	if ((int)(petra_timer_ / 2.0f) == (int)((petra_timer_ - 0.5f) / 2.0f)) return;
 
-	if (victory_condition_ == VICTORY_WONDER && petra_ps().phase >= 3) {
+	if (has_victory(VK_WONDER) && petra_ps().phase >= 3) {
 		uint32_t wonder_id = 0;
 		bool complete = false;
 		for (const auto &b : buildings_) {
@@ -22014,9 +22075,9 @@ void Simulation::petra_manage_victory(float dt) {
 		}
 	}
 	// A finished wonder is a critical entity: manageCriticalEntGuards guards it.
-	if (victory_condition_ == VICTORY_WONDER) petra_manage_critical_ent_guards();
+	if (has_victory(VK_WONDER)) petra_manage_critical_ent_guards();
 
-	if (victory_condition_ == VICTORY_REGICIDE) {
+	if (has_victory(VK_REGICIDE)) {
 		petra_manage_critical_ent_guards();
 		// A hero back above high health fights again.
 		for (size_t i = 0; i < units_.count; ++i) {
@@ -22029,18 +22090,18 @@ void Simulation::petra_manage_victory(float dt) {
 	}
 
 	// Capture the Relic: go for Gaia's relics and bring ours home.
-	if (victory_condition_ == VICTORY_RELIC) petra_capture_gaia_relics();
+	if (has_victory(VK_RELIC)) petra_capture_gaia_relics();
 }
 
 // victoryManager.js criticalEnts: in regicide, our heroes.
 bool Simulation::petra_is_critical_ent(size_t i) const {
-	return victory_condition_ == VICTORY_REGICIDE && i < units_.count && units_.alive[i] &&
+	return has_victory(VK_REGICIDE) && i < units_.count && units_.alive[i] &&
 		units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_HERO;
 }
 
 // victoryManager.js criticalEnts: in wonder victory, our finished wonders.
 bool Simulation::petra_is_critical_wonder(uint32_t id) const {
-	if (victory_condition_ != VICTORY_WONDER) return false;
+	if (!has_victory(VK_WONDER)) return false;
 	auto it = building_id_to_idx_.find(id);
 	if (it == building_id_to_idx_.end()) return false;
 	const Building &b = buildings_[it->second];
@@ -22649,7 +22710,7 @@ void Simulation::petra_last_man_standing_check() {
 		if (players_[p].team == players_[me].team) continue;
 		int factor = petra_player_entities(p);
 		if (get_diplomacy(me, p) == DIPLO_NEUTRAL) factor += 150; // turn on neutrals first (betrayWeighting)
-		if (victory_condition_ == VICTORY_RELIC) // and on whoever holds relics
+		if (has_victory(VK_RELIC)) // and on whoever holds relics
 			for (const Relic &r : relics_)
 				if (r.claimed && r.owner_team == p) factor += 150;
 		if (factor < best) continue;
@@ -24437,6 +24498,7 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (const LosSource &want : units) s.los_.update(s.los_unit_src_.emplace_back(), want);
 		for (const LosSource &want : blds) s.los_.update(s.los_bld_src_.emplace_back(), want);
 		for (size_t c = 0; c < explored.size(); ++c) s.los_.set_explored((int)c, explored[c]);
+		s.update_fauna_los(); // owned livestock's circles are rebuilt, not stored
 	}
 }
 
@@ -24750,6 +24812,35 @@ void Simulation::update_player_fow(std::vector<uint8_t> &grid, SharesVision shar
 				return sees ? unit_vision_at(u) : 0.0f;
 			},
 			[&](const Building &b) { return shares_vision(b.team) ? building_vision_range(b) : 0.0f; });
+	// A player's own livestock sees too (0 A.D. livestock are units with Vision); penned
+	// (garrisoned) animals don't.
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		const float vr = owned_fauna_vision(f);
+		if (vr > 0.0f && shares_vision(fauna_owner_[f])) reveal_fow(grid, fauna_.pos_x[f], fauna_.pos_z[f], vr, nullptr);
+	}
+}
+
+float Simulation::owned_fauna_vision(size_t f) const {
+	if (f >= fauna_.count || !fauna_.alive[f] || fauna_owner_[f] >= MAX_PLAYERS || fauna_.hp[f] <= 0.0f ||
+	    fauna_.behavior[f] == FAUNA_CORRALLED || fauna_.behavior[f] == FAUNA_CARCASS)
+		return 0.0f;
+	return fauna_type_info(fauna_.fauna_type[f]).vision;
+}
+
+void Simulation::update_fauna_los() {
+	// Each slot's circle from where its animal stands now (no hysteresis), so a loaded
+	// game rebuilds the same circles and they need no save.
+	const size_t nf = fauna_.count;
+	if (los_fauna_src_.size() < nf) los_fauna_src_.resize(nf);
+	for (size_t f = 0; f < los_fauna_src_.size(); ++f) {
+		LosSource want;
+		if (f < nf) {
+			const float vr = owned_fauna_vision(f);
+			if (vr > 0.0f) want = los_.source_at(fauna_.pos_x[f], fauna_.pos_z[f], vr, fauna_owner_[f]);
+		}
+		los_.update(los_fauna_src_[f], want);
+	}
+	los_fauna_src_.resize(nf);
 }
 
 float Simulation::building_vision_range(const Building &b) const {
@@ -24773,6 +24864,7 @@ void Simulation::reset_los() {
 	los_.init(grid_res_, map_half_);
 	los_unit_src_.clear();
 	los_bld_src_.clear();
+	los_fauna_src_.clear();
 }
 
 void Simulation::tick_los() {
@@ -24803,6 +24895,7 @@ void Simulation::tick_los() {
 		los_.update(los_bld_src_[i], want);
 	}
 	los_bld_src_.resize(nb);
+	update_fauna_los();
 }
 
 bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {
@@ -24910,7 +25003,7 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2) 
 	for (size_t f = 0; f < fauna_.count; ++f) {
 		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
 		const uint8_t b = fauna_.behavior[f];
-		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED) continue;
+		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED || b == FAUNA_MOVING) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_dangerous() || info.is_naval() != ship) continue;
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
@@ -25390,6 +25483,58 @@ void Simulation::tick_fauna(float dt) {
 			}
 
 			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
+			continue;
+		}
+
+		// 2b. An owned animal walking where its owner sent it (UnitAI WALKING), or into one of
+		// its owner's corrals (garrison); it feeds where it stops.
+		if (fauna_.behavior[i] == FAUNA_MOVING) {
+			float tx = fauna_.home_x[i], tz = fauna_.home_z[i];
+			const Building *corral = nullptr;
+			if (fauna_.corral_id[i] != 0) {
+				auto bit = building_id_to_idx_.find(fauna_.corral_id[i]);
+				if (bit != building_id_to_idx_.end() && buildings_[bit->second].hp > 0.0f) {
+					corral = &buildings_[bit->second];
+					tx = corral->x;
+					tz = corral->z;
+				}
+			}
+			const float dx = tx - fx, dz = tz - fz;
+			const float len = std::hypot(dx, dz);
+			if (corral && len <= 3.8f) {
+				if (corral_count(corral->id) < CORRAL_GARRISON_MAX && structure_has_enough_health(*corral)) {
+					fauna_.behavior[i] = FAUNA_CORRALLED;
+					fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+					continue;
+				}
+				corral = nullptr; // full: it stops beside it
+			}
+			bool stop = len <= (corral ? 0.0f : 0.4f) || info.speed <= 0.0f;
+			if (!stop) {
+				// Straight on; round a pond or cliff 45 or 90 degrees to either side.
+				static const float kTurn[5] = {0.0f, 0.7853982f, -0.7853982f, 1.5707963f, -1.5707963f};
+				const float sp = std::min(info.speed, len / std::max(dt, 1e-3f));
+				stop = true;
+				for (float a : kTurn) {
+					const float c = std::cos(a), sn = std::sin(a);
+					const float vx = (dx * c - dz * sn) / len * sp, vz = (dx * sn + dz * c) / len * sp;
+					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
+					fauna_.vel_x[i] = vx;
+					fauna_.vel_z[i] = vz;
+					fauna_.rot_y[i] = std::atan2(vx, vz);
+					step(i, vx, vz);
+					stop = false;
+					break;
+				}
+			}
+			if (stop) {
+				fauna_.behavior[i] = FAUNA_IDLE_GRAZE;
+				fauna_.corral_id[i] = 0;
+				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
+				fauna_.home_x[i] = fauna_.pos_x[i];
+				fauna_.home_z[i] = fauna_.pos_z[i];
+				fauna_.state_timer[i] = timer(info.feed_time_min, info.feed_time_max);
+			}
 			continue;
 		}
 
