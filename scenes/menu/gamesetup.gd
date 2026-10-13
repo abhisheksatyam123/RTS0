@@ -16,21 +16,24 @@ extends Control
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 
 const CIVS := [
-	{"code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
-	{"code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png", "blurb": "Agoge: +35% HP and +25% melee for citizen-soldiers and champions."},
-	{"code": "pers", "name": "Persians", "emblem": "res://assets/textures/ui/emblems/persians.png", "blurb": "Achaemenid trade: +25% market gain, faster cavalry production."},
-	{"code": "rome", "name": "Romans", "emblem": "res://assets/textures/ui/emblems/romans.png", "blurb": "Legionary discipline: +30% build rate, heavy legionary armor."},
-	{"code": "cart", "name": "Carthaginians", "emblem": "res://assets/textures/ui/emblems/carthaginians.png", "blurb": "Naval mastery and war elephants. Elite mercenary forces."},
-	{"code": "mace", "name": "Macedonians", "emblem": "res://assets/textures/ui/emblems/macedonians.png", "blurb": "Sarissa phalanx and companion cavalry shock charges."},
-	{"code": "brit", "name": "Britons", "emblem": "res://assets/textures/ui/emblems/britons.png", "blurb": "Celtic chariot raiders, war dogs, and rotary mills."},
-	{"code": "gaul", "name": "Gauls", "emblem": "res://assets/textures/ui/emblems/gauls.png", "blurb": "Carnyx morale aura and fearless broadsword champions."},
-	{"code": "iber", "name": "Iberians", "emblem": "res://assets/textures/ui/emblems/iberians.png", "blurb": "Balearic slingers, fast cavalry, +20% mining rate."},
-	{"code": "maur", "name": "Mauryans", "emblem": "res://assets/textures/ui/emblems/mauryans.png", "blurb": "Worker elephants, archer maidens, high economic stamina."},
-	{"code": "kush", "name": "Kushites", "emblem": "res://assets/textures/ui/emblems/kushites.png", "blurb": "Bleeding and poison arrows. Nubian archers, pyramid shrines."},
-	{"code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
-	{"code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
-	{"code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
+	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
+	{"id": 1, "code": "spart", "name": "Spartans", "emblem": "res://assets/textures/ui/emblems/spartans.png", "blurb": "Agoge: +35% HP and +25% melee for citizen-soldiers and champions."},
+	{"id": 2, "code": "pers", "name": "Persians", "emblem": "res://assets/textures/ui/emblems/persians.png", "blurb": "Achaemenid trade: +25% market gain, faster cavalry production."},
+	{"id": 3, "code": "rome", "name": "Romans", "emblem": "res://assets/textures/ui/emblems/romans.png", "blurb": "Legionary discipline: +30% build rate, heavy legionary armor."},
+	{"id": 4, "code": "cart", "name": "Carthaginians", "emblem": "res://assets/textures/ui/emblems/carthaginians.png", "blurb": "Naval mastery and war elephants. Elite mercenary forces."},
+	{"id": 5, "code": "mace", "name": "Macedonians", "emblem": "res://assets/textures/ui/emblems/macedonians.png", "blurb": "Sarissa phalanx and companion cavalry shock charges."},
+	{"id": 6, "code": "brit", "name": "Britons", "emblem": "res://assets/textures/ui/emblems/britons.png", "blurb": "Celtic chariot raiders, war dogs, and rotary mills."},
+	{"id": 7, "code": "gaul", "name": "Gauls", "emblem": "res://assets/textures/ui/emblems/gauls.png", "blurb": "Carnyx morale aura and fearless broadsword champions."},
+	{"id": 8, "code": "iber", "name": "Iberians", "emblem": "res://assets/textures/ui/emblems/iberians.png", "blurb": "Balearic slingers, fast cavalry, +20% mining rate."},
+	{"id": 9, "code": "maur", "name": "Mauryans", "emblem": "res://assets/textures/ui/emblems/mauryans.png", "blurb": "Worker elephants, archer maidens, high economic stamina."},
+	{"id": 10, "code": "kush", "name": "Kushites", "emblem": "res://assets/textures/ui/emblems/kushites.png", "blurb": "Bleeding and poison arrows. Nubian archers, pyramid shrines."},
+	{"id": 11, "code": "ptol", "name": "Ptolemies", "emblem": "res://assets/textures/ui/emblems/ptolemies.png", "blurb": "Mercenary camps, camel raiders, +30% trade gain."},
+	{"id": 12, "code": "sele", "name": "Seleucids", "emblem": "res://assets/textures/ui/emblems/seleucids.png", "blurb": "Silver shields, cataphracts, and scythed chariots."},
+	{"id": 13, "code": "han", "name": "Han Chinese", "emblem": "res://assets/textures/ui/emblems/han.png", "blurb": "Crossbowmen, war chariots and imperial ministers."},
+	{"id": 15, "code": "germ", "name": "Germans", "emblem": "res://assets/textures/ui/emblems/germans.png", "blurb": "Seeresses: champion healers in City Phase. Wheel-axe champions and the hero Teutobod."},
 ]
+## A slot's "civ" is the rtso::Civilization id (14 is Gaia, never listed); this one is "Random".
+const RANDOM_CIV := -1
 
 # (map_id, display name, kind, players, size_m, biome, description)
 # Scenario JSONs are read live for desc/size/players; procedural RMS
@@ -116,6 +119,10 @@ const RMS_MAPS := [
 	["random_pompeii", "Pompeii (RMS)", "Random", 8, 128, "volcanic", "The Bay of Naples under Vesuvius from a real elevation map. Supports 2-8 players."],
 	["random_latium", "Latium (RMS)", "Random", 8, 128, "latium", "Rolling Italian land between two seas, with cliffs and plateaus. Supports 2-8 players."],
 	["random_unknown", "Unknown (RMS)", "Random", 8, 128, "temperate", "One of 13 land and naval landscapes, picked at random. Supports 2-8 players."],
+	["random_lower_nubia", "Lower Nubia (RMS)", "Random", 8, 128, "savanna", "The Nile between its first and second cataracts, desert plateaus and cliffs from a real elevation map. Supports 2-8 players."],
+	["random_migration", "Migration (RMS)", "Random", 8, 128, "temperate", "Home islands on the outside, a rich continent in the middle; ships needed to reach it. Supports 2-8 players."],
+	["random_ngorongoro", "Ngorongoro (RMS)", "Random", 8, 128, "savanna", "Savanna lowlands round the crater's highlands and a central Eden rich in metal, from a real elevation map. Supports 2-8 players."],
+	["random_river_archipelago", "River Archipelago (RMS)", "Random", 8, 128, "india", "Narrow tropical strips of land split by waterways with few shallow bridges; Mauryan tribesmen hold the outermost islands. Supports 2-8 players."],
 ]
 
 # 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
@@ -458,16 +465,23 @@ func _map_player(i: int) -> Dictionary:
 	var pl: Array = _selected_map().get("map_players", [])
 	return pl[i] if i < pl.size() else {}
 
-## A map player's civ as a CIVS index (the JSON's civ number), -1 when unset.
+## A map player's civ as a civ id (the JSON's civ code or number), -1 when unset.
 func _map_civ(p: Dictionary) -> int:
 	var c: Variant = p.get("civ", -1)
 	if typeof(c) == TYPE_STRING:
 		return _civ_index(c)
-	return int(c) if int(c) >= 0 and int(c) < CIVS.size() else -1
+	return int(c) if _civ_pos(int(c)) >= 0 else -1
 
 func _civ_index(code: String) -> int:
+	for c in CIVS:
+		if c["code"] == code:
+			return int(c["id"])
+	return -1
+
+## Position of civ id in CIVS (and the slot civ menu), -1 if not listed.
+func _civ_pos(id: int) -> int:
 	for i in range(CIVS.size()):
-		if CIVS[i]["code"] == code:
+		if int(CIVS[i]["id"]) == id:
 			return i
 	return -1
 
@@ -497,6 +511,7 @@ func _apply_map_locks() -> void:
 	cf.disabled = scen
 	if not scen:
 		pop.select(pop.get_selected())  # back from "Per Player"
+		pop.tooltip_text = ""
 		res.select(res.get_selected())
 		if _was_scenario:
 			# The scenario's teams would leave allies without an enemy: no team, as 0 A.D. starts.
@@ -512,8 +527,18 @@ func _apply_map_locks() -> void:
 	for i in range(POP_CAPS.size()):
 		if int(POP_CAPS[i][0]) == cap:
 			pop.select(i)
-	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("pop")):
+	# InitGame.js SetPerPlayerPopulationCaps: the map file's pop_limit per player.
+	var map_players: Array = m.get("map_players", [])
+	var per_player: Array = map_players.filter(func(p): return p.has("pop_limit"))
+	if not per_player.is_empty() or players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("pop")):
 		pop.text = "Per Player"
+		var lines := PackedStringArray()
+		for i in range(map_players.size()):
+			if map_players[i].has("pop_limit"):
+				lines.append("Player %d: %d" % [int(map_players[i].get("id", i + 1)), int(map_players[i]["pop_limit"])])
+		pop.tooltip_text = "Population limits set by the map.\n" + "\n".join(lines)
+	else:
+		pop.tooltip_text = ""
 	res.select(maxi(START_RES_AMOUNTS.find(int(s.get("StartingResources", 300))), 0))
 	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("resources")):
 		res.text = "Per Player"
@@ -582,11 +607,11 @@ func _update_preview() -> void:
 		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
 			lbl.text += "\n\nNo Human slot: you watch the AIs play with the map revealed."
 	# Civ preview follows slot 0 (the human player).
-	var civ := _slot_civ(0)
-	if crest and civ >= 0 and civ < CIVS.size():
+	var civ := _civ_pos(_slot_civ(0))
+	if crest and civ >= 0:
 		var tex: Texture2D = load(CIVS[civ]["emblem"])
 		if tex: crest.texture = tex
-	if civ_lbl and civ >= 0 and civ < CIVS.size():
+	if civ_lbl and civ >= 0:
 		civ_lbl.text = "%s\n\n%s" % [CIVS[civ]["name"], CIVS[civ]["blurb"]]
 
 # ---------------------------------------------------------------- slots ---
@@ -602,7 +627,7 @@ func _ensure_slot_rows(n: int) -> void:
 		var i := _slot_rows.size()
 		_slot_rows.append({
 			"kind": 1 if i > 0 else 0,
-			"civ": i % CIVS.size(),
+			"civ": int(CIVS[i % CIVS.size()]["id"]),
 			"team": 0, # 0 A.D.: no team until you pick one
 			# 0 A.D. gui.gamesetup.aidifficulty / aibehavior from the options page.
 			"diff": clampi(int(UserSettings.cfg.get_number("gui.gamesetup.aidifficulty")), 0, 5),
@@ -667,7 +692,8 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 		if emblem: civ.add_icon_item(emblem, c["name"])
 		else: civ.add_item(c["name"])
 	civ.add_item("Random")
-	civ.select(clampi(int(row["civ"]), 0, CIVS.size()))
+	var civ_pos := _civ_pos(int(row["civ"]))
+	civ.select(civ_pos if civ_pos >= 0 else CIVS.size())
 	civ.disabled = _map_civ(_map_player(i)) >= 0
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
@@ -723,7 +749,7 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 func _on_slot_civ(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
-	_slot_rows[slot]["civ"] = idx
+	_slot_rows[slot]["civ"] = int(CIVS[idx]["id"]) if idx < CIVS.size() else RANDOM_CIV
 	_update_preview()
 
 func _on_slot_team(idx: int, slot: int) -> void:
@@ -993,7 +1019,7 @@ func _apply_settings(ms: Dictionary) -> void:
 		for i in range(mini(types.size(), _slot_rows.size())):
 			_slot_rows[i]["kind"] = clampi(int(types[i]), 0, 2)
 			if i < civs.size():
-				_slot_rows[i]["civ"] = clampi(int(civs[i]), 0, CIVS.size()) # CIVS.size() = Random
+				_slot_rows[i]["civ"] = int(civs[i]) if _civ_pos(int(civs[i])) >= 0 else RANDOM_CIV
 			if i < teams.size():
 				_slot_rows[i]["team"] = clampi(int(teams[i]), 0, 4)
 			if i < sdiffs.size():
@@ -1048,8 +1074,8 @@ func _collect_setup() -> Dictionary:
 			continue # closed: 0 A.D. drops the slot, so later players move up
 		types.append(k)
 		var c := int(_slot_rows[i]["civ"])
-		if c >= CIVS.size(): # "Random": 0 A.D. picks one when the match starts
-			c = randi() % CIVS.size()
+		if _civ_pos(c) < 0: # "Random": 0 A.D. picks one when the match starts
+			c = int(CIVS[randi() % CIVS.size()]["id"])
 		civs.append(c)
 		teams.append(int(_slot_rows[i]["team"]))
 		diffs.append(int(_slot_rows[i]["diff"]))

@@ -124,13 +124,27 @@ func run() -> void:
 	var misc: Array = s.score_panels()[5].headings.map(func(h): return h.caption)
 	check(misc.has("Civilianization") and not misc.has("Feminization"), "0.28's Civilianization column: " + str(misc))
 	var res: Dictionary = s.player_value(1, 3, 0)
-	check(res.keys() == ["gathered", "used"] and res.gathered > 0, "resources gathered / used: " + str(res))
+	check(res.keys() == ["count", "gathered", "used"] and res.gathered > 0, "resources count / gathered / used: " + str(res))
+	check(not s.format_value(res).contains(str(res["count"]) + "[/color]"), "the count is charted, not shown in the table")
+	check(s.panels[3].headings.map(func(h): return h.id).has("livestock") and s.player_value(1, 3, 8) is int, "Livestock bred")
+	var misc_ids: Array = s.panels[5].headings.map(func(h): return h.id)
+	check(misc_ids.has("population") and misc_ids.has("bribes"), "Population and Bribes in Miscellaneous")
+	check(int(s.player_value(1, 5, 1).population) > 0, "population count %s" % str(s.player_value(1, 5, 1)))
+	check(s.player_value(1, 5, 7).keys() == ["succeeded", "failed"], "bribes succeeded / failed")
 	await shot("score")
 	s.select_panel(2)
 	await frames(1)
 	await shot("units")
 	var row: Control = s.find_child("Player1", true, false)
 	check(row != null and row.get_node("Value0").get_parsed_text().contains(" / "), "the Units tab shows the counters in the player's row")
+	s.select_panel(5)
+	await frames(1)
+	var misc_heads: Array = []
+	for i in 10:
+		var h = s.find_child("Heading%d" % i, true, false)
+		if h: misc_heads.append(h.get_parsed_text())
+	check(not misc_heads.has("Population") and misc_heads.any(func(t): return t.begins_with("Bribes")),
+		"Miscellaneous shows Bribes and leaves Population to the charts: " + str(misc_heads))
 
 	print("3. charts")
 	s.select_panel(6)

@@ -313,15 +313,15 @@ func calc_sum_team(team: int, index: int, type: String, counters: Array, heading
 # Resources
 func calc_resources(p: Dictionary, index: int, type: String) -> Dictionary:
 	var s := _stats(p, index)
-	return {"gathered": _by(s, "resourcesGathered", type),
+	return {"count": _by(s, "resourcesCount", type), "gathered": _by(s, "resourcesGathered", type),
 		"used": _by(s, "resourcesUsed", type) - _by(s, "resourcesSold", type)}
 
 func calc_total_resources(p: Dictionary, index: int, _t := "") -> Dictionary:
-	var out := {"gathered": 0, "used": 0}
+	var out := {"count": 0, "gathered": 0, "used": 0}
 	for r in RESOURCES:
 		var v := calc_resources(p, index, r[0])
-		out["gathered"] += v["gathered"]
-		out["used"] += v["used"]
+		for k in out:
+			out[k] += v[k]
 	return out
 
 func calc_tributes(p: Dictionary, index: int, _t := "") -> Dictionary:
@@ -333,6 +333,9 @@ func calc_treasures(p: Dictionary, index: int, _t := "") -> int:
 
 func calc_loot(p: Dictionary, index: int, _t := "") -> int:
 	return int(_stats(p, index).get("lootCollected", 0))
+
+func calc_livestock(p: Dictionary, index: int, _t := "") -> int:
+	return _by(_stats(p, index), "unitsTrained", "Domestic")
 
 # Market
 func calc_trade_income(p: Dictionary, index: int, _t := "") -> int:
@@ -380,6 +383,13 @@ func _worker(p: Dictionary, index: int) -> float:
 func calc_kill_death(p: Dictionary, index: int, _t := "") -> Variant:
 	return calculate_ratio(_killed(p, index), _lost(p, index))
 
+func calc_population(p: Dictionary, index: int, _t := "") -> Dictionary:
+	return {"population": int(_stats(p, index).get("populationCount", 0))}
+
+func calc_bribes(p: Dictionary, index: int, _t := "") -> Dictionary:
+	var s := _stats(p, index)
+	return {"succeeded": int(s.get("successfulBribes", 0)), "failed": int(s.get("failedBribes", 0))}
+
 func calc_map_peak(p: Dictionary, index: int, _t := "") -> Dictionary:
 	return {"percent": int(floor(float(_stats(p, index).get("peakPercentMapControlled", 0.0))))}
 
@@ -396,8 +406,10 @@ func calc_vegetarian(p: Dictionary, index: int, _t := "") -> Dictionary:
 func calc_civilianization(p: Dictionary, index: int, _t := "") -> Dictionary:
 	return calculate_percent(_civilian(p, index), _worker(p, index))
 
-func calc_misc_team(team: int, index: int, type: String, _counters: Array, _headings: Array) -> Variant:
+func calc_misc_team(team: int, index: int, type: String, counters: Array, headings: Array) -> Variant:
 	match type:
+		"bribes", "population":
+			return array_sum(_team_values(team, index, type, counters, headings))
 		"vegetarianRatio":
 			return calculate_percent(_team_total(team, index, _veg), _team_total(team, index, _food))
 		"civilianization":
@@ -420,8 +432,12 @@ static func H(id: String, caption: String, y: int, w: int, extra := {}) -> Dicti
 static func C(w: int, fn: Callable, off: int) -> Dictionary:
 	return {"w": w, "fn": fn, "off": off}
 
-## layout.js getScorePanelsData, without the counters RTS0 does not record
-## yet (resource counts, livestock, population, bribes).
+static func _hidden(c: Dictionary) -> Dictionary:
+	c["hide"] = true
+	return c
+
+## layout.js getScorePanelsData. A heading or counter marked "hide"
+## (hideInSummary) is only charted, not shown in the table.
 func score_panels() -> Array:
 	var name := H("playername", "Player name", 26, 200)
 	var structures_h := [name, H("Structure", "Total", 34, 90)]
@@ -446,7 +462,9 @@ func score_panels() -> Array:
 		{"header": "Tributes \n(%s / %s)" % [colored_type("sent"), colored_type("received")]}))
 	res_h.append(H("treasuresCollected", "Treasures collected", 16, 85))
 	res_h.append(H("loot", "Loot", 16, 85))
-	res_c.append_array([C(110, calc_tributes, 12), C(85, calc_treasures, 12), C(85, calc_loot, 12)])
+	res_h.append(H("livestock", "Livestock bred", 16, 85))
+	res_c.append_array([C(110, calc_tributes, 12), C(85, calc_treasures, 12), C(85, calc_loot, 12),
+		C(85, calc_livestock, 12)])
 	return [
 		{"label": "Score", "headings": [name, H("totalScore", "Total score", 16, 120),
 			H("economyScore", "Economy score", 16, 120), H("militaryScore", "Military score", 16, 120),
@@ -472,14 +490,18 @@ func score_panels() -> Array:
 		{"label": "Market", "headings": market_h, "titles": [], "counters": market_c, "team_fn": calc_market_team},
 		{"label": "Miscellaneous", "headings": [name,
 			H("killDeath", "Kill / Death ratio", 16, 110, {"format": "DECIMAL2"}),
+			H("population", "Population", 16, 110, {"hide": true}),
 			H("mapControlPeak", "Map control (peak)", 16, 110, {"format": "PERCENTAGE"}),
 			H("mapControl", "Map control (finish)", 16, 110, {"format": "PERCENTAGE"}),
 			H("mapExploration", "Map exploration", 16, 110, {"format": "PERCENTAGE"}),
 			H("vegetarianRatio", "Vegetarian ratio", 16, 110, {"format": "PERCENTAGE"}),
-			H("civilianization", "Civilianization", 16, 110, {"format": "PERCENTAGE"})],
+			H("civilianization", "Civilianization", 16, 110, {"format": "PERCENTAGE"}),
+			H("bribes", "Bribes", 16, 110,
+				{"header": "Bribes\n(%s / %s)" % [colored_type("succeeded"), colored_type("failed")]})],
 		"titles": [],
-		"counters": [C(110, calc_kill_death, 12), C(110, calc_map_peak, 12), C(110, calc_map_final, 12),
-			C(110, calc_map_exploration, 12), C(110, calc_vegetarian, 12), C(110, calc_civilianization, 12)],
+		"counters": [C(110, calc_kill_death, 12), _hidden(C(110, calc_population, 12)), C(110, calc_map_peak, 12),
+			C(110, calc_map_final, 12), C(110, calc_map_exploration, 12), C(110, calc_vegetarian, 12),
+			C(110, calc_civilianization, 12), C(110, calc_bribes, 12)],
 		"team_fn": calc_misc_team},
 	]
 
@@ -736,8 +758,9 @@ func _update_panel(pd: Dictionary) -> void:
 	for c in _general.get_children():
 		_general.remove_child(c)
 		c.queue_free()
-	var headings: Array = pd["headings"]
-	var counters: Array = pd["counters"]
+	# counters.js: hideInSummary columns are left out of the table (they are charted).
+	var headings: Array = pd["headings"].filter(func(h): return not h.get("hide", false))
+	var counters: Array = pd["counters"].filter(func(c): return not c.get("hide", false))
 	var left := 50
 	for hi in headings.size():
 		var h: Dictionary = headings[hi]
@@ -808,13 +831,13 @@ func _player_row(p: Dictionary, counters: Array, headings: Array, index: int, po
 	name.clip_text = true
 	name.tooltip_text = p["tooltip"]
 	_place(name, box, Vector2(46, 2), Vector2(168, BOX_H - 2))
-	var civs: Array = Ref.ref().get_civs()
-	if p["civ"] >= 0 and p["civ"] < civs.size():
+	var civ_info: Dictionary = Ref.ref().get_civ_info(p["civ"])
+	if not civ_info.is_empty():
 		var emblem := TextureRect.new()
-		emblem.texture = Ref.texture(str(civs[p["civ"]].get("emblem", "")))
+		emblem.texture = Ref.texture(str(civ_info.get("emblem", "")))
 		emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		emblem.tooltip_text = str(civs[p["civ"]].get("name", ""))
+		emblem.tooltip_text = str(civ_info.get("name", ""))
 		_place(emblem, box, Vector2(214, 5), Vector2(32, 32))
 	var x := 240
 	for ci in counters.size():
