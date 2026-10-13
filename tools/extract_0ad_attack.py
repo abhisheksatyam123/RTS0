@@ -6,8 +6,10 @@
   * Attack/<type>/RestrictedClasses: classes this attack can never target
     (rams: Field Organic; dogs: Structure Ship Siege). Tokens are OR-ed;
     "!X" tokens (e.g. !Domestic) only matter for hunting and are left out.
-  * Attack/<type>/Bonuses/*: a target with all of Classes (and of Civ, if
-    given) takes Multiplier times the damage (helpers/Attack.js GetAttackBonus).
+  * Attack/<type>/Bonuses/*: a target matching Classes (and Civ, if given)
+    takes Multiplier times the damage (helpers/Attack.js GetAttackBonus).
+    Classes tokens are alternatives ("Ship Building"); "+" joins classes a
+    target needs all of. Each alternative becomes its own RTS0 bonus.
   * Attack/Ranged/Projectile/Spread: standard deviation, in metres at 100 m,
     of where a projectile lands (Attack.js PerformAttack).
   * Resistance/Entity/Damage: structure armour levels (units take theirs from
@@ -134,11 +136,16 @@ def attack_of(t):
     bonuses = []
     b = atk.get("Bonuses")
     for _name, node in sorted((b.children.items() if b else []), key=lambda kv: kv[0]):
-        classes = node.tokens("Classes")
         mult = node.num("Multiplier", 1.0)
         civ = node.value("Civ")
-        if classes and abs(mult - 1.0) > 1e-9:
-            bonuses.append((classes, mult, civ))
+        if abs(mult - 1.0) <= 1e-9:
+            continue
+        # MatchesClassList: space-separated tokens are alternatives, "+" joins
+        # classes a target needs all of. One RTS0 bonus per alternative
+        # (check_bonus_alternatives makes sure no entity matches two of them).
+        alts = [tok.split("+") for tok in node.tokens("Classes")]
+        for alt in alts:
+            bonuses.append((alt, mult, civ, len(alts) > 1))
     return {"restricted": restricted, "spread": atk.num("Projectile/Spread", 0.0), "bonuses": bonuses,
             "status": status_of(atk), "prepare": atk.num("PrepareTime", 0.0) / 1000.0,
             "proj_speed": atk.num("Projectile/Speed", 0.0), "proj_gravity": atk.num("Projectile/Gravity", 0.0)}
@@ -194,12 +201,26 @@ def class_list(units, generic, buildings):
     names = set(CODE_CLASSES)
     for row in [r for _, r in units] + [r for _, _, r in generic] + [r for _, _, r in buildings]:
         names.update(row["attack"]["restricted"])
-        for classes, _m, _c in row["attack"]["bonuses"]:
-            names.update(classes)
+        for b in row["attack"]["bonuses"]:
+            names.update(b[0])
     names = sorted(names)
     if len(names) > 128:
         sys.exit("more than 128 classes: widen CombatClasses")
     return names
+
+
+def check_bonus_alternatives(units, generic, buildings):
+    """An entity matching two alternatives of one 0 A.D. bonus would take its
+    multiplier twice from the split RTS0 bonuses: refuse to generate that."""
+    rows = [r for _, r in units] + [r for _, _, r in generic] + [r for _, _, r in buildings]
+    for row in rows:
+        alts = [set(b[0]) for b in row["attack"]["bonuses"] if b[3]]
+        if not alts:
+            continue
+        for target in rows:
+            have = set(target["classes"])
+            if sum(1 for a in alts if a <= have) > 1:
+                sys.exit("a target matches two alternatives of one bonus: %s" % sorted(target["classes"]))
 
 
 def mask(names, index):
@@ -268,7 +289,7 @@ def emit(units, generic, buildings, classes):
         if len(a["bonuses"]) > MAX_BONUSES:
             sys.exit("raise MAX_BONUSES for " + comment)
         bon = []
-        for classes, mult, civ in a["bonuses"]:
+        for classes, mult, civ, _alt in a["bonuses"]:
             bon.append("{%s, %s, %d}" % (mask(classes, index), f(mult), civ_index.get(civ, 255) if civ else 255))
         while len(bon) < MAX_BONUSES:
             bon.append("{{0, 0}, 1.0f, 255}")
@@ -321,6 +342,7 @@ def main():
     args = ap.parse_args()
     sim_root = os.path.join(args.zad, "binaries", "data", "mods", "public", "simulation")
     units, generic, buildings = collect(sim_root)
+    check_bonus_alternatives(units, generic, buildings)
     text = emit(units, generic, buildings, class_list(units, generic, buildings))
     if args.check:
         old = open(OUT_HEADER).read() if os.path.exists(OUT_HEADER) else ""

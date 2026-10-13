@@ -157,7 +157,7 @@ static void test_petra_sea_trade() {
 	std::printf("Petra: %d merchant ships, %d trading\n", ships, trading);
 	// Every ship launches on the water and trades; Petra trains no more than its trader target.
 	CHECK(ships >= 1 && trading == ships);
-	CHECK(ships <= s.petra_config().target_num_traders + 1);
+	CHECK(ships <= s.petra_target_traders() + 1);
 }
 
 static const uint8_t *subtype_of(const Simulation &s, uint32_t rid, int32_t *amount = nullptr) {
