@@ -3464,6 +3464,47 @@ void RtsoMain::_process(double delta) {
 			}
 			txt += line;
 		}
+		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
+		// player (the wonder's owner, its allies or everyone else).
+		{
+			const uint8_t me = local_player();
+			auto mutual = [&](uint8_t a, uint8_t b) {
+				return !sim->last_man_standing() && sim->is_ally(a, b) && sim->is_ally(b, a);
+			};
+			auto allies_of = [&](uint8_t p) {
+				uint8_t m = 0;
+				for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
+					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
+				return m;
+			};
+			auto clock = [](float s) { const int t = (int)std::ceil(std::max(0.0f, s)); return vformat("%d:%02d", t / 60, t % 60); };
+			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
+			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
+				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
+					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
+					const uint8_t allies = allies_of(p);
+					if (p == me) add(allies ? "You own a Wonder and you and your allies will win in " + left + "."
+							: "You own a Wonder and will win in " + left + ".");
+					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1)) add(colored_player_name(p) + " owns a Wonder and you will win in " + left + ".");
+					else add(colored_player_name(p) + " owns a Wonder and " + (allies ? colored_player_name(p) + " and their allies" : String()) +
+							(allies ? " will win in " : "will win in ") + left + ".");
+				}
+			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
+				const uint8_t owner = sim->relics()[0].owner_team;
+				if (owner < rtso::MAX_PLAYERS) {
+					const uint8_t side = (uint8_t)(allies_of(owner) | (1u << owner));
+					const bool team = (side & (side - 1)) != 0;
+					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
+					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
+						add(team ? "You and your allies have captured all relics and will win in " + left + "."
+								: "You have captured all relics and will win in " + left + ".");
+					else
+						add(colored_player_name(owner) + (team ? " and their allies have captured all relics and will win in "
+								: " has captured all relics and will win in ") + left + ".");
+				}
+			}
+		}
 		// CeasefireManager: "You can attack in %(time)s" for the last 10 s, then
 		// "You can attack now!" for 5 s.
 		if (sim->ceasefire_seconds() > 0.0f) {

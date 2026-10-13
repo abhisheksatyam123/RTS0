@@ -1758,6 +1758,8 @@ public:
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
+	// Seconds player p has held a finished wonder (0 when it holds none), for WonderVictory.js's countdowns.
+	float wonder_hold(uint8_t p) const { return p < MAX_PLAYERS ? wonder_hold_[p] : 0.0f; }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<Relic> &relics() const { return relics_; }
 
