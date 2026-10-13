@@ -24,6 +24,8 @@ Reads simulation/data/auras/ from 0 A.D.'s public mod (0.28):
   speed beside her attack...) are registered from here.
 - every "range" aura with a Builder/Rate modification (Xerxes, Ptolemy I, the Han
   minister): its multiplier and whether it stacks, registered as an AURA_BUILD source.
+- every "garrison" aura on BuildingAI/GarrisonArrowMultiplier or MaxArrowCount (Caros'
+  Valiant Defender): what it multiplies them by on the structure or siege tower holding it.
 
 Usage:
     python3 tools/extract_0ad_aura_modifiers.py --public PATH [--out src/simulation/aura_modifier_data.h]
@@ -182,10 +184,17 @@ def main() -> int:
     # Range auras with a RequiredXp multiplier, anywhere under auras/.
     xp_auras: list[tuple[str, float]] = []
     build_auras: list[tuple[str, float, bool]] = []
+    arrow_auras: list[tuple[str, float, float]] = []
     for rel in sorted(list_files(src, "simulation/data/auras/")):
         if not rel.endswith(".json"):
             continue
         j = json.loads(src.read(rel))
+        if j.get("type") == "garrison":
+            mul = {m["value"]: float(m["multiply"]) for m in j.get("modifications", [])
+                   if m["value"].startswith("BuildingAI/") and "multiply" in m}
+            if mul:
+                arrow_auras.append((os.path.basename(rel)[:-5], mul.get("BuildingAI/GarrisonArrowMultiplier", 1.0),
+                                    mul.get("BuildingAI/MaxArrowCount", 1.0)))
         if j.get("type") != "range":
             continue
         for m in j.get("modifications", []):
@@ -442,12 +451,25 @@ def main() -> int:
     w("\treturn kAuras;")
     w("}")
     w("")
+    w("// Garrison auras on BuildingAI: while a unit carrying one is garrisoned, the structure or")
+    w("// siege tower holding it multiplies GarrisonArrowMultiplier and MaxArrowCount.")
+    w("struct GarrisonArrowAura { const char *id; float arrow_multiply; float max_multiply; };")
+    w(f"constexpr uint16_t GARRISON_ARROW_AURA_COUNT = {len(arrow_auras)};")
+    w("inline const GarrisonArrowAura *garrison_arrow_auras() {")
+    w(f"\tstatic const GarrisonArrowAura kAuras[{max(1, len(arrow_auras))}] = {{")
+    for name, arrows, mx in arrow_auras:
+        w(f"\t\t{{\"{name}\", {arrows!r}f, {mx!r}f}},")
+    w("\t};")
+    w("\treturn kAuras;")
+    w("}")
+    w("")
     w("#endif // RTSO_AURA_MODIFIER_DATA_H")
     with open(args.out, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     print(f"wrote {args.out}: {len(auras)} global relic auras, {len(mods)} modifiers, {len(xp_auras)} RequiredXp range auras, "
           f"{len(capatk_auras)} capture attack range auras, {len(looter_auras)} looter and "
-          f"{len(no_loot_auras)} no-loot range auras, {len(build_auras)} Builder/Rate range auras")
+          f"{len(no_loot_auras)} no-loot range auras, {len(build_auras)} Builder/Rate range auras, "
+          f"{len(arrow_auras)} garrison arrow auras")
     for s in skipped:
         print("  not modelled: " + s)
     return 0
