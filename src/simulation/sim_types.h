@@ -1018,11 +1018,11 @@ inline bool civ_has_big_house(uint8_t civ) {
 // simulation/templates: brit/{civil_centre,house,defense_tower,fortress,wonder}.xml,
 // iber/{defense_tower,wall_tower}.xml, maur/wonder.xml, every civ's theater
 // (template_structure_special_theater.xml) and athen/prytaneion, spart/gerousia, gaul/assembly,
-// ptol/lighthouse, rome/temple_vesta and pers/ice_house.
+// ptol/lighthouse, rome/temple_vesta, pers/ice_house and brit/crannog.
 inline bool building_footprint_round(uint8_t civ, uint8_t type) {
 	switch (type) {
 		case BLD_THEATER: case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY:
-		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE:
+		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE: case BLD_CRANNOG:
 			return true;
 		case BLD_TOWN_CENTER: case BLD_HOUSE: case BLD_FORTRESS:
 			return civ == CIV_BRITONS;
