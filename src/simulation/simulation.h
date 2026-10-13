@@ -161,9 +161,10 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 58; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 59; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
+	static constexpr uint32_t SAVE_VERSION_TRADER_GOODS = 59; // each trader's goods amounts
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
 	static constexpr size_t MAX_PROJECTILES = 384;
 
@@ -977,10 +978,13 @@ public:
 	// G3 Market/Trader (0 A.D. Market.js CalculateTraderGain, Trader.js, globalscripts/Trade.js)
 	struct TradeGain {
 		int trader = 0;  // paid to the trader's owner
-		int market1 = 0; // international bonus to the owner of the market the leg starts at
-		int market2 = 0; // international bonus to the owner of the market the leg ends at
+		int market1 = 0; // the starting market's international bonus (paid to the arrival market's owner)
+		int market2 = 0; // the arrival market's international bonus (paid to the starting market's owner)
 	};
 	// `trader_type` UNIT_MERCHANT_SHIP takes the civ's merchant ship bonus instead of the land trader's.
+	static constexpr double MERCHANT_SHIP_GARRISON_GAIN = 0.2; // template_unit_ship_merchant Trader/GarrisonGainMultiplier
+	// The gain with a merchant ship's garrisoned traders' bonus (Trader.js CalculateGain).
+	TradeGain garrisoned_trade_gain(size_t trader_idx, TradeGain g) const;
 	TradeGain calculate_trade_gain(const Building &from, const Building &to, uint8_t trader_owner,
 			uint8_t trader_type = UNIT_TRADER) const;
 	int calculate_trader_gain(const Building& mA, const Building& mB, uint8_t team) const { return calculate_trade_gain(mA, mB, team).trader; }
@@ -2068,6 +2072,8 @@ private:
 	int market_trade_history_[4] = {};
 	std::unordered_map<uint32_t, std::pair<uint32_t,uint32_t>> trader_routes_; // unit_id -> (marketA_id, marketB_id)
 	std::unordered_map<uint32_t,int> trader_leg_; // unit_id -> 0=A->B, 1=B->A (which target next)
+	// unit_id -> the goods loaded at the last market (Trader.js goods.amount, fixed at loading).
+	std::unordered_map<uint32_t, TradeGain> trader_goods_;
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
 	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
