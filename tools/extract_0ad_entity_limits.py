@@ -82,8 +82,7 @@ def collect(sim_root):
         t = loader.load(name)
         units.append((u["id"], civs.index(u["civ"]), category(t, False),
                       int(t.value("TrainingRestrictions/MatchLimit") or 0), ex.classes_of(t)))
-    generic = [(cls, category(loader.load(name), False)) for cls, name in
-               ((c, ex.GENERIC[c]) for c in atk.UNIT_TYPES)]
+    generic = [(cls, category(ex.generic_template(loader, cls), False)) for cls in atk.UNIT_TYPES]
     buildings = []  # (enum, category, classes)
     for bld, name in atk.BUILDINGS + atk.civ_buildings():
         t = loader.load(name)
