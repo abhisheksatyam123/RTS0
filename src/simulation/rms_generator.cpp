@@ -3517,6 +3517,47 @@ void RmsGenerator::place_trigger_map_entities(Simulation &sim, const HeightmapGr
 		}
 	} else if (config.map_type == MAP_ELEPHANTINE) {
 		place_elephantine_entities(sim, hm, water_h, spawns, rng);
+		place_elephantine_fish(sim, hm, water_h, config);
+	}
+}
+
+void RmsGenerator::place_elephantine_fish(Simulation &sim, const HeightmapGrid &hm, float water_h, const Config &config) {
+	// elephantine.js (0.28) "Creating fish": scaleByMapSize(125, 200) groups of 1-2 tilapia (0-1
+	// tiles apart), stayClasses(clWater, 2) and avoidClasses(clFood, 12), retry factor 50. clFood
+	// holds the berries, the animals and the fish placed so far. Its own stream keeps every other
+	// placement on the map unchanged.
+	const float half = hm.map_half;
+	const int groups = scale_by_map_size(125, 200, half);
+	RmsRng rng(config.seed ^ 0x54494C41u); // 'TILA'
+	auto deep = [&](float x, float z) { // a water tile with water 2 tiles round it
+		if (x < -half + 2.0f || x > half - 2.0f || z < -half + 2.0f || z > half - 2.0f) return false;
+		for (int dz = -2; dz <= 2; ++dz)
+			for (int dx = -2; dx <= 2; ++dx)
+				if (hm.sample_world(x + (float)dx, z + (float)dz) >= water_h) return false;
+		return true;
+	};
+	std::vector<std::pair<float, float>> food;
+	const auto res = sim.resources();
+	for (size_t i = 0; i < res.count; ++i)
+		if (res.alive[i] && res.type[i] == RES_FOOD) food.push_back({res.x[i], res.z[i]});
+	const auto fauna = sim.fauna();
+	for (size_t i = 0; i < fauna.count; ++i)
+		if (fauna.alive[i]) food.push_back({fauna.pos_x[i], fauna.pos_z[i]});
+	int placed = 0;
+	for (int attempt = 0; attempt < groups * 50 && placed < groups; ++attempt) {
+		const float x = std::floor(rng.range_float(-half, half)) + 0.5f, z = std::floor(rng.range_float(-half, half)) + 0.5f;
+		if (!deep(x, z)) continue;
+		bool crowded = false;
+		for (const auto &[fx, fz] : food)
+			if ((fx - x) * (fx - x) + (fz - z) * (fz - z) < 12.0f * 12.0f) { crowded = true; break; }
+		if (crowded) continue;
+		++placed;
+		const int n = rng.range_int(1, 2);
+		for (int k = 0; k < n; ++k) {
+			const float a = rng.range_float(0.0f, 6.2831853f), d = k ? rng.range_float(0.0f, 1.0f) : 0.0f;
+			sim.spawn_resource_world(x + std::cos(a) * d, z + std::sin(a) * d, RES_FOOD, FISH_FOOD_SUPPLY, RES_SUB_FISH);
+		}
+		food.push_back({x, z});
 	}
 }
 
@@ -9429,8 +9470,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// Distribute sacred relics
 	distribute_relics(sim, hm, water_h, spawns, rng, config);
 
-	// Fish in open water, for fishing boats
-	distribute_fish(sim, hm, water_h, config);
+	// Fish in open water, for fishing boats (Elephantine places its own, place_elephantine_fish)
+	if (config.map_type != MAP_ELEPHANTINE) distribute_fish(sim, hm, water_h, config);
 
 	// Entities only the trigger maps have (Gaia towers, central mines)
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
@@ -9611,6 +9652,13 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 				else if (n3 > 0.86f) v = pick(b.dirt, 2, tx, tz, 10);
 				else v = pick(b.main, 4, tx, tz, 11);
 			}
+			// The script's own height bands, unless a road, forest floor or mine dirt took the tile.
+			if (own && road[j] == 0 && forest[j] == 0 && mine[j] == 0) {
+				const float m = (h - water) / metre;
+				for (const HeightBand &band : own->bands)
+					if (band.terrain[0] && m >= band.lo && m < band.hi)
+						v = pick(band.terrain, 2, tx, tz, 12);
+			}
 			t.tiles[j] = v;
 		}
 	// A tile's terrain blends over neighbours of lower priority, which the renderer
@@ -9618,7 +9666,10 @@ void RmsGenerator::paint_terrain(Simulation &sim, uint32_t seed, uint8_t type) {
 	// so paint order decides: the main terrain first, then water and shores, player
 	// bases, cliffs and hills, forests and the patches on top.
 	std::vector<const char *> order(b.main, b.main + 4);
-	for (const char *n : {b.water, b.shore_blend, b.shore, b.road_wild, b.road}) order.push_back(n);
+	for (const char *n : {b.water, b.shore_blend, b.shore}) order.push_back(n);
+	if (own)
+		for (const HeightBand &band : own->bands) order.insert(order.end(), band.terrain, band.terrain + 2);
+	for (const char *n : {b.road_wild, b.road}) order.push_back(n);
 	for (const char *const *l : {b.cliff, b.hill, b.forest}) order.insert(order.end(), l, l + 2);
 	order.insert(order.end(), b.tier, b.tier + 4);
 	order.insert(order.end(), b.dirt, b.dirt + 2);

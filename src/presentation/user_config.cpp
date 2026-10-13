@@ -23,6 +23,8 @@ struct Default {
 };
 const Default kDefaults[] = {
 	{"locale", ""}, // L10n.cpp: empty follows the system language
+	{"playername.singleplayer", ""}, // empty: the system user name (singleplayerName)
+	{"persistmatchsettings", "true"}, // PersistentMatchSettings
 	{"pauseonfocusloss", "true"},
 	{"overlay.fps", "false"},
 	{"overlay.realtime", "false"},
