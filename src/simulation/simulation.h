@@ -1319,6 +1319,10 @@ public:
 
 	int order_pop(const ProductionOrder &o, uint8_t player) const;
 	int structure_pop_bonus(uint8_t type, uint8_t player) const;
+	// A structure of `type` as `player`'s build button shows it (0.28 GetTemplateData): its
+	// cost after civ, team and technology modifiers, and its BuildTime for one builder.
+	void structure_cost_for(uint8_t player, uint8_t type, float out[RES_COUNT]) const { structure_cost(player, type, -1.0f, out); }
+	float structure_build_time_for(uint8_t player, uint8_t type) const;
 	int pop_current(uint8_t player = 0) const;
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
