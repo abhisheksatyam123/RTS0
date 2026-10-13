@@ -4307,10 +4307,14 @@
       "z": -1.51
     },
     {
-      "type": "fortress",
+      "type": "wall_segment",
       "player": 1,
       "x": -24.98,
-      "z": -16.19
+      "z": -16.19,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 6.125
     },
     {
       "type": "barracks",
@@ -4364,55 +4368,91 @@
       "type": "wall_segment",
       "player": 1,
       "x": 2.46,
-      "z": -12.02
+      "z": -12.02,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 9.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -1.28,
-      "z": -15.74
+      "z": -15.74,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 1.75
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": 6.11,
-      "z": -8.41
+      "z": -8.41,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 1.75
     },
     {
       "type": "gate",
       "player": 1,
       "x": -5.06,
-      "z": -19.65
+      "z": -19.65,
+      "wallset": "stone",
+      "piece": "gate",
+      "angle": 2.3562,
+      "length": 9.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -8.92,
-      "z": -23.28
+      "z": -23.28,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 1.75
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -11.67,
-      "z": -25.98
+      "z": -25.98,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 6.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -14.31,
-      "z": -28.58
+      "z": -28.58,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 1.75
     },
     {
       "type": "wall_segment",
       "player": 1,
       "x": -15.8,
-      "z": -30.24
+      "z": -30.24,
+      "wallset": "stone",
+      "piece": "wall",
+      "angle": 2.3562,
+      "length": 3.0
     },
     {
-      "type": "tower",
+      "type": "wall_tower",
       "player": 1,
       "x": -17.24,
-      "z": -31.7
+      "z": -31.7,
+      "wallset": "stone",
+      "piece": "tower",
+      "angle": 2.3562,
+      "length": 1.75
     },
     {
       "type": "market",
