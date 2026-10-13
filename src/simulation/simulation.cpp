@@ -8801,6 +8801,11 @@ void Simulation::tick_gather(float dt) {
 					if (const float g = !aura_mgr_.has(AURA_GATHER) ? 0.0f : aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER,
 							units_.tmpl[i], &unit_combat_at(i).classes); g > 0.0f && g < 1.0f)
 						rate /= 1.0f - g;
+					// Auras on ResourceGatherer/Rates/<type> (Iron Pelanors: metal ore), each once.
+					if (aura_mgr_.has(AURA_GATHER_RATE))
+						aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], uteam, AURA_GATHER_RATE, units_.tmpl[i],
+							&unit_combat_at(i).classes, false,
+							[&](const AuraSource &s) { rate *= gather_rate_range_auras()[(uint16_t)s.value].multiply[kind]; });
 					// unit_advanced.json / unit_elite.json: ResourceGatherer/BaseSpeed x0.7 per rank.
 					for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[i], 3); ++r) rate *= rank_bonus(r).gather_mul;
 					if (field_efficiency > 0.0f) rate *= field_efficiency;
@@ -24130,6 +24135,11 @@ void Simulation::rebuild_auras() {
 					if (std::strcmp(aura.id, looter_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_LOOTER, looter_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							(float)k, aura_affected_players(team, looter_range_auras()[k].players), x, z, a);
+				// Range auras on ResourceGatherer/Rates (the Spartan catafalque's Iron Pelanors).
+				for (uint16_t k = 0; k < GATHER_RATE_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, gather_rate_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_GATHER_RATE, gather_rate_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
+							(float)k, aura_affected_players(team, gather_rate_range_auras()[k].players), x, z, a);
 				for (uint16_t k = 0; k < NO_LOOT_RANGE_AURA_COUNT; ++k)
 					if (std::strcmp(aura.id, no_loot_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,

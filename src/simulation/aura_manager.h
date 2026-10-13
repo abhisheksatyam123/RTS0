@@ -27,7 +27,8 @@ enum AuraType : uint8_t {
     AURA_LOOTER = 13, // Looter/Resource of units; value = looter_range_auras() row
     AURA_NO_LOOT = 14, // Loot replaced by 0 on victims (no_loot_range_auras)
     AURA_BUILD = 15, // Builder/Rate multiplier
-    AURA_COUNT  = 16
+    AURA_GATHER_RATE = 16, // ResourceGatherer/Rates of units; value = gather_rate_range_auras() row
+    AURA_COUNT  = 17
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).

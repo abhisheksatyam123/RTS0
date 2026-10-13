@@ -241,6 +241,19 @@ inline const LooterRangeAura *looter_range_auras() {
 	return kAuras;
 }
 
+// Range auras on ResourceGatherer/Rates of the units they reach (AURA_GATHER_RATE sources,
+// value = row): a gather rate x multiply per GatherKind (grain, fruit, meat, fish, wood,
+// stone, metal); radius in 0 A.D. metres.
+struct GatherRateRangeAura { const char *id; float multiply[7]; float radius; uint8_t players; };
+constexpr uint16_t GATHER_RATE_RANGE_AURA_COUNT = 2;
+inline const GatherRateRangeAura *gather_rate_range_auras() {
+	static const GatherRateRangeAura kAuras[2] = {
+		{"farmstead_60", {1.75f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}, 60.0f, 1},
+		{"spart_catafalque_3", {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.15f}, 80.0f, 1},
+	};
+	return kAuras;
+}
+
 // Range auras replacing Loot (xp and resources) with 0 on the entities they reach
 // (AURA_NO_LOOT sources): those give their killer nothing.
 struct NoLootRangeAura { const char *id; float radius; uint8_t players; };
