@@ -667,10 +667,12 @@ int main() {
 		sim.apply_team_diplomacy();
 		CHECK(sim.is_ally(0, 1) && sim.is_ally(0, 3) && !sim.is_hostile(1, 0) && sim.is_hostile(0, 2));
 		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ENEMY));
-		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && !sim.is_hostile(1, 0));
+		// Diplomacy.js mutual worsening: war on the old teammate is war back.
+		CHECK(!sim.is_ally(0, 1) && sim.is_hostile(0, 1) && sim.is_hostile(1, 0));
 		CHECK(sim.is_ally(0, 3) && sim.is_ally(1, 3) && sim.same_team(1, 3) && !sim.same_team(0, 1));
 		CHECK(sim.player_team(1) == 1 && sim.player_team(0) == 0);
-		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
+		CHECK(sim.cmd_set_diplomacy(0, 1, Simulation::DIPLO_ALLY) && !sim.is_ally(0, 1)); // allying is one-sided
+		CHECK(sim.cmd_set_diplomacy(1, 0, Simulation::DIPLO_ALLY) && sim.is_ally(0, 1));
 		sim.set_lock_teams(true);
 		CHECK(!sim.cmd_set_diplomacy(1, 3, Simulation::DIPLO_ENEMY) && sim.is_ally(1, 3));
 	}
