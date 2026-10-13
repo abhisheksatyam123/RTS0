@@ -8895,6 +8895,22 @@
 0.94
 ]
 },
+"units/han_cavalry_archer_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_cavalry_archer_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/han/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/han_cavalry_archer_tex6": {
 "mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
 "tint": [
@@ -8904,6 +8920,14 @@
 ]
 },
 "units/han_cavalry_archer_tex9": {
+"mask": "res://assets/textures/player_masks/structural/kart_struct_512x512.png",
+"tint": [
+1.0,
+1.0,
+1.0
+]
+},
+"units/han_cavalry_crossbow_tex1": {
 "mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
 "tint": [
 0.36,
@@ -8911,7 +8935,7 @@
 0.94
 ]
 },
-"units/han_cavalry_crossbow_tex1": {
+"units/han_cavalry_crossbow_tex5": {
 "mask": "res://assets/textures/player_masks/skeletal/han/officer_01_256x256.png",
 "tint": [
 0.36,
@@ -8951,7 +8975,31 @@
 0.94
 ]
 },
+"units/han_cavalry_spearman_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/han/uniform_e_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/han_cavalry_swordsman_tex1": {
+"mask": "res://assets/textures/player_masks/skeletal/han/tunic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_cavalry_swordsman_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/han_cavalry_swordsman_tex4": {
 "mask": "res://assets/textures/player_masks/skeletal/han/tunic_01_01_256x256.png",
 "tint": [
 0.36,
@@ -9120,6 +9168,14 @@
 ]
 },
 "units/han_hero_cav_han_xin_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/han_hero_cav_han_xin_tex5": {
 "mask": "res://assets/textures/player_masks/skeletal/han/uniform_e_05_256x256.png",
 "tint": [
 0.92,
@@ -9136,6 +9192,14 @@
 ]
 },
 "units/han_hero_cav_liu_bang_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/han_hero_cav_liu_bang_tex5": {
 "mask": "res://assets/textures/player_masks/skeletal/han/scale_hero_01_iron_01_256x256.png",
 "tint": [
 0.92,
@@ -9152,6 +9216,14 @@
 ]
 },
 "units/han_hero_cav_wei_qing_tex1": {
+"mask": "res://assets/textures/player_masks/props/horse/peytral_bronze_256x128.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/han_hero_cav_wei_qing_tex5": {
 "mask": "res://assets/textures/player_masks/skeletal/han/scale_hero_01_lacquered_01_256x256.png",
 "tint": [
 0.92,
@@ -9936,7 +10008,7 @@
 ]
 },
 "units/kush_cav_jav_a_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/kush/tunic_basic_02_01_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -9944,7 +10016,7 @@
 ]
 },
 "units/kush_cav_jav_a_tex6": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
+"mask": "res://assets/textures/player_masks/skeletal/kush/tunic_basic_02_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -9952,14 +10024,6 @@
 ]
 },
 "units/kush_cav_jav_b_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/kush/skirt_basic_01_01_256x256.png",
-"tint": [
-0.36,
-0.62,
-0.94
-]
-},
-"units/kush_cav_jav_b_tex5": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
 "tint": [
 0.36,
@@ -9967,8 +10031,16 @@
 0.94
 ]
 },
+"units/kush_cav_jav_b_tex5": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/skirt_basic_01_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/kush_cav_jav_e_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/kush/padded_05_02_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -9983,8 +10055,16 @@
 0.94
 ]
 },
+"units/kush_cav_jav_e_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/padded_05_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/kush_cav_jav_e_tex7": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
+"mask": "res://assets/textures/player_masks/props/helmet/ptol_quilted_a_128x128.png",
 "tint": [
 0.36,
 0.62,
@@ -9992,7 +10072,7 @@
 ]
 },
 "units/kush_cav_spear_a_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/kush/tunic_basic_02_01_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -10007,8 +10087,16 @@
 0.94
 ]
 },
+"units/kush_cav_spear_a_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/tunic_basic_02_01_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/kush_cav_spear_e_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/kush/padded_05_02_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -10023,8 +10111,16 @@
 0.94
 ]
 },
+"units/kush_cav_spear_e_tex6": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/padded_05_02_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
 "units/kush_cav_spear_e_tex7": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
+"mask": "res://assets/textures/player_masks/props/helmet/ptol_quilted_a_128x128.png",
 "tint": [
 0.36,
 0.62,
@@ -10135,7 +10231,31 @@
 0.82
 ]
 },
+"units/kush_hero_cav_harsiotef_tex2": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
 "units/kush_hero_cav_harsiotef_tex7": {
+"mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/kush_hero_cav_harsiotef_tex8": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/scale_royal_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/kush_hero_cav_nastasen_tex2": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
 "tint": [
 0.92,
@@ -10145,6 +10265,14 @@
 },
 "units/kush_hero_cav_nastasen_tex7": {
 "mask": "res://assets/textures/player_masks/props/horse/blanket_fur_02_512x512.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/kush_hero_cav_nastasen_tex8": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/scale_royal_02_256x256.png",
 "tint": [
 0.92,
 0.32,
@@ -10192,7 +10320,7 @@
 ]
 },
 "units/kush_hero_elephant_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/kush/skirt_lion_01_256x256.png",
+"mask": "res://assets/textures/player_masks/props/ptol_howdah_c_256x256.png",
 "tint": [
 0.92,
 0.32,
@@ -10201,6 +10329,22 @@
 },
 "units/kush_hero_elephant_tex10": {
 "mask": "res://assets/textures/player_masks/props/ptol_howdah_c_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/kush_hero_elephant_tex3": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/skirt_lion_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/kush_hero_elephant_tex9": {
+"mask": "res://assets/textures/player_masks/skeletal/kush/scale_royal_01_256x256.png",
 "tint": [
 0.92,
 0.32,
@@ -11136,7 +11280,7 @@
 ]
 },
 "units/maur_cav_jav_a_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/maur/skirt_leather_01_01_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -11152,7 +11296,7 @@
 ]
 },
 "units/maur_cav_jav_a_tex4": {
-"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_a_256x128.png",
+"mask": "res://assets/textures/player_masks/skeletal/maur/skirt_leather_01_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -11160,7 +11304,15 @@
 ]
 },
 "units/maur_cav_jav_a_tex5": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"mask": "res://assets/textures/player_masks/props/head/indian_face_b_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_cav_jav_a_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_a_256x128.png",
 "tint": [
 0.36,
 0.62,
@@ -11168,7 +11320,7 @@
 ]
 },
 "units/maur_cav_jav_b_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/maur/skirt_01_01_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -11184,7 +11336,7 @@
 ]
 },
 "units/maur_cav_jav_b_tex4": {
-"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_a_256x128.png",
+"mask": "res://assets/textures/player_masks/skeletal/maur/skirt_01_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -11192,7 +11344,15 @@
 ]
 },
 "units/maur_cav_jav_b_tex5": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"mask": "res://assets/textures/player_masks/props/head/indian_face_b_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_cav_jav_b_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_a_256x128.png",
 "tint": [
 0.36,
 0.62,
@@ -11200,7 +11360,7 @@
 ]
 },
 "units/maur_cav_jav_e_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/maur/tunic_leather_01_02_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_maur_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -11216,7 +11376,7 @@
 ]
 },
 "units/maur_cav_jav_e_tex4": {
-"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_b_256x128.png",
+"mask": "res://assets/textures/player_masks/skeletal/maur/tunic_leather_01_02_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -11224,7 +11384,15 @@
 ]
 },
 "units/maur_cav_jav_e_tex5": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_maur_512x512.png",
+"mask": "res://assets/textures/player_masks/props/head/indian_face_b_64x64.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_cav_jav_e_tex7": {
+"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_b_256x128.png",
 "tint": [
 0.36,
 0.62,
@@ -11232,7 +11400,7 @@
 ]
 },
 "units/maur_cav_sword_a_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/maur/skirt_leather_01_01_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -11241,6 +11409,14 @@
 },
 "units/maur_cav_sword_a_tex3": {
 "mask": "res://assets/textures/player_masks/props/helmet/maur_inf_turban_a_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_cav_sword_a_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/skirt_leather_01_01_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -11256,7 +11432,15 @@
 ]
 },
 "units/maur_cav_sword_a_tex6": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_leather_01_512x512.png",
+"mask": "res://assets/textures/player_masks/props/helmet/maur_inf_turban_a_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_cav_sword_a_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_a_256x128.png",
 "tint": [
 0.36,
 0.62,
@@ -11264,7 +11448,7 @@
 ]
 },
 "units/maur_cav_sword_e_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/maur/tunic_leather_01_02_256x256.png",
+"mask": "res://assets/textures/player_masks/props/horse/blanket_maur_512x512.png",
 "tint": [
 0.36,
 0.62,
@@ -11273,6 +11457,14 @@
 },
 "units/maur_cav_sword_e_tex3": {
 "mask": "res://assets/textures/player_masks/props/helmet/maur_inf_turban_a_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_cav_sword_e_tex4": {
+"mask": "res://assets/textures/player_masks/skeletal/maur/tunic_leather_01_02_256x256.png",
 "tint": [
 0.36,
 0.62,
@@ -11288,7 +11480,15 @@
 ]
 },
 "units/maur_cav_sword_e_tex6": {
-"mask": "res://assets/textures/player_masks/props/horse/blanket_maur_512x512.png",
+"mask": "res://assets/textures/player_masks/props/helmet/maur_inf_turban_a_256x256.png",
+"tint": [
+0.36,
+0.62,
+0.94
+]
+},
+"units/maur_cav_sword_e_tex8": {
+"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_b_256x128.png",
 "tint": [
 0.36,
 0.62,
@@ -11824,7 +12024,7 @@
 ]
 },
 "units/maur_hero_elephant_tex1": {
-"mask": "res://assets/textures/player_masks/skeletal/maur/tunic_leather_01_01_256x256.png",
+"mask": "res://assets/textures/player_masks/props/maur_howdah_512x512.png",
 "tint": [
 0.92,
 0.32,
@@ -11832,7 +12032,7 @@
 ]
 },
 "units/maur_hero_elephant_tex2": {
-"mask": "res://assets/textures/player_masks/props/head/indian_face_b_64x64.png",
+"mask": "res://assets/textures/player_masks/skeletal/maur/scale_royal_01_256x256.png",
 "tint": [
 0.92,
 0.32,
@@ -11848,7 +12048,7 @@
 ]
 },
 "units/maur_hero_elephant_tex5": {
-"mask": "res://assets/textures/player_masks/props/maur_howdah_512x512.png",
+"mask": "res://assets/textures/player_masks/props/helmet/maur_hero_turban_a_256x256.png",
 "tint": [
 0.92,
 0.32,
@@ -11856,7 +12056,15 @@
 ]
 },
 "units/maur_hero_elephant_tex6": {
-"mask": "res://assets/textures/player_masks/skeletal/maur/scale_royal_01_256x256.png",
+"mask": "res://assets/textures/player_masks/skeletal/maur/tunic_leather_01_01_256x256.png",
+"tint": [
+0.92,
+0.32,
+0.28
+]
+},
+"units/maur_hero_elephant_tex7": {
+"mask": "res://assets/textures/player_masks/props/head/indian_face_b_64x64.png",
 "tint": [
 0.92,
 0.32,
@@ -11864,7 +12072,7 @@
 ]
 },
 "units/maur_hero_elephant_tex9": {
-"mask": "res://assets/textures/player_masks/props/helmet/maur_hero_turban_a_256x256.png",
+"mask": "res://assets/textures/player_masks/props/shield/maur_shield_small_b_256x128.png",
 "tint": [
 0.92,
 0.32,
