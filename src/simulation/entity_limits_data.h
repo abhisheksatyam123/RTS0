@@ -538,6 +538,34 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // brit/ship_fire_fire
 	{LIMIT_NONE, 0}, // gaul/ship_fire_fire
 	{LIMIT_NONE, 0}, // iber/ship_fire_fire
+	{LIMIT_NONE, 0}, // athen/support_civilian
+	{LIMIT_NONE, 0}, // athen/support_civilian_house
+	{LIMIT_NONE, 0}, // spart/support_civilian
+	{LIMIT_NONE, 0}, // spart/support_civilian_house
+	{LIMIT_NONE, 0}, // pers/support_civilian
+	{LIMIT_NONE, 0}, // pers/support_civilian_house
+	{LIMIT_NONE, 0}, // rome/support_civilian
+	{LIMIT_NONE, 0}, // rome/support_civilian_house
+	{LIMIT_NONE, 0}, // cart/support_civilian
+	{LIMIT_NONE, 0}, // cart/support_civilian_house
+	{LIMIT_NONE, 0}, // mace/support_civilian
+	{LIMIT_NONE, 0}, // mace/support_civilian_house
+	{LIMIT_NONE, 0}, // brit/support_civilian
+	{LIMIT_NONE, 0}, // brit/support_civilian_house
+	{LIMIT_NONE, 0}, // gaul/support_civilian
+	{LIMIT_NONE, 0}, // gaul/support_civilian_house
+	{LIMIT_NONE, 0}, // iber/support_civilian
+	{LIMIT_NONE, 0}, // iber/support_civilian_house
+	{LIMIT_NONE, 0}, // maur/support_civilian
+	{LIMIT_NONE, 0}, // maur/support_civilian_house
+	{LIMIT_NONE, 0}, // kush/support_civilian
+	{LIMIT_NONE, 0}, // kush/support_civilian_house
+	{LIMIT_NONE, 0}, // ptol/support_civilian
+	{LIMIT_NONE, 0}, // ptol/support_civilian_house
+	{LIMIT_NONE, 0}, // sele/support_civilian
+	{LIMIT_NONE, 0}, // sele/support_civilian_house
+	{LIMIT_NONE, 0}, // han/support_civilian
+	{LIMIT_NONE, 0}, // han/support_civilian_house
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");

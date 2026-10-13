@@ -7,6 +7,7 @@
 #include <bit>
 #include <vector>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <queue>
 #include <unordered_map>
@@ -3805,6 +3806,172 @@ void RmsGenerator::place_elephantine_entities(Simulation &sim, const HeightmapGr
 	}
 }
 
+void RmsGenerator::place_lower_nubia_gaia(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng) {
+	// lower_nubia.js (0.28) from "Creating stone mines" to "Creating straggler trees and bushes". Its tile
+	// classes: clWater is the Nile (ground at heightScale(-3) or lower, synth_lower_nubia's sea ground), clCliff
+	// the slopes of 2 or more, clPlayer each city patch (a third of the base radius round the civic centre),
+	// clBaseResource the starting resources. Groups are tested at their centre tile; avoidClasses(c, d) wants no
+	// tile of c within d.
+	const float half = hm.map_half, size = 2.0f * half;
+	const size_t N = hm.data.size();
+	const float sp = grid_spacing(hm);
+	const float sea = metres(water_h, -3.0f * size / 320.0f) + 1e-3f;
+	std::vector<uint8_t> nile(N), cliff(N);
+	const auto slope = slopes_m(hm);
+	for (size_t i = 0; i < N; ++i) {
+		nile[i] = hm.data[i] <= sea;
+		cliff[i] = slope[i] >= 2.0f;
+	}
+	const auto to_nile = distance_to_mask(nile, hm.res, sp), to_cliff = distance_to_mask(cliff, hm.res, sp);
+	auto vertex = [&](float x, float z) {
+		float gx, gz;
+		hm.world_to_grid(x, z, gx, gz);
+		const int ix = std::clamp((int)std::lround(gx), 0, hm.res - 1), iz = std::clamp((int)std::lround(gz), 0, hm.res - 1);
+		return (size_t)iz * (size_t)hm.res + (size_t)ix;
+	};
+	const float patch = (float)scale_by_map_size(15, 25, half) / 3.0f;
+	auto to_bases = [&](float x, float z) {
+		float d = 1e30f;
+		for (const auto &s : spawns) d = std::min(d, std::hypot(x - s.x, z - s.z));
+		return d - patch;
+	};
+	// Tile classes on a one-tile grid.
+	enum : uint8_t { kBase = 1, kRock = 2, kMetal = 4, kForest = 8, kPyramid = 16 };
+	const int T = std::max(1, (int)std::ceil(size));
+	std::vector<uint8_t> cls((size_t)T * (size_t)T, 0);
+	auto mark = [&](float x, float z, float r, uint8_t c) {
+		const int cx = (int)std::floor(x + half), cz = (int)std::floor(z + half), rr = (int)std::ceil(r);
+		for (int dz = -rr; dz <= rr; ++dz)
+			for (int dx = -rr; dx <= rr; ++dx) {
+				const int tx = cx + dx, tz = cz + dz;
+				if (tx < 0 || tz < 0 || tx >= T || tz >= T || (float)(dx * dx + dz * dz) > r * r) continue;
+				cls[(size_t)tz * (size_t)T + (size_t)tx] |= c;
+			}
+	};
+	auto clear = [&](float x, float z, float d, uint8_t c) {
+		const int cx = (int)std::floor(x + half), cz = (int)std::floor(z + half), rr = (int)std::ceil(d);
+		for (int dz = -rr; dz <= rr; ++dz)
+			for (int dx = -rr; dx <= rr; ++dx) {
+				const int tx = cx + dx, tz = cz + dz;
+				if (tx < 0 || tz < 0 || tx >= T || tz >= T || (float)(dx * dx + dz * dz) > d * d) continue;
+				if (cls[(size_t)tz * (size_t)T + (size_t)tx] & c) return false;
+			}
+		return true;
+	};
+	// The starting resources placed so far (clBaseResource).
+	const auto res = sim.resources();
+	for (size_t i = 0; i < res.count; ++i)
+		if (res.alive[i]) mark(res.x[i], res.z[i], 0.0f, kBase);
+	auto random_spot = [&](float &x, float &z) { // a tile of the circular map
+		do {
+			x = rng.range_float(-half, half);
+			z = rng.range_float(-half, half);
+		} while (x * x + z * z > (half - 1.0f) * (half - 1.0f));
+	};
+
+	// "Creating stone mines" / "Creating metal mines": createMines places scaleByMapSize(10, 30) of each of its
+	// two groups (70 tries a group): a large mine (savanna_large, 5000) with 0-2 small ones (desert_small, 1000)
+	// within 4, or 3-6 small ones 1-3 from the centre. Both 4 from the Nile and cliffs and 20 from the city
+	// patches; stone 10 from other stone, metal 10 from other metal and 5 from stone.
+	const int mines = scale_by_map_size(10, 30, half);
+	for (int kind = 0; kind < 2; ++kind) {
+		const uint8_t type = kind == 0 ? RES_STONE : RES_GOLD, own = kind == 0 ? kRock : kMetal;
+		for (int group = 0; group < 2; ++group)
+			for (int g = 0, tries = 0; g < mines && tries < mines * 70; ++tries) {
+				float x, z;
+				random_spot(x, z);
+				const size_t v = vertex(x, z);
+				if (to_nile[v] <= 4.0f || to_cliff[v] <= 4.0f || to_bases(x, z) <= 20.0f || !clear(x, z, 10.0f, own)) continue;
+				if (kind == 1 && !clear(x, z, 5.0f, kRock)) continue;
+				const int small = group == 0 ? rng.range_int(0, 2) : rng.range_int(3, 6);
+				const float lo = group == 0 ? 2.5f : 1.0f, hi = group == 0 ? 4.0f : 3.0f;
+				if (group == 0) {
+					sim.spawn_resource_world(x, z, type, LARGE_MINE_SUPPLY);
+					mark(x, z, 1.0f, own);
+				}
+				for (int k = 0; k < small; ++k) {
+					const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(lo, hi);
+					const float rx = x + std::cos(a) * r, rz = z + std::sin(a) * r;
+					if (nile[vertex(rx, rz)]) continue;
+					sim.spawn_resource_world(rx, rz, type, MINE_SUPPLY);
+					mark(rx, rz, 0.0f, own);
+				}
+				++g;
+			}
+	}
+
+	// "Creating pyramid": one Gaia structures/kush/pyramid_large within 10 of the Nile but 6 off it, 6 from cliffs
+	// and the mines and 40 from the city patches (500 tries).
+	for (int tries = 0; tries < 500; ++tries) {
+		float x, z;
+		random_spot(x, z);
+		const size_t v = vertex(x, z);
+		if (to_nile[v] > 10.0f || to_nile[v] <= 6.0f || to_cliff[v] <= 6.0f || to_bases(x, z) <= 40.0f ||
+				!clear(x, z, 6.0f, kRock | kMetal)) continue;
+		const uint32_t id = sim.spawn_building_world(x, z, BLD_PYRAMID_LARGE, GAIA_PLAYER, 1.0f);
+		if (!id) continue;
+		for (const auto &b : sim.buildings())
+			if (b.id == id) { mark(b.x, b.z, b.half_size, kPyramid); break; }
+		break;
+	}
+
+	auto free_of = [&](float x, float z, float forest) {
+		return clear(x, z, forest, kForest) && clear(x, z, 5.0f, kBase) && clear(x, z, 4.0f, kRock | kMetal) && clear(x, z, 6.0f, kPyramid);
+	};
+	// "Creating trees near the Nile": scaleByMapSize(100, 1000) groups of 1-2 oPalms (1 apart) within
+	// scaleByMapSize(1, 8) of the Nile on ground at heightNileForests (heightScale(15)) or higher, off the Nile
+	// and cliffs, 1 from other trees, 12 from the city patches, 5 from the base resources, 4 from the mines and 6
+	// from the pyramid (200 tries a group). Tries are drawn from the tiles the height and Nile tests allow.
+	const float near_nile = 1.0f + 7.0f * std::max(0.0f, size - 128.0f) / 384.0f;
+	const float forest_h = metres(water_h, 15.0f * size / 320.0f);
+	std::vector<size_t> bank;
+	for (size_t i = 0; i < N; ++i)
+		if (!nile[i] && !cliff[i] && to_nile[i] <= near_nile && hm.data[i] >= forest_h) bank.push_back(i);
+	const int palms = scale_by_map_size(100, 1000, half);
+	for (int g = 0, tries = 0; g < palms && tries < palms * 200 && !bank.empty(); ++tries) {
+		const size_t v = bank[(size_t)rng.range_int(0, (int)bank.size() - 1)];
+		float x, z;
+		hm.grid_to_world((int)(v % (size_t)hm.res), (int)(v / (size_t)hm.res), x, z);
+		x += rng.range_float(-0.5f, 0.5f) * sp;
+		z += rng.range_float(-0.5f, 0.5f) * sp;
+		if (x * x + z * z > (half - 1.0f) * (half - 1.0f) || to_bases(x, z) <= 12.0f || !free_of(x, z, 1.0f)) continue;
+		const int n = rng.range_int(1, 2);
+		for (int k = 0; k < n; ++k) {
+			const float a = rng.range_float(0.0f, 6.2831853f);
+			const float tx = x + (k ? std::cos(a) : 0.0f), tz = z + (k ? std::sin(a) : 0.0f);
+			const size_t tv = vertex(tx, tz);
+			if (nile[tv] || cliff[tv]) continue;
+			sim.spawn_resource_world(tx, tz, RES_WOOD, TREE_WOOD_SUPPLY);
+			mark(tx, tz, 0.0f, kForest);
+		}
+		++g;
+	}
+
+	// "Creating straggler trees and bushes": twice (an acacia, then a dead tree) scaleByMapSize(10, 180) groups
+	// of the tree and 0-1 bush_badlands 2 away, 10 from the Nile, off cliffs, 4 from other trees, 12 from the city
+	// patches, 5 from the base resources, 4 from the mines and 6 from the pyramid (10 tries a group). plant_flora
+	// gives each straggler its acacia, dead tree or bush.
+	const int stragglers = scale_by_map_size(10, 180, half);
+	for (int pass = 0; pass < 2; ++pass)
+		for (int g = 0, tries = 0; g < stragglers && tries < stragglers * 10; ++tries) {
+			float x, z;
+			random_spot(x, z);
+			const size_t v = vertex(x, z);
+			if (to_nile[v] <= 10.0f || cliff[v] || to_bases(x, z) <= 12.0f || !free_of(x, z, 4.0f)) continue;
+			sim.spawn_resource_world(x, z, RES_WOOD, TREE_WOOD_SUPPLY);
+			mark(x, z, 0.0f, kForest);
+			if (rng.range_int(0, 1)) {
+				const float a = rng.range_float(0.0f, 6.2831853f);
+				const float bx = x + std::cos(a) * 2.0f, bz = z + std::sin(a) * 2.0f;
+				if (!cliff[vertex(bx, bz)] && bx * bx + bz * bz < half * half) {
+					sim.spawn_resource_world(bx, bz, RES_WOOD, TREE_WOOD_SUPPLY);
+					mark(bx, bz, 0.0f, kForest);
+				}
+			}
+			++g;
+		}
+}
+
 void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	const bool fortress = config.map_type == MAP_FORTRESS;
 	// 0 A.D.'s base placers (rmgen's placePlayerBase*) keep every starting
@@ -3952,7 +4119,9 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 			sim.spawn_resource_world(sec_stone_cx + (s == 0 ? -1.3f : 1.3f), sec_stone_cz, RES_STONE, MINE_SUPPLY);
 		}
 
-		const BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
+		BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
+		// lower_nubia.js: StartingAnimal gaia/fauna_gazelle (no other base hunt; RTS0's starter hunt takes it too).
+		if (mt == MAP_LOWER_NUBIA) bf.starting = bf.main_hunt = FAUNA_GAZELLE;
 		// 10. Starter animals near the base (rmbiome startingAnimal, e.g. chickens)
 		float deer_cx = px - fx * 14.0f - rx * 5.0f;
 		float deer_cz = pz - fz * 14.0f - rz * 5.0f;
@@ -3994,6 +4163,14 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	else if (config.map_type == MAP_BOTSWANAN_HAVEN) num_groves = num_groves / 3; // straggler trees only
 	else if (config.map_type == MAP_SCHWARZWALD) num_groves = 0; // its own wood field, distribute_land_extras
 	else if (config.map_type == MAP_OASIS_0AD) num_groves = num_groves / 5;
+	else if (config.map_type == MAP_LOWER_NUBIA) num_groves = 0; // its palms and stragglers, place_lower_nubia_gaia
+	// migration.js: two forest passes of the biome's forestTrees each, on the
+	// continent (stayClasses(clLand, 7)) and on the player islands (3x the clumps).
+	else if (config.map_type == MAP_MIGRATION) num_groves = num_groves * 2;
+	// ngorongoro.js: rmgen2 addForests plants nothing on generic/savanna; its zones' baobab
+	// stragglers, mines and hunt are place_ngorongoro_entities'.
+	else if (config.map_type == MAP_NGORONGORO) num_groves = 0;
+	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_groves = 0; // its own forests, place_river_archipelago_entities
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_SAHARAN_OASES) {
@@ -4125,6 +4302,15 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 
 	// 2. Contested Neutral Gold & Stone Quarries
 	int num_neutral_mines = std::max(4, config.num_players * 2) * scale_by_map_size(1, 4, half);
+	// lower_nubia.js: its own createMines passes, pyramid and trees.
+	if (config.map_type == MAP_LOWER_NUBIA) {
+		num_neutral_mines = 0;
+		place_lower_nubia_gaia(sim, hm, water_h, spawns, rng);
+	}
+	// migration.js puts its mines on the continent only (distribute_land_extras).
+	if (config.map_type == MAP_MIGRATION) num_neutral_mines = 0;
+	if (config.map_type == MAP_NGORONGORO) num_neutral_mines = 0; // the zones' own mines (place_ngorongoro_entities)
+	if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_neutral_mines = 0; // its own mines, place_river_archipelago_entities
 	for (int m = 0; m < num_neutral_mines; ++m) {
 		float mx = rng.range_float(-half * 0.70f, half * 0.70f);
 		float mz = rng.range_float(-half * 0.70f, half * 0.70f);
@@ -4158,8 +4344,53 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 
 void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	float half = hm.map_half;
+	if (config.map_type == MAP_LOWER_NUBIA) {
+		// lower_nubia.js: scaleByMapSize(2, 10) groups each of 5-7 gazelles, of 1-2 lions with 2-3 lionesses and
+		// of 2-3 African bush elephants with 2-3 infants, 2-4 from the group's centre, off the Nile and cliffs, 12 from the city
+		// patches and 6 from other food (avoidCollisions; 50 tries a group).
+		struct Herd { uint8_t a; int a_lo, a_hi; uint8_t b; int b_lo, b_hi; };
+		static const Herd kHerds[3] = {{FAUNA_GAZELLE, 5, 7, FAUNA_GAZELLE, 0, 0},
+		                               {FAUNA_LION, 1, 2, FAUNA_LIONESS, 2, 3},
+		                               {FAUNA_ELEPHANT_AFRICAN_BUSH, 2, 3, FAUNA_ELEPHANT_AFRICAN_INFANT, 2, 3}};
+		const auto slope = slopes_m(hm);
+		const float patch = (float)scale_by_map_size(15, 25, half) / 3.0f;
+		const float sea = metres(water_h, -3.0f * 2.0f * half / 320.0f) + 1e-3f;
+		const int groups = scale_by_map_size(2, 10, half);
+		std::vector<std::pair<float, float>> food;
+		for (const Herd &h : kHerds)
+			for (int g = 0, tries = 0; g < groups && tries < groups * 50; ++tries) {
+				const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+				if (x * x + z * z > (half - 4.0f) * (half - 4.0f)) continue;
+				bool ok = true;
+				for (int k = 0; ok && k < 9; ++k) { // off the Nile by a tile
+					const float a = 0.7853982f * (float)k, r = k == 8 ? 0.0f : 1.0f;
+					ok = hm.sample_world(x + std::cos(a) * r, z + std::sin(a) * r) > sea;
+				}
+				float gx, gz;
+				hm.world_to_grid(x, z, gx, gz);
+				const size_t v = (size_t)std::clamp((int)std::lround(gz), 0, hm.res - 1) * (size_t)hm.res +
+				                 (size_t)std::clamp((int)std::lround(gx), 0, hm.res - 1);
+				ok = ok && slope[v] < 2.0f;
+				for (size_t k = 0; ok && k < spawns.size(); ++k) ok = std::hypot(x - spawns[k].x, z - spawns[k].z) > patch + 12.0f;
+				for (size_t k = 0; ok && k < food.size(); ++k) ok = std::hypot(x - food[k].first, z - food[k].second) > 6.0f;
+				if (!ok) continue;
+				food.push_back({x, z});
+				const int na = rng.range_int(h.a_lo, h.a_hi), nb = h.b_hi ? rng.range_int(h.b_lo, h.b_hi) : 0;
+				for (int i = 0; i < na + nb; ++i) {
+					const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(2.0f, 4.0f);
+					sim.spawn_fauna(x + std::cos(a) * r, z + std::sin(a) * r, i < na ? h.a : h.b);
+				}
+				++g;
+			}
+		return;
+	}
 	int num_packs = scale_by_map_size(10, 40, half);
 	if (config.map_type == MAP_ARCTIC_SUMMER || config.map_type == MAP_RATUMACOS) num_packs *= 2;
+	// migration.js: deer, sheep and fruit on the continent only, no predators (distribute_land_extras).
+	if (config.map_type == MAP_MIGRATION) num_packs = 0;
+	if (config.map_type == MAP_NGORONGORO) num_packs = 0; // each zone's own hunt (place_ngorongoro_entities)
+	// river_archipelago.js's deer, boar and tigers: place_river_archipelago_entities.
+	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_packs = 0;
 
 	for (int p = 0; p < num_packs; ++p) {
 		float px = rng.range_float(-half * 0.75f, half * 0.75f);
@@ -4239,7 +4470,8 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 			for (int i = 0, n = rng.range_int(3, 8); i < n; ++i)
 				for (uint8_t t : {TREASURE_FOOD_BIN, TREASURE_WOOD}) cluster(0.0f, 0.0f, t, 1, 7.0f);
 			break;
-		case MAP_POLAR_SEA: // polar_sea.js: 14 wood treasures in each base
+		case MAP_POLAR_SEA:   // polar_sea.js and lower_nubia.js: 14 wood treasures in each base
+		case MAP_LOWER_NUBIA:
 			base_ring(TREASURE_WOOD, 14);
 			break;
 		case MAP_FORTRESS: // fortress.js: 5 food, 5 wood, 4 metal and 2 stone treasures by each base
@@ -6427,15 +6659,17 @@ uint8_t starting_walls_of(MapType map, int map_tiles) {
 		case MAP_CANTABRIAN_HIGHLANDS: case MAP_CORSICA: case MAP_DANUBIUS: case MAP_FLOOD:
 		case MAP_GUADALQUIVIR_RIVER: case MAP_SCHWARZWALD: case MAP_BELGIAN_UPLANDS: case MAP_ISLAND_STRONGHOLD:
 		case MAP_EMPIRE: case MAP_HELLS_PASS: case MAP_POMPEII: case MAP_STRONGHOLD: case MAP_FORTRESS:
-		case MAP_JEBEL_BARKAL: case MAP_MEDITERRANEAN: case MAP_SURVIVAL_OF_THE_FITTEST:
+		case MAP_JEBEL_BARKAL: case MAP_MEDITERRANEAN: case MAP_SURVIVAL_OF_THE_FITTEST: case MAP_MIGRATION:
 			return Simulation::STARTING_WALLS_NONE;
 		case MAP_ARCHIPELAGO_0AD: case MAP_CORINTHIAN_ISTHMUS: case MAP_CYCLADIC_ARCHIPELAGO: case MAP_DODECANESE:
 		case MAP_ELEPHANTINE: case MAP_EXTINCT_VOLCANO: case MAP_GEAR: case MAP_HELLAS: case MAP_ISLANDS:
 		case MAP_LORRAINE_PLAIN: case MAP_POLAR_SEA: case MAP_RATUMACOS: case MAP_SNOWFLAKE_SEAROCKS:
+		case MAP_RIVER_ARCHIPELAGO:
 			return Simulation::STARTING_WALLS_TOWERS;
 		case MAP_BAHRAIN:
 			return map_tiles > 192 ? Simulation::STARTING_WALLS_TOWERS : Simulation::STARTING_WALLS_NONE;
 		case MAP_HARBOR: case MAP_LIONS_DEN: case MAP_MARMARA: case MAP_RED_SEA: case MAP_WILD_LAKE:
+		case MAP_NGORONGORO: // createBases(..., true)
 			return map_tiles > 192 ? Simulation::STARTING_WALLS_FORTRESS : Simulation::STARTING_WALLS_NONE;
 		case MAP_AMBUSH: case MAP_FRONTIER:
 			// groupedLines and stronghold: false; circle and randomGroup: true.
@@ -7201,6 +7435,105 @@ void RmsGenerator::distribute_land_extras(Simulation &sim, const HeightmapGrid &
 				if (path_dist(tx, tz) < (border ? 1.0f : 2.0f) + 1.5f) continue;
 				spawn_trees(sim, hm, tx, tz, open_h, 4, 0.7f);
 			}
+	} else if (config.map_type == MAP_MIGRATION) {
+		// migration.js's createObjectGroupsDeprecated passes on the continent
+		// (clLand: land that is neither water nor a player's island, here the
+		// walkable land no base stands on), each a fixed number of tries (groups),
+		// off hills (avoidClasses(clHill, 1): RTS0 skips steep ground).
+		const size_t N = hm.data.size();
+		const int res = hm.res;
+		const auto comp = walk_components(hm, water_h);
+		std::vector<int> home;
+		for (const auto &s : spawns) home.push_back(component_near(hm, comp, s.x, s.z));
+		std::vector<uint8_t> not_land(N), not_island(N);
+		for (size_t i = 0; i < N; ++i) {
+			const bool is_home = comp[i] >= 0 && std::find(home.begin(), home.end(), comp[i]) != home.end();
+			not_land[i] = comp[i] < 0 || is_home;
+			not_island[i] = !is_home;
+		}
+		const auto in_land = distance_to_mask(not_land, res, grid_spacing(hm));
+		std::vector<std::pair<float, float>> rock, metal, food;
+		auto clear_of = [](const std::vector<std::pair<float, float>> &v, float x, float z, float d) {
+			for (const auto &p : v)
+				if (std::hypot(p.first - x, p.second - z) < d) return false;
+			return true;
+		};
+		// createObjectGroupsDeprecated counts every try as placed (retryPlacing with
+		// behaveDeprecated), so it makes exactly `amount` tries at random points of
+		// the map's circle and the retry factor does nothing.
+		auto groups = [&](const std::vector<float> &inside, float stay, float amount, auto ok, auto place) {
+			for (int t = 0; (float)t < amount; ++t) {
+				const auto c = random_in_circle(rng, half);
+				float gx, gz;
+				hm.world_to_grid(c.first, c.second, gx, gz);
+				const int ix = std::clamp((int)std::lround(gx), 0, res - 1), iz = std::clamp((int)std::lround(gz), 0, res - 1);
+				if (inside[(size_t)iz * (size_t)res + (size_t)ix] <= stay) continue;
+				if (hm.compute_slope_world(c.first, c.second) > 0.7f || !ok(c.first, c.second)) continue;
+				place(c.first, c.second);
+			}
+		};
+		auto sbms = [&](float lo, float hi) { return lo + (hi - lo) * std::max(0.0f, size - 128.0f) / 384.0f; };
+		// Objects of a SimpleGroup: n of them 0..r from (x, z).
+		auto scatter = [&](float x, float z, int n, float r0, float r1, auto spawn) {
+			for (int k = 0; k < n; ++k) {
+				const auto p = polar(rng.range_float(0.0f, kTwoPi), rng.range_float(r0, r1));
+				if (hm.sample_world(x + p.first, z + p.second) > water_h + 0.3f) spawn(x + p.first, z + p.second);
+			}
+		};
+		auto stone = [&](float x, float z) { sim.spawn_resource_world(x, z, RES_STONE, MINE_SUPPLY); };
+		// Stone mines: 1 large and 0-2 small stones within 4, scaleByMapSize(26, 30),
+		// avoidClasses(clRock, 18), stayClasses(clLand, 4).
+		groups(in_land, 4.0f, sbms(26.0f, 30.0f), [&](float x, float z) { return clear_of(rock, x, z, 18.0f); },
+			[&](float x, float z) {
+				rock.push_back({x, z});
+				sim.spawn_resource_world(x, z, RES_STONE, LARGE_MINE_SUPPLY);
+				scatter(x, z, rng.range_int(0, 2), 2.0f, 4.0f, stone);
+			});
+		// Metal mines: 1 large, scaleByMapSize(28, 32), avoidClasses(clMetal, 18, clRock, 8).
+		groups(in_land, 4.0f, sbms(28.0f, 32.0f),
+			[&](float x, float z) { return clear_of(metal, x, z, 18.0f) && clear_of(rock, x, z, 8.0f); },
+			[&](float x, float z) {
+				metal.push_back({x, z});
+				sim.spawn_resource_world(x, z, RES_GOLD, LARGE_MINE_SUPPLY);
+			});
+		// Small stone quarries: 2-5 small stones 1-3 out, scaleByMapSize(25, 30),
+		// avoidClasses(clMetal, 6, clRock, 12).
+		groups(in_land, 4.0f, sbms(25.0f, 30.0f),
+			[&](float x, float z) { return clear_of(metal, x, z, 6.0f) && clear_of(rock, x, z, 12.0f); },
+			[&](float x, float z) {
+				rock.push_back({x, z});
+				scatter(x, z, rng.range_int(2, 5), 1.0f, 3.0f, stone);
+			});
+		const BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
+		const int np = (int)spawns.size();
+		auto food_ok = [&](float x, float z) { return clear_of(food, x, z, 20.0f); };
+		// Deer: 3 x players groups of 5-7 main hunt within 4, avoidClasses(clFood, 20), stayClasses(clLand, 7).
+		groups(in_land, 7.0f, 3.0f * (float)np, food_ok, [&](float x, float z) {
+			food.push_back({x, z});
+			scatter(x, z, rng.range_int(5, 7), 0.0f, 4.0f, [&](float fx, float fz) { sim.spawn_fauna(fx, fz, bf.main_hunt); });
+		});
+		if (config.biome == BIOME_SAVANNA) {
+			// generic/savanna's island fauna: players x 20 groups of 5-7 main hunt,
+			// stayClasses(clIsland, 12), avoidClasses(clBaseResource, 6, clIslandHunt, 58).
+			const auto in_island = distance_to_mask(not_island, res, grid_spacing(hm));
+			std::vector<std::pair<float, float>> island_hunt;
+			groups(in_island, 12.0f, 20.0f * (float)np,
+				[&](float x, float z) { return clear_of(island_hunt, x, z, 58.0f) && dist_to_bases(x, z) > 28.0f; },
+				[&](float x, float z) {
+					island_hunt.push_back({x, z});
+					scatter(x, z, rng.range_int(5, 7), 0.0f, 4.0f, [&](float fx, float fz) { sim.spawn_fauna(fx, fz, bf.main_hunt); });
+				});
+		}
+		// Sheep: 3 x players groups of 2-3 secondary hunt within 2.
+		groups(in_land, 7.0f, 3.0f * (float)np, food_ok, [&](float x, float z) {
+			food.push_back({x, z});
+			scatter(x, z, rng.range_int(2, 3), 0.0f, 2.0f, [&](float fx, float fz) { sim.spawn_fauna(fx, fz, bf.secondary_hunt); });
+		});
+		// Fruit bushes: randIntInclusive(1, 4) x players + 2 groups of 5-7 within 4.
+		groups(in_land, 7.0f, (float)(rng.range_int(1, 4) * np + 2), food_ok, [&](float x, float z) {
+			food.push_back({x, z});
+			scatter(x, z, rng.range_int(5, 7), 0.0f, 4.0f, [&](float fx, float fz) { sim.spawn_resource_world(fx, fz, RES_FOOD, 200); });
+		});
 	} else if (config.map_type == MAP_OASIS_0AD) {
 		// oasis.js: the central oasis's palm band (pOasisForestLight, a palm
 		// on 2 tiles in 9), on ground units can walk to (some in the shallows,
@@ -7252,6 +7585,14 @@ const std::vector<uint8_t> &pompeii_image() {
 
 const std::vector<uint8_t> &elephantine_image() {
 	static const std::vector<uint8_t> img = decode_heightmap_image(heightmap_images::elephantine_b64, heightmap_images::elephantine_size);
+	return img;
+}
+
+// lower_nubia.js "Composing heightmap" (tools/gen_heightmap_images.py bakes it):
+// the elevation where the land or the water threshold image is set, else
+// minHeight (black, -3 m).
+const std::vector<uint8_t> &lower_nubia_image() {
+	static const std::vector<uint8_t> img = decode_heightmap_image(heightmap_images::lower_nubia_b64, heightmap_images::lower_nubia_size);
 	return img;
 }
 
@@ -7670,6 +8011,83 @@ void RmsGenerator::synth_elephantine(HeightmapGrid &hm, RmsRng &rng, float &wate
 	for (const auto &l : locs) probe.push_back({0, l.first, l.second, land, 0.0f, 0.0f});
 	dry_bumps(hm, rng, probe, scale_by_map_size(10, 500, half), 20.0f + 10.0f, water_h + 0.5f);
 	finish_spawns(hm, spawns, locs, land, 18.0f, water_h);
+}
+
+void RmsGenerator::synth_lower_nubia(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// lower_nubia.js: the Nile between the first and second cataracts.
+	// HeightmapPainter(heightmapCombined, -3, 150) (lower_nubia_image), sea
+	// ground (heightScale(-3) and below) set to heightScale(-3) with a 3-tile
+	// blend, the Nile passages, SmoothingPainter(1, scaleByMapSize(0.5, 1), 1),
+	// players at random (playerPlacementRandom) scaleByMapSize(8, 12) from the
+	// Nile and from cliffs, each start flattened over 0.8 base radius.
+	// heightScale(n) = n * size / 320 metres. RTS0 keeps every base on the
+	// largest walkable land. rmgen's y runs up the image and RTS0's z down it,
+	// so the script's points are mirrored in z.
+	using namespace misc_maps;
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const int n = heightmap_images::lower_nubia_size;
+	paint_heightmap(hm, lower_nubia_image(), n, 0, 0, n, -3.0f, 150.0f, water_h);
+	const float sea_m = -3.0f * size / 320.0f;
+	// The painter's black is -3 (size + 1) / 321 m: on maps over 320 tiles a hair
+	// above heightScale(-3), where the script's HeightConstraint would miss the
+	// Nile it painted; RTS0 takes the black as sea ground on every size.
+	const float sea_top = metres(water_h, std::max(sea_m, -3.0f * (size + 1.0f) / 321.0f + 0.01f));
+	const size_t N = hm.data.size();
+	std::vector<uint8_t> nile(N);
+	for (size_t i = 0; i < N; ++i) nile[i] = hm.data[i] <= sea_top;
+	lower_sea_ground(hm, sea_top + 1e-4f, metres(water_h, sea_m), 3.0f);
+
+	// "Creating Nile passages": scaleByMapSize(8, 15) PathPlacer strips
+	// scaleByMapSize(5, 7) wide (waviness 0.2, smoothness 5, offset 0.2) across
+	// the map at riverAngle 3 pi / 4, at random offsets; on the tiles within 4 of
+	// the Nile and scaleByMapSize(15, 25) from earlier passages the ground is
+	// blended half way to heightNileForests (heightScale(15),
+	// ElevationBlendingPainter), then SmoothingPainter(2, 1, 2).
+	const float sp = grid_spacing(hm);
+	const auto to_nile = distance_to_mask(nile, hm.res, sp);
+	std::vector<uint8_t> passages(N, 0);
+	const float forest_h = metres(water_h, 15.0f * size / 320.0f), angle = 3.0f * 3.14159265f / 4.0f;
+	const int count = (int)std::ceil(scale_f(8.0f, 15.0f, half));
+	for (int k = 0; k < count; ++k) {
+		const float xc = rng.range_float(0.0f, 1.0f) * size - half;
+		const auto a = rot(xc, -half, angle), b = rot(xc, half, angle);
+		auto m = path_mask(hm, rng, a.first, -a.second, b.first, -b.second, scale_f(5.0f, 7.0f, half), 0.2f, 5.0f, 0.2f, 0.0f);
+		const auto to_passage = distance_to_mask(passages, hm.res, sp);
+		const float avoid = scale_f(15.0f, 25.0f, half);
+		for (size_t i = 0; i < N; ++i) {
+			m[i] = m[i] && to_nile[i] <= 4.0f && to_passage[i] > avoid;
+			if (m[i]) hm.data[i] += 0.5f * (forest_h - hm.data[i]);
+		}
+		// SmoothingPainter(2, 1, 2): twice, each vertex to the inverse-distance
+		// (Manhattan) weighted mean of the vertices within 2 tiles.
+		const int r2 = std::max(1, (int)std::lround(2.0f / sp));
+		for (int it = 0; it < 2; ++it) {
+			const std::vector<float> src = hm.data;
+			for (int z = 0; z < hm.res; ++z)
+				for (int x = 0; x < hm.res; ++x) {
+					const size_t i = (size_t)z * (size_t)hm.res + (size_t)x;
+					if (!m[i]) continue;
+					float sum = 0.0f, wsum = 0.0f;
+					for (int dz = -r2; dz <= r2; ++dz)
+						for (int dx = -r2; dx <= r2; ++dx) {
+							const int nx = x + dx, nz = z + dz;
+							if ((!dx && !dz) || nx < 0 || nz < 0 || nx >= hm.res || nz >= hm.res) continue;
+							const float w = 1.0f / (float)(std::abs(dx) + std::abs(dz));
+							sum += src[(size_t)nz * (size_t)hm.res + (size_t)nx] * w;
+							wsum += w;
+						}
+					hm.data[i] = sum / wsum;
+				}
+		}
+		for (size_t i = 0; i < N; ++i) passages[i] |= m[i];
+	}
+	shepard_smooth(hm, scale_f(0.5f, 1.0f, half));
+	const float gap = scale_f(8.0f, 12.0f, half);
+	if (place_on_heightmap(hm, rng, spawns, num_players, teams, water_h, gap, gap, false)) return;
+	place_ring_spawns(hm, spawns, num_players, half * 0.6f, rng.range_float(0.0f, kTau), kTau, water_h + 1.5f);
+	for (const auto &s : spawns) lift_area(hm, s.x, s.z, 20.0f, 6.0f, s.base_height);
 }
 
 // =========================================================================
@@ -9233,6 +9651,829 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	finish_spawns(hm, spawns, locs, land, 18.0f, water_h);
 }
 
+void RmsGenerator::synth_migration(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams, uint8_t team_placement) {
+	// migration.js (a circular map): sea at -5 m; players placed by
+	// playerPlacementByPattern (circle at f = 0.42, river 0.65 of the map
+	// apart, or stronghold: teams at f = 0.44, members f = 0.06 apart), each
+	// on an island (ClumpPlacer(diskArea(defaultPlayerBaseRadius() * 1.75),
+	// 0.8, 0.1), 3 m, blend 4); the middle continent (ClumpPlacer(diskArea(
+	// f = 0.3), 0.8, 0.08) at the centre, 3 m, blend 4) kept 22 off the
+	// islands; scaleByMapSize(2, 15) * 20 shore-jaggedness clumps of
+	// scaleByMapSize(10, 65) tiles on its border (6 in, 3 out), 16 off the
+	// islands; scaleByMapSize(100, 200) 2 m bumps 3 inside it and 10 off the
+	// islands; scaleByMapSize(1, 4) * players hills of 18 m (ClumpPlacer(
+	// scaleByMapSize(20, 150), 0.2, 0.1), blend 2) 12 inside it, 50 apart.
+	// Players reach the continent and each other by ship. RTS0 keeps each
+	// start 16 in from the edge and 26 from the others (pattern_locs) and
+	// raises the land within 22 of it so the starting resources stay dry.
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, metres(water_h, -5.0f));
+	const size_t N = hm.data.size();
+	const float start = rng.range_float(0.0f, kTwoPi);
+	// g_MapSettings.PlayerPlacement: one of the JSON's PlayerPlacements
+	// (0 circle, 1 river, 2 stronghold), picked at random unless Game Setup
+	// chose Circle or Stronghold.
+	int pattern = team_placement == TEAM_PLACEMENT_RADIAL ? 0 : team_placement == TEAM_PLACEMENT_STRONGHOLD ? 2 : -1;
+	if (pattern < 0) pattern = rng.range_int(0, 2);
+	static const float kTeamDist[3] = {0.42f, 0.65f, 0.44f}, kPlayerDist[3] = {0.1f, 0.1f, 0.06f};
+	std::vector<std::pair<float, float>> locs;
+	if (pattern == 1) {
+		// playerPlacementRiver(startAngle, 0.65 * size): two rows across the map.
+		const float width = kTeamDist[1] * size;
+		const float nx = std::cos(start), nz = std::sin(start), ux = -nz, uz = nx;
+		locs.assign((size_t)num_players, {0.0f, 0.0f});
+		const bool even = num_players % 2 == 0;
+		for (int i = 0; i < num_players; ++i) {
+			const bool cur_even = i % 2 == 0;
+			const int divident = (even || cur_even) ? (i + 1) % 2 : 0;
+			const int divisor = even ? 0 : (cur_even ? 1 : -1);
+			const float across = (i % 2 ? 0.5f : -0.5f) * width;
+			const float f = ((float)(i - 1 + divident) / 2.0f + 1.0f) / ((float)(num_players + divisor) / 2.0f + 1.0f);
+			const float along = (f - 0.5f) * size;
+			locs[(size_t)i] = {ux * along + nx * across, uz * along + nz * across};
+		}
+		group_players_by_area(locs, num_players, teams);
+		spread_locs(locs, 26.0f, half - 16.0f);
+	} else if (pattern == 0) {
+		// playerPlacementCircle(0.42 * size, startAngle): player i (getPlayerIDs order,
+		// teams not sorted together) at startAngle + i * 2 pi / n.
+		for (int i = 0; i < num_players; ++i) locs.push_back(polar(start + kTwoPi * (float)i / (float)num_players, kTeamDist[0] * size));
+		spread_locs(locs, 26.0f, half - 16.0f);
+	} else {
+		// placeStronghold(getTeamsArray(), 0.44 * size, 0.06 * size * 1.4, startAngle):
+		// each team's stronghold radius is groupedDistance / 2 / sin(pi / members) (0
+		// alone), the teams spaced round the circle by their radii, each team's spot
+		// at 0.8 of the distance, member p at startAngle + (p + 1) * 2 pi / members.
+		const auto ta = teams_array(num_players, teams);
+		const int T = (int)ta.size();
+		const float dist = kTeamDist[2] * size, grouped = kPlayerDist[2] * size * 1.4f;
+		std::vector<float> sr((size_t)T, 0.0f);
+		float sum = 0.0f;
+		for (int i = 0; i < T; ++i) {
+			const int k = (int)ta[(size_t)i].size();
+			sr[(size_t)i] = k == 1 ? 0.0f : grouped / 2.0f / std::sin(kSeasPi / (float)k);
+			sum += sr[(size_t)i];
+		}
+		const float between = (dist * kTwoPi - 2.0f * sum) / (float)T;
+		locs.assign((size_t)num_players, {0.0f, 0.0f});
+		float a = start;
+		for (int i = 0; i < T; ++i) {
+			a += (between + sr[(size_t)((i + T - 1) % T)] + sr[(size_t)i]) / dist;
+			const auto tp = polar(a, dist * 0.8f);
+			const int k = (int)ta[(size_t)i].size();
+			for (int p = 0; p < k; ++p) {
+				const auto o = polar(start + (float)(p + 1) * kTwoPi / (float)k, sr[(size_t)i]);
+				locs[(size_t)ta[(size_t)i][(size_t)p]] = {tp.first + o.first, tp.second + o.second};
+			}
+		}
+		spread_locs(locs, 26.0f, half - 16.0f);
+	}
+	auto in_map = [&](int i) { return seas_in_circle(hm, i); };
+	// Player islands (clIsland).
+	const float island_r = seas_scale(15.0f, 25.0f, half) * 1.75f;
+	std::vector<uint8_t> cl_island(N, 0);
+	for (const auto &l : locs) {
+		const auto m = seas_clump(hm, rng, kSeasPi * island_r * island_r, 0.8f, 0.1f, 1e9f, l.first, l.second, in_map);
+		if (!seas_any(m)) continue;
+		paint_mask_elevation(hm, m, land, 4.0f);
+		record_area(hm, m, AREA_PLAYER_ISLAND);
+		seas_add(cl_island, m);
+	}
+	const auto to_island = seas_dist_inside(hm, cl_island);
+	// The continent body (clLand).
+	std::vector<uint8_t> cl_land(N, 0);
+	{
+		const float r = 0.3f * size;
+		const auto m = seas_clump(hm, rng, kSeasPi * r * r, 0.8f, 0.08f, 1e9f, 0.0f, 0.0f,
+		                          [&](int i) { return in_map(i) && to_island[(size_t)i] > 22.0f; });
+		if (seas_any(m)) {
+			paint_mask_elevation(hm, m, land, 4.0f);
+			record_area(hm, m, AREA_ISLAND);
+			seas_add(cl_land, m);
+		}
+	}
+	// Shore jaggedness: borderClasses(clLand, 6, 3), avoidClasses(clIsland, 16), 150 tries per clump.
+	if (seas_any(cl_land)) {
+		auto in_land = seas_dist_outside(hm, cl_land);
+		auto to_land = seas_dist_inside(hm, cl_land);
+		auto border = [&](int i) {
+			return in_map(i) && to_island[(size_t)i] > 16.0f && (cl_land[(size_t)i] ? in_land[(size_t)i] <= 6.0f : to_land[(size_t)i] <= 3.0f);
+		};
+		seas_create_areas(hm, rng, seas_scale(2.0f, 15.0f, half) * 20.0f, 150, [&](float x, float z) {
+			const auto m = seas_clump(hm, rng, seas_scale(10.0f, 65.0f, half), 0.2f, 0.1f, 1e9f, x, z, border);
+			if (!seas_any(m)) return false;
+			paint_mask_elevation(hm, m, land, 4.0f);
+			seas_add(cl_land, m);
+			in_land = seas_dist_outside(hm, cl_land);
+			to_land = seas_dist_inside(hm, cl_land);
+			return true;
+		});
+	}
+	const auto in_land = seas_dist_outside(hm, cl_land);
+	// Bumps: ClumpPlacer(scaleByMapSize(20, 50), 0.3, 0.06) raising 2 m.
+	seas_create_areas(hm, rng, seas_scale(100.0f, 200.0f, half), 10, [&](float x, float z) {
+		const auto m = seas_clump(hm, rng, seas_scale(20.0f, 50.0f, half), 0.3f, 0.06f, 1e9f, x, z,
+		                          [&](int i) { return to_island[(size_t)i] > 10.0f && in_land[(size_t)i] > 3.0f; });
+		if (!seas_any(m)) return false;
+		seas_paint_modify(hm, m, 2.0f * kMetre, 2.0f);
+		return true;
+	});
+	// Hills: LayeredPainter([tCliff, tHill], [2]), 18 m, 50 apart.
+	{
+		std::vector<uint8_t> cl_hill(N, 0);
+		std::vector<float> to_hill(N, 1e9f);
+		seas_create_areas(hm, rng, seas_scale(1.0f, 4.0f, half) * (float)num_players, 10, [&](float x, float z) {
+			const auto m = seas_clump(hm, rng, seas_scale(20.0f, 150.0f, half), 0.2f, 0.1f, 1e9f, x, z, [&](int i) {
+				return to_island[(size_t)i] > 10.0f && to_hill[(size_t)i] > 50.0f && in_land[(size_t)i] > 12.0f;
+			});
+			if (!seas_any(m)) return false;
+			paint_mask_elevation(hm, m, metres(water_h, 18.0f), 2.0f);
+			record_area(hm, m, AREA_HILL);
+			seas_add(cl_hill, m);
+			to_hill = seas_dist_inside(hm, cl_hill);
+			return true;
+		});
+	}
+	misc_maps::finish_spawns(hm, spawns, locs, land, 22.0f, water_h);
+}
+
+// =========================================================================
+// Map from 0 A.D. maps/random/ngorongoro.js (rmgen2): the crater from a real
+// elevation map, in three zones (lowlands, highlands, eden), each with its
+// own mines, hunt and baobabs. One world unit is one tile.
+// =========================================================================
+
+namespace {
+namespace ngorongoro {
+
+const std::vector<uint8_t> &image() {
+	static const std::vector<uint8_t> img = decode_heightmap_image(heightmap_images::ngorongoro_b64, heightmap_images::ngorongoro_size);
+	return img;
+}
+
+// The RTS0 height of the script's 0 m (the image's black). The map has no water.
+constexpr float kGround = 0.0f;
+constexpr float kNoWater = -10.0f;
+
+// heightScale(n) = n * mapSettings.Size / 320 metres.
+inline float height_scale(float n, float half) { return n * 2.0f * half / 320.0f; }
+
+// The script's tile classes from the heights: eden is DiskPlacer(fractionToTiles(0.14))
+// round the centre under heightScale(60), the highlands heightScale(45) and up
+// outside eden, mountain the slopes of 2 m per tile and more (SlopeConstraint(2)).
+struct Zones {
+	std::vector<uint8_t> eden, highlands, mountain;
+};
+
+Zones zones(const HeightmapGrid &hm) {
+	const float half = hm.map_half, eden_r = 0.14f * 2.0f * half;
+	const float eden_h = kGround + height_scale(60.0f, half) * kMetre, high_h = kGround + height_scale(45.0f, half) * kMetre;
+	const size_t n = hm.data.size();
+	Zones z{std::vector<uint8_t>(n, 0), std::vector<uint8_t>(n, 0), std::vector<uint8_t>(n, 0)};
+	const auto slope = slopes_m(hm);
+	for (int vz = 0; vz < hm.res; ++vz)
+		for (int vx = 0; vx < hm.res; ++vx) {
+			float wx, wz;
+			hm.grid_to_world(vx, vz, wx, wz);
+			const size_t i = (size_t)vz * (size_t)hm.res + (size_t)vx;
+			z.eden[i] = wx * wx + wz * wz <= eden_r * eden_r && hm.data[i] < eden_h;
+			z.highlands[i] = !z.eden[i] && hm.data[i] >= high_h;
+			z.mountain[i] = slope[i] >= 2.0f;
+		}
+	return z;
+}
+
+} // namespace ngorongoro
+} // namespace
+
+void RmsGenerator::synth_ngorongoro(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams) {
+	// ngorongoro.js: LoadHeightmapImage("ngorongoro.png", 0, 150) (GEBCO
+	// elevations round the crater), SmoothingPainter(1, scaleByMapSize(0.1,
+	// 0.5), 1), the eden, highlands and cliff (mountain) classes, players at
+	// random (playerPlacementRandom) 5 from cliffs, highlands and eden and a
+	// base radius inside the map, each start flattened over 0.8 base radius
+	// with a 6-tile blend. The highland patches are AREA_HIGHLANDS (2 off the
+	// cliffs, as the script's addLayeredPatches); the zones' mines, hunt and
+	// baobabs are place_ngorongoro_entities'.
+	using namespace misc_maps;
+	using namespace ngorongoro;
+	water_h = kNoWater;
+	const float half = hm.map_half;
+	const int n = heightmap_images::ngorongoro_size;
+	paint_heightmap(hm, image(), n, 0, 0, n, 0.0f, 150.0f, kGround);
+	shepard_smooth(hm, scale_f(0.1f, 0.5f, half));
+	const Zones z = zones(hm);
+	const size_t N = hm.data.size();
+	{
+		std::vector<uint8_t> up(N, 0);
+		const auto near_cliff = near_mask(hm, z.mountain, 2.0f);
+		for (size_t i = 0; i < N; ++i) up[i] = (z.eden[i] || z.highlands[i]) && !near_cliff[i];
+		record_area(hm, up, AREA_HIGHLANDS);
+	}
+	// avoidClasses(mountain, 5, highlands, 5, eden, 5), stayClasses(land, defaultPlayerBaseRadius()).
+	const float base_r = (float)scale_by_map_size(15, 25, half);
+	const auto near_m = near_mask(hm, z.mountain, 5.0f), near_h = near_mask(hm, z.highlands, 5.0f), near_e = near_mask(hm, z.eden, 5.0f);
+	std::vector<uint8_t> allowed(N, 0);
+	for (int vz = 0; vz < hm.res; ++vz)
+		for (int vx = 0; vx < hm.res; ++vx) {
+			float wx, wz;
+			hm.grid_to_world(vx, vz, wx, wz);
+			const size_t i = (size_t)vz * (size_t)hm.res + (size_t)vx;
+			allowed[i] = !near_m[i] && !near_h[i] && !near_e[i] && std::hypot(wx, wz) <= half - base_r;
+		}
+	std::vector<std::pair<float, float>> locs;
+	if (player_placement_random(hm, rng, allowed, num_players, locs)) {
+		group_players_by_area(locs, num_players, teams);
+		make_heightmap_spawns(hm, spawns, locs, base_r * 0.8f, 6.0f, water_h);
+		face_most_land(hm, spawns, water_h);
+		return;
+	}
+	place_ring_spawns(hm, spawns, num_players, half * 0.6f, rng.range_float(0.0f, kTau), kTau, kGround + 1.0f);
+	for (const auto &s : spawns) lift_area(hm, s.x, s.z, 20.0f, 6.0f, s.base_height);
+}
+
+void RmsGenerator::place_ngorongoro_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng,
+		const Config &config) {
+	// ngorongoro.js's addElements passes, zone by zone (lowlands, highlands,
+	// eden), each list shuffled as the script's shuffleArray does. rmgen2
+	// createObjectGroupsDeprecated makes `amount` tries at random spots on the
+	// map, a group placed only where all of its objects fit (30 retries,
+	// 1 tile apart) on tiles the constraint allows. addForests plants nothing
+	// on the savanna biome; addLayeredPatches are the terrain areas and
+	// addDecoration's actors are left out. The classes the script avoids are
+	// the objects placed here (metal, rock, forest, animals), the cliffs, the
+	// zones and the bases' CityPatch (a third of the base radius).
+	using namespace ngorongoro;
+	const float half = hm.map_half;
+	const Zones zn = zones(hm);
+	const auto d_eden = distance_to_mask(zn.eden, hm.res, grid_spacing(hm));
+	const auto d_high = distance_to_mask(zn.highlands, hm.res, grid_spacing(hm));
+	const auto d_mtn = distance_to_mask(zn.mountain, hm.res, grid_spacing(hm));
+	const auto in_eden = misc_maps::dist_inside(hm, zn.eden), in_high = misc_maps::dist_inside(hm, zn.highlands);
+	const float city_r = (float)scale_by_map_size(15, 25, half) / 3.0f;
+	enum { CL_METAL, CL_ROCK, CL_FOREST, CL_ANIMALS, CL_COUNT };
+	std::vector<std::pair<float, float>> cls[CL_COUNT];
+	// avoidClasses distances (negative: not avoided) and the zone to stay 2 inside.
+	struct Rule {
+		float mountain, player, metal, rock, forest, animals;
+		bool lowlands; // avoidClasses(eden, 2, highlands, 2)
+		int stay;      // 0 none, 1 stayClasses(highlands, 2), 2 stayClasses(eden, 2)
+	};
+	auto allows = [&](const Rule &r, float x, float z) {
+		const size_t v = vertex_at(hm, x, z);
+		if (r.mountain >= 0.0f && d_mtn[v] <= r.mountain) return false;
+		if (r.lowlands && (d_eden[v] <= 2.0f || d_high[v] <= 2.0f)) return false;
+		if (r.stay == 1 && in_high[v] <= 2.0f) return false;
+		if (r.stay == 2 && in_eden[v] <= 2.0f) return false;
+		for (const auto &s : spawns)
+			if (std::hypot(x - s.x, z - s.z) <= r.player + city_r) return false;
+		const float d[CL_COUNT] = {r.metal, r.rock, r.forest, r.animals};
+		for (int c = 0; c < CL_COUNT; ++c) {
+			if (d[c] < 0.0f) continue;
+			for (const auto &p : cls[c])
+				if ((p.first - x) * (p.first - x) + (p.second - z) * (p.second - z) <= d[c] * d[c]) return false;
+		}
+		return true;
+	};
+	// SimpleObject(template, minCount, maxCount, minDistance, maxDistance).
+	struct Obj {
+		uint8_t res;   // RES_* or 0xFF for fauna
+		int amount;    // resource supply
+		uint8_t fauna;
+		float min_n, max_n, min_d, max_d;
+	};
+	auto rand_int_inclusive = [&](float lo, float hi) { return (int)std::floor(lo + rng.next_float() * (hi + 1.0f - lo)); };
+	// createObjectGroupsDeprecated(new SimpleGroup(objs, true, class), 0, constraint, amount).
+	auto groups = [&](const std::vector<Obj> &objs, int cl, const Rule &r, float amount) {
+		const float pass_r = half - 3.0f; // MAP_BORDER_WIDTH
+		struct Spec { float x, z; const Obj *o; };
+		std::vector<Spec> specs;
+		for (int k = 0; (float)k < amount; ++k) {
+			const auto c = random_in_circle(rng, pass_r);
+			const float cx = std::floor(c.first + half) - half + 0.5f, cz = std::floor(c.second + half) - half + 0.5f;
+			specs.clear();
+			bool ok = true;
+			for (const Obj &o : objs) {
+				const int count = rand_int_inclusive(o.min_n, o.max_n);
+				int retries = 0;
+				for (int i = 0; i < count && ok; ++i)
+					while (true) {
+						const auto p = polar(rng.range_float(0.0f, kTwoPi), rng.range_float(o.min_d, o.max_d));
+						const float x = cx + p.first, zz = cz + p.second;
+						bool fits = x * x + zz * zz < pass_r * pass_r;
+						for (const Spec &s : specs) fits = fits && (s.x - x) * (s.x - x) + (s.z - zz) * (s.z - zz) >= 1.0f;
+						fits = fits && allows(r, std::floor(x + half) - half + 0.5f, std::floor(zz + half) - half + 0.5f);
+						if (fits) { specs.push_back({x, zz, &o}); break; }
+						if (retries++ > 30) { ok = false; break; }
+					}
+				if (!ok) break;
+			}
+			if (!ok) continue;
+			for (const Spec &s : specs) {
+				if (s.o->res == 0xFF) sim.spawn_fauna(s.x, s.z, s.o->fauna);
+				else sim.spawn_resource_world(s.x, s.z, s.o->res, s.o->amount);
+				cls[cl].push_back({std::floor(s.x + half) - half + 0.5f, std::floor(s.z + half) - half + 0.5f});
+			}
+		}
+	};
+	// g_Sizes normal 1, big 1.25, huge 1.5; g_Mixes same 0, similar 0.1, unique 0.75;
+	// g_Amounts scarce 0.2, few 0.5, many 1.75, tons 3.
+	auto small_metal = [&](const Rule &r, float size, float mix, float fill) {
+		// addSmallMetal: gaia/ore/tropical_small (1000), 2-5 x dev at dev-3 dev, 1 + 20 fill groups.
+		const float d = random_deviation(rng, size, mix);
+		groups({{RES_GOLD, MINE_SUPPLY, 0, 2.0f * d, 5.0f * d, d, 3.0f * d}}, CL_METAL, r, 1.0f + 20.0f * fill);
+	};
+	auto metal = [&](const Rule &r, float size, float mix, float fill) {
+		// addMetal: one gaia/ore/savanna_large (5000) within 4 offset, 1 + 20 fill groups.
+		const float o = random_deviation(rng, size, mix);
+		groups({{RES_GOLD, LARGE_MINE_SUPPLY, 0, o, o, 0.0f, 4.0f * o}}, CL_METAL, r, 1.0f + 20.0f * fill);
+	};
+	auto stone = [&](const Rule &r, float size, float mix, float fill) {
+		// addStone: savanna stone, a large mine with 0-2 small rocks, then 2-5 small rocks, 1 + 20 fill groups each.
+		const float o = random_deviation(rng, size, mix);
+		groups({{RES_STONE, MINE_SUPPLY, 0, 0.0f, 2.0f * o, 0.0f, 4.0f * o}, {RES_STONE, LARGE_MINE_SUPPLY, 0, o, o, 0.0f, 4.0f * o}},
+			CL_ROCK, r, 1.0f + 20.0f * fill);
+		groups({{RES_STONE, MINE_SUPPLY, 0, 2.0f * o, 5.0f * o, o, 3.0f * o}}, CL_ROCK, r, 1.0f + 20.0f * fill);
+	};
+	auto animals = [&](const Rule &r, float size, float mix, float fill, uint8_t main, uint8_t secondary) {
+		// addAnimals: 5-7 x offset of the main huntable animal within 4 offset and 2-3 x offset of the
+		// secondary within 2 offset, floor(30 fill) groups of each.
+		const float o = random_deviation(rng, size, mix);
+		groups({{0xFF, 0, main, 5.0f * o, 7.0f * o, 0.0f, 4.0f * o}}, CL_ANIMALS, r, std::floor(30.0f * fill));
+		groups({{0xFF, 0, secondary, 2.0f * o, 3.0f * o, 0.0f, 2.0f * o}}, CL_ANIMALS, r, std::floor(30.0f * fill));
+	};
+	auto stragglers = [&](const Rule &r, float size, float mix, float fill) {
+		// addStragglerTrees on the savanna: fill at least 2 and size at least 1; tree1-tree4 (all
+		// baobabs here), floor(40 max(1, (players - 3) / 2) fill / 4) fill groups of each, 3-5 offset
+		// trees 2 offset + 1 to 3 offset + 2 out.
+		fill = std::max(fill, 2.0f);
+		size = std::max(size, 1.0f);
+		const float bonus = std::max(1.0f, ((float)config.num_players - 3.0f) / 2.0f);
+		const float o = random_deviation(rng, size, mix);
+		const float count = std::floor(40.0f * bonus * fill / 4.0f) * fill;
+		for (int t = 0; t < 4; ++t)
+			groups({{RES_WOOD, TREE_WOOD_SUPPLY, 0, 3.0f * o, 5.0f * o, 2.0f * o + 1.0f, 3.0f * o + 2.0f}}, CL_FOREST, r, count);
+	};
+	// One addElements list: its entries in the script's order, shuffled when it shuffles them.
+	auto run = [&](std::vector<std::function<void()>> list, bool shuffle) {
+		std::vector<int> order(list.size());
+		for (size_t i = 0; i < order.size(); ++i) order[i] = (int)i;
+		if (shuffle) shuffle_ints(rng, order);
+		for (int i : order) list[(size_t)i]();
+	};
+	const auto none = [] {}; // addForests: no forests on generic/savanna
+	// Render lowlands (setBiomeLowlands: giraffes and zebras).
+	{
+		const Rule mines{6.0f, 30.0f, 10.0f, 20.0f, 3.0f, -1.0f, true, 0};
+		run({[&] { small_metal(mines, 1.0f, 0.0f, 0.5f); }, [&] { stone(mines, 1.0f, 0.0f, 0.2f); }, none}, true);
+		const Rule hunt{6.0f, 20.0f, 2.0f, 2.0f, 2.0f, 20.0f, true, 0};
+		const Rule trees{6.0f, 12.0f, 2.0f, 2.0f, 4.0f, -1.0f, true, 0};
+		run({[&] { animals(hunt, 1.25f, 0.1f, 1.75f, FAUNA_GIRAFFE, FAUNA_ZEBRA); },
+		     [&] { animals(hunt, 1.0f, 0.75f, 1.75f, FAUNA_GIRAFFE, FAUNA_ZEBRA); },
+		     [&] { stragglers(trees, 1.25f, 0.0f, 1.75f); }}, true);
+	}
+	// Render highlands (setBiomeHighlands: lionesses and lions), staying 2 inside them.
+	{
+		const Rule metal_r{3.0f, 30.0f, 20.0f, 10.0f, 3.0f, -1.0f, false, 1};
+		const Rule stone_r{3.0f, 30.0f, 10.0f, 20.0f, 3.0f, -1.0f, false, 1};
+		run({[&] { small_metal(metal_r, 1.0f, 0.0f, 1.75f); }, [&] { stone(stone_r, 1.0f, 0.0f, 1.75f); }, none}, true);
+		const Rule hunt{3.0f, 20.0f, 2.0f, 2.0f, 2.0f, 20.0f, false, 1};
+		const Rule trees{3.0f, 12.0f, 2.0f, 2.0f, 2.0f, -1.0f, false, 1};
+		run({[&] { animals(hunt, 1.5f, 0.0f, 1.75f, FAUNA_LIONESS, FAUNA_LION); }, [&] { stragglers(trees, 1.5f, 0.0f, 1.75f); }}, true);
+	}
+	// Render eden (setBiomeEden: white rhinos and African bush elephants), staying 2 inside it.
+	{
+		const Rule metal_r{2.0f, 20.0f, 3.0f, 3.0f, 3.0f, -1.0f, false, 2};
+		const Rule stone_r{2.0f, 30.0f, 3.0f, 3.0f, 3.0f, -1.0f, false, 2};
+		run({[&] { metal(metal_r, 1.0f, 0.0f, 3.0f); }, [&] { metal(metal_r, 1.0f, 0.0f, 3.0f); },
+		     [&] { small_metal(metal_r, 1.0f, 0.0f, 3.0f); }, [&] { stone(stone_r, 1.0f, 0.0f, 0.5f); }, none}, true);
+		const Rule hunt{3.0f, 20.0f, 2.0f, 2.0f, 2.0f, 2.0f, false, 2};
+		const Rule trees{8.0f, 12.0f, 2.0f, 2.0f, 2.0f, -1.0f, false, 2};
+		run({[&] { animals(hunt, 1.0f, 0.0f, 1.75f, FAUNA_RHINOCEROS_WHITE, FAUNA_ELEPHANT_AFRICAN_BUSH); },
+		     [&] { stragglers(trees, 1.5f, 0.0f, 0.2f); }}, true);
+	}
+}
+
+// =========================================================================
+// Map ported from 0 A.D. maps/random/river_archipelago.js: narrow strips of
+// land across the map, sea between them, Gaia Mauryans on the outermost ones.
+// =========================================================================
+
+void RmsGenerator::synth_river_archipelago(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams, RiverArchipelagoLayout &out) {
+	// river_archipelago.js (a circular map): sea ground at -8 m; six strips of
+	// land at 3 m across the map, turned by a random startAngle, each from
+	// scaleByMapSize(20, 100) ChainPlacer(1, scaleByMapSize(3, 7), scaleByMapSize(30, 60))
+	// areas (SmoothElevationPainter blend 3) round random spots along the strip
+	// at 0-0.06, 0.12-0.23 and 0.33-0.43 of the map and the mirror of those, or
+	// at 0.03-0.09, 0.14-0.25 and 0.36-0.46 with the two middle strips' circles
+	// up to scaleByMapSize(3, 8) when connectPlayers; overlapping areas leave
+	// shallow land bridges between the strips. Players on the two middle strips
+	// (playerPlacementLine, sortAllPlayers or primeSortAllPlayers), each on a
+	// ChainPlacer(1, 6, 40) territory from a scaleByMapSize(15, 20) disk at 3 m.
+	// Then the Gaia groups on the outermost strips (kept for
+	// place_river_archipelago_entities), scaleByMapSize(1, 5) hills of 25 m
+	// (cliff then grass, 3 wide) off the territories, water and Gaia, and
+	// scaleByMapSize(20, 150) bumps of 4 m. The strips stop at the map's circle.
+	using namespace misc_maps;
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, metres(water_h, -8.0f));
+	const size_t N = hm.data.size();
+	const float sp = grid_spacing(hm);
+	const auto off_map = outside_circle(hm);
+	auto in_map = [&](int i) { return !off_map[(size_t)i]; };
+	// g_Map.randomCoordinate on a circular map: a tile within size / 2 - border of the centre
+	// (border 3 for object groups, 0 for createAreas).
+	auto random_spot = [&](float border) {
+		const auto c = random_in_circle(rng, half - border);
+		return std::make_pair(std::floor(c.first) + 0.5f, std::floor(c.second) + 0.5f);
+	};
+	auto random_tile = [&]() { return random_spot(3.0f); };
+	auto random_area_centre = [&]() { return random_spot(0.0f); };
+	const float start = rng.range_float(0.0f, kTau);
+	const bool connect = rng.range_int(0, 1) == 1;
+	using Span = std::pair<float, float>;
+	std::vector<Span> widths = connect ? std::vector<Span>{{0.03f, 0.09f}, {0.14f, 0.25f}, {0.36f, 0.46f}}
+	                                   : std::vector<Span>{{0.0f, 0.06f}, {0.12f, 0.23f}, {0.33f, 0.43f}};
+	const std::vector<Span> left = widths;
+	for (int i = 2; i >= 0; --i) widths.push_back({1.0f - left[(size_t)i].second, 1.0f - left[(size_t)i].first});
+	std::vector<std::vector<uint8_t>> strip(widths.size(), std::vector<uint8_t>(N, 0));
+	const int chains = (int)std::ceil(scale_f(20.0f, 100.0f, half));
+	for (size_t i = 0; i < widths.size(); ++i) {
+		const bool player_strip = i == 2 || i == 3;
+		const float max_r = std::floor(scale_f(3.0f, connect && player_strip ? 8.0f : 7.0f, half));
+		const int circles = (int)std::floor(scale_f(30.0f, 60.0f, half));
+		for (int j = 0; j < chains; ++j) {
+			const float along = rng.range_float(-half, half);
+			const float across = (rng.range_float(widths[i].first, widths[i].second) - 0.5f) * size;
+			const auto p = rot(along, across, start);
+			const float cx = std::round(p.first), cz = std::round(p.second);
+			const auto m = seas_chain(hm, rng, cx, cz, 1, (int)max_r, circles, 1e9f, 0.0f, {}, in_map);
+			if (m.empty()) continue; // ChainPlacer starts on the map only
+			paint_mask_elevation(hm, m, land, 3.0f);
+			mask_or(strip[i], m);
+		}
+	}
+	// playerPlacementLine(startAngle, mapCenter, fractionToTiles(1 - 0.36 - 0.46)) (or 1 - 0.33 - 0.43):
+	// player slot i ((i + 1) / (n + 1) - 0.5) of the map along, alternately either side.
+	const float line_w = (1.0f - left[2].first - left[2].second) * size;
+	const auto sorted = sort_all_players(rng, num_players, teams);
+	const auto ids = rng.range_int(0, 1) ? sorted : prime_sort(sorted);
+	std::vector<std::pair<float, float>> locs((size_t)num_players);
+	for (int i = 0; i < num_players; ++i) {
+		const auto p = rot(((float)(i + 1) / (float)(num_players + 1) - 0.5f) * size, line_w * ((float)(i % 2) - 0.5f), start);
+		locs[(size_t)ids[(size_t)i]] = {std::round(p.first), std::round(p.second)};
+	}
+	// "Ensuring player territory": ChainPlacer(1, 6, 40, 1, position, 0, [playerRadius]) at 3 m, blend 4.
+	const float player_r = scale_f(15.0f, 20.0f, half);
+	std::vector<uint8_t> territory(N, 0);
+	for (const auto &l : locs) {
+		const auto m = seas_chain(hm, rng, l.first, l.second, 1, 6, 40, 1.0f, 0.0f, {(int)std::floor(player_r)}, in_map);
+		if (m.empty()) continue;
+		paint_mask_elevation(hm, m, land, 4.0f);
+		mask_or(territory, m);
+	}
+	// clWater: below the water line once the land is in.
+	std::vector<uint8_t> water(N);
+	for (size_t k = 0; k < N; ++k) water[k] = hm.data[k] < water_h;
+	const auto to_water = distance_to_mask(water, hm.res, sp);
+
+	// "Creating gaia": on each outermost strip, scaleByMapSize(1, 8) passes of createObjectGroups
+	// of scaleByMapSize(5, 10) groups (retry factor 50) of 8-12 spearmen and 8-12 archers 2-3
+	// tiles from the centre and 2-3 elephant archers 4-5 out, every unit on its strip (1 in),
+	// 2 from water, off the player territories and 15 from the units of earlier groups. With
+	// SimpleGroup's avoidSelf (every unit of the group 1 from the others) and SimpleObject's 30
+	// misses, the archers almost never fit in the ring the spearmen already hold, so in 0.28 (and
+	// here) the groups nearly always fail and the strips stay empty.
+	out.gaia.clear();
+	for (size_t side : {(size_t)0, widths.size() - 1}) {
+		const auto inside = deep_inside(hm, strip[side], 1.0f);
+		auto allowed = [&](float x, float z) {
+			const float tx = std::floor(x) + 0.5f, tz = std::floor(z) + 0.5f;
+			if (tx * tx + tz * tz >= half * half) return false;
+			const size_t k = vertex_at(hm, tx, tz);
+			if (!inside[k] || to_water[k] <= 2.0f || territory[k]) return false;
+			for (const auto &g : out.gaia)
+				if (std::hypot(g.x - tx, g.z - tz) <= 15.0f) return false;
+			return true;
+		};
+		const int passes = (int)std::ceil(scale_f(1.0f, 8.0f, half));
+		const int amount = (int)std::ceil(scale_f(5.0f, 10.0f, half));
+		struct Obj { int lo, hi; float dmin, dmax; uint8_t kind; };
+		static const Obj kObjs[3] = {{8, 12, 2.0f, 3.0f, 0}, {8, 12, 2.0f, 3.0f, 1}, {2, 3, 4.0f, 5.0f, 2}};
+		for (int pass = 0; pass < passes; ++pass) {
+			int good = 0, bad = 0;
+			while (good < amount && bad <= amount * 50) {
+				const auto c = random_tile();
+				std::vector<RiverArchipelagoLayout::GaiaUnit> group;
+				bool ok = true;
+				for (const Obj &o : kObjs) {
+					// SimpleObject.place: each unit at least 1 from the group's others (avoidSelf), 30 misses allowed.
+					int fails = 0;
+					// The script's loop rolls randIntInclusive(min, max) again before each unit.
+					for (int u = 0; ok && u < rng.range_int(o.lo, o.hi); ++u)
+						for (;;) {
+							const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(o.dmin, o.dmax));
+							const float x = c.first + d.first, z = c.second + d.second;
+							bool free = allowed(x, z);
+							for (size_t q = 0; free && q < group.size(); ++q) free = std::hypot(group[q].x - x, group[q].z - z) >= 1.0f;
+							if (free) {
+								group.push_back({x, z, o.kind});
+								break;
+							}
+							if (fails++ > 30) {
+								ok = false;
+								break;
+							}
+						}
+					if (!ok) break;
+				}
+				if (!ok) {
+					++bad;
+					continue;
+				}
+				out.gaia.insert(out.gaia.end(), group.begin(), group.end());
+				++good;
+			}
+		}
+	}
+	std::vector<uint8_t> gaia_mask(N, 0);
+	for (const auto &g : out.gaia) gaia_mask[vertex_at(hm, g.x, g.z)] = 1;
+	const auto to_gaia = distance_to_mask(gaia_mask, hm.res, sp);
+
+	// "Creating hills": ChainPlacer(1, scaleByMapSize(4, 6), scaleByMapSize(16, 40), 0.1) at 25 m
+	// (blend 3), off the territories, 5 from other hills, 1 from the Gaia and 2 from water.
+	std::vector<uint8_t> hills(N, 0);
+	{
+		auto to_hill = distance_to_mask(hills, hm.res, sp);
+		const int count = (int)std::ceil(scale_f(1.0f, 5.0f, half));
+		auto ok = [&](size_t k) { return !off_map[k] && !territory[k] && to_hill[k] > 5.0f && to_gaia[k] > 1.0f && to_water[k] > 2.0f; };
+		create_areas(hm, count, count * 10, 0.1f, random_area_centre,
+			[&](float cx, float cz) {
+				return seas_chain(hm, rng, cx, cz, 1, (int)std::floor(scale_f(4.0f, 6.0f, half)), (int)std::floor(scale_f(16.0f, 40.0f, half)), 0.1f,
+				                  0.0f, {}, [&](int i) { return ok((size_t)i); });
+			},
+			ok,
+			[&](const std::vector<uint8_t> &m) {
+				paint_mask_elevation(hm, m, metres(water_h, 25.0f), 3.0f);
+				record_area(hm, m, AREA_HILL);
+				mask_or(hills, m);
+				to_hill = distance_to_mask(hills, hm.res, sp);
+			});
+	}
+	// createBumps(avoidClasses(clPlayer, 8, clWater, 2), scaleByMapSize(20, 150), 2, 8, 4, 1, 4):
+	// ChainPlacer(2, 8, 4) areas raised 4 m (blend 2), 8 from the civic centres (clPlayer, a
+	// radius 5 disk).
+	{
+		const auto to_cc = dist_to_points(hm, locs);
+		const int count = (int)std::ceil(scale_f(20.0f, 150.0f, half));
+		auto ok = [&](size_t k) { return !off_map[k] && to_cc[k] > 5.0f + 8.0f && to_water[k] > 2.0f; };
+		create_areas(hm, count, count * 10, 1.0f, random_area_centre,
+			[&](float cx, float cz) { return seas_chain(hm, rng, cx, cz, 2, 8, 4, 1.0f, 0.0f, {}, [&](int i) { return ok((size_t)i); }); },
+			ok,
+			[&](const std::vector<uint8_t> &m) { modify_mask_elevation(hm, m, metres(water_h, 4.0f) - water_h, 2.0f); });
+	}
+	out.territory = std::move(territory);
+	out.hill = std::move(hills);
+	finish_spawns(hm, spawns, locs, land, std::floor(player_r), water_h);
+}
+
+void RmsGenerator::place_river_archipelago_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+		RmsRng &rng, const RiverArchipelagoLayout &layout) {
+	// river_archipelago.js's objects after the bases, in its order: the Gaia Mauryans, the
+	// forests and straggler trees, stone and metal mines, deer, boar, tigers and berry bushes
+	// (its fish are distribute_fish's). The generic groves, mines and wildlife packs are off
+	// for this map; its grass and dirt patches are script_terrains.h's. Left out: the decorative
+	// rocks, grass tufts and bushes (actors).
+	using namespace misc_maps;
+	const float half = hm.map_half;
+	const size_t N = hm.data.size();
+	const float sp = grid_spacing(hm);
+	const int np = std::max(1, (int)spawns.size());
+	struct Pt { float x, z; };
+	auto clear_of = [](const std::vector<Pt> &v, float x, float z, float d) {
+		for (const Pt &p : v)
+			if (std::hypot(p.x - x, p.z - z) <= d) return false;
+		return true;
+	};
+	std::vector<uint8_t> water(N);
+	for (size_t k = 0; k < N; ++k) water[k] = hm.data[k] < water_h;
+	const auto to_water = distance_to_mask(water, hm.res, sp);
+	const auto to_hill = distance_to_mask(layout.hill, hm.res, sp);
+	constexpr size_t kOff = (size_t)-1;
+	auto vertex = [&](float x, float z) { return x * x + z * z < half * half ? vertex_at(hm, x, z) : kOff; };
+	auto random_tile = [&]() {
+		const auto c = random_in_circle(rng, half - 3.0f);
+		return Pt{std::floor(c.first) + 0.5f, std::floor(c.second) + 0.5f};
+	};
+	auto cc_clear = [&](float x, float z, float d) { // avoidClasses(clPlayer, d): the civic centre's radius 5 disk
+		for (const auto &s : spawns)
+			if (std::hypot(s.x - x, s.z - z) <= 5.0f + d) return false;
+		return true;
+	};
+	// The bases' starting resources (clBaseResource): all there is before this pass.
+	std::vector<Pt> base_res;
+	{
+		const auto rv = sim.resources();
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.alive[i]) base_res.push_back({rv.x[i], rv.z[i]});
+	}
+
+	// The Gaia groups synth_river_archipelago placed (clGaia).
+	static const char *const kGaia[3] = {"maur/infantry_spearman_b", "maur/infantry_archer_b", "maur/elephant_archer_b"};
+	std::vector<Pt> gaia;
+	std::vector<uint8_t> gaia_mask(N, 0);
+	for (const auto &g : layout.gaia) {
+		const uint16_t t = civ_unit_template_by_id(kGaia[g.kind]);
+		if (t != CIV_UNIT_TEMPLATE_NONE) sim.spawn_gaia_unit(g.x, g.z, (UnitType)civ_unit_template(t).unit_type, kGaia[g.kind]);
+		gaia.push_back({g.x, g.z});
+		gaia_mask[vertex_at(hm, g.x, g.z)] = 1;
+	}
+	const auto to_gaia = distance_to_mask(gaia_mask, hm.res, sp);
+
+	// "Creating forests": getTreeCounts(1000, 4000, 0.7); three kinds (toona and the two palms,
+	// which plant_flora tells apart), each of floor(forestTrees / (scaleByMapSize(3, 6) *
+	// numPlayers) / 3) ChainPlacer(1, scaleByMapSize(3, 5), forestTrees / (num *
+	// scaleByMapSize(2, 4)), 0.5) areas 12 from the civic centres, 6 from other forests, off
+	// hills, 1 from the Gaia and 2 from water. LayeredPainter([[tGrass x4, pForest],
+	// [tGrass x3, pForest]], [2]) with pForest [floor + tree, floor]: a tree on one tile in 10
+	// of the outer 2 tiles, one in 8 inside.
+	const float total_trees = scale_f(1000.0f, 4000.0f, half);
+	const float forest_trees = 0.7f * total_trees, straggler_trees = 0.3f * total_trees;
+	std::vector<uint8_t> forest(N, 0);
+	auto to_forest = distance_to_mask(forest, hm.res, sp);
+	{
+		const float forest_size = forest_trees / (scale_f(3.0f, 6.0f, half) * (float)np);
+		const int num = (int)std::floor(forest_size / 3.0f);
+		const int circles = num > 0 ? (int)std::floor(forest_trees / ((float)num * std::floor(scale_f(2.0f, 4.0f, half)))) : 0;
+		const float max_r = std::floor(scale_f(3.0f, 5.0f, half));
+		std::vector<std::pair<float, float>> ccs;
+		for (const auto &s : spawns) ccs.push_back({s.x, s.z});
+		const auto to_cc = dist_to_points(hm, ccs);
+		auto ok = [&](size_t k) {
+			float wx, wz;
+			hm.grid_to_world((int)(k % (size_t)hm.res), (int)(k / (size_t)hm.res), wx, wz);
+			return wx * wx + wz * wz < half * half && to_cc[k] > 5.0f + 12.0f && to_forest[k] > 6.0f && !layout.hill[k] && to_gaia[k] > 1.0f &&
+			       to_water[k] > 2.0f;
+		};
+		for (int kind = 0; kind < 3 && num > 0; ++kind)
+			create_areas(hm, num, num * 10, 0.5f,
+				[&]() {
+					const auto c = random_in_circle(rng, half); // createAreas: randomCoordinate(false)
+					return std::make_pair(std::floor(c.first) + 0.5f, std::floor(c.second) + 0.5f);
+				},
+				[&](float cx, float cz) {
+					return seas_chain(hm, rng, cx, cz, 1, (int)max_r, std::max(1, circles), 0.5f, 0.0f, {}, [&](int i) { return ok((size_t)i); });
+				},
+				ok,
+				[&](const std::vector<uint8_t> &m) {
+					const auto in = dist_inside(hm, m);
+					int x0 = hm.res, x1 = -1, z0 = hm.res, z1 = -1;
+					for (size_t k = 0; k < N; ++k)
+						if (m[k]) {
+							const int x = (int)(k % (size_t)hm.res), z = (int)(k / (size_t)hm.res);
+							x0 = std::min(x0, x);
+							x1 = std::max(x1, x);
+							z0 = std::min(z0, z);
+							z1 = std::max(z1, z);
+						}
+					const float lo_x = std::floor(-half + ((float)x0 - 0.5f) * sp), hi_x = -half + ((float)x1 + 0.5f) * sp;
+					const float lo_z = std::floor(-half + ((float)z0 - 0.5f) * sp), hi_z = -half + ((float)z1 + 0.5f) * sp;
+					for (float z = lo_z + 0.5f; z < hi_z; z += 1.0f)
+						for (float x = lo_x + 0.5f; x < hi_x; x += 1.0f) {
+							const size_t k = vertex(x, z);
+							if (k == kOff || !m[k]) continue;
+							if (rng.next_float() < (in[k] <= 2.0f ? 0.1f : 0.125f)) sim.spawn_resource_world(x, z, RES_WOOD, TREE_WOOD_SUPPLY);
+						}
+					mask_or(forest, m);
+					to_forest = distance_to_mask(forest, hm.res, sp);
+				});
+	}
+	// createStragglerTrees([toona, palm_tropic, palm_tropical], ...): createObjectGroupsDeprecated
+	// of SimpleObject(tree, 1, 1, 0, 3), floor(stragglerTrees / 3) tries of each (a miss counts as
+	// placed), 5 from water, 1 from forests and other stragglers, 1 from hills, 8 from the civic
+	// centres, 4 from the base resources and 1 from the Gaia.
+	std::vector<Pt> stragglers;
+	{
+		const int each = (int)std::floor(straggler_trees / 3.0f);
+		for (int kind = 0; kind < 3; ++kind)
+			for (int t = 0; t < each; ++t) {
+				const Pt c = random_tile();
+				for (int fails = 0; fails <= 31; ++fails) {
+					const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(0.0f, 3.0f));
+					const Pt p{c.x + d.first, c.z + d.second};
+					const float tx = std::floor(p.x) + 0.5f, tz = std::floor(p.z) + 0.5f;
+					const size_t k = vertex(tx, tz);
+					if (k == kOff || to_water[k] <= 5.0f || to_forest[k] <= 1.0f || to_hill[k] <= 1.0f || !cc_clear(tx, tz, 8.0f) ||
+					    !clear_of(base_res, tx, tz, 4.0f) || !clear_of(gaia, tx, tz, 1.0f) || !clear_of(stragglers, tx, tz, 1.0f)) continue;
+					sim.spawn_resource_world(p.x, p.z, RES_WOOD, TREE_WOOD_SUPPLY);
+					stragglers.push_back(p);
+					break;
+				}
+			}
+	}
+	auto forest_clear = [&](size_t k, float x, float z, float d) { return to_forest[k] > d && clear_of(stragglers, x, z, d); };
+
+	// createObjectGroups of a SimpleGroup with avoidSelf: `amount` groups (retry factor `retry`)
+	// round random tiles, each object's entities dmin-dmax from the centre, all the group's 1
+	// apart, every one on a tile `ok` allows (SimpleObject.place: 30 misses, then the group fails).
+	struct Obj { int lo, hi; float dmin, dmax; };
+	auto groups = [&](int amount, int retry, std::initializer_list<Obj> objs, auto ok, auto spawn) {
+		int good = 0, bad = 0;
+		while (good < amount && bad <= amount * retry) {
+			const Pt c = random_tile();
+			std::vector<std::pair<Pt, int>> placed;
+			bool fit = true;
+			int oi = 0;
+			for (const Obj &o : objs) {
+				int fails = 0;
+				// SimpleObject.place rolls randIntInclusive(min, max) again before each entity.
+				for (int u = 0; fit && u < rng.range_int(o.lo, o.hi); ++u)
+					for (;;) {
+						const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(o.dmin, o.dmax));
+						const Pt p{c.x + d.first, c.z + d.second};
+						const float tx = std::floor(p.x) + 0.5f, tz = std::floor(p.z) + 0.5f;
+						const size_t k = vertex(tx, tz);
+						bool free = k != kOff && ok(k, tx, tz);
+						for (size_t q = 0; free && q < placed.size(); ++q)
+							free = std::hypot(placed[q].first.x - p.x, placed[q].first.z - p.z) >= 1.0f;
+						if (free) {
+							placed.push_back({p, oi});
+							break;
+						}
+						if (fails++ > 30) {
+							fit = false;
+							break;
+						}
+					}
+				if (!fit) break;
+				++oi;
+			}
+			if (!fit) {
+				++bad;
+				continue;
+			}
+			for (const auto &[p, o] : placed) spawn(p, o);
+			++good;
+		}
+	};
+	auto land_ok = [&](size_t k, float x, float z, float water_d) {
+		return to_water[k] > water_d && forest_clear(k, x, z, 1.0f) && !layout.territory[k] && to_gaia[k] > 1.0f && to_hill[k] > 1.0f;
+	};
+	// Stone: scaleByMapSize(4, 16) groups of 0-2 small stones and a large one (0-4 out), 3 from
+	// water and 10 from other rocks; small stone: scaleByMapSize(2, 8) groups of 2-5 small stones
+	// (1-3 out), 4 from water; metal: scaleByMapSize(4, 16) large metal mines, 4 from water, 10
+	// from other metal and 5 from rocks. Each 1 from forests, hills and the Gaia, off the
+	// territories, retry factor 50.
+	std::vector<Pt> rock, metal, food;
+	auto stone = [&](int small_obj) {
+		return [&, small_obj](Pt p, int o) {
+			sim.spawn_resource_world(p.x, p.z, RES_STONE, o == small_obj ? MINE_SUPPLY : LARGE_MINE_SUPPLY);
+			rock.push_back(p);
+		};
+	};
+	groups((int)std::ceil(scale_f(4.0f, 16.0f, half)), 50, {Obj{0, 2, 0.0f, 4.0f}, Obj{1, 1, 0.0f, 4.0f}},
+		[&](size_t k, float x, float z) { return land_ok(k, x, z, 3.0f) && clear_of(rock, x, z, 10.0f); }, stone(0));
+	groups((int)std::ceil(scale_f(2.0f, 8.0f, half)), 50, {Obj{2, 5, 1.0f, 3.0f}},
+		[&](size_t k, float x, float z) { return land_ok(k, x, z, 4.0f) && clear_of(rock, x, z, 10.0f); }, stone(0));
+	groups((int)std::ceil(scale_f(4.0f, 16.0f, half)), 50, {Obj{1, 1, 0.0f, 4.0f}},
+		[&](size_t k, float x, float z) { return land_ok(k, x, z, 4.0f) && clear_of(metal, x, z, 10.0f) && clear_of(rock, x, z, 5.0f); },
+		[&](Pt p, int) {
+			sim.spawn_resource_world(p.x, p.z, RES_GOLD, LARGE_MINE_SUPPLY);
+			metal.push_back(p);
+		});
+	// Deer: 3 x numPlayers groups of 5-7; boar: 2 x numPlayers groups of 2-4; tigers: 2 x
+	// numPlayers; berry bushes: randIntInclusive(1, 4) x numPlayers groups of 5-7 (all 0-4 out,
+	// retry factor 20). Each 4 from water, off forests and the territories, 1 from the Gaia and
+	// hills, 20 from other food (10 for the bushes); all but the deer 4 from the mines. A
+	// group's own animals join clFood once it stands.
+	auto hunt_ok = [&](float food_d, bool mines) {
+		return [&, food_d, mines](size_t k, float x, float z) {
+			return to_water[k] > 4.0f && forest_clear(k, x, z, 0.5f) && !layout.territory[k] && to_gaia[k] > 1.0f && to_hill[k] > 1.0f &&
+			       clear_of(food, x, z, food_d) && (!mines || (clear_of(rock, x, z, 4.0f) && clear_of(metal, x, z, 4.0f)));
+		};
+	};
+	auto animal = [&](uint8_t ftype) {
+		return [&, ftype](Pt p, int) {
+			sim.spawn_fauna(p.x, p.z, ftype);
+			food.push_back(p);
+		};
+	};
+	groups(3 * np, 20, {Obj{5, 7, 0.0f, 4.0f}}, hunt_ok(20.0f, false), animal(FAUNA_DEER));
+	groups(2 * np, 20, {Obj{2, 4, 0.0f, 4.0f}}, hunt_ok(20.0f, true), animal(FAUNA_BOAR));
+	groups(2 * np, 20, {Obj{1, 1, 0.0f, 4.0f}}, hunt_ok(20.0f, true), animal(FAUNA_TIGER));
+	groups(rng.range_int(1, 4) * np, 20, {Obj{5, 7, 0.0f, 4.0f}}, hunt_ok(10.0f, true), [&](Pt p, int) {
+		sim.spawn_resource_world(p.x, p.z, RES_FOOD, 200); // gaia/fruit/berry_01
+		food.push_back(p);
+	});
+}
+
 namespace {
 // Eases the heights along a route of navcells (cell indices in res x res) wherever it crosses one
 // steeper than land units may (LAND_MAX_TERRAIN_SLOPE): each steep stretch, and as much of the
@@ -9382,6 +10623,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	std::vector<PlayerSpawn> spawns;
 	DanubiusLayout danubius;
 	JebelBarkalLayout jebel_barkal;
+	RiverArchipelagoLayout river_archipelago;
 
 	const auto &minfo = map_type_info(config.map_type);
 	sim.set_map_half(config.map_half);
@@ -9634,8 +10876,20 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 		case MAP_LATIUM:
 			synth_latium(hm, rng, water_h, spawns, config.num_players, config.teams);
 			break;
+		case MAP_LOWER_NUBIA:
+			synth_lower_nubia(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
 		case MAP_UNKNOWN:
 			synth_unknown(hm, rng, water_h, spawns, config.num_players, config.teams, config.landscape);
+			break;
+		case MAP_MIGRATION:
+			synth_migration(hm, rng, water_h, spawns, config.num_players, config.teams, config.team_placement);
+			break;
+		case MAP_NGORONGORO:
+			synth_ngorongoro(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
+		case MAP_RIVER_ARCHIPELAGO:
+			synth_river_archipelago(hm, rng, water_h, spawns, config.num_players, config.teams, river_archipelago);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
@@ -9662,6 +10916,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 	// Distribute neutral resources, groves, and quarries
 	distribute_neutral_resources(sim, hm, water_h, spawns, rng, config);
+	if (config.map_type == MAP_NGORONGORO) place_ngorongoro_entities(sim, hm, spawns, rng, config);
 
 	// Distribute roaming wildlife packs
 	distribute_wildlife(sim, hm, water_h, spawns, rng, config);
@@ -9669,13 +10924,15 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	// Distribute sacred relics
 	distribute_relics(sim, hm, water_h, spawns, rng, config);
 
-	// Fish in open water, for fishing boats (Elephantine places its own, place_elephantine_fish)
-	if (config.map_type != MAP_ELEPHANTINE) distribute_fish(sim, hm, water_h, config);
+	// Fish in open water, for fishing boats (Elephantine places its own, place_elephantine_fish;
+	// lower_nubia.js places none)
+	if (config.map_type != MAP_ELEPHANTINE && config.map_type != MAP_LOWER_NUBIA) distribute_fish(sim, hm, water_h, config);
 
 	// Entities only the trigger maps have (Gaia towers, central mines)
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
 	if (config.map_type == MAP_JEBEL_BARKAL) place_jebel_barkal_entities(sim, hm, water_h, spawns, rng, jebel_barkal);
+	if (config.map_type == MAP_RIVER_ARCHIPELAGO) place_river_archipelago_entities(sim, hm, water_h, spawns, rng, river_archipelago);
 
 	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
 	// under them go (template_gaia_flora's DeleteUponConstruction).
@@ -9745,6 +11002,10 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 			const bool second = hash((int)std::floor(rv.x[r] / 12.0f), (int)std::floor(rv.z[r] / 12.0f), 5) & 1u;
 			kind = (second ? t45 : t12)[h & 1u];
 			wood = (second ? w45 : w12)[h & 1u];
+		} else if (type == MAP_LOWER_NUBIA && own) {
+			// lower_nubia.js's lone trees are its stragglers (acacia, dead tree, bush_badlands), not palms.
+			kind = f->tree3[h % (uint32_t)n3];
+			wood = f->tree3_wood[h % (uint32_t)n3];
 		} else {
 			// createStragglerTrees: [tree1, tree2, tree4, tree3].
 			const uint8_t pick[4] = {t12[0], t12[1], t45[0], t3};
@@ -10124,12 +11385,15 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	auto sbms = [&](float lo, float hi) { return lo + (hi - lo) * std::clamp((size - 128.0f) / (512.0f - 128.0f), 0.0f, 1.0f); };
 	// One createObjectGroups / createFood pass: its group count, fish per group,
 	// stayClasses(clWater, water) margin, avoidClasses(clFood, spacing) and,
-	// for Corsica's shore fish, land within shore tiles.
+	// for Corsica's shore fish, land within shore tiles. `deprecated` passes
+	// (createObjectGroupsDeprecated) make exactly `groups` tries in the map's
+	// circle and keep the ones that fit.
 	struct FishPass {
 		int groups, min_n, max_n;
 		int water;
 		float spacing, spread;
 		int shore;
+		bool deprecated = false;
 	};
 	std::vector<FishPass> passes;
 	const int players = std::max(1, config.num_players);
@@ -10145,6 +11409,11 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			// avoidClasses(clFood, 10).
 			passes.push_back({(int)std::lround(sbms(45.0f, 65.0f)), 1, 1, 4, 10.0f, 1.0f, 0});
 			break;
+		case MAP_RIVER_ARCHIPELAGO:
+			// 0.28 river_archipelago.js: scaleByMapSize(20, 100) groups of 2-3 fish (0-2 apart)
+			// in water 4 tiles from land, avoidClasses(clFood, 15).
+			passes.push_back({(int)std::lround(sbms(20.0f, 100.0f)), 2, 3, 4, 15.0f, 2.0f, 0});
+			break;
 		case MAP_CORSICA:
 			// 0.28 corsica.js: 50 * numPlayers groups of 2-3 fish in water 3 tiles
 			// from land, 8 apart, then 70 * numPlayers shore fish 6 apart. The
@@ -10152,6 +11421,11 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			// within 6 tiles of land for it.
 			passes.push_back({50 * players, 2, 3, 3, 8.0f, 2.0f, 0});
 			passes.push_back({70 * players, 2, 3, 3, 6.0f, 2.0f, 6});
+			break;
+		case MAP_MIGRATION:
+			// 0.28 migration.js: createObjectGroupsDeprecated of 2-3 fish,
+			// scaleByMapSize(500, 700) tries, avoidClasses(clLand, 2, clPlayer, 2, clFood, 10).
+			passes.push_back({(int)std::ceil(sbms(500.0f, 700.0f)), 2, 3, 2, 10.0f, 2.0f, 0, true});
 			break;
 		default:
 			passes.push_back({(int)std::lround(sbms(15.0f, 50.0f)), 2, 3, 2, 20.0f, 2.0f, 0});
@@ -10174,8 +11448,13 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 	std::vector<std::pair<float, float>> placed;
 	for (const FishPass &f : passes) {
 		const size_t first = placed.size();
-		for (int attempt = 0; attempt < f.groups * 40 && (int)(placed.size() - first) < f.groups; ++attempt) {
-			const float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+		for (int attempt = 0; attempt < (f.deprecated ? f.groups : f.groups * 40) && (int)(placed.size() - first) < f.groups; ++attempt) {
+			float x = rng.range_float(-half, half), z = rng.range_float(-half, half);
+			if (f.deprecated) {
+				const auto c = random_in_circle(rng, half);
+				x = c.first;
+				z = c.second;
+			}
 			if (!open_water(x, z, f.water)) continue;
 			if (f.shore > 0 && !near_land(x, z, f.water + f.shore)) continue;
 			bool crowded = false;

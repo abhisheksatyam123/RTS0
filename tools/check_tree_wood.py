@@ -76,6 +76,10 @@ SLOTS = {
                [["medit_fan_palm", "medit_fan_palm"], ["aleppo_pine", "aleppo_pine"],
                 ["poplar_lombardy", "poplar_lombardy"]]),
     "lorraine_plain": ([["euro_beech", "euro_beech"]], ["oak", "euro_beech"], [["oak", "oak"]]),
+    # oPalms by the Nile; the stragglers' acacia, dead and bush_badlands (one bush to two trees).
+    "lower_nubia": ([["date_palm", "palm_tropic"]], ["acacia", "acacia", "dead", "dead", "bush_badlands"],
+                    [["medit_fan_palm", "cretan_date_palm_tall"]]),
+    "ngorongoro": ([["baobab", "baobab"]], ["baobab"], [["baobab", "baobab"]]),
     "northern_lights": ([["pine_w", "pine_w"]], ["pine_w"], [["pine_w", "pine_w"]]),
     "oasis_0ad": ([["cretan_date_palm_short", "cretan_date_palm_tall"]], ["cretan_date_palm_short"],
                   [["cretan_date_palm_tall", "cretan_date_palm_short"]]),
@@ -85,6 +89,7 @@ SLOTS = {
     "polar_sea": ([], [], []),
     "pyrenean_sierra": ([["aleppo_pine", "euro_beech"]], ["aleppo_pine", "euro_beech"], [["aleppo_pine", "euro_beech"]]),
     "rhine_marshlands": ([["euro_beech", "euro_beech"]], ["oak", "euro_beech"], [["oak", "oak"]]),
+    "river_archipelago": ([["toona", "toona"]], ["palm_tropical"], [["palm_tropic", "palm_tropical"]]),
     "saharan_oases": ([["date_palm", "cretan_date_palm_short"]], ["cretan_date_palm_short"],
                       [["cretan_date_palm_short", "date_palm"]]),
     "sahel": ([["baobab", "baobab"]], ["baobab"], [["baobab", "baobab"]]),
