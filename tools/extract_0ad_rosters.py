@@ -1310,9 +1310,7 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     for r in rows:
         s = r["stats"]
         flags = " | ".join(r["flags"]) or "0"
-        trainers = " | ".join("bld_bit(%s)" % b for b in r["trainers"]) or "0"
-        if len(r["trainers"]) > 1:
-            trainers = "(uint64_t)(%s)" % trainers
+        trainers = " | ".join("bld_bit(%s)" % b for b in r["trainers"]) or "BldMask{}"
         a = r["auras"] + [-1, -1, -1]
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
@@ -1340,11 +1338,9 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         civs = " | ".join("civ_bit(%s)" % CIV_ENUM[CIVS.index(c)] for c in b["civs"] if c in CIVS) or "0"
         if len(b["civs"]) > 1:
             civs = "(uint16_t)(%s)" % civs
-        blds = " | ".join("bld_bit(%s)" % x for x in mask) or "0"
-        if len(mask) > 1:
-            blds = "(uint64_t)(%s)" % blds
+        blds = " | ".join("bld_bit(%s)" % x for x in mask) or "BldMask{}"
         w("\t\t{%s, %s, %s, %s, %s, %s}," % (civs, stat, blds, f(mult), cstr(b["id"]), cstr(b["tooltip"])))
-    w("\t\t{0, 0, 0, 1.0f, \"\", \"\"}, // sentinel")
+    w("\t\t{0, 0, {}, 1.0f, \"\", \"\"}, // sentinel")
     w("\t};")
     w("\treturn kBonuses;")
     w("}")
@@ -1362,13 +1358,11 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         for i in t["units"]:
             bits[i // 64] |= 1 << (i % 64)
         bitset = "{" + ", ".join("0x%016xull" % b for b in bits) + "}"
-        blds = " | ".join("bld_bit(%s)" % x for x in t["buildings"]) or "0"
-        if len(t["buildings"]) > 1:
-            blds = "(uint64_t)(%s)" % blds
+        blds = " | ".join("bld_bit(%s)" % x for x in t["buildings"]) or "BldMask{}"
         w("\t\t{%s, %s, %d, %s, %s, %s, %s, %s, %s, %s}," % (
             CIV_ENUM[CIVS.index(t["civ"])], t["stat"], t["res"], "true" if t["allies_only"] else "false",
             blds, f(t["value"]), cstr(t["id"]), cstr(t["name"]), cstr(t["description"]), bitset))
-    w("\t\t{0, 0, -1, false, 0, 1.0f, \"\", \"\", \"\", {}}, // sentinel")
+    w("\t\t{0, 0, -1, false, {}, 1.0f, \"\", \"\", \"\", {}}, // sentinel")
     w("\t};")
     w("\treturn kTeam;")
     w("}")

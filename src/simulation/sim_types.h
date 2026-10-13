@@ -1501,8 +1501,23 @@ inline bool garrison_list_matches(const GarrisonClassList &l, uint64_t classes) 
 
 inline constexpr uint32_t unit_bit(uint8_t type) { return (type < 32) ? (1u << type) : 0u; }
 
-static_assert(BLD_TYPE_COUNT <= 64, "bld_bit() masks are uint64_t");
-inline constexpr uint64_t bld_bit(uint8_t type) { return (type < 64) ? (1ull << type) : 0ull; }
+// A set of BuildingTypes (roster trainers, civ and team bonus targets): 128 bits,
+// as BuildingType outgrew 64 ids. Read-only data; nothing saved uses it.
+struct BldMask {
+	uint64_t w[2] = {};
+	constexpr BldMask operator|(BldMask o) const { BldMask r; r.w[0] = w[0] | o.w[0]; r.w[1] = w[1] | o.w[1]; return r; }
+	constexpr BldMask operator&(BldMask o) const { BldMask r; r.w[0] = w[0] & o.w[0]; r.w[1] = w[1] & o.w[1]; return r; }
+	constexpr BldMask &operator|=(BldMask o) { w[0] |= o.w[0]; w[1] |= o.w[1]; return *this; }
+	constexpr bool operator==(const BldMask &) const = default;
+	constexpr explicit operator bool() const { return (w[0] | w[1]) != 0; }
+	constexpr bool test(uint8_t type) const { return type < 128 && ((w[type >> 6] >> (type & 63)) & 1u); }
+};
+static_assert(BLD_TYPE_COUNT <= 128, "widen BldMask");
+inline constexpr BldMask bld_bit(uint8_t type) {
+	BldMask m;
+	if (type < 128) m.w[type >> 6] = 1ull << (type & 63);
+	return m;
+}
 
 // ---------------------------------------------------------------------------
 // Per-civ unit rosters, generated from 0 A.D.'s templates by
@@ -1581,7 +1596,7 @@ enum CivBonusStat : uint8_t {
 struct CivPlayerBonus {
 	uint16_t civs; // civ_bit() mask
 	uint8_t stat; // CivBonusStat
-	uint64_t buildings; // bld_bit() mask (0 for player-wide stats)
+	BldMask buildings; // bld_bit() mask (empty for player-wide stats)
 	float mult;
 	const char *id;
 	const char *tooltip;
@@ -1604,7 +1619,7 @@ struct CivTeamBonus {
 	uint8_t stat; // TeamBonusStat
 	int8_t res; // ResourceType for cost stats, -1 otherwise
 	bool allies_only; // 0 A.D. ExclusiveMutualAlly: not the owner itself
-	uint64_t buildings; // bld_bit() mask
+	BldMask buildings; // bld_bit() mask
 	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE
 	const char *id;
 	const char *name;
@@ -1620,7 +1635,7 @@ struct CivUnitTemplate {
 	uint8_t unit_type; // RTS0 behaviour class (UnitType)
 	uint8_t phase; // 1 village, 2 town, 3 city
 	uint16_t flags; // CivRosterFlag bits
-	uint64_t trainers; // bld_bit() of each BuildingType that trains it
+	BldMask trainers; // bld_bit() of each BuildingType that trains it
 	float hp;
 	float speed;
 	float attack_range;
