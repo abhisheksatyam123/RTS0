@@ -184,6 +184,7 @@ void RtsoMain::_bind_methods() {
 	bind_enum("BuildingType", "FORTRESS", rtso::BLD_FORTRESS);
 	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
 	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
+	bind_enum("BuildingType", "SIEGE_WALL", rtso::BLD_SIEGE_WALL);
 	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
 	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
 	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
@@ -297,6 +298,7 @@ static uint8_t map_building_type(const String &n) {
 	if (n == "fortress" || n == "palisades_fort" || n == "keep") return rtso::BLD_FORTRESS;
 	if (n == "gate" || n == "wall_gate") return rtso::BLD_GATE;
 	if (n == "palisade_gate" || n == "palisades_gate") return rtso::BLD_PALISADE_GATE;
+	if (n == "siege_wall" || n == "wallset_siege") return rtso::BLD_SIEGE_WALL;
 	if (n == "temple" || n == "tophet" || n == "shrine" || n == "pyramid") return rtso::BLD_TEMPLE;
 	if (n == "wonder") return rtso::BLD_WONDER;
 	if (n == "dock") return rtso::BLD_DOCK;
@@ -2806,7 +2808,7 @@ void RtsoMain::_process(double delta) {
 			const Vector3 drag_curr_pos = get_ground_click_pos(mouse_pos);
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
-			const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
@@ -4202,7 +4204,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 
 				if (build_mode) {
-					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE) {
+					if (current_build_type == rtso::BLD_WALL_SEGMENT || current_build_type == rtso::BLD_PALISADE ||
+							current_build_type == rtso::BLD_SIEGE_WALL) {
 						wall_drag_mode = true;
 						wall_drag_start_pos = get_ground_click_pos(mouse_pos);
 						return;
@@ -4269,7 +4272,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					const uint32_t *builders = order_one ? &one_builder : (const uint32_t *)selected_ids.ptr();
 					const size_t builder_n = order_one ? 1 : (size_t)selected_ids.size();
 					const bool queued = rtso::hotkeys::held("session.queue");
-					const uint8_t wall_kind = current_build_type == rtso::BLD_PALISADE ? rtso::WALLSET_PALISADE : rtso::WALLSET_STONE;
+					const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
 					const bool any = sim && !sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 							drag_end_pos.x, drag_end_pos.z, nullptr, nullptr, wall_kind).empty();
 					if (any) {
