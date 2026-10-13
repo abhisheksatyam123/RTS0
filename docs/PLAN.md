@@ -29,7 +29,7 @@ Verify: `python3 tools/check_parity.py --unit petra` and `--unit netcode`.
 
 ## Game-level work (areas A–F)
 
-The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING_GAPS.md](REMAINING_GAPS.md#read-this-first-whole-game-parity-2026-10-08-evening); gaps no thread owns yet are under [Unowned gaps](REMAINING_GAPS.md#unowned-gaps-2026-10-08-audit)). Each area is being built in its own thread as of 2026-10-08. **A lands first**, because it changes most of `simulation.cpp`; B–F follow in parallel. In `sim_types.h`, D owns the unit and civ enum entries and E owns the building and technology entries.
+The biggest gaps to 0 A.D. are game-level rather than per-system (see [REMAINING_GAPS.md](REMAINING_GAPS.md#read-this-first-whole-game-parity-2026-10-08-evening); the per-subsystem rows and their owners are under [Subsystem gaps](REMAINING_GAPS.md#subsystem-gaps-2026-10-08-audit)). Each area is being built in its own thread as of 2026-10-08. **A lands first**, because it changes most of `simulation.cpp`; B–F follow in parallel. In `sim_types.h`, D owns the unit and civ enum entries and E owns the building and technology entries.
 
 | Area | Goal | Status |
 |---|---|---|
