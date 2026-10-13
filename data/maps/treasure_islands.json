@@ -9423,13 +9423,15 @@
       "id": 1,
       "team": 0,
       "start_x": 77.95,
-      "start_z": -23.52
+      "start_z": -23.52,
+      "civ": 0
     },
     {
       "id": 2,
       "team": 1,
       "start_x": -81.56,
-      "start_z": -91.12
+      "start_z": -91.12,
+      "civ": 0
     }
   ],
   "resources": [
