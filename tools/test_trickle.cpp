@@ -104,7 +104,7 @@ int main() {
 		corral = s.spawn_building_world(10.0f, -6.0f, BLD_CORRAL, 0, 1.0f);
 		for (int k = 0; k < CORRAL_GARRISON_MAX; ++k) corral_animal(s, corral, 10.0f + 0.2f * k, -6.0f, FAUNA_GOAT);
 		const uint32_t herder = s.spawn_unit(0.0f, 0.0f, 0, UNIT_FEMALE_CITIZEN);
-		const uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP);
+		const uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 0);
 		s.order_herd(&herder, 1, sheep);
 		run(s, 30.0f);
 		CHECK(s.corral_count(corral) == CORRAL_GARRISON_MAX);

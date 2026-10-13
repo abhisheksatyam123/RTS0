@@ -214,7 +214,7 @@ class RtsoWorldView : public Node3D {
 	// time a unit of that civ and type shows, so every civ in the match renders
 	// with its own 0 A.D. models. Each clip is a few baked poses cycled in place.
 	static constexpr int CROWD_CLIP_COUNT = 25; // see kCrowdClips in world_view_node.cpp
-	static constexpr int FAUNA_CLIP_COUNT = 4;  // idle, move, attack, death
+	static constexpr int FAUNA_CLIP_COUNT = 6;  // idle, move, attack, death, idle2, death2
 	static constexpr int CROWD_FRAMES_PER_CLIP = 6;
 	struct CrowdPuppet {
 		String clip;
@@ -241,7 +241,7 @@ class RtsoWorldView : public Node3D {
 	Node3D *crowd_bake_root = nullptr;
 	std::vector<uint8_t> crowd_slot_scratch_; // crowd clip slot per unit index this frame
 
-	// wildlife fauna batched (idle / move / attack / death)
+	// wildlife fauna batched (idle / move / attack / death / second idle / second death)
 	MultiMeshInstance3D *fauna_mmi[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};
 	Ref<MultiMesh> fauna_mm[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT];
 	CrowdPuppet fauna_puppet[rtso::FAUNA_COUNT][FAUNA_CLIP_COUNT] = {};

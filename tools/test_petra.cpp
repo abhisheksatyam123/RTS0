@@ -50,6 +50,14 @@ using namespace rtso;
 static int g_failures = 0;
 #define CHECK(cond, what) do { if (!(cond)) { std::fprintf(stderr, "  [FAIL] %s: %s\n", what, #cond); ++g_failures; } } while (0)
 
+// Every defense army's defenders.
+static std::vector<uint32_t> all_defenders(const Simulation &s) {
+	std::vector<uint32_t> out;
+	for (const PetraDefenseArmy &a : s.petra_defense_armies())
+		out.insert(out.end(), a.defender_ids.begin(), a.defender_ids.end());
+	return out;
+}
+
 static int count_units(const Simulation &s, uint8_t team, bool workers_only) {
 	const auto u = s.units();
 	int n = 0;
@@ -1338,7 +1346,7 @@ static void test_mustering_units_defend() {
 	const uint32_t foe = s->spawn_unit(hx + ux * 3.0f, hz + uz * 3.0f, 0, UNIT_SWORDSMAN, 1.0e4f);
 	(void)foe;
 	run_for(*s, 3.0f);
-	const auto &def = s->petra_defense_army_.defender_ids;
+	const auto def = all_defenders(*s);
 	const bool m_def = std::find(def.begin(), def.end(), mustering) != def.end();
 	const bool w_def = std::find(def.begin(), def.end(), marching) != def.end();
 	const bool m_plan = std::find(plan.squad.begin(), plan.squad.end(), mustering) != plan.squad.end();
@@ -1705,7 +1713,7 @@ static void test_worker_mix() {
 		if (g != GATHER_INFANTRY || !s->petra_is_worker(i)) continue;
 		const uint32_t id = s->units_.id[i];
 		const auto &rush = s->petra_attack_plan_.squad;
-		const auto &defenders = s->petra_defense_army_.defender_ids;
+		const auto defenders = all_defenders(*s);
 		// A rush takes workers past the first 8, and the defense any soldier nearby.
 		if (std::find(rush.begin(), rush.end(), id) != rush.end() ||
 		    std::find(defenders.begin(), defenders.end(), id) != defenders.end()) continue;
@@ -1714,7 +1722,7 @@ static void test_worker_mix() {
 	}
 	std::printf("  7 min: %d support, %d worker soldiers at home (%d infantry at start, %d gathering), at most %d houses at once\n",
 	            supports, soldiers, start_soldiers, gathering, max_houses);
-	CHECK(soldiers + (int)s->petra_defense_army_.defender_ids.size() >= 5, "trains citizen infantry as workers");
+	CHECK(soldiers + (int)all_defenders(*s).size() >= 5, "trains citizen infantry as workers");
 	CHECK(gathering * 2 >= soldiers, "most worker soldiers gather");
 	const float support_max = 0.5f * (float)s->petra_target_workers(); // supportRatio is 0.35-0.5 by difficulty
 	CHECK(supports > 10 && (float)supports <= support_max + 5.0f, "support units follow supportRatio");
@@ -1972,7 +1980,7 @@ static void test_defense_by_strength() {
 		const UnitType foe = phase == 0 ? UNIT_FEMALE_CITIZEN : UNIT_ELEPHANT;
 		for (int k = 0; k < 2; ++k) s->spawn_unit(cx + 6.0f + (float)k, cz + 6.0f, 0, foe);
 		run_for(*s, 1.0f);
-		const size_t n = s->petra_defense_army_.defender_ids.size();
+		const size_t n = all_defenders(*s).size();
 		const size_t by_count = (size_t)std::ceil(2.0f * s->petra_config_.defense_ratio_own);
 		if (phase == 0) {
 			std::printf("  defense: 2 enemy women by the civic centre draw %zu defenders\n", n);
@@ -2013,6 +2021,85 @@ static void test_builders_per_foundation() {
 	std::printf("  builders: barracks %d, house %d\n", on(barracks), on(house));
 	CHECK(on(barracks) == 4, "a barracks foundation takes 4 builders");
 	CHECK(on(house) == 3, "a house foundation takes 3 builders");
+}
+
+// defenseManager.js makeIntoArmy / checkEnemyArmies: two groups of foes on opposite sides of
+// the civic centre make two armies, each with its own defenders; armies whose foes come
+// within armyMergeSize of each other merge.
+static void test_defense_armies() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 6), cz + 12.0f + (float)(k / 6), 1, UNIT_SPEARMAN);
+	std::vector<uint32_t> east, west;
+	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
+	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
+	run_for(*s, 1.0f);
+	const auto &armies = s->petra_defense_armies();
+	size_t with_defenders = 0;
+	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
+	std::printf("  defense: two groups 18 units apart make %zu armies, %zu with defenders\n", armies.size(), with_defenders);
+	CHECK(armies.size() == 2 && with_defenders == 2, "one army per group of foes, each defended (makeIntoArmy, assignDefenders)");
+	// The western group joins the eastern one.
+	for (size_t k = 0; k < west.size(); ++k) {
+		const int32_t i = s->lookup_unit(west[k]);
+		if (i < 0) continue;
+		s->units_.pos_x[i] = cx + 10.0f;
+		s->units_.pos_z[i] = cz - 8.0f + (float)k;
+	}
+	run_for(*s, 1.0f);
+	std::printf("  defense: after the groups meet, %zu army\n", armies.size());
+	CHECK(armies.size() == 1, "armies that meet merge (armyMergeSize)");
+}
+
+// defenseManager.js switchToAttack: an army whose foes are gone, with a defender within
+// 120 m of an enemy structure in our territory, attacks that structure alone and ends
+// once it falls (uniqueTargetId).
+static void test_defense_switch_to_attack() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	for (int k = 0; k < 20; ++k) s->spawn_unit(cx - 3.0f + (float)(k % 5), cz + 12.0f + (float)(k / 5), 1, UNIT_SPEARMAN);
+	const uint32_t tower = s->spawn_building_world(cx + 12.0f, cz - 10.0f, BLD_SENTRY_TOWER, 0, 0.2f);
+	for (int k = 0; k < 3; ++k) s->spawn_unit(cx + 10.0f, cz - 7.0f + (float)k, 0, UNIT_SWORDSMAN, 20.0f);
+	const auto unique = [&]() -> const Simulation::AttackPlan * {
+		for (const auto &p : s->petra_started_attacks())
+			if (p.kind == PETRA_ATTACK_UNIQUE) return &p;
+		return nullptr;
+	};
+	const Simulation::AttackPlan *plan = nullptr;
+	for (int t = 0; t < 60 && !plan; ++t) {
+		run_for(*s, 0.5f);
+		plan = unique();
+	}
+	std::printf("  defense: army switched to attack: %s, target %s, %zu units\n", plan ? "yes" : "no",
+	            plan && plan->target_building_id == tower ? "the tower" : "other", plan ? plan->squad.size() : (size_t)0);
+	CHECK(plan && plan->target_building_id == tower && !plan->squad.empty(), "the disbanding army attacks the enemy structure in our land");
+	if (!plan) return;
+	for (auto &b : s->buildings_)
+		if (b.id == tower) s->destroy_building(b);
+	run_for(*s, 2.0f);
+	plan = unique();
+	std::printf("  defense: after the tower falls the plan is %s\n", !plan ? "over" : plan->state == Simulation::AttackPlan::REGROUP ? "going home" : "still attacking");
+	CHECK(!plan || plan->state == Simulation::AttackPlan::REGROUP, "it takes no other target (uniqueTargetId)");
 }
 
 // defenseManager.js isDangerous / checkEvents outside our own land: Petra sends
@@ -2117,7 +2204,7 @@ static void test_retake_civic_centre() {
 		}
 	};
 	for (float t = 0.0f; t < 2.0f; t += Simulation::FIXED_STEP) { hold(); s->tick(Simulation::FIXED_STEP); }
-	const size_t defenders = s->petra_defense_army_.defender_ids.size();
+	const size_t defenders = all_defenders(*s).size();
 	// The enemy takes the Town Center.
 	{
 		auto &b = s->buildings_[s->building_id_to_idx_.at(tc_id)];
@@ -2379,6 +2466,98 @@ static void test_personality_draw() {
 	std::printf("personality: aggressive %.2f / %.2f, defensive AI %.2f\n", a2, a3, d.aggressive);
 }
 
+// headquarters.js trainEmergencyUnits: citizen infantry from the civic centre nearest the
+// threat, garrisoned inside (the centre rallies to itself while they train), and the
+// centre's unstarted items stopped; the rally goes once they are out.
+static void test_emergency_units() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	Simulation::Building *cc = nullptr;
+	for (auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 2000.0f;
+	const uint32_t cc_id = cc->id;
+	// No more than 5 s of training under way there: the started items go, the others stay.
+	for (size_t q = cc->queue.size(); q-- > 0;)
+		if (cc->queue[q].started || cc->queue[q].timer > 0.0f) s->cmd_cancel_train(1, cc_id, q);
+	const size_t before = cc->garrisoned_units.size();
+	const float far_x = cc->x + 60.0f; // 240 m: beyond distcut
+	CHECK(!s->petra_train_emergency_units({{far_x, cc->z}}), "no emergency units for a threat beyond 141 m");
+	const bool queued = s->petra_train_emergency_units({{cc->x + 10.0f, cc->z}});
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	bool infantry = false, unstarted_other = false;
+	for (const auto &o : cc->queue) {
+		const uint64_t cls = unit_tech_classes(o.unit_type);
+		if ((cls & TC_INFANTRY) && (cls & TC_CITIZENSOLDIER)) infantry = true;
+		else if (!o.started && o.timer <= 0.0f) unstarted_other = true;
+	}
+	std::printf("  emergency: queued %s, queue %zu items, rally to itself %s\n", queued ? "yes" : "no", cc->queue.size(),
+	            s->petra_emergency_rally(*cc) ? "yes" : "no");
+	CHECK(queued && infantry, "a citizen infantry unit is queued at the civic centre");
+	CHECK(s->petra_emergency_rally(*cc), "the civic centre rallies to itself (garrisonType protection)");
+	CHECK(!unstarted_other, "its other unstarted items are stopped");
+	// Trained straight into the garrison (garrisonManager lets it out again with no enemy near).
+	size_t most = before;
+	for (float t = 0.0f; t < 120.0f && !s->buildings_[s->building_id_to_idx_.at(cc_id)].queue.empty(); t += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		most = std::max(most, s->buildings_[s->building_id_to_idx_.at(cc_id)].garrisoned_units.size());
+	}
+	most = std::max(most, s->buildings_[s->building_id_to_idx_.at(cc_id)].garrisoned_units.size());
+	run_for(*s, 2.0f);
+	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
+	std::printf("  emergency: garrison %zu -> %zu, rally %s\n", before, most, s->petra_emergency_rally(*cc) ? "kept" : "gone");
+	CHECK(most > before, "the emergency unit is trained into the civic centre's garrison");
+	CHECK(!s->petra_emergency_rally(*cc), "the rally goes once the queue is empty");
+}
+
+// baseManager.js neededDefenders: a civic centre Petra gains from Medium on trains
+// 3 + 2 (difficulty - 3) emergency units into its garrison, one after another.
+static void test_new_cc_defenders() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->set_petra_difficulty(1, PETRA_HARD);
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	for (const auto &b : s->petra_bases()) CHECK(b.needed_defenders == 0, "the first civic centre trains no defenders");
+	const uint32_t tc = s->spawn_building_world(cc->x * 0.1f, cc->z * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
+	CHECK(tc != 0, "a second civic centre is placed");
+	if (!tc) return;
+	auto needed = [&]() -> int {
+		for (const auto &b : s->petra_bases()) if (b.anchor_building_id == tc) return b.needed_defenders;
+		return -1;
+	};
+	// Nothing to pay with until the base is seen, so none is queued yet.
+	for (float t = 0.0f; t < 5.0f && needed() < 0; t += Simulation::FIXED_STEP) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = 0.0f;
+		s->tick(Simulation::FIXED_STEP);
+	}
+	const int start = needed();
+	size_t most = 0;
+	for (float t = 0.0f; t < 150.0f && needed() != 0; t += Simulation::FIXED_STEP) {
+		for (int r = 0; r < RES_COUNT; ++r) s->players_[1].res[r] = std::max(s->players_[1].res[r], 1000.0f);
+		s->tick(Simulation::FIXED_STEP);
+		auto it = s->building_id_to_idx_.find(tc);
+		if (it != s->building_id_to_idx_.end()) most = std::max(most, s->buildings_[it->second].garrisoned_units.size());
+	}
+	std::printf("  new civic centre at Hard (%.0f units from the first): %d defenders wanted, %d left, garrison up to %zu\n", 0.9f * std::hypot(cc->x, cc->z), start, needed(), most);
+	CHECK(start == 5, "a new civic centre at Hard wants 5 defenders (3 + 2 (4 - 3))");
+	CHECK(needed() == 0, "it trains them all");
+	CHECK(most >= 1, "they garrison it");
+}
+
 static void test_food_fields() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2421,6 +2600,86 @@ static void test_food_fields() {
 	CHECK(fields(true) == 1 && fields(false) == 2, "one foundation at a time while food is still in reach");
 }
 
+// headquarters.js buildTemple, buildWonder and saveResources: a temple once a market stands in
+// the city phase (none while saving resources), a wonder every 30th AI turn near the population
+// cap when the stock covers it, no defenses while saving without barter, and a new civic centre ends the saving (handleNewBase).
+static void test_temple_wonder_save() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_pid_ = 1;
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	auto count = [&](uint8_t type) {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == type && b.hp > 0.0f;
+		return n;
+	};
+	auto temples = [&] { return count(BLD_TEMPLE) + count(BLD_TEMPLE_VESTA); };
+	auto fund = [&] {
+		s->set_player_resources(1, 50000, 50000, 50000, 50000);
+		for (auto &a : s->petra_queues_.accounts) a = {50000, 50000, 50000, 50000};
+	};
+	CHECK(s->spawn_building_world(cx + 30.0f, cz, BLD_MARKET, 1, 1.0f) != 0, "a market is placed");
+	CHECK(s->spawn_building_world(cx - 30.0f, cz, BLD_FORGE, 1, 1.0f) != 0, "a forge is placed");
+	s->players_[1].phase = 2;
+	fund();
+	s->petra_attack_mgr_.save_resources = 0;
+	s->petra_timer_ = 1.0f;
+	s->petra_manage_research(0.1f);
+	CHECK(temples() == 0, "no temple in the town phase");
+	s->players_[1].phase = 3;
+	s->petra_attack_mgr_.save_resources = 1;
+	fund();
+	s->petra_manage_research(0.1f);
+	CHECK(temples() == 0, "no temple while saving resources");
+	s->petra_attack_mgr_.save_resources = 0;
+	fund();
+	s->petra_manage_research(0.1f);
+	const int t = temples();
+	fund();
+	s->petra_manage_research(0.1f);
+	CHECK(t == 1 && temples() == 1, "one temple in the city phase");
+
+	s->pop_cap_ = s->pop_current(1); // population at its maximum
+	fund();
+	s->petra_timer_ = 5.0f;
+	s->petra_manage_research(0.1f);
+	CHECK(count(BLD_WONDER) == 0, "no wonder off the 30th AI turn");
+	s->petra_timer_ = 6.05f;
+	s->petra_manage_research(0.1f);
+	const int wonders = count(BLD_WONDER);
+	std::printf("  temple %d, wonder %d at population %d of %d\n", t, wonders, s->pop_current(1), s->pop_max(1));
+	CHECK(wonders == 1, "a wonder on the 30th AI turn near the population cap");
+	s->pop_cap_ = -1;
+
+	s->petra_defense_build_.pending = 0;
+	s->petra_attack_mgr_.save_resources = 1;
+	for (auto &b : s->buildings_) if (b.team == 1 && b.type == BLD_MARKET) b.hp = 0.0f;
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending == 0, "no defenses while saving without barter");
+	s->petra_attack_mgr_.save_resources = 0;
+	s->petra_build_defenses();
+	CHECK(s->petra_defense_build_.pending != 0, "defenses once not saving");
+
+	s->petra_attack_mgr_.save_resources = 1;
+	const uint32_t tc = s->spawn_building_world(cx * 0.1f, cz * 0.1f, BLD_TOWN_CENTER, 1, 1.0f);
+	CHECK(tc != 0, "a second civic centre is placed");
+	bool seen = false;
+	for (float tt = 0.0f; tt < 5.0f && !seen; tt += Simulation::FIXED_STEP) {
+		s->tick(Simulation::FIXED_STEP);
+		for (const auto &b : s->petra_bases()) seen |= b.anchor_building_id == tc;
+	}
+	CHECK(seen && s->petra_attack_mgr_.save_resources == 0, "a new civic centre ends the saving");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -2458,6 +2717,8 @@ int main() {
 	test_decay_garrison_from_attack();
 	test_decay_destroy();
 	test_defense_by_strength();
+	test_defense_armies();
+	test_defense_switch_to_attack();
 	test_builders_per_foundation();
 	test_wonder_guards();
 	test_placement_miss_memory_exact();
@@ -2469,6 +2730,9 @@ int main() {
 	test_build_defenses();
 	test_dropsites();
 	test_food_fields();
+	test_emergency_units();
+	test_new_cc_defenders();
+	test_temple_wonder_save();
 	test_personality_draw();
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;

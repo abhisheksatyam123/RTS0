@@ -42,14 +42,14 @@ static void test_kill_credit() {
 	const PlayerStatistics a = s.statistics(0), b = s.statistics(1);
 	std::printf("  killer total %u worker %u female %u value %u; victim lost %u value %u\n",
 	            a.enemy_units_killed[STAT_UNIT_TOTAL], a.enemy_units_killed[STAT_UNIT_WORKER],
-	            a.enemy_units_killed[STAT_UNIT_FEMALE_CITIZEN], a.enemy_units_killed_value,
+	            a.enemy_units_killed[STAT_UNIT_CIVILIAN], a.enemy_units_killed_value,
 	            b.units_lost[STAT_UNIT_TOTAL], b.units_lost_value);
 	CHECK(a.enemy_units_killed[STAT_UNIT_TOTAL] == 1);
-	CHECK(a.enemy_units_killed[STAT_UNIT_FEMALE_CITIZEN] == 1);
+	CHECK(a.enemy_units_killed[STAT_UNIT_CIVILIAN] == 1);
 	CHECK(a.enemy_units_killed[STAT_UNIT_WORKER] == 1);
 	CHECK(a.enemy_units_killed[STAT_UNIT_INFANTRY] == 0);
 	CHECK(b.units_lost[STAT_UNIT_TOTAL] == 1);
-	CHECK(b.units_lost[STAT_UNIT_FEMALE_CITIZEN] == 1);
+	CHECK(b.units_lost[STAT_UNIT_CIVILIAN] == 1);
 	CHECK(a.enemy_units_killed_value > 0 && a.enemy_units_killed_value == b.units_lost_value);
 	CHECK(a.units_lost[STAT_UNIT_TOTAL] == 0);
 	CHECK(b.enemy_units_killed[STAT_UNIT_TOTAL] == 0);

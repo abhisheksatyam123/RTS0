@@ -8,6 +8,9 @@
   python3 tools/port_0ad_maps.py --github-tutorials [NAME..]  # the tutorials (maps/tutorials/)
   python3 tools/port_0ad_maps.py --terrain-only   # add each ported map's per-tile terrain from GitHub
   python3 tools/port_0ad_maps.py --environment-only   # add each ported map's Environment (sun, fog, water) from GitHub
+  python3 tools/port_0ad_maps.py --player-data-only DIR  # refresh each ported map's PlayerData (civs, starting
+                                                  # resources, locked teams, PopulationLimit) from an unpacked
+                                                  # 0 A.D. public.zip at DIR (maps/ under it)
 
 Maps fetched with --github get their world size from the .pmp (one RTS0 world unit per
 0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
@@ -411,8 +414,47 @@ def extract_environment(root):
     return {k: v for k, v in out.items() if v is not None}
 
 
+class DirSource:
+    """Reads 0 A.D. files from an unpacked public.zip, like ZipFile.read."""
+    def __init__(self, root):
+        self.root = root
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self, rel):
+        with open(os.path.join(self.root, rel), "rb") as f:
+            return f.read()
+
+
+def apply_player_data(players, settings):
+    """ScriptSettings PlayerData: a scenario's fixed civs, starting resources, locked teams and
+    population limits, onto the map's player entries (by id). Its first entry is player 1, or
+    an empty Gaia placeholder in older maps. Returns the PopulationLimit every player shares, if any."""
+    pdata = settings.get("PlayerData", [])
+    offset = 0 if pdata and not isinstance(pdata[0], dict) else 1
+    limits = []
+    for p in players:
+        i = p["id"] - offset
+        pd = pdata[i] if 0 <= i < len(pdata) and isinstance(pdata[i], dict) else {}
+        if pd.get("Civ") in CIV_CODES:
+            p["civ"] = CIV_CODES.index(pd["Civ"])
+        if isinstance(pd.get("Resources"), dict):
+            p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
+        # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
+        if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+            p["team"] = pd["Team"]
+        if isinstance(pd.get("PopulationLimit"), int):
+            p["pop_limit"] = pd["PopulationLimit"]
+        limits.append(pd.get("PopulationLimit"))
+    return limits[0] if limits and isinstance(limits[0], int) and all(l == limits[0] for l in limits) else None
+
+
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
-             terrain_only=False, environment_only=False):
+             terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -425,6 +467,21 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         name = settings.get("Name", map_id.replace("_", " ").title())
         desc = settings.get("Description", "")
         environment = extract_environment(root)
+        if player_data_only:
+            # Keep the existing map; only refresh what its PlayerData sets.
+            out_path = f"data/maps/{map_id}.json"
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            limit = apply_player_data(old["players"], settings)
+            old.pop("pop_limit", None)
+            if limit is not None:
+                old["pop_limit"] = limit
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: player data")
+            return
         if environment_only:
             # Keep the existing map; only add or refresh its Environment.
             out_path = f"data/maps/{map_id}.json"
@@ -518,6 +575,31 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         players = {}
         structures = []
         units = []
+
+        # trigger/trigger_point_<ref> markers (TriggerPoint.js) and their owners, for the
+        # map's TriggerScripts (Simulation::add_trigger_point).
+        trigger_points = []
+        for tpl, ply, rx, rz, uid in raw_entities:
+            if tpl.lower().startswith("trigger/trigger_point_"):
+                trigger_points.append({"ref": tpl[len("trigger/trigger_point_"):], "owner": ply,
+                                       "x": round((rx - center_x) * scale, 2), "z": round((rz - center_z) * scale, 2)})
+        scripts = [os.path.splitext(os.path.basename(t))[0] for t in settings.get("TriggerScripts", [])
+                   if not t.startswith("scripts/")]
+        if triggers_only:
+            # Keep the existing map; only add or refresh its trigger points and scripts.
+            out_path = f"data/maps/{map_id}.json"
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            k = old.get("world_size", world_size_m) / world_size_m
+            old["trigger_points"] = [dict(p, x=round(p["x"] * k, 2), z=round(p["z"] * k, 2)) for p in trigger_points]
+            if scripts:
+                old["trigger_scripts"] = scripts
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: {len(trigger_points)} trigger points, scripts {scripts}")
+            return
 
         pos_by_uid = {uid: (rx, rz) for _, _, rx, rz, uid in raw_entities}
         unit_index = {}  # uid -> index in units
@@ -667,20 +749,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
 
-        # ScriptSettings PlayerData: a scenario's fixed civs and starting resources. Its
-        # first entry is player 1, or an empty Gaia placeholder in older maps.
-        pdata = settings.get("PlayerData", [])
-        offset = 0 if pdata and not isinstance(pdata[0], dict) else 1
-        for pid, p in players.items():
-            i = pid - offset
-            pd = pdata[i] if 0 <= i < len(pdata) and isinstance(pdata[i], dict) else {}
-            if pd.get("Civ") in CIV_CODES:
-                p["civ"] = CIV_CODES.index(pd["Civ"])
-            if isinstance(pd.get("Resources"), dict):
-                p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
-            # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
-            if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
-                p["team"] = pd["Team"]
+        pop_limit = apply_player_data(list(players.values()), settings)
 
         map_data = {
             "id": map_id,
@@ -706,10 +775,12 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "units": units
         }
         # TriggerScripts, by base name; RTS0 runs its C++ port of each (Simulation::register_trigger_script).
-        scripts = [os.path.splitext(os.path.basename(t))[0] for t in settings.get("TriggerScripts", [])
-                   if not t.startswith("scripts/")]
+        if pop_limit is not None:
+            map_data["pop_limit"] = pop_limit
         if scripts:
             map_data["trigger_scripts"] = scripts
+        if trigger_points:
+            map_data["trigger_points"] = trigger_points
 
         os.makedirs("data/maps", exist_ok=True)
         out_path = f"data/maps/{map_id}.json"
@@ -808,7 +879,18 @@ for _civ in ["athenians", "britons", "carthaginians", "gauls", "han", "iberians"
     github_scenarios[f"sandbox_{_civ}"] = (f"sandbox_{_civ}", "mediterranean")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only"):
+    if len(sys.argv) > 2 and sys.argv[1] == "--player-data-only":
+        src = DirSource(sys.argv[2])
+        tables = [(mid, xrel) for mid, xrel, *_ in maps_list]
+        tables += [(mid, f"maps/skirmishes/{name}.xml") for name, (mid, _) in github_skirmishes.items()]
+        tables += [(mid, f"maps/{folder}/{name}.xml") for folder, table in (("scenarios", github_scenarios),
+                   ("tutorials", github_tutorials)) for name, (mid, _) in table.items()]
+        for mid, xrel in sorted(set(tables)):
+            try:
+                port_map(mid, xrel, None, source=src, player_data_only=True)
+            except FileNotFoundError:
+                print(f"  !! {mid}: no {xrel} in 0 A.D.")
+    elif len(sys.argv) > 1 and sys.argv[1] in ("--gaia-only", "--terrain-only", "--environment-only"):
         # Refresh fauna, treasures and ruins (or only the per-tile terrain, or only the
         # Environment) of every ported map from 0 A.D.'s GitHub.
         only = {"--gaia-only": {"gaia_only": True}, "--terrain-only": {"terrain_only": True},
@@ -831,6 +913,13 @@ if __name__ == "__main__":
                              source=GithubSource(), **only)
                 except Exception as e:
                     print(f"  !! {mid}: {e}")
+    elif len(sys.argv) > 2 and sys.argv[1] == "--triggers-only":
+        # --triggers-only <public.zip> [map ids]: refresh the trigger points and scripts of
+        # the listed maps_list maps (all by default) from a 0 A.D. public.zip.
+        for mid, xrel, prel, size, bome, hscale in maps_list:
+            if sys.argv[3:] and mid not in sys.argv[3:]:
+                continue
+            port_map(mid, xrel, prel, size, bome, hscale, source=zipfile.ZipFile(sys.argv[2]), triggers_only=True)
     elif len(sys.argv) > 1 and sys.argv[1] == "--github-scenarios":
         for name in sys.argv[2:] or sorted(github_scenarios):
             mid, bome = github_scenarios.get(name, (name, "mediterranean"))

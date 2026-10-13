@@ -1,0 +1,165 @@
+extends SceneTree
+# Game Setup's map choice as 0 A.D. 0.28 gamesetup shows it (MapType.js,
+# MapFilter.js, gui/maps/MapFilters.js, MapSelection.js) and the settings a
+# scenario fixes (PlayerCiv/PlayerTeam/PlayerColor, PopulationCap,
+# StartingResources, Ceasefire, the map and Last Man Standing checkboxes):
+#   1. the Map Type is Skirmish, Random or Scenario, Skirmish by default, and
+#      the list holds only that type's maps, by name;
+#   2. the Map Filter offers the filters with maps of that type; Default hides
+#      naval, demo and hidden maps;
+#   3. random maps read without "(RMS)", start with a Random entry, and only
+#      they let you pick the player count; Start on Random picks one of them;
+#   4. a scenario sets and locks its civs, teams, starting resources and map
+#      settings, hides the colours; a skirmish frees them again.
+#
+#   godot --headless --path . --fixed-fps 20 -s tools/e2e_setup_map_type.gd
+# Exit code 0 = pass.
+
+# Loaded at run time: the page script names autoloads, which -s scripts compile before.
+var Setup
+
+var failures := 0
+var cfg := RtsoUserConfig.new()
+var saved_persist := ""
+
+func check(cond: bool, what: String) -> void:
+	print("  ok   " if cond else "  FAIL ", what)
+	if not cond:
+		failures += 1
+
+func _initialize() -> void:
+	run.call_deferred()
+
+func frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+func names(page) -> Array:
+	return page._filtered.map(func(m): return str(m["name"]))
+
+func ids(page) -> Array:
+	return page._filtered.map(func(m): return str(m["id"]))
+
+func filter_titles(page) -> Array:
+	return page._filter_names.map(func(n): return Setup.MAP_FILTERS[page._filter_index(n)][1])
+
+func select_map(page, id: String) -> bool:
+	var i: int = ids(page).find(id)
+	if i < 0:
+		return false
+	page.get_node("VBox/HBox/LeftScroll/Left/MapList").select(i)
+	page._on_map_list_selected(i)
+	return true
+
+func set_filter(page, title: String) -> void:
+	page._on_map_filter_selected(filter_titles(page).find(title))
+
+func node(page, path: String):
+	return page.get_node("VBox/HBox/LeftScroll/Left/" + path)
+
+func slot_selects(page) -> Array:
+	# Per row: name label, kind, civ, team, difficulty, behaviour, colour.
+	var out := []
+	var grid: GridContainer = page.get_node("VBox/HBox/Right/SlotsBox/SlotsGrid")
+	var kids := grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
+	for r in range(kids.size() / 7):
+		out.append({"civ": kids[r * 7 + 2].get_child(0), "team": kids[r * 7 + 3].get_child(0), "color": kids[r * 7 + 6]})
+	return out
+
+func run() -> void:
+	Setup = load("res://scenes/menu/gamesetup.gd")
+	saved_persist = cfg.get_value("persistmatchsettings")
+	cfg.set_value("persistmatchsettings", "false")
+	var ms = root.get_node("MatchSettings")
+	ms.map_id = ""
+	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
+	await frames(6)
+	var page = current_scene
+
+	print("1. Map Type")
+	var mt: RtsoSafeSelect = node(page, "MapTypeSlot").get_child(0)
+	check(mt.get_item_count() == 3 and mt.text == "Skirmish" and page._map_type == "skirmish", "Skirmish, Random, Scenario; Skirmish first: " + mt.text)
+	check(mt.tooltip_text.begins_with("Select a map type."), "with 0.28's tooltip")
+	var n := names(page)
+	var sorted := n.duplicate()
+	sorted.sort_custom(func(a, b): return a.naturalnocasecmp_to(b) < 0)
+	check(n.size() > 20 and n == sorted, "%d skirmish maps by name" % n.size())
+	check(page._filtered.all(func(m): return m["type"] == "skirmish"), "only skirmishes")
+	check(ids(page).has("acropolis_bay") and not ids(page).has("arcadia"), "Acropolis Bay is one, the Arcadia scenario isn't")
+
+	print("2. Map Filter")
+	check(filter_titles(page) == ["Default", "Naval Maps", "Trigger Maps", "All Maps"], "a skirmish's filters: " + str(filter_titles(page)))
+	check(not ids(page).has("cycladic_archipelago"), "Default hides naval maps")
+	set_filter(page, "Naval Maps")
+	check(ids(page).has("cycladic_archipelago") and ids(page).has("nile_river") and ids(page).size() == 3, "Naval Maps: " + str(ids(page)))
+	set_filter(page, "Default")
+
+	print("3. Random maps")
+	page._on_map_type_selected(1)
+	await frames(2)
+	n = names(page)
+	check(n.size() > 50 and n[0] == "Random", "Random comes first: " + str(n.slice(0, 3)))
+	check(not n.any(func(s): return s.contains("(RMS)")), "no (RMS) suffix")
+	check(n.has("Mainland") and not n.has("Aegean Sea"), "Default lists Mainland, not the naval Aegean Sea")
+	check(filter_titles(page).has("Best for MP") and filter_titles(page).has("Naval Maps"), "random filters: " + str(filter_titles(page)))
+	var spin: SpinBox = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
+	check(spin.editable, "the player count can be picked")
+	select_map(page, "random_mainland")
+	spin.value = 3
+	await frames(2)
+
+	print("4. Scenario locks")
+	page._on_map_type_selected(2)
+	await frames(2)
+	check(not ids(page).has("sandbox_athenians") and not ids(page).has("the_persian_gates"), "Default hides demo and hidden scenarios")
+	check(select_map(page, "laconia"), "Laconia")
+	await frames(2)
+	check(int(spin.value) == 2 and not spin.editable, "two players, fixed")
+	var rows := slot_selects(page)
+	check(rows.size() == 2 and rows[0]["civ"].text == "Spartans" and rows[1]["civ"].text == "Macedonians", "the map's civs")
+	check(rows.size() == 2 and rows[0]["civ"].disabled and rows[1]["civ"].disabled, "locked")
+	check(rows.size() == 2 and rows[0]["team"].text == "T1" and rows[1]["team"].text == "T2" and rows[0]["team"].disabled, "the map's teams, locked")
+	check(rows.size() == 2 and rows[0]["color"].modulate.a == 0.0, "no colour picker")
+	var res: RtsoSafeSelect = node(page, "ResSlot").get_child(0)
+	var pop: RtsoSafeSelect = node(page, "PopCapSlot").get_child(0)
+	var cf: RtsoSafeSelect = node(page, "CeasefireSlot").get_child(0)
+	check(res.disabled and res.text == "Per Player", "starting resources Per Player: " + res.text)
+	check(pop.disabled and cf.disabled and cf.text == "No ceasefire", "population and ceasefire locked")
+	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/DisableSpies"]:
+		check(node(page, path).disabled, path + " locked")
+	set_filter(page, "All Maps")
+	check(select_map(page, "the_persian_gates"), "All Maps lists The Persian Gates")
+	await frames(2)
+	rows = slot_selects(page)
+	check(rows.map(func(r): return r["team"].text) == ["T1", "T1", "T2", "T2"], "its teams: " + str(rows.map(func(r): return r["team"].text)))
+	check(node(page, "StartRow/LockTeams").button_pressed, "and its locked teams")
+	page._on_start_pressed()
+	check(ms.map_id == "the_persian_gates" and ms.slot_civs == [5, 5, 2, 2] and ms.lock_teams, "Start sends its civs: %s %s" % [ms.map_id, str(ms.slot_civs)])
+	await frames(4)
+
+	print("5. Back to a skirmish")
+	change_scene_to_file("res://scenes/menu/gamesetup.tscn")
+	await frames(6)
+	page = current_scene
+	check(page._map_type == "scenario" and str(page._selected_map().get("id")) == "the_persian_gates", "the last map shows again, with its type and filter")
+	page._on_map_type_selected(0)
+	await frames(2)
+	rows = slot_selects(page)
+	check(rows.size() > 0 and not rows[0]["civ"].disabled and not rows[0]["team"].disabled and rows[0]["color"].modulate.a == 1.0, "civs, teams and colours are free")
+	check(rows.all(func(r): return r["team"].text == "None"), "the scenario's teams are gone")
+	res = node(page, "ResSlot").get_child(0)
+	check(not res.disabled and res.text != "Per Player" and not node(page, "MapVisRow/RevealMap").disabled, "and the match settings")
+	spin = page.get_node("VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots")
+	check(not spin.editable, "a skirmish keeps its player count")
+
+	print("6. Start on Random")
+	page._on_map_type_selected(1)
+	await frames(2)
+	check(str(page._selected_map().get("id")) == "random", "Random is selected first")
+	page._on_start_pressed()
+	check(ms.map_id.begins_with("random_"), "Start picks a random map: " + ms.map_id)
+	await frames(4)
+
+	cfg.set_value("persistmatchsettings", saved_persist)
+	print("FAILURES: ", failures)
+	quit(1 if failures else 0)

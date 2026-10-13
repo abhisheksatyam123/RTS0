@@ -4239,13 +4239,27 @@
       "id": 1,
       "team": 0,
       "start_x": 10.06,
-      "start_z": -84.87
+      "start_z": -84.87,
+      "civ": 12,
+      "resources": {
+        "food": 13000,
+        "metal": 13000,
+        "stone": 13000,
+        "wood": 13000
+      }
     },
     {
       "id": 2,
       "team": 1,
       "start_x": -10.84,
-      "start_z": 89.96
+      "start_z": 89.96,
+      "civ": 11,
+      "resources": {
+        "food": 300,
+        "metal": 300,
+        "stone": 300,
+        "wood": 300
+      }
     }
   ],
   "resources": [
