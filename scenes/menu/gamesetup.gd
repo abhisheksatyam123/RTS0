@@ -166,6 +166,14 @@ const TRIGGER_DIFFICULTIES := [["Very Easy", "Choose this difficulty if you are 
 	["Hard", "Choose this difficulty if you want to be really challenged."],
 	["Very Hard", "Choose this difficulty if you do not mind being swept out."]]
 const TRIGGER_DIFFICULTY_MAPS := ["random_jebel_barkal"]
+# 0 A.D. Daytime (the maps' json settings.Daytime): [name, description] per option;
+# the dropdown adds Random first, which lets the map pick as its script does.
+const DAYTIMES := {
+	"random_danubius": [["Day", "Bright daylight illuminates the scene."],
+		["Night", "Attackers are covered by the darkness of the night."]],
+	"random_polar_sea": [["Dawn", "Scattered sunlight illuminates the scenery in a vivid red tone."],
+		["Daylight", "The scenery is illuminated by direct or indirect sunlight."]],
+}
 
 # 0 A.D. common/settings.js loadMapTypes: [name, title, description]; Skirmish is the default.
 const MAP_TYPES := [["skirmish", "Skirmish", "A map with a predefined landscape and number of players. Freely select the other game settings."],
@@ -547,7 +555,28 @@ func _update_map_options() -> void:
 	var td := id in TRIGGER_DIFFICULTY_MAPS
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.visible = td
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.visible = td
-	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td
+	var dt := DAYTIMES.has(id)
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeLabel.visible = dt
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.visible = dt
+	if dt:
+		_fill_daytimes(id)
+	row.visible = id == "random_flood" or id == "random_extinct_volcano" or tp or ls or td or dt
+
+## The Daytime dropdown for map `id`: Random, then the map's own options.
+func _fill_daytimes(id: String) -> void:
+	var slot := $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot
+	if slot.get_child_count() == 0:
+		return
+	var dsel: RtsoSafeSelect = slot.get_child(0)
+	var keep := maxi(dsel.get_selected(), 0)
+	dsel.clear()
+	dsel.add_item("Random")
+	var tips := PackedStringArray(["Random: Pick one of the daytime options at random."])
+	for d in DAYTIMES[id]:
+		dsel.add_item(d[0])
+		tips.append("%s: %s" % [d[0], d[1]])
+	$VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeLabel.tooltip_text = "Select whether the match starts by day or by night.\n" + "\n".join(tips)
+	dsel.select(clampi(keep, 0, dsel.get_item_count() - 1))
 
 func _selected_map() -> Dictionary:
 	if _filtered.is_empty():
@@ -827,6 +856,9 @@ func _build_options() -> void:
 		dtips.append("%s: %s" % [d[0], d[1]])
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultyLabel.tooltip_text = "Select the difficulty of this scenario.\n" + "\n".join(dtips)
 	tdf.select(2)
+	var dsel := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot)
+	dsel.add_item("Random")
+	dsel.select(0)
 	var res := _make_option($VBox/HBox/LeftScroll/Left/ResSlot)
 	for r in START_RES:
 		res.add_item(r)
@@ -860,7 +892,7 @@ func _on_reroll_seed() -> void:
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
 	"ceasefire_min", "reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "water_level",
-	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_size", "start_res", "biome", "game_speed",
+	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
 const PERSIST_FILE := "user://config/matchsettings.json"
@@ -903,7 +935,7 @@ func page_state() -> Dictionary:
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
 		"team_placement": st["team_placement"], "landscape": st["landscape"],
-		"trigger_difficulty": st["trigger_difficulty"], "map_size": st["map_size"],
+		"trigger_difficulty": st["trigger_difficulty"], "map_daytime": st["map_daytime"], "map_size": st["map_size"],
 		"start_res": st["res"], "biome": st["biome"], "game_speed": st["speed"],
 		"slot_types": rows.map(func(r): return int(r["kind"])), "slot_civs": rows.map(func(r): return int(r["civ"])),
 		"slot_teams": rows.map(func(r): return int(r["team"])), "slot_diffs": rows.map(func(r): return int(r["diff"])),
@@ -968,6 +1000,11 @@ func _apply_settings(ms: Dictionary) -> void:
 			lsc.select(i)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
 	tdf.select(clampi(int(ms.get("trigger_difficulty", 3)) - 1, 0, TRIGGER_DIFFICULTIES.size() - 1))
+	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
+	if dsel.get_item_count() < 3:
+		for i in range(dsel.get_item_count(), 3):
+			dsel.add_item("Option %d" % i)
+	dsel.select(clampi(int(ms.get("map_daytime", 0)), 0, 2))
 	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
 	for i in range(MAP_SIZES.size()):
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
@@ -1030,6 +1067,7 @@ func _collect_setup() -> Dictionary:
 	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
+	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
 	var n := int($VBox/HBox/Right/SlotsBox/SlotCountRow/SpinSlots.value)
 	_ensure_slot_rows(n)
 	var types: Array = []
@@ -1084,6 +1122,7 @@ func _collect_setup() -> Dictionary:
 		"landscape": int(LANDSCAPES[maxi(lsc.get_selected(), 0)][1]),
 		# Maps without trigger difficulties play at the default, Medium.
 		"trigger_difficulty": maxi(tdf.get_selected(), 0) + 1 if str(m.get("id", "")) in TRIGGER_DIFFICULTY_MAPS else 3,
+		"map_daytime": maxi(dsel.get_selected(), 0) if DAYTIMES.has(str(m.get("id", ""))) else 0,
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
 		"biome": maxi(bio.get_selected(), 0),
@@ -1178,6 +1217,7 @@ func _on_start_pressed() -> void:
 	ms.team_placement = int(st["team_placement"])
 	ms.landscape = int(st["landscape"])
 	ms.trigger_difficulty = int(st.get("trigger_difficulty", 3))
+	ms.map_daytime = int(st.get("map_daytime", 0))
 	ms.map_size = int(st["map_size"])
 	ms.ai_difficulty = int(st["diff"])
 	ms.ai_behavior = int(st["beh"])

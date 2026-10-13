@@ -40,6 +40,8 @@ const char *const kSetupKeys[] = {
 	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
 	"player_civ", "ai_civ", "campaign_run", "campaign_level", "lock_teams",
+	// The options that shape the rebuilt map before a save's state is loaded onto it.
+	"biome", "landscape", "team_placement", "water_level", "sea_level_rise_min", "trigger_difficulty", "map_daytime",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
