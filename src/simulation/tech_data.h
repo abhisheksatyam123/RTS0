@@ -142,8 +142,9 @@ enum TechnologyId : uint8_t {
 	TECH_EQUINE_TRANSPORTS = 133, // equine_transports
 	TECH_GROVE_OF_FETTERS = 134, // grove_of_fetters
 	TECH_RESETTLEMENT = 135, // resettlement
-	TECH_WAGON_TRAINS = 136, // wagon_trains
-	TECH_COUNT = 137
+	TECH_CELTIC_AUXILIARIES = 136, // celtic_auxiliaries (hand-added: Loot/<res> of the unit)
+	TECH_WAGON_TRAINS = 137, // wagon_trains
+	TECH_COUNT = 138
 };
 
 // A set of 0 A.D. classes (TechClass bits 0..63 in lo, 64..127 in hi).
@@ -221,9 +222,9 @@ enum TechClass : uint64_t {
 	TC_OUTPOST = 1ull << 50,
 	TC_CIVIC = 1ull << 51,
 	TC_DEFENSIVE = 1ull << 52,
-	TC_VILLAGE = 1ull << 53,
-	TC_TOWN = 1ull << 54,
-	TC_CITY = 1ull << 55,
+	TC_NAVALSIEGE = 1ull << 53,
+	TC_IGNITED = 1ull << 54,
+	TC_SCOUTSHIP = 1ull << 55,
 	TC_DOMESTIC = 1ull << 56,
 	TC_JAVELINEER = 1ull << 57,
 	TC_IMMORTAL = 1ull << 58,
@@ -317,6 +318,10 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_STONETOWER, 0},
 		{TC_FORTRESS, 0},
 		{TC_STRUCTURE, TC_WALL},
+		{TC_MERCENARY | TC_SWORDSMAN, 0},
+		{TC_NAVALSIEGE, 0},
+		{TC_IGNITED, 0},
+		{TC_SCOUTSHIP, 0},
 		{TC_COLONY, 0},
 	};
 	return kAffects;
@@ -513,11 +518,20 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_MIN_RANGE, TOP_SET, 72, 3, 0.0f}, // tower_murderholes
 		{TSTAT_HEALTH, TOP_MUL, 15, 1, 1.5f}, // grove_of_fetters
 		{TSTAT_TERRITORY_DECAY, TOP_MUL, 75, 1, 1e-05f}, // resettlement
-		{TSTAT_POP_BONUS, TOP_ADD, 76, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
+		{TSTAT_COST_METAL, TOP_MUL, 76, 1, 0.5f}, // celtic_auxiliaries
+		{TSTAT_COST_FOOD, TOP_ADD, 76, 1, 50.0f}, // celtic_auxiliaries
+		{TSTAT_UNIT_LOOT_METAL, TOP_MUL, 76, 1, 0.5f}, // celtic_auxiliaries
+		{TSTAT_UNIT_LOOT_FOOD, TOP_ADD, 76, 1, 5.0f}, // celtic_auxiliaries
+		{TSTAT_VISION, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
+		{TSTAT_RANGE, TOP_MUL, 77, 1, 1.2f}, // warship_siege_attack
+		{TSTAT_HEALTH, TOP_MUL, 78, 1, 1.25f}, // warship_fireship_attack
+		{TSTAT_VISION, TOP_MUL, 71, 1, 1.1f}, // ship_vision
+		{TSTAT_VISION, TOP_MUL, 79, 1, 1.25f}, // ship_vision
+		{TSTAT_POP_BONUS, TOP_ADD, 80, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 189;
+constexpr int TECH_EFFECT_COUNT = 198;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -572,7 +586,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Manors", "Houses +20% population bonus.", 0, 300, 0, 300, 40.0f, 3, BLD_HOUSE, TECH_NONE, 0xbfff, 81, 1, "pop_house_02"},
 		{"Roman Roads", "All Land Units +5% movement speed.", 0, 0, 0, 500, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0008, 82, 1, "roman_roads"},
 		{"Reinforced Hull", "Ships +25% health, but −10% speed.", 0, 300, 200, 0, 50.0f, 2, BLD_DOCK, TECH_NONE, 0x01c0, 83, 2, "ship_health"},
-		{"Phoenician Naval Tradition", "Ships +10% movement speed.", 200, 200, 0, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x0014, 85, 1, "ship_movement_speed"},
+		{"Phoenician Naval Tradition", "Ships +10% movement speed.", 200, 200, 0, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x0004, 85, 1, "ship_movement_speed"},
 		{"Advanced Siege", "Siege Engines +25% attack crush damage.", 0, 800, 500, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0xbfff, 86, 2, "siege_attack"},
 		{"Siegecraft", "Siege Engines −20% construction time.", 0, 600, 0, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0xbfff, 88, 1, "siege_cost_time"},
 		{"Armor Plating", "Battering Rams and Siege Towers +25% health.", 0, 0, 600, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0xbfff, 89, 1, "siege_health"},
@@ -601,11 +615,11 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0xbbff, 125, 0, "unlock_civilians_house_generic"},
 		{"Fertility Festival", "Unlock the ability to train Civilians from houses.", 250, 100, 100, 0, 60.0f, 1, BLD_HOUSE, TECH_NONE, 0x0400, 125, 0, "unlock_civilians_house_kush"},
 		{"Naval Oxybeles", "Arrow Ships +10 crush attack damage and +10% attack range.", 0, 200, 200, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0xbfff, 125, 2, "warship_arrow_attack"},
-		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 127, 0, "warship_fireship_attack"},
+		{"Burning Pitch", "Fire Ships +25% health and +25% attack damage.", 0, 300, 100, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x81c0, 194, 1, "warship_fireship_attack"},
 		{"Undergirding Cables", "Arrow Ships and Ramming Ships +20% health.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x003b, 127, 2, "warship_health"},
-		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_WARSHIP_RAMMING_SPEED, 0x183f, 129, 1, "warship_ramming_attack"},
+		{"Bronze Ram", "Ramming Ships +30% attack damage.", 0, 0, 400, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x183f, 129, 1, "warship_ramming_attack"},
 		{"Flaming Projectiles", "Ranged Warships +10% attack damage.", 0, 400, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x0400, 130, 2, "warship_ranged_attack"},
-		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 132, 0, "warship_siege_attack"},
+		{"Naval Ballistae", "Siege Ships +20% attack range and vision range.", 0, 300, 300, 0, 40.0f, 3, BLD_DOCK, TECH_NONE, 0x3818, 192, 2, "warship_siege_attack"},
 		{"Living Conditions", "Structures +1 garrison heal rate.", 500, 0, 250, 0, 40.0f, 2, BLD_TEMPLE, TECH_NONE, 0xbfff, 132, 1, "garrison_heal"},
 		{"The Agoge", "Champion Hoplites +25% health, but +5% training time.", 500, 0, 200, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 133, 2, "agoge"},
 		{"Monumental Architecture", "Civic Structures +20% build time, +20% health, and +20% capture points.", 0, 0, 0, 600, 60.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x0400, 135, 3, "architecture_kush"},
@@ -618,40 +632,40 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Krypteia", "Champion Hoplites +10% melee attack damage, but Citizen Infantry Javelineers +30% training time.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 150, 3, "krypteia"},
 		{"Ostracism", "Citizen soldiers +5% health, but Heroes −40% health.", 300, 0, 300, 0, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 153, 2, "ostracism"},
 		{"Parade of Daphne", "Champions −20% training time.", 500, 0, 300, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x1000, 155, 1, "parade_of_daphne"},
-		{"Marian Reforms", "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.", 1200, 0, 1000, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 156, 0, "roman_reforms"},
-		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 200, 0, 50.0f, 2, BLD_GEROUSIA, TECH_NONE, 0x0002, 156, 1, "tyrtean_paeans"},
+		{"Marian Reforms", "Convert Infantry to Marian Legionaries, and cavalry to Auxiliaries, and citizen spearmen to conscript infantry. Unlock Onagers and Centurions.", 1000, 0, 800, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0008, 156, 0, "roman_reforms"},
+		{"Tyrtean Paeans", "Champion Hoplites +10% movement speed.", 200, 0, 100, 0, 30.0f, 1, BLD_SYSSITON, TECH_NONE, 0x0002, 156, 1, "tyrtean_paeans"},
 		{"Unlock Neodamodes", "Unlock the ability to train Spearman Neodamodes at the Barracks.", 500, 0, 0, 0, 60.0f, 3, BLD_GEROUSIA, TECH_NONE, 0x0002, 157, 0, "unlock_neodamodes"},
 		{"Battlefield Medicine", "Idle Organic units +0.5 health regeneration rate.", 1000, 0, 250, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0xbfff, 157, 1, "health_regen_units"},
 		{"Sun Tzu's \"The Art of War\"", "All Citizen-Soldiers −20% required promotion experience.", 1200, 0, 1200, 0, 50.0f, 3, BLD_FORTRESS, TECH_NONE, 0x2000, 158, 0, "art_of_war"},
 		{"Silver Shields Regiment", "Upgrade Shield Bearer Champion Infantry to Silver Shields, with more health and attack damage.", 0, 0, 600, 0, 60.0f, 3, BLD_FORTRESS, TECH_NONE, 0x0020, 158, 0, "silvershields"},
 		{"Subterranean Aqueducts", "Ice House +1 trickle food rate per second.", 0, 300, 0, 300, 40.0f, 3, BLD_ICE_HOUSE, TECH_NONE, 0x0004, 158, 1, "subterranean_aqueducts"},
-		{"Improved Construction", "All structures −10% build time and −10% cost.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 159, 5, "civil_engineering_01"},
-		{"Robust Architecture", "All structures +20% health.", 0, 300, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 164, 1, "civil_engineering_02"},
-		{"Efficient Bureaucracy", "Ministers −50% train time.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 165, 1, "civil_service_01"},
-		{"Intensive Training", "Ministers +50% health.", 200, 200, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 166, 1, "civil_service_02"},
+		{"Improved Construction", "All structures −10% build time and −10% cost.", 0, 100, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 159, 5, "civil_engineering_01"},
+		{"Robust Architecture", "All structures +20% health.", 0, 100, 0, 300, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 164, 1, "civil_engineering_02"},
+		{"Efficient Bureaucracy", "Ministers −50% train time.", 100, 100, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 165, 1, "civil_service_01"},
+		{"Intensive Training", "Ministers +50% health.", 100, 100, 0, 0, 40.0f, 2, BLD_MINISTRY, TECH_NONE, 0x2000, 166, 1, "civil_service_02"},
 		{"Ahimsa", "Units +100% fruit gather rate, but −80% meat and fish gather.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 167, 3, "gather_ahimsa"},
 		{"Wicker Baskets", "Workers +50% fruit gather rate.", 0, 100, 0, 0, 40.0f, 1, BLD_FARMSTEAD, TECH_NONE, 0x0200, 170, 1, "gather_wicker_baskets_maur"},
 		{"Pharaonic Cult", "Heroes +2 health/second self-regen rate.", 300, 0, 200, 0, 50.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 171, 1, "pharaonic_cult"},
 		{"Serapis Cult", "+2.0 metal trickle per second.", 300, 0, 300, 0, 60.0f, 3, BLD_TEMPLE, TECH_NONE, 0x0800, 172, 1, "serapis_cult"},
 		{"Silk Road", "Traders +20% international trade bonus.", 500, 500, 0, 0, 50.0f, 3, BLD_MARKET, TECH_TRADE_GAIN_02, 0x2000, 173, 1, "silk_road"},
 		{"Commercial Treaty", "Traders +10% trade profit between allies.", 0, 0, 100, 0, 40.0f, 2, BLD_MARKET, TECH_NONE, 0xbfff, 174, 1, "trade_commercial_treaty"},
-		{"Flanking Maneuvers", "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”", 300, 0, 200, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x183f, 175, 1, "warship_ramming_speed"},
+		{"Flanking Maneuvers", "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”", 300, 0, 200, 0, 40.0f, 2, BLD_DOCK, TECH_NONE, 0x0000, 175, 1, "warship_ramming_speed"},
 		{"Arsenal of Philon", "Warships +1 health/second self-repair rate.", 0, 300, 0, 300, 40.0f, 3, BLD_DOCK, TECH_DOCK_EFFICIENCY, 0x0001, 176, 1, "arsenal_philon"},
-		{"Espionage", "Allows bribing the units of other players in order to share their vision.", 500, 0, 500, 0, 60.0f, 3, BLD_MARKET, TECH_NONE, 0xbfff, 177, 0, "unlock_spies"},
-		{"Counterintelligence", "Make your units 50% more expensive to bribe.", 400, 0, 400, 0, 60.0f, 3, BLD_MARKET, TECH_UNLOCK_SPIES, 0xbfff, 177, 0, "spy_counter"},
+		{"Espionage", "Allows bribing the units of other players in order to share their vision.", 500, 0, 500, 0, 60.0f, 3, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 177, 0, "unlock_spies"},
+		{"Counterintelligence", "Make your units 50% more expensive to bribe.", 400, 0, 400, 0, 60.0f, 3, BLD_TOWN_CENTER, TECH_UNLOCK_SPIES, 0xbfff, 177, 0, "spy_counter"},
 		{"Conscription", "Decreases batch training time of units trained in Barracks.", 500, 0, 0, 0, 40.0f, 3, BLD_BARRACKS, TECH_NONE, 0xbffb, 177, 1, "barracks_batch_training"},
 		{"Conscription", "Decrease batch training time of units trained in Stables.", 500, 0, 0, 0, 40.0f, 3, BLD_STABLE, TECH_NONE, 0xbffb, 178, 1, "stable_batch_training"},
 		{"Archery Training", "Archers −20% ranged attack spread.", 300, 0, 100, 0, 40.0f, 2, BLD_FORGE, TECH_NONE, 0x3e35, 179, 1, "archer_attack_spread"},
-		{"Bolt Accuracy", "Bolt Shooters −20% ranged attack spread.", 0, 250, 250, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x283b, 180, 1, "siege_bolt_accuracy"},
+		{"Bolt Accuracy", "Bolt Shooters −20% ranged attack spread.", 0, 250, 250, 0, 40.0f, 3, BLD_ARSENAL, TECH_NONE, 0x083b, 180, 1, "siege_bolt_accuracy"},
 		{"Exploration", "Traders and Ships +20% vision range.", 100, 0, 100, 0, 40.0f, 1, BLD_DOCK, TECH_SHIP_VISION, 0x2010, 181, 1, "exploration"},
 		{"Carrier Pigeons", "Outposts +33% vision range.", 300, 0, 0, 0, 40.0f, 1, BLD_OUTPOST, TECH_NONE, 0xbfff, 182, 1, "outpost_vision"},
-		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 183, 1, "ship_vision"},
+		{"Lookouts", "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.", 60, 0, 60, 0, 40.0f, 1, BLD_DOCK, TECH_NONE, 0xbfff, 195, 2, "ship_vision"},
 		{"Crenellations", "Sentry and Stone Towers +40% more arrows per garrisoned Soldier.", 0, 0, 250, 500, 40.0f, 2, BLD_TOWER, TECH_NONE, 0xbfff, 184, 1, "tower_crenellations"},
 		{"Murder Holes", "Fortresses, Sentry Towers, and Stone Towers have 0 minimum attack range.", 0, 250, 0, 150, 40.0f, 3, BLD_TOWER, TECH_NONE, 0xbfff, 185, 1, "tower_murderholes"},
 		{"Cartography", "See what your allies see, browse their summary and check their resources and population count in the top panel.", 100, 0, 100, 0, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 186, 0, "unlock_shared_los"},
 		// Hand-added from technologies/unlock_shared_dropsites.json: its only modification,
 		// Player/sharedDropsites, has no TechStat; Simulation::dropsite_usable_by reads the tech.
-		{"Diaspora", "Allows using allied dropsites.", 200, 200, 100, 100, 40.0f, 1, BLD_TOWN_CENTER, TECH_NONE, 0xbfff, 174, 0, "unlock_shared_dropsites"},
+		{"Diaspora", "Allows using allied dropsites.", 300, 200, 300, 100, 50.0f, 1, BLD_MARKET, TECH_NONE, 0xbfff, 174, 0, "unlock_shared_dropsites"},
 		{"Reform Army", "Unlock the Champion Infantry Swordsman.", 0, 0, 0, 0, 0.0f, 3, BLD_BARRACKS, TECH_NONE, 0x1000, 186, 0, "reformed_army_sele"},
 		{"Traditional Army", "Unlock the Champion Infantry Pikeman.", 0, 0, 0, 0, 0.0f, 3, BLD_BARRACKS, TECH_NONE, 0x1000, 186, 0, "traditional_army_sele"},
 		{"Glorious Expansion", "Enable the “Glorious Expansion” aura: +20% maximum population limit per Wonder owned.", 2000, 3000, 500, 500, 120.0f, 3, BLD_WONDER, TECH_NONE, 0xbfff, 186, 0, "wonder_population_cap"},
@@ -660,7 +674,8 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		// The Human Sacrifice aura it names (germ_seer_1_buff) requires a "healer_aura" tech 0.28 lacks: no effect there either.
 		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 186, 1, "grove_of_fetters"},
 		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 187, 1, "resettlement"},
-		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 188, 1, "wagon_trains"},
+		{"Celtic Auxiliaries", "Mercenaries −50% metal cost but +50 food cost.", 0, 0, 550, 0, 45.0f, 3, BLD_EMBASSY, TECH_NONE, 0x0010, 188, 4, "celtic_auxiliaries"},
+		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 197, 1, "wagon_trains"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];

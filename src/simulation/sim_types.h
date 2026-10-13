@@ -175,7 +175,9 @@ enum MapType : uint8_t {
 	MAP_MIGRATION = 85,
 	MAP_NGORONGORO = 86,
 	MAP_RIVER_ARCHIPELAGO = 87,
-	MAP_TYPE_COUNT = 88
+	MAP_LAND_GRAB = 88,
+	MAP_THE_NILE = 89,
+	MAP_TYPE_COUNT = 90
 };
 
 // 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js): the
@@ -187,7 +189,8 @@ enum TeamPlacement : uint8_t {
 	TEAM_PLACEMENT_LINE = 2,
 	TEAM_PLACEMENT_RANDOM_GROUP = 3,
 	TEAM_PLACEMENT_STRONGHOLD = 4,
-	TEAM_PLACEMENT_COUNT = 5
+	TEAM_PLACEMENT_RIVER = 5,        // players on two parallel lines across the map
+	TEAM_PLACEMENT_COUNT = 6
 };
 
 struct MapTypeInfo {
@@ -199,9 +202,27 @@ struct MapTypeInfo {
 	const char *description;
 };
 
-// The maps that offer Team Placement: 0 A.D.'s Ambush and Frontier list
-// ["radial", "line", "randomGroup", "stronghold"].
-inline bool map_has_team_placement(uint8_t type) { return type == MAP_AMBUSH || type == MAP_FRONTIER; }
+// The Team Placement patterns a random map offers: a bit (1 << TEAM_PLACEMENT_*)
+// per pattern its 0.28 JSON lists in PlayerPlacements (circle, river,
+// groupedLines, randomGroup, stronghold); 0 for maps without the setting.
+inline uint8_t map_team_placements(uint8_t type) {
+	constexpr uint8_t C = 1 << TEAM_PLACEMENT_RADIAL, R = 1 << TEAM_PLACEMENT_RIVER, L = 1 << TEAM_PLACEMENT_LINE,
+	                  G = 1 << TEAM_PLACEMENT_RANDOM_GROUP, S = 1 << TEAM_PLACEMENT_STRONGHOLD;
+	switch (type) {
+		case MAP_AFRICAN_PLAINS: case MAP_ALPINE_LAKES: case MAP_AMBUSH: case MAP_ANATOLIAN_PLATEAU: case MAP_ARCHIPELAGO_0AD:
+		case MAP_ARCTIC_SUMMER: case MAP_ATLAS_MOUNTAINS: case MAP_BOTSWANAN_HAVEN: case MAP_FRONTIER: case MAP_MAINLAND:
+		case MAP_RHINE_MARSHLANDS: case MAP_SAHEL:
+			return C | R | L | G | S;
+		case MAP_ARDENNES_FOREST: return C | R | L | G;
+		case MAP_CANTABRIAN_HIGHLANDS: return C | S;
+		case MAP_EXTINCT_VOLCANO: return C | R | G;
+		case MAP_INDIA: case MAP_PERSIAN_HIGHLANDS: case MAP_VOLCANIC_LANDS: return C | R | S;
+		case MAP_LAKE: case MAP_NEARESTERN_BADLANDS: return C | R;
+		case MAP_SYRIA: return C | R | G | S;
+		default: return 0;
+	}
+}
+inline bool map_has_team_placement(uint8_t type) { return map_team_placements(type) != 0; }
 
 inline const MapTypeInfo &map_type_info(uint8_t type) {
 	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {
@@ -292,7 +313,9 @@ inline const MapTypeInfo &map_type_info(uint8_t type) {
 		{MAP_LOWER_NUBIA, "lower_nubia", "Lower Nubia (RMS)", "savanna", true, "Known in the Greco-Roman world as the Triakontaschoinos, Lower Nubia was the area between the first and second cataracts of the Nile and formed the traditional border region between Kush and Egypt. The scorching desert, steep valleys and towering cliffs of the area make this an inhospitable place to live, but the control of this ancient corridor was vital for any power seeking to control the lucrative trade routes on the Nile and affords access to the rich goldfields of the Nubian desert."},
 		{MAP_MIGRATION, "migration", "Migration (RMS)", "temperate", true, "Players start on islands towards the outside of the map and must move to take advantage of the middle island before their resources run out."},
 		{MAP_NGORONGORO, "ngorongoro", "Ngorongoro (RMS)", "savanna", true, "Ngorongoro Crater is the world's largest intact volcanic caldera and is one of the Seven Natural Wonders of Africa. Due to it's climate, biodiversity and history, Ngorongoro is believed by some to be Africa's Garden of Eden and the birthplace of mankind."},
-		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."}
+		{MAP_RIVER_ARCHIPELAGO, "river_archipelago", "River Archipelago (RMS)", "india", true, "Narrow strips of lands are separated by waterways, leaving few and shallow landbridges between them. Tropical wetlands provide plenty of game, but beware of Mauryan tribesmen when exploring the outermost islands."},
+		{MAP_LAND_GRAB, "land_grab", "Land Grab (RMS)", "temperate", true, "Players start in small islands in the eastern part of the map. There is a big continent in the west ready for expansion."},
+		{MAP_THE_NILE, "the_nile", "The Nile (RMS)", "desert", true, "A calm wide river, representing the Nile River in Egypt, divides the map into western and eastern parts."}
 	};
 	if (type >= MAP_TYPE_COUNT) return kTable[MAP_RANDOM_CONTINENTAL];
 	return kTable[type];
@@ -313,6 +336,7 @@ inline bool map_is_naval(int type) {
 		case MAP_ELEPHANTINE: case MAP_ISLAND_STRONGHOLD: case MAP_UNKNOWN: case MAP_DANUBIUS:
 		case MAP_MIGRATION:
 		case MAP_RIVER_ARCHIPELAGO:
+		case MAP_LAND_GRAB: case MAP_THE_NILE:
 			return true;
 		default:
 			return false;
@@ -1113,11 +1137,11 @@ inline bool civ_has_big_house(uint8_t civ) {
 // simulation/templates: brit/{civil_centre,house,defense_tower,fortress,wonder}.xml,
 // iber/{defense_tower,wall_tower}.xml, maur/wonder.xml, every civ's theater
 // (template_structure_special_theater.xml) and athen/prytaneion, spart/gerousia, gaul/assembly,
-// ptol/lighthouse, rome/temple_vesta and pers/ice_house.
+// ptol/lighthouse, rome/temple_vesta, pers/ice_house and brit/crannog.
 inline bool building_footprint_round(uint8_t civ, uint8_t type) {
 	switch (type) {
 		case BLD_THEATER: case BLD_PRYTANEION: case BLD_GEROUSIA: case BLD_ASSEMBLY:
-		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE:
+		case BLD_LIGHTHOUSE: case BLD_TEMPLE_VESTA: case BLD_ICE_HOUSE: case BLD_CRANNOG:
 			return true;
 		case BLD_TOWN_CENTER: case BLD_HOUSE: case BLD_FORTRESS:
 			return civ == CIV_BRITONS;
@@ -1401,6 +1425,7 @@ enum TechStat : uint8_t {
 	TSTAT_MIN_RANGE,       // Attack/Ranged/MinRange of structures
 	TSTAT_GARRISON_REGEN,  // Capturable/GarrisonRegenRate
 	TSTAT_TERRITORY_DECAY, // TerritoryDecay/DecayRate (Migratory Resettlement)
+	TSTAT_UNIT_LOOT_FOOD, TSTAT_UNIT_LOOT_WOOD, TSTAT_UNIT_LOOT_STONE, TSTAT_UNIT_LOOT_METAL, // Loot/<res> of the unit itself
 	TSTAT_COUNT
 };
 
@@ -1451,6 +1476,52 @@ struct TechSet {
 
 inline bool tech_available_to_civ(uint8_t tech_id, uint8_t civ) {
 	return civ < 16 && (tech_info(tech_id).civ_mask >> civ) & 1u;
+}
+
+// Can a building of this type research the tech for a player of this civ? Its research
+// base's list, with 0.28's per-structure Researcher changes ("-" drops a token):
+//  - the crannog drops phase_town and hellenistic_metropolis, the Han Imperial Court
+//    phase_town, and the military colony (template_structure_civic_civil_centre_military_colony)
+//    both phases and hellenistic_metropolis;
+//  - Han: the Civic Center (and court) drop unlock_spies and spy_counter, which the
+//    ministry researches; the forge drops archer_attack_spread, which the barracks and
+//    stable research;
+//  - the Mauryan palace researches unlock_spies and spy_counter too;
+//  - Carthage: the dock drops warship_health, and the super dock (cart/super_dock) researches
+//    it and eight other dock techs.
+inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ) {
+	const uint8_t r = tech_info(tech_id).researcher;
+	const bool spies = tech_id == TECH_UNLOCK_SPIES || tech_id == TECH_SPY_COUNTER;
+	if (civ == CIV_HAN) {
+		if (spies) return type == BLD_MINISTRY;
+		if (tech_id == TECH_ARCHER_ATTACK_SPREAD) return type == BLD_BARRACKS || type == BLD_STABLE;
+	}
+	if (spies && type == BLD_PALACE) return true;
+	if (civ == CIV_CARTHAGINIANS) {
+		if (type == BLD_DOCK && tech_id == TECH_WARSHIP_HEALTH) return false;
+		if (type == BLD_SUPER_DOCK) {
+			switch (tech_id) {
+			case TECH_DOCK_EFFICIENCY: case TECH_SHIP_VISION: case TECH_EXPLORATION:
+			case TECH_WARSHIP_ARROW_ATTACK: case TECH_WARSHIP_RAMMING_ATTACK: case TECH_WARSHIP_FIRESHIP_ATTACK:
+			case TECH_WARSHIP_SIEGE_ATTACK: case TECH_WARSHIP_RANGED_ATTACK: case TECH_WARSHIP_HEALTH: return true;
+			default: break;
+			}
+		}
+	}
+	switch (type) {
+	case BLD_CRANNOG:
+		return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN && tech_id != TECH_HELLENISTIC_METROPOLIS;
+	case BLD_IMPERIAL_COURT: return r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN;
+	case BLD_MILITARY_COLONY:
+		return r == BLD_MILITARY_COLONY || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
+		                                    && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	// germ/encampment shares the military colony's parent template and adds wagon_trains; its
+	// fortified Upgrade keeps the list.
+	case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED:
+		return r == BLD_WAGON_ENCAMPMENT || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
+		                                     && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	default: return r == building_research_base(type);
+	}
 }
 
 // Does an entity with these TechClass bits match effect `e`'s affects list?
@@ -1545,9 +1616,7 @@ inline bool siege_garrison_allowed(uint8_t unit_type) {
 }
 
 inline TechClasses building_tech_classes(uint8_t type) {
-	TechClasses c = TC_STRUCTURE;
-	uint8_t phase = building_required_phase(type);
-	c |= phase == 1 ? TC_VILLAGE : phase == 2 ? TC_TOWN : TC_CITY;
+	const TechClasses c = TC_STRUCTURE; // 0 A.D.'s Village/Town/City classes: no technology tests them
 	switch (type) {
 		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: return c | TC_CIVCENTRE | TC_CIVIC;
 		case BLD_HOUSE: case BLD_APARTMENT: return c | TC_HOUSE | TC_CIVIC;
