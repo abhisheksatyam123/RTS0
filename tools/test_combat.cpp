@@ -96,7 +96,7 @@ static void test_data() {
 	check(std::fabs(combat_bonus(spear, sword, CIV_ATHENIANS) - 1.0f) < 1e-4f, "spearman x1 against infantry");
 	check(std::fabs(combat_bonus(sword, cav, CIV_ATHENIANS) - 1.0f) < 1e-4f, "swordsman has no bonus");
 	const CombatProfile &cc = building_combat(BLD_TOWN_CENTER);
-	check(cc.hack_armor == 25.0f && cc.pierce_armor == 35.0f && cc.crush_armor == 3.0f, "civic centre armour 25/35/3");
+	check(cc.hack_armor == 29.0f && cc.pierce_armor == 35.0f && cc.crush_armor == 3.0f, "civic centre armour 29/35/3 (0.28)");
 	const CombatProfile &unknown = building_combat(BLD_TYPE_COUNT + 9);
 	check(unknown.classes.has(CC_STRUCTURE), "a type past the table is a generic structure");
 	const CombatProfile &ram = unit_combat(CIV_UNIT_TEMPLATE_NONE, UNIT_SIEGE_RAM);
@@ -177,8 +177,9 @@ static void test_structure_armour() {
 	const auto &ia = s.unit_info_at(i);
 	const CombatProfile &bc = building_combat(BLD_BARRACKS);
 	const float scale = ia.attack_damage > 0 ? s.units_.attack_damage[i] / ia.attack_damage : 1.0f;
-	const float want = std::max(1.0f, scale * (ia.hack_damage * powf(0.9f, bc.hack_armor) +
-			ia.pierce_damage * powf(0.9f, bc.pierce_armor) + ia.crush_damage * powf(0.9f, bc.crush_armor)));
+	// GetTotalAttackEffects: no minimum of 1 (#276).
+	const float want = scale * (ia.hack_damage * powf(0.9f, bc.hack_armor) +
+			ia.pierce_damage * powf(0.9f, bc.pierce_armor) + ia.crush_damage * powf(0.9f, bc.crush_armor));
 	const float got = bhp - building(s, bar)->hp;
 	std::printf("      swordsman on barracks: %.3f (want %.3f, armour %.0f/%.0f/%.0f)\n", got, want,
 			bc.hack_armor, bc.pierce_armor, bc.crush_armor);

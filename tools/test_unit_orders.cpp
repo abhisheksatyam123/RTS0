@@ -238,7 +238,8 @@ static void test_attack_move() {
 	check(killed, "kills the enemy on the way");
 	const bool hit = run_until(s, 20.0f, [&] { const Simulation::Building *b = bld(s, house); return !b || b->hp < house_hp; });
 	check(hit, "then attacks the enemy structure on the way");
-	const bool razed = run_until(s, 200.0f, [&] { const Simulation::Building *b = bld(s, house); return !b || b->wrecked; });
+	// Three swordsmen need more than 200 s on a house at 0.28's hack 24.
+	const bool razed = run_until(s, 400.0f, [&] { const Simulation::Building *b = bld(s, house); return !b || b->wrecked; });
 	check(razed, "destroys it");
 	const bool on = run_until(s, 30.0f, [&] { return dist(s, a[0], 30, 0) < 4.0f; });
 	check(on, "and carries on to its point");
