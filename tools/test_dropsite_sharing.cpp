@@ -1,6 +1,6 @@
 // 0 A.D. allied dropsites (ResourceDropsite.js IsShared, Player sharedDropsites from the
 // Diaspora tech unlock_shared_dropsites.json): a gatherer drops at an ally's dropsite only when
-// her player has researched Diaspora (3 Traders needed), the owner shares it (the default), and
+// her player has researched Diaspora (at a Market, as in 0.28), the owner shares it (the default), and
 // the two are allies; the owner can stop sharing, and the setting survives save/load. Mobile
 // dropsites follow the same rule: an ally's supply wagon (Sharable) takes her load, an ally's
 // worker elephant (not Sharable) never does.
@@ -43,17 +43,18 @@ int main() {
 	s.units_.res_type_carried[w] = RES_WOOD;
 	s.units_.carry[w] = 10;
 
-	// 1. Without Diaspora an ally's storehouse is not hers; Diaspora needs 3 Traders.
+	// 1. Without Diaspora an ally's storehouse is not hers. 0.28 researches Diaspora at
+	// the Market (template_structure_economic_market Researcher), with no other requirement.
 	CHECK(!s.can_return_resource(woman, ally_store));
-	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, cc) == Simulation::TECH_ERR_STRUCTURES);
-	for (int k = 0; k < 3; ++k) s.spawn_unit(-30.0f, 4.0f * k, 0, UNIT_TRADER);
-	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, cc) == Simulation::TECH_OK);
+	const uint32_t market = s.spawn_building_world(-40.0f, 16.0f, BLD_MARKET, 0, 1.0f);
+	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, cc) == Simulation::TECH_ERR_BUILDING);
+	CHECK(s.research_check(0, TECH_UNLOCK_SHARED_DROPSITES, market) == Simulation::TECH_OK);
 	// Only the owner of shared dropsites gets the toggle.
 	CHECK(!s.cmd_set_dropsite_sharing(1, ally_store, false));
 
 	// 2. With Diaspora: the ally's storehouse takes her wood, the enemy's doesn't.
-	CHECK(s.cmd_research(0, cc, TECH_UNLOCK_SHARED_DROPSITES));
-	run(s, 45.0f);
+	CHECK(s.cmd_research(0, market, TECH_UNLOCK_SHARED_DROPSITES));
+	run(s, 55.0f); // researchTime 50
 	CHECK(s.player(0).has_tech(TECH_UNLOCK_SHARED_DROPSITES));
 	// (An idle woman with a load takes it home meanwhile: give her another.)
 	s.units_.res_type_carried[w] = RES_WOOD;

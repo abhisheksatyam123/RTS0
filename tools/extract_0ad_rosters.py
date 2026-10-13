@@ -1013,10 +1013,10 @@ def aura_modifications(a):
 
 
 RENUMBER = False  # --renumber: lay rows out afresh (changes saved template ids)
-# --keep-trainers: refresh stats only. Every row civ_roster_data.h has keeps its
-# trainers and phase (also rows the release no longer trains, read from
-# --previous-0ad when the release dropped the template) and new rows are left
-# out, so a release's stat changes land without touching what saves store.
+# --keep-trainers: every row civ_roster_data.h has keeps its id (also rows the release
+# dropped, read from --previous-0ad with their old trainers and phase) and new rows are
+# left out unless --append names them, so a release's changes land without moving the
+# template ids saves store. Rows the release has take its stats, trainers and phase.
 KEEP_TRAINERS = False
 PREVIOUS_SIM_ROOT = None
 # Building types added after the kept layout, with their structures/{civ}/ template and the
@@ -1262,14 +1262,9 @@ def collect(sim_root):
             rid = name.split("units/", 1)[-1]
             phase = max(phase_of(t), trainers[name]["phase"] if trainers[name]["phase"] < 9 else 1)
             blds = sorted(trainers[name]["buildings"], key=BUILDING_BITS.index)
-            if KEEP_TRAINERS and rid in prev_layout:
-                kept = list(prev_layout[rid][0])
-                for b, (tmpl, base) in KEEP_TRAINERS_NEW_BUILDINGS.items():
-                    if b not in kept and (b in blds or (base in kept and
-                                                        loader.exists("structures/%s/%s" % (civ, tmpl)))):
-                        kept.append(b)
-                blds = kept
-                blds, phase = sorted(blds, key=BUILDING_BITS.index), prev_layout[rid][1]
+            # --keep-trainers keeps a row's id; its trainers and phase are the release's while the
+            # release has its template (0.28 trains Spartan heroes at the Gerousia, the Legionary
+            # only by promotion). Saves store template ids, never trainers.
             if KEEP_TRAINERS and any(fnmatch.fnmatchcase(rid, pat) for pat in RETIRE_ROWS):
                 blds = []
             rows.append({

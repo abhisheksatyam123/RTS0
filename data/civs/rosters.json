@@ -2527,7 +2527,7 @@
    "specific_name": "Agis",
    "phase": 3,
    "trainers": [
-    "BLD_SYSSITON"
+    "BLD_GEROUSIA"
    ],
    "trained_at_0ad": [
     "gerousia"
@@ -2582,7 +2582,7 @@
    "specific_name": "Brasidas",
    "phase": 3,
    "trainers": [
-    "BLD_SYSSITON"
+    "BLD_GEROUSIA"
    ],
    "trained_at_0ad": [
     "gerousia"
@@ -2636,7 +2636,7 @@
    "specific_name": "Leōnidēs",
    "phase": 3,
    "trainers": [
-    "BLD_SYSSITON"
+    "BLD_GEROUSIA"
    ],
    "trained_at_0ad": [
     "gerousia"
@@ -5426,11 +5426,7 @@
    "name": "Marian Legionary",
    "specific_name": "Legiōnārius",
    "phase": 3,
-   "trainers": [
-    "BLD_TOWN_CENTER",
-    "BLD_BARRACKS",
-    "BLD_ARMY_CAMP"
-   ],
+   "trainers": [],
    "trained_at_0ad": [],
    "flags": [
     "ROSTER_CITIZEN"
@@ -6047,7 +6043,8 @@
    "specific_name": "Onager",
    "phase": 3,
    "trainers": [
-    "BLD_ARSENAL"
+    "BLD_ARSENAL",
+    "BLD_ARMY_CAMP"
    ],
    "trained_at_0ad": [
     "army_camp",
@@ -10093,7 +10090,6 @@
    "specific_name": "Longos",
    "phase": 1,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_DOCK",
     "BLD_CRANNOG"
    ],
@@ -10140,7 +10136,6 @@
    "specific_name": "Nauson",
    "phase": 2,
    "trainers": [
-    "BLD_TOWN_CENTER",
     "BLD_DOCK",
     "BLD_CRANNOG"
    ],
@@ -20378,7 +20373,9 @@
    "name": "Legionary Skirmisher",
    "specific_name": "Antesignānus",
    "phase": 3,
-   "trainers": [],
+   "trainers": [
+    "BLD_ARMY_CAMP"
+   ],
    "trained_at_0ad": [
     "army_camp"
    ],
@@ -20480,7 +20477,7 @@
    "class": "UNIT_MINISTER",
    "name": "Imperial Minister",
    "specific_name": "Qīng",
-   "phase": 2,
+   "phase": 1,
    "trainers": [
     "BLD_MINISTRY"
    ],
@@ -21146,7 +21143,9 @@
    "name": "Persian Immortal",
    "specific_name": "Anušiya",
    "phase": 3,
-   "trainers": [],
+   "trainers": [
+    "BLD_BARRACKS"
+   ],
    "trained_at_0ad": [
     "barracks"
    ],

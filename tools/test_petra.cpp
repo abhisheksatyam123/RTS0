@@ -672,7 +672,9 @@ static void test_allow_capture() {
 	s->order_garrison(guards.data(), guards.size(), fort);
 	run_for(*s, 20.0f);
 	std::vector<uint32_t> squad;
-	for (int i = 0; i < 4; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, -2.0f, 1, UNIT_SPEARMAN));
+	// Five spearmen (12.5 a second) beat a house's RegenRate 5 plus an 80th of its points, also
+	// once one of six is sent at the fortress.
+	for (int i = 0; i < 6; ++i) squad.push_back(s->spawn_unit(-40.0f + 2.0f * (float)i, -2.0f, 1, UNIT_SPEARMAN));
 	const uint32_t ram = s->spawn_unit(-40.0f, -4.0f, 1, UNIT_SIEGE_RAM);
 	auto bld = [&](uint32_t id) -> const Simulation::Building & { return s->buildings()[s->building_id_to_idx_.at(id)]; };
 	const auto &f = bld(fort);
@@ -1949,6 +1951,41 @@ static void test_idle_return() {
 	CHECK(ordered && dropped, "an idle worker carrying a load is sent to a dropsite");
 }
 
+// worker.js returnResources looks among gameState.getOwnDropsites(), units included: with no
+// structure dropsite left, an idle worker carrying a load takes it to a supply wagon.
+static void test_idle_return_to_wagon() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	auto &u = s->units_;
+	uint32_t uid = 0;
+	for (size_t i = 0; i < u.count && !uid; ++i)
+		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
+	CHECK(uid != 0, "Petra has a villager");
+	if (!uid) return;
+	// No structure of its own takes the load any more.
+	for (auto &b : s->buildings_) if (b.team == 1) b.team = GAIA_PLAYER;
+	s->cmd_stop(&uid, 1);
+	int32_t i = s->lookup_unit(uid);
+	const uint32_t wagon = s->spawn_unit(u.pos_x[i] + 6.0f, u.pos_z[i], 1, UNIT_WAGON);
+	u.carry[i] = 5;
+	u.res_type_carried[i] = RES_WOOD;
+	const float before = s->player(1).wood();
+	bool dropped = false;
+	for (int k = 0; k < 30 * 20 && !dropped; ++k) {
+		s->tick(Simulation::FIXED_STEP);
+		const int32_t j = s->lookup_unit(uid);
+		if (j < 0) break;
+		dropped = u.carry[j] == 0;
+	}
+	std::printf("  idle worker with a load and only a wagon: dropped off %s, wood %.0f -> %.0f\n", dropped ? "yes" : "no",
+	            before, s->player(1).wood());
+	CHECK(wagon != 0 && dropped && s->player(1).wood() >= before + 5.0f, "an idle worker with a load drops it at a supply wagon");
+}
+
 // worker.js startGathering skips a supply whose MaxGatherers are all taken (IsSupplyFull),
 // so Petra's workers spread over the trees and mines instead of crowding the nearest.
 static void test_gather_limits() {
@@ -2642,15 +2679,18 @@ static void test_decay_garrison_from_attack() {
 		plan.state = Simulation::AttackPlan::ATTACKED;
 		const std::vector<uint32_t> army = plan.squad;
 		s->petra_started_attacks_.push_back(plan);
-		// A tower's garrison (5 of the 20 it needs) can't stop its decay. Neither can a stock
-		// fortress's (GarrisonHolder/Max 20 of the 30 it needs), so this one is given room
-		// for 30 to exercise the garrison that does.
+		// A tower's garrison (5 of the 10 it needs) can't stop its decay. A stock fortress needs
+		// none (RegenRate 45 outdoes DecayRate 40), so this one regains only 10 a second (needing
+		// 30) and is given room for 30 to exercise the garrison that does.
 		const uint32_t held = s->spawn_building_world(tx + (holdable ? 4.0f : 0.0f), tz, holdable ? BLD_FORTRESS : BLD_TOWER, 1);
 		int need = 0, cap = 0;
 		if (auto it = s->building_id_to_idx_.find(held); it != s->building_id_to_idx_.end()) {
 			need = s->petra_decay_garrison_min(s->buildings_[it->second]);
 			if (holdable) {
-				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "a stock fortress holds 20 of the 30 its decay needs");
+				CHECK(need == 0, "a stock fortress outregenerates its decay");
+				s->buildings_[it->second].capture_regen_rate = 10.0f;
+				need = s->petra_decay_garrison_min(s->buildings_[it->second]);
+				CHECK(s->buildings_[it->second].garrison_cap == 20 && need == 30, "regaining 10 a second it holds 20 of the 30 its decay needs");
 				s->buildings_[it->second].garrison_cap = need;
 			}
 			cap = s->buildings_[it->second].garrison_cap;
@@ -2723,6 +2763,40 @@ static void test_build_defenses() {
 	at(1300.0f);
 	s->petra_build_defenses();
 	CHECK(s->petra_defense_build_.pending == 0, "the second stone tower waits 1.1 x towerLapseTime");
+}
+
+// headquarters.js findDefensiveLocation: a tower goes on our frontier at the spot nearest an enemy
+// civic centre, outside 80 m of enemy towers and civic centres and 30 m from our own towers.
+static void test_defensive_location() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 20.0f);
+	s->petra_pid_ = 1;
+	float ox = 0, oz = 0, ex = 0, ez = 0;
+	for (const auto &b : s->buildings_) {
+		if (!is_civic_centre(b.type) || b.hp <= 0.0f) continue;
+		if (b.team == 1) { ox = b.x; oz = b.z; }
+		if (b.team == 0) { ex = b.x; ez = b.z; }
+	}
+	int cx = 0, cz = 0;
+	CHECK(s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx, cz), "a frontier spot for a sentry tower");
+	const float foot = (float)building_type_info(BLD_SENTRY_TOWER).footprint * Simulation::GRID * 0.5f;
+	const float x = (float)cx * Simulation::GRID + foot, z = (float)cz * Simulation::GRID + foot;
+	const float to_enemy = std::hypot(x - ex, z - ez);
+	const float cc_gap = std::hypot(ox - ex, oz - ez);
+	std::printf("  sentry tower spot %.1f from the enemy civic centre, %.1f from ours (civic centres %.1f apart)\n",
+	            to_enemy, std::hypot(x - ox, z - oz), cc_gap);
+	CHECK(to_enemy >= 80.0f / 4.0f - 1.0f, "out of 80 m of the enemy civic centre");
+	CHECK(to_enemy < cc_gap, "on the side facing the enemy");
+	const uint32_t t = s->spawn_building(cx, cz, BLD_SENTRY_TOWER, 1, 1.0f);
+	CHECK(t != 0, "the tower is placed");
+	int cx2 = 0, cz2 = 0;
+	if (s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx2, cz2))
+		CHECK(std::hypot((float)(cx2 - cx) * Simulation::GRID, (float)(cz2 - cz) * Simulation::GRID) >= 30.0f / 4.0f - 1.0f,
+		      "the next tower keeps 30 m from it");
 }
 
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
@@ -3176,6 +3250,7 @@ int main() {
 	test_expansion_small_nodes();
 	test_repairs();
 	test_idle_return();
+	test_idle_return_to_wagon();
 	test_gather_limits();
 	test_decay_garrison();
 	test_decay_garrison_from_attack();
@@ -3198,6 +3273,7 @@ int main() {
 	test_mobile_dropsite_follows();
 	test_worker_mix();
 	test_build_defenses();
+	test_defensive_location();
 	test_dropsites();
 	test_food_fields();
 	test_corral_by_owner();
