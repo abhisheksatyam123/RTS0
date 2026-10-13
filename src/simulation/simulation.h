@@ -784,6 +784,9 @@ public:
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)
 	uint8_t victory_condition() const { return (uint8_t)victory_condition_; }
 	void set_victory_condition(uint8_t vc) { victory_condition_ = (VictoryCondition)vc; }
+	uint8_t victory_conditions() const { return victory_mask(victory_condition_); }
+	void set_victory_conditions(uint8_t mask) { victory_condition_ = (VictoryCondition)victory_code(mask); }
+	bool has_victory(uint8_t kind) const { return (victory_mask(victory_condition_) & kind) != 0; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }

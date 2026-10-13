@@ -170,6 +170,8 @@ static func map_size_name(size: int) -> String:
 	return "%d m" % size if size > 0 else "Default"
 
 static func victory_name(v: int) -> String:
+	if v >= SetupPage.VICTORY_COMBINED and v < 256:
+		return SetupPage.victory_title(v) # a combination of victory conditions
 	return SetupPage.VICTORIES[v].get_slice(" — ", 0) if v >= 0 and v < SetupPage.VICTORIES.size() else "Unknown"
 
 ## translatePopulationCapacity.

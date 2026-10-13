@@ -704,6 +704,56 @@ enum VictoryCondition : uint8_t {
 	VICTORY_COUNT
 };
 
+// 0 A.D. Game Setup combines victory conditions (VictoryConditions.js). A combination that
+// isn't one of the codes above is stored as VICTORY_COMBINED | mask, so codes 0..6 (and old
+// saves and replays) keep their meaning.
+enum VictoryKind : uint8_t {
+	VK_CONQUEST = 1 << 0,
+	VK_CONQUEST_UNITS = 1 << 1,
+	VK_CONQUEST_STRUCTURES = 1 << 2,
+	VK_CONQUEST_CIVIC_CENTRES = 1 << 3,
+	VK_WONDER = 1 << 4,
+	VK_RELIC = 1 << 5,
+	VK_REGICIDE = 1 << 6,
+	VK_ALL = 0x7F,
+};
+constexpr uint8_t VICTORY_COMBINED = 0x80;
+// The conditions each code stands for. Wonder, Relic and Regicide always played with
+// Conquest on; Endless is none.
+inline constexpr uint8_t victory_mask(uint8_t code) {
+	switch (code) {
+		case VICTORY_CONQUEST: return VK_CONQUEST;
+		case VICTORY_WONDER: return VK_CONQUEST | VK_WONDER;
+		case VICTORY_RELIC: return VK_CONQUEST | VK_RELIC;
+		case VICTORY_ENDLESS: return 0;
+		case VICTORY_CONQUEST_UNITS: return VK_CONQUEST_UNITS;
+		case VICTORY_CONQUEST_STRUCTURES: return VK_CONQUEST_STRUCTURES;
+		case VICTORY_REGICIDE: return VK_CONQUEST | VK_REGICIDE;
+		default: return (code & VICTORY_COMBINED) ? (uint8_t)(code & VK_ALL) : (uint8_t)VK_CONQUEST;
+	}
+}
+// The stored code for a set of conditions: the single code when one matches, else combined.
+inline constexpr uint8_t victory_code(uint8_t mask) {
+	mask &= VK_ALL;
+	for (uint8_t c = 0; c < VICTORY_COUNT; ++c)
+		if (victory_mask(c) == mask) return c;
+	return (uint8_t)(VICTORY_COMBINED | mask);
+}
+inline constexpr bool valid_victory_code(uint8_t code) {
+	return code < VICTORY_COUNT || (code & VICTORY_COMBINED);
+}
+// 0.28 victory_conditions/*.json DisabledWhenChecked: Conquest excludes the partial
+// conquests, and each partial conquest excludes Conquest and the other "all" conquest.
+inline constexpr uint8_t victory_excludes(uint8_t kind) {
+	switch (kind) {
+		case VK_CONQUEST: return VK_CONQUEST_UNITS | VK_CONQUEST_STRUCTURES | VK_CONQUEST_CIVIC_CENTRES;
+		case VK_CONQUEST_UNITS: return VK_CONQUEST;
+		case VK_CONQUEST_STRUCTURES: return VK_CONQUEST | VK_CONQUEST_CIVIC_CENTRES;
+		case VK_CONQUEST_CIVIC_CENTRES: return VK_CONQUEST | VK_CONQUEST_STRUCTURES;
+		default: return 0;
+	}
+}
+
 struct BattleAlert {
 	enum Type : uint8_t {
 		ALERT_UNDER_ATTACK = 0,
