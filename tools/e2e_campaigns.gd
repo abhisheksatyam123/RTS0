@@ -1,0 +1,124 @@
+extends SceneTree
+# End-to-end check of the campaign pages (0 A.D. gui/campaigns):
+#   1. Single-player lists New Campaign and Load Campaign, and Continue Campaign
+#      only while there is a current run;
+#   2. New Campaign lists 0 A.D.'s Tutorial campaign and starting it writes the
+#      run and opens its menu: the Introductory Tutorial is available, the
+#      Economy Walkthrough greyed out until the tutorial is done;
+#   3. Start on a level sets the match up for its scenario and the run;
+#   4. winning the level and closing the summary marks it completed and comes
+#      back to the run's menu, where the walkthrough is now available;
+#   5. Load Campaign lists the run and Delete removes it.
+#
+#   godot --headless --path . --fixed-fps 60 -s tools/e2e_campaigns.gd
+# Exit code 0 = pass.
+
+const Campaigns = preload("res://scenes/menu/campaigns.gd")
+
+var failures := 0
+
+func check(cond: bool, what: String) -> void:
+	if cond:
+		print("  ok   ", what)
+	else:
+		print("  FAIL ", what)
+		failures += 1
+
+func _initialize() -> void:
+	run.call_deferred()
+
+func frames(n: int) -> void:
+	for i in n:
+		await process_frame
+
+func single_labels(menu) -> Array:
+	menu._toggle_submenu("single", menu.get_node("MainPanel/Buttons/BtnSingle"))
+	return menu.submenu_buttons_box.get_children().filter(func(b): return not b.is_queued_for_deletion()).map(func(b): return b.text)
+
+func level_texts(page) -> Array:
+	var out: Array = []
+	for i in page.list.item_count:
+		out.append(page.list.get_item_text(i))
+	return out
+
+func run() -> void:
+	# A clean slate: no saved runs.
+	for r in CampaignRun.saved_runs():
+		r["run"].destroy()
+	CampaignRun.clear_current()
+
+	print("1. Single-player")
+	change_scene_to_file("res://scenes/menu/main_menu.tscn")
+	await frames(4)
+	var labels := single_labels(current_scene)
+	check(labels.has("New Campaign") and labels.has("Load Campaign"), "New and Load Campaign listed: " + str(labels))
+	check(not labels.has("Continue Campaign"), "no Continue Campaign without a current run")
+
+	print("2. New Campaign")
+	current_scene._execute_action("new_campaign")
+	await frames(6)
+	var page = current_scene
+	check(page.mode == "setup", "the page opens on the campaign list")
+	check(level_texts(page).has("Tutorial"), "0 A.D.'s Tutorial campaign is listed: " + str(level_texts(page)))
+	page.select(level_texts(page).find("Tutorial"))
+	check(page.info_desc.text == "Learn how to play 0 A.D.", "its description shows: " + page.info_desc.text)
+	var made: CampaignRun = page.create_run("My run")
+	await frames(2)
+	check(FileAccess.file_exists(made.path()), "the run is written to " + made.path())
+	check(CampaignRun.current_filename() == made.filename, "and becomes the current run")
+	check(page.mode == "menu" and page.title.text == "My run - Tutorial", "its menu opens: " + page.title.text)
+	var texts := level_texts(page)
+	check(texts.size() == 2 and texts[0].begins_with("Introductory Tutorial") and texts[0].ends_with("Available"),
+		"the Introductory Tutorial comes first, available: " + str(texts))
+	check(texts.size() == 2 and texts[1] == "Economy Walkthrough", "the walkthrough is listed without a status: " + str(texts))
+	page.select(1)
+	check(page.start_button.disabled, "the walkthrough cannot start before the tutorial is done")
+	page.select(0)
+	check(not page.start_button.disabled and page.info_name.text == "Introductory Tutorial", "the tutorial can start")
+	check(page.info_preview.texture != null, "with its map preview")
+
+	print("3. Start")
+	var ms = root.get_node("MatchSettings")
+	page.start_level("introduction")
+	check(ms.map_id == "introductory_tutorial" and ms.campaign_run == made.filename and ms.campaign_level == "introduction",
+		"the match is set up for the tutorial and the run: %s %s %s" % [ms.map_id, ms.campaign_run, ms.campaign_level])
+	check(ms.slot_types == [0, 1] and ms.cheats, "the local player in seat 1, the scenario's other player, cheats on: " + str(ms.slot_types))
+	await frames(2)
+	# Stand in for the match: back to a menu scene before the summary closes.
+	change_scene_to_file("res://scenes/menu/main_menu.tscn")
+	await frames(4)
+	ms.campaign_run = made.filename
+	ms.campaign_level = "introduction"
+
+	print("4. The level won")
+	var summary = load("res://scenes/session/summary_screen.tscn").instantiate()
+	root.add_child(summary)
+	summary._victory = true
+	summary.continue_pressed()
+	await frames(6)
+	page = current_scene
+	check(page is Campaigns and page.mode == "menu", "Continue on the summary comes back to the run's menu")
+	var back := CampaignRun.new(made.filename)
+	check(back.load_run() and back.is_completed("introduction"), "the tutorial is completed in the run file")
+	texts = level_texts(page)
+	check(texts.size() == 2 and texts[0].ends_with("Completed") and texts[1].ends_with("Available"),
+		"the tutorial shows Completed and the walkthrough Available: " + str(texts))
+	check(ms.campaign_run == "", "the match settings no longer point at the run")
+	summary.queue_free()
+
+	print("5. Load Campaign")
+	page.back_to_main_menu()
+	await frames(4)
+	check(single_labels(current_scene).has("Continue Campaign"), "Continue Campaign is listed while a run is current")
+	current_scene._execute_action("load_campaign")
+	await frames(6)
+	page = current_scene
+	check(page.mode == "load" and level_texts(page) == ["My run - Tutorial"], "the run is listed: " + str(level_texts(page)))
+	page.select(0)
+	page.delete_selected()
+	await frames(2)
+	check(not FileAccess.file_exists(made.path()) and CampaignRun.current_filename() == "", "Delete removes it and the current run")
+	check(page.empty_text.visible, "No saved campaigns.")
+
+	print("RESULT: %s (%d failed)" % ["PASS" if failures == 0 else "FAIL", failures])
+	quit(1 if failures else 0)

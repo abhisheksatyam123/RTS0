@@ -37,7 +37,7 @@ const char *const kSetupKeys[] = {
 	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "ceasefire_min",
 	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
-	"player_civ", "ai_civ",
+	"player_civ", "ai_civ", "campaign_run", "campaign_level",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -151,6 +151,10 @@ void RtsoMain::apply_settings_snapshot(const Dictionary &settings) {
 	if (!ms) return;
 	for (const char *k : kSetupKeys)
 		if (settings.has(k)) ms->set(k, settings[k]);
+	if (!settings.has("campaign_run")) { // a game from outside a campaign (or from before campaigns)
+		ms->set("campaign_run", String());
+		ms->set("campaign_level", String());
+	}
 	if (settings.has("seed")) ms->set("seed", settings["seed"]);
 }
 
