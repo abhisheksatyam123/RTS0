@@ -4239,7 +4239,8 @@
       "id": 1,
       "team": 0,
       "start_x": -7.68,
-      "start_z": -2.01
+      "start_z": -2.01,
+      "civ": 1
     }
   ],
   "resources": [],
