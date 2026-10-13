@@ -63,7 +63,9 @@ func run() -> void:
 	await frames(3)
 	var m = current_scene
 	var replay_dir: String = m.get_replay_status().replay_dir
-	await frames(60 * 75) # 75 s of game time: three 30 s rows
+	# 75 s of game time (three 30 s rows), at whatever --fixed-fps the run uses.
+	while float(m.get_match_statistics().get("game_time", 0.0)) < 75.0:
+		await frames(10)
 
 	print("1. Ctrl+Tab opens the summary over the game")
 	var s = m.get_node("SummaryScreen")
