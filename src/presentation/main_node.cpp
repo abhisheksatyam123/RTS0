@@ -158,6 +158,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
 	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
+	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -6395,7 +6396,19 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["hosting"] = hosting;
 	d["players"] = players;
 	d["started"] = net_game_started_;
+	// For tools/playtest_godot_mp.py: where the match is and whether it agrees.
+	d["turn"] = (int64_t)turn_mgr_.current_turn();
+	d["seat"] = (int)seat_player();
+	d["oos"] = turn_mgr_.has_out_of_sync();
+	d["oos_turn"] = (int64_t)turn_mgr_.oos_turn();
 	return d;
+}
+
+int64_t RtsoMain::get_turn_hash(int64_t turn) const {
+	const auto &history = turn_mgr_.turn_history();
+	for (auto it = history.rbegin(); it != history.rend(); ++it)
+		if ((int64_t)it->turn_index == turn) return (int64_t)it->sim_state_hash;
+	return 0;
 }
 
 // 0 A.D. gamesetup player assignment (PlayerAssignmentsController.js): the host

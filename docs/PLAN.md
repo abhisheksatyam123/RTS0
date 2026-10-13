@@ -66,7 +66,7 @@ DONE 2026-10-13: an observer, or a player once defeated, gets 0 A.D.'s Player vi
 
 DONE 2026-10-12: the menu lobby (0 A.D. gui/prelobby + gui/lobby over `tools/lobby_server.py` instead of XMPP): sign in by name, players online as available/away/in a game, lobby chat with join and leave notices, and the game list that hosts register and refresh (name, host, map, players, password, waiting or running; a host's address is the one its request came from). Host and Join hand the choice to the match's lobby panel through MatchSettings `net_*`; a running game is joined as an observer. The `LobbySession` autoload keeps the player signed in and the game listed while the match runs, and players or games not heard from for 30 s drop out. Checks: `tools/test_lobby_server.py`. Open: accounts, ratings, the game's settings shown in the list.
 
-Verify: `python3 tools/lobby_server.py` then two `./build/linux/RTS0.x86_64` Host + Join.
+Verify: `python3 tools/playtest_godot_mp.py --godot <Godot 4.3>` runs two headless game clients through the menu lobby (sign in, host, join from the game list, Start) and checks both reach the same turn-150 hash while the lobby shows the game running and both players in a game; it needs an imported project and the built extension, so it is not a ci.yml step. By hand: `python3 tools/lobby_server.py`, then two game windows, Game Lobby, Host + Join.
 
 ### P2 — Long-path JPS (done)
 
