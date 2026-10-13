@@ -39,7 +39,7 @@ const char *const kSetupKeys[] = {
 	"map_id", "victory", "waves_enabled", "last_man_standing", "pop_cap", "ceasefire_min",
 	"reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "map_size",
 	"ai_difficulty", "ai_behavior", "start_res", "slot_types", "slot_civs", "slot_teams",
-	"player_civ", "ai_civ",
+	"player_civ", "ai_civ", "campaign_run", "campaign_level",
 };
 
 constexpr uint32_t kReplayFormat = 2; // 2: may start from a save (start_save)
@@ -153,6 +153,10 @@ void RtsoMain::apply_settings_snapshot(const Dictionary &settings) {
 	if (!ms) return;
 	for (const char *k : kSetupKeys)
 		if (settings.has(k)) ms->set(k, settings[k]);
+	if (!settings.has("campaign_run")) { // a game from outside a campaign (or from before campaigns)
+		ms->set("campaign_run", String());
+		ms->set("campaign_level", String());
+	}
 	if (settings.has("seed")) ms->set("seed", settings["seed"]);
 }
 
@@ -273,6 +277,7 @@ Dictionary RtsoMain::summary_gui(bool in_game) const {
 	// session.js g_IsController (the host, or any offline game) and g_IsObserver
 	// (no seat, or a seat whose game is over).
 	g["isController"] = net_host_.getRole() == rtso::NetRole::None || net_host_.getRole() == rtso::NetRole::Host;
+	g["victory"] = !replay && me < rtso::MAX_PLAYERS && sim->is_victory_for(me);
 	g["isObserver"] = replay || me >= rtso::MAX_PLAYERS || sim->is_defeated(me) || sim->is_victory_for(me);
 	g["assignedPlayer"] = replay || me >= rtso::MAX_PLAYERS ? -1 : (int)me;
 	g["replayDirectory"] = !replay && !replay_dir_.is_empty() && FileAccess::file_exists(replay_dir_ + String("metadata.json"))

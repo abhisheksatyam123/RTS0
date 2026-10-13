@@ -56,7 +56,7 @@ static func replay_finished(m: Node) -> Node:
 	return _quit(m, TITLE, CAPTION_REPLAY)
 
 ## session.js endGame: leave the match, for the summary page or the menu the
-## match came from.
+## match came from (the campaign's menu in a campaign).
 static func end_game(m: Node, show_summary: bool) -> void:
 	var tree := m.get_tree()
 	tree.paused = false
@@ -73,6 +73,8 @@ static func end_game(m: Node, show_summary: bool) -> void:
 		ms.go("res://scenes/session/summary_screen.tscn")
 	elif status.get("replaying", false):
 		ms.go("res://scenes/menu/replay_browser.tscn")
+	elif ms.campaign_run != "":
+		load("res://scenes/session/summary_screen.gd").leave_campaign(m.get_summary_gui(false).get("victory", false))
 	else:
 		ms.go("res://scenes/menu/main_menu.tscn")
 
