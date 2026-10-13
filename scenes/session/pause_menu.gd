@@ -44,8 +44,18 @@ func _on_exit_pressed():
 	get_tree().paused = false
 	MatchSettings.go("res://scenes/menu/main_menu.tscn")
 
+# 0 A.D. MenuButtons Resign: ResignConfirmation asks first; observers (and players
+# whose game is over) can't resign.
+func _on_resign_pressed():
+	var main := get_parent()
+	if main.has_method("resign"):
+		load("res://scenes/session/quit_confirmation.gd").resign(main)
+
 func toggle():
 	visible = !visible
 	$Background.visible = visible
 	$CenterContainer.visible = visible
 	get_tree().paused = visible
+	var resign_btn := get_node_or_null("CenterContainer/Panel/VBox/BtnResign")
+	if resign_btn and visible and get_parent().has_method("get_summary_gui"):
+		resign_btn.disabled = get_parent().get_summary_gui(false).get("isObserver", true)

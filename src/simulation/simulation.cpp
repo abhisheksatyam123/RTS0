@@ -23922,6 +23922,15 @@ void Simulation::defeat_player(uint8_t pid) {
 	defeated_mask_ |= (uint8_t)(1u << pid);
 }
 
+bool Simulation::cmd_resign(uint8_t pid) {
+	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return false;
+	const uint8_t bit = (uint8_t)(1u << pid);
+	participant_mask_ |= bit; // a player that resigns before it held anything is still out
+	convert_to_gaia(bit);
+	defeated_mask_ |= bit;
+	return true;
+}
+
 void Simulation::tick_trigger_watches() {
 	// OnOwnershipChanged for the entities the scripts follow (see TriggerWatch).
 	if (triggers_.watched.empty()) return;

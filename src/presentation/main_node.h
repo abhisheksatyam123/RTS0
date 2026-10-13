@@ -410,6 +410,7 @@ public:
 	void toggle_diplomacy();
 	void toggle_objectives();
 	void _on_tutorial_ready_pressed();
+	void resign();
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests

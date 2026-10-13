@@ -877,6 +877,10 @@ public:
 	// TriggerHelper.DefeatPlayer (cmpPlayer.SetState("defeated")): pid's units and
 	// structures turn Gaia and it watches the rest of the match.
 	void defeat_player(uint8_t pid);
+	// 0 A.D. "resign" (Commands.js: cmpPlayer.Defeat("%(player)s has resigned.")): the
+	// issuing player is defeated as by conquest. Its units and structures turn Gaia, its
+	// allies play on, and it watches the rest of the match. False when it is already out.
+	bool cmd_resign(uint8_t pid);
 	// Map scripts' SetDisabledTemplates (structures) and SetInvulnerability.
 	bool building_disabled_by_trigger(uint8_t player, uint8_t type) const { return triggers_.building_disabled(player, type); }
 	bool invulnerable(uint32_t unit_id) const { return !triggers_.invulnerable.empty() && triggers_.is_invulnerable(unit_id); }
