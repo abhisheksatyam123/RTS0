@@ -645,6 +645,9 @@ void RtsoMain::_ready() {
 	lobby_btn->set_text("Lobby");
 	lobby_btn->add_theme_font_size_override("font_size", 12);
 	lobby_btn->connect("pressed", Callable(this, "_on_lobby_button_pressed"));
+	// 0 A.D.'s top panel shows its Lobby button only with a lobby connection
+	// (Engine.HasXmppClient); here, in a game started from the lobby screen.
+	lobby_btn->set_visible(false);
 	top_hbox->add_child(lobby_btn);
 
 	lobby_panel = memnew(Panel);
@@ -5735,6 +5738,7 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_password) lobby_password->set_text(ms->get("net_password"));
 	if (lobby_observe) lobby_observe->set_pressed_no_signal((bool)ms->get("net_observe"));
 	if (lobby_panel) lobby_panel->set_visible(true);
+	if (lobby_btn) lobby_btn->set_visible(true);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
 }
