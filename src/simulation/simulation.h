@@ -161,7 +161,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 57; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 58; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
@@ -1605,6 +1605,7 @@ private:
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
+	void patrol_arrive(size_t i);
 	void patrol_next_leg(size_t i);
 	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
 	// structure) and the point the unit walks to (the unit, or tick_combat's stand point beside the
