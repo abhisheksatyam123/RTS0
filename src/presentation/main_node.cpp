@@ -2075,6 +2075,38 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 // cursor shows what a right-click would do with the current selection.
 // unit_actions.js "unset-rallypoint" getActionInfo: the target is the selected
 // structure itself and it has a rally point.
+// unit_actions.js: right-clicking an enemy with a structure that shoots arrows selected
+// sends Commands.js "focus-fire" (BuildingAI.AddFocusTarget; Shift queues it) instead of
+// setting the rally point there. Lockstep command 50.
+bool RtsoMain::try_focus_fire(const Vector3 &at) {
+	const uint8_t me = local_player();
+	const auto bit = std::find_if(sim->buildings().begin(), sim->buildings().end(),
+			[&](const rtso::Simulation::Building &b) { return b.id == selected_building_id; });
+	if (bit == sim->buildings().end() || bit->team != me || !rtso::building_ai_info(bit->type).shoots()) return false;
+	uint32_t target = 0;
+	auto uview = sim->units();
+	float best = 2.2f * 2.2f;
+	for (size_t i = 0; i < uview.count; ++i) {
+		if (!uview.alive[i] || !sim->is_hostile(me, uview.team[i])) continue;
+		const float dx = uview.pos_x[i] - at.x, dz = uview.pos_z[i] - at.z, d2 = dx * dx + dz * dz;
+		if (d2 < best) { best = d2; target = uview.id[i]; }
+	}
+	for (const auto &b : sim->buildings()) {
+		if (target) break;
+		if (b.wrecked || b.team >= rtso::MAX_PLAYERS || !sim->is_hostile(me, b.team)) continue;
+		const float dx = b.x - at.x, dz = b.z - at.z, hit_r = b.half_size + 1.2f;
+		if (dx * dx + dz * dz <= hit_r * hit_r) target = b.id;
+	}
+	if (!target) return false;
+	const bool queued = rtso::hotkeys::held("session.queue");
+	const uint32_t ids[1] = {selected_building_id};
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_FOCUS_FIRE, ids, 1, 0, 0, target, queued ? rtso::NET_PARAM_QUEUED : 0);
+	else if (!sim->cmd_focus_fire(me, ids, 1, target, queued))
+		return false;
+	return true;
+}
+
 bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
 	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
 	for (const auto &b : sim->buildings()) {
@@ -5137,6 +5169,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 			// If building selected, right click sets Rally Point!
 			if (selected_building_id != 0) {
+				if (try_focus_fire(click_pos)) return;
 				uint32_t target_res = 0, target_bld = 0;
 				auto rview = sim->resources();
 				for (size_t r = 0; r < rview.count; ++r) {

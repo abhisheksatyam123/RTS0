@@ -530,6 +530,8 @@ private:
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
 	bool over_own_rally_structure(const Vector3 &at) const;
+	// 0 A.D. "focus-fire": the selected arrow-shooting structure aims at the enemy under `at`.
+	bool try_focus_fire(const Vector3 &at);
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);

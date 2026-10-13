@@ -9,6 +9,7 @@
 //       src/network/net_host.cpp -lpthread -o /tmp/test_building_ai && /tmp/test_building_ai
 #define private public
 #include "simulation/simulation.h"
+#include "network/turn_manager.h"
 #undef private
 #include <cstring>
 #include <cmath>
@@ -359,6 +360,62 @@ int main() {
 		std::printf("siege tower with 4 spearmen and Caros: %d arrows\n", s.siege_tower_arrows((size_t)ti));
 		CHECK(s.siege_tower_arrows((size_t)ti) == (int)std::lround((4 + (inf ? 1 : 0)) * 1.75f));
 		s.transport_passengers_.erase(tower);
+	}
+
+	// 12. Focus fire (0 A.D. "focus-fire", BuildingAI.AddFocusTarget): with a spearman and a
+	// ram in range, a fortress told to focus the ram sends every arrow there; Shift queues the
+	// spearman after it. A target out of range is refused, the focus list survives a save, a
+	// dead target drops off and the fortress goes back to its own picks, a capture clears the
+	// list, and lockstep command 50 carries the order.
+	{
+		fresh(s, 13);
+		uint32_t fort = s.spawn_building_world(-30.0f, -30.0f, BLD_FORTRESS, 0, 1.0f);
+		const float half = find_bld(s, fort)->half_size;
+		uint32_t man = foe(s, -30.0f + half + 8.0f, -30.0f);
+		uint32_t ram = foe(s, -30.0f, -30.0f + half + 8.0f, UNIT_SIEGE_RAM);
+		uint32_t far_man = foe(s, 40.0f, 40.0f);
+		CHECK(!s.cmd_focus_fire(0, &fort, 1, far_man, false));
+		CHECK(!s.cmd_focus_fire(1, &fort, 1, ram, false)); // not player 1's fortress
+		CHECK(s.cmd_focus_fire(0, &fort, 1, ram, false));
+		CHECK(s.cmd_focus_fire(0, &fort, 1, man, true));
+		CHECK((find_bld(s, fort)->focus_targets == std::vector<uint32_t>{ram, man}));
+		const char *path = "/tmp/test_building_ai_focus.sav";
+		CHECK(s.save_state(path));
+		static Simulation l;
+		CHECK(l.load_state(path));
+		std::remove(path);
+		CHECK((find_bld(l, fort)->focus_targets == std::vector<uint32_t>{ram, man}));
+		ArrowCounter a;
+		for (int t = 0; t < (int)std::lround(20.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); a.step(s, fort); }
+		int at_man = 0, at_ram = 0;
+		for (const Projectile &p : a.fired) { at_man += p.target_unit_id == man; at_ram += p.target_unit_id == ram; }
+		std::printf("focused fortress over 20 s: %d arrows at the ram, %d at the spearman\n", at_ram, at_man);
+		CHECK(at_ram > 20 && at_man == 0);
+		// The ram dies: its focus entry drops at the next round and the spearman is next.
+		s.units_.hp[(size_t)idx_of(s, ram)] = 0.0f;
+		s.units_.alive[(size_t)idx_of(s, ram)] = 0;
+		ArrowCounter b;
+		for (int t = 0; t < (int)std::lround(20.0f / Simulation::FIXED_STEP); ++t) { s.tick(Simulation::FIXED_STEP); b.step(s, fort); }
+		int b_man = 0;
+		for (const Projectile &p : b.fired) b_man += p.target_unit_id == man;
+		CHECK(!b.fired.empty() && b_man == (int)b.fired.size());
+		CHECK((find_bld(s, fort)->focus_targets == std::vector<uint32_t>{man}));
+		// Lockstep: command 50 with Shift pushes a third target onto the end.
+		uint32_t man2 = foe(s, -30.0f - half - 8.0f, -30.0f);
+		NetCommand c;
+		c.cmd_type = (uint8_t)NetCommandType::NET_CMD_FOCUS_FIRE;
+		c.entity_ids = {fort};
+		c.target_id = man2;
+		c.param = NET_PARAM_QUEUED;
+		CHECK((uint8_t)NetCommandType::NET_CMD_FOCUS_FIRE == 50);
+		TurnManager tm;
+		tm.post_local_command(c);
+		for (int t = 0; t < 4; ++t) tm.tick(TurnManager::TURN_DURATION, s);
+		CHECK(!find_bld(s, fort)->focus_targets.empty() && find_bld(s, fort)->focus_targets.back() == man2);
+		// OnOwnershipChanged empties the list.
+		const uint8_t to = 1;
+		s.cheat_convert(to, &fort, 1);
+		CHECK(find_bld(s, fort)->team == to && find_bld(s, fort)->focus_targets.empty());
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

@@ -260,6 +260,9 @@ public:
 		uint8_t arrow_round = 0;      // currentRound
 		int16_t arrows_left = 0;      // arrowsLeft of this RepeatTime
 		bool arrow_timer_on = false;  // a FireArrows timer is set
+		// focusTargets (0 A.D. "focus-fire", AddFocusTarget): entity ids its arrows go to first,
+		// in order; empty: FireArrows picks its own. Saved in save_tick_state (SAVE_VERSION_FOCUS_FIRE).
+		std::vector<uint32_t> focus_targets;
 		bool is_burning = false; // Structure fire under 33% HP
 
 		// Multi-slot production queue
@@ -742,6 +745,13 @@ public:
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a
 	// market's land traders) into the nearest structures with room, or stops them;
 	// EndOfAlert unloads them and sends them back to work. False when it has no alert.
+	// 0 A.D. "focus-fire" (BuildingAI.AddFocusTarget): `player`'s structures in `building_ids`
+	// that shoot arrows aim at `target` (a unit, structure or dangerous animal they can
+	// attack and that is in their range) before anything else: it replaces the focus list,
+	// joins its end (queued) or goes first (push_front). Returns whether any structure took it.
+	static constexpr size_t MAX_FOCUS_TARGETS = 64;
+	bool cmd_focus_fire(uint8_t player, const uint32_t *building_ids, size_t count, uint32_t target,
+			bool queued, bool push_front = false);
 	bool cmd_raise_alert(uint8_t player, uint32_t building_id);
 	bool cmd_end_alert(uint8_t player, uint32_t building_id);
 	// target_unit_id: a unit or a structure, one's own or an ally's (Guard.js).

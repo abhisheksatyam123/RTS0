@@ -204,6 +204,8 @@ static constexpr uint32_t SAVE_VERSION_PETRA_ATTACK_REQUEST = 60;
 static constexpr uint32_t SAVE_VERSION_UNIT_TRAINERS = 64;
 // Scenarios' per-player population limits (0.28 PlayerData PopulationLimit).
 static constexpr uint32_t SAVE_VERSION_PLAYER_POP_CAP = 65;
+// Each structure's focus-fire targets (BuildingAI focusTargets).
+static constexpr uint32_t SAVE_VERSION_FOCUS_FIRE = 65;
 
 // Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
@@ -3155,6 +3157,7 @@ void Simulation::finish_upgrade(Building &b) {
 	b.arrow_round = 0;
 	b.arrows_left = 0;
 	b.arrow_timer_on = false;
+	b.focus_targets.clear();
 	b.upgrade_paid.fill(0.0f);
 	b.upgrade_to = BLD_TYPE_COUNT;
 	b.upgrade_timer = 0.0f;
@@ -9536,6 +9539,64 @@ inline bool in_parabolic_range(float d2, float att_y, float def_y, float base_ra
 	return (max_r2 > 0.0f) && (d2 <= max_r2);
 }
 
+// 0 A.D. "focus-fire" (Commands.js -> BuildingAI.AddFocusTarget). A target counts only when
+// it is in the structure's targetUnits: an enemy unit, structure or dangerous animal inside
+// its arrow range, as the arrow pass in tick_combat measures it (seen or not).
+bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, size_t count, uint32_t target,
+		bool queued, bool push_front) {
+	if (player >= MAX_PLAYERS || !building_ids || target == 0) return false;
+	const int32_t ui = lookup_unit(target);
+	auto tb = building_id_to_idx_.find(target);
+	int32_t fi = -1;
+	if (ui < 0 && tb == building_id_to_idx_.end())
+		for (size_t f = 0; f < fauna_.count; ++f)
+			if (fauna_.id[f] == target) { fi = (int32_t)f; break; }
+	bool any = false;
+	for (size_t k = 0; k < count; ++k) {
+		auto bit = building_id_to_idx_.find(building_ids[k]);
+		if (bit == building_id_to_idx_.end()) continue;
+		Building &b = buildings_[bit->second];
+		const BuildingAIInfo &ai = building_ai_info(b.type);
+		if (b.team != player || !ai.shoots() || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		const float max_r = building_arrow_range(b);
+		const float tech_min = tech_mods(b.team).bld_min_range[b.type];
+		const float min_r = tech_min >= 0.0f ? tech_min : ai.min_range;
+		const float b_y = get_terrain_height(b.x, b.z) + ai.origin_y;
+		auto in_range = [&](float dx, float dz, float other_half, float def_y) {
+			const float eff_d = std::max(0.0f, sqrtf(dx * dx + dz * dz) - b.half_size - other_half);
+			return eff_d >= min_r && in_parabolic_range(eff_d * eff_d, b_y, def_y, max_r);
+		};
+		bool ok = false;
+		if (ui >= 0) {
+			const size_t i = (size_t)ui;
+			ok = units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED && can_attack(b.team, units_.team[i])
+					&& (units_.team[i] != GAIA_PLAYER || units_.attack_damage[i] > 0.0f)
+					&& in_range(units_.pos_x[i] - b.x, units_.pos_z[i] - b.z, 0.0f, unit_height(i));
+		} else if (tb != building_id_to_idx_.end()) {
+			const Building &ob = buildings_[tb->second];
+			ok = !ob.wrecked && ob.hp > 0.0f && ob.team != GAIA_PLAYER && can_attack(b.team, ob.team)
+					&& in_range(ob.x - b.x, ob.z - b.z, ob.half_size, get_terrain_height(ob.x, ob.z));
+		} else if (fi >= 0) {
+			const size_t f = (size_t)fi;
+			ok = fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED &&
+					fauna_type_info(fauna_.fauna_type[f]).is_dangerous() && is_hostile(b.team, GAIA_PLAYER) &&
+					in_range(fauna_.pos_x[f] - b.x, fauna_.pos_z[f] - b.z, 0.0f, get_terrain_height(fauna_.pos_x[f], fauna_.pos_z[f]));
+		}
+		if (!ok) continue;
+		if (queued) {
+			if (b.focus_targets.size() >= MAX_FOCUS_TARGETS) continue;
+			b.focus_targets.push_back(target);
+		} else if (push_front) {
+			if (b.focus_targets.size() >= MAX_FOCUS_TARGETS) b.focus_targets.pop_back();
+			b.focus_targets.insert(b.focus_targets.begin(), target);
+		} else {
+			b.focus_targets.assign(1, target);
+		}
+		any = true;
+	}
+	return any;
+}
+
 // 0 A.D. Pack.js + UnitAI's pack rules. A packed siege engine that has its target in range
 // unpacks before it fires; an unpacked one that has to move (a walk order, or a target out of
 // range) packs first. An order that needs the other state cancels a pack in progress and
@@ -10227,20 +10288,14 @@ void Simulation::tick_combat(float dt) {
 			to_fire = std::min((int)std::floor(sim_rng_.range_float(0.0f, max_roll + 1.0f)), (int)b.arrows_left);
 		}
 		++b.arrow_round;
-		if (to_fire <= 0 || arrow_targets.empty()) continue; // nothing seen: the round fires nothing
+		if (to_fire <= 0) continue;
+		if (arrow_targets.empty() && b.focus_targets.empty()) continue; // nothing seen: the round fires nothing
 
-		float total_weight = 0.0f;
-		for (const ArrowTarget &t : arrow_targets) total_weight += t.weight;
 		const float pierce_mul = b.team < MAX_PLAYERS ? tech_mods(b.team).bld_attack[b.type] : 1.0f;
 		const float hack = ai.hack, pierce = ai.pierce * pierce_mul, crush = ai.crush;
 		const float spread = building_combat(b.type).spread;
 		const float launch_y = get_terrain_height(b.x, b.z) + 3.5f; // where the arrow is drawn from
-		for (int a = 0; a < to_fire; ++a) {
-			// WeightedList.randomItem
-			float roll = sim_rng_.range_float(0.0f, total_weight);
-			size_t pick = 0;
-			while (pick + 1 < arrow_targets.size() && roll >= arrow_targets[pick].weight) roll -= arrow_targets[pick++].weight;
-			const ArrowTarget &t = arrow_targets[pick];
+		auto fire_at = [&](const ArrowTarget &t) {
 			if (t.kind == ARROW_FAUNA) {
 				const size_t f = (size_t)t.idx;
 				const FaunaTypeInfo &fi = fauna_type_info(fauna_.fauna_type[f]);
@@ -10253,7 +10308,7 @@ void Simulation::tick_combat(float dt) {
 				random_normal_2d(disp_x, disp_z);
 				fire_arrow(b.x, launch_y, b.z, fx + disp_x * sigma, get_terrain_height(fx, fz) + 0.8f, fz + disp_z * sigma,
 						dmg, b.team, fauna_.id[f], 0, 1, false, 0, b.id);
-				continue;
+				return;
 			}
 			if (t.kind == ARROW_BUILDING) {
 				const Building &ob = buildings_[(size_t)t.idx];
@@ -10267,7 +10322,7 @@ void Simulation::tick_combat(float dt) {
 				const float lx = ob.x + disp_x * sigma, lz = ob.z + disp_z * sigma;
 				fire_arrow(b.x, launch_y, b.z, lx, get_terrain_height(lx, lz) + 1.0f, lz,
 						dmg, b.team, ob.id, 0, 1, true, 0, b.id);
-				continue;
+				return;
 			}
 			const size_t u = (size_t)t.idx;
 			float armor[3];
@@ -10284,6 +10339,35 @@ void Simulation::tick_combat(float dt) {
 			const float land_y = (unit_is_ship(units_.unit_type[u]) ? unit_height(u) : get_terrain_height(aim_x, aim_z)) + 0.8f;
 			fire_arrow(b.x, launch_y, b.z, aim_x + disp_x * sigma, land_y, aim_z + disp_z * sigma,
 					dmg, b.team, units_.id[u], 0, 1, false, 0, b.id);
+		};
+		if (!b.focus_targets.empty()) {
+			// targets = focusTargets: every arrow of the round goes to the first focus target
+			// in range and seen; the ones before it that are not are dropped (targets.splice).
+			auto entity_of = [&](const ArrowTarget &t) {
+				return t.kind == ARROW_UNIT ? units_.id[(size_t)t.idx]
+				     : t.kind == ARROW_FAUNA ? fauna_.id[(size_t)t.idx] : buildings_[(size_t)t.idx].id;
+			};
+			int fired = 0;
+			size_t dropped = 0;
+			while (fired < to_fire && dropped < b.focus_targets.size()) {
+				const uint32_t want = b.focus_targets[dropped];
+				auto it = std::find_if(arrow_targets.begin(), arrow_targets.end(), [&](const ArrowTarget &t) { return entity_of(t) == want; });
+				if (it == arrow_targets.end()) { ++dropped; continue; }
+				fire_at(*it);
+				++fired;
+			}
+			b.focus_targets.erase(b.focus_targets.begin(), b.focus_targets.begin() + (std::ptrdiff_t)dropped);
+			b.arrows_left = (int16_t)(b.arrows_left - fired);
+			continue;
+		}
+		float total_weight = 0.0f;
+		for (const ArrowTarget &t : arrow_targets) total_weight += t.weight;
+		for (int a = 0; a < to_fire; ++a) {
+			// WeightedList.randomItem
+			float roll = sim_rng_.range_float(0.0f, total_weight);
+			size_t pick = 0;
+			while (pick + 1 < arrow_targets.size() && roll >= arrow_targets[pick].weight) roll -= arrow_targets[pick++].weight;
+			fire_at(arrow_targets[pick]);
 		}
 		b.arrows_left = (int16_t)(b.arrows_left - to_fire);
 	}
@@ -10686,6 +10770,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 			while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
 		b.queue.clear();
 		b.autoqueue = false;
+		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		const uint8_t from = b.team;
 		b.team = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
 		// OnOwnershipChanged -> UpdateCachedValuesAndNotify: the new owner's modifiers.
@@ -11333,6 +11418,7 @@ void Simulation::convert_to_gaia(uint8_t players) {
 		b.autoqueue = false;
 		b.has_rally_point = false;
 		b.rally_more.clear();
+		b.focus_targets.clear();
 		b.team = GAIA_PLAYER;
 		b.capture_points = 0.0f;
 		roots |= has_territory_influence(b.type);
@@ -13165,6 +13251,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 			while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
 		b.queue.clear();
 		b.autoqueue = false;
+		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		// OnOwnershipChanged: the old owner's points move to the new owner (Gaia's pool is
 		// what no player holds); the other sides keep theirs.
 		const uint8_t from = b.team;
@@ -21897,7 +21984,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 scenarios' per-player population limits (0.28 PlayerData PopulationLimit; save_tick_state)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -23354,6 +23441,28 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 				if (c < 0 || c > S::MAX_PLAYER_POP_CAP) ar.ok = false;
 	} else if constexpr (Ar::loading) {
 		std::fill(std::begin(s.player_pop_cap_), std::end(s.player_pop_cap_), 0);
+	}
+
+	// 9h. Structures' focus-fire targets (SAVE_VERSION_FOCUS_FIRE), by building id.
+	if (ar.version >= SAVE_VERSION_FOCUS_FIRE) {
+		std::vector<std::pair<uint32_t, std::vector<uint32_t>>> focus;
+		if constexpr (!Ar::loading)
+			for (const auto &b : s.buildings_)
+				if (!b.focus_targets.empty()) focus.emplace_back(b.id, b.focus_targets);
+		io_vec(ar, focus, 1u << 16, [&](std::pair<uint32_t, std::vector<uint32_t>> &kv) {
+			ar.pod(kv.first);
+			io_vec_pod(ar, kv.second, (uint32_t)S::MAX_FOCUS_TARGETS);
+		});
+		if constexpr (Ar::loading) {
+			for (auto &b : s.buildings_) b.focus_targets.clear();
+			for (auto &kv : focus) {
+				auto it = s.building_id_to_idx_.find(kv.first);
+				if (it == s.building_id_to_idx_.end() || kv.second.empty()) { ar.ok = false; break; }
+				s.buildings_[it->second].focus_targets = std::move(kv.second);
+			}
+		}
+	} else if constexpr (Ar::loading) {
+		for (auto &b : s.buildings_) b.focus_targets.clear();
 	}
 
 	// 9e. Petra's army soldiers (v52). Older saves: every citizen soldier works.
