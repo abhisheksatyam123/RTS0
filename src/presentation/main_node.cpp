@@ -91,6 +91,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
 	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
+	ClassDB::bind_method(D_METHOD("_on_observer_view_selected", "index"), &RtsoMain::_on_observer_view_selected);
 	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_save_version"), &RtsoMain::get_save_version);
 	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_replay_format"), &RtsoMain::get_replay_format);
 	ClassDB::bind_method(D_METHOD("is_replay_playback"), &RtsoMain::is_replay_playback);
@@ -157,6 +158,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
 	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
+	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
 
 	const StringName cls = get_class_static();
 	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
@@ -2954,6 +2956,15 @@ void RtsoMain::_process(double delta) {
 		// play on in the seat our dropped client had.
 		if ((net_host_.isHost() && !net_game_started_) || (lobby_seats && lobby_seats->get_child_count()))
 			refresh_lobby_seats();
+		// A host that turned us away mid-match says why (0 A.D. disconnect reasons).
+		if (!net_host_.isHost() && !net_game_started_ && lobby_status) {
+			const uint8_t why = turn_mgr_.rejoin_reject_reason();
+			const char *text = why == 6 ? "This game does not let observers join after it started."
+					: why == 7 ? "This game is full: it has as many observers as it allows."
+					: why == 3 || why == 4 || why == 5 ? "Could not load the host's game."
+					: nullptr;
+			if (text && lobby_status->get_text() != text) lobby_status->set_text(text);
+		}
 		if (!net_host_.isHost() && !net_game_started_ && sim && turn_mgr_.apply_pending_rejoin(*sim)) {
 			net_game_started_ = true;
 			selected_ids.clear();
@@ -3280,7 +3291,7 @@ void RtsoMain::_process(double delta) {
 					g->set_mesh(box);
 					g->set_scale(Vector3(1.0f, 1.0f, 1.0f));
 				}
-				g->set_global_position(Vector3(p.x, 0.05f, p.z));
+				g->set_global_position(Vector3(p.x, (sim ? sim->get_terrain_height(p.x, p.z) : 0.0f) + 0.05f, p.z));
 				g->set_rotation(Vector3(0.0f, yaw, 0.0f));
 				const bool ok = sim && sim->check_wall_piece(local_player(), p, snapped, 2) == rtso::Simulation::PLACE_OK;
 				g->set_material_override(ok ? ghost_mat_ok : ghost_mat_bad);
@@ -3314,7 +3325,7 @@ void RtsoMain::_process(double delta) {
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;
 				float gz = (cell_y + footprint * 0.5f) * rtso::Simulation::GRID;
-				ghost_mesh->set_global_position(Vector3(gx, 0.05f, gz));
+				ghost_mesh->set_global_position(Vector3(gx, sim->get_terrain_height(gx, gz) + 0.05f, gz));
 				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
 				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
@@ -3341,12 +3352,13 @@ void RtsoMain::_process(double delta) {
 	}
 	tick_quit_confirmation();
 
+	update_observer_view_picker();
 	// Check Victory / Defeat Condition, from the local player's seat
-	if (sim->is_victory_for(local_player())) {
+	if (sim->is_victory_for(seat_player())) {
 		banner_panel->set_visible(true);
 		banner_label->set_text("VICTORY!\nYour side has prevailed.");
 		banner_label->add_theme_color_override("font_color", Color(0.3f, 1.0f, 0.5f));
-	} else if ((sim->is_victory() || sim->is_game_over()) && local_player() >= rtso::MAX_PLAYERS) {
+	} else if ((sim->is_victory() || sim->is_game_over()) && seat_player() >= rtso::MAX_PLAYERS) {
 		// An observer has no side: name the winners instead (0 A.D. summary "Winner").
 		String winners;
 		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
@@ -3358,7 +3370,7 @@ void RtsoMain::_process(double delta) {
 		banner_panel->set_visible(true);
 		banner_label->set_text("DEFEAT!\nYour side has been defeated.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.3f, 0.3f));
-	} else if (sim->is_defeated(local_player())) {
+	} else if (sim->is_defeated(seat_player())) {
 		// 0 A.D.: a defeated player watches the rest of the match with the map revealed.
 		// The notice shows for a few seconds, then gets out of the way.
 		static double defeated_at = -1.0;
@@ -3366,8 +3378,7 @@ void RtsoMain::_process(double delta) {
 		banner_panel->set_visible(match_elapsed_time - defeated_at < 6.0);
 		banner_label->set_text("DEFEATED\nYou are now observing. The match goes on.");
 		banner_label->add_theme_color_override("font_color", Color(1.0f, 0.75f, 0.3f));
-		selected_ids.clear();
-	} else if ((local_observer_ || (net_lockstep() && local_player() >= rtso::MAX_PLAYERS)) && !turn_mgr_.is_replaying()) {
+	} else if ((local_observer_ || (net_lockstep() && seat_player() >= rtso::MAX_PLAYERS)) && !turn_mgr_.is_replaying()) {
 		// Every Game Setup slot was AI, or this client joined to watch: say so
 		// for the first few seconds.
 		banner_panel->set_visible(match_elapsed_time < 6.0);
@@ -3377,14 +3388,90 @@ void RtsoMain::_process(double delta) {
 	}
 }
 
+bool RtsoMain::spectating() const {
+	if (turn_mgr_.is_replaying() || !sim) return false;
+	const uint8_t seat = seat_player();
+	return seat >= rtso::MAX_PLAYERS || sim->is_defeated(seat);
+}
+
+// 0 A.D. session "viewPlayer" dropdown (gui/session/top_panel/PlayerViewControl):
+// an observer, or a player once defeated, watches the whole map or follows
+// one player's sight and panels. Shown from the moment this client spectates.
+void RtsoMain::update_observer_view_picker() {
+	if (!spectating()) {
+		if (observer_view_picker_) observer_view_picker_->get_parent()->call("set_visible", false);
+		return;
+	}
+	if (!observer_view_picker_) {
+		HBoxContainer *row = memnew(HBoxContainer);
+		row->set_position(Vector2(16.0f, 64.0f));
+		Label *caption = memnew(Label);
+		caption->set_text("Player view:");
+		row->add_child(caption);
+		observer_view_picker_ = memnew(OptionButton);
+		observer_view_picker_->add_item("Observer", 0);
+		for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+			if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
+			observer_view_picker_->add_item(player_display_name(p) + " (" + String(rtso::civ_info(sim->player(p).civ).name) + ")", p + 1);
+		}
+		observer_view_picker_->set_focus_mode(Control::FOCUS_NONE);
+		observer_view_picker_->connect("item_selected", Callable(this, "_on_observer_view_selected"));
+		row->add_child(observer_view_picker_);
+		CanvasLayer *layer = memnew(CanvasLayer);
+		layer->set_layer(5);
+		add_child(layer);
+		layer->add_child(row);
+		set_observer_view(-1);
+	}
+	observer_view_picker_->get_parent()->call("set_visible", true);
+}
+
+void RtsoMain::_on_observer_view_selected(int index) {
+	if (observer_view_picker_ && index >= 0 && index < observer_view_picker_->get_item_count())
+		set_observer_view(observer_view_picker_->get_item_id(index) - 1);
+}
+
+void RtsoMain::set_observer_view(int player) {
+	observer_view_ = player >= 0 && player < rtso::MAX_PLAYERS ? (uint8_t)player : rtso::OBSERVER_VIEW;
+	clear_selection();
+	if (observer_view_picker_)
+		for (int i = 0; i < observer_view_picker_->get_item_count(); ++i)
+			if (observer_view_picker_->get_item_id(i) == (observer_view_ == rtso::OBSERVER_VIEW ? 0 : observer_view_ + 1))
+				observer_view_picker_->select(i);
+}
+
 Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
 	if (!cam_rig || !cam_rig->get_camera()) return Vector3();
 	Camera3D *cam = cam_rig->get_camera();
 	Vector3 ray_origin = cam->project_ray_origin(mouse_pos);
 	Vector3 ray_dir = cam->project_ray_normal(mouse_pos);
 	if (std::abs(ray_dir.y) < 0.0001f) return Vector3();
-	float t = -ray_origin.y / ray_dir.y;
-	return ray_origin + ray_dir * t;
+	const float t_plane = -ray_origin.y / ray_dir.y;
+	// The ground the player sees is the heightmap, not y = 0 (0 A.D.'s
+	// GetTerrainCursorPosition): walk the ray down until it passes under the
+	// terrain, then bisect that step. Without a heightmap, or when the ray
+	// never meets it, the y = 0 plane stands in.
+	if (sim && ray_dir.y < 0.0f && !sim->terrain_heights().empty()) {
+		constexpr float STEP = 0.5f;
+		const float t_end = std::max(t_plane, 0.0f) + 400.0f;
+		float prev = 0.0f;
+		for (float t = 0.0f; t <= t_end; t += STEP) {
+			const Vector3 p = ray_origin + ray_dir * t;
+			if (p.y > sim->get_terrain_height(p.x, p.z)) {
+				prev = t;
+				continue;
+			}
+			float lo = prev, hi = t;
+			for (int i = 0; i < 12; ++i) {
+				const float mid = 0.5f * (lo + hi);
+				const Vector3 m = ray_origin + ray_dir * mid;
+				(m.y > sim->get_terrain_height(m.x, m.z) ? lo : hi) = mid;
+			}
+			const Vector3 hit = ray_origin + ray_dir * hi;
+			return Vector3(hit.x, sim->get_terrain_height(hit.x, hit.z), hit.z);
+		}
+	}
+	return ray_origin + ray_dir * t_plane;
 }
 
 // The local player's structure whose box the mouse ray enters first: its
@@ -6309,7 +6396,19 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["hosting"] = hosting;
 	d["players"] = players;
 	d["started"] = net_game_started_;
+	// For tools/playtest_godot_mp.py: where the match is and whether it agrees.
+	d["turn"] = (int64_t)turn_mgr_.current_turn();
+	d["seat"] = (int)seat_player();
+	d["oos"] = turn_mgr_.has_out_of_sync();
+	d["oos_turn"] = (int64_t)turn_mgr_.oos_turn();
 	return d;
+}
+
+int64_t RtsoMain::get_turn_hash(int64_t turn) const {
+	const auto &history = turn_mgr_.turn_history();
+	for (auto it = history.rbegin(); it != history.rend(); ++it)
+		if ((int64_t)it->turn_index == turn) return (int64_t)it->sim_state_hash;
+	return 0;
 }
 
 // 0 A.D. gamesetup player assignment (PlayerAssignmentsController.js): the host
@@ -6502,6 +6601,7 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	c.target_z = z;
 	c.target_id = tid;
 	c.param = param;
+	if (spectating()) return; // observers and defeated players order nothing
 	turn_mgr_.post_local_command(c);
 }
 

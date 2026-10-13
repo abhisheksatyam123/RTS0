@@ -2741,6 +2741,58 @@ static void test_temple_wonder_save() {
 	CHECK(seen && s->petra_attack_mgr_.save_resources == 0, "a new civic centre ends the saving");
 }
 
+// headquarters.js manageCorral: without fields, Petra breeds an animal of a kind while it owns no
+// more of that kind than it has corrals (Gaia's animals don't count), and lays another corral
+// while it has fewer than its phase number and over 30 population per corral.
+static void test_corral_by_owner() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 2.0f);
+	s->petra_pid_ = 1;
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	s->petra_queues_.accounts[Simulation::PETRA_QUEUE_VILLAGER] = {5000, 5000, 5000, 5000};
+	s->triggers_.disabled_buildings[1] |= bld_bit(BLD_FIELD);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && is_civic_centre(b.type) && b.build_progress >= 1.0f) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const float cx = cc->x, cz = cc->z;
+	const uint32_t corral = s->spawn_building_world(cx + 20.0f, cz, BLD_CORRAL, 1, 1.0f);
+	CHECK(corral != 0, "a corral is placed");
+	auto corrals = [&] {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == BLD_CORRAL && b.hp > 0.0f;
+		return n;
+	};
+	auto queued = [&] {
+		auto it = s->building_id_to_idx_.find(corral);
+		return it == s->building_id_to_idx_.end() ? 0 : (int)s->buildings_[it->second].queue.size();
+	};
+	const uint8_t first = CORRAL_TRAINABLE[s->players_[1].civ].fauna[0];
+	const uint8_t second = CORRAL_TRAINABLE[s->players_[1].civ].fauna[1];
+	auto manage = [&] { s->ticks_ = (s->ticks_ / 16 + 1) * 16 + 12; s->petra_manage_fields(); };
+	// Two of our own animals of the first kind: the corral breeds the second kind, though Gaia's
+	// animals of that kind stand beside it.
+	s->spawn_fauna(cx + 22.0f, cz, first, 1);
+	s->spawn_fauna(cx + 23.0f, cz, first, 1);
+	for (int k = 0; k < 4; ++k) s->spawn_fauna(cx + 21.0f, cz + 2.0f, second); // Gaia's, beside the corral
+	manage();
+	CHECK(corrals() == 1, "no second corral in the village phase");
+	CHECK(queued() == 1, "an animal is bred");
+	auto it = s->building_id_to_idx_.find(corral);
+	if (it != s->building_id_to_idx_.end() && !s->buildings_[it->second].queue.empty())
+		CHECK(s->buildings_[it->second].queue[0].tmpl == second, "the second kind: two of the first are ours, none of the second");
+	s->players_[1].phase = 2;
+	for (int k = 0; k < 30; ++k) s->spawn_unit(cx - 10.0f, cz + (float)k * 0.5f, 1, UNIT_VILLAGER);
+	manage();
+	std::printf("  corrals: %d at pop %d in the town phase, %d bred\n", corrals(), s->pop_current(1), queued());
+	CHECK(corrals() == 2, "a second corral in the town phase past 30 population");
+}
+
 int main() {
 	std::printf("test_petra\n");
 	test_no_early_rush();
@@ -2792,6 +2844,7 @@ int main() {
 	test_build_defenses();
 	test_dropsites();
 	test_food_fields();
+	test_corral_by_owner();
 	test_emergency_units();
 	test_new_cc_defenders();
 	test_temple_wonder_save();
