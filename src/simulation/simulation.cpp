@@ -9479,6 +9479,7 @@ void Simulation::tick_gather(float dt) {
 				// (Gather techs name stone.rock, metal.ore and so on, never *.ruins.)
 				const uint32_t rid = units_.target_resource_id[i];
 				if (units_.gather_res[i] != rid || !(units_.gather_rate[i] > 0.0f)) {
+					units_.hunt_fauna[i] = resources_.fauna[ridx]; // order.data.template
 					float rate = class_rate * ai_gather_mult(uteam);
 					const Civilization civ = civ_of(uteam);
 					if (!ruins) {
@@ -9597,6 +9598,14 @@ float Simulation::builder_rate(size_t unit_idx) const {
 // Cost.js GetBuildTime on the foundation, so for its owner: the template time after
 // technologies, civ and team bonuses (Celtic Wooden Construction, ...) and the
 // AI difficulty multiplier. An allied builder works at the owner's rate.
+float Simulation::structure_build_time_for(uint8_t player, uint8_t type) const {
+	Building b;
+	b.type = type < BLD_TYPE_COUNT ? type : 0;
+	b.team = player;
+	b.half_size = 1.0f; // a structure's own row, not a WallSet piece
+	return structure_build_time(b);
+}
+
 float Simulation::structure_build_time(const Building &b) const {
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
 	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
@@ -12961,11 +12970,14 @@ void Simulation::finish_order(size_t i) {
 		// (not for a forced order: it may have sent the unit across the map on purpose),
 		// else near where it was.
 		const int sub = (units_.order_flags[i] & ORDER_FLAG_SUB_MASK) >> ORDER_FLAG_SUB_SHIFT;
+		// UnitAI.js FINDINGNEWTARGET: "type.specific != 'meat' || resourceTemplate == template",
+		// so a hunter goes on only to the animal it was hunting (a carcass or a live one).
+		const uint8_t species = sub == RES_SUB_MEAT ? units_.hunt_fauna[i] : 0;
 		uint32_t r = 0;
 		if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
-			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub);
+			r = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
 		if (r == 0)
-			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub);
+			r = find_nearby_resource(units_.order_x[i], units_.order_z[i], units_.res_type_carried[i], units_.team[i], sub, nullptr, 0, species);
 		if (r != 0) {
 			UnitOrder o = current_order(i);
 			o.target = r;
@@ -12977,7 +12989,7 @@ void Simulation::finish_order(size_t i) {
 		if (sub == RES_SUB_MEAT) {
 			const bool forced = (units_.order_flags[i] & ORDER_FLAG_FORCE) != 0;
 			const uint32_t prey = find_nearby_prey(i, forced ? units_.order_x[i] : units_.pos_x[i],
-					forced ? units_.order_z[i] : units_.pos_z[i], NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE);
+					forced ? units_.order_z[i] : units_.pos_z[i], NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE, species);
 			if (prey != 0) {
 				order_hunt(&uid, 1, prey);
 				return;
@@ -13197,12 +13209,13 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 }
 
 uint32_t Simulation::find_nearby_resource(float x, float z, uint8_t res_type, uint8_t team, int subtype,
-		const std::unordered_map<uint32_t, FieldGatherers> *busy, uint32_t skip) const {
+		const std::unordered_map<uint32_t, FieldGatherers> *busy, uint32_t skip, uint8_t fauna) const {
 	uint32_t best = 0;
 	float best_d2 = NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.type[r] != res_type) continue;
 		if (subtype >= 0 && resources_.subtype[r] != subtype) continue; // the same kind (type.specific)
+		if (fauna != 0 && resources_.fauna[r] != fauna) continue; // meat: the same template
 		if (busy) {
 			if (resources_.id[r] == skip) continue;
 			auto g = busy->find(resources_.id[r]);
@@ -23559,7 +23572,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -24438,6 +24451,8 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		ar.pod(U.burning_timer[i]);
 		if (ar.version >= SAVE_VERSION_LOOT) ar.pod(U.xp_partial[i]);
 		else U.xp_partial[i] = 0.0f;
+		if (ar.version >= S::SAVE_VERSION_HUNT_SPECIES) ar.pod(U.hunt_fauna[i]);
+		else U.hunt_fauna[i] = 0; // any species, as before
 		if (ar.version >= SAVE_VERSION_HEALTH_AURAS) ar.pod(U.aura_hp_mult[i]);
 		else U.aura_hp_mult[i] = 1.0f;
 		if (ar.version >= SAVE_VERSION_RALLY) {
@@ -24870,6 +24885,9 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 		for (size_t r = 0; r < s.resources_.count; ++r)
 			s.resources_.regrow_left[r] = regrow_interval(s.resources_.type[r], s.resources_.subtype[r]);
 	}
+	// v65: each carcass's animal template (older saves: none, so any species will do).
+	if (ar.version >= S::SAVE_VERSION_HUNT_SPECIES)
+		for (size_t r = 0; r < s.resources_.count; ++r) ar.pod(s.resources_.fauna[r]);
 
 	// 4. UnitAI orders (save v20): each unit's order, last attacker and work order,
 	// then the order queues by unit id.
@@ -25672,7 +25690,7 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 // animal (RTS0 drops the carcass's template, so "the same template" is approximated by the
 // herd nearby). A ship (the fishing boat's Harpoon) goes only for sea animals, which are
 // fish (type.specific "fish", not "meat", so any whale will do); a land unit never does.
-uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2) const {
+uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna) const {
 	if (units_.attack_damage[i] <= 0.0f) return 0;
 	const bool ship = unit_is_ship(units_.unit_type[i]);
 	uint32_t best = 0;
@@ -25683,6 +25701,7 @@ uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2) 
 		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED || b == FAUNA_MOVING) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
 		if (info.is_dangerous() || info.is_naval() != ship) continue;
+		if (fauna != 0 && fauna_.fauna_type[f] + 1 != fauna) continue;
 		const float dx = fauna_.pos_x[f] - x, dz = fauna_.pos_z[f] - z;
 		const float d2 = dx * dx + dz * dz;
 		if (d2 < best_d2) { best_d2 = d2; best = fauna_.id[f]; }
@@ -25725,6 +25744,7 @@ void Simulation::order_hunt(const uint32_t *unit_ids, size_t count, uint32_t fau
 		units_.target_unit_id[uidx] = fauna_id;
 		units_.target_building_id[uidx] = 0;
 		units_.target_resource_id[uidx] = 0;
+		units_.hunt_fauna[uidx] = (uint8_t)(fauna_.fauna_type[fidx] + 1); // order.data.template
 		units_.target_x[uidx] = fauna_.pos_x[fidx];
 		units_.target_z[uidx] = fauna_.pos_z[fidx];
 	}
@@ -25947,6 +25967,7 @@ uint32_t Simulation::spawn_carcass(size_t f) {
 	const uint32_t rid = spawn_resource_world(fauna_.pos_x[f], fauna_.pos_z[f], RES_FOOD, fauna_.food_amount[f],
 			fish ? RES_SUB_FISH : RES_SUB_MEAT, finfo.max_gatherers);
 	if (fish) resources_.max_amount[res_id_to_idx_[rid]] = -1; // no ResourceSupply/Change: it never regrows
+	else resources_.fauna[res_id_to_idx_[rid]] = (uint8_t)(fauna_.fauna_type[f] + 1); // its template
 	return rid;
 }
 
