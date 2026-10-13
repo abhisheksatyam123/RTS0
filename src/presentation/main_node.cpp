@@ -61,6 +61,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
 	ClassDB::bind_method(D_METHOD("_on_remove_guard_pressed"), &RtsoMain::_on_remove_guard_pressed);
 	ClassDB::bind_method(D_METHOD("_on_call_to_arms_pressed"), &RtsoMain::_on_call_to_arms_pressed);
+	ClassDB::bind_method(D_METHOD("_on_entity_command", "name"), &RtsoMain::_on_entity_command);
+	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
 	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
 	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
 	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
@@ -128,6 +130,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
+	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
 	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
 	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
 	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
@@ -1539,6 +1542,23 @@ Dictionary RtsoMain::debug_selection_state() {
 	return d;
 }
 
+// Test hook: the command panel's buttons after a refresh (text, tooltip,
+// disabled, instance id).
+Array RtsoMain::debug_command_row() {
+	Array out;
+	update_command_panel();
+	for (int i = 0; i < production_bar->get_child_count(); ++i)
+		if (Button *btn = Object::cast_to<Button>(production_bar->get_child(i))) {
+			Dictionary e;
+			e["text"] = btn->get_text();
+			e["tip"] = btn->get_tooltip_text();
+			e["disabled"] = btn->is_disabled();
+			e["id"] = (int64_t)btn->get_instance_id();
+			out.push_back(e);
+		}
+	return out;
+}
+
 // Test hook: step 0 places a barracks with a rally point and selects it; step 1
 // does what a right-click on the barracks itself does; every step reports the
 // rally point and whether the barracks centre / a far spot count as "itself".
@@ -2021,6 +2041,8 @@ void RtsoMain::update_cursor() {
 					rtso::hotkeys::held("session.calltoarms")) want = "action-attack-move";
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
+			else if (garrison_mode) want = "action-garrison";
+			else if (repair_mode) want = "action-repair";
 			if (!*want) {
 				auto uv = sim->units();
 				bool healer = false, builder = false;
@@ -2318,7 +2340,115 @@ void RtsoMain::_on_remove_guard_pressed() {
 void RtsoMain::_on_call_to_arms_pressed() {
 	if (selected_ids.is_empty()) return;
 	call_to_arms_mode = true;
-	attack_move_mode = patrol_mode = guard_mode = false;
+	attack_move_mode = patrol_mode = guard_mode = garrison_mode = repair_mode = false;
+}
+
+// One g_EntityCommands button (unit_actions.js): the hotkey and title on the
+// tooltip's first line, the body below, the icon, and a count where it has one.
+void RtsoMain::add_entity_command(const char *name, const char *label, const char *hotkey, const String &tip,
+		const char *icon, bool enabled, int count) {
+	Button *btn = memnew(Button);
+	btn->set_text(count > 0 ? String(label) + " (" + String::num_int64(count) + ")" : String(label));
+	const std::string key = (hotkey && *hotkey) ? rtso::hotkeys::table().label(hotkey) : std::string();
+	btn->set_tooltip_text(key.empty() ? tip : "[" + String(key.c_str()) + "] " + tip);
+	Ref<Texture2D> ico = load_tex(String("res://assets/textures/ui/archive/icons/") + icon);
+	if (ico.is_valid()) {
+		btn->set_button_icon(ico);
+		btn->add_theme_constant_override("icon_max_width", 20);
+	}
+	btn->set_disabled(!enabled);
+	btn->connect("pressed", Callable(this, "_on_entity_command").bind(String(name)));
+	production_bar->add_child(btn);
+}
+
+// g_EntityCommands execute() for the command row, and the hotkeys that run them.
+void RtsoMain::_on_entity_command(const String &name) {
+	if (!sim) return;
+	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
+	const size_t n = selected_ids.size();
+	auto arm = [&](bool &mode) {
+		if (n == 0) return;
+		attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
+		mode = true;
+	};
+	if (name == "delete") {
+		request_delete();
+	} else if (name == "stop") { // stopUnits
+		if (n == 0) return;
+		if (turn_cmds())
+			post_lockstep(2, ids, n);
+		else
+			sim->cmd_stop(ids, n);
+	} else if (name == "back-to-work") { // backToWork
+		if (n == 0) return;
+		if (turn_cmds())
+			post_lockstep(31, ids, n);
+		else
+			sim->order_back_to_work(ids, n);
+		play_civ_voice("gather");
+	} else if (name == "call-to-arms") {
+		_on_call_to_arms_pressed();
+	} else if (name == "garrison") {
+		arm(garrison_mode);
+	} else if (name == "repair") {
+		arm(repair_mode);
+	} else if (name == "add-guard") {
+		arm(guard_mode);
+	} else if (name == "patrol") {
+		arm(patrol_mode);
+	} else if (name == "remove-guard") {
+		_on_remove_guard_pressed();
+	} else if (name == "unload-all") {
+		_on_ungarrison_pressed();
+	} else if (name == "select-trading-goods") {
+		if (Node *barter = get_node_or_null(NodePath("BarterDialog"))) barter->call("toggle");
+	} else if (name == "focus-rally") {
+		// The first rally point, else the structure itself.
+		for (const auto &b : sim->buildings())
+			if (b.id == selected_building_id && cam_rig) {
+				cam_rig->set_target_pos(b.has_rally_point ? Vector3(b.rally_x, 0, b.rally_z) : Vector3(b.x, 0, b.z));
+				break;
+			}
+	}
+}
+
+// unit_actions.js "delete": everything selected that may be deleted (not a
+// structure you hold less than half the capture points of), after
+// DeleteSelectionConfirmation unless session.noconfirmation is held.
+void RtsoMain::request_delete() {
+	delete_pending_.clear();
+	for (int s = 0; s < selected_ids.size(); ++s) delete_pending_.push_back(selected_ids[s]);
+	for (const auto &b : sim->buildings())
+		if (b.id == selected_building_id && b.team == local_player() && !(b.max_capture_points > 0.0f &&
+				b.capture_points_by_team[b.team] < b.max_capture_points * 0.5f))
+			delete_pending_.push_back((int32_t)b.id);
+	if (delete_pending_.is_empty()) return;
+	if (rtso::hotkeys::held("session.noconfirmation")) {
+		_on_delete_confirmed();
+		return;
+	}
+	if (!delete_dialog_) {
+		delete_dialog_ = memnew(ConfirmationDialog);
+		delete_dialog_->set_title(tr("Delete"));
+		delete_dialog_->set_text(tr("Destroy everything currently selected?"));
+		delete_dialog_->get_ok_button()->set_text(tr("Yes"));
+		delete_dialog_->get_cancel_button()->set_text(tr("No"));
+		delete_dialog_->connect("confirmed", Callable(this, "_on_delete_confirmed"));
+		ui_layer->add_child(delete_dialog_);
+	}
+	delete_dialog_->popup_centered();
+}
+
+void RtsoMain::_on_delete_confirmed() {
+	if (!sim || delete_pending_.is_empty()) return;
+	std::vector<uint32_t> ids;
+	for (int s = 0; s < delete_pending_.size(); ++s) ids.push_back((uint32_t)(int64_t)delete_pending_[s]);
+	delete_pending_.clear();
+	if (turn_cmds())
+		post_lockstep(30, ids.data(), ids.size());
+	else
+		sim->cmd_delete(local_player(), ids.data(), ids.size());
+	clear_selection();
 }
 
 void RtsoMain::_on_stance_selected(int stance) {
@@ -3645,6 +3775,29 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 		}
+		// The structure's command row (unit_actions.js g_EntityCommands).
+		if (found_b && found_b->team == local_player()) {
+			const int inside = (int)found_b->garrisoned_units.size();
+			if (inside > 0)
+				add_entity_command("unload-all", "Unload All", "session.unload",
+						"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, inside);
+			// isUndeletable: you must hold half the capture points.
+			if (found_b->max_capture_points > 0.0f &&
+					found_b->capture_points_by_team[found_b->team] < found_b->max_capture_points * 0.5f)
+				add_entity_command("delete", "Delete", "",
+						"You cannot destroy this entity as you own less than half the capture points", "kill_small_disabled.png", false);
+			else
+				add_entity_command("delete", "Delete", "session.kill",
+						String("Self-Destruct\nDestroy the selected entities.\nUse ") +
+								rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
+						"kill_small.png");
+			if (found_b->has_rally_point)
+				add_entity_command("focus-rally", "Focus on Rally Point", "camera.rallypointfocus",
+						"Focus on Rally Point\nCenter the view on the selected rally point.", "focus-rally.png");
+			if (found_b->type == rtso::BLD_MARKET && found_b->build_progress >= 1.0f)
+				add_entity_command("select-trading-goods", "Barter & Trade", "session.gui.barter.toggle",
+						"Barter & Trade\nOpen the dialog for managing resource trading and bartering.", "economics.png");
+		}
 	} else {
 		// Non-building selected: clear visual queue slots
 		production_queue_.update(nullptr);
@@ -3811,33 +3964,67 @@ void RtsoMain::update_command_panel() {
 				}
 			}
 
-			// g_EntityCommands "remove-guard" (shown while any selected unit guards) and
-			// "call-to-arms" (any unit with UnitAI), unit_actions.js.
-			bool any_guarding = false;
-			for (int i = 0; i < selected_ids.size() && !any_guarding; ++i)
-				any_guarding = sim->unit_is_guarding((uint32_t)selected_ids[i]);
+			// The command row, g_EntityCommands in unit_actions.js order: each shows when
+			// its getInfo would (any selected unit it applies to).
 			{
-				struct EntityCommand { bool shown; const char *label; const char *hotkey; const char *tip; const char *icon; const char *method; };
-				const EntityCommand cmds[2] = {
-					{any_guarding, "Unguard", "", "Remove guard", "res://assets/textures/ui/archive/icons/remove-guard.png", "_on_remove_guard_pressed"},
-					{true, "Call to arms", "session.calltoarms",
-							"Send the selected units on attack move to the specified location after dropping resources.",
-							"res://assets/textures/ui/archive/icons/call-to-arms.png", "_on_call_to_arms_pressed"},
-				};
-				for (const auto &c : cmds) {
-					if (!c.shown) continue;
-					Button *btn = memnew(Button);
-					btn->set_text(c.label);
-					const std::string key = *c.hotkey ? rtso::hotkeys::table().label(c.hotkey) : std::string();
-					btn->set_tooltip_text(key.empty() ? String(c.tip) : "[" + String(key.c_str()) + "] " + String(c.tip));
-					Ref<Texture2D> ico = load_tex(c.icon);
-					if (ico.is_valid()) {
-						btn->set_button_icon(ico);
-						btn->add_theme_constant_override("icon_max_width", 20);
+				bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
+				bool any_guard = false, any_can_add_guard = false, any_garrison = false;
+				int passengers = 0;
+				for (int s = 0; s < selected_ids.size(); ++s) {
+					const uint32_t id = (uint32_t)selected_ids[s];
+					for (size_t u = 0; u < uview.count; ++u) {
+						if (uview.id[u] != id) continue;
+						const uint8_t ut = uview.unit_type[u];
+						const uint16_t tm = uview.tmpl[u];
+						const uint64_t cls = tm < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tm).tech_classes : rtso::unit_tech_classes(ut);
+						const bool guarding = sim->unit_is_guarding(id);
+						any_guarding = any_guarding || guarding;
+						any_busy = any_busy || (sim->unit_has_order(id) && !guarding); // "stop": not idle, not guarding
+						any_work = any_work || sim->unit_has_work_order(id);
+						// "call-to-arms": Soldier, Warship, Siege or Healer.
+						any_fighter = any_fighter || (cls & (rtso::TC_SOLDIER | rtso::TC_WARSHIP | rtso::TC_SIEGE | rtso::TC_HEALER)) != 0;
+						// UnitAI CanGuard / CanPatrol: soldiers, warships and siege.
+						const bool can_guard = (cls & (rtso::TC_SOLDIER | rtso::TC_WARSHIP | rtso::TC_SIEGE)) != 0;
+						any_guard = any_guard || can_guard;
+						any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
+						any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
+						if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
+						break;
 					}
-					btn->connect("pressed", Callable(this, c.method));
-					production_bar->add_child(btn);
 				}
+				if (passengers > 0)
+					add_entity_command("unload-all", "Unload All", "session.unload",
+							"Unload All\nOrder all units to leave the selected entities.", "garrison-out.png", true, passengers);
+				add_entity_command("delete", "Delete", "session.kill",
+						String("Self-Destruct\nDestroy the selected entities.\nUse ") +
+								rtso::hotkeys::table().label("session.noconfirmation").c_str() + " to avoid the confirmation dialog.",
+						"kill_small.png");
+				if (any_busy)
+					add_entity_command("stop", "Abort", "session.stop",
+							"Abort\nCancel the current orders for the selected units.", "stop.png");
+				if (any_fighter)
+					add_entity_command("call-to-arms", "Call to Arms", "session.calltoarms",
+							"Attack\nSend the selected units on attack move to the specified location after dropping resources.",
+							"call-to-arms.png");
+				if (any_garrison)
+					add_entity_command("garrison", "Garrison", "session.garrison",
+							"Garrison\nOrder the selected units to garrison in a structure or another unit.", "garrison.png");
+				if (has_worker)
+					add_entity_command("repair", "Repair", "session.repair",
+							"Repair\nOrder the selected units to repair a structure, ship, or siege engine.", "repair.png");
+				if (any_work)
+					add_entity_command("back-to-work", "Back to Work", "session.backtowork",
+							"Back to Work\nOrder the selected units to resume their work.", "back-to-work.png");
+				if (any_can_add_guard)
+					add_entity_command("add-guard", "Guard", "session.guard",
+							"Guard\nOrder the selected units to guard a structure or unit.", "add-guard.png");
+				if (any_guarding)
+					add_entity_command("remove-guard", "Abort Guard", "",
+							"Abort Guard\nOrder the selected units to stop guarding.", "remove-guard.png");
+				if (any_guard)
+					add_entity_command("patrol", "Patrol", "session.patrol",
+							"Patrol\nOrder to repeatedly go to a point and come back, attacking all enemies along the way.",
+							"patrol.png");
 			}
 
 			if (has_worker) {
@@ -4130,8 +4317,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 			if (build_mode) enter_build_mode(false);
-			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode)
-				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = false;
+			else if (attack_move_mode || patrol_mode || guard_mode || call_to_arms_mode || garrison_mode || repair_mode)
+				attack_move_mode = patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
 			else clear_selection();
 			return;
 		}
@@ -4304,6 +4491,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (cam_rig) cam_rig->set_follow_id(selected_ids.is_empty() ? 0 : (uint32_t)selected_ids[0]);
 			return;
 		}
+		if (fired("camera.rallypointfocus")) { // unit_actions.js "focus-rally"
+			_on_entity_command("focus-rally");
+			return;
+		}
 		if (fired("camera.lastattackfocus")) {
 			if (cam_rig && has_last_attack_) cam_rig->set_target_pos(last_attack_pos_);
 			return;
@@ -4311,50 +4502,22 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 		// Unit commands (0 A.D. [hotkey.session], misc.xml).
 		if (fired("session.stop")) {
-			if (!selected_ids.is_empty()) {
-				if (turn_cmds())
-					post_lockstep(2, ids_ptr(), selected_ids.size());
-				else
-					sim->cmd_stop(ids_ptr(), selected_ids.size());
-			}
+			_on_entity_command("stop");
 			return;
 		}
 		if (fired("session.unload")) {
 			_on_ungarrison_pressed();
 			return;
 		}
-		// Delete (0 A.D. session.kill, unit_actions "delete"): asks first, like
-		// 0 A.D.'s confirmation box; a second press within 3 s or holding
-		// session.noconfirmation (Shift) destroys the selection.
+		// Delete (0 A.D. session.kill, unit_actions "delete"): DeleteSelectionConfirmation
+		// asks first unless session.noconfirmation (Shift) is held.
 		if (fired("session.kill")) {
-			std::vector<uint32_t> ids;
-			for (int s = 0; s < selected_ids.size(); ++s) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
-			if (selected_building_id != 0) ids.push_back(selected_building_id);
-			if (ids.empty()) return;
-			const double now = Time::get_singleton()->get_ticks_msec() / 1000.0;
-			if (!rtso::hotkeys::held("session.noconfirmation") && now - delete_armed_at_ > 3.0) {
-				delete_armed_at_ = now;
-				chat_window_.append_line("[color=#ffaa44]Press " +
-						String(rtso::hotkeys::table().label("session.kill").c_str()) +
-						" again to destroy the selection.[/color]\n");
-				return;
-			}
-			delete_armed_at_ = -10.0;
-			if (turn_cmds())
-				post_lockstep(30, ids.data(), ids.size());
-			else
-				sim->cmd_delete(local_player(), ids.data(), ids.size());
-			clear_selection();
+			_on_entity_command("delete");
 			return;
 		}
 		// Back to work (session.backtowork): resume the last gather or build.
 		if (fired("session.backtowork")) {
-			if (selected_ids.is_empty()) return;
-			if (turn_cmds())
-				post_lockstep(31, ids_ptr(), selected_ids.size());
-			else
-				sim->order_back_to_work(ids_ptr(), selected_ids.size());
-			play_civ_voice("gather");
+			_on_entity_command("back-to-work");
 			return;
 		}
 		auto apply_stance = [&](uint8_t st) {
@@ -4372,7 +4535,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.attackmoveunit")) {
 			if (!selected_ids.is_empty()) {
 				attack_move_mode = true;
-				patrol_mode = guard_mode = call_to_arms_mode = false;
+				patrol_mode = guard_mode = call_to_arms_mode = garrison_mode = repair_mode = false;
 			}
 			return;
 		}
@@ -4822,8 +4985,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 
 			// Attack-move: session.attackmove (Ctrl) + right-click, or attack_move_mode
 			// toggled. Ctrl on one of our own buildings garrisons instead (session.garrison).
+			// The Garrison and Repair buttons arm one click, like holding the modifier.
+			const bool force_garrison = garrison_mode || rtso::hotkeys::held("session.garrison");
+			const bool force_repair = repair_mode || rtso::hotkeys::held("session.repair");
+			garrison_mode = repair_mode = false;
 			bool garrison_click = false;
-			if (rtso::hotkeys::held("session.garrison")) {
+			if (force_garrison) {
 				for (const auto &b : sim->buildings()) {
 					if (b.team != local_player() && !sim->is_ally(local_player(), b.team)) continue; // own or allied
 					const float dx = b.x - click_pos.x, dz = b.z - click_pos.z, hit_r = b.half_size + 1.2f;
@@ -5119,7 +5286,23 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				float hit_r = b.half_size + 1.2f;
 				if (dx * dx + dz * dz <= hit_r * hit_r) {
 					const uint32_t gaia_grain = b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD ? sim->field_resource_id(b.id) : 0;
-					if (trade_route_click(b, true, queue_shift, nullptr)) {
+					const bool friendly = b.team == local_player() || sim->is_ally(local_player(), b.team);
+					if (force_garrison && friendly && selection_can_garrison(b.id)) {
+						// session.garrison is a hotkeyActionCheck: it wins over returning
+						// resources and repairing (unit_actions.js "garrison").
+						if (turn_cmds())
+							post_lockstep(12, sel_ptr, sel_n, 0, 0, b.id, qbit);
+						else
+							sim->order_garrison(sel_ptr, sel_n, b.id, queue_shift);
+						clear_selection();
+					} else if (force_repair && friendly && (b.build_progress < 1.0f || b.hp < b.max_hp)) {
+						// session.repair likewise wins over returning resources (unit_actions.js "repair").
+						if (turn_cmds())
+							post_lockstep(16, sel_ptr, sel_n, 0, 0, b.id, qbit);
+						else
+							sim->order_build_or_repair(sel_ptr, sel_n, b.id, queue_shift);
+						play_civ_voice("build");
+					} else if (trade_route_click(b, true, queue_shift, nullptr)) {
 						// setup-trade-route has specificness 0: it wins over garrison and capture.
 					} else if (gaia_grain) { // a Gaia field: anyone may farm it (0 A.D. "gather" comes before "capture")
 						if (turn_cmds())
