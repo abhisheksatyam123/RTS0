@@ -790,7 +790,7 @@ public:
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
 	// 0 A.D. "Last Man Standing": allies don't share a win; the match goes on until one player is left.
 	bool last_man_standing() const { return last_man_standing_; }
-	void set_last_man_standing(bool on) { last_man_standing_ = on; }
+	void set_last_man_standing(bool on) { last_man_standing_ = on; reroll_petra_personalities(); }
 	// 0 A.D. population limit per player (game setup); 0 means unlimited. A negative
 	// setting is 0 A.D.'s World Population: -setting shared evenly by the players
 	// still in the game (PlayerManager.RedistributeWorldPopulation), so each
@@ -1261,6 +1261,7 @@ public:
 	bool petra_is_worker(size_t i) const;
 	int petra_target_workers() const;
 	int petra_work_phase3() const;
+	int petra_pop_phase2() const; // config.js Economy.popPhase2 after setConfig's population scaling
 	int petra_accounted_population() const;
 	int petra_pop_for_barracks1() const;
 	int petra_pop_for_barracks2() const;

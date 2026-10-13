@@ -64,8 +64,8 @@ struct PetraConfig {
 	float army_compact_sq   = 2000.0f; // Defense.armyCompactSize
 	int   target_num_workers = 60;
 	int   target_num_traders = 3;
-	int   pop_phase2         = 38;   // config.js Economy.popPhase2
-	int   work_phase3        = 40;   // config.js Economy.workPhase3 (scaled down for our pop cap)
+	int   pop_phase2         = 150;  // config.js Economy.popPhase2 before setConfig's population scaling (petra_pop_phase2)
+	int   work_phase3        = 180;  // config.js Economy.workPhase3, likewise (petra_work_phase3); 999 never cities
 	int   muster_delta       = 0;     // +/- army threshold from personality
 
 	float garrison_hp_low  = 0.40f;
@@ -85,7 +85,7 @@ struct PetraConfig {
 
 	// config.js setConfig. `seed` != 0 draws the personality as 0 A.D. does (randFloat within
 	// the behaviour's range, cooperative anywhere in [0, 1]); 0 keeps each behaviour's middle.
-	void recompute(uint32_t seed = 0, bool teams_locked = false) {
+	void recompute(uint32_t seed = 0, bool teams_locked = false, bool allied_victory = false) {
 		switch (behavior) {
 			case PETRA_BEHAVIOR_DEFENSIVE:
 				aggressive = 0.18f; defensive = 0.82f; cooperative = 0.65f; break;
@@ -116,6 +116,7 @@ struct PetraConfig {
 			cooperative = rand01();
 		}
 		if (teams_locked) cooperative = std::min(1.0f, cooperative + 0.30f);
+		else if (allied_victory) cooperative = std::min(1.0f, cooperative + 0.15f);
 
 		// difficultyLevel.js scaling (sandbox..veryHard)
 		static const float kPop[6]     = { 0.50f, 0.50f, 0.70f, 1.00f, 1.00f, 1.00f }; // setConfig popScaling
@@ -142,14 +143,10 @@ struct PetraConfig {
 		muster_delta = 0;
 		if (aggressive > 0.70f) muster_delta = -2;
 		if (defensive > 0.70f) muster_delta = 2;
-		// config.js Economy.popPhase2 = 38; strongly aggressive personalities
-		// rush and delay the town phase to 50.
-		pop_phase2 = (aggressive > 0.70f) ? 50 : 38;
-		// config.js:314–319 popScaling clamp; workPhase3 floor 40 in 0 A.D., smaller here
-		pop_phase2 = std::max(20, (int)((float)pop_phase2 * std::min(1.0f, pop_scaling)));
-		work_phase3 = std::max(18, (int)(40.0f * pop_scaling));
-		if (difficulty == PETRA_SANDBOX)
-			work_phase3 = 999; // config.js:322 sandbox never cities
+		// config.js Economy.popPhase2 150 and workPhase3 180 (0.28); from Medium a strongly
+		// aggressive personality goes to the town phase at 50. Below Easy it never cities.
+		pop_phase2 = (d >= PETRA_MEDIUM && aggressive > 0.70f) ? 50 : 150;
+		work_phase3 = d < PETRA_EASY ? 999 : 180;
 		prio_emergency = 1000;
 		prio_villager  = 600;
 		prio_military  = (aggressive > 0.70f) ? 720 : 600;
@@ -342,7 +339,8 @@ struct PetraAttackManager {
 	uint8_t rush_number = 0;  // rushes planned so far
 	uint8_t attack_number = 0; // Attack/HugeAttack plans so far
 	uint8_t kind = PETRA_ATTACK_ATTACK; // kind of the main plan
-	uint8_t pad[3] = {};
+	uint8_t save_resources = 0; // headquarters.js saveResources: little wood at the start
+	uint8_t pad[2] = {};
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total

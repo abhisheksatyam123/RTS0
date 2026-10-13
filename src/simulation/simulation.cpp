@@ -14065,7 +14065,7 @@ int Simulation::petra_train_more_workers() {
 	const int shortfall = std::max(0, target - total);
 	if (total > target) return 0;
 	const bool researching_town = research_check(petra_pid_, TECH_PHASE_TOWN) == TECH_ERR_IN_PROGRESS;
-	if (total >= petra_config_.pop_phase2 && petra_ps().phase == 1 && !researching_town) return shortfall;
+	if (total >= petra_pop_phase2() && petra_ps().phase == 1 && !researching_town) return shortfall;
 	if (in_training > 15) return shortfall;
 
 	int size = workers < 12 ? 1 : std::min(5, (workers + 9) / 10);
@@ -14076,7 +14076,7 @@ int Simulation::petra_train_more_workers() {
 	// config.js Economy.supportRatio by difficulty; alpha lower while rushes are still to come
 	// and higher during a ceasefire.
 	const uint8_t d = petra_config_.difficulty;
-	const float support_ratio = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.4f : 0.35f;
+	const float support_ratio = d < PETRA_EASY ? 0.5f : d < PETRA_MEDIUM ? 0.4f : 0.3f;
 	float alpha = petra_attack_mgr_.rush_number < petra_attack_mgr_.max_rushes ? 0.7f : 0.85f;
 	if (ceasefire_active())
 		alpha += (1.0f - alpha) * std::min(std::max(ceasefire_remaining() - 120.0f, 0.0f), 180.0f) / 180.0f;
@@ -14161,11 +14161,11 @@ int Simulation::petra_train_more_workers() {
 float Simulation::petra_template_strength(const UnitTypeInfo &ui, float attack_mult) const {
 	float s = 0.0f;
 	if (ui.attack_damage > 0.0f) {
-		s += (0.085f * ui.hack_damage + 0.075f * ui.pierce_damage + 0.065f * ui.crush_damage) * attack_mult / 4.0f;
+		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) * attack_mult / 4.0f;
 		s += ui.attack_range / (ui.attack_range > 4.0f ? 0.28f : 0.6f) * 0.0125f;
 		s += ui.attack_cooldown * 1000.0f / 100000.0f;
 	}
-	s += (0.085f * ui.hack_armor + 0.075f * ui.pierce_armor + 0.065f * ui.crush_armor) / 4.0f;
+	s += (0.075f * ui.hack_armor + 0.085f * ui.pierce_armor + 0.045f * ui.crush_armor) / 4.0f;
 	return s * ui.hp / 100.0f;
 }
 
@@ -16076,7 +16076,7 @@ void Simulation::petra_manage_naval(float dt) {
 	// popPhase2 + 15 and a dock stands, one super dock (the Carthaginian Cothon) on the
 	// first dock's sea, after a market if there is none yet. No other civ has one.
 	if (topo.naval_map && petra_ps().phase >= 2 && civ_can_build(civ_of(petra_pid_), BLD_SUPER_DOCK) &&
-	    pop_current(petra_pid_) >= petra_config_.pop_phase2 + 15) {
+	    pop_current(petra_pid_) >= petra_pop_phase2() + 15) {
 		uint16_t first_sea = 0;
 		bool shipyard = false, market = false;
 		for (const Building &b : buildings_) {
@@ -16588,24 +16588,40 @@ int Simulation::petra_accounted_workers() const {
 	return workers;
 }
 
-// config.js setConfig: Economy.targetNumWorkers and workPhase3 from the game's population
-// limit (maxPop): a third of it up to 120 from Medium up, half up to 60 on Easy, all of it
-// up to 40 below; workPhase3 is 65 scaled by popScaling (times sqrt(maxPop/300) under 300),
-// at least 40 and at most two thirds of maxPop and the worker target.
+// config.js setConfig: Economy.targetNumWorkers, popPhase2 and workPhase3 from the game's
+// population limit (maxPop). The worker target is a third of it up to 120 from Medium up,
+// half up to 60 on Easy, all of it up to 40 below, and at least popPhase2. popPhase2 (150, 50
+// for a strongly aggressive AI, three quarters with little starting wood) and workPhase3 (180,
+// 90% in wonder victory) are scaled by popScaling, times sqrt(maxPop/300) under 300: popPhase2
+// at least 20 and at most half of maxPop, workPhase3 at least 40 and at most two thirds of it
+// and the worker target.
+static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
+	return max_pop < 300 ? pop_scaling * std::sqrt((float)max_pop / 300.0f) : pop_scaling;
+}
+
+int Simulation::petra_pop_phase2() const {
+	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
+	int base = petra_config_.pop_phase2;
+	if (petra_attack_mgr_.save_resources) base = base * 3 / 4; // startingStrategy.js: phase sooner to expand
+	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
+	return std::min(std::max((int)((float)base * scaling), 20), max_pop / 2);
+}
+
 int Simulation::petra_target_workers() const {
 	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
 	const uint8_t d = petra_config_.difficulty;
 	int target = d < PETRA_EASY ? std::min(40, max_pop) : d < PETRA_MEDIUM ? std::min(60, max_pop / 2)
 	                                                                        : std::min(120, max_pop / 3);
-	return std::max({1, target, petra_config_.pop_phase2});
+	return std::max({1, target, petra_pop_phase2()});
 }
 
 int Simulation::petra_work_phase3() const {
-	if (petra_config_.difficulty == PETRA_SANDBOX) return 999; // config.js: sandbox never cities
+	if (petra_config_.work_phase3 >= 999) return 999; // below Easy: never the city phase
 	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
-	float scaling = petra_config_.pop_scaling;
-	if (max_pop < 300) scaling *= std::sqrt((float)max_pop / 300.0f);
-	const int work = std::min(std::max((int)(65.0f * scaling), 40), max_pop * 2 / 3);
+	int base = petra_config_.work_phase3;
+	if (victory_condition_ == VICTORY_WONDER) base = base * 9 / 10;
+	const float scaling = petra_pop_scaling_for(petra_config_.pop_scaling, max_pop);
+	const int work = std::min(std::max((int)((float)base * scaling), 40), max_pop * 2 / 3);
 	return std::min(work, petra_target_workers());
 }
 
@@ -16620,22 +16636,18 @@ int Simulation::petra_accounted_population() const {
 	return pop;
 }
 
-// config.js Military.popForBarracks1 (25, 12 for a strongly aggressive AI) and popForBarracks2
-// (95), scaled by popScaling (times sqrt(maxPop/300) under 300): at least 12 and at most a fifth
-// of maxPop, and at least 45 and at most two thirds of it.
-static float petra_pop_scaling_for(float pop_scaling, int max_pop) {
-	return max_pop < 300 ? pop_scaling * std::sqrt((float)max_pop / 300.0f) : pop_scaling;
-}
-
+// config.js Military.popForBarracks1 (25, 12 for a strongly aggressive AI from Medium) and
+// popForBarracks2 (55), scaled by popScaling (times sqrt(maxPop/300) under 300): at least 12 and
+// at most a fifth of maxPop, and at least 45 and at most two thirds of it.
 int Simulation::petra_pop_for_barracks1() const {
 	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
-	const float base = petra_config_.aggressive > 0.7f ? 12.0f : 25.0f;
+	const float base = petra_config_.difficulty >= PETRA_MEDIUM && petra_config_.aggressive > 0.7f ? 12.0f : 25.0f;
 	return std::min(std::max((int)(base * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 12), max_pop / 5);
 }
 
 int Simulation::petra_pop_for_barracks2() const {
 	const int max_pop = pop_cap() > 0 ? pop_cap() : 300;
-	return std::min(std::max((int)(95.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
+	return std::min(std::max((int)(55.0f * petra_pop_scaling_for(petra_config_.pop_scaling, max_pop)), 45), max_pop * 2 / 3);
 }
 
 // baseManager.js checkResourceLevels for the resources a storehouse takes (RTS0 keeps one count
@@ -16805,7 +16817,7 @@ void Simulation::petra_build_defenses() {
 	const float now = game_time();
 	const int diff = cfg.difficulty;
 	// config.js: lapse times scale with the defensive personality; headquarters.js extras.
-	const float tower_lapse = std::round(90.0f * (1.1f - 0.2f * cfg.defensive));
+	const float tower_lapse = std::round(360.0f * (1.1f - 0.2f * cfg.defensive));
 	const float fortress_lapse = std::round(390.0f * (1.1f - 0.2f * cfg.defensive));
 	const int extra_towers = (int)std::round((float)std::min(diff, 3) * cfg.defensive);
 	const int extra_fortresses = (int)std::round((float)std::max(std::min(diff - 1, 2), 0) * cfg.defensive);
@@ -16828,14 +16840,17 @@ void Simulation::petra_build_defenses() {
 		}
 	}
 	if (num_sentry > 0 && phase < 2 && can_build(BLD_SENTRY_TOWER)) {
-		if (n_towers < num_sentry && now > tower_lapse + d.fort_start) {
+		// saveResources (little starting wood) spaces them out further.
+		const float lapse = petra_attack_mgr_.save_resources ? (1.0f + 0.5f * (float)n_towers) * tower_lapse : tower_lapse;
+		if (n_towers < num_sentry && now > lapse + d.fort_start) {
 			d.fort_start = now;
 			d.pending = BLD_SENTRY_TOWER + 1;
 		}
 		return;
 	}
 	if (phase < 2 || !can_build(BLD_TOWER)) return;
-	if ((n_stone == 0 || now > (1.0f + 0.1f * (float)n_stone) * tower_lapse + d.tower_start) &&
+	const float stone_lapse = petra_attack_mgr_.save_resources ? (1.0f + (float)n_stone) * tower_lapse : tower_lapse;
+	if ((n_stone == 0 || now > (1.0f + 0.1f * (float)n_stone) * stone_lapse + d.tower_start) &&
 	    n_stone < 2 * n_bases + 3 + extra_towers && n_stone < pop / 8 && n_tower_fnd < 3) {
 		d.tower_start = now;
 		d.pending = BLD_TOWER + 1;
@@ -16846,7 +16861,7 @@ void Simulation::petra_build_defenses() {
 // workers > Economy.workPhase3. While it holds, the phase is the majorTech plan.
 bool Simulation::petra_phasing() const {
 	const uint8_t phase = petra_ps().phase;
-	if (phase == 1) return pop_current(petra_pid_) >= petra_config_.pop_phase2;
+	if (phase == 1) return pop_current(petra_pid_) >= petra_pop_phase2();
 	if (phase == 2) return petra_accounted_workers() > petra_work_phase3();
 	return false;
 }
@@ -17002,7 +17017,7 @@ void Simulation::petra_manage_research(float dt) {
 	if ((int)petra_timer_ == (int)(petra_timer_ - dt)) return;
 	// queueManager.js checkPausedQueues: minorTech waits while workers are under two
 	// thirds of workersMin (min(max(12, 24 * popScaling), popPhase2)).
-	const int workers_min = std::min(std::max(12, (int)(24.0f * petra_config_.pop_scaling)), petra_config_.pop_phase2);
+	const int workers_min = std::min(std::max(12, (int)(24.0f * petra_config_.pop_scaling)), petra_pop_phase2());
 	if (workers * 3 < workers_min * 2) return;
 	std::vector<uint8_t> techs;
 	petra_available_techs(techs);
@@ -17334,13 +17349,16 @@ void Simulation::petra_set_rushes() {
 	m.rushes_set = 1;
 	m.max_rushes = 0;
 	const PetraBase *base = get_primary_petra_base();
-	if (!base || petra_config_.difficulty < PETRA_EASY) return;
+	if (!base) return;
 	float wood = petra_ps().res[RES_WOOD];
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
 		const float dx = resources_.x[r] - base->x, dz = resources_.z[r] - base->z;
 		if (dx * dx + dz * dz <= 60.0f * 60.0f) wood += resources_.amount[r];
 	}
+	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
+	m.save_resources = wood < 6000.0f ? 1 : 0;
+	if (petra_config_.difficulty < PETRA_EASY) return;
 	int allowed = (int)std::ceil((wood - 8000.0f) / 3000.0f);
 	if (ceasefire_remaining() > 900.0f) allowed = 0;
 	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
@@ -18530,12 +18548,12 @@ void Simulation::apply_petra_config() {
 // Each AI draws its own personality within its behaviour's range (config.js setConfig),
 // from the match seed so every lockstep peer draws the same one.
 void Simulation::reroll_petra_personalities() {
-	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked());
+	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked(), !last_man_standing());
 	for (size_t i = 0; i < petra_slots_.size(); ++i) {
 		// While another AI runs, PETRA_PLAYER's config sits in that AI's slot.
 		const uint8_t owner = (i == petra_pid_ && petra_pid_ != PETRA_PLAYER) ? PETRA_PLAYER : (uint8_t)i;
 		if (i == petra_pid_ && petra_pid_ == PETRA_PLAYER) continue; // lives in petra_config_
-		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked());
+		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked(), !last_man_standing());
 	}
 }
 
@@ -18573,14 +18591,14 @@ void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.difficulty = petra_clamp_difficulty(d);
-	c.recompute(petra_personality_seed(pid), teams_locked());
+	c.recompute(petra_personality_seed(pid), teams_locked(), !last_man_standing());
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.behavior = petra_clamp_behavior(b);
-	c.recompute(petra_personality_seed(pid), teams_locked());
+	c.recompute(petra_personality_seed(pid), teams_locked(), !last_man_standing());
 }
 
 void Simulation::petra_refresh_queue_accounts(float dt) {
@@ -19279,14 +19297,14 @@ float Simulation::petra_unit_strength(size_t i) const {
 	float s = 0.0f;
 	if (units_.attack_damage[i] > 0.0f) {
 		const float scale = ui.attack_damage > 0.0f ? units_.attack_damage[i] / ui.attack_damage : 1.0f;
-		s += (0.085f * ui.hack_damage + 0.075f * ui.pierce_damage + 0.065f * ui.crush_damage) * scale / 4.0f;
+		s += (0.075f * ui.hack_damage + 0.085f * ui.pierce_damage + 0.045f * ui.crush_damage) * scale / 4.0f;
 		const bool ranged = (unit_tech_classes(units_.unit_type[i]) & TC_RANGED) != 0;
 		s += units_.attack_range[i] / (ranged ? 0.28f : 0.6f) * 0.0125f; // back to 0 A.D. metres
 		s += units_.attack_cooldown[i] * 1000.0f / 100000.0f;
 	}
 	float res[3];
 	unit_resistance(i, res);
-	s += (0.085f * res[0] + 0.075f * res[1] + 0.065f * res[2]) / 4.0f;
+	s += (0.075f * res[0] + 0.085f * res[1] + 0.045f * res[2]) / 4.0f;
 	return s * units_.max_hp[i] / 100.0f;
 }
 
@@ -20237,19 +20255,21 @@ void Simulation::petra_last_man_standing_check() {
 	PetraDiplomacy &dip = petra_diplo_;
 	const uint8_t me = petra_pid_;
 	if (ceasefire_active() || teams_locked()) return;
-	bool has_enemies = false, has_others = false;
+	bool has_enemies = false, has_others = false, has_allies = false;
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
+		if (is_ally(me, p)) has_allies = true;
 		if (is_hostile(me, p)) has_enemies = true;
 		else if (players_[p].team != players_[me].team) has_others = true;
 	}
+	if (!last_man_standing() && has_allies) return; // allied victory: our allies win with us
 	if (has_enemies || !has_others) {
 		dip.waiting_to_betray = false;
 		return;
 	}
-	// Wait a while before turning (randFloat(30, 60)).
+	// Wait a while before turning (randFloat(10, 110)).
 	if (!dip.waiting_to_betray) {
-		dip.betray_lapse = dip.elapsed + sim_rng_.range_float(30.0f, 60.0f);
+		dip.betray_lapse = dip.elapsed + sim_rng_.range_float(10.0f, 110.0f);
 		dip.waiting_to_betray = true;
 		return;
 	}
@@ -20267,7 +20287,10 @@ void Simulation::petra_last_man_standing_check() {
 		if (p == me || !((participant_mask_ >> p) & 1) || is_defeated(p)) continue;
 		if (players_[p].team == players_[me].team) continue;
 		int factor = petra_player_entities(p);
-		if (get_diplomacy(me, p) == DIPLO_NEUTRAL) factor += 150; // turn on neutrals first
+		if (get_diplomacy(me, p) == DIPLO_NEUTRAL) factor += 150; // turn on neutrals first (betrayWeighting)
+		if (victory_condition_ == VICTORY_RELIC) // and on whoever holds relics
+			for (const Relic &r : relics_)
+				if (r.claimed && r.owner_team == p) factor += 150;
 		if (factor < best) continue;
 		best = factor;
 		target = p;
