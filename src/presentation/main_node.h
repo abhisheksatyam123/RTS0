@@ -237,6 +237,8 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// The map's fixed teams (0 A.D. PlayerData Team; 0 none, else team + 1), when it has any.
 	uint8_t map_team_[8] = {};
 	bool map_has_teams_ = false;
+	// The scenario's PopulationLimit (0 A.D. ScriptSettings, locked in its game setup); -1: none.
+	int map_pop_limit_ = -1;
 	void apply_map_player_overrides();
 
 	bool dragging = false;
