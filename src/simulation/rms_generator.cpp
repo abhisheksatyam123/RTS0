@@ -4098,6 +4098,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	// ngorongoro.js: rmgen2 addForests plants nothing on generic/savanna; its zones' baobab
 	// stragglers, mines and hunt are place_ngorongoro_entities'.
 	else if (config.map_type == MAP_NGORONGORO) num_groves = 0;
+	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_groves = 0; // its own forests, place_river_archipelago_entities
 
 	// Map-specific landmark resource clusters
 	if (config.map_type == MAP_SAHARAN_OASES) {
@@ -4237,6 +4238,7 @@ void RmsGenerator::distribute_neutral_resources(Simulation &sim, const Heightmap
 	// migration.js puts its mines on the continent only (distribute_land_extras).
 	if (config.map_type == MAP_MIGRATION) num_neutral_mines = 0;
 	if (config.map_type == MAP_NGORONGORO) num_neutral_mines = 0; // the zones' own mines (place_ngorongoro_entities)
+	if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_neutral_mines = 0; // its own mines, place_river_archipelago_entities
 	for (int m = 0; m < num_neutral_mines; ++m) {
 		float mx = rng.range_float(-half * 0.70f, half * 0.70f);
 		float mz = rng.range_float(-half * 0.70f, half * 0.70f);
@@ -4315,6 +4317,8 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 	// migration.js: deer, sheep and fruit on the continent only, no predators (distribute_land_extras).
 	if (config.map_type == MAP_MIGRATION) num_packs = 0;
 	if (config.map_type == MAP_NGORONGORO) num_packs = 0; // each zone's own hunt (place_ngorongoro_entities)
+	// river_archipelago.js's deer, boar and tigers: place_river_archipelago_entities.
+	else if (config.map_type == MAP_RIVER_ARCHIPELAGO) num_packs = 0;
 
 	for (int p = 0; p < num_packs; ++p) {
 		float px = rng.range_float(-half * 0.75f, half * 0.75f);
@@ -6560,6 +6564,7 @@ uint8_t starting_walls_of(MapType map, int map_tiles) {
 		case MAP_ARCHIPELAGO_0AD: case MAP_CORINTHIAN_ISTHMUS: case MAP_CYCLADIC_ARCHIPELAGO: case MAP_DODECANESE:
 		case MAP_ELEPHANTINE: case MAP_EXTINCT_VOLCANO: case MAP_GEAR: case MAP_HELLAS: case MAP_ISLANDS:
 		case MAP_LORRAINE_PLAIN: case MAP_POLAR_SEA: case MAP_RATUMACOS: case MAP_SNOWFLAKE_SEAROCKS:
+		case MAP_RIVER_ARCHIPELAGO:
 			return Simulation::STARTING_WALLS_TOWERS;
 		case MAP_BAHRAIN:
 			return map_tiles > 192 ? Simulation::STARTING_WALLS_TOWERS : Simulation::STARTING_WALLS_NONE;
@@ -9953,6 +9958,422 @@ void RmsGenerator::place_ngorongoro_entities(Simulation &sim, const HeightmapGri
 	}
 }
 
+// =========================================================================
+// Map ported from 0 A.D. maps/random/river_archipelago.js: narrow strips of
+// land across the map, sea between them, Gaia Mauryans on the outermost ones.
+// =========================================================================
+
+void RmsGenerator::synth_river_archipelago(HeightmapGrid &hm, RmsRng &rng, float &water_h, std::vector<PlayerSpawn> &spawns, int num_players,
+		const uint8_t *teams, RiverArchipelagoLayout &out) {
+	// river_archipelago.js (a circular map): sea ground at -8 m; six strips of
+	// land at 3 m across the map, turned by a random startAngle, each from
+	// scaleByMapSize(20, 100) ChainPlacer(1, scaleByMapSize(3, 7), scaleByMapSize(30, 60))
+	// areas (SmoothElevationPainter blend 3) round random spots along the strip
+	// at 0-0.06, 0.12-0.23 and 0.33-0.43 of the map and the mirror of those, or
+	// at 0.03-0.09, 0.14-0.25 and 0.36-0.46 with the two middle strips' circles
+	// up to scaleByMapSize(3, 8) when connectPlayers; overlapping areas leave
+	// shallow land bridges between the strips. Players on the two middle strips
+	// (playerPlacementLine, sortAllPlayers or primeSortAllPlayers), each on a
+	// ChainPlacer(1, 6, 40) territory from a scaleByMapSize(15, 20) disk at 3 m.
+	// Then the Gaia groups on the outermost strips (kept for
+	// place_river_archipelago_entities), scaleByMapSize(1, 5) hills of 25 m
+	// (cliff then grass, 3 wide) off the territories, water and Gaia, and
+	// scaleByMapSize(20, 150) bumps of 4 m. The strips stop at the map's circle.
+	using namespace misc_maps;
+	water_h = 1.0f;
+	const float half = hm.map_half, size = 2.0f * half;
+	const float land = metres(water_h, 3.0f);
+	hm.init(hm.res, hm.map_half, metres(water_h, -8.0f));
+	const size_t N = hm.data.size();
+	const float sp = grid_spacing(hm);
+	const auto off_map = outside_circle(hm);
+	auto in_map = [&](int i) { return !off_map[(size_t)i]; };
+	// g_Map.randomCoordinate on a circular map: a tile within size / 2 - border of the centre
+	// (border 3 for object groups, 0 for createAreas).
+	auto random_spot = [&](float border) {
+		const auto c = random_in_circle(rng, half - border);
+		return std::make_pair(std::floor(c.first) + 0.5f, std::floor(c.second) + 0.5f);
+	};
+	auto random_tile = [&]() { return random_spot(3.0f); };
+	auto random_area_centre = [&]() { return random_spot(0.0f); };
+	const float start = rng.range_float(0.0f, kTau);
+	const bool connect = rng.range_int(0, 1) == 1;
+	using Span = std::pair<float, float>;
+	std::vector<Span> widths = connect ? std::vector<Span>{{0.03f, 0.09f}, {0.14f, 0.25f}, {0.36f, 0.46f}}
+	                                   : std::vector<Span>{{0.0f, 0.06f}, {0.12f, 0.23f}, {0.33f, 0.43f}};
+	const std::vector<Span> left = widths;
+	for (int i = 2; i >= 0; --i) widths.push_back({1.0f - left[(size_t)i].second, 1.0f - left[(size_t)i].first});
+	std::vector<std::vector<uint8_t>> strip(widths.size(), std::vector<uint8_t>(N, 0));
+	const int chains = (int)std::ceil(scale_f(20.0f, 100.0f, half));
+	for (size_t i = 0; i < widths.size(); ++i) {
+		const bool player_strip = i == 2 || i == 3;
+		const float max_r = std::floor(scale_f(3.0f, connect && player_strip ? 8.0f : 7.0f, half));
+		const int circles = (int)std::floor(scale_f(30.0f, 60.0f, half));
+		for (int j = 0; j < chains; ++j) {
+			const float along = rng.range_float(-half, half);
+			const float across = (rng.range_float(widths[i].first, widths[i].second) - 0.5f) * size;
+			const auto p = rot(along, across, start);
+			const float cx = std::round(p.first), cz = std::round(p.second);
+			const auto m = seas_chain(hm, rng, cx, cz, 1, (int)max_r, circles, 1e9f, 0.0f, {}, in_map);
+			if (m.empty()) continue; // ChainPlacer starts on the map only
+			paint_mask_elevation(hm, m, land, 3.0f);
+			mask_or(strip[i], m);
+		}
+	}
+	// playerPlacementLine(startAngle, mapCenter, fractionToTiles(1 - 0.36 - 0.46)) (or 1 - 0.33 - 0.43):
+	// player slot i ((i + 1) / (n + 1) - 0.5) of the map along, alternately either side.
+	const float line_w = (1.0f - left[2].first - left[2].second) * size;
+	const auto sorted = sort_all_players(rng, num_players, teams);
+	const auto ids = rng.range_int(0, 1) ? sorted : prime_sort(sorted);
+	std::vector<std::pair<float, float>> locs((size_t)num_players);
+	for (int i = 0; i < num_players; ++i) {
+		const auto p = rot(((float)(i + 1) / (float)(num_players + 1) - 0.5f) * size, line_w * ((float)(i % 2) - 0.5f), start);
+		locs[(size_t)ids[(size_t)i]] = {std::round(p.first), std::round(p.second)};
+	}
+	// "Ensuring player territory": ChainPlacer(1, 6, 40, 1, position, 0, [playerRadius]) at 3 m, blend 4.
+	const float player_r = scale_f(15.0f, 20.0f, half);
+	std::vector<uint8_t> territory(N, 0);
+	for (const auto &l : locs) {
+		const auto m = seas_chain(hm, rng, l.first, l.second, 1, 6, 40, 1.0f, 0.0f, {(int)std::floor(player_r)}, in_map);
+		if (m.empty()) continue;
+		paint_mask_elevation(hm, m, land, 4.0f);
+		mask_or(territory, m);
+	}
+	// clWater: below the water line once the land is in.
+	std::vector<uint8_t> water(N);
+	for (size_t k = 0; k < N; ++k) water[k] = hm.data[k] < water_h;
+	const auto to_water = distance_to_mask(water, hm.res, sp);
+
+	// "Creating gaia": on each outermost strip, scaleByMapSize(1, 8) passes of createObjectGroups
+	// of scaleByMapSize(5, 10) groups (retry factor 50) of 8-12 spearmen and 8-12 archers 2-3
+	// tiles from the centre and 2-3 elephant archers 4-5 out, every unit on its strip (1 in),
+	// 2 from water, off the player territories and 15 from the units of earlier groups. With
+	// SimpleGroup's avoidSelf (every unit of the group 1 from the others) and SimpleObject's 30
+	// misses, the archers almost never fit in the ring the spearmen already hold, so in 0.28 (and
+	// here) the groups nearly always fail and the strips stay empty.
+	out.gaia.clear();
+	for (size_t side : {(size_t)0, widths.size() - 1}) {
+		const auto inside = deep_inside(hm, strip[side], 1.0f);
+		auto allowed = [&](float x, float z) {
+			const float tx = std::floor(x) + 0.5f, tz = std::floor(z) + 0.5f;
+			if (tx * tx + tz * tz >= half * half) return false;
+			const size_t k = vertex_at(hm, tx, tz);
+			if (!inside[k] || to_water[k] <= 2.0f || territory[k]) return false;
+			for (const auto &g : out.gaia)
+				if (std::hypot(g.x - tx, g.z - tz) <= 15.0f) return false;
+			return true;
+		};
+		const int passes = (int)std::ceil(scale_f(1.0f, 8.0f, half));
+		const int amount = (int)std::ceil(scale_f(5.0f, 10.0f, half));
+		struct Obj { int lo, hi; float dmin, dmax; uint8_t kind; };
+		static const Obj kObjs[3] = {{8, 12, 2.0f, 3.0f, 0}, {8, 12, 2.0f, 3.0f, 1}, {2, 3, 4.0f, 5.0f, 2}};
+		for (int pass = 0; pass < passes; ++pass) {
+			int good = 0, bad = 0;
+			while (good < amount && bad <= amount * 50) {
+				const auto c = random_tile();
+				std::vector<RiverArchipelagoLayout::GaiaUnit> group;
+				bool ok = true;
+				for (const Obj &o : kObjs) {
+					// SimpleObject.place: each unit at least 1 from the group's others (avoidSelf), 30 misses allowed.
+					int fails = 0;
+					// The script's loop rolls randIntInclusive(min, max) again before each unit.
+					for (int u = 0; ok && u < rng.range_int(o.lo, o.hi); ++u)
+						for (;;) {
+							const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(o.dmin, o.dmax));
+							const float x = c.first + d.first, z = c.second + d.second;
+							bool free = allowed(x, z);
+							for (size_t q = 0; free && q < group.size(); ++q) free = std::hypot(group[q].x - x, group[q].z - z) >= 1.0f;
+							if (free) {
+								group.push_back({x, z, o.kind});
+								break;
+							}
+							if (fails++ > 30) {
+								ok = false;
+								break;
+							}
+						}
+					if (!ok) break;
+				}
+				if (!ok) {
+					++bad;
+					continue;
+				}
+				out.gaia.insert(out.gaia.end(), group.begin(), group.end());
+				++good;
+			}
+		}
+	}
+	std::vector<uint8_t> gaia_mask(N, 0);
+	for (const auto &g : out.gaia) gaia_mask[vertex_at(hm, g.x, g.z)] = 1;
+	const auto to_gaia = distance_to_mask(gaia_mask, hm.res, sp);
+
+	// "Creating hills": ChainPlacer(1, scaleByMapSize(4, 6), scaleByMapSize(16, 40), 0.1) at 25 m
+	// (blend 3), off the territories, 5 from other hills, 1 from the Gaia and 2 from water.
+	std::vector<uint8_t> hills(N, 0);
+	{
+		auto to_hill = distance_to_mask(hills, hm.res, sp);
+		const int count = (int)std::ceil(scale_f(1.0f, 5.0f, half));
+		auto ok = [&](size_t k) { return !off_map[k] && !territory[k] && to_hill[k] > 5.0f && to_gaia[k] > 1.0f && to_water[k] > 2.0f; };
+		create_areas(hm, count, count * 10, 0.1f, random_area_centre,
+			[&](float cx, float cz) {
+				return seas_chain(hm, rng, cx, cz, 1, (int)std::floor(scale_f(4.0f, 6.0f, half)), (int)std::floor(scale_f(16.0f, 40.0f, half)), 0.1f,
+				                  0.0f, {}, [&](int i) { return ok((size_t)i); });
+			},
+			ok,
+			[&](const std::vector<uint8_t> &m) {
+				paint_mask_elevation(hm, m, metres(water_h, 25.0f), 3.0f);
+				record_area(hm, m, AREA_HILL);
+				mask_or(hills, m);
+				to_hill = distance_to_mask(hills, hm.res, sp);
+			});
+	}
+	// createBumps(avoidClasses(clPlayer, 8, clWater, 2), scaleByMapSize(20, 150), 2, 8, 4, 1, 4):
+	// ChainPlacer(2, 8, 4) areas raised 4 m (blend 2), 8 from the civic centres (clPlayer, a
+	// radius 5 disk).
+	{
+		const auto to_cc = dist_to_points(hm, locs);
+		const int count = (int)std::ceil(scale_f(20.0f, 150.0f, half));
+		auto ok = [&](size_t k) { return !off_map[k] && to_cc[k] > 5.0f + 8.0f && to_water[k] > 2.0f; };
+		create_areas(hm, count, count * 10, 1.0f, random_area_centre,
+			[&](float cx, float cz) { return seas_chain(hm, rng, cx, cz, 2, 8, 4, 1.0f, 0.0f, {}, [&](int i) { return ok((size_t)i); }); },
+			ok,
+			[&](const std::vector<uint8_t> &m) { modify_mask_elevation(hm, m, metres(water_h, 4.0f) - water_h, 2.0f); });
+	}
+	out.territory = std::move(territory);
+	out.hill = std::move(hills);
+	finish_spawns(hm, spawns, locs, land, std::floor(player_r), water_h);
+}
+
+void RmsGenerator::place_river_archipelago_entities(Simulation &sim, const HeightmapGrid &hm, float water_h, const std::vector<PlayerSpawn> &spawns,
+		RmsRng &rng, const RiverArchipelagoLayout &layout) {
+	// river_archipelago.js's objects after the bases, in its order: the Gaia Mauryans, the
+	// forests and straggler trees, stone and metal mines, deer, boar, tigers and berry bushes
+	// (its fish are distribute_fish's). The generic groves, mines and wildlife packs are off
+	// for this map; its grass and dirt patches are script_terrains.h's. Left out: the decorative
+	// rocks, grass tufts and bushes (actors).
+	using namespace misc_maps;
+	const float half = hm.map_half;
+	const size_t N = hm.data.size();
+	const float sp = grid_spacing(hm);
+	const int np = std::max(1, (int)spawns.size());
+	struct Pt { float x, z; };
+	auto clear_of = [](const std::vector<Pt> &v, float x, float z, float d) {
+		for (const Pt &p : v)
+			if (std::hypot(p.x - x, p.z - z) <= d) return false;
+		return true;
+	};
+	std::vector<uint8_t> water(N);
+	for (size_t k = 0; k < N; ++k) water[k] = hm.data[k] < water_h;
+	const auto to_water = distance_to_mask(water, hm.res, sp);
+	const auto to_hill = distance_to_mask(layout.hill, hm.res, sp);
+	constexpr size_t kOff = (size_t)-1;
+	auto vertex = [&](float x, float z) { return x * x + z * z < half * half ? vertex_at(hm, x, z) : kOff; };
+	auto random_tile = [&]() {
+		const auto c = random_in_circle(rng, half - 3.0f);
+		return Pt{std::floor(c.first) + 0.5f, std::floor(c.second) + 0.5f};
+	};
+	auto cc_clear = [&](float x, float z, float d) { // avoidClasses(clPlayer, d): the civic centre's radius 5 disk
+		for (const auto &s : spawns)
+			if (std::hypot(s.x - x, s.z - z) <= 5.0f + d) return false;
+		return true;
+	};
+	// The bases' starting resources (clBaseResource): all there is before this pass.
+	std::vector<Pt> base_res;
+	{
+		const auto rv = sim.resources();
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.alive[i]) base_res.push_back({rv.x[i], rv.z[i]});
+	}
+
+	// The Gaia groups synth_river_archipelago placed (clGaia).
+	static const char *const kGaia[3] = {"maur/infantry_spearman_b", "maur/infantry_archer_b", "maur/elephant_archer_b"};
+	std::vector<Pt> gaia;
+	std::vector<uint8_t> gaia_mask(N, 0);
+	for (const auto &g : layout.gaia) {
+		const uint16_t t = civ_unit_template_by_id(kGaia[g.kind]);
+		if (t != CIV_UNIT_TEMPLATE_NONE) sim.spawn_gaia_unit(g.x, g.z, (UnitType)civ_unit_template(t).unit_type, kGaia[g.kind]);
+		gaia.push_back({g.x, g.z});
+		gaia_mask[vertex_at(hm, g.x, g.z)] = 1;
+	}
+	const auto to_gaia = distance_to_mask(gaia_mask, hm.res, sp);
+
+	// "Creating forests": getTreeCounts(1000, 4000, 0.7); three kinds (toona and the two palms,
+	// which plant_flora tells apart), each of floor(forestTrees / (scaleByMapSize(3, 6) *
+	// numPlayers) / 3) ChainPlacer(1, scaleByMapSize(3, 5), forestTrees / (num *
+	// scaleByMapSize(2, 4)), 0.5) areas 12 from the civic centres, 6 from other forests, off
+	// hills, 1 from the Gaia and 2 from water. LayeredPainter([[tGrass x4, pForest],
+	// [tGrass x3, pForest]], [2]) with pForest [floor + tree, floor]: a tree on one tile in 10
+	// of the outer 2 tiles, one in 8 inside.
+	const float total_trees = scale_f(1000.0f, 4000.0f, half);
+	const float forest_trees = 0.7f * total_trees, straggler_trees = 0.3f * total_trees;
+	std::vector<uint8_t> forest(N, 0);
+	auto to_forest = distance_to_mask(forest, hm.res, sp);
+	{
+		const float forest_size = forest_trees / (scale_f(3.0f, 6.0f, half) * (float)np);
+		const int num = (int)std::floor(forest_size / 3.0f);
+		const int circles = num > 0 ? (int)std::floor(forest_trees / ((float)num * std::floor(scale_f(2.0f, 4.0f, half)))) : 0;
+		const float max_r = std::floor(scale_f(3.0f, 5.0f, half));
+		std::vector<std::pair<float, float>> ccs;
+		for (const auto &s : spawns) ccs.push_back({s.x, s.z});
+		const auto to_cc = dist_to_points(hm, ccs);
+		auto ok = [&](size_t k) {
+			float wx, wz;
+			hm.grid_to_world((int)(k % (size_t)hm.res), (int)(k / (size_t)hm.res), wx, wz);
+			return wx * wx + wz * wz < half * half && to_cc[k] > 5.0f + 12.0f && to_forest[k] > 6.0f && !layout.hill[k] && to_gaia[k] > 1.0f &&
+			       to_water[k] > 2.0f;
+		};
+		for (int kind = 0; kind < 3 && num > 0; ++kind)
+			create_areas(hm, num, num * 10, 0.5f,
+				[&]() {
+					const auto c = random_in_circle(rng, half); // createAreas: randomCoordinate(false)
+					return std::make_pair(std::floor(c.first) + 0.5f, std::floor(c.second) + 0.5f);
+				},
+				[&](float cx, float cz) {
+					return seas_chain(hm, rng, cx, cz, 1, (int)max_r, std::max(1, circles), 0.5f, 0.0f, {}, [&](int i) { return ok((size_t)i); });
+				},
+				ok,
+				[&](const std::vector<uint8_t> &m) {
+					const auto in = dist_inside(hm, m);
+					int x0 = hm.res, x1 = -1, z0 = hm.res, z1 = -1;
+					for (size_t k = 0; k < N; ++k)
+						if (m[k]) {
+							const int x = (int)(k % (size_t)hm.res), z = (int)(k / (size_t)hm.res);
+							x0 = std::min(x0, x);
+							x1 = std::max(x1, x);
+							z0 = std::min(z0, z);
+							z1 = std::max(z1, z);
+						}
+					const float lo_x = std::floor(-half + ((float)x0 - 0.5f) * sp), hi_x = -half + ((float)x1 + 0.5f) * sp;
+					const float lo_z = std::floor(-half + ((float)z0 - 0.5f) * sp), hi_z = -half + ((float)z1 + 0.5f) * sp;
+					for (float z = lo_z + 0.5f; z < hi_z; z += 1.0f)
+						for (float x = lo_x + 0.5f; x < hi_x; x += 1.0f) {
+							const size_t k = vertex(x, z);
+							if (k == kOff || !m[k]) continue;
+							if (rng.next_float() < (in[k] <= 2.0f ? 0.1f : 0.125f)) sim.spawn_resource_world(x, z, RES_WOOD, TREE_WOOD_SUPPLY);
+						}
+					mask_or(forest, m);
+					to_forest = distance_to_mask(forest, hm.res, sp);
+				});
+	}
+	// createStragglerTrees([toona, palm_tropic, palm_tropical], ...): createObjectGroupsDeprecated
+	// of SimpleObject(tree, 1, 1, 0, 3), floor(stragglerTrees / 3) tries of each (a miss counts as
+	// placed), 5 from water, 1 from forests and other stragglers, 1 from hills, 8 from the civic
+	// centres, 4 from the base resources and 1 from the Gaia.
+	std::vector<Pt> stragglers;
+	{
+		const int each = (int)std::floor(straggler_trees / 3.0f);
+		for (int kind = 0; kind < 3; ++kind)
+			for (int t = 0; t < each; ++t) {
+				const Pt c = random_tile();
+				for (int fails = 0; fails <= 31; ++fails) {
+					const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(0.0f, 3.0f));
+					const Pt p{c.x + d.first, c.z + d.second};
+					const float tx = std::floor(p.x) + 0.5f, tz = std::floor(p.z) + 0.5f;
+					const size_t k = vertex(tx, tz);
+					if (k == kOff || to_water[k] <= 5.0f || to_forest[k] <= 1.0f || to_hill[k] <= 1.0f || !cc_clear(tx, tz, 8.0f) ||
+					    !clear_of(base_res, tx, tz, 4.0f) || !clear_of(gaia, tx, tz, 1.0f) || !clear_of(stragglers, tx, tz, 1.0f)) continue;
+					sim.spawn_resource_world(p.x, p.z, RES_WOOD, TREE_WOOD_SUPPLY);
+					stragglers.push_back(p);
+					break;
+				}
+			}
+	}
+	auto forest_clear = [&](size_t k, float x, float z, float d) { return to_forest[k] > d && clear_of(stragglers, x, z, d); };
+
+	// createObjectGroups of a SimpleGroup with avoidSelf: `amount` groups (retry factor `retry`)
+	// round random tiles, each object's entities dmin-dmax from the centre, all the group's 1
+	// apart, every one on a tile `ok` allows (SimpleObject.place: 30 misses, then the group fails).
+	struct Obj { int lo, hi; float dmin, dmax; };
+	auto groups = [&](int amount, int retry, std::initializer_list<Obj> objs, auto ok, auto spawn) {
+		int good = 0, bad = 0;
+		while (good < amount && bad <= amount * retry) {
+			const Pt c = random_tile();
+			std::vector<std::pair<Pt, int>> placed;
+			bool fit = true;
+			int oi = 0;
+			for (const Obj &o : objs) {
+				int fails = 0;
+				// SimpleObject.place rolls randIntInclusive(min, max) again before each entity.
+				for (int u = 0; fit && u < rng.range_int(o.lo, o.hi); ++u)
+					for (;;) {
+						const auto d = polar(rng.range_float(0.0f, kTau), rng.range_float(o.dmin, o.dmax));
+						const Pt p{c.x + d.first, c.z + d.second};
+						const float tx = std::floor(p.x) + 0.5f, tz = std::floor(p.z) + 0.5f;
+						const size_t k = vertex(tx, tz);
+						bool free = k != kOff && ok(k, tx, tz);
+						for (size_t q = 0; free && q < placed.size(); ++q)
+							free = std::hypot(placed[q].first.x - p.x, placed[q].first.z - p.z) >= 1.0f;
+						if (free) {
+							placed.push_back({p, oi});
+							break;
+						}
+						if (fails++ > 30) {
+							fit = false;
+							break;
+						}
+					}
+				if (!fit) break;
+				++oi;
+			}
+			if (!fit) {
+				++bad;
+				continue;
+			}
+			for (const auto &[p, o] : placed) spawn(p, o);
+			++good;
+		}
+	};
+	auto land_ok = [&](size_t k, float x, float z, float water_d) {
+		return to_water[k] > water_d && forest_clear(k, x, z, 1.0f) && !layout.territory[k] && to_gaia[k] > 1.0f && to_hill[k] > 1.0f;
+	};
+	// Stone: scaleByMapSize(4, 16) groups of 0-2 small stones and a large one (0-4 out), 3 from
+	// water and 10 from other rocks; small stone: scaleByMapSize(2, 8) groups of 2-5 small stones
+	// (1-3 out), 4 from water; metal: scaleByMapSize(4, 16) large metal mines, 4 from water, 10
+	// from other metal and 5 from rocks. Each 1 from forests, hills and the Gaia, off the
+	// territories, retry factor 50.
+	std::vector<Pt> rock, metal, food;
+	auto stone = [&](int small_obj) {
+		return [&, small_obj](Pt p, int o) {
+			sim.spawn_resource_world(p.x, p.z, RES_STONE, o == small_obj ? MINE_SUPPLY : LARGE_MINE_SUPPLY);
+			rock.push_back(p);
+		};
+	};
+	groups((int)std::ceil(scale_f(4.0f, 16.0f, half)), 50, {Obj{0, 2, 0.0f, 4.0f}, Obj{1, 1, 0.0f, 4.0f}},
+		[&](size_t k, float x, float z) { return land_ok(k, x, z, 3.0f) && clear_of(rock, x, z, 10.0f); }, stone(0));
+	groups((int)std::ceil(scale_f(2.0f, 8.0f, half)), 50, {Obj{2, 5, 1.0f, 3.0f}},
+		[&](size_t k, float x, float z) { return land_ok(k, x, z, 4.0f) && clear_of(rock, x, z, 10.0f); }, stone(0));
+	groups((int)std::ceil(scale_f(4.0f, 16.0f, half)), 50, {Obj{1, 1, 0.0f, 4.0f}},
+		[&](size_t k, float x, float z) { return land_ok(k, x, z, 4.0f) && clear_of(metal, x, z, 10.0f) && clear_of(rock, x, z, 5.0f); },
+		[&](Pt p, int) {
+			sim.spawn_resource_world(p.x, p.z, RES_GOLD, LARGE_MINE_SUPPLY);
+			metal.push_back(p);
+		});
+	// Deer: 3 x numPlayers groups of 5-7; boar: 2 x numPlayers groups of 2-4; tigers: 2 x
+	// numPlayers; berry bushes: randIntInclusive(1, 4) x numPlayers groups of 5-7 (all 0-4 out,
+	// retry factor 20). Each 4 from water, off forests and the territories, 1 from the Gaia and
+	// hills, 20 from other food (10 for the bushes); all but the deer 4 from the mines. A
+	// group's own animals join clFood once it stands.
+	auto hunt_ok = [&](float food_d, bool mines) {
+		return [&, food_d, mines](size_t k, float x, float z) {
+			return to_water[k] > 4.0f && forest_clear(k, x, z, 0.5f) && !layout.territory[k] && to_gaia[k] > 1.0f && to_hill[k] > 1.0f &&
+			       clear_of(food, x, z, food_d) && (!mines || (clear_of(rock, x, z, 4.0f) && clear_of(metal, x, z, 4.0f)));
+		};
+	};
+	auto animal = [&](uint8_t ftype) {
+		return [&, ftype](Pt p, int) {
+			sim.spawn_fauna(p.x, p.z, ftype);
+			food.push_back(p);
+		};
+	};
+	groups(3 * np, 20, {Obj{5, 7, 0.0f, 4.0f}}, hunt_ok(20.0f, false), animal(FAUNA_DEER));
+	groups(2 * np, 20, {Obj{2, 4, 0.0f, 4.0f}}, hunt_ok(20.0f, true), animal(FAUNA_BOAR));
+	groups(2 * np, 20, {Obj{1, 1, 0.0f, 4.0f}}, hunt_ok(20.0f, true), animal(FAUNA_TIGER));
+	groups(rng.range_int(1, 4) * np, 20, {Obj{5, 7, 0.0f, 4.0f}}, hunt_ok(10.0f, true), [&](Pt p, int) {
+		sim.spawn_resource_world(p.x, p.z, RES_FOOD, 200); // gaia/fruit/berry_01
+		food.push_back(p);
+	});
+}
+
 namespace {
 // Eases the heights along a route of navcells (cell indices in res x res) wherever it crosses one
 // steeper than land units may (LAND_MAX_TERRAIN_SLOPE): each steep stretch, and as much of the
@@ -10088,6 +10509,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	std::vector<PlayerSpawn> spawns;
 	DanubiusLayout danubius;
 	JebelBarkalLayout jebel_barkal;
+	RiverArchipelagoLayout river_archipelago;
 
 	const auto &minfo = map_type_info(config.map_type);
 	sim.set_map_half(config.map_half);
@@ -10350,6 +10772,8 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			synth_migration(hm, rng, water_h, spawns, config.num_players, config.teams, config.team_placement);
 		case MAP_NGORONGORO:
 			synth_ngorongoro(hm, rng, water_h, spawns, config.num_players, config.teams);
+		case MAP_RIVER_ARCHIPELAGO:
+			synth_river_archipelago(hm, rng, water_h, spawns, config.num_players, config.teams, river_archipelago);
 			break;
 		case MAP_PELOPONNESE:
 		case MAP_AEGEAN_ARCHIPELAGO:
@@ -10392,6 +10816,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 	place_trigger_map_entities(sim, hm, water_h, spawns, rng, config);
 	if (config.map_type == MAP_DANUBIUS) place_danubius_entities(sim, hm, water_h, spawns, rng, danubius);
 	if (config.map_type == MAP_JEBEL_BARKAL) place_jebel_barkal_entities(sim, hm, water_h, spawns, rng, jebel_barkal);
+	if (config.map_type == MAP_RIVER_ARCHIPELAGO) place_river_archipelago_entities(sim, hm, water_h, spawns, rng, river_archipelago);
 
 	// The Iberians' Starting Walls (player.js placeStartingWalls), last so the trees and bushes
 	// under them go (template_gaia_flora's DeleteUponConstruction).
@@ -10867,6 +11292,11 @@ void RmsGenerator::distribute_fish(Simulation &sim, const HeightmapGrid &hm, flo
 			// 0.28 latium.js: scaleByMapSize(45, 65) single fish, stayClasses(clWater, 4),
 			// avoidClasses(clFood, 10).
 			passes.push_back({(int)std::lround(sbms(45.0f, 65.0f)), 1, 1, 4, 10.0f, 1.0f, 0});
+			break;
+		case MAP_RIVER_ARCHIPELAGO:
+			// 0.28 river_archipelago.js: scaleByMapSize(20, 100) groups of 2-3 fish (0-2 apart)
+			// in water 4 tiles from land, avoidClasses(clFood, 15).
+			passes.push_back({(int)std::lround(sbms(20.0f, 100.0f)), 2, 3, 4, 15.0f, 2.0f, 0});
 			break;
 		case MAP_CORSICA:
 			// 0.28 corsica.js: 50 * numPlayers groups of 2-3 fish in water 3 tiles
