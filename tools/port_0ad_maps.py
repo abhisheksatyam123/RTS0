@@ -687,6 +687,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                     structures.append({"type": "wall_segment", "player": ply, "x": wx, "z": wz})
                 elif "corral" in ltpl:
                     structures.append({"type": "corral", "player": ply, "x": wx, "z": wz})
+                elif ltpl.count("/") == 1 and (gaia_owned(files, ltpl, wx, wz) or ("",))[0] == "scenery":
+                    # A player's obelisk or fence (Saharan Oases' scenario): RTS0 scenery has no owner.
+                    gaia["scenery"].append(gaia_owned(files, ltpl, wx, wz, angle_by_uid.get(uid, 0.0), scale)[1])
                 else:
                     # A civ structure the names above miss (spart/gerousia): RTS0 finds it by template.
                     structures.append({"type": "", "player": ply, "x": wx, "z": wz})

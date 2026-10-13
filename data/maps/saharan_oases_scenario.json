@@ -11055,36 +11055,37 @@
   "ruins": [],
   "gaia_structures": [],
   "gaia_units": [],
-  "scenery": [],
-  "structures": [
+  "scenery": [
     {
-      "type": "",
-      "player": 1,
+      "type": "obelisk",
       "x": -63.18,
       "z": 3.33,
-      "template": "obelisk"
+      "angle": 2.3562,
+      "scale": 0.25
     },
     {
-      "type": "",
-      "player": 2,
+      "type": "obelisk",
       "x": -2.72,
       "z": -55.32,
-      "template": "obelisk"
+      "angle": 2.3562,
+      "scale": 0.25
     },
     {
-      "type": "",
-      "player": 3,
+      "type": "obelisk",
       "x": 60.61,
       "z": 0.47,
-      "template": "obelisk"
+      "angle": 2.3562,
+      "scale": 0.25
     },
     {
-      "type": "",
-      "player": 4,
+      "type": "obelisk",
       "x": 1.08,
       "z": 58.92,
-      "template": "obelisk"
-    },
+      "angle": 2.3562,
+      "scale": 0.25
+    }
+  ],
+  "structures": [
     {
       "type": "town_center",
       "player": 1,
