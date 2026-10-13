@@ -16858,6 +16858,7 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 	const float rz0 = (float)bz0 * kCcTile - map_half_ - rmargin, rz1 = (float)(bz1 + 1) * kCcTile - map_half_ + rmargin;
 	static constexpr uint8_t kRes[3] = {RES_WOOD, RES_STONE, RES_GOLD};
 	std::vector<uint8_t> maps[3];
+	auto build_maps = [&] { // only once a shore tile needs them
 	for (auto &m : maps) m.assign((size_t)w * w, 0);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
@@ -16881,8 +16882,10 @@ bool Simulation::petra_find_dock_position(uint16_t land, uint16_t sea, int &out_
 				cell = (uint8_t)std::clamp((float)cell + 0.5f * strength / md * (md - std::sqrt(r2)), 0.0f, 255.0f);
 			}
 	}
+	};
 	// getResourcesAround: the diamond of 80 m, each cell weighted by its closeness, wood twice.
 	auto resources_around = [&](int ix, int iy) {
+		if (maps[0].empty()) build_maps();
 		const int size = (int)std::floor(80.0f / 4.0f / kCcTile);
 		float total = 0.0f, nbcell = 0.0f;
 		for (int k = 0; k < 3; ++k) {
@@ -17130,14 +17133,22 @@ void Simulation::petra_manage_naval(float dt) {
 				if (connected) continue;
 				started = true; // the first unconnected sea of the first base without a dock there
 				// A search over our territory's shores: once each 10 s of AI time while no spot is
-				// found, each naval turn while a dock found waits for its resources.
+				// found; while a dock found waits for its resources, each naval turn keeps the
+				// want alive and the search runs again once the queue can pay (the plan's start).
 				const PetraQueueAccount &want = petra_queues_.wants[PETRA_QUEUE_NAVAL];
 				const bool waiting = want.food + want.wood + want.gold + want.stone > 0.0f;
 				if (!waiting && (int)(petra_timer_ / 10.0f) == (int)((petra_timer_ - naval_span) / 10.0f)) break;
+				const float cost[4] = {(float)info.food_cost, (float)info.wood_cost, (float)info.gold_cost, (float)info.stone_cost};
+				const PetraQueueAccount &acc = petra_queues_.accounts[PETRA_QUEUE_NAVAL];
+				if (waiting && (acc.food < cost[0] || acc.wood < cost[1] || acc.gold < cost[2] || acc.stone < cost[3] ||
+				                petra_ps().food() < cost[0] || petra_ps().wood() < cost[1] ||
+				                petra_ps().gold() < cost[2] || petra_ps().stone() < cost[3])) {
+					petra_try_pay(PETRA_QUEUE_NAVAL, cost[0], cost[1], cost[2], cost[3]); // registers the want
+					break;
+				}
 				int cx = 0, cz = 0;
 				if (!petra_find_dock_position(land, sea, cx, cz)) break;
-				if (!petra_try_pay(PETRA_QUEUE_NAVAL, (float)info.food_cost, (float)info.wood_cost,
-				                   (float)info.gold_cost, (float)info.stone_cost)) break;
+				if (!petra_try_pay(PETRA_QUEUE_NAVAL, cost[0], cost[1], cost[2], cost[3])) break;
 				const uint32_t bid = spawn_building(cx, cz, BLD_DOCK, petra_pid_, 0.0f);
 				auto idle = get_idle_workers(petra_pid_);
 				if (bid && !idle.empty()) petra_order_builders(idle, 3, bid);
