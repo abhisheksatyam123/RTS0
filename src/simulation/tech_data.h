@@ -141,8 +141,9 @@ enum TechnologyId : uint8_t {
 	TECH_LONG_WALLS = 132, // long_walls
 	TECH_EQUINE_TRANSPORTS = 133, // equine_transports
 	TECH_GROVE_OF_FETTERS = 134, // grove_of_fetters
-	TECH_WAGON_TRAINS = 135, // wagon_trains
-	TECH_COUNT = 136
+	TECH_RESETTLEMENT = 135, // resettlement
+	TECH_WAGON_TRAINS = 136, // wagon_trains
+	TECH_COUNT = 137
 };
 
 // A set of 0 A.D. classes (TechClass bits 0..63 in lo, 64..127 in hi).
@@ -315,6 +316,7 @@ inline const TechClassExpr *tech_affects_table() {
 		{TC_SENTRYTOWER, 0},
 		{TC_STONETOWER, 0},
 		{TC_FORTRESS, 0},
+		{TC_STRUCTURE, TC_WALL},
 		{TC_COLONY, 0},
 	};
 	return kAffects;
@@ -510,11 +512,12 @@ inline const TechEffect *tech_effects_table() {
 		{TSTAT_GARRISON_ARROWS, TOP_MUL, 64, 2, 1.4f}, // tower_crenellations
 		{TSTAT_MIN_RANGE, TOP_SET, 72, 3, 0.0f}, // tower_murderholes
 		{TSTAT_HEALTH, TOP_MUL, 15, 1, 1.5f}, // grove_of_fetters
-		{TSTAT_POP_BONUS, TOP_ADD, 75, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
+		{TSTAT_TERRITORY_DECAY, TOP_MUL, 75, 1, 1e-05f}, // resettlement
+		{TSTAT_POP_BONUS, TOP_ADD, 76, 1, 10.0f}, // wagon_trains (its Promotion/RequiredXp is in promotion_data.h)
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 188;
+constexpr int TECH_EFFECT_COUNT = 189;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -654,9 +657,10 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Glorious Expansion", "Enable the “Glorious Expansion” aura: +20% maximum population limit per Wonder owned.", 2000, 3000, 500, 500, 120.0f, 3, BLD_WONDER, TECH_NONE, 0xbfff, 186, 0, "wonder_population_cap"},
 		{"Athenian Long Walls", "Build Walls in own or neutral territory.", 0, 0, 0, 400, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 186, 0, "long_walls"},
 		{"Equine Transports", "Phoenician Triremes gain the ability to train Cavalry.", 0, 300, 300, 0, 60.0f, 3, BLD_DOCK, TECH_DOCK_EFFICIENCY, 0x0004, 186, 0, "equine_transports"},
-		// The Seeress's Human Sacrifice aura it also unlocks (germ_seer_1_buff) is not modelled yet.
+		// The Human Sacrifice aura it names (germ_seer_1_buff) requires a "healer_aura" tech 0.28 lacks: no effect there either.
 		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 186, 1, "grove_of_fetters"},
-		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 187, 1, "wagon_trains"},
+		{"Migratory Resettlement", "All Structures except for walls do not decay to neutral or enemy territory.", 0, 200, 200, 200, 40.0f, 2, BLD_TOWN_CENTER, TECH_NONE, 0x8000, 187, 1, "resettlement"},
+		{"Wagon Trains", "Supply Wagons +5 population space and Wagon Encampments +10 population space.", 0, 400, 100, 0, 40.0f, 2, BLD_WAGON_ENCAMPMENT, TECH_NONE, 0x8000, 188, 1, "wagon_trains"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
