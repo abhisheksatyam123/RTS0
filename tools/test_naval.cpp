@@ -160,6 +160,36 @@ static void test_petra_sea_trade() {
 	CHECK(ships <= s.petra_target_traders() + 1);
 }
 
+// tradeManager.js updateTrader: a land trader whose land has no route asks for a ship
+// (navalManager.requireTransport) to the nearer end of the best route on another land.
+static void test_petra_trader_transport() {
+	static Simulation s;
+	fresh(s);
+	s.set_player_active(1, true, true);
+	s.set_player_resources(1, 5000, 5000, 5000, 5000);
+	s.players_[1].phase = 2;
+	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
+	s.spawn_building_world(-50.0f, 52.0f, BLD_MARKET, 1);
+	s.spawn_building_world(30.0f, 52.0f, BLD_MARKET, 1);
+	const uint32_t trader = s.spawn_unit(-30.0f, -40.0f, 1, UNIT_TRADER);
+	s.spawn_unit(-30.0f, -10.0f, 1, UNIT_TRIREME);
+	bool planned = false;
+	for (int t = 0; t < 40 && !planned; ++t) {
+		run(s, 1.0f);
+		for (const auto &tp : s.petra_transports_)
+			if (tp.owner == PETRA_TRANSPORT_TRADER && std::find(tp.passenger_ids.begin(), tp.passenger_ids.end(), trader) != tp.passenger_ids.end())
+				planned = true;
+	}
+	bool routed = false;
+	for (int t = 0; t < 120 && !routed; ++t) {
+		run(s, 1.0f);
+		routed = s.trader_routes_.count(trader) && s.units_.action_state[s.lookup_unit(trader)] == ACTION_TRADE;
+	}
+	std::printf("Petra trader on the other land: transport %s, trading %s\n", planned ? "yes" : "no", routed ? "yes" : "no");
+	CHECK(planned);
+	CHECK(routed);
+}
+
 static const uint8_t *subtype_of(const Simulation &s, uint32_t rid, int32_t *amount = nullptr) {
 	const auto r = s.resources();
 	for (size_t i = 0; i < r.count; ++i)
@@ -886,6 +916,7 @@ int main() {
 	test_dock_trade();
 	test_fishing();
 	test_petra_sea_trade();
+	test_petra_trader_transport();
 	test_ship_height();
 	test_ship_leaves_shore_house();
 	test_petra_navy();
