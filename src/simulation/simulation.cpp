@@ -3141,9 +3141,9 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 			apply_mod(e, [&](uint64_t cls) { return tech_effect_applies(e, cls); });
 		}
 	}
-	// Global relic auras (Capture the Relic) reaching this player. Same-named auras
-	// don't stack (ModifiersManager keys them by name), so each applies once.
-	const uint32_t mask = relic_aura_mask(player_id);
+	// Global relic and hero auras reaching this player. Same-named auras don't stack
+	// (ModifiersManager keys them by name), so each applies once.
+	const uint64_t mask = relic_aura_mask(player_id);
 	for (uint16_t g = 0; g < RELIC_GLOBAL_AURA_COUNT; ++g) {
 		if (!((mask >> g) & 1u)) continue;
 		const RelicGlobalAura &ga = relic_global_auras()[g];
@@ -3187,20 +3187,41 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 	}
 }
 
-uint32_t Simulation::relic_aura_mask(uint8_t player) const {
-	uint32_t mask = 0;
-	if (player >= MAX_PLAYERS) return 0;
-	for (const Relic &rel : relics_) {
-		const int32_t u = lookup_unit(rel.id);
-		if (!is_relic_unit(u) || units_.team[u] >= MAX_PLAYERS || units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
+// Bit g of masks[p]: relic_global_auras() row g reaches player p, from an owned relic or a
+// living hero (a global aura reaches its players wherever the source is, garrisoned too).
+void Simulation::global_aura_masks(uint64_t masks[MAX_PLAYERS]) const {
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) masks[p] = 0;
+	for (size_t u = 0; u < units_.count; ++u) {
+		if ((!units_.alive[u] && units_.action_state[u] != ACTION_GARRISONED) || units_.team[u] >= MAX_PLAYERS ||
+				units_.tmpl[u] >= CIV_UNIT_TEMPLATE_COUNT) continue;
 		for (int16_t a : civ_unit_template(units_.tmpl[u]).auras) {
 			const int g = relic_global_aura_index(a);
 			if (g < 0) continue;
-			if (aura_affected_players(units_.team[u], relic_global_auras()[g].players) & aura_player_bit(player))
-				mask |= 1u << g;
+			const uint16_t reach = aura_affected_players(units_.team[u], relic_global_auras()[g].players);
+			for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+				if (reach & aura_player_bit(p)) masks[p] |= 1ull << g;
 		}
 	}
-	return mask;
+}
+
+uint64_t Simulation::relic_aura_mask(uint8_t player) const {
+	if (player >= MAX_PLAYERS) return 0;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	return masks[player];
+}
+
+// Global auras follow their sources' lives, ownership and diplomacy: a player gaining or
+// losing one has every entity it affects rescaled, as for a technology. Once a second.
+void Simulation::tick_global_auras() {
+	if (ticks_ % (uint64_t)std::lround(CAPTURE_REPEAT_S / FIXED_STEP) != 0) return;
+	uint64_t masks[MAX_PLAYERS];
+	global_aura_masks(masks);
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		if (masks[p] == relic_aura_masks_[p]) continue;
+		relic_aura_masks_[p] = masks[p];
+		refresh_tech_mods(p);
+	}
 }
 
 void Simulation::rebuild_all_tech_mods() {
@@ -6854,6 +6875,7 @@ void Simulation::tick(float dt) {
 	tick_scenery_attackers();
 	tick_treasures(dt);      // 0 A.D. Treasure.js / TreasureCollector.js
 	tick_relics();           // Capture the Relic catafalques (Capturable.js)
+	tick_global_auras();     // relics' and heroes' global player modifiers
 	check_victory_conditions(dt);
 	tick_statistics();       // 0 A.D. StatisticsTracker.js: per-player counters and 30 s sequences
 
@@ -15335,7 +15357,24 @@ void Simulation::petra_manage_trading(float dt) {
 			if (units_.action_state[i] == ACTION_GARRISONED || petra_aboard(uid)) continue;
 			const uint16_t access = ship ? petra_ship_sea(i) : (topo.naval_map ? petra_land_at(units_.pos_x[i], units_.pos_z[i]) : 1);
 			const PetraTradeRoute *r = petra_route_for(routes, access, ship);
-			if (r && !ship && r->land != access) r = nullptr; // needs a transport (not ported)
+			if (r && !ship && r->land != access) {
+				// updateTrader: a land trader with no route on its own land asks the navalManager
+				// for a ship to the nearer end of the best route (requireTransport).
+				// RTS0's idle traders take any route on their own (order_trade_auto), one they
+				// can't walk here: that counts as idle too.
+				if ((units_.action_state[i] == ACTION_IDLE || units_.action_state[i] == ACTION_TRADE) && !petra_passenger(uid)) {
+					auto ita = building_id_to_idx_.find(r->source), itb = building_id_to_idx_.find(r->target);
+					if (ita != building_id_to_idx_.end() && itb != building_id_to_idx_.end()) {
+						const Building &s = buildings_[ita->second], &t = buildings_[itb->second];
+						const float px = units_.pos_x[i], pz = units_.pos_z[i];
+						const Building &end = (s.x - px) * (s.x - px) + (s.z - pz) * (s.z - pz) <=
+						                      (t.x - px) * (t.x - px) + (t.z - pz) * (t.z - pz) ? s : t;
+						const uint16_t sea = topo.sea_between(access, r->land);
+						if (sea) petra_start_transport({uid}, px, pz, end.x, end.z, sea, PETRA_TRANSPORT_TRADER);
+					}
+				}
+				continue;
+			}
 			auto cur = trader_routes_.find(uid);
 			const bool has_route = cur != trader_routes_.end();
 			const bool idle = units_.action_state[i] == ACTION_IDLE;
@@ -18321,9 +18360,21 @@ void Simulation::petra_manage_opening(float dt) {
 }
 
 void Simulation::apply_petra_config() {
-	petra_config_.recompute();
 	// Until a slot gets its own setting, every AI plays at the shared one.
 	for (PetraSlot &slot : petra_slots_) slot.petra_config_ = petra_config_;
+	reroll_petra_personalities();
+}
+
+// Each AI draws its own personality within its behaviour's range (config.js setConfig),
+// from the match seed so every lockstep peer draws the same one.
+void Simulation::reroll_petra_personalities() {
+	petra_config_.recompute(petra_personality_seed(petra_pid_), teams_locked());
+	for (size_t i = 0; i < petra_slots_.size(); ++i) {
+		// While another AI runs, PETRA_PLAYER's config sits in that AI's slot.
+		const uint8_t owner = (i == petra_pid_ && petra_pid_ != PETRA_PLAYER) ? PETRA_PLAYER : (uint8_t)i;
+		if (i == petra_pid_ && petra_pid_ == PETRA_PLAYER) continue; // lives in petra_config_
+		petra_slots_[i].petra_config_.recompute(petra_personality_seed(owner), teams_locked());
+	}
 }
 
 // Where player pid's PetraConfig lives right now: in the members while that
@@ -18360,14 +18411,14 @@ void Simulation::set_petra_difficulty(uint8_t pid, uint8_t d) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.difficulty = petra_clamp_difficulty(d);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::set_petra_behavior(uint8_t pid, uint8_t b) {
 	if (pid >= MAX_PLAYERS) return;
 	PetraConfig &c = petra_config_slot(pid);
 	c.behavior = petra_clamp_behavior(b);
-	c.recompute();
+	c.recompute(petra_personality_seed(pid), teams_locked());
 }
 
 void Simulation::petra_refresh_queue_accounts(float dt) {
@@ -23134,16 +23185,6 @@ void Simulation::tick_relics() {
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}
-	// Global relic auras follow ownership and diplomacy: a player gaining or losing one
-	// has every entity it affects rescaled, as for a technology.
-	if (pulse) {
-		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
-			const uint32_t mask = relic_aura_mask(p);
-			if (mask == relic_aura_masks_[p]) continue;
-			relic_aura_masks_[p] = mask;
-			refresh_tech_mods(p);
-		}
-	}
 	// Captors whose relic is now theirs or an ally's stop and take their next order.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.order_kind[i] != ORDER_CAPTURE_RELIC) continue;
@@ -23345,7 +23386,9 @@ void Simulation::rebuild_auras() {
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							0.0f, aura_affected_players(team, no_loot_range_auras()[k].players), x, z, a);
 				if (aura.kind >= AURA_COUNT) continue; // effect RTS0 does not model yet
-				if (relic_global_aura_index(a) >= 0) continue; // a player modifier (compute_tech_mods)
+				// A relic's global aura is a player modifier (compute_tech_mods); a hero's global
+				// cost and research auras are too, beside its other effects here.
+				if (ut == UNIT_CATAFALQUE && relic_global_aura_index(a) >= 0) continue;
 				aura_mgr_.register_source(id, (AuraType)aura.kind, aura.range, aura.value,
 					aura_affected_players(team, aura.players), x, z, a);
 			}
