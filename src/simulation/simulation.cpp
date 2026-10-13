@@ -3339,6 +3339,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
 		m.bld_capture[b] = 1.0f;
 		m.bld_garrison_regen_add[b] = 0.0f;
+		m.bld_decay[b] = 1.0f;
 		for (float &c : m.bld_cost[b]) c = 1.0f;
 		m.bld_international_mul[b] = 1.0f;
 		m.bld_international_add[b] = 0.0f;
@@ -3463,6 +3464,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_GARRISON_HEAL: apply(m.bld_garrison_heal[b]); break;
 					case TSTAT_CAPTURE_POINTS: apply(m.bld_capture[b]); break;
 					case TSTAT_GARRISON_REGEN: if (e.op == TOP_ADD) m.bld_garrison_regen_add[b] += e.value; break;
+					case TSTAT_TERRITORY_DECAY: apply(m.bld_decay[b]); break;
 					case TSTAT_TRADE_INTERNATIONAL:
 						if (e.op == TOP_ADD) m.bld_international_add[b] += e.value;
 						else apply(m.bld_international_mul[b]);
@@ -5120,7 +5122,7 @@ bool Simulation::formation_target_in_range(const FormationController &fc) const 
 	for (uint32_t id : fc.members) {
 		const int32_t idx = lookup_unit(id);
 		if (idx < 0 || !units_.alive[idx]) continue;
-		float r = units_.attack_damage[idx] > 0.0f ? units_.attack_range[idx] : 0.0f;
+		float r = units_.attack_damage[idx] > 0.0f ? attack_reach((size_t)idx) : 0.0f;
 		if (fc.target_building && (fc.task_flags & FTASK_CAPTURE) && unit_capture_strength(units_.unit_type[idx]) > 0.0f)
 			r = std::max(r, CAPTURE_RANGE);
 		range = std::max(range, r);
@@ -8038,7 +8040,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const bool capture = (units_.order_flags[i] & ORDER_FLAG_ALLOW_CAPTURE) &&
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
-				const float reach = capture ? CAPTURE_RANGE : units_.attack_range[i];
+				const float reach = capture ? CAPTURE_RANGE : attack_reach(i);
 				const float eff_d = structure_gap(b, px[i], pz[i], unit_collision_radius(units_.unit_type[i]));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
@@ -8047,7 +8049,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
 		} else if (units_.action_state[i] == ACTION_ATTACK && !backing_off && units_.target_building_id[i] == 0) {
-			float r_att = units_.attack_range[i];
+			float r_att = attack_reach(i);
 			if (units_.target_unit_id[i] != 0 && fauna_.count != 0 && slaughters_target(i))
 				r_att = SLAUGHTER_RANGE + 1.0f; // Attack/Slaughter MaxRange: walk up to the animal
 			if (r_att > 3.0f) {
@@ -8285,7 +8287,7 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		}
 		if (st == ACTION_ATTACK && units_.target_unit_id[i] != 0) { // tick_combat
 			const int32_t t = lookup_unit(units_.target_unit_id[i]);
-			return t >= 0 && circle(px[t], pz[t], units_.attack_range[i]);
+			return t >= 0 && circle(px[t], pz[t], attack_reach(i));
 		}
 		if (st == ACTION_ATTACK && units_.target_building_id[i] != 0) {
 			// move_units stops an attacker within 0.9 of its reach, the smaller of its attack and
@@ -8450,7 +8452,7 @@ bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 		const int32_t t = lookup_unit(units_.target_unit_id[i]);
 		if (t < 0) return false;
 		const float dx = x - units_.pos_x[t], dz = z - units_.pos_z[t];
-		return dx * dx + dz * dz <= units_.attack_range[i] * units_.attack_range[i];
+		return dx * dx + dz * dz <= attack_reach(i) * attack_reach(i);
 	}
 	if (st == ACTION_BUILD && units_.target_building_id[i] != 0) {
 		// tick_construction's build range. (A worker returning a load drops it as soon as it is
@@ -8942,7 +8944,7 @@ bool Simulation::chase_falls_short(size_t i) const {
 	const float ex = wp.count > 0 ? wp.xs[wp.count - 1] : units_.pos_x[i];
 	const float ez = wp.count > 0 ? wp.zs[wp.count - 1] : units_.pos_z[i];
 	// A navcell's width of slack: a path to a point the unit can reach ends on that point.
-	const float reach = std::max(units_.attack_range[i], CAPTURE_RANGE) + 2.0f;
+	const float reach = std::max(attack_reach(i), CAPTURE_RANGE) + 2.0f;
 	if (units_.target_unit_id[i] != 0) {
 		const float dx = ex - kx, dz = ez - kz;
 		return dx * dx + dz * dz > reach * reach;
@@ -9821,7 +9823,7 @@ void Simulation::tick_pack(float dt) {
 				const float d2 = dx * dx + dz * dz;
 				const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
 				target_in_range = d2 >= minr * minr && in_parabolic_range(d2, att_y,
-						unit_height(t), units_.attack_range[i]);
+						unit_height(t), attack_reach(i));
 			}
 		} else if (units_.target_building_id[i] != 0 && st != ACTION_BUILD) {
 			auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -9831,7 +9833,7 @@ void Simulation::tick_pack(float dt) {
 					const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i],
 							unit_collision_radius(units_.unit_type[i]));
 					target_in_range = in_parabolic_range(eff_d * eff_d, att_y, get_terrain_height(b.x, b.z),
-							units_.attack_range[i]);
+							attack_reach(i));
 				}
 			}
 		}
@@ -9945,7 +9947,7 @@ void Simulation::tick_combat(float dt) {
 		const bool on_the_move = st == ACTION_MOVE || walk_and_fight || guarding;
 		const float anc_x = on_the_move ? pxi : units_.anchor_x[i];
 		const float anc_z = on_the_move ? pzi : units_.anchor_z[i];
-		const float range = units_.attack_range[i];
+		const float range = attack_reach(i);
 		// Attack.js MinRange (catapults, bolt shooters): the range query skips anything closer.
 		const float minr = range * unit_min_range_ratio(units_.unit_type[i]);
 		const float vision = unit_vision_at(i);
@@ -10151,7 +10153,7 @@ void Simulation::tick_combat(float dt) {
 
 		// 0 A.D. Exact Parabolic Range Equation (CCmpRangeManager.cpp)
 		const float minr = units_.attack_range[i] * unit_min_range_ratio(units_.unit_type[i]);
-		const bool in_range = in_parabolic_range(d2, att_y, def_y, units_.attack_range[i]) && d2 >= minr * minr; // Attack.js MinRange
+		const bool in_range = in_parabolic_range(d2, att_y, def_y, attack_reach(i)) && d2 >= minr * minr; // Attack.js MinRange
 		if (!in_range && range_check_due(i, dt)) stop_attack(i);
 		if (!attack_ready(i, in_range, unit_combat_at(i).prepare)) continue;
 
@@ -10292,7 +10294,7 @@ void Simulation::tick_combat(float dt) {
 		float bld_y = get_terrain_height(b.x, b.z);
 
 		const bool in_range = capture ? eff_d <= CAPTURE_RANGE
-				: in_parabolic_range(eff_d * eff_d, att_y, bld_y, units_.attack_range[i]);
+				: in_parabolic_range(eff_d * eff_d, att_y, bld_y, attack_reach(i));
 		if (!in_range) {
 			// Move toward building if out of range
 			stand_outside(b, units_.id[i],
@@ -10577,12 +10579,23 @@ void Simulation::tick_combat(float dt) {
 	}
 
 	// 3. Temple + Hero Healing Aura via AuraManager (Heal.js + Auras.js) - 18m 3.5 / 16m 2.0
+	// A negative sum (the Seeress' Prophecy of Death on enemies) drains health, even at full health.
+	const bool heal_drain = aura_mgr_.has_negative(AURA_HEAL);
 	for (size_t u = 0; u < n; ++u) {
-		if (!units_.alive[u] || units_.hp[u] >= units_.max_hp[u]) continue;
+		if (!units_.alive[u] || units_.hp[u] <= 0.0f) continue;
+		if (!heal_drain && units_.hp[u] >= units_.max_hp[u]) continue;
 		float healMod = aura_mgr_.query_modifier(units_.pos_x[u], units_.pos_z[u], units_.team[u], AURA_HEAL,
 			units_.tmpl[u], &unit_combat_at(u).classes);
 		if (healMod > 0.001f) {
 			units_.hp[u] = std::min(units_.max_hp[u], units_.hp[u] + dt * healMod);
+		} else if (healMod < -0.001f) {
+			units_.hp[u] += dt * healMod;
+			if (units_.hp[u] > 0.0f) continue;
+			units_.hp[u] = 0.0f;
+			units_.alive[u] = 0;
+			units_.action_state[u] = ACTION_DYING;
+			stat_unit_lost(u, units_.team[u]);
+			record_unit_death(u, units_.team[u]);
 		}
 	}
 
@@ -10873,7 +10886,7 @@ void Simulation::tick_capture(float dt) {
 		std::array<float, MAX_PLAYERS> decay_to;
 		float decay_gaia = 0.0f;
 		if (territory_decay_targets(b, decay_to, decay_gaia)) {
-			const float decay = timer_tick ? std::min(b.territory_decay_rate, b.capture_points_by_team[pl]) : 0.0f;
+			const float decay = timer_tick ? std::min(structure_decay_rate(b), b.capture_points_by_team[pl]) : 0.0f;
 			b.capture_points_by_team[pl] -= decay;
 			for (int p = 0; p < MAX_PLAYERS; ++p) b.capture_points_by_team[p] += decay * decay_to[p];
 			// decay * decay_gaia stays unheld: Gaia's.
@@ -12419,7 +12432,7 @@ bool Simulation::attack_target_hidden(size_t i, size_t t) const {
 	const uint8_t team = units_.team[i];
 	if (team >= MAX_PLAYERS || reveal_map_ || los_.cells() == 0 || !units_.alive[t]) return false;
 	const float dx = units_.pos_x[t] - units_.pos_x[i], dz = units_.pos_z[t] - units_.pos_z[i];
-	if (dx * dx + dz * dz <= units_.attack_range[i] * units_.attack_range[i]) return false; // ATTACKING: no check
+	if (dx * dx + dz * dz <= attack_reach(i) * attack_reach(i)) return false; // ATTACKING: no check
 	return !los_visible(team, units_.pos_x[t], units_.pos_z[t]);
 }
 
@@ -12807,7 +12820,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		const int32_t a = lookup_unit(attacker_id);
 		if (a >= 0 && attack_target_hidden(i, (size_t)a)) return;
 	}
-	const float range = units_.attack_range[i];
+	const float range = attack_reach(i);
 	const float vision = unit_base_vision(i);
 	const Building *sb = nullptr;
 	if (structure) {
@@ -18834,7 +18847,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 }
 
 // headquarters.js gameStart + attackManager.js setRushes: Petra plans village
-// rushes only when its base has wood to spare (one per 3000 above 8000) and
+// rushes only when its base has wood to spare (one per 3000 above 8500) and
 // its personality is aggressive enough; a long ceasefire rules them out.
 void Simulation::petra_set_rushes() {
 	auto &m = petra_attack_mgr_;
@@ -18842,16 +18855,22 @@ void Simulation::petra_set_rushes() {
 	m.max_rushes = 0;
 	const PetraBase *base = get_primary_petra_base();
 	if (!base) return;
+	// startingStrategy.js getTotalResourceLevel(wood, nearby/medium/faraway): the stock plus the
+	// base's dropsite supplies, i.e. trees on the civic centre's own land (assignResourceToDropsite
+	// skips other land accesses, so another island's trees don't count) within
+	// maxDistResourceSquare, 360 m.
 	float wood = petra_ps().res[RES_WOOD];
+	const uint16_t land = petra_land_at(base->x, base->z);
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_WOOD) continue;
 		const float dx = resources_.x[r] - base->x, dz = resources_.z[r] - base->z;
-		if (dx * dx + dz * dz <= 60.0f * 60.0f) wood += resources_.amount[r];
+		if (dx * dx + dz * dz < 90.0f * 90.0f && petra_land_at(resources_.x[r], resources_.z[r]) == land)
+			wood += resources_.amount[r];
 	}
 	// startingStrategy.js gameStart: under 6000 wood, saveResources and an earlier town phase.
 	m.save_resources = wood < 6000.0f ? 1 : 0;
 	if (petra_config_.difficulty < PETRA_EASY) return;
-	int allowed = (int)std::ceil((wood - 8000.0f) / 3000.0f);
+	int allowed = (int)std::ceil((wood - 8500.0f) / 3000.0f);
 	if (ceasefire_remaining() > 900.0f) allowed = 0;
 	else if (ceasefire_remaining() > 600.0f && allowed > 1) allowed = 1;
 	// config.js personalityCut: weak 0.3, medium 0.5, strong 0.7.
@@ -18954,7 +18973,7 @@ bool Simulation::petra_allow_capture(const std::vector<uint32_t> &squad, uint32_
 	if (b.team < MAX_PLAYERS && (b.team == petra_pid_ || is_ally(petra_pid_, b.team))) return !decaying;
 
 	float anti = b.capture_regen_rate + b.capture_garrison_regen_rate * (float)b.garrisoned_units.size();
-	if (decaying) anti -= b.territory_decay_rate;
+	if (decaying) anti -= structure_decay_rate(b);
 	float capture = unit_capture_strength(units_.unit_type[idx]);
 	for (uint32_t other : squad) {
 		const int32_t j = lookup_unit(other);
@@ -21091,7 +21110,7 @@ int Simulation::petra_decay_garrison_min(const Building &b) {
 	std::array<float, MAX_PLAYERS> to;
 	float to_gaia = 0.0f;
 	if (!territory_decay_targets(b, to, to_gaia)) return 0;
-	return std::max(0, (int)std::ceil((b.territory_decay_rate - b.capture_regen_rate) / b.capture_garrison_regen_rate));
+	return std::max(0, (int)std::ceil((structure_decay_rate(b) - b.capture_regen_rate) / b.capture_garrison_regen_rate));
 }
 
 // headquarters.js checkEvents: a structure of ours that was just captured or started to
@@ -24609,6 +24628,10 @@ float Simulation::building_vision_range(const Building &b) const {
 		const TechMods &m = tech_mods(b.team);
 		bvr = bvr * m.bld_vision[b.type] + m.bld_vision_add[b.type] * 0.28f;
 	}
+	// Vision/Range "add" auras naming Structure (Lugius' Terror Cimbricus).
+	if (aura_mgr_.has(AURA_VISION_ADD))
+		bvr = std::max(0.0f, bvr + aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_VISION_ADD, CIV_UNIT_TEMPLATE_NONE,
+			nullptr, true) * COMBAT_DISTANCE_SCALE);
 	return bvr;
 }
 
@@ -25861,10 +25884,34 @@ float Simulation::unit_vision_at(size_t i) const {
 	}
 	const float m = aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_VISION,
 		units_.tmpl[i], &unit_combat_at(i).classes);
+	// Vision/Range "add" auras (Lugius' Terror Cimbricus: enemies -20 m), metres x0.28.
+	const float add = aura_mgr_.has(AURA_VISION_ADD) ? aura_mgr_.query_modifier(units_.pos_x[i], units_.pos_z[i],
+		units_.team[i], AURA_VISION_ADD, units_.tmpl[i], &unit_combat_at(i).classes) * COMBAT_DISTANCE_SCALE : 0.0f;
 	// structures/wall_garrisoned: a turreted Soldier sees 20 m further.
 	const float turret = !turret_height_.empty() && turret_height_.count(units_.id[i]) && unit_combat_at(i).classes.has(CC_SOLDIER)
 		? WALL_TURRET_VISION : 0.0f;
-	return (m > 0.0f ? v * m : v) + turret;
+	return std::max(0.0f, (m > 0.0f ? v * m : v) + add + turret);
+}
+
+float Simulation::structure_decay_rate(const Building &b) const {
+	if (b.team >= MAX_PLAYERS || b.type >= BLD_TYPE_COUNT) return b.territory_decay_rate;
+	return b.territory_decay_rate * tech_mods(b.team).bld_decay[b.type];
+}
+
+float Simulation::attack_reach(size_t i) const {
+	const float r = units_.attack_range[i];
+	if (r <= 0.0f || !aura_mgr_.has(AURA_RANGE_ADD)) return r;
+	// Attack/Ranged/MaxRange and Attack/Melee/MaxRange "add" auras, in 0 A.D. metres scaled
+	// like the roster's ranges (extract_0ad_rosters.py RANGED_RANGE_SCALE, MELEE_RANGE_SCALE).
+	const uint16_t tmpl = units_.tmpl[i];
+	const bool ranged = tmpl < CIV_UNIT_TEMPLATE_COUNT ? (civ_unit_template(tmpl).flags & ROSTER_RANGED) != 0 : r > 3.0f;
+	float add = 0.0f;
+	aura_mgr_.for_each_reaching(units_.pos_x[i], units_.pos_z[i], units_.team[i], AURA_RANGE_ADD, tmpl,
+		&unit_combat_at(i).classes, false, [&](const AuraSource &s) {
+			const RangeAddRangeAura &a = range_add_range_auras()[(uint16_t)s.value];
+			add += ranged ? a.ranged * COMBAT_DISTANCE_SCALE : a.melee * 0.6f;
+		});
+	return r + add;
 }
 
 // A capture_range_auras() row as an AuraManager source: its index is the source's aura, and
@@ -25981,6 +26028,11 @@ void Simulation::rebuild_auras() {
 					if (std::strcmp(aura.id, gather_rate_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_GATHER_RATE, gather_rate_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
 							(float)k, aura_affected_players(team, gather_rate_range_auras()[k].players), x, z, a);
+				// Range auras on Attack/*/MaxRange (Boiorix's High Ground).
+				for (uint16_t k = 0; k < RANGE_ADD_RANGE_AURA_COUNT; ++k)
+					if (std::strcmp(aura.id, range_add_range_auras()[k].id) == 0)
+						aura_mgr_.register_source(id, AURA_RANGE_ADD, range_add_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,
+							(float)k, aura_affected_players(team, range_add_range_auras()[k].players), x, z, a);
 				for (uint16_t k = 0; k < NO_LOOT_RANGE_AURA_COUNT; ++k)
 					if (std::strcmp(aura.id, no_loot_range_auras()[k].id) == 0)
 						aura_mgr_.register_source(id, AURA_NO_LOOT, no_loot_range_auras()[k].radius * COMBAT_DISTANCE_SCALE,

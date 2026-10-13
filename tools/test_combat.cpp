@@ -43,6 +43,9 @@
 //     kills it gives the archer its Loot xp and the archer goes on to gather the carcass.
 // 17. Poisoned and Burning damage counts as an attack by whoever applied it: the xp, the
 //     kill and the statistics go to them, and the source is saved.
+// 18. Germanic hero and champion auras: Boiorix gives his own soldiers within 60 m +5 m
+//     ranged and +2 m melee reach, Lugius costs enemy units and structures within 100 m
+//     20 m vision, the Seeress drains enemies within 15 m by 2 hp/s, down to death.
 // Build and run:
 //   g++ -std=c++20 -O2 -Isrc tools/test_combat.cpp src/simulation/simulation.cpp \
 //     src/simulation/rms_generator.cpp src/core/job_system.cpp src/network/turn_manager.cpp \
@@ -905,6 +908,66 @@ static void test_status_credit() {
 	check(bv >= 0 && b.units_.poison_src[bv] == a_arch && b.units_.poison_owner[bv] == 0, "the poison's source survives save and load");
 }
 
+static void test_germanic_auras() {
+	std::printf("18. Germanic hero and champion auras\n");
+	Simulation s;
+	setup(s);
+	const uint16_t boiorix = template_named("germ/hero_boiorix"), lugius = template_named("germ/hero_lugius");
+	const uint16_t seeress = template_named("germ/champion_healer");
+	const uint16_t slinger = template_named("germ/infantry_slinger_b"), sword = template_named("germ/infantry_swordsman_b");
+	check(boiorix != CIV_UNIT_TEMPLATE_NONE && lugius != CIV_UNIT_TEMPLATE_NONE && seeress != CIV_UNIT_TEMPLATE_NONE,
+		"roster has Boiorix, Lugius and the Seeress");
+	s.spawn_unit(-20.0f, 0.0f, 0, UNIT_HERO, 0.0f, boiorix);
+	uint32_t sl = s.spawn_unit(-18.0f, 0.0f, 0, UNIT_ARCHER, 0.0f, slinger);
+	uint32_t sw = s.spawn_unit(-18.0f, 2.0f, 0, UNIT_SWORDSMAN, 0.0f, sword);
+	uint32_t far_sl = s.spawn_unit(-20.0f, 30.0f, 0, UNIT_ARCHER, 0.0f, slinger);
+	uint32_t foe = s.spawn_unit(-22.0f, 0.0f, 1, UNIT_ARCHER, 0.0f, slinger);
+	s.rebuild_auras();
+	auto reach = [&](uint32_t id) { const int i = idx(s, id); return s.attack_reach((size_t)i) - s.units_.attack_range[i]; };
+	check(std::fabs(reach(sl) - 5.0f * COMBAT_DISTANCE_SCALE) < 1e-4f, "Boiorix: own slinger nearby +5 m range");
+	check(std::fabs(reach(sw) - 2.0f * 0.6f) < 1e-4f, "Boiorix: own swordsman nearby +2 m melee range");
+	check(reach(far_sl) == 0.0f, "Boiorix: own slinger beyond 60 m unchanged");
+	check(reach(foe) == 0.0f, "Boiorix: enemy slinger unchanged");
+
+	Simulation v;
+	setup(v);
+	v.spawn_unit(20.0f, 0.0f, 0, UNIT_HERO, 0.0f, lugius);
+	uint32_t enemy = v.spawn_unit(30.0f, 0.0f, 1, UNIT_SWORDSMAN);
+	uint32_t own = v.spawn_unit(25.0f, 0.0f, 0, UNIT_SWORDSMAN);
+	uint32_t tower = v.spawn_building_world(30.0f, 10.0f, BLD_TOWER, 1, 1.0f);
+	const float tower_vis = v.building_vision_range(*building(v, tower));
+	v.rebuild_auras();
+	check(std::fabs(v.unit_vision_at(idx(v, enemy)) - std::max(0.0f, v.unit_base_vision(idx(v, enemy)) - 20.0f * COMBAT_DISTANCE_SCALE)) < 1e-3f,
+		"Lugius: enemy soldier -20 m vision");
+	check(std::fabs(v.unit_vision_at(idx(v, own)) - v.unit_base_vision(idx(v, own))) < 1e-3f, "Lugius: own soldier unchanged");
+	check(std::fabs(v.building_vision_range(*building(v, tower)) - std::max(0.0f, tower_vis - 20.0f * COMBAT_DISTANCE_SCALE)) < 1e-3f,
+		"Lugius: enemy tower -20 m vision");
+
+	Simulation h;
+	setup(h);
+	uint32_t seer = h.spawn_unit(0.0f, -20.0f, 0, UNIT_HEALER, 0.0f, seeress);
+	h.order_set_stance(&seer, 1, STANCE_STAND_GROUND);
+	uint32_t victim = dummy(h, 3.5f, -20.0f, UNIT_SWORDSMAN, 30.0f); // beyond its own reach
+	uint32_t friend_u = h.spawn_unit(-2.0f, -20.0f, 0, UNIT_SWORDSMAN, 30.0f);
+	h.order_set_stance(&friend_u, 1, STANCE_STAND_GROUND);
+	h.rebuild_auras();
+	const float hp0 = h.units_.hp[idx(h, victim)];
+	for (int k = 0; k < 100; ++k) h.tick(DT);
+	const int vi = idx(h, victim);
+	check(vi >= 0 && std::fabs(hp0 - h.units_.hp[vi] - 10.0f) < 0.2f, "Seeress: enemy at full health loses 2 hp/s");
+	check(h.units_.hp[idx(h, friend_u)] == 30.0f, "Seeress: own soldier not drained");
+	// Pinned in place (a wounded soldier walks off).
+	h.units_.hp[vi] = 3.0f;
+	for (int k = 0; k < 40; ++k) {
+		const int a = idx(h, victim);
+		if (a < 0 || !h.units_.alive[a]) break;
+		h.units_.pos_x[a] = 3.5f; h.units_.pos_z[a] = -20.0f;
+		h.tick(DT);
+	}
+	const int vd = idx(h, victim);
+	check(vd < 0 || !h.units_.alive[vd], "Seeress: the drain kills");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -923,6 +986,7 @@ int main() {
 	test_projectile_landing();
 	test_ranged_hunting();
 	test_status_credit();
+	test_germanic_auras();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;
