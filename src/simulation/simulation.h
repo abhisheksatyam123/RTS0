@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 66; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 67; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -1467,16 +1467,6 @@ public:
 		uint8_t needed_defenders = 0;
 	};
 
-	enum PetraPriorityQueue : uint8_t {
-		PETRA_QUEUE_EMERGENCY = 0, // Threat >= 7.0f: Emergency spearmen, archers, towers
-		PETRA_QUEUE_VILLAGER  = 1, // Economic boom: 35% of total pop
-		PETRA_QUEUE_MILITARY  = 2, // Military strike force: Counter-units for AttackPlan
-		PETRA_QUEUE_TECH      = 3, // Technology & Phase research
-		PETRA_QUEUE_TRADE     = 4, // Market and trader caravans
-		PETRA_QUEUE_NAVAL     = 5, // Dock and triremes on coastal/water maps
-		PETRA_QUEUE_COUNT     = 6
-	};
-
 	const std::vector<PetraBase> &petra_bases() const { return petra_bases_; }
 	const PetraBase *get_primary_petra_base() const;
 	const PetraBase *get_nearest_petra_base(float x, float z) const;
@@ -2652,6 +2642,13 @@ private:
 	uint32_t petra_personality_seed(uint8_t pid) const { return (sim_seed_ ^ ((uint32_t)(pid + 1) * 2654435761u)) | 1u; }
 	void reroll_petra_personalities();
 	void petra_refresh_queue_accounts(float dt);
+	int petra_queue_base_priority(uint8_t q) const; // config.js priorities after setConfig (attackPlan.js for plan queues)
+	int petra_queue_priority(uint8_t q) const;      // with changePriority's
+	// queueManager.changePriority; `reset_when` names the queue whose next started item resets
+	// it to Config.priorities (a plan's queueToReset), PETRA_Q_COUNT for none.
+	void petra_change_priority(uint8_t q, int priority, uint8_t reset_when = PETRA_Q_COUNT);
+	void petra_check_paused_queues();               // queueManager.checkPausedQueues
+	void petra_fund_queue(uint8_t q, const float cost[RES_COUNT]); // setAccounts, then transferAccounts from the others
 	void petra_staff_foundations();
 	void petra_manage_fields();
 	float petra_gather_rate(size_t i, uint8_t kind) const;
