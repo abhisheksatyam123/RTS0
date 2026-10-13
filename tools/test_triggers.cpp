@@ -888,6 +888,26 @@ static void check_jebel_barkal() {
 		            houses, ccs, forts, walls, gates, spawns, patrols, attackers);
 }
 
+static void check_disabled_buildings_128() {
+	// disabled_buildings holds every BuildingType id, past 64 too, through a save.
+	const int before = failures;
+	static Simulation a, b;
+	build(a, MAP_SURVIVAL_OF_THE_FITTEST);
+	run_to(a, 2.0f);
+	a.triggers_.disabled_buildings[2] |= bld_bit(100);
+	a.triggers_.disabled_buildings[2] |= bld_bit(65);
+	CHECK(a.triggers_.building_disabled(2, 100) && a.triggers_.building_disabled(2, 65) && !a.triggers_.building_disabled(2, 64),
+	      "ids 65 and 100 disabled, 64 not");
+	const char *path = "/tmp/rts0_test_triggers_mask.sav";
+	CHECK(a.save_state(path), "save");
+	build(b, MAP_SURVIVAL_OF_THE_FITTEST);
+	CHECK(b.load_state(path), "load");
+	CHECK(b.triggers_.building_disabled(2, 100) && b.triggers_.building_disabled(2, 65) && !b.triggers_.building_disabled(2, 64),
+	      "ids past 64 lost across a save");
+	CHECK(b.trigger_hash() == a.trigger_hash(), "trigger state differs after loading");
+	if (failures == before) std::printf("Disabled buildings past id 64 survive a save: ok\n");
+}
+
 int main() {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	TurnManager tm;
@@ -904,6 +924,7 @@ int main() {
 	check_save_load(tm, MAP_FLOOD, 261.0f, 264.0f, Simulation::WATER_LEVEL_RISING, 25, "Flood mid-rise");
 	check_save_load(tm, MAP_EXTINCT_VOLCANO, 90.0f, 200.0f, Simulation::WATER_LEVEL_RISING, 2, "Extinct Volcano before and during the rise");
 	check_identical_saves();
+	check_disabled_buildings_128();
 	check_tutorials();
 	check_death_canyon();
 	check_elephantine();

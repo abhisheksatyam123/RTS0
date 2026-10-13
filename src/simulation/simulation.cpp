@@ -22599,7 +22599,16 @@ template <class Ar> void tick_state_io(Ar &ar, Simulation &s) {
 	// v50: SetDisabledTemplates, invulnerable units and the entities OnOwnershipChanged follows.
 	if (ar.version >= 50) {
 		TriggerState &t = s.triggers_;
-		ar.pod(t.disabled_buildings);
+		if (ar.version >= Simulation::SAVE_VERSION_DISABLED_BUILDINGS_128) {
+			ar.pod(t.disabled_buildings);
+		} else { // a 64-bit mask per player before
+			uint64_t low[8] = {};
+			if constexpr (!std::decay_t<decltype(ar)>::loading)
+				for (int p = 0; p < 8; ++p) low[p] = t.disabled_buildings[p].w[0];
+			ar.pod(low);
+			if constexpr (std::decay_t<decltype(ar)>::loading)
+				for (int p = 0; p < 8; ++p) t.disabled_buildings[p] = BldMask{{low[p], 0}};
+		}
 		io_vec_pod(ar, t.disabled_templates, 1u << 12);
 		io_vec_pod(ar, t.invulnerable, 1u << 12);
 		io_vec_pod(ar, t.watched, 1u << 12);
@@ -24743,11 +24752,7 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
 			// "no_building" modifier emptying Builder/Entities, so their units build nothing.
-			// disabled_buildings is a 64-bit mask; the one type past it, the siege wall gate, is
-			// reached only by an Upgrade, which no_building doesn't stop either.
-			static_assert(BLD_TYPE_COUNT <= 64 || (BLD_TYPE_COUNT == 65 && BLD_SIEGE_WALL_GATE == 64),
-			              "disabled_buildings is a 64-bit mask");
-			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = ~0ull;
+			for (uint8_t p : {(uint8_t)1, (uint8_t)3}) triggers_.disabled_buildings[p] = BldMask{{~0ull, ~0ull}};
 			break;
 		default:
 			break;
@@ -24965,7 +24970,7 @@ void Simulation::trigger_survival_init() {
 				break;
 			}
 		// SetDisableTemplates.
-		for (uint8_t t : kSurvivalDisabledBuildings) triggers_.disabled_buildings[p] |= 1ull << t;
+		for (uint8_t t : kSurvivalDisabledBuildings) triggers_.disabled_buildings[p] |= bld_bit(t);
 	}
 	for (const char *name : kSurvivalDisabledUnits)
 		if (const uint16_t t = roster_template_named(name); t != CIV_UNIT_TEMPLATE_NONE) triggers_.disabled_templates.push_back(t);
