@@ -5847,6 +5847,7 @@ void RtsoMain::apply_map_player_overrides() {
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		if (map_civ_[p] >= 0) sim->set_team_civ(p, (uint8_t)map_civ_[p]);
 		if (map_has_res_[p]) sim->set_player_resources(p, map_res_[p][0], map_res_[p][1], map_res_[p][3], map_res_[p][2]);
+		sim->set_player_pop_cap(p, map_player_pop_limit_[p]);
 	}
 	if (map_pop_limit_ > 0) sim->set_pop_cap(map_pop_limit_);
 	if (map_has_teams_) {
@@ -5862,6 +5863,7 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
 		map_civ_[p] = -1;
 		map_has_res_[p] = false;
+		map_player_pop_limit_[p] = 0;
 		map_team_[p] = 0;
 	}
 	map_has_teams_ = false;
@@ -5964,6 +5966,8 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 				for (int k = 0; k < 4; ++k) map_res_[team][k] = (int)r.get(keys[k], 300); // Player.js: 300 of each unless set
 				map_has_res_[team] = true;
 			}
+			// 0.28 PlayerData PopulationLimit (InitGame.js SetPerPlayerPopulationCaps).
+			if (p.has("pop_limit")) map_player_pop_limit_[team] = std::max(0, (int)p["pop_limit"]);
 			if (p.has("team")) {
 				const int t = (int)p["team"];
 				map_team_[team] = (uint8_t)(t >= 0 && t < rtso::MAX_PLAYERS ? t + 1 : 0);

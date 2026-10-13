@@ -76,11 +76,11 @@ inline std::string objectives_text(const Simulation &sim, uint8_t pid) {
 			: "For the first " + std::to_string(cf) + " minutes, other players will stay neutral.");
 	if (sim.ceasefire_active())
 		out += "    (" + std::to_string((int)std::ceil(sim.ceasefire_remaining())) + " s of ceasefire left)\n";
-	if (sim.world_pop_cap() > 0)
+	if (sim.world_pop_cap() > 0 && !sim.player_pop_cap(pid))
 		line("World Population", std::to_string(sim.world_pop_cap()) + " shared by the players still in the game (" +
 				std::to_string(sim.pop_cap()) + " each)");
 	else
-		line("Population Limit", sim.pop_cap() > 0 ? std::to_string(sim.pop_cap()) : "Unlimited");
+		line("Population Limit", sim.pop_cap(pid) > 0 ? std::to_string(sim.pop_cap(pid)) : "Unlimited");
 	if (sim.reveal_map()) line("Revealed Map", "Map will be completely visible.");
 	else if (sim.explore_map()) line("Explored Map", "The map is explored from the start.");
 	return out;

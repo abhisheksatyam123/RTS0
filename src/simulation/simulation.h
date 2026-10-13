@@ -162,7 +162,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 64; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 65; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_FAUNA_OWNER = 61; // each animal's owner (fauna_owner_)
 	static constexpr uint32_t SAVE_VERSION_TEMPLATE_CIV = 62; // each building's template civ
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
@@ -840,6 +840,16 @@ public:
 	int world_pop_cap() const { return pop_cap_ < 0 ? -pop_cap_ : 0; }
 	void set_pop_cap(int cap) { pop_cap_ = std::max(0, cap); }
 	void set_world_pop_cap(int world) { pop_cap_ = world > 0 ? -std::min(world, MAX_WORLD_POP) : 0; }
+	// A scenario's own PopulationLimit for one player (0.28 PlayerData; InitGame.js gives the
+	// other players the setup's cap and PopulationCapManager.SetPerPlayerPopulationCaps). 0
+	// clears it; reset() clears every player's. Saved (SAVE_VERSION_PLAYER_POP_CAP).
+	static constexpr int MAX_PLAYER_POP_CAP = 1000000;
+	void set_player_pop_cap(uint8_t player, int cap) {
+		if (player < MAX_PLAYERS) player_pop_cap_[player] = std::clamp(cap, 0, MAX_PLAYER_POP_CAP);
+	}
+	int player_pop_cap(uint8_t player) const { return player < MAX_PLAYERS ? player_pop_cap_[player] : 0; }
+	// One player's population limit before Player/MaxPopulation modifiers: its own cap, else pop_cap().
+	int pop_cap(uint8_t player) const { return player_pop_cap(player) > 0 ? player_pop_cap(player) : pop_cap(); }
 	// 0 A.D. ceasefire: no player can attack another for the first N seconds of the match.
 	// 0 A.D. map visibility options: everything visible, or terrain known from the start.
 	bool reveal_map() const { return reveal_map_; }
@@ -2099,6 +2109,7 @@ private:
 	bool waves_enabled_ = false;
 	bool last_man_standing_ = false;
 	int pop_cap_ = 200;
+	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
 	std::vector<BattleAlert> pending_alerts_;

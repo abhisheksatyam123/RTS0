@@ -239,6 +239,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	bool map_has_teams_ = false;
 	// The scenario's PopulationLimit (0 A.D. ScriptSettings, locked in its game setup); -1: none.
 	int map_pop_limit_ = -1;
+	int map_player_pop_limit_[8] = {}; // a scenario player's own PopulationLimit; 0 = none
 	void apply_map_player_overrides();
 
 	bool dragging = false;
