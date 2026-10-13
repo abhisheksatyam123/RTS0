@@ -82,6 +82,15 @@ int main() {
 		CHECK(tech_available_to_civ(TECH_WAGON_TRAINS, CIV_GERMANS) && !tech_available_to_civ(TECH_WAGON_TRAINS, CIV_GAULS));
 		CHECK(t.effect_count == 1 && tech_effects_table()[t.effect_begin].stat == TSTAT_POP_BONUS);
 		CHECK(tech_effects_table()[t.effect_begin].op == TOP_ADD && tech_effects_table()[t.effect_begin].value == 10.0f);
+		// The encampment researches the military colony's list (the Civic Center's without the phases)
+		// plus Wagon Trains, and so does its fortified Upgrade.
+		for (uint8_t enc_t : {(uint8_t)BLD_WAGON_ENCAMPMENT, (uint8_t)BLD_WAGON_ENCAMPMENT_FORTIFIED}) {
+			CHECK(building_researches_tech(enc_t, TECH_WAGON_TRAINS, CIV_GERMANS));
+			CHECK(building_researches_tech(enc_t, TECH_COLONIZATION, CIV_GERMANS));
+			CHECK(!building_researches_tech(enc_t, TECH_PHASE_TOWN, CIV_GERMANS));
+			CHECK(!building_researches_tech(enc_t, TECH_PHASE_CITY, CIV_GERMANS));
+		}
+		CHECK(!building_researches_tech(BLD_TOWN_CENTER, TECH_WAGON_TRAINS, CIV_GERMANS));
 		const TechInfo &g = tech_info(TECH_GROVE_OF_FETTERS);
 		CHECK(tech_effects_table()[g.effect_begin].stat == TSTAT_HEALTH && tech_effects_table()[g.effect_begin].value == 1.5f);
 	}

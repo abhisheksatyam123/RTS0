@@ -7792,7 +7792,8 @@
     19,
     20,
     21,
-    22
+    22,
+    67
    ]
   },
   "germ/infantry_slinger_b": {
@@ -7831,7 +7832,8 @@
     19,
     20,
     21,
-    22
+    22,
+    67
    ]
   },
   "germ/infantry_spearman_b": {
@@ -7871,7 +7873,8 @@
     19,
     20,
     21,
-    22
+    22,
+    67
    ]
   },
   "germ/infantry_swordsman_b": {
@@ -7910,7 +7913,8 @@
     19,
     20,
     21,
-    22
+    22,
+    67
    ]
   },
   "germ/ship_arrow": {
@@ -8033,7 +8037,8 @@
     19,
     20,
     21,
-    22
+    22,
+    67
    ]
   },
   "germ/support_civilian_house": {
@@ -8069,7 +8074,8 @@
     19,
     20,
     21,
-    22
+    22,
+    67
    ]
   },
   "germ/support_healer_b": {
@@ -8117,6 +8123,30 @@
     "Melee",
     "Fire",
     "Ignited"
+   ],
+   "builds": []
+  },
+  "germ/support_wagon": {
+   "generic_name": "Mobile Dropsite",
+   "specific_name": "Wagnaz",
+   "tooltip": "Mobile dropsite for all resources.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Wagon",
+    "Dropsite"
+   ],
+   "builds": []
+  },
+  "germ/support_wagon_house": {
+   "generic_name": "Mobile Dropsite",
+   "specific_name": "Supply Wagon",
+   "tooltip": "Mobile dropsite for all resources.",
+   "history": "",
+   "classes": [
+    "Support",
+    "Wagon",
+    "Dropsite"
    ],
    "builds": []
   }
@@ -13497,6 +13527,33 @@
      "City"
     ],
     "template": "structures/germ/great_hall"
+   },
+   "67": {
+    "generic_name": "Wagon Encampment",
+    "specific_name": "",
+    "tooltip": "Buildable in own or neutral territory. Train Citizens and Wagons and research technologies.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "Colony",
+     "Encampment"
+    ],
+    "template": "structures/germ/encampment"
+   },
+   "68": {
+    "generic_name": "Fortified Wagon Encampment",
+    "specific_name": "",
+    "tooltip": "Buildable in own or neutral territory. Train Citizens and Wagons and research technologies.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Defensive",
+     "Colony",
+     "Encampment",
+     "Fortified"
+    ],
+    "template": "structures/germ/encampment_fortified"
    }
   }
  },
