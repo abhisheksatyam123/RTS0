@@ -1261,6 +1261,9 @@ public:
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
 	int pop_max_uncapped(uint8_t player) const;
+	// Recounts unit_pop_bonus_ (the units' Population/Bonus per player): at the end of every
+	// tick and after a load or reset, so a unit's bonus counts from the tick after it appears.
+	void refresh_unit_pop_bonus();
 	// The population limit after Player/MaxPopulation modifiers; 0 when unlimited.
 	int pop_limit(uint8_t player) const;
 	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
@@ -1789,6 +1792,7 @@ private:
 		float bld_research_time[BLD_TYPE_COUNT];
 		float bld_batch_time_add[BLD_TYPE_COUNT]; // added to Trainer/BatchTimeModifier (Conscription)
 		float bld_pop_bonus[BLD_TYPE_COUNT];
+		float bld_pop_bonus_add[BLD_TYPE_COUNT]; // added after the multiplier (Wagon Trains: Colony +10)
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
@@ -2258,6 +2262,7 @@ private:
 		SETUP_FLAGS_ALL = 15;
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
+	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)
 	std::vector<uint8_t> spy_mask_; // tick_fow scratch: per unit index, the players its spies see for
 	void tick_spies(float dt);
 	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);

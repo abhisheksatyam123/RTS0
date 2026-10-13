@@ -499,6 +499,7 @@ void Simulation::reset() {
 	petra_attack_requests_.clear();
 	spies_.clear();
 	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
+	std::fill(std::begin(unit_pop_bonus_), std::end(unit_pop_bonus_), 0);
 	// A new game brings its own terrain (set_terrain_data or load_state); the
 	// previous map's heights would otherwise move projectiles and water.
 	terrain_heights_.clear();
@@ -637,20 +638,32 @@ int Simulation::pop_current(uint8_t player) const {
 }
 
 // Population/Bonus of a finished structure for its owner (the big house for nine civs,
-// Population/Bonus technologies).
+// Population/Bonus technologies, multiplied then added as ApplyValueModifications does).
 int Simulation::structure_pop_bonus(uint8_t type, uint8_t player) const {
 	const int base = civ_building_type_info(civ_of(player), type).pop_bonus;
-	return base ? (int)std::lround(base * tech_mods(player).bld_pop_bonus[type]) : 0;
+	if (!base) return 0;
+	const TechMods &m = tech_mods(player);
+	return (int)std::lround(base * m.bld_pop_bonus[type] + m.bld_pop_bonus_add[type]);
 }
 
 int Simulation::pop_max_uncapped(uint8_t player) const {
-	// Player.js popBonuses start at 0: a Civic Centre gives 20, houses 5 or 10.
+	// Player.js popBonuses start at 0: a Civic Centre gives 20, houses 5 or 10, a wagon house 5.
 	int cap = 0;
 	for (const auto &b : buildings_) {
 		if (b.team == player && b.build_progress >= 1.0f) cap += structure_pop_bonus(b.type, player);
 	}
-	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus;
+	if (player < MAX_PLAYERS) cap += cheat_mods_[player].pop_bonus + unit_pop_bonus_[player];
 	return cap;
+}
+
+// Population.js on units: an owned unit adds its Population/Bonus, garrisoned too.
+void Simulation::refresh_unit_pop_bonus() {
+	std::fill(std::begin(unit_pop_bonus_), std::end(unit_pop_bonus_), 0);
+	if (!CIV_UNIT_POP_BONUS_COUNT) return;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (units_.team[i] >= MAX_PLAYERS || !(units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED)) continue;
+		if (const int b = unit_pop_bonus(units_.tmpl[i])) unit_pop_bonus_[units_.team[i]] += b;
+	}
 }
 
 int Simulation::pop_limit(uint8_t player) const {
@@ -3300,6 +3313,7 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 
 	for (int b = 0; b < BLD_TYPE_COUNT; ++b) {
 		m.bld_health[b] = m.bld_attack[b] = m.bld_build_time[b] = m.bld_pop_bonus[b] = 1.0f;
+		m.bld_pop_bonus_add[b] = 0.0f;
 		m.bld_research_time[b] = m.bld_arrow_mul[b] = 1.0f;
 		m.bld_batch_time_add[b] = 0.0f;
 		m.bld_range[b] = m.bld_arrow_add[b] = m.bld_garrison_heal[b] = 0.0f;
@@ -3419,7 +3433,10 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 					case TSTAT_BATCH_TIME:
 						if (e.op == TOP_ADD) m.bld_batch_time_add[b] += e.value;
 						break;
-					case TSTAT_POP_BONUS: apply(m.bld_pop_bonus[b]); break;
+					case TSTAT_POP_BONUS:
+						if (e.op == TOP_ADD) m.bld_pop_bonus_add[b] += e.value;
+						else apply(m.bld_pop_bonus[b]);
+						break;
 					// BuildingAI arrow counts: Sentries multiplies, Professional Garrisons adds.
 					case TSTAT_ARROWS:
 						if (e.op == TOP_MUL) m.bld_arrow_mul[b] *= e.value;
@@ -7466,6 +7483,7 @@ void Simulation::tick(float dt) {
 	}
 
 	tick_spies(dt);
+	refresh_unit_pop_bonus(); // Population.js: units that appeared, died or changed hands this tick
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
 	fow_timer_ += dt;
@@ -22969,6 +22987,7 @@ bool Simulation::load_state(const char *filepath) {
 	}
 
 	rebuild_all_tech_mods();
+	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
 	if (version >= 26) trigger_event(TRIGGER_ON_DESERIALIZED); // Trigger.js OnGlobalDeserialized
 	petra_decay_events_.clear(); // rebuilding the loaded territory is no change of it

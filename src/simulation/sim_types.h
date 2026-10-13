@@ -1492,6 +1492,7 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_ARSENAL: return c | TC_ARSENAL;
 		case BLD_OUTPOST: return c | TC_OUTPOST | TC_DEFENSIVE;
 		case BLD_ICE_HOUSE: return c | TC_ICEHOUSE;
+		case BLD_MILITARY_COLONY: return c | TC_COLONY;
 		default: return c;
 	}
 }
@@ -1739,6 +1740,12 @@ struct CivUnitUpgrade {
 	uint8_t phase; // phase the choice's Requirements name, 1 = none
 };
 
+// 0 A.D. Population/Bonus on a unit (Population.js), the Germans' wagon house.
+struct CivUnitPopBonus {
+	uint16_t tmpl; // civ_unit_template_table() row, 0xFFFF ends the table
+	int16_t bonus;
+};
+
 #include "civ_roster_data.h"
 #include "aura_modifier_data.h"
 
@@ -1871,6 +1878,15 @@ inline uint16_t civ_unit_template_by_id(const char *id) {
 // units without a roster template fall back to their UnitType row.
 inline int unit_pop_cost(uint16_t tmpl, uint8_t type) {
 	return tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).pop_cost : unit_type_info(type).pop_cost;
+}
+
+// Population/Bonus of a unit: the population space it adds for its owner while it exists
+// (units/germ/support_wagon_house 5). Units without a roster template add none.
+inline int unit_pop_bonus(uint16_t tmpl) {
+	if (tmpl >= CIV_UNIT_TEMPLATE_COUNT) return 0;
+	for (const CivUnitPopBonus *b = civ_unit_pop_bonus_table(); b->tmpl != 0xFFFF; ++b)
+		if (b->tmpl == tmpl) return b->bonus;
+	return 0;
 }
 
 // Identity class Healer (Heal component): support healers and hero healers.

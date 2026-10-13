@@ -1276,6 +1276,8 @@ def collect(sim_root):
                 "classes": sorted(c),
                 "stats": stats,
                 "upgrades": unit_upgrades(loader, name, civ),
+                # Population/Bonus (the Germans' wagon house); only rows that have one carry it.
+                **({"pop_bonus": int(t.num("Population/Bonus"))} if t.num("Population/Bonus") else {}),
             })
         # RTS0-only classes every civ (or a named civ) keeps.
         for cls in RTS0_ONLY:
@@ -1429,6 +1431,19 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\t\t{0xFFFF, 0, 0xFFFF, 0, 0, 0, 0, 0.0f, 0},")
     w("\t};")
     w("\treturn kUpgrades;")
+    w("}")
+    w("")
+    w("// 0 A.D. Population/Bonus on units (Population.js: added to the owner's population")
+    w("// bonuses while the unit exists): row, bonus.")
+    bonus_rows = [(i, r["pop_bonus"]) for i, r in enumerate(rows) if r.get("pop_bonus")]
+    w("inline constexpr uint16_t CIV_UNIT_POP_BONUS_COUNT = %d;" % len(bonus_rows))
+    w("inline const CivUnitPopBonus *civ_unit_pop_bonus_table() {")
+    w("\tstatic const CivUnitPopBonus kBonuses[CIV_UNIT_POP_BONUS_COUNT + 1] = {")
+    for i, b in bonus_rows:
+        w("\t\t{%d, %d}, // %s" % (i, b, rows[i]["id"]))
+    w("\t\t{0xFFFF, 0},")
+    w("\t};")
+    w("\treturn kBonuses;")
     w("}")
     w("")
     w("inline const CivUnitTemplate *civ_unit_template_table() {")

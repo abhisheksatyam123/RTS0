@@ -164,6 +164,16 @@ inline const CivUnitUpgrade *civ_unit_upgrade_table() {
 	return kUpgrades;
 }
 
+// 0 A.D. Population/Bonus on units (Population.js: added to the owner's population
+// bonuses while the unit exists): row, bonus.
+inline constexpr uint16_t CIV_UNIT_POP_BONUS_COUNT = 0;
+inline const CivUnitPopBonus *civ_unit_pop_bonus_table() {
+	static const CivUnitPopBonus kBonuses[CIV_UNIT_POP_BONUS_COUNT + 1] = {
+		{0xFFFF, 0},
+	};
+	return kBonuses;
+}
+
 inline const CivUnitTemplate *civ_unit_template_table() {
 	static const CivUnitTemplate kTable[CIV_UNIT_TEMPLATE_COUNT] = {
 		// id, name, specific name, civ, class, phase, flags, trainers,
