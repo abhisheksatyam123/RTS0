@@ -161,7 +161,7 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 57; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 58; // save_state's format; see the history beside it
 	static constexpr uint32_t SAVE_VERSION_DROPSITE_SHARING = 51; // each building's dropsite_shared
 	static constexpr uint32_t SAVE_VERSION_RELIC_CP = 53; // each relic's capture points per player
 	static constexpr uint32_t SAVE_VERSION_STATISTICS = 30; // per-player StatisticsTracker in tick_state_io
@@ -1502,6 +1502,18 @@ public:
 		uint8_t pad[3];
 	};
 	uint32_t spawn_scenery(float x, float z, uint8_t scenery_type, float angle, float scale);
+	// The scenery_ index of entity `id`, or -1.
+	int32_t scenery_index(uint32_t id) const {
+		for (size_t k = 0; k < scenery_.size(); ++k) if (scenery_[k].id == id) return (int32_t)k;
+		return -1;
+	}
+	bool is_scenery_id(uint32_t id) const { return scenery_index(id) >= 0; }
+	// Attack a Gaia scenery structure (a fence, column, obelisk; template_structure):
+	// the units walk up to it and strike it until it falls (tick_scenery_attackers).
+	void order_attack_scenery(const uint32_t *unit_ids, size_t count, uint32_t scenery_id);
+	float unit_damage_to_scenery(size_t i) const;
+	void tick_scenery_attackers();
+	void destroy_scenery(size_t k, int32_t killer);
 	// The grain supply of a finished field (0 if none): a Gaia field is farmed through it.
 	uint32_t field_resource_id(uint32_t building_id) const {
 		auto it = field_res_by_bld_.find(building_id);
@@ -1514,6 +1526,15 @@ public:
 	uint32_t spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank = 1);
 	// Puts a unit inside a structure of its owner at once, as a map's <Garrison> does.
 	bool garrison_unit_now(uint32_t unit_id, uint32_t building_id);
+	// An "uncapturable|" template (elephantine.js's Kushite towers): no capture points at all.
+	void set_structure_uncapturable(uint32_t building_id) {
+		auto it = building_id_to_idx_.find(building_id);
+		if (it == building_id_to_idx_.end()) return;
+		Building &b = buildings_[it->second];
+		b.max_capture_points = 0.0f;
+		b.capture_points = 0.0f;
+		b.capture_points_by_team.fill(0.0f);
+	}
 	// template_gaia_ruins: a stone (or metal) supply gathered 4x as fast as a rock.
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
@@ -1596,6 +1617,7 @@ private:
 	uint32_t idle_stuck_key() const { const uint32_t k = short_path_key_ ^ 0x6C8E9CF5u; return k ? k : 3u; }
 	void separation(float dt, Arena &arena, const MoveSteps &steps);
 	void motion_feedback(float dt, const MoveSteps &steps);
+	void patrol_arrive(size_t i);
 	void patrol_next_leg(size_t i);
 	// A chase (UnitAI COMBAT.APPROACHING / CHASING): the target (the unit, or the centre of the
 	// structure) and the point the unit walks to (the unit, or tick_combat's stand point beside the
@@ -1645,6 +1667,7 @@ private:
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
 		float bld_capture[BLD_TYPE_COUNT];        // Capturable/CapturePoints multiplier
+		float bld_garrison_regen_add[BLD_TYPE_COUNT]; // added to Capturable/GarrisonRegenRate (the phases)
 		float bld_cost[BLD_TYPE_COUNT][RES_COUNT]; // Cost/Resources multipliers
 		float bld_international_mul[BLD_TYPE_COUNT]; // Market/InternationalBonus (Silk Road)
 		float bld_international_add[BLD_TYPE_COUNT]; // ... added before it (Commercial Treaty)
@@ -1837,6 +1860,10 @@ private:
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
 	void rebuild_auras(); // G4: rebuild AuraManager from temples/heroes/carnyx/female citizens
 	void apply_health_auras(); // Health/Max auras: rescale max_hp and hp as units enter or leave them
+	float structure_max_capture(const Building &b) const; // Capturable/CapturePoints with its owner's modifiers and auras
+	void refresh_capture_max(Building &b); // Capturable.js UpdateCachedValuesAndNotify: rescale every side's points
+	float structure_capture_garrison_regen(const Building &b) const; // Capturable/GarrisonRegenRate with modifiers
+	void register_capture_aura(uint32_t id, uint8_t team, uint16_t k, float x, float z);
 	float unit_base_vision(size_t i) const; // the template's Vision/Range x0.28 (class default if none)
 	float unit_vision_at(size_t i) const; // Vision/Range with Vision auras (0 A.D. Vision.js)
 	uint16_t aura_affected_players(uint8_t owner, uint8_t players) const;
@@ -2086,6 +2113,8 @@ private:
 	void trigger_flood_rise_step(float final_level);
 	void trigger_volcano_rise_step();
 	void trigger_volcano_garrison_towers();
+	void trigger_elephantine_init();
+	void random_template_composition(const std::vector<uint16_t> &names, int count, std::vector<std::pair<uint16_t, int>> &counts);
 	void trigger_polar_sea_wave();
 	void trigger_treasure_islands_collected(const TriggerEventData &data);
 	void tick_trigger_attack_orders();
@@ -2108,7 +2137,7 @@ private:
 	PlayerState gaia_stock_; // scratch for player(GAIA_PLAYER); never saved or hashed
 	// Player.js SetState("defeated"): hand every unit and structure of these players to Gaia.
 	void convert_to_gaia(uint8_t players);
-	void capture_points_tick(Building &b, size_t bi, float dt); // Capturable.js Reduce, regen and owner change
+	void capture_points_tick(Building &b, size_t bi, bool timer_tick); // Capturable.js Reduce, regen and owner change
 	using CapturePools = std::array<float, MAX_PLAYERS + 1>; // per player, then Gaia's
 	bool capture_enemy(int source, int t) const;
 	void capture_reduce(CapturePools &pts, int to, float amount) const; // Capturable.js Reduce

@@ -20,7 +20,9 @@ enum AuraType : uint8_t {
     AURA_VISION = 6, // Vision/Range multiplier
     AURA_HEAL_AMOUNT = 7, // Heal/Health added to what a healer restores per heal
     AURA_REQUIRED_XP = 8, // Promotion/RequiredXp multiplier
-    AURA_COUNT  = 9
+    AURA_CAPTURE_POINTS = 9, // Capturable/CapturePoints multiplier of structures (capture_range_auras)
+    AURA_GARRISON_REGEN = 10, // Capturable/GarrisonRegenRate multiplier of structures
+    AURA_COUNT  = 11
 };
 
 // 0 A.D. Auras.js affectedPlayers as bits over the source's owner (CivHeroAura::players).
@@ -84,6 +86,28 @@ public:
     }
 
     bool has(AuraType type) const { return type < AURA_COUNT && !of_type_[type].empty(); }
+
+    // AURA_CAPTURE_POINTS / AURA_GARRISON_REGEN on a structure of qowner at (qx, qz): the
+    // product of every capture_range_auras() aura reaching it, each aura once however many
+    // sources project it (Auras.js), 1 when none does. A source's need_class 1 reaches only
+    // Civil Centres.
+    float query_capture(float qx, float qz, uint8_t qowner, AuraType type, bool civic_centre) const {
+        if (type >= AURA_COUNT || of_type_[type].empty()) return 1.0f;
+        const uint16_t qbit = aura_player_bit(qowner);
+        uint32_t seen = 0; // capture_range_auras() rows already applied
+        float m = 1.0f;
+        for (uint32_t k : of_type_[type]) {
+            const AuraSource &s = sources[k];
+            if (!s.alive || !(s.affected & qbit) || s.aura < 0 || s.aura >= 32) continue;
+            if (s.need_class == 1 && !civic_centre) continue;
+            if (seen & (1u << s.aura)) continue;
+            const float dx = qx - s.x, dz = qz - s.z;
+            if (dx * dx + dz * dz > s.range * s.range) continue;
+            seen |= 1u << s.aura;
+            m *= s.value;
+        }
+        return m;
+    }
 
     // Combined modifier on a unit of player qowner at (qx, qz). qtmpl is its roster
     // template (hero auras skip units their 0 A.D. "affects" classes exclude) and
