@@ -10770,8 +10770,10 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 			break;
 		case MAP_MIGRATION:
 			synth_migration(hm, rng, water_h, spawns, config.num_players, config.teams, config.team_placement);
+			break;
 		case MAP_NGORONGORO:
 			synth_ngorongoro(hm, rng, water_h, spawns, config.num_players, config.teams);
+			break;
 		case MAP_RIVER_ARCHIPELAGO:
 			synth_river_archipelago(hm, rng, water_h, spawns, config.num_players, config.teams, river_archipelago);
 			break;
