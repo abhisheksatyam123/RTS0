@@ -42,8 +42,9 @@ int main() {
 	static Simulation s;
 
 	// 1. An Athenian hoplite: RequiredXp 100 (template_unit_infantry), xp left over carries
-	//    to the next rank, and each rank multiplies health by 1.25 and melee damage by 1.2,
-	//    keeping the health fraction. Kills alone no longer promote.
+	//    to the next rank, and each rank multiplies health by 1.25 and melee damage by 1.1
+	//    (0.28's unit_advanced / unit_elite, no melee resistance), keeping the health
+	//    fraction. Kills alone no longer promote.
 	{
 		fresh(s, CIV_ATHENIANS);
 		const uint16_t hop = tmpl_of("athen/infantry_spearman_b");
@@ -62,8 +63,8 @@ int main() {
 		CHECK(s.units_.xp[i] == 30);
 		CHECK(near(s.units_.max_hp[i], hp0 * 1.25f));
 		CHECK(near(s.units_.hp[i], hp0 * 1.25f * 0.5f));
-		CHECK(near(s.units_.attack_damage[i], dmg0 * 1.2f));
-		CHECK(near(s.rank_melee_armor(i), 1.0f));
+		CHECK(near(s.units_.attack_damage[i], dmg0 * 1.1f));
+		CHECK(near(s.rank_melee_armor(i), 0.0f));
 		CHECK(near(s.unit_capture_attack_at(i), unit_capture_attack(hop, UNIT_SPEARMAN) + 0.7f));
 
 		s.gain_xp(i, 75.0f); // 105: Elite with 5 left over
@@ -71,14 +72,17 @@ int main() {
 		CHECK(s.units_.rank[i] == 3);
 		CHECK(s.units_.xp[i] == 5);
 		CHECK(near(s.units_.max_hp[i], hp0 * 1.25f * 1.25f));
-		CHECK(near(s.units_.attack_damage[i], dmg0 * 1.44f));
-		CHECK(near(s.rank_melee_armor(i), 2.0f));
+		CHECK(near(s.units_.attack_damage[i], dmg0 * 1.21f));
+		CHECK(near(s.rank_melee_armor(i), 0.0f));
 		CHECK(near(s.unit_capture_attack_at(i), unit_capture_attack(hop, UNIT_SPEARMAN) + 1.5f));
 
 		// Elite hoplites promote to the City Guard champion (athen/champion_infantry), which
-		// has no rank: the champion's own stats and no rank bonus.
-		CHECK(near(s.promotion_required_xp(i), 100.0f));
-		s.gain_xp(i, 95.0f);
+		// has no rank, after 250 xp: the champion's own stats and no rank bonus.
+		CHECK(near(s.promotion_required_xp(i), 250.0f));
+		s.gain_xp(i, 240.0f);
+		s.promote_if_due(i);
+		CHECK(s.units_.rank[i] == 3);
+		s.gain_xp(i, 5.0f);
 		s.promote_if_due(i);
 		const uint16_t guard = tmpl_of("athen/champion_infantry");
 		CHECK(s.units_.tmpl[i] == guard);

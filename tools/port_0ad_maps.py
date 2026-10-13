@@ -652,11 +652,14 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 gaia["gaia_units"][gaia_unit_index[uid]]["garrison_in_structure"] = gaia_structure_index[holder]
 
         # Ensure every detected player has a town center / start position. Nomad maps
-        # (no civil centre at all, e.g. sicilia_nomad_2p) start with units only.
+        # (no civil centre at all, e.g. sicilia_nomad_2p) start with units only, and so
+        # does a player that starts with an army and nothing else (Death Canyon's
+        # Invasion Force).
         nomad = not any(s["type"] == "town_center" for s in structures)
         for p in ([] if nomad else players.values()):
             has_tc = any(s["type"] == "town_center" and s["player"] == p["id"] for s in structures)
-            if not has_tc:
+            army_only = not any(s["player"] == p["id"] for s in structures) and any(u["player"] == p["id"] for u in units)
+            if not has_tc and not army_only:
                 structures.append({"type": "town_center", "player": p["id"], "x": p["start_x"], "z": p["start_z"]})
 
         # ScriptSettings PlayerData: a scenario's fixed civs and starting resources. Its
@@ -670,6 +673,9 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
                 p["civ"] = CIV_CODES.index(pd["Civ"])
             if isinstance(pd.get("Resources"), dict):
                 p["resources"] = {k: int(v) for k, v in pd["Resources"].items()}
+            # Locked teams (LockTeams) are the map's own; otherwise Game Setup picks them.
+            if settings.get("LockTeams") and isinstance(pd.get("Team"), int):
+                p["team"] = pd["Team"]
 
         map_data = {
             "id": map_id,
@@ -776,6 +782,7 @@ github_skirmishes = {
 # Left out: the combat/pathfinding demos.
 github_scenarios = {
     "treasure_islands": ("treasure_islands", "mediterranean"),
+    "death_canyon_invasion_force": ("death_canyon_invasion_force", "desert"),
     "gold_rush": ("gold_rush", "savanna"),
     "laconia": ("laconia", "aegean"),
     "migration": ("migration", "mediterranean"),
