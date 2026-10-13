@@ -142,4 +142,29 @@ inline const RequiredXpRangeAura *required_xp_range_auras() {
 	return kAuras;
 }
 
+// Range auras multiplying Capturable/CapturePoints or GarrisonRegenRate of the structures
+// they reach (stat TSTAT_CAPTURE_POINTS or TSTAT_GARRISON_REGEN); radius in 0 A.D. metres,
+// civic_centre: only Civil Centres (the aura's affects name no other Structure).
+struct CaptureRangeAura { const char *id; uint8_t stat; float multiply; float radius; uint8_t players; bool civic_centre; };
+constexpr uint16_t CAPTURE_RANGE_AURA_COUNT = 4;
+inline const CaptureRangeAura *capture_range_auras() {
+	static const CaptureRangeAura kAuras[4] = {
+		{"eternal_fire", TSTAT_CAPTURE_POINTS, 1.5f, 75.0f, 1, false},
+		{"loyalty_regen", TSTAT_GARRISON_REGEN, 1.5f, 75.0f, 1, false},
+		{"athen_hero_pericles_1", TSTAT_CAPTURE_POINTS, 1.5f, 60.0f, 1, false},
+		{"mace_hero_alexander_iii_3", TSTAT_GARRISON_REGEN, 0.5f, 60.0f, 4, true},
+	};
+	return kAuras;
+}
+
+// Structures projecting a capture range aura: BuildingType, capture_range_auras() index.
+struct CaptureStructureAura { uint8_t building; uint16_t aura; };
+constexpr uint16_t CAPTURE_STRUCTURE_AURA_COUNT = 1;
+inline const CaptureStructureAura *capture_structure_auras() {
+	static const CaptureStructureAura kAuras[1] = {
+		{BLD_TEMPLE_VESTA, 0}, // structures/rome/temple_vesta
+	};
+	return kAuras;
+}
+
 #endif // RTSO_AURA_MODIFIER_DATA_H

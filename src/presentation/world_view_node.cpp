@@ -1,6 +1,7 @@
 #include "world_view_node.h"
 #include "display_colors.h"
 #include "territory_boundary.h"
+#include "terrain_blend.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -1042,7 +1043,9 @@ enum ClipId : uint8_t {
 };
 
 static const StringName &clip_name(ClipId id) {
-	static const StringName names[CLIP_COUNT] = {
+	// Leaked on purpose: Godot objects in statics would be destroyed after the
+	// engine has gone, crashing the exit (here and in the caches below).
+	static const StringName *names = new StringName[CLIP_COUNT]{
 		StringName(), StringName("Idle"), StringName("Walk"), StringName("Run"),
 		StringName("Attack"), StringName("Death"), StringName("Gather"),
 		StringName("GatherTree"), StringName("GatherOre"), StringName("GatherRock"),
@@ -1949,6 +1952,34 @@ void RtsoWorldView::build_ground_paint(const rtso::Simulation *sim) {
 	paint_dirty_ = false;
 }
 
+// 0 A.D.'s sky box for the SkySet (assets/textures/skies, written by
+// tools/extract_sky_boxes.py), turned so its bright "left" face lies toward the
+// sun as SkyManager::RenderSky does. "default" names no folder in 0 A.D.; it
+// takes one of the everyday sets, fixed per map. False keeps the procedural sky.
+bool RtsoWorldView::apply_sky_box(const Ref<Sky> &sky, const std::string &set, const std::string &map_id, float sun_yaw, const Color &ground) {
+	String name = String(set.c_str()).replace(" ", "_");
+	if (name.is_empty() || name == "default") {
+		static const char *const kEveryday[] = { "cirrus", "cumulus", "sunny" };
+		name = kEveryday[String(map_id.c_str()).hash() % 3];
+	}
+	const String dir = "res://assets/textures/skies/" + name + "/";
+	if (!ResourceLoader::get_singleton()->exists(dir + String("top.png"))) return false;
+	if (sky_box_shader_.is_null()) sky_box_shader_ = ResourceLoader::get_singleton()->load("res://shaders/sky_box.gdshader");
+	if (sky_box_shader_.is_null()) return false;
+	Ref<ShaderMaterial> mat;
+	mat.instantiate();
+	mat->set_shader(sky_box_shader_);
+	for (const char *face : { "front", "back", "left", "right", "top" }) {
+		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(dir + String(face) + String(".png"));
+		if (tex.is_null()) return false;
+		mat->set_shader_parameter(String("face_") + face, tex);
+	}
+	mat->set_shader_parameter("sky_yaw", (float)Math_PI * 0.5f - sun_yaw);
+	mat->set_shader_parameter("ground_color", ground);
+	sky->set_material(mat);
+	return true;
+}
+
 // Per-map sun, ambient light, fog, sky and water, from the Environment block
 // of the 0 A.D. random-map biome each RTS0 biome follows
 // (maps/random/rmbiome/generic/*.json, named after each row).
@@ -2011,23 +2042,25 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 	}
 	auto col = [](const Rgb &c, float k = 1.0f) { return Color(c.r * k, c.g * k, c.b * k, 1.0f); };
 
+	// 0 A.D. gives the sun's height above the horizon and its bearing;
+	// above 90 degrees it shines from the other side. Bearings are taken
+	// relative to the Aegean sun, which matches the scene's default light.
+	float sun_elev = e->sun_elevation, sun_rot = e->sun_rotation;
+	if (sun_elev > Math_PI * 0.5f) {
+		sun_elev = (float)Math_PI - sun_elev;
+		sun_rot += (float)Math_PI;
+	}
+	sun_elev = Math::clamp(sun_elev, 0.35f, 1.3f);
+	const float sun_yaw = Math::deg_to_rad(45.0f) + (sun_rot - (-0.909f));
+
 	Node *scene = get_parent();
 	if (scene) {
 		for (int i = 0; i < scene->get_child_count(); ++i) {
 			if (DirectionalLight3D *sun = Object::cast_to<DirectionalLight3D>(scene->get_child(i))) {
-				// 0 A.D. gives the sun's height above the horizon and its bearing;
-				// above 90 degrees it shines from the other side. Bearings are taken
-				// relative to the Aegean sun, which matches the scene's default light.
-				float elev = e->sun_elevation, rot = e->sun_rotation;
-				if (elev > Math_PI * 0.5f) {
-					elev = (float)Math_PI - elev;
-					rot += (float)Math_PI;
-				}
-				elev = Math::clamp(elev, 0.35f, 1.3f);
 				const float peak = std::max(e->sun.r, std::max(e->sun.g, e->sun.b));
 				sun->set_color(col(e->sun, 1.0f / peak));
 				sun->set_param(Light3D::PARAM_ENERGY, 1.25f * peak);
-				sun->set_rotation(Vector3(-elev, Math::deg_to_rad(45.0f) + (rot - (-0.909f)), 0.0f));
+				sun->set_rotation(Vector3(-sun_elev, sun_yaw, 0.0f));
 			} else if (WorldEnvironment *we = Object::cast_to<WorldEnvironment>(scene->get_child(i))) {
 				Ref<Environment> env = we->get_environment();
 				if (env.is_null()) continue;
@@ -2038,6 +2071,11 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 				env->set_ambient_light_color(col(e->ambient, 0.85f / 0.4f));
 				env->set_fog_light_color(col(e->fog));
 				Ref<Sky> sky = env->get_sky();
+				if (sky.is_valid() && apply_sky_box(sky, e->sky, map_id, sun_yaw, col(e->fog))) {
+					// 0 A.D. draws its sky unfogged; the faces carry their own haze.
+					env->set_fog_sky_affect(0.1f);
+					continue;
+				}
 				Ref<ProceduralSkyMaterial> psm = sky.is_valid() ? Ref<ProceduralSkyMaterial>(sky->get_material()) : Ref<ProceduralSkyMaterial>();
 				if (psm.is_valid()) {
 					const Color fog = col(e->fog);
@@ -2072,7 +2110,7 @@ namespace {
 // 0 A.D. terrain name -> texture key (data/terrain/terrain_textures.json, written
 // by tools/map_0ad_terrains.py); the textures are assets/textures/terrain/<key>.png.
 const Dictionary &terrain_texture_table() {
-	static Dictionary table;
+	static Dictionary &table = *new Dictionary();
 	static bool loaded = false;
 	if (!loaded) {
 		loaded = true;
@@ -2090,7 +2128,7 @@ const Dictionary &terrain_texture_table() {
 // and format), a plain earth tone when the texture is missing.
 constexpr int kTerrainLayerSize = 256;
 Ref<Image> terrain_layer_image(const String &name) {
-	static std::unordered_map<std::string, Ref<Image>> cache;
+	static auto &cache = *new std::unordered_map<std::string, Ref<Image>>();
 	const std::string key_s = name.utf8().get_data();
 	if (auto it = cache.find(key_s); it != cache.end()) return it->second;
 	const String key = terrain_texture_table().get(name, name);
@@ -2117,6 +2155,31 @@ Ref<Image> terrain_layer_image(const String &name) {
 	return img;
 }
 
+// 0 A.D.'s standard terrain alpha maps (art/textures/terrain/alphamaps/standard),
+// in terrain_blend::ALPHA_MAP_NAMES order, as one array; null if any is missing.
+Ref<Texture2DArray> terrain_alpha_maps() {
+	TypedArray<Image> maps;
+	for (const char *name : rtso::terrain_blend::ALPHA_MAP_NAMES) {
+		const String path = String("res://assets/textures/terrain/alphamaps/standard/") + name + ".png";
+		Ref<Image> img;
+		if (ResourceLoader::get_singleton()->exists(path)) {
+			Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
+			if (tex.is_valid()) img = tex->get_image();
+		}
+		if (img.is_null() || img->is_empty()) img = Image::load_from_file(ProjectSettings::get_singleton()->globalize_path(path));
+		if (img.is_null() || img->is_empty()) return Ref<Texture2DArray>();
+		img = img->duplicate();
+		if (img->is_compressed()) img->decompress();
+		img->clear_mipmaps();
+		img->convert(Image::FORMAT_L8);
+		if (img->get_width() != 64 || img->get_height() != 64) img->resize(64, 64, Image::INTERPOLATE_BILINEAR);
+		maps.push_back(img);
+	}
+	Ref<Texture2DArray> arr;
+	arr.instantiate();
+	return arr->create_from_images(maps) == OK ? arr : Ref<Texture2DArray>();
+}
+
 // Hands the shader the sim's per-tile terrain (0 A.D. CTerrain tiles): a texture
 // array of the map's terrains and an R8 texture of each tile's layer.
 // tile_res 0 keeps the biome painting.
@@ -2139,8 +2202,15 @@ void apply_terrain_tiles(const Ref<ShaderMaterial> &mat, const rtso::Simulation 
 	bytes.resize((int64_t)tt.tiles.size());
 	std::memcpy(bytes.ptrw(), tt.tiles.data(), tt.tiles.size());
 	Ref<Image> idx = Image::create_from_data(tt.res, tt.res, false, Image::FORMAT_R8, bytes);
+	const std::vector<uint8_t> blends = rtso::terrain_blend::build(tt.res, tt.tiles.data());
+	PackedByteArray blend_bytes;
+	blend_bytes.resize((int64_t)blends.size());
+	std::memcpy(blend_bytes.ptrw(), blends.data(), blends.size());
+	Ref<Image> blend_img = Image::create_from_data(tt.res * rtso::terrain_blend::MAX_BLENDS, tt.res, false, Image::FORMAT_RGBA8, blend_bytes);
 	mat->set_shader_parameter("tile_layers", arr);
 	mat->set_shader_parameter("tile_index", ImageTexture::create_from_image(idx));
+	mat->set_shader_parameter("tile_blends", ImageTexture::create_from_image(blend_img));
+	mat->set_shader_parameter("alpha_maps", terrain_alpha_maps());
 	mat->set_shader_parameter("tile_res", (float)tt.res);
 	mat->set_shader_parameter("tile_half", sim->map_half());
 }

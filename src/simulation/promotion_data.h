@@ -293,21 +293,25 @@ inline constexpr RankBonus RANK_BONUS_ADVANCED = {1.25f, 1.2f, 1.0f, 0.7f, 5.0f,
 inline constexpr RankBonus RANK_BONUS_ELITE = {1.25f, 1.2f, 1.0f, 0.8f, 5.0f, 3.0f, 0.7f, 1.2f};
 
 // Technologies that change Promotion/RequiredXp for units with every `need` class and
-// no `forbid` class (TechClass bits): multiply, or replace with 0.
+// no `forbid` class (TechClass bits), at `rank` (0 any): multiply, or replace with 0.
+// TECH_NONE rows are auto-researched: every player has them.
 struct PromotionXpTech {
 	uint8_t tech;
 	float multiply;
 	bool replace_zero;
 	uint64_t need;
 	uint64_t forbid;
+	uint8_t rank;
 };
 
 inline constexpr PromotionXpTech PROMOTION_XP_TECHS[] = {
-	{TECH_ART_OF_WAR, 0.8f, false, 0x0ull, 0x0ull},
-	{TECH_HOPLITE_TRADITION, 0.5f, false, 0x2100ull, 0x10000ull},
-	{TECH_ROMAN_REFORMS, 1.0f, true, 0x40000000ull, 0x0ull},
-	{TECH_ROMAN_REFORMS, 1.0f, true, 0x40ull, 0x0ull},
-	{TECH_SILVERSHIELDS, 1.0f, true, 0x8100ull, 0x0ull},
+	{TECH_ART_OF_WAR, 0.8f, false, 0x0ull, 0x0ull, 0},
+	{TECH_HOPLITE_TRADITION, 0.5f, false, 0x2100ull, 0x10000ull, 0},
+	{TECH_ROMAN_REFORMS, 1.0f, true, 0x40000000ull, 0x0ull, 0},
+	{TECH_ROMAN_REFORMS, 1.0f, true, 0x40ull, 0x0ull, 0},
+	{TECH_SILVERSHIELDS, 1.0f, true, 0x8100ull, 0x0ull, 0},
+	{TECH_NONE, 1.25f, false, 0x840ull, 0x0ull, 0},
+	{TECH_NONE, 1.0f, true, 0x1000000000000000ull, 0x0ull, 1},
 };
 
 } // namespace rtso
