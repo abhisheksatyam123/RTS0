@@ -23,6 +23,7 @@
 #undef private
 
 #include <cmath>
+#include <cstring>
 #include <cstdio>
 
 using namespace rtso;
@@ -304,6 +305,32 @@ static void test_structures() {
 	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, heal));
 	b = res_of(s, 0);
 	check(gained(a, b, hl.food, hl.wood, hl.stone, 0), "after Sacrificial Ritual it pays no metal");
+	// Celtic Auxiliaries (celtic_auxiliaries.json, Carthage's Celtic embassy): Mercenary
+	// Swordsmen cost metal x0.5 and +50 food, and yield Loot/metal x0.5 and Loot/food +5.
+	uint16_t gaul = 0xFFFF;
+	for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t)
+		if (std::strcmp(civ_unit_template(t).id, "cart/infantry_swordsman_gaul_b") == 0) gaul = t;
+	check(gaul != 0xFFFF && (civ_unit_template(gaul).tech_classes & TC_MERCENARY) && (civ_unit_template(gaul).tech_classes & TC_SWORDSMAN),
+			"the Gallic mercenary swordsman is a Mercenary Swordsman");
+	check(tech_info(TECH_CELTIC_AUXILIARIES).researcher == BLD_EMBASSY && tech_available_to_civ(TECH_CELTIC_AUXILIARIES, CIV_CARTHAGINIANS) &&
+			!tech_available_to_civ(TECH_CELTIC_AUXILIARIES, CIV_ROMANS), "Celtic Auxiliaries is Carthage's, at the Celtic embassy");
+	s.set_team_civ(1, CIV_CARTHAGINIANS);
+	uint32_t merc = s.spawn_unit(30.0f, -32.0f, 1, UNIT_SWORDSMAN, 0.0f, gaul);
+	const LootInfo ml = unit_loot(gaul, UNIT_SWORDSMAN);
+	a = res_of(s, 0);
+	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, merc));
+	b = res_of(s, 0);
+	const float rk = loot_rank_multiplier(s.units_.rank[(size_t)idx_of(s, merc)]); // mercenaries start Advanced
+	check(ml.metal > 0 && gained(a, b, std::floor(ml.food * rk), std::floor(ml.wood * rk), 0, std::floor(ml.metal * rk)),
+			"a mercenary swordsman pays its loot");
+	s.complete_research(1, TECH_CELTIC_AUXILIARIES);
+	const auto &tm = s.tech_mods(1).tmpl[gaul];
+	check(near(tm.cost[RES_GOLD], 0.5f) && near(tm.cost_add[RES_FOOD], 50.0f), "Celtic Auxiliaries: metal cost x0.5, food +50");
+	a = res_of(s, 0);
+	s.collect_unit_loot(sw, 0, (size_t)idx_of(s, merc));
+	b = res_of(s, 0);
+	check(gained(a, b, std::floor((ml.food + 5) * rk), std::floor(ml.wood * rk), 0, std::floor(std::floor(ml.metal * 0.5f) * rk)),
+			"then its loot is metal x0.5, food +5");
 }
 
 static void test_status_death() {
