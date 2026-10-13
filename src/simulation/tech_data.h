@@ -488,7 +488,7 @@ inline const TechEffect *tech_effects_table() {
 	};
 	return kEffects + 1;
 }
-constexpr int TECH_EFFECT_COUNT = 182;
+constexpr int TECH_EFFECT_COUNT = 187;
 
 inline const TechInfo &tech_info(uint8_t tech_id) {
 	static const TechInfo kTable[TECH_COUNT] = {
@@ -629,7 +629,7 @@ inline const TechInfo &tech_info(uint8_t tech_id) {
 		{"Athenian Long Walls", "Build Walls in own or neutral territory.", 0, 0, 0, 400, 60.0f, 3, BLD_PRYTANEION, TECH_NONE, 0x0001, 186, 0, "long_walls"},
 		{"Equine Transports", "Phoenician Triremes gain the ability to train Cavalry.", 0, 300, 300, 0, 60.0f, 3, BLD_DOCK, TECH_DOCK_EFFICIENCY, 0x0004, 186, 0, "equine_transports"},
 		// The Seeress's Human Sacrifice aura it also unlocks (germ_seer_1_buff) is not modelled yet.
-		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 187, 1, "grove_of_fetters"},
+		{"Grove of Fetters", "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.", 0, 600, 300, 0, 40.0f, 3, BLD_TEMPLE, TECH_NONE, 0x8000, 186, 1, "grove_of_fetters"},
 	};
 	if (tech_id >= TECH_COUNT) return kTable[TECH_NONE];
 	return kTable[tech_id];
