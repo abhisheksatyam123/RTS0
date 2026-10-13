@@ -2938,6 +2938,61 @@ def _actor_prop_at(vfs, actor_path, ap_name, depth=0, seen=None):
     return None
 
 
+# Rider actors _mount_crew found on a mount's rider_R / rider_L variants.
+MOUNT_CREW_SKIP = {}
+
+
+def _mount_crew(vfs, asset_id, actor_ref, skeleton_name):
+    """Riders for a horse or elephant actor no RIDER_ATTACHMENTS row names (Han,
+    Kushite and Mauryan cavalry and elephants): the unit props its own `*_r`
+    rider and `*_d` driver. Without a row they were drawn as plain props in
+    bind pose, standing on the saddle, and twice (the death variant's
+    rider_R as well)."""
+    if asset_id in RIDER_ATTACHMENTS or skeleton_name not in ("horse", "elephant"):
+        return
+    path = _actor_path(actor_ref)
+    if not vfs.exists(path):
+        return
+    root = ET.fromstring(vfs.read(path))
+    if root.tag == "qualitylevels" and root.find("inline") is not None:
+        root = root.find("inline")
+    crew = []
+    for g in root.findall("group"):
+        picked = _pick_variant(g)
+        for v in g.findall("variant"):
+            var = resolve_variant_chain(vfs, v, {})
+            if var is None:
+                continue
+            for pr in var.iter("prop"):
+                ap = (pr.get("attachpoint") or "").strip()
+                act = _actor_path(pr.get("actor"))
+                if not act.startswith("art/actors/units/"):
+                    continue
+                if ap.lower().endswith(("_r", "_l")):
+                    # A gather or death variant's swapped-in rider: drop it,
+                    # the seated one stays.
+                    MOUNT_CREW_SKIP.setdefault(asset_id, set()).add(act)
+                    continue
+                if v is not picked or any(ap == c[1] for c in crew):
+                    continue
+                stem = os.path.basename(act)[:-4]
+                if skeleton_name == "horse":
+                    sit = "cavalry_idle"
+                elif stem.endswith("_d"):
+                    sit = "elephant_driver_idle"
+                else:
+                    sit = "elephant_archer_ready"
+                crew.append((act, ap, sit))
+    if not crew:
+        return
+    if skeleton_name == "horse":
+        RIDER_ATTACHMENTS[asset_id] = crew[:1]
+        RIDER_CLIPS[asset_id] = RIDER_CLIPS["cavalry"]
+    else:
+        RIDER_ATTACHMENTS[asset_id] = crew
+    print(f"  crew <- {', '.join(f'{os.path.basename(a)}@{ap}' for a, ap, _ in RIDER_ATTACHMENTS[asset_id])}")
+
+
 def resolve_riders(vfs, asset_id, actor_ref):
     """RIDER_ATTACHMENTS, but with each crew actor taken from the hull itself.
 
@@ -2953,7 +3008,7 @@ def resolve_riders(vfs, asset_id, actor_ref):
 
 def _rider_skip_actors(asset_id, riders=None):
     src = riders if riders is not None else RIDER_ATTACHMENTS.get(asset_id, [])
-    return {_actor_path(p) for p, _ap, _sit in src}
+    return {_actor_path(p) for p, _ap, _sit in src} | MOUNT_CREW_SKIP.get(asset_id, set())
 
 
 def attach_rider_parts(vfs, parts, body, asset_id, tint, sources, riders=None):
@@ -3461,6 +3516,7 @@ def compile_unit_animated(vfs, asset_id, actor_ref, fit, target, tint, out_dir,
     """
     print(f"[{asset_id}] (animated) {actor_ref}  skeleton={skeleton_name}")
     sources = set()
+    _mount_crew(vfs, asset_id, actor_ref, skeleton_name)
     riders = resolve_riders(vfs, asset_id, actor_ref)
     skip_actors = _rider_skip_actors(asset_id, riders)
     parts, material_name = compose_actor(vfs, actor_ref, 0, tint, sources, skip_actors)

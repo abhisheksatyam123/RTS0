@@ -257,14 +257,14 @@ int main() {
 		            1000.0f - s.units_.hp[u], res[0], res[1], res[2]);
 	}
 
-	// 8. Herding works for every player: player 1 herds a sheep into its own corral.
+	// 8. Herding works for every player: player 1 herds its own sheep into its own corral.
 	{
 		fresh(s);
 		uint32_t corral0 = s.spawn_building_world(10.0f, -6.0f, BLD_CORRAL, 0, 1.0f);
 		uint32_t corral1 = s.spawn_building_world(-14.0f, 10.0f, BLD_CORRAL, 1, 1.0f);
 		s.spawn_building_world(-40.0f, 30.0f, BLD_TOWN_CENTER, 1, 1.0f); // its territory keeps corral1 from decaying
 		uint32_t herder = s.spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
-		uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP);
+		uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
 		s.order_herd(&herder, 1, sheep);
 		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_HERDED);
 		run(s, 30.0f);
@@ -289,7 +289,7 @@ int main() {
 		fresh(s);
 		s.spawn_building_world(-14.0f, 10.0f, BLD_CORRAL, 1, 1.0f);
 		uint32_t herder = s.spawn_unit(0.0f, 0.0f, 1, UNIT_FEMALE_CITIZEN);
-		uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP);
+		uint32_t sheep = s.spawn_fauna(2.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
 		s.order_herd(&herder, 1, sheep);
 		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_HERDED);
 		uint32_t foe = s.spawn_unit(8.0f, 0.0f, 0, UNIT_ARCHER);
@@ -329,7 +329,7 @@ int main() {
 			for (int t = 0; t < 400 && f_alive(s, penned); ++t) run(s, Simulation::FIXED_STEP);
 			CHECK(!f_alive(s, penned));
 
-			uint32_t ewe = s.spawn_fauna(-12.0f, 11.0f, FAUNA_SHEEP);
+			uint32_t ewe = s.spawn_fauna(-12.0f, 11.0f, FAUNA_SHEEP_TRAINABLE, 1);
 			s.fauna_.behavior[fidx(s, ewe)] = FAUNA_CORRALLED;
 			s.fauna_.corral_id[fidx(s, ewe)] = pen;
 			auto &pb = s.buildings_[s.building_id_to_idx_.at(pen)];
@@ -503,7 +503,60 @@ int main() {
 		CHECK(far > 0.5f * rd && far < 6.0f * rd);
 	}
 
-	// 13. Animals keep their 0 A.D. passability class Clearance from structures (pathfinder.xml):
+	// 13. Ownership: corral-trained livestock is its trainer's (Trainer.js spawns the
+	// *_trainable template owned by the player). Only the owner herds it; anyone's Slaughter
+	// takes it (Attack.CanAttack); other attacks only an enemy's; it gives no Loot xp; the
+	// owner survives save/load.
+	{
+		fresh(s);
+		// Beside player 1's civic centre: a structure in neutral land decays to Gaia (TerritoryDecay).
+		uint32_t pen = s.spawn_building_world(40.0f, 40.0f, BLD_CORRAL, 1, 1.0f);
+		s.players_[1].res[RES_FOOD] = 1000;
+		s.cmd_breed_livestock(1, pen, FAUNA_SHEEP_TRAINABLE, 1);
+		run(s, 70.0f);
+		uint32_t mine = 0;
+		for (size_t f = 0; f < s.fauna_.count; ++f)
+			if (s.fauna_.alive[f] && s.fauna_.fauna_type[f] == FAUNA_SHEEP_TRAINABLE) mine = s.fauna_.id[f];
+		CHECK(mine != 0 && s.fauna_owner(mine) == 1);
+
+		// Gaia livestock can't be herded: the order slaughters it instead.
+		uint32_t gaia_sheep = s.spawn_fauna(5.0f, 5.0f, FAUNA_SHEEP);
+		uint32_t w1 = s.spawn_unit(4.0f, 5.0f, 1, UNIT_FEMALE_CITIZEN);
+		s.order_herd(&w1, 1, gaia_sheep);
+		CHECK(s.fauna_.behavior[fidx(s, gaia_sheep)] != FAUNA_HERDED);
+		CHECK(s.units_.target_unit_id[uidx(s, w1)] == gaia_sheep);
+		CHECK(s.fauna_owner(gaia_sheep) == GAIA_PLAYER);
+
+		// Player 0 can't herd player 1's sheep, but its woman's Slaughter takes it.
+		const uint32_t sheep1 = s.spawn_fauna(-5.0f, -5.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		uint32_t w0 = s.spawn_unit(-4.0f, -5.0f, 0, UNIT_FEMALE_CITIZEN);
+		s.order_herd(&w0, 1, sheep1);
+		CHECK(s.fauna_.behavior[fidx(s, sheep1)] != FAUNA_HERDED);
+		CHECK(s.units_.target_unit_id[uidx(s, w0)] == sheep1);
+		// A war dog has no Slaughter: it attacks an enemy's sheep but not its own player's.
+		uint32_t dog1 = s.spawn_unit(-6.0f, -5.0f, 1, UNIT_WAR_DOG);
+		s.order_hunt(&dog1, 1, sheep1);
+		CHECK(s.units_.target_unit_id[uidx(s, dog1)] != sheep1);
+		s.players_[1].team = 1;
+		s.set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+		uint32_t dog0 = s.spawn_unit(-6.0f, -4.0f, 0, UNIT_WAR_DOG);
+		s.order_hunt(&dog0, 1, sheep1);
+		CHECK(s.units_.target_unit_id[uidx(s, dog0)] == sheep1);
+		const uint16_t xp0 = s.units_.xp[uidx(s, w0)];
+		for (int t = 0; t < 400 && f_alive(s, sheep1); ++t) run(s, Simulation::FIXED_STEP);
+		CHECK(!f_alive(s, sheep1));
+		CHECK(s.units_.xp[uidx(s, w0)] == xp0 && s.units_.xp[uidx(s, dog0)] == 0); // Loot disabled
+
+		const char *path = "/tmp/rts0_test_fauna_owner.sav";
+		CHECK(s.save_state(path));
+		static Simulation t;
+		CHECK(t.load_state(path));
+		CHECK(t.fauna_owner(mine) == 1 && t.fauna_owner(gaia_sheep) == GAIA_PLAYER);
+		CHECK(TurnManager().boot_sim_hash(s) == TurnManager().boot_sim_hash(t));
+		std::remove(path);
+	}
+
+	// 14. Animals keep their 0 A.D. passability class Clearance from structures (pathfinder.xml):
 	//     "default" 0.8 m, "large" 3 m for the bull and the adult elephants. A step that comes
 	//     closer is refused; a step away is not. Through a 1.2-unit (4.8 m) gap in a row of houses
 	//     a fleeing deer runs on, while a bush elephant charging a soldier on the far side is held
