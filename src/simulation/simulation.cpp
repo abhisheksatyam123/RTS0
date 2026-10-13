@@ -6235,6 +6235,114 @@ void Simulation::clear_resources_near(float x, float z, float r) {
 	}
 }
 
+size_t Simulation::place_starting_walls(uint8_t player, float x, float z, int map_tiles, uint8_t walls, float orientation,
+		uint32_t seed) {
+	if (player >= MAX_PLAYERS || civ_of(player) != CIV_IBERIANS || map_tiles <= 128) return 0;
+	if (walls == STARTING_WALLS_FORTRESS) return place_generic_fortress(player, x, z, 20.0f, seed);
+	if (walls != STARTING_WALLS_TOWERS) return 0;
+	// placePolygonalWall(position, 15, ["entry"], "tower", civ, playerID, orientation, 7): a tower at
+	// each of 7 corners; an "entry" has no template, so nothing stands between them.
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	const float step = 2.0f * 3.14159265f / 7.0f;
+	for (int i = 0; i < 7; ++i) {
+		const float a = orientation - 0.5f * step + (float)i * step;
+		const float px = x + 15.0f * std::cos(a), pz = z + 15.0f * std::sin(a);
+		if (std::fabs(px) > map_half_ - 1.0f || std::fabs(pz) > map_half_ - 1.0f) continue;
+		if (get_terrain_height(px, pz) < terrain_water_height_ + 0.15f) continue;
+		spawn_wall_piece({BLD_WALL_TOWER, px, pz, -a, wallset_info(WALLSET_STONE).tower_half}, player, 1.0f);
+		++placed;
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
+size_t Simulation::place_generic_fortress(uint8_t player, float x, float z, float radius, uint32_t seed,
+		float irregularity, int gate_every, int max_tries) {
+	const WallSetInfo &ws = wallset_info(WALLSET_STONE);
+	uint64_t state = (uint64_t)seed * 0x9E3779B97F4A7C15ull + 0x2545F4914F6CDD1Dull;
+	auto rnd = [&state]() { // splitmix64, [0, 1)
+		uint64_t v = (state += 0x9E3779B97F4A7C15ull);
+		v = (v ^ (v >> 30)) * 0xBF58476D1CE4E5B9ull;
+		v = (v ^ (v >> 27)) * 0x94D049BB133111EBull;
+		v ^= v >> 31;
+		return (float)((double)(v >> 11) * (1.0 / 9007199254740992.0));
+	};
+	struct V { float x, z; };
+	auto polar = [](float r, float a) { return V{r * std::cos(a), r * std::sin(a)}; };
+	auto dist = [](V a, V b) { return std::hypot(a.x - b.x, a.z - b.z); };
+	// getWallLength(style, ["long", "tower"]): each element's length less the tower overlap.
+	const float overlap = ws.min_overlap * ws.tower_length;
+	const float pd = (ws.lengths[0] - overlap) + (ws.tower_length - overlap);
+	// Walk round the centre a wall's length at a time, each corner pushed in or out at random,
+	// until the outline closes; keep the try whose last wall overlaps the first least. As in
+	// placeGenericFortress, a try starts where the previous one stopped.
+	const float start_angle = rnd() * 2.0f * 3.14159265f;
+	V off = polar(radius, start_angle);
+	float angle = start_angle;
+	std::vector<V> best;
+	float min_overlap = 1000.0f;
+	for (int tries = 0; tries < max_tries && min_overlap > overlap; ++tries) {
+		std::vector<V> pts;
+		for (;;) {
+			const float indent = (rnd() * 2.0f - 1.0f) * irregularity * pd;
+			const V tmp = polar(radius + indent, angle + pd / radius);
+			const float tmp_angle = std::atan2(tmp.z - off.z, tmp.x - off.x);
+			const V d = polar(pd, tmp_angle);
+			off = {off.x + d.x, off.z + d.z};
+			angle = std::atan2(off.z, off.x);
+			pts.push_back(off);
+			if (pts.size() > 3 && dist(pts[0], off) < pd) {
+				const float o = pd - dist(pts.back(), pts[0]);
+				if (o < min_overlap) {
+					min_overlap = o;
+					best = pts;
+				}
+				break;
+			}
+			if (pts.size() > 1000) break; // a radius too small to close on
+		}
+	}
+	if (best.empty()) return 0;
+	const bool bulk = bulk_spawn_;
+	bulk_spawn_ = true;
+	size_t placed = 0;
+	auto place = [&](const WallPiece &p) {
+		if (std::fabs(p.x) > map_half_ - 1.0f || std::fabs(p.z) > map_half_ - 1.0f) return;
+		if (get_terrain_height(p.x, p.z) < terrain_water_height_ + 0.15f) return;
+		// template_gaia_flora's DeleteUponConstruction: trees and bushes under the piece go.
+		const float c = std::cos(p.rot), sn = -std::sin(p.rot);
+		for (float u = -p.half_w; u <= p.half_w + 1e-3f; u += 0.5f)
+			for (size_t i = 0; i < resources_.count; ++i) {
+				if (!resources_.alive[i]) continue;
+				if (resources_.type[i] != RES_WOOD && !(resources_.type[i] == RES_FOOD && resources_.subtype[i] == RES_SUB_NONE))
+					continue;
+				if (std::hypot(resources_.x[i] - (p.x + u * c), resources_.z[i] - (p.z + u * sn)) > 0.75f) continue;
+				resources_.alive[i] = 0;
+				resources_.amount[i] = 0;
+			}
+		spawn_wall_piece(p, player, 1.0f);
+		++placed;
+	};
+	const size_t n = best.size();
+	for (size_t i = 0; i < n; ++i) {
+		// The wall from this corner to the next: every gate_every-th a gate, else a long wall.
+		const V a{x + best[i].x, z + best[i].z}, b{x + best[(i + 1) % n].x, z + best[(i + 1) % n].z};
+		const float wa = std::atan2(b.z - a.z, b.x - a.x);
+		const V mid{a.x + 0.5f * dist(a, b) * std::cos(wa), a.z + 0.5f * dist(a, b) * std::sin(wa)};
+		const bool gate = gate_every > 0 && (int)((i + 1) % (size_t)gate_every) == 0;
+		place({gate ? (uint8_t)BLD_GATE : ws.segment, mid.x, mid.z, -wa, 0.5f * ws.lengths[0]});
+		// The tower at this corner, turned along the wall from the previous corner to the next.
+		const V prev{x + best[(i + n - 1) % n].x, z + best[(i + n - 1) % n].z};
+		place({ws.tower, a.x, a.z, -std::atan2(b.z - prev.z, b.x - prev.x), ws.tower_half});
+	}
+	bulk_spawn_ = bulk;
+	if (!bulk && placed) rebuild_nav_grid();
+	return placed;
+}
+
 uint32_t Simulation::spawn_gaia_unit(float x, float z, UnitType u_type, const char *template_id, int rank) {
 	uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
 	if (template_id && *template_id) {
