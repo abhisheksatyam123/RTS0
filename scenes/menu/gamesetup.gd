@@ -476,6 +476,7 @@ func _apply_map_locks() -> void:
 	cf.disabled = scen
 	if not scen:
 		pop.select(pop.get_selected())  # back from "Per Player"
+		pop.tooltip_text = ""
 		res.select(res.get_selected())
 		if _was_scenario:
 			# The scenario's teams would leave allies without an enemy: no team, as 0 A.D. starts.
@@ -491,8 +492,18 @@ func _apply_map_locks() -> void:
 	for i in range(POP_CAPS.size()):
 		if int(POP_CAPS[i][0]) == cap:
 			pop.select(i)
-	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("pop")):
+	# InitGame.js SetPerPlayerPopulationCaps: the map file's pop_limit per player.
+	var map_players: Array = m.get("map_players", [])
+	var per_player: Array = map_players.filter(func(p): return p.has("pop_limit"))
+	if not per_player.is_empty() or players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("pop")):
 		pop.text = "Per Player"
+		var lines := PackedStringArray()
+		for i in range(map_players.size()):
+			if map_players[i].has("pop_limit"):
+				lines.append("Player %d: %d" % [int(map_players[i].get("id", i + 1)), int(map_players[i]["pop_limit"])])
+		pop.tooltip_text = "Population limits set by the map.\n" + "\n".join(lines)
+	else:
+		pop.tooltip_text = ""
 	res.select(maxi(START_RES_AMOUNTS.find(int(s.get("StartingResources", 300))), 0))
 	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("resources")):
 		res.text = "Per Player"

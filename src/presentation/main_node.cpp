@@ -87,6 +87,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
 	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
 	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
+	ClassDB::bind_method(D_METHOD("close_open_dialogs"), &RtsoMain::close_open_dialogs);
 	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
 	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
 	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
@@ -4760,6 +4761,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			return;
 		}
 		if (fired("summary")) {
+			close_open_dialogs(); // MenuButtons Summary.onPress: closeOpenDialogs first
 			toggle_summary();
 			return;
 		}
