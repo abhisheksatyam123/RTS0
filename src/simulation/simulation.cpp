@@ -13876,6 +13876,7 @@ void Simulation::petra_staff_foundations() {
 	watch.reserve(petra_fnd_watch_.size() + 4);
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.build_progress >= 1.0f || b.hp <= 0.0f || b.wrecked) continue;
+		if (b.type == BLD_FIELD) continue; // "we do not build fields": the food gatherers do (buildAnyField)
 		PetraFoundationWatch w;
 		w.id = b.id;
 		w.progress = b.build_progress;
@@ -13898,14 +13899,14 @@ void Simulation::petra_staff_foundations() {
 		const Building &b = buildings_[building_id_to_idx_.at(w.id)];
 		// assignToFoundations targetNB: 15 on a base anchor (or the wonder in wonder victory),
 		// 7 on a fortress or wonder, 4 on military buildings, towers and the market, 3 on
-		// houses and wood dropsites, else 2. (Petra's fields get their 3 farmers.)
+		// houses and wood dropsites, else 2.
 		int want = 2;
 		if (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY ||
 		    (b.type == BLD_WONDER && victory_condition_ == VICTORY_WONDER)) want = 15;
 		else if (b.type == BLD_FORTRESS || b.type == BLD_WONDER) want = 7;
 		else if (b.type == BLD_BARRACKS || b.type == BLD_RANGE || b.type == BLD_STABLE || is_defense_tower(b.type) ||
 		         b.type == BLD_SENTRY_TOWER || b.type == BLD_MARKET) want = 4;
-		else if (b.type == BLD_HOUSE || b.type == BLD_STOREHOUSE || b.type == BLD_FIELD) want = 3;
+		else if (b.type == BLD_HOUSE || b.type == BLD_STOREHOUSE) want = 3;
 		needs.push_back({w.id, b.x, b.z, want, &w, naval_map ? petra_building_land(b, &topo) : (uint16_t)0});
 	}
 
@@ -14270,6 +14271,18 @@ void Simulation::petra_manage_economy(float dt) {
 		}
 	}
 
+	// Field foundations and their builders (buildAnyField: found.getBuildersNb()).
+	std::vector<std::pair<uint32_t, int>> field_builders;
+	if (!reassignable_workers.empty()) {
+		for (const auto &b : buildings_)
+			if (b.team == petra_pid_ && b.type == BLD_FIELD && b.build_progress < 1.0f && b.hp > 0.0f && !b.wrecked)
+				field_builders.push_back({b.id, 0});
+		for (size_t i = 0; i < units_.count && !field_builders.empty(); ++i)
+			if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.action_state[i] == ACTION_BUILD)
+				for (auto &[id, n] : field_builders)
+					if (id == units_.target_building_id[i]) { ++n; break; }
+	}
+
 	// Assign reassignable workers to nearest safe dropsite and resource
 	for (size_t widx : reassignable_workers) {
 		uint8_t chosen_res_type = RES_FOOD;
@@ -14340,8 +14353,32 @@ void Simulation::petra_manage_economy(float dt) {
 				}
 			}
 			if (best_rid != 0) { got_type = rt; break; }
+			// worker.js startGathering, food: with no food in reach and no field with room,
+			// build a field foundation (buildAnyField, up to the field's MaxGatherers builders).
+			if (rt == RES_FOOD && unit_can_build(units_.unit_type[widx], units_.tmpl[widx])) {
+				std::pair<uint32_t, int> *fb = nullptr;
+				float fbest = 1e9f;
+				for (auto &e : field_builders) {
+					if (e.second >= FIELD_MAX_GATHERERS) continue;
+					const Building &f = buildings_[building_id_to_idx_.at(e.first)];
+					if (naval_map && petra_building_land(f) != wland) continue;
+					const float d2 = (f.x - wx) * (f.x - wx) + (f.z - wz) * (f.z - wz);
+					if (d2 < fbest) { fbest = d2; fb = &e; }
+				}
+				if (fb) {
+					uint32_t uid = units_.id[widx];
+					order_build_or_repair(&uid, 1, fb->first);
+					fb->second++;
+					got_type = RES_FOOD;
+					break;
+				}
+			}
 		}
 		if (best_c) best_c->slots--;
+		if (best_rid == 0 && got_type == RES_FOOD && units_.action_state[widx] == ACTION_BUILD) {
+			workers_food += food_weight(widx);
+			continue;
+		}
 
 		if (best_rid != 0) {
 			uint32_t uid = units_.id[widx];
@@ -14354,7 +14391,7 @@ void Simulation::petra_manage_economy(float dt) {
 	}
 
 	petra_manage_hunters(hunt_scan);
-	petra_manage_fields((int)target_food);
+	petra_manage_fields();
 }
 
 // 0 A.D. distances are metres squared; one RTS0 unit is 4 m, so they divide by 16.
@@ -14606,22 +14643,25 @@ void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
 	}
 }
 
-// headquarters.js / baseManager.js: once the hunt and berries near our
-// dropsites can't feed the food gatherers, Petra farms. Each field holds
-// FIELD_MAX_GATHERERS, and one field is laid out at a time; its builders
-// start farming it when it's done.
-void Simulation::petra_manage_fields(int target_food) {
+// baseManager.js checkResourceLevels, food branch. The food Petra counts is the fruit and grain
+// on its land near its food dropsites (nearby: within 90 m, 22.5 units; medium, in the village
+// phase, within 180 m), animals and fields left out. With no field yet it lays one once that
+// food is under 600; after that it keeps provisionFields foundations going (2, 1 below Medium,
+// one fewer past 300 food or 5 fields). A civ that can't build fields lays a corral when the
+// food is under 900 (needCorral) and manageCorral breeds an animal while it has no more than
+// one per corral (counted near it until corral animals have owners).
+void Simulation::petra_manage_fields() {
 	std::vector<std::pair<float, float>> drops;
 	const Building *farmstead = nullptr, *tc = nullptr;
-	int fields = 0;
-	bool field_pending = false;
+	int fields = 0, field_foundations = 0, corrals = 0;
 	for (const auto &b : buildings_) {
 		if (b.team != petra_pid_ || b.hp <= 0.0f || b.wrecked) continue;
 		if (b.type == BLD_FIELD) {
 			++fields;
-			if (b.build_progress < 1.0f) field_pending = true;
+			field_foundations += b.build_progress < 1.0f;
 			continue;
 		}
+		if (b.type == BLD_CORRAL) ++corrals;
 		if (b.build_progress < 1.0f) continue;
 		if (is_civic_centre(b.type) || b.type == BLD_FARMSTEAD) {
 			drops.push_back({b.x, b.z});
@@ -14629,26 +14669,54 @@ void Simulation::petra_manage_fields(int target_food) {
 			if (is_civic_centre(b.type) && !tc) tc = &b;
 		}
 	}
-	if (field_pending || drops.empty()) return;
+	if (drops.empty()) return;
 
-	float natural_food = 0.0f;
+	const float reach = petra_ps().phase < 2 ? 45.0f : 22.5f;
+	float count = 0.0f;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.amount[r] <= 0) continue;
-		if (resources_.subtype[r] == RES_SUB_FISH) continue; // villagers cannot gather fish
-		if (field_bld_by_res_.count(resources_.id[r])) continue;
+		const uint8_t sub = resources_.subtype[r];
+		if (sub == RES_SUB_FISH || sub == RES_SUB_MEAT || field_bld_by_res_.count(resources_.id[r])) continue;
 		for (const auto &d : drops) {
 			const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
-			if (dx * dx + dz * dz <= 40.0f * 40.0f) { natural_food += (float)resources_.amount[r]; break; }
+			if (dx * dx + dz * dz < reach * reach) { count += (float)resources_.amount[r]; break; }
 		}
 	}
-	// About 150 food of hunt or berries per gatherer still in reach.
-	const int natural_slots = std::min(target_food, (int)(natural_food / 150.0f));
-	const int want = std::min(12, (target_food - natural_slots + FIELD_MAX_GATHERERS - 1) / FIELD_MAX_GATHERERS);
-	if (fields >= want) return;
 
+	const uint8_t civ = petra_ps().civ;
+	auto can_build = [&](uint8_t t) {
+		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
+	};
 	const Building *anchor = farmstead ? farmstead : tc;
-	if (!anchor) return;
-	petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+	if (can_build(BLD_FIELD)) {
+		if (fields == 0) {
+			if (count < 600.0f && anchor) petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+			return;
+		}
+		int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
+		if (count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
+		if (field_foundations < goal && anchor) petra_place_building(BLD_FIELD, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+		return;
+	}
+	if (corrals == 0) {
+		if (count < 900.0f && anchor && can_build(BLD_CORRAL))
+			petra_place_building(BLD_CORRAL, anchor->x, anchor->z, 2, 12, PETRA_QUEUE_VILLAGER);
+		return;
+	}
+	if (ticks_ % 16 != 12) return; // manageCorral, every fourth played turn
+	const CorralTrainable &ct = CORRAL_TRAINABLE[civ < CIV_COUNT ? civ : 0];
+	for (const auto &b : buildings_) {
+		if (b.team != petra_pid_ || b.type != BLD_CORRAL || b.build_progress < 1.0f || b.hp <= 0.0f || !b.queue.empty()) continue;
+		for (uint8_t k = 0; k < ct.count; ++k) {
+			int have = 0; // countEntitiesByType: the corral's own animals around it
+			for (size_t f = 0; f < fauna_.count; ++f)
+				if (fauna_.alive[f] && fauna_.fauna_type[f] == ct.fauna[k] &&
+				    std::hypot(fauna_.pos_x[f] - b.x, fauna_.pos_z[f] - b.z) < 20.0f) ++have;
+			if (have > corrals) continue;
+			cmd_breed_livestock(petra_pid_, b.id, ct.fauna[k], 1);
+			return;
+		}
+	}
 }
 
 // tradeManager.js performBarter, at most one deal a pass. Necessity: buy a
