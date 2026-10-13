@@ -140,7 +140,7 @@ const std::vector<uint8_t> &unit_research_list(uint16_t tmpl) {
 } // namespace
 
 // 0 A.D. BuildingAI.js roundCount: firing rounds per Attack/Ranged/RepeatTime.
-static constexpr int BUILDING_AI_ROUNDS = 10;
+static constexpr int BUILDING_AI_ROUNDS = 20; // BuildingAI.js roundCount
 
 // First save version with projectile sources and partial xp (0 A.D. Loot.js port).
 static constexpr uint32_t SAVE_VERSION_LOOT = 19;
@@ -10184,16 +10184,17 @@ void Simulation::tick_combat(float dt) {
 
 	look_again_now();
 
-	// 4. Structure arrows: 0 A.D. BuildingAI.js. While enemies are in range a timer fires
-	// ten rounds per RepeatTime (after PrepareTime). Round 0 takes GetArrowCount(); each
-	// round fires randIntInclusive(0, 2 * count / 10) of what is left and the last round
-	// the rest. Every arrow goes to a random target, Humans weighing 1 + 2 / (1 + 0)
-	// against 1 for anything else (PreferredClasses), and scatters by the structure's
+	// 4. Structure arrows: 0 A.D. 0.28 BuildingAI.js. While enemies are in range a timer
+	// fires twenty rounds per RepeatTime (after PrepareTime). Round 0 takes GetArrowCount();
+	// each round fires min(count / 5, what is left) (a burst in the first quarter) and the
+	// last round the rest. The targets are sorted by PreferredClasses (Human first, then the
+	// rest: GetPreference ?? 49), then by distance, and the round's arrows all go to the
+	// first one (FireArrows' targetIndex). Each arrow scatters by the structure's
 	// Projectile/Spread like a unit's arrow (Attack.js PerformAttack); it hurts whatever
 	// it lands on (tick_projectiles). A target goes in the draw only while the structure's
 	// owner sees it (CheckTargetVisible: units in sight, structures once explored).
 	enum : uint8_t { ARROW_UNIT, ARROW_FAUNA, ARROW_BUILDING };
-	struct ArrowTarget { int32_t idx; uint8_t kind; float weight; };
+	struct ArrowTarget { int32_t idx; uint8_t kind; uint8_t pref; float d2; };
 	std::vector<ArrowTarget> arrow_targets;
 	// Of Gaia, only what can attack is shot: Gaia units and the dangerous animals in `wild`
 	// (SetupGaiaRangeQuery, OnRangeUpdate's IsDangerousAnimal filter). Gaia structures have
@@ -10255,27 +10256,33 @@ void Simulation::tick_combat(float dt) {
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
 				const bool human = ai.prefers_human && unit_combat_at(i).classes.has(CC_HUMAN);
-				arrow_targets.push_back({i, ARROW_UNIT, human ? 3.0f : 1.0f});
+				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(human ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
 		for (const int32_t f : wild) {
 			if (!fauna_target(f)) continue;
 			in_reach = true;
-			if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 1.0f});
+			const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
+			if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
 		}
 		// Structures have Resistance and Health too, so enemy buildings in range draw arrows.
 		for (size_t o = 0; o < buildings_.size(); ++o) {
 			if (!building_target(buildings_[o])) continue;
 			in_reach = true;
-			if (seen_structure(buildings_[o].x, buildings_[o].z)) arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, 1.0f});
+			const float dx = buildings_[o].x - b.x, dz = buildings_[o].z - b.z;
+			if (seen_structure(buildings_[o].x, buildings_[o].z)) arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, 49, dx * dx + dz * dz});
 		}
 		if (!in_reach) { // FireArrows with no targets cancels the timer
 			b.arrow_timer_on = false;
 			b.attack_timer = 0.0f;
 			continue;
 		}
-		// grid.visit_radius walks cells in a fixed order; sort so the draw never depends on it.
+		// Preference, then distance (DistanceBetweenEntities, centre to centre); kind and index
+		// settle ties so the order never depends on grid.visit_radius's walk.
 		std::sort(arrow_targets.begin(), arrow_targets.end(), [](const ArrowTarget &a, const ArrowTarget &c) {
+			if (a.pref != c.pref) return a.pref < c.pref;
+			if (a.d2 != c.d2) return a.d2 < c.d2;
 			return a.kind != c.kind ? a.kind < c.kind : a.idx < c.idx;
 		});
 		b.attack_timer += ai.repeat_time / BUILDING_AI_ROUNDS;
@@ -10285,9 +10292,10 @@ void Simulation::tick_combat(float dt) {
 		if (b.arrow_round == 0) b.arrows_left = (int16_t)count;
 		int to_fire = b.arrows_left;
 		if (b.arrow_round != BUILDING_AI_ROUNDS - 1) {
-			// randIntInclusive(0, max) = floor(random * (max + 1)), max may be fractional.
-			const float max_roll = 2.0f * (float)count / BUILDING_AI_ROUNDS;
-			to_fire = std::min((int)std::floor(sim_rng_.range_float(0.0f, max_roll + 1.0f)), (int)b.arrows_left);
+			// min(count / (roundCount / 4), arrowsLeft), fractional: FireArrows' while loop
+			// fires until firedArrows reaches it, so a fraction rounds up.
+			const float share = std::min((float)count / (BUILDING_AI_ROUNDS / 4), (float)b.arrows_left);
+			to_fire = share > 0.0f ? (int)std::ceil(share) : 0;
 		}
 		++b.arrow_round;
 		if (to_fire <= 0) continue;
@@ -10362,15 +10370,7 @@ void Simulation::tick_combat(float dt) {
 			b.arrows_left = (int16_t)(b.arrows_left - fired);
 			continue;
 		}
-		float total_weight = 0.0f;
-		for (const ArrowTarget &t : arrow_targets) total_weight += t.weight;
-		for (int a = 0; a < to_fire; ++a) {
-			// WeightedList.randomItem
-			float roll = sim_rng_.range_float(0.0f, total_weight);
-			size_t pick = 0;
-			while (pick + 1 < arrow_targets.size() && roll >= arrow_targets[pick].weight) roll -= arrow_targets[pick++].weight;
-			fire_at(arrow_targets[pick]);
-		}
+		for (int a = 0; a < to_fire; ++a) fire_at(arrow_targets.front());
 		b.arrows_left = (int16_t)(b.arrows_left - to_fire);
 	}
 
