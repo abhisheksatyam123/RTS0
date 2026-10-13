@@ -4058,7 +4058,10 @@ void Simulation::attack_unit_one_by_one(const uint32_t *unit_ids, size_t count, 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (units_.attack_damage[uidx] <= 0.0f) continue;
+		if (units_.attack_damage[uidx] <= 0.0f) {
+			walk_to_attack_target((size_t)uidx, tx, tz, 0.0f, tx, tz);
+			continue;
+		}
 
 		units_.target_x[uidx] = tx;
 		units_.target_z[uidx] = tz;
@@ -4083,6 +4086,32 @@ void Simulation::order_attack_building(const uint32_t *unit_ids_in, size_t count
 	attack_building_one_by_one(now.data(), now.size(), target_building_id, allow_capture);
 }
 
+// UnitAI Attack: a unit that can't attack walks to the target instead (WalkToTarget, to
+// (wx, wz)); a healer only into heal range of it, `reach` from (tx, tz), so it isn't easily
+// killed (0.28 WalkToTargetRange; one already in range stops there). RTS0's walk goes to where
+// the target stands now, where 0 A.D.'s follows it. A player's order: the walk is forced.
+void Simulation::walk_to_attack_target(size_t i, float tx, float tz, float reach, float wx, float wz) {
+	if (unit_is_healer(units_.tmpl[i], units_.unit_type[i])) {
+		const float range = healer_range_of(i) + reach;
+		const float dx = units_.pos_x[i] - tx, dz = units_.pos_z[i] - tz;
+		const float d = std::sqrt(dx * dx + dz * dz);
+		const float stop = 0.9f * range; // well inside, as UnitMotion stops once in range
+		if (d <= range) {
+			wx = units_.pos_x[i];
+			wz = units_.pos_z[i];
+		} else {
+			wx = tx + dx / d * stop;
+			wz = tz + dz / d * stop;
+		}
+	}
+	const uint32_t id = units_.id[i];
+	const bool was = applying_queued_; // the queue is split already: keep what follows
+	applying_queued_ = true;
+	cmd_move_individual(&id, 1, wx, wz);
+	applying_queued_ = was;
+	if (units_.order_kind[i] == ORDER_WALK) units_.order_flags[i] = ORDER_FLAG_FORCE;
+}
+
 void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t count, uint32_t target_building_id,
 		bool allow_capture) {
 	auto bit = building_id_to_idx_.find(target_building_id);
@@ -4093,7 +4122,12 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
 		const bool captures = allow_capture && unit_capture_strength(units_.unit_type[uidx]) > 0.0f;
-		if (units_.attack_damage[uidx] <= 0.0f && !captures) continue;
+		if (units_.attack_damage[uidx] <= 0.0f && !captures) {
+			float sx = b.x, sz = b.z;
+			stand_outside(b, units_.id[uidx], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz);
+			walk_to_attack_target((size_t)uidx, b.x, b.z, b.half_size, sx, sz);
+			continue;
+		}
 
 		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
