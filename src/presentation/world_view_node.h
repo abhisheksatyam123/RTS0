@@ -5,6 +5,7 @@
 #include <godot_cpp/classes/multi_mesh_instance3d.hpp>
 #include <godot_cpp/classes/multi_mesh.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/sprite3d.hpp>
 #include <godot_cpp/classes/animation_player.hpp>
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/plane_mesh.hpp>
@@ -54,6 +55,10 @@ class RtsoWorldView : public Node3D {
 		MeshInstance3D *ring = nullptr;
 		MeshInstance3D *hp_bg = nullptr;
 		MeshInstance3D *hp_fg = nullptr;
+		MeshInstance3D *xp_bg = nullptr; // StatusBars AddExperienceBar
+		MeshInstance3D *xp_fg = nullptr;
+		Sprite3D *rank_icon = nullptr;   // StatusBars AddRankIcon
+		uint8_t rank_shown = 0;
 		uint32_t sim_id = 0;
 		float yaw = 0.0f;
 		bool ring_on = false;
@@ -230,6 +235,9 @@ class RtsoWorldView : public Node3D {
 	Ref<StandardMaterial3D> hp_green_mat;
 	Ref<StandardMaterial3D> hp_red_mat;
 	Ref<StandardMaterial3D> hp_blue_mat;
+	Ref<StandardMaterial3D> xp_mat;
+	Ref<BoxMesh> xp_bg_mesh;
+	Ref<BoxMesh> xp_fg_mesh;
 
 	// Crowd units: one MultiMesh per (civ, UnitType, crowd clip), made the first
 	// time a unit of that civ and type shows, so every civ in the match renders

@@ -56,6 +56,7 @@ var submenu_data = {
 		"items": [
 			{"label": "Manual", "tooltip": "Open the 0 A.D. Game Manual.", "action": "open_manual"},
 			{"label": "Tutorial", "tooltip": "Start the introductory tutorial.", "action": "start_tutorial"},
+			{"label": "Tips and Tricks", "tooltip": "Discover simple tips, tricks, and game mechanics.", "action": "open_tips"},
 			{"label": "Structure Tree", "tooltip": "%(hotkey)s: View the structure tree of civilizations featured in 0 A.D.", "hotkey": "structree", "action": "open_tech_tree"},
 			{"label": "Civilization Overview", "tooltip": "%(hotkey)s: Learn about the civilizations featured in 0 A.D.", "hotkey": "civinfo", "action": "open_encyclopedia"},
 			{"label": "Catafalque Overview", "tooltip": "Compare the bonuses of catafalques featured in 0 A.D.", "action": "open_catafalque"},
@@ -291,6 +292,9 @@ func _execute_action(action: String) -> void:
 		"open_manual":
 			_close_submenu()
 			load("res://scenes/reference/manual.gd").open(self)
+		"open_tips":
+			_close_submenu()
+			load("res://scenes/reference/tips_page.gd").open(self)
 		"start_tutorial":
 			# MainMenuItems.js Tutorial: autostart maps/tutorials/introductory_tutorial
 			# as a scenario with cheats on.

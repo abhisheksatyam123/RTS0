@@ -843,6 +843,13 @@
      1.0,
      0.8
     ],
+    "s74": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
     "brit/support_healer_b": [
      0.8,
      1.0,
@@ -1106,6 +1113,13 @@
      0.8
     ],
     "s70": [
+     1.0,
+     1.0,
+     1.0,
+     1.0,
+     0.8
+    ],
+    "s74": [
      1.0,
      1.0,
      1.0,
@@ -25775,6 +25789,127 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "71": {
+    "generic_name": "Bolt Tower",
+    "specific_name": "Pyrgíon",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "BoltTower"
+    ],
+    "icon": "structures/tower_bolt.png",
+    "template": "structures/athen/tower_bolt",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bolt",
+       "min_range": 30,
+       "max_range": 90,
+       "y_origin": 15,
+       "repeat_time": 4,
+       "damage": {
+        "Pierce": 100
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "72": {
+    "generic_name": "Artillery Tower",
+    "specific_name": "Pyrgíon",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "ArtilleryTower"
+    ],
+    "icon": "structures/tower_artillery.png",
+    "template": "structures/athen/tower_artillery",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Stone",
+       "min_range": 40,
+       "max_range": 80,
+       "y_origin": 15,
+       "repeat_time": 5,
+       "damage": {
+        "Pierce": 0,
+        "Crush": 90
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "73": {
+    "generic_name": "Stoa",
+    "specific_name": "Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Town",
+     "Stoa"
+    ],
+    "icon": "structures/stoa.png",
+    "template": "structures/athen/royal_stoa",
+    "viewer": {
+     "garrison": {
+      "capacity": 10,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "spart": {
@@ -26580,6 +26715,88 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "71": {
+    "generic_name": "Bolt Tower",
+    "specific_name": "Pyrgíon",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "BoltTower"
+    ],
+    "icon": "structures/tower_bolt.png",
+    "template": "structures/spart/tower_bolt",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bolt",
+       "min_range": 30,
+       "max_range": 90,
+       "y_origin": 15,
+       "repeat_time": 4,
+       "damage": {
+        "Pierce": 100
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "73": {
+    "generic_name": "Stoa",
+    "specific_name": "Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Town",
+     "Stoa"
+    ],
+    "icon": "structures/stoa.png",
+    "template": "structures/spart/royal_stoa",
+    "viewer": {
+     "garrison": {
+      "capacity": 10,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "pers": {
@@ -27507,6 +27724,50 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "75": {
+    "generic_name": "House",
+    "specific_name": "Inn",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Village",
+     "House"
+    ],
+    "icon": "structures/house.png",
+    "template": "structures/pers/inn",
+    "viewer": {
+     "garrison": {
+      "capacity": 3,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "rome": {
@@ -28422,6 +28683,146 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "71": {
+    "generic_name": "Bolt Tower",
+    "specific_name": "Turris Laterīcia",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "BoltTower"
+    ],
+    "icon": "structures/tower_bolt.png",
+    "template": "structures/rome/tower_bolt",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bolt",
+       "min_range": 30,
+       "max_range": 90,
+       "y_origin": 15,
+       "repeat_time": 4,
+       "damage": {
+        "Pierce": 100
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "72": {
+    "generic_name": "Artillery Tower",
+    "specific_name": "Turris Laterīcia",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "ArtilleryTower"
+    ],
+    "icon": "structures/tower_artillery.png",
+    "template": "structures/rome/tower_artillery",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Stone",
+       "min_range": 40,
+       "max_range": 80,
+       "y_origin": 15,
+       "repeat_time": 5,
+       "damage": {
+        "Pierce": 0,
+        "Crush": 90
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "76": {
+    "generic_name": "Tent",
+    "specific_name": "Tabernāculum",
+    "tooltip": "A temporary shelter for soldiers.",
+    "history": "",
+    "classes": [
+     "Civic",
+     "House"
+    ],
+    "icon": "structures/house.png",
+    "template": "structures/rome/tent",
+    "viewer": {
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "77": {
+    "generic_name": "Triumphal Arch",
+    "specific_name": "Arcus Triumphālis",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "City",
+     "TriumphalArch"
+    ],
+    "icon": "structures/arch.png",
+    "template": "structures/rome/arch",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "cart": {
@@ -29279,6 +29680,102 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "71": {
+    "generic_name": "Bolt Tower",
+    "specific_name": "Mijdil",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "BoltTower"
+    ],
+    "icon": "structures/tower_bolt.png",
+    "template": "structures/cart/tower_bolt",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bolt",
+       "min_range": 30,
+       "max_range": 90,
+       "y_origin": 15,
+       "repeat_time": 4,
+       "damage": {
+        "Pierce": 100
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "72": {
+    "generic_name": "Artillery Tower",
+    "specific_name": "Mijdil",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "ArtilleryTower"
+    ],
+    "icon": "structures/tower_artillery.png",
+    "template": "structures/cart/tower_artillery",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Stone",
+       "min_range": 40,
+       "max_range": 80,
+       "y_origin": 15,
+       "repeat_time": 5,
+       "damage": {
+        "Pierce": 0,
+        "Crush": 90
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "mace": {
@@ -30060,6 +30557,127 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "71": {
+    "generic_name": "Bolt Tower",
+    "specific_name": "Pyrgíon",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "BoltTower"
+    ],
+    "icon": "structures/tower_bolt.png",
+    "template": "structures/mace/tower_bolt",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bolt",
+       "min_range": 30,
+       "max_range": 90,
+       "y_origin": 15,
+       "repeat_time": 4,
+       "damage": {
+        "Pierce": 100
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "72": {
+    "generic_name": "Artillery Tower",
+    "specific_name": "Pyrgíon",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "ArtilleryTower"
+    ],
+    "icon": "structures/tower_artillery.png",
+    "template": "structures/mace/tower_artillery",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Stone",
+       "min_range": 40,
+       "max_range": 80,
+       "y_origin": 15,
+       "repeat_time": 5,
+       "damage": {
+        "Pierce": 0,
+        "Crush": 90
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "73": {
+    "generic_name": "Stoa",
+    "specific_name": "Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic",
+     "Town",
+     "Stoa"
+    ],
+    "icon": "structures/stoa.png",
+    "template": "structures/mace/royal_stoa",
+    "viewer": {
+     "garrison": {
+      "capacity": 10,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "brit": {
@@ -30887,6 +31505,25 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "gaul": {
@@ -31668,6 +32305,25 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "iber": {
@@ -32445,6 +33101,25 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "maur": {
@@ -33246,6 +33921,25 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "kush": {
@@ -34122,6 +34816,25 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "ptol": {
@@ -34997,6 +35710,102 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "71": {
+    "generic_name": "Bolt Tower",
+    "specific_name": "Pyrgíon",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "BoltTower"
+    ],
+    "icon": "structures/tower_bolt.png",
+    "template": "structures/ptol/tower_bolt",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Bolt",
+       "min_range": 30,
+       "max_range": 90,
+       "y_origin": 15,
+       "repeat_time": 4,
+       "damage": {
+        "Pierce": 100
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "72": {
+    "generic_name": "Artillery Tower",
+    "specific_name": "Mktr-n-ḏw",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "ArtilleryTower"
+    ],
+    "icon": "structures/tower_artillery.png",
+    "template": "structures/ptol/tower_artillery",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Stone",
+       "min_range": 40,
+       "max_range": 80,
+       "y_origin": 15,
+       "repeat_time": 5,
+       "damage": {
+        "Pierce": 0,
+        "Crush": 90
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "sele": {
@@ -35823,6 +36632,64 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "72": {
+    "generic_name": "Artillery Tower",
+    "specific_name": "Pyrgíon",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Defensive",
+     "Tower",
+     "ArtilleryTower"
+    ],
+    "icon": "structures/tower_artillery.png",
+    "template": "structures/sele/tower_artillery",
+    "viewer": {
+     "attacks": [
+      {
+       "type": "Ranged",
+       "name": "Stone",
+       "min_range": 40,
+       "max_range": 80,
+       "y_origin": 15,
+       "repeat_time": 5,
+       "damage": {
+        "Pierce": 0,
+        "Crush": 90
+       }
+      }
+     ],
+     "garrison": {
+      "capacity": 5,
+      "buff_heal": 0
+     },
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "han": {
@@ -36724,6 +37591,25 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   },
   "germ": {
@@ -37589,6 +38475,25 @@
     "icon": "structures/market.png",
     "template": "structures/trading_post_desert",
     "viewer": {}
+   },
+   "74": {
+    "generic_name": "Stoa",
+    "specific_name": "Hellenic Stoa",
+    "tooltip": "",
+    "history": "",
+    "classes": [
+     "Civic"
+    ],
+    "icon": "gaia/special_stoa.png",
+    "template": "structures/hellenic_stoa",
+    "viewer": {
+     "status_resistance": {
+      "Poisoned": {
+       "block": 1,
+       "duration": 0
+      }
+     }
+    }
    }
   }
  },

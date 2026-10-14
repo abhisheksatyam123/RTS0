@@ -1,6 +1,6 @@
 extends SceneTree
-# Game Setup at 1280x720: Back and Start Game stay on screen (the options
-# column scrolls), and each player row's civ dropdown keeps its emblem small.
+# Game Setup at 1280x720: Back and Start Game stay on screen with two or
+# eight players (the options column scrolls), and each player row's civ dropdown keeps its emblem small.
 # In a match, the top bar fits 1280 px with or without the multiplayer Lobby button.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_layout_720.gd
@@ -47,6 +47,11 @@ func run() -> void:
 	for c in grid.find_children("*", "RtsoSafeSelect", true, false):
 		tallest = maxf(tallest, (c as Control).size.y)
 	check(tallest > 0.0 and tallest <= 40.0, "player row dropdowns stay one line high, emblems included (tallest %.0f px)" % tallest)
+	# Eight players still leave Start Game on screen.
+	page._slot_count_node().value = 8
+	for i in 6:
+		await process_frame
+	check(screen.encloses(start.get_global_rect()), "with eight players Start Game is on screen at %s" % start.get_global_rect())
 	frame.queue_free()
 
 	# The match's top bar: 12 px panel margins and 8 px padding on each side.
