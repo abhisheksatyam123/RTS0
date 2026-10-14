@@ -1207,8 +1207,9 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     if (opt.force_oos) {
         std::string who;
         for (const auto &n : tm.oos_players()) who += (who.empty() ? "" : ",") + n;
-        std::printf("[net-peer] %s: oos turn=%u from_host=%d players=%s dump=%s\n", host ? "host" : "join",
-                    tm.oos_turn(), tm.oos_reported_by_host() ? 1 : 0, who.c_str(), tm.oos_dump_path().c_str());
+        std::printf("[net-peer] %s: oos turn=%u from_host=%d players=%s matches_host=%d dump=%s\n", host ? "host" : "join",
+                    tm.oos_turn(), tm.oos_reported_by_host() ? 1 : 0, who.c_str(), tm.oos_matches_host() ? 1 : 0,
+                    tm.oos_dump_path().c_str());
         return tm.has_out_of_sync() && !tm.oos_dump_path().empty() ? 0 : 1;
     }
     return tm.has_out_of_sync() ? 1 : 0;
