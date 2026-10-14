@@ -29609,11 +29609,15 @@ uint8_t jebel_classes(uint8_t type) {
 	const TechClasses c = building_tech_classes(type);
 	uint8_t r = 0;
 	if (c & TC_WONDER) r |= JB_WONDER;
-	if (c & TC_TEMPLE) r |= JB_TEMPLE;
+	// The Grand Temple of Amun (and Rome's two) are template_structure_civic_temple, and the
+	// Noba and Blemmye camps template_structure_military_embassy, in 0.28.
+	if ((c & TC_TEMPLE) || type == BLD_TEMPLE_AMUN || type == BLD_TEMPLE_MARS || type == BLD_TEMPLE_VESTA) r |= JB_TEMPLE;
 	if (is_civic_centre(type)) r |= JB_CIVCENTRE;
 	if (c & TC_FORTRESS) r |= JB_FORTRESS;
 	if (c & TC_BARRACKS) r |= JB_BARRACKS;
-	if (type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) r |= JB_EMBASSY;
+	if (type == BLD_EMBASSY || type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC || type == BLD_CAMP_NOBA ||
+	    type == BLD_CAMP_BLEMMYE)
+		r |= JB_EMBASSY;
 	if (type == BLD_STABLE) r |= JB_STABLE; // RTS0's elephant stable is a Stable too; 0 A.D.'s is not
 	if (type == BLD_ELEPHANT_STABLE) r |= JB_ELEPHANT_STABLE;
 	return r;
