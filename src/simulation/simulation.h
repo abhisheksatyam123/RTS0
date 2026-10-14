@@ -2983,7 +2983,6 @@ private:
 	void update_petra_bases(float dt);
 	void update_petra_threat_map(float dt);
 	void petra_manage_scouting(float dt);
-	void petra_manage_workers(float dt);
 	void petra_manage_economy(float dt);
 	void petra_manage_trading(float dt);
 	void petra_manage_naval(float dt);
