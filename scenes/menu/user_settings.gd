@@ -68,6 +68,8 @@ var _cas: CanvasLayer
 var _cas_material: ShaderMaterial
 var _overlay_label: Label
 var _overlay_timer := 0.0
+var _hotkeys: RtsoHotkeyConfig
+var last_mouse_grab := false # what mousegrabtoggle last asked for
 var _locale := ""
 var _translation: Translation
 
@@ -79,6 +81,36 @@ func _ready() -> void:
 	_make_overlay()
 	get_tree().node_added.connect(_on_node_added)
 	apply_all()
+
+## main.cpp's global hotkeys: togglefullscreen (Alt+Return, CVideoMode::ToggleFullscreen,
+## not saved) and mousegrabtoggle (F3, the window grab on or off until the next change).
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	if _hotkeys == null:
+		_hotkeys = RtsoHotkeyConfig.new()
+	var fired: Array = Array(_hotkeys.fired(event))
+	if "togglefullscreen" in fired:
+		get_viewport().set_input_as_handled()
+		toggle_fullscreen()
+	elif "mousegrabtoggle" in fired:
+		get_viewport().set_input_as_handled()
+		toggle_mouse_grab()
+
+func toggle_fullscreen() -> void:
+	if is_headless():
+		return
+	var mode := DisplayServer.window_get_mode()
+	var full := mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+## Returns whether the mouse is grabbed now (headless has no window to grab).
+func toggle_mouse_grab() -> bool:
+	var grab := not last_mouse_grab if is_headless() else Input.mouse_mode != Input.MOUSE_MODE_CONFINED
+	if not is_headless():
+		Input.mouse_mode = Input.MOUSE_MODE_CONFINED if grab else Input.MOUSE_MODE_VISIBLE
+	last_mouse_grab = grab
+	return grab
 
 func _process(delta: float) -> void:
 	if cfg.get_generation() != _gen:
