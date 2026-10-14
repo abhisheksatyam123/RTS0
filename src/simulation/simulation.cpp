@@ -2995,7 +2995,8 @@ void Simulation::unit_train_cost(uint8_t pid, uint16_t tmpl, const UnitTypeInfo 
 	const TechMods::Template *tm = tmpl < CIV_UNIT_TEMPLATE_COUNT ? &tech_mods(pid).tmpl[tmpl] : nullptr;
 	for (int r = 0; r < RES_COUNT; ++r)
 		out[r] = std::round(std::max(0.0f, out[r] * civ_team_bonus_mult(civ, allies, TEAM_BONUS_UNIT_COST, (int8_t)r, tmpl) *
-		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f)));
+		                    (tm ? tm->cost[r] : 1.0f) + (tm ? tm->cost_add[r] : 0.0f) +
+		                    civ_team_bonus_cost_add(civ, allies, (int8_t)r, tmpl)));
 }
 
 bool Simulation::cmd_cancel_train(uint8_t player_id, uint32_t building_id, size_t queue_idx) {
