@@ -26947,10 +26947,9 @@ void Simulation::tick_treasures(float dt) {
 			static const uint8_t kRes[4] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
 			PlayerState &ps = player(owner);
 			for (int r = 0; r < 4; ++r) ps.res[kRes[r]] += (float)info.amount[r];
-			// TreasureCollector.js: a treasure counts as collected and as gathered.
+			// Treasure.js Reward: Player.AddResources and IncreaseTreasuresCollectedCounter only,
+			// so the resources don't count as gathered, and no alert is raised.
 			stats_[owner].treasures_collected++;
-			for (int r = 0; r < 4; ++r) stat_gathered(owner, kRes[r], (int)info.amount[r], false);
-			raise_alert(BattleAlert::ALERT_RELIC_CLAIMED, t.x, t.z, t.id, owner);
 			// TreasureCollector.js: Engine.PostMessage(..., MT_TreasureCollected, {player, type, ...}).
 			TriggerEventData ev;
 			ev.entity = units_.id[c];
@@ -26987,7 +26986,10 @@ void Simulation::tick_treasures(float dt) {
 		if (q != order_queues_.end() && !q->second.empty()) continue;
 		uint32_t best = 0;
 		float best_d2 = (64.0f * COMBAT_DISTANCE_SCALE) * (64.0f * COMBAT_DISTANCE_SCALE);
+		const uint8_t owner = units_.team[i];
 		for (const Treasure &t : treasures_) {
+			// CheckTargetVisible: only a treasure the player sees or has seen (it stays in the fog).
+			if (owner < MAX_PLAYERS && fow_state_at(t.x, t.z, owner) == FOW_UNEXPLORED) continue;
 			const float d2 = (t.x - nt.x) * (t.x - nt.x) + (t.z - nt.z) * (t.z - nt.z);
 			if (d2 < best_d2) { best_d2 = d2; best = t.id; }
 		}

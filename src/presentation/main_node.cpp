@@ -2332,8 +2332,18 @@ void RtsoMain::update_cursor() {
 				}
 			}
 			if (!*want) {
+				// unit_actions "collect-treasure": only for a selection with a TreasureCollector
+				// (not dogs, siege engines or catafalques).
+				bool collector = false;
+				auto cuv = sim->units();
+				for (int s = 0; s < selected_ids.size() && !collector; ++s)
+					for (size_t i = 0; i < cuv.count; ++i)
+						if (cuv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
+							collector = sim->treasure_reach(i) >= 0.0f;
+							break;
+						}
 				for (const auto &t : sim->treasures())
-					if (near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
+					if (collector && near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
 			}
 			if (!*want) {
 				auto fv = sim->fauna();
