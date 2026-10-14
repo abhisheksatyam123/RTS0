@@ -1195,6 +1195,7 @@ void RtsoMain::_process(double delta) {
 						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 					}
 				}
+				snap_placement_to_edges(current_build_type, cell_x, cell_y);
 				int footprint = rtso::building_type_info(current_build_type).footprint;
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;

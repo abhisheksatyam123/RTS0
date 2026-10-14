@@ -573,6 +573,10 @@ private:
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;
+	// 0 A.D. input.js snap to edges: with isSnapToEdgesEnabled, turns placement_angle to the
+	// nearest structure's sides (ObstructionSnap.getPosition) and moves (cell_x, cell_y) to the
+	// building cell nearest the flush position.
+	void snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y);
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
