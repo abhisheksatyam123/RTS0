@@ -40,12 +40,12 @@ inline constexpr uint8_t CIV_BUILDING_FIRST = BLD_GYMNASIUM;
 		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara_wood */ \
 		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara_stone */ \
 		{"Winter Palace", "tachara", "tachara", 3000.0f, 2, 0, 0, 200, 200, 0, 10, 75.0f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/pers/tachara_metal */ \
-		{"Apartment Building", "house", "house", 1800.0f, 1, 0, 175, 0, 50, 20, 12, 22.5f, 1000.0f, 5.0f, 1.0f, 40.0f}, /* structures/cart/apartment */ \
+		{"Apartment Building", "apartment", "house", 1800.0f, 1, 0, 175, 0, 50, 20, 12, 22.5f, 1000.0f, 5.0f, 1.0f, 40.0f}, /* structures/cart/apartment */ \
 		{"Imperial Court", "imperial_court", "imperial_court", 4500.0f, 2, 0, 300, 250, 300, 30, 30, 125.0f, 3750.0f, 30.0f, 1.0f, 20.0f}, /* structures/han/civil_centre_court */ \
 		{"Great Tower", "tower_great", "tower_great", 2000.0f, 1, 0, 100, 0, 100, 0, 10, 37.5f, 1000.0f, 10.0f, 1.0f, 20.0f}, /* structures/han/defense_tower_great */ \
 		{"Palisade Gate", "palisade", "palisade", 500.0f, 1, 0, 10, 0, 0, 0, 0, 2.5f, 500.0f, 5.0f, 1.0f, 20.0f}, /* structures/palisades_gate */ \
-		{"Iberian Embassy", "embassy", "embassy", 2000.0f, 2, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
-		{"Italic Embassy", "embassy", "embassy", 1500.0f, 1, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
+		{"Iberian Embassy", "embassy_iberian", "embassy", 2000.0f, 2, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_iberian */ \
+		{"Italic Embassy", "embassy_italic", "embassy", 1500.0f, 1, 0, 100, 0, 100, 0, 6, 37.5f, 500.0f, 10.0f, 1.0f, 20.0f}, /* structures/cart/embassy_italic */ \
 		{"Siege Wall", "wall_segment", "wall", 2250.0f, 1, 0, 60, 0, 0, 0, 0, 7.5f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_long */ \
 		{"Siege Wall Gate", "gate", "gate", 1875.0f, 1, 0, 50, 0, 0, 0, 0, 6.25f, 500.0f, 5.0f, 1.0f, 0.0f}, /* structures/rome/siege_wall_gate */ \
 		{"Island Settlement", "crannog", "crannog", 3000.0f, 2, 0, 300, 250, 300, 20, 20, 125.0f, 2500.0f, 30.0f, 1.0f, 20.0f}, /* structures/brit/crannog */ \

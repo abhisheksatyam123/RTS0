@@ -174,6 +174,18 @@ int main() {
 	CHECK(s.is_tech_researched(TECH_PHASE_TOWN));
 	CHECK(s.player_phase() == 2);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN) == Simulation::TECH_ERR_RESEARCHED);
+	// 0.28 "supersedes" is a requirement: Wheelbarrow waits for Baskets, Iron Weapons for Bronze Weapons.
+	CHECK(tech_supersedes(TECH_GATHER_CAPACITY_WHEELBARROW) == TECH_GATHER_CAPACITY_BASKET);
+	CHECK(tech_supersedes(TECH_SOLDIER_ATTACK_MELEE_02) == TECH_WEAPONS_1 && tech_supersedes(TECH_WEAPONS_1) == TECH_NONE);
+	CHECK(s.research_check(0, TECH_GATHER_CAPACITY_WHEELBARROW) == Simulation::TECH_ERR_PREREQUISITE);
+	CHECK(s.research_check(0, TECH_SOLDIER_ATTACK_MELEE_02) == Simulation::TECH_ERR_PREREQUISITE);
+	s.player(0).techs.set(TECH_GATHER_CAPACITY_BASKET);
+	CHECK(s.research_check(0, TECH_GATHER_CAPACITY_WHEELBARROW) == Simulation::TECH_OK);
+	// 0.28 Identity classes: civ structures count toward the phases too.
+	CHECK(building_phase_class(BLD_SYSSITON) == 1 && building_phase_class(BLD_MINISTRY) == 1 && building_phase_class(BLD_KENNEL) == 1);
+	CHECK(building_phase_class(BLD_GYMNASIUM) == 2 && building_phase_class(BLD_SUPER_DOCK) == 2 && building_phase_class(BLD_ARMY_CAMP) == 2);
+	CHECK(building_phase_class(BLD_ARSENAL, CIV_MACEDONIANS) == 2 && building_phase_class(BLD_ARSENAL, CIV_ROMANS) == 0);
+	CHECK(building_phase_class(BLD_ELEPHANT_STABLE, CIV_MAURYANS) == 2 && building_phase_class(BLD_ELEPHANT_STABLE, CIV_PERSIANS) == 0);
 	// City Phase needs three Town structures.
 	CHECK(s.research_check(0, TECH_PHASE_CITY, tc) == Simulation::TECH_ERR_STRUCTURES);
 
