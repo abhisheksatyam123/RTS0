@@ -285,11 +285,15 @@ func _match_node() -> Node:
 	return scene if scene != null and scene.has_method("get_lobby_state") else null
 
 
+## 0.28 lobby /away and /back: the presence chosen in the lobby, kept by every
+## heartbeat until a match makes it "playing".
+var away := false
+
 func _beat() -> void:
 	if token == "":
 		return
 	var main := _match_node()
-	post_json("/presence", {"token": token, "status": "playing" if main != null else "available"})
+	post_json("/presence", {"token": token, "status": "playing" if main != null else ("away" if away else "available")})
 	if room.is_empty():
 		return
 	if main == null:
