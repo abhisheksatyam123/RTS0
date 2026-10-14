@@ -1682,6 +1682,13 @@ bool Simulation::territory_connected_at(float x, float z) const {
 	return !id || territory_regions_[id - 1].connected;
 }
 
+bool Simulation::territory_blinking_cell(int tx, int tz) const {
+	if (territory_grid_.blank() || !territory_grid_.inside(tx, tz)) return false;
+	ensure_territory_regions();
+	const uint16_t id = territory_region_.at(tx, tz);
+	return id && !territory_regions_[id - 1].connected;
+}
+
 bool Simulation::territory_decay_targets(const Building &b, std::array<float, MAX_PLAYERS> &to, float &to_gaia) {
 	if (b.territory_decay_rate <= 0.0f) {
 		to.fill(0.0f);
