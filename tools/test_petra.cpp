@@ -876,7 +876,8 @@ static void test_garrisons() {
 		return std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), id) != b.garrisoned_units.end();
 	};
 	std::vector<uint32_t> archers;
-	for (int i = 0; i < 3; ++i) archers.push_back(s->spawn_unit(tx + 14.0f + 2.0f * (float)i, tz + 12.0f, 1, UNIT_ARCHER));
+	// The Town Center's GarrisonArrowClasses are Soldier: cavalry man it too.
+	for (int i = 0; i < 3; ++i) archers.push_back(s->spawn_unit(tx + 14.0f + 2.0f * (float)i, tz + 12.0f, 1, i == 2 ? UNIT_CAVALRY : UNIT_ARCHER));
 	std::vector<uint32_t> foes;
 	for (int i = 0; i < 3; ++i) foes.push_back(s->spawn_unit(tx - 10.0f, tz - 8.0f + 2.0f * (float)i, 0, UNIT_SPEARMAN));
 	int manned = 0;
@@ -897,8 +898,8 @@ static void test_garrisons() {
 	run_for(*s, 3.0f);
 	int left = 0;
 	for (uint32_t id : archers) left += inside(id) ? 0 : 1;
-	std::printf("  garrisons: %d of 3 archers manned the Town Center under attack, %d left after\n", manned, left);
-	CHECK(manned == 3, "infantry man a Town Center an enemy is in range of");
+	std::printf("  garrisons: %d of 2 archers and a horseman manned the Town Center under attack, %d left after\n", manned, left);
+	CHECK(manned == 3, "soldiers man a Town Center an enemy is in range of");
 	CHECK(left == 3, "and leave once no enemy is near");
 
 	// A hurt woman under attack shelters in the (healing) Town Center.
@@ -3099,7 +3100,9 @@ static void test_retake_civic_centre() {
 	CHECK(tc_id != 0, "Petra has a Town Center");
 	if (!tc_id) return;
 	std::vector<uint32_t> mine, foes;
-	// Cavalry, which garrisonManager leaves out of the Town Center.
+	// Cavalry are Soldiers, the Town Center's GarrisonArrowClasses, so garrisonUnitsInside would
+	// send them in: a Town Center with no room keeps them outside, defending.
+	s->buildings_[s->building_id_to_idx_.at(tc_id)].garrison_cap = 0;
 	for (int i = 0; i < 10; ++i) mine.push_back(s->spawn_unit(tx + 10.0f + (float)(i % 5) * 2.0f, tz + 10.0f + (float)(i / 5) * 2.0f, 1, UNIT_CAVALRY));
 	for (int i = 0; i < 6; ++i) foes.push_back(s->spawn_unit(tx - 22.0f, tz - 6.0f + 2.0f * (float)i, 0, UNIT_SWORDSMAN));
 	auto hold = [&]() {
