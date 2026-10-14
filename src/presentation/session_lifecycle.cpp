@@ -494,6 +494,7 @@ void RtsoMain::_ready() {
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
 	// =========================================================================
 	inspector_.build(this, ui_layer, zeroad_theme, this);
+	command_panel_.set_barter_host(inspector_.barter_host());
 
 	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
 	// (gui/reference/viewer) for the selected unit or structure.

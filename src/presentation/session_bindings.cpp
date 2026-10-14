@@ -130,6 +130,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_ai_behavior_selected", "index"), &RtsoMain::_on_ai_behavior_selected);
 	ClassDB::bind_method(D_METHOD("_on_victory_selected", "index"), &RtsoMain::_on_victory_selected);
 	ClassDB::bind_method(D_METHOD("_on_barter_requested", "sell_type", "buy_type", "amount"), &RtsoMain::_on_barter_requested);
+	ClassDB::bind_method(D_METHOD("_on_barter_sell_selected", "resource"), &RtsoMain::_on_barter_sell_selected);
+	ClassDB::bind_method(D_METHOD("debug_barter_panel"), &RtsoMain::debug_barter_panel);
 	ClassDB::bind_method(D_METHOD("set_civ", "civ_idx"), &RtsoMain::set_civ);
 	ClassDB::bind_method(D_METHOD("get_civ_info", "civ_idx"), &RtsoMain::get_civ_info);
 	ClassDB::bind_method(D_METHOD("get_tech_tree"), &RtsoMain::get_tech_tree);
@@ -167,6 +169,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_select_entity", "id"), &RtsoMain::debug_select_entity);
 	ClassDB::bind_method(D_METHOD("debug_select_units", "ids"), &RtsoMain::debug_select_units);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_id", "player"), &RtsoMain::debug_civic_centre_id);
+	ClassDB::bind_method(D_METHOD("debug_spawn_building", "type", "dx", "dz"), &RtsoMain::debug_spawn_building);
 	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
 	ClassDB::bind_method(D_METHOD("debug_structure_types"), &RtsoMain::debug_structure_types);
 	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);

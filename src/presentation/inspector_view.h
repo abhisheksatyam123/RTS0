@@ -10,6 +10,7 @@
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/label.hpp>
+#include <godot_cpp/classes/text_server.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
@@ -245,6 +246,14 @@ public:
 		selection_grid_.build(panel_, Vector2(102, 60), Vector2(404, 120), owner, "_on_selection_group_clicked", 10, 36.0f);
 		selection_grid_.set_right_click("_on_selection_group_gui_input");
 		garrison_grid_.build(panel_, Vector2(102, 148), Vector2(404, 34), owner, "_on_garrison_group_clicked", 12, 30.0f);
+		// The Barter panel's place (0.28's left panel, shared with the garrison panel); the
+		// command panel fills it.
+		barter_host_ = memnew(Control);
+		barter_host_->set_name("unitBarterPanel");
+		barter_host_->set_position(Vector2(148, 100));
+		barter_host_->set_size(Vector2(164, 82));
+		barter_host_->set_visible(false);
+		panel_->add_child(barter_host_);
 	}
 
 	godot::Panel *panel() const { return panel_; }
@@ -370,6 +379,7 @@ public:
 
 	// False when the inspected entity is gone or out of sight.
 	godot::GridContainer *garrison_grid_view() const { return garrison_grid_.grid(); }
+	godot::Control *barter_host() const { return barter_host_; }
 
 	bool fill_inspected_details() {
 		rtso::Simulation *sim = host_->ui_sim();
@@ -568,6 +578,9 @@ public:
 		// The stamina bar has no 0 A.D. counterpart.
 		show_bar(stamina_bar_, stamina_label_, false);
 		clear_tooltips();
+		stats_->set_position(Vector2(102, 108));
+		stats_->set_size(Vector2(404, 38));
+		stats_->set_autowrap_mode(TextServer::AUTOWRAP_OFF);
 		// Each grid shows if a branch below asks for it; the guard applies the
 		// result once, whichever way update_inspector returns.
 		bool show_selection_grid = false, show_garrison_grid = false;
@@ -632,6 +645,13 @@ public:
 							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
 							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 				stats_->set_text(status);
+				// Beside the Barter panel when it shows.
+				const bool barter = barter_host_ && barter_host_->is_visible();
+				if (barter) {
+					stats_->set_position(Vector2(318, 108));
+					stats_->set_size(Vector2(188, 38));
+					stats_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+				}
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
 				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
 				const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
@@ -1030,6 +1050,7 @@ private:
 	godot::Button *ungarrison_btn_ = nullptr;
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
+	godot::Control *barter_host_ = nullptr;
 
 	// g_SelectionPanels.Garrison for a structure, ship, ram or siege tower: up to 12 icons,
 	// one per template and owner, on the owner's colour. A click unloads one (Shift: all of

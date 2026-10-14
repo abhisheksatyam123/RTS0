@@ -13,6 +13,7 @@
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
+#include <godot_cpp/classes/v_box_container.hpp>
 #include <godot_cpp/classes/h_flow_container.hpp>
 #include <godot_cpp/classes/item_list.hpp>
 #include <godot_cpp/classes/json.hpp>
@@ -207,6 +208,9 @@ public:
 
 	godot::Panel *panel() const { return panel_; }
 	godot::HFlowContainer *production_bar() const { return production_bar_; }
+	void set_barter_sell(int r) { barter_sell_ = r; } // BarterButtonManager.setSelectedResource
+	void set_barter_host(godot::Control *c) { barter_host_ = c; }
+	godot::Control *barter_host() const { return barter_host_; }
 	godot::ItemList *roster_list() const { return roster_list_; }
 	RtsoProductionQueue &production_queue() { return production_queue_; }
 	// The selected training unit whose roster is shown, else 0.
@@ -218,6 +222,7 @@ public:
 		rtso::Simulation *sim = host_->ui_sim();
 		const godot::PackedInt32Array &selected_ids = host_->ui_selected_ids();
 		const uint32_t selected_building_id = host_->ui_selected_building_id();
+		update_barter_panel();
 
 		// g_SelectionPanels.Stance: shown when only units are selected, the stances
 		// some selected unit holds highlighted (GuiInterface IsStanceSelected).
@@ -1267,7 +1272,8 @@ private:
 			String s = n ? n->get_class() : String();
 			if (n)
 				for (int i = 0; i < n->get_child_count(); ++i)
-					if (Object::cast_to<Button>(n->get_child(i))) s += String("\x1e") + button_signature(n->get_child(i));
+					if (Object::cast_to<Container>(n->get_child(i)) || Object::cast_to<Button>(n->get_child(i)))
+						s += String("\x1e") + button_signature(n->get_child(i));
 			return s;
 		}
 		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
@@ -1443,6 +1449,119 @@ private:
 
 	// getTemplateViewerOnRightClickTooltip; the button's right click opens the Template Viewer.
 	static godot::String right_click_tooltip() { return rtso::tr0("Right-click for more information."); }
+	// 0.28's Barter panel (g_SelectionPanels.Barter, BarterButtonManager, BarterButton) in
+	// the selection details' left panel, on a selected market of ours: per resource a sell
+	// button (picks what to sell, the picked one grey with the corners) over a buy button
+	// (sells 100, 500 with session.massbarter, for the quoted amount), red where the stock
+	// falls short. Rebuilt only when what it shows changes, so a click is never lost.
+	void update_barter_panel() {
+		using namespace godot;
+		if (!barter_host_) return;
+		rtso::Simulation *sim = host_->ui_sim();
+		const uint32_t bid = host_->ui_selected_building_id();
+		const rtso::Simulation::Building *market = nullptr;
+		if (sim && bid != 0)
+			for (const auto &b : sim->buildings())
+				if (b.id == bid) { market = &b; break; }
+		const bool show = market && market->team == local_player() && rtso::is_land_market(market->type) &&
+				market->build_progress >= 1.0f && sim->can_barter(local_player());
+		if (barter_host_->is_visible() != show) barter_host_->set_visible(show);
+		if (!show) return;
+		const auto &ps = sim->player(local_player());
+		static const uint8_t kOrder[] = {rtso::RES_FOOD, rtso::RES_WOOD, rtso::RES_STONE, rtso::RES_GOLD};
+		static const char *kNames[] = {"food", "wood", "stone", "metal"};
+		const int amount = 100 * (rtso::hotkeys::held("session.massbarter") ? 5 : 1);
+		int quote[4];
+		bool short_of[4];
+		String sig = String::num_int64(barter_sell_) + ":" + String::num_int64(amount);
+		for (int i = 0; i < 4; ++i) {
+			quote[i] = sim->barter_quote((rtso::ResourceType)barter_sell_, (rtso::ResourceType)kOrder[i], amount);
+			short_of[i] = ps.res[kOrder[i]] < (float)amount;
+			sig += String(",") + String::num_int64(quote[i]) + (short_of[i] ? "R" : "");
+		}
+		if (sig == barter_sig_ && barter_host_->get_child_count() > 0) return;
+		barter_sig_ = sig;
+		while (barter_host_->get_child_count() > 0) {
+			Node *c = barter_host_->get_child(0);
+			barter_host_->remove_child(c);
+			c->queue_free();
+		}
+		auto make = [&](const char *name, const String &caption, int i, bool selected, bool red) {
+			Button *b = memnew(Button);
+			b->set_name(name);
+			b->set_custom_minimum_size(Vector2(38, 38));
+			b->set_focus_mode(Control::FOCUS_NONE);
+			TextureRect *icon = memnew(TextureRect);
+			icon->set_position(Vector2(3, 3));
+			icon->set_size(Vector2(32, 32));
+			icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+			icon->set_stretch_mode(TextureRect::STRETCH_SCALE);
+			icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			icon->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/icons/") + kNames[i] + ".png"));
+			if (selected) { // SelectedModifier "color:0 0 0 100:grayscale:"
+				icon->set_material(grayscale_material());
+				icon->set_self_modulate(Color(0.6f, 0.6f, 0.6f));
+			}
+			b->add_child(icon);
+			if (red) { // DisabledModifier "color:255 0 0 80:"
+				ColorRect *mask = memnew(ColorRect);
+				mask->set_position(Vector2(3, 3));
+				mask->set_size(Vector2(32, 32));
+				mask->set_color(Color(1.0f, 0.0f, 0.0f, 80.0f / 255.0f));
+				mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+				b->add_child(mask);
+			}
+			Label *cap = memnew(Label); // resourceText, the top half
+			cap->set_name("caption");
+			cap->set_text(caption);
+			cap->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			cap->set_size(Vector2(38, 19));
+			cap->add_theme_font_size_override("font_size", 11);
+			cap->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+			cap->add_theme_constant_override("outline_size", 3);
+			cap->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+			b->add_child(cap);
+			return b;
+		};
+		int sell_i = 0;
+		for (int i = 0; i < 4; ++i)
+			if (kOrder[i] == barter_sell_) sell_i = i;
+		HBoxContainer *row = memnew(HBoxContainer);
+		row->add_theme_constant_override("separation", 2);
+		for (int i = 0; i < 4; ++i) {
+			const bool selected = i == sell_i;
+			VBoxContainer *col = memnew(VBoxContainer);
+			col->set_name(String("barter_") + kNames[i]);
+			col->add_theme_constant_override("separation", 4);
+			const String res_name = owner_->tr(kNames[i]);
+			Button *sell = make("sell", rtso::sprintf0(rtso::tr0("-%(amount)s"), {{"amount", String::num_int64(amount)}}), i,
+					selected, short_of[i]);
+			sell->set_tooltip_text(rtso::sprintf0(rtso::tr0("Sell %(resource)s"), {{"resource", res_name}}));
+			sell->connect("pressed", Callable(owner_, "_on_barter_sell_selected").bind((int)kOrder[i]));
+			if (selected) {
+				TextureRect *corners = memnew(TextureRect);
+				corners->set_name("corners");
+				corners->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/corners.png"));
+				corners->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+				corners->set_position(Vector2(3, 3));
+				corners->set_size(Vector2(32, 32));
+				corners->set_stretch_mode(TextureRect::STRETCH_SCALE);
+				corners->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+				sell->add_child(corners);
+			}
+			col->add_child(sell);
+			if (!selected) { // the buy button is hidden under the resource being sold
+				Button *buy = make("buy", rtso::sprintf0(rtso::tr0("+%(amount)s"), {{"amount", String::num_int64(quote[i])}}), i,
+						false, short_of[sell_i]);
+				buy->set_tooltip_text(rtso::sprintf0(rtso::tr0("Buy %(resource)s"), {{"resource", res_name}}));
+				buy->connect("pressed", Callable(owner_, "_on_barter_requested").bind(barter_sell_, (int)kOrder[i], amount));
+				col->add_child(buy);
+			}
+			row->add_child(col);
+		}
+		barter_host_->add_child(row);
+	}
+
 	void on_right_click_details(godot::Control *c, const char *kind, int id, int civ) {
 		using namespace godot;
 		c->connect("gui_input", Callable(owner_, "_on_template_details_input").bind(String(kind), id, civ));
@@ -1468,6 +1587,9 @@ private:
 	std::unordered_map<uint16_t, godot::String> detailed_tips_; // template -> detailed_tooltip()
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 	uint32_t trainer_unit_id_ = 0;
+	int barter_sell_ = rtso::RES_FOOD; // BarterButtonManager.selectedResource
+	godot::Control *barter_host_ = nullptr; // in the selection details (0.28's left panel)
+	godot::String barter_sig_;
 	RtsoProductionQueue production_queue_;
 	godot::Ref<godot::ShaderMaterial> grayscale_;
 
