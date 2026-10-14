@@ -6,8 +6,10 @@
 // developer command with its label and tick box (DeveloperOverlay.xml,
 // DeveloperOverlayControlCheckbox.js), and DeveloperOverlayEntityState's yellow
 // text on the left with the state of the first selected entity. RTS0 ports the
-// commands it has something behind: Change perspective, Display selection state,
-// Reveal map, Restrict camera, Enable time warp and Promote selected units.
+// commands it has something behind, in 0.28's order: Change perspective, Display
+// selection state, the pathfinder, obstruction, unit motion and range overlays
+// (debug_overlays.h), Restrict camera, Reveal map, Enable time warp and Promote
+// selected units.
 
 #include <godot_cpp/classes/check_box.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
@@ -21,7 +23,23 @@ namespace rtso {
 
 class RtsoDevOverlay {
 public:
-	enum Command { DEV_CHANGE_PERSPECTIVE, DEV_SELECTION_STATE, DEV_REVEAL_MAP, DEV_RESTRICT_CAMERA, DEV_TIME_WARP, DEV_PROMOTE, DEV_COUNT };
+	enum Command {
+		DEV_CHANGE_PERSPECTIVE,
+		DEV_SELECTION_STATE,
+		DEV_PATHFINDER_OVERLAY,
+		DEV_OBSTRUCTION_OVERLAY,
+		DEV_UNIT_MOTION_OVERLAY,
+		DEV_RANGE_OVERLAY,
+		DEV_RESTRICT_CAMERA,
+		DEV_REVEAL_MAP,
+		DEV_TIME_WARP,
+		DEV_PROMOTE,
+		DEV_COUNT
+	};
+	static constexpr const char *kLabels[DEV_COUNT] = {
+		"Change perspective", "Display selection state", "Pathfinder overlay", "Obstruction overlay", "Unit motion overlay",
+		"Range overlay", "Restrict camera", "Reveal map", "Enable time warp", "Promote selected units",
+	};
 	static constexpr float kRow = 24.0f;
 
 	// parent: the HUD layer; owner gets `method`(command, checked) when a box is pressed.
@@ -41,9 +59,6 @@ public:
 		panel_->set_offset(SIDE_BOTTOM, -280.0f + DEV_COUNT * kRow); // DeveloperOverlay.resize
 		panel_->set_visible(false);
 		parent->add_child(panel_);
-		static const char *kLabels[DEV_COUNT] = {
-			"Change perspective", "Display selection state", "Reveal map", "Restrict camera", "Enable time warp", "Promote selected units",
-		};
 		for (int i = 0; i < DEV_COUNT; ++i) {
 			Label *l = memnew(Label); // devCommandsText
 			l->set_text(kLabels[i]);
