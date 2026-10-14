@@ -17,6 +17,9 @@ const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const MapBrowser = preload("res://scenes/menu/map_browser.gd")
 const L10n = preload("res://scenes/menu/l10n.gd")
 const MAP_BROWSER_HOTKEY := "gamesetup.mapbrowser.open"
+const AIConfig = preload("res://scenes/menu/ai_config.gd")
+# The slot grid: name, kind, civ, team, AI gear, colour.
+const SLOT_COLUMNS := 6
 
 const CIVS := [
 	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
@@ -319,6 +322,7 @@ var _want_map_id := ""         # the map to select on the next refresh_map_list
 var _was_scenario := false     # the slots hold a scenario's locked teams
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
 var _map_browser: Control = null
+var _ai_buttons: Array = []
 var _hotkeys := RtsoHotkeyConfig.new()
 var _rebuilding_slots := false
 
@@ -984,6 +988,7 @@ func refresh_slots() -> void:
 	var grid := _slots_grid()
 	for c in grid.get_children():
 		c.queue_free()
+	_ai_buttons.clear()
 	var n := int(_slot_count_node().value)
 	_ensure_slot_rows(n)
 	for i in range(n):
@@ -1033,24 +1038,20 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	team.select(clampi(int(row["team"]), 0, 4))
 	team.disabled = _is_scenario()
 	team.item_selected.connect(_on_slot_team.bind(i))
-	# AI difficulty (per-slot; slot 0 uses the global default row)
-	var diff_slot := Control.new()
-	diff_slot.custom_minimum_size = Vector2(92, 28)
-	grid.add_child(diff_slot)
-	var diff := _make_option(diff_slot)
-	for dname in DIFFS:
-		diff.add_item(dname)
-	diff.select(clampi(int(row["diff"]), 0, 5))
-	diff.item_selected.connect(_on_slot_diff.bind(i))
-	# AI behaviour (per slot)
-	var beh_slot := Control.new()
-	beh_slot.custom_minimum_size = Vector2(92, 28)
-	grid.add_child(beh_slot)
-	var beh := _make_option(beh_slot)
-	for bname in BEHAVIORS:
-		beh.add_item(bname)
-	beh.select(clampi(int(row["beh"]), 0, 3))
-	beh.item_selected.connect(_on_slot_beh.bind(i))
+	# 0.28 PerPlayer/AIConfigButton.js: a gear on AI rows opens the AI Configuration dialog.
+	var ai_slot := Control.new()
+	ai_slot.custom_minimum_size = Vector2(32, 28)
+	grid.add_child(ai_slot)
+	var gear := Button.new()
+	gear.name = "AIConfigButton"
+	gear.custom_minimum_size = Vector2(28, 28)
+	gear.draw.connect(func(): _draw_gear(gear))
+	gear.pressed.connect(func(): _open_ai_config(i))
+	ai_slot.add_child(gear)
+	while _ai_buttons.size() <= i:
+		_ai_buttons.append(null)
+	_ai_buttons[i] = gear
+	_render_ai_button(i)
 	# player colour (0 A.D. PlayerColor: picking a colour in use swaps the two players' colours)
 	var col_slot := Control.new()
 	col_slot.custom_minimum_size = Vector2(56, 28)
@@ -1070,7 +1071,50 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	_slot_rows[slot]["kind"] = idx
 	if slot == 0:
 		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
+	_render_ai_button(slot)
 	_update_preview()
+
+## The AI dialog's AI Player: Petra makes the slot an AI, None an unassigned one.
+func _set_slot_kind(slot: int, kind: int) -> void:
+	if slot < 0 or slot >= _slot_rows.size():
+		return
+	_on_slot_kind(kind, slot)
+	refresh_slots.call_deferred()
+
+## AIConfigButton.render: shown on AI rows, with "Configure AI: %(description)s."
+func _render_ai_button(slot: int) -> void:
+	if slot < 0 or slot >= _ai_buttons.size() or _ai_buttons[slot] == null or not is_instance_valid(_ai_buttons[slot]):
+		return
+	var gear: Button = _ai_buttons[slot]
+	var row: Dictionary = _slot_rows[slot]
+	var ai := int(row["kind"]) == 1
+	# Kept in the grid when hidden so the columns stay in line.
+	gear.modulate.a = 1.0 if ai else 0.0
+	gear.mouse_filter = Control.MOUSE_FILTER_STOP if ai else Control.MOUSE_FILTER_IGNORE
+	gear.tooltip_text = L10n.sprintf(L10n.t("Configure AI: %(description)s."),
+		{"description": AIConfig.describe(int(row["diff"]), int(row["beh"]), DIFFS.map(func(d): return tr(d)), BEHAVIORS.map(func(b): return tr(b)))}) if ai else ""
+
+## 0.28's ModernGear sprite, drawn: a cog of eight teeth with a hole.
+static func _draw_gear(b: Button) -> void:
+	var c := b.size / 2.0
+	var r := minf(b.size.x, b.size.y) * 0.3
+	var col := Color(0.93, 0.85, 0.6) if not b.is_hovered() else Color(1, 0.95, 0.75)
+	if b.disabled:
+		col = col.darkened(0.45)
+	for k in 8:
+		var a := k * TAU / 8.0
+		var d := Vector2.from_angle(a)
+		var n := d.orthogonal() * r * 0.28
+		b.draw_colored_polygon(PackedVector2Array([c + d * r * 0.8 - n, c + d * r * 1.35 - n, c + d * r * 1.35 + n, c + d * r * 0.8 + n]), col)
+	b.draw_circle(c, r, col)
+	b.draw_circle(c, r * 0.42, Color(0.1, 0.09, 0.08))
+
+## AIConfigPage.openPage(playerIndex, enabled): only the controller edits.
+func _open_ai_config(slot: int) -> void:
+	if get_node_or_null("AIConfigLayer") != null:
+		return
+	var dlg = AIConfig.open_overlay(self, slot, _mp_role != "client")
+	dlg.get_parent().name = "AIConfigLayer"
 
 func _on_slot_civ(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -1898,9 +1942,9 @@ func _apply_mp_locks() -> void:
 	var k := int(_net_state.get("my_slot", -1))
 	var cells := _slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
 	if k >= 0 and not bool(_net_state.get("locked", false)):
-		for col in [2, 3, 6]:
-			if k * 7 + col < cells.size():
-				keep[cells[k * 7 + col]] = true
+		for col in [2, 3, 5]:
+			if k * SLOT_COLUMNS + col < cells.size():
+				keep[cells[k * SLOT_COLUMNS + col]] = true
 	_lock_tree($VBox/HBox, keep)
 
 func _lock_tree(n: Node, keep: Dictionary) -> void:
