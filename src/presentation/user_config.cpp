@@ -101,6 +101,7 @@ const Default kDefaults[] = {
 	{"gui.session.scrollbatchratio", "1"},
 	{"gui.session.disjointcontrolgroups", "true"},
 	{"showdetailedtooltips", "false"},
+	{"gui.gamesetup.enabletips", "true"},
 	{"gui.session.flarelifetime", "6"},
 	{"gui.session.woundedunithotkeythreshold", "33"},
 	{"gui.session.attackrange", "true"},

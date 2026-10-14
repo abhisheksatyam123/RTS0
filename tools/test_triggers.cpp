@@ -9,8 +9,8 @@
 //      Deep starts a metre up.
 //   3. Extinct Volcano: Gaia towers start garrisoned, the warning comes a minute
 //      before the Game Setup rise time, then the water climbs a metre at a time.
-//   4. Rising water drowns units, animals, structures and resources, but not
-//      ships or siege.
+//   4. Rising water drowns units, siege, animals, structures, treasures and resources, but not
+//      ships or shipwrecks.
 //   5. Saving mid-rise and loading keeps the lockstep hash and the trigger
 //      state; both copies stay in sync while the water keeps rising; two
 //      identical runs write byte-identical saves.
@@ -163,6 +163,8 @@ static void check_drowning() {
 	const uint32_t tc_id = tc->id;
 	const uint32_t ship = s.spawn_unit(x + 12.0f, z, 0, UNIT_TRIREME);
 	const uint32_t ram = s.spawn_unit(x - 12.0f, z, 0, UNIT_SIEGE_RAM);
+	const uint32_t chest = s.spawn_treasure(x, z + 14.0f, TREASURE_METAL);
+	const uint32_t wreck = s.spawn_treasure(x, z - 14.0f, TREASURE_SHIPWRECK);
 	int organic = 0;
 	for (size_t i = 0; i < s.units().count; ++i)
 		if (s.units().alive[i] && s.units().team[i] == 0 && !unit_is_ship(s.units().unit_type[i]) && !unit_is_siege_engine(s.units().unit_type[i])) ++organic;
@@ -179,10 +181,14 @@ static void check_drowning() {
 	for (const auto &b : s.buildings())
 		if (b.id == tc_id) tc_wrecked = b.wrecked && b.hp <= 0.0f;
 	CHECK(organic > 0 && left == 0, "%d of %d of player 0's units survived the water", left, organic);
-	CHECK(ship_ok && ram_ok, "water sank a ship (%d) or a ram (%d)", ship_ok, ram_ok);
+	// flood_triggers.js: only Organic entities are Kill()ed, anything else with a Visual becomes
+	// an actor; ships, docks and shipwrecks float (pos.y stays at the water).
+	CHECK(ship_ok && !ram_ok, "the ship %s, the ram %s", ship_ok ? "floats" : "sank", ram_ok ? "floats" : "is lost");
+	CHECK(!s.is_treasure_id(chest) && s.is_treasure_id(wreck), "chest %s, shipwreck %s", s.is_treasure_id(chest) ? "collectable" : "gone",
+	      s.is_treasure_id(wreck) ? "floats" : "gone");
 	CHECK(tc_wrecked, "Town Center not lost under water");
 	run_to(s, 2.0f);
-	if (failures == before) std::printf("Rising water drowns %d units and the Town Center; the ship and ram float: ok\n", organic);
+	if (failures == before) std::printf("Rising water drowns %d units, a ram, a chest and the Town Center; the ship and shipwreck float: ok\n", organic);
 }
 
 static std::vector<char> read_file(const char *path) {
@@ -531,6 +537,7 @@ static void check_tutorials() {
 	CHECK(loaded.tutorial_id() == TUTORIAL_INTRODUCTORY && loaded.tutorial_goal_index() == 4 && tm.compute_sim_hash(loaded) == tm.compute_sim_hash(s),
 	      "tutorial state lost on load (goal %d)", loaded.tutorial_goal_index());
 	CHECK(loaded.trigger_hash() == s.trigger_hash(), "trigger hash differs after load");
+	CHECK(loaded.tutorial_ready_button() == s.tutorial_ready_button(), "Ready %d after load, %d before", loaded.tutorial_ready_button(), s.tutorial_ready_button());
 
 	// Economy walkthrough: five Ready goals, then gathering, hunting, a rally point.
 	static Simulation e;
