@@ -426,12 +426,12 @@ Array RtsoMain::debug_command_row() {
 
 // Test hook: spawns `count` of the roster template `template_id` (e.g.
 // "athen/support_female_citizen") for the local player by its Civic Centre.
-PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count) {
+PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int count, int player) {
 	PackedInt32Array out;
 	if (!sim) return out;
 	const uint16_t t = rtso::civ_unit_template_by_id(template_id.utf8().get_data());
 	if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT) return out;
-	const uint8_t me = local_player();
+	const uint8_t me = player < 0 ? local_player() : (uint8_t)player;
 	float cx = 0.0f, cz = 0.0f;
 	for (const auto &b : sim->buildings())
 		if (b.team == me && rtso::is_civic_centre(b.type)) { cx = b.x; cz = b.z; break; }
@@ -439,6 +439,37 @@ PackedInt32Array RtsoMain::debug_spawn_units(const String &template_id, int coun
 		out.push_back((int32_t)sim->spawn_unit(cx - 16.0f + 3.0f * i, cz - 16.0f, me,
 				(rtso::UnitType)rtso::civ_unit_template(t).unit_type, 0.0f, t));
 	return out;
+}
+
+// Test hooks: put units in a structure at once (a map's <Garrison>) or send them aboard a
+// ship, ram or siege tower; select one entity by id.
+int RtsoMain::debug_put_inside(const PackedInt32Array &ids, int64_t holder) {
+	if (!sim) return 0;
+	std::vector<uint32_t> v;
+	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
+	if (sim->is_transport((uint32_t)holder)) {
+		sim->order_board_transport(v.data(), v.size(), (uint32_t)holder);
+		return (int)v.size();
+	}
+	int n = 0;
+	for (uint32_t u : v) n += sim->garrison_unit_now(u, (uint32_t)holder) ? 1 : 0;
+	return n;
+}
+
+void RtsoMain::debug_select_entity(int64_t id) {
+	if (!sim) return;
+	selected_ids.clear();
+	selected_building_id = 0;
+	for (const auto &b : sim->buildings())
+		if (b.id == (uint32_t)id) { selected_building_id = b.id; return; }
+	selected_ids.push_back((int32_t)id);
+}
+
+int64_t RtsoMain::debug_civic_centre_id(int player) const {
+	if (!sim) return 0;
+	for (const auto &b : sim->buildings())
+		if (b.team == player && rtso::is_civic_centre(b.type)) return b.id;
+	return 0;
 }
 
 // Test hook: each player's structures by type name, {player: {name: count}}.
@@ -1165,10 +1196,11 @@ void RtsoMain::update_net_warnings() {
 void RtsoMain::update_net_status_overlay() {
 	if (net_disconnected_ || !net_status_overlay_) return;
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
-	// Before Start too, once the host let us in (0.28 gamesetup ChatInputPanel
-	// reportDisconnect): the setup page closes for "Lost connection to the server.".
+	// Before Start too (0.28 reportDisconnect): once the host let us in, the
+	// setup page closes for "Lost connection to the server."; a join it refused
+	// or never answered reads "Failed to connect to the server.".
 	const bool joined = net_game_started_ || net_setup_overlay_ || net_host_.authResult() == rtso::ARC_OK;
-	if (client && joined && net_host_.connectionLost()) {
+	if (client && net_host_.connectionLost()) {
 		net_disconnected_ = true;
 		finished_asked_ = true; // no quit question over the overlay
 		close_open_dialogs();
@@ -1184,8 +1216,19 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		net_status_label_->set_text((net_game_started_ ? tr("Connection to the server has been lost.")
-				: tr("Lost connection to the server.")) + "\n" + why);
+		String text = (net_game_started_ ? tr("Connection to the server has been lost.")
+				: joined ? tr("Lost connection to the server.") : tr("Failed to connect to the server.")) + "\n" + why;
+		if (!joined && net_host_.disconnectReason() == 0) {
+			// reportConnectionRequestTimeOut, with getRequestTimeOutMessage's
+			// address advice only outside the lobby.
+			Node *ls = get_node_or_null(NodePath("/root/LobbySession"));
+			const bool lobby = ls && bool(ls->call("signed_in"));
+			text = tr("Failed to connect to the server.") + " " + tr("The connection request has timed out.") + "\n\n" +
+					(lobby ? String() : tr("Please ensure that you entered the correct server name or IP address, and port number.") + "\n\n") +
+					tr("If you haven't yet, try to connect again and to different hosts.") + "\n" +
+					tr("If the issue persists or occurs regularly, visit the official FAQ for detailed guidance and troubleshooting steps.");
+		}
+		net_status_label_->set_text(text);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
@@ -1375,6 +1418,16 @@ void RtsoMain::_on_ungarrison_pressed() {
 		for (int s = 0; s < selected_ids.size(); ++s) {
 			if (sim->is_transport((uint32_t)selected_ids[s])) {
 				uint32_t tid = (uint32_t)selected_ids[s];
+				// An ally's transport: unload-all-by-owner, only our own units.
+				uint8_t holder_owner = 0xFF;
+				sim->holder_contents(tid, &holder_owner);
+				if (holder_owner != local_player()) {
+					if (turn_cmds())
+						post_lockstep(13, nullptr, 0, 0, 0, tid, 0);
+					else
+						sim->cmd_unload(local_player(), tid, nullptr, 0);
+					continue;
+				}
 				if (turn_cmds())
 					post_lockstep(13, &tid, 1, 0, 0, 0, 1);
 				else
@@ -2384,30 +2437,63 @@ void RtsoMain::select_group(int key, bool drop) {
 	selected_ids = kept;
 }
 
-// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate):
-// unload one unit of the group, or all of them with session.unloadtype (Shift).
+// The garrison panel's holder: the selected structure, or a lone selected ship, ram or
+// siege tower.
+uint32_t RtsoMain::selected_garrison_holder() const {
+	if (selected_building_id != 0) return selected_building_id;
+	if (sim && selected_ids.size() == 1 && sim->is_transport((uint32_t)selected_ids[0])) return (uint32_t)selected_ids[0];
+	return 0;
+}
+
+// Garrison icon click (selection_panels.js Garrison.execute -> unloadTemplate): unload
+// one unit of the group (template and owner), or all of them with session.unloadtype (Shift).
 void RtsoMain::_on_garrison_group_clicked(int key) {
-	if (!sim || selected_building_id == 0) return;
-	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), selected_building_id);
-	const auto *inside = &mine;
-	if (inside->empty()) return;
+	const uint32_t holder = selected_garrison_holder();
+	if (!sim || holder == 0) return;
+	const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), holder);
+	if (mine.empty()) return;
 	const bool all = rtso::hotkeys::held("session.unloadtype");
 	auto uview = sim->units();
 	std::vector<uint32_t> out;
-	for (uint32_t gid : *inside) {
+	for (uint32_t gid : mine) {
 		for (size_t i = 0; i < uview.count; ++i) {
 			if (uview.id[i] != gid) continue;
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-			if (RtsoSelectionGrid::group_key(uview.unit_type[i], tmpl) == key) out.push_back(gid);
+			if (RtsoSelectionGrid::owner_key(uview.unit_type[i], tmpl, uview.team[i]) == key) out.push_back(gid);
 			break;
 		}
 		if (!all && !out.empty()) break;
 	}
 	if (out.empty()) return;
 	if (turn_cmds())
-		post_lockstep(13, out.data(), out.size(), 0, 0, selected_building_id, 0);
+		post_lockstep(13, out.data(), out.size(), 0, 0, holder, 0);
 	else
-		sim->cmd_unload(local_player(), selected_building_id, out.data(), out.size());
+		sim->cmd_unload(local_player(), holder, out.data(), out.size());
+}
+
+// The garrison panel's state, for tests: one entry per icon.
+Array RtsoMain::debug_garrison_icons() const {
+	Array out;
+	GridContainer *grid = inspector_.garrison_grid_view();
+	if (!grid || !grid->is_visible()) return out;
+	for (int c = 0; c < grid->get_child_count(); ++c) {
+		Button *b = Object::cast_to<Button>(grid->get_child(c));
+		if (!b) continue;
+		Dictionary d;
+		d["tip"] = b->get_tooltip_text();
+		d["disabled"] = b->is_disabled();
+		TextureRect *icon = Object::cast_to<TextureRect>(b->find_child("garrisonIcon", false, false));
+		d["grey"] = icon && icon->get_material().is_valid();
+		Ref<StyleBoxFlat> sb = b->get_theme_stylebox("normal");
+		d["bg"] = sb.is_valid() ? sb->get_bg_color() : Color();
+		int count = 1;
+		for (int k = 0; k < b->get_child_count(); ++k)
+			if (Label *l = Object::cast_to<Label>(b->get_child(k))) count = l->get_text().to_int();
+		d["count"] = count;
+		d["id"] = (int64_t)b->get_instance_id();
+		out.push_back(d);
+	}
+	return out;
 }
 
 void RtsoMain::update_command_panel() { command_panel_.update(); }

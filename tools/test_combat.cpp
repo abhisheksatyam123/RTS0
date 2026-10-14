@@ -1152,6 +1152,40 @@ static void test_aura_stacking() {
 		"Battering Team: the ram walks 0.15 m/s faster per infantryman inside");
 }
 
+static void test_razed_target() {
+	std::printf("22. attackers let go of a razed structure\n");
+	// 0 A.D. destroys a razed structure, so its other attackers find their target gone;
+	// RTS0 keeps a wreck for the rubble, and it must not hold them.
+	auto raze = [](int melee, bool archer_too, float &loot) {
+		Simulation s;
+		setup(s);
+		const uint32_t bid = s.spawn_building_world(30.0f, 0.0f, BLD_HOUSE, 1, 1.0f);
+		s.spawn_building_world(52.0f, 0.0f, BLD_TOWN_CENTER, 1, 1.0f);
+		std::vector<uint32_t> ids;
+		Simulation::Building *b = building(s, bid);
+		for (int k = 0; k < melee; ++k) ids.push_back(s.spawn_unit(b->x - b->half_size - 0.8f, -1.0f + (float)k, 0, UNIT_SPEARMAN));
+		if (archer_too) ids.push_back(s.spawn_unit(0.0f, 0.0f, 0, UNIT_ARCHER));
+		s.order_attack_building(ids.data(), ids.size(), bid, false, false);
+		const float res0 = s.players_[0].res[0] + s.players_[0].res[1] + s.players_[0].res[2] + s.players_[0].res[3];
+		for (int k = 0; k < 40; ++k) s.tick(DT); // swings under way
+		building(s, bid)->hp = 0.5f;
+		for (int k = 0; k < 200; ++k) s.tick(DT);
+		loot = s.players_[0].res[0] + s.players_[0].res[1] + s.players_[0].res[2] + s.players_[0].res[3] - res0;
+		int holding = 0;
+		for (uint32_t id : ids) {
+			const int u = idx(s, id);
+			if (u >= 0 && s.units_.target_building_id[u] == bid) ++holding;
+		}
+		std::printf("      %d spearmen%s: house wrecked %d, %d still aim at it, loot %.0f\n", melee, archer_too ? " + archer" : "",
+				(int)building(s, bid)->wrecked, holding, loot);
+		return building(s, bid)->wrecked && holding == 0;
+	};
+	float one = 0.0f, three = 0.0f, ranged = 0.0f;
+	check(raze(1, false, one), "a lone spearman stops at the rubble");
+	check(raze(3, false, three) && std::fabs(three - one) < 0.5f, "three spearmen loot it once and all stop at the rubble");
+	check(raze(0, true, ranged), "an archer stops shooting at the rubble");
+}
+
 int main() {
 	test_data();
 	test_bonus();
@@ -1174,6 +1208,7 @@ int main() {
 	test_aura_stacking();
 	test_reach_and_responses();
 	test_attack_rate_and_invulnerable();
+	test_razed_target();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

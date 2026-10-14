@@ -1050,6 +1050,15 @@ void NetHost::send_heartbeats(uint64_t now_ms) {
 
 void NetHost::check_peer_timeouts(uint64_t now_ms) {
 	for (auto &p : peers_) {
+		// An ENet connect nobody answers times out with reason 0 (0.28
+		// reportConnectionRequestTimeOut); the connect request itself stops
+		// resending after 10 s, so waiting longer would wait forever.
+		if (isClient() && p.id == 0 && !p.connected && disconnect_reason_ < 0 && auth_result_ < 0 &&
+				p.last_seen_ms > 0 && now_ms - p.last_seen_ms > kConnectTimeoutMs) {
+			std::cout << "[NetHost] The connection request to " << server_ip_ << ":" << server_port_ << " timed out\n";
+			lose_host(0);
+			continue;
+		}
 		// enet_peer_disconnect_later: the refusal or kick notice goes out
 		// reliably first. Closing the link at the fixed 2 s dropped it whenever
 		// loss outlasted that, and the client waited without a reason.

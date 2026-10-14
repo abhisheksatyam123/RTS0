@@ -214,6 +214,8 @@ public:
 		if (player < MAX_PLAYERS && ((defeated_mask_ >> player) & 1)) return revealed_fow_.data();
 		// So does a multiplayer observer, which has no player (0xFF).
 		if (player == 0xFF) return revealed_fow_.data();
+		// Player.js: the winners' map is revealed too (SetLosRevealAll).
+		if (player < MAX_PLAYERS && is_victory_for(player) && !revealed_fow_.empty()) return revealed_fow_.data();
 		if (player == 0 || player >= MAX_PLAYERS) return fow_grid_.data();
 		if (player_fow_[player].size() == fow_grid_.size()) return player_fow_[player].data();
 		return unexplored_fow_.data();
@@ -818,8 +820,12 @@ public:
 	// Commands.js unload / unload-all-by-owner: the holder's owner may unload anyone; an
 	// ally only its own units. count 0 unloads every unit `player` may unload.
 	void cmd_unload(uint8_t player, uint32_t building_id, const uint32_t *unit_ids, size_t count);
-	// The garrisoned units `player` may unload from `building_id` under those rules.
-	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t building_id) const;
+	// The units in a structure's garrison or aboard a ship, ram or siege tower (GarrisonHolder
+	// GetEntities), and the holder's owner; empty if holder_id is neither.
+	std::vector<uint32_t> holder_contents(uint32_t holder_id, uint8_t *holder_owner = nullptr) const;
+	// What `player` may unload from a holder (Commands.js unload): all of it from its own, its
+	// own units from a mutual ally's.
+	std::vector<uint32_t> unloadable_by(uint8_t player, uint32_t holder_id) const;
 	// Animals garrisoned in a corral (GarrisonHolder/Max CORRAL_GARRISON_MAX).
 	int corral_count(uint32_t corral_id) const;
 	// AlertRaiser.js on a structure of `player`: RaiseAlert sends its civilians (women; a

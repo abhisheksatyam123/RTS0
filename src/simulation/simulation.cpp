@@ -7674,14 +7674,26 @@ void Simulation::cmd_unload(uint8_t player, uint32_t building_id, const uint32_t
 	}
 }
 
-std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t building_id) const {
+std::vector<uint32_t> Simulation::holder_contents(uint32_t holder_id, uint8_t *holder_owner) const {
+	if (auto bit = building_id_to_idx_.find(holder_id); bit != building_id_to_idx_.end()) {
+		const Building &b = buildings_[bit->second];
+		if (holder_owner) *holder_owner = b.team;
+		return b.garrisoned_units;
+	}
+	const int32_t t = lookup_unit(holder_id);
+	if (t < 0 || !units_.alive[t] || !is_transport(holder_id)) return {};
+	if (holder_owner) *holder_owner = units_.team[t];
+	const auto pit = transport_passengers_.find(holder_id);
+	return pit == transport_passengers_.end() ? std::vector<uint32_t>() : pit->second;
+}
+
+std::vector<uint32_t> Simulation::unloadable_by(uint8_t player, uint32_t holder_id) const {
+	uint8_t owner = 0xFF;
+	std::vector<uint32_t> inside = holder_contents(holder_id, &owner);
+	if (owner == player || inside.empty()) return inside;
 	std::vector<uint32_t> out;
-	auto bit = building_id_to_idx_.find(building_id);
-	if (bit == building_id_to_idx_.end()) return out;
-	const Building &b = buildings_[bit->second];
-	if (b.team == player) return b.garrisoned_units;
-	if (!is_ally(player, b.team)) return out;
-	for (uint32_t uid : b.garrisoned_units)
+	if (!is_ally(player, owner)) return out;
+	for (uint32_t uid : inside)
 		if (const int32_t i = lookup_unit(uid); i >= 0 && units_.team[i] == player) out.push_back(uid);
 	return out;
 }
@@ -11998,6 +12010,14 @@ void Simulation::tick_combat(float dt) {
 			continue;
 		}
 		Building &b = buildings_[bit->second];
+		// A razed structure stays as a wreck (rubble), where 0 A.D. destroys the entity: its
+		// attackers' target is gone, as above. Arrows on the way razing it, or another unit
+		// felling it, would otherwise leave archers shooting at rubble and melee units looting it again.
+		if (b.wrecked || b.hp <= 0.0f) {
+			units_.target_building_id[i] = 0;
+			units_.action_state[i] = ACTION_IDLE;
+			continue;
+		}
 		const bool capture = capture_strength > 0.0f && units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 		if (!capture && (!can_attack(units_.team[i], b.team) || units_.attack_damage[i] <= 0.0f ||
 				!unit_can_target_building(i, b.type))) { // dogs never attack structures, rams never fields
@@ -28051,8 +28071,8 @@ uint8_t Simulation::fow_state_at(float x, float z, uint8_t viewer_team) const {
 }
 
 bool Simulation::is_entity_visible_to_viewer(float x, float z, uint8_t entity_team, uint8_t viewer_team) const {
-	// Teams and reciprocal alliances expose allied entities, never enemies.
-	if (is_ally(viewer_team, entity_team)) return true;
+	// Own entities, and an ally's once sight is shared (Cartography); the rest only in sight.
+	if (shares_los(viewer_team, entity_team)) return true;
 	return fow_state_at(x, z, viewer_team) == FOW_VISIBLE;
 }
 
