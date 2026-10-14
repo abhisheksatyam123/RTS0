@@ -358,6 +358,9 @@ def play(args, lobby, leave):
     paused_by = said("join", "paused_by")
     ok = ok and re.fullmatch(r"\[center\]Paused by \[color=#[0-9a-f]{6}\]alice\[/color\]\[/center\]", paused_by) is not None
     ok = ok and "#ffffff]alice" not in paused_by
+    # 0.28 page_loading at "start": both peers load the map under the loading page.
+    loading = {role: said(role, "start_loading").split(",") for role in ("host", "join")}
+    ok = ok and all("Building_terrain" in v for v in loading.values())
     picks = {k: (h.get(k), j.get(k)) for k in ("speed", "civ1", "team1", "color1")}
     ok = ok and picks == {"speed": ("1.5", "1.5"), "civ1": ("15", "15"), "team1": ("2", "2"), "color1": ("5", "5")}
     if leave == "join":
@@ -379,6 +382,7 @@ def play(args, lobby, leave):
         print("[gmp] PASS /list on both read: Users (2): alice, bob")
         print(f"[gmp] PASS the host's setup chat read: {setup_chat}")
         print(f"[gmp] PASS the host's pause showed on the client as: {paused_by}")
+        print(f"[gmp] PASS both loaded the map at Start under the loading page: {loading['join']}")
     if ok and leave == "join":
         print(f"[gmp] PASS the client left and the host's chat said: {said('host', 'chat_left')}")
     elif ok:

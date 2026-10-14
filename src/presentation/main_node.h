@@ -417,6 +417,7 @@ public:
 	void _on_lobby_start_pressed();
 	void _on_lobby_seat_selected(int index, int client);
 	void apply_net_game_start();
+	void show_net_loading_page(const std::string &map_id);
 	void apply_match_settings();
 	void sync_victory_selector();
 	void apply_game_setup(const rtso::GameSetupParams &setup);

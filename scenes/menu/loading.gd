@@ -7,6 +7,10 @@ extends CanvasLayer
 ## main.tscn on a loader thread, then adds the match to the tree and follows
 ## RtsoMain's load_progress signal while the map is set up. When the match has
 ## drawn its first frames, the page frees itself (0 A.D.'s reallyStartGame).
+## A networked Start (0.28 GameSettingsController switching every peer to
+## page_loading at "start") loads the map inside the match already in the
+## tree: RtsoMain adds this page over itself first, with overlay_for set, and
+## the page follows load_progress the same way.
 ## The tip is scenes/reference/tip_display.gd; the tips, quotes and pictures
 ## come from tools/extract_0ad_loading.py.
 
@@ -27,6 +31,9 @@ var tip_name := ""
 var quote := ""
 var title := ""
 var progress := 0
+## Overlay mode: the match scene that loads the map, and the map it loads.
+var overlay_for: Node
+var overlay_map := ""
 ## The stages the last match reported (for tests and the log).
 static var last_stages: Array = []
 
@@ -46,6 +53,14 @@ func _ready() -> void:
 	_build()
 	# loading.js: Engine.SetCursor("cursor-wait").
 	Input.set_default_cursor_shape(Input.CURSOR_WAIT)
+	if overlay_for != null:
+		last_stages = []
+		match_node = overlay_for
+		if match_node.has_signal("load_progress"):
+			match_node.load_progress.connect(_on_load_progress)
+		set_progress(25, "Loading")
+		state = State.SETTLING
+		return
 	if ResourceLoader.load_threaded_request(MATCH_SCENE) != OK:
 		push_error("[Loading] could not start loading " + MATCH_SCENE)
 	set_progress(0, "Loading")
@@ -133,7 +148,9 @@ func _title() -> String:
 	var ms = get_node_or_null("/root/MatchSettings")
 	var map_id := ""
 	var map_name := ""
-	if ms:
+	if overlay_for != null:
+		map_id = overlay_map
+	elif ms:
 		if ms.replay_dir != "":
 			var meta := _read_json(ms.replay_dir.path_join("metadata.json"))
 			map_id = str(meta.get("map_id", ""))
