@@ -127,6 +127,9 @@ func _ready() -> void:
 	name_row.add_child(_civ_name)
 	_select = Common.civ_select(_on_civ_selected)
 	_select.visible = not lock_civ
+	var heading := Common.civ_heading()
+	heading.visible = _select.visible
+	name_row.add_child(heading)
 	name_row.add_child(_select)
 	_history = RichTextLabel.new()
 	_history.bbcode_enabled = true
@@ -203,15 +206,21 @@ func set_civ(index: int) -> void:
 func _phase_ident(phase: int) -> Control:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
+	# PhaseIdent.drawPhaseIcon: the civ's own phase tech (Kōmopolis for the Athenians).
+	var phases: Array = Common.text().get("civs", {}).get(Common.civ_code(civ), {}).get("phases", [])
+	var ph: Dictionary = phases[phase - 1] if phase - 1 < phases.size() else {}
+	var title := Common.entity_name(ph.get("generic_name", "%s Phase" % Common.phase_name(phase)), ph.get("specific_name", ""))
 	var icon := TextureRect.new()
-	icon.texture = Common.texture(RtsoReference.phase_icon(phase))
+	icon.texture = Common.texture(Common.ICON_ROOT + "technologies/" + ph["icon"]) if ph.get("icon", "") != "" else null
+	if icon.texture == null:
+		icon.texture = Common.texture(RtsoReference.phase_icon(phase))
 	icon.custom_minimum_size = Vector2(28, 28)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.tooltip_text = "%s Phase" % Common.phase_name(phase)
+	icon.tooltip_text = title
 	head.add_child(icon)
 	var lbl := Label.new()
-	lbl.text = "%s Phase" % Common.phase_name(phase)
+	lbl.text = title
 	lbl.add_theme_font_size_override("font_size", 18)
 	lbl.add_theme_color_override("font_color", Color(1, 0.83, 0.42))
 	head.add_child(lbl)
