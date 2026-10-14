@@ -12533,6 +12533,13 @@
       "player": 2,
       "x": -93.2,
       "z": -79.01
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 82.08,
+      "z": 91.61,
+      "template": "hellenic_stoa"
     }
   ],
   "units": [

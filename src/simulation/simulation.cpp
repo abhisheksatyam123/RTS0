@@ -11292,9 +11292,10 @@ void Simulation::tick_combat(float dt) {
 				if (!unit_target(i)) return;
 				in_reach = true;
 				if (!seen(units_.pos_x[i], units_.pos_z[i])) return;
-				const bool human = ai.prefers_human && unit_combat_at(i).classes.has(CC_HUMAN);
+				const auto &cls = unit_combat_at(i).classes;
+				const bool preferred = (ai.prefers_human && cls.has(CC_HUMAN)) || (ai.prefers_inorganic && !cls.has(CC_ORGANIC));
 				const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
-				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(human ? 0 : 49), dx * dx + dz * dz});
+				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(preferred ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
 		for (const int32_t f : wild) {
@@ -11308,7 +11309,8 @@ void Simulation::tick_combat(float dt) {
 			if (!building_target(buildings_[o])) continue;
 			in_reach = true;
 			const float dx = buildings_[o].x - b.x, dz = buildings_[o].z - b.z;
-			if (seen_structure(buildings_[o].x, buildings_[o].z)) arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, 49, dx * dx + dz * dz});
+			if (seen_structure(buildings_[o].x, buildings_[o].z))
+				arrow_targets.push_back({(int32_t)o, ARROW_BUILDING, (uint8_t)(ai.prefers_inorganic ? 0 : 49), dx * dx + dz * dz});
 		}
 		if (!in_reach) { // FireArrows with no targets cancels the timer
 			b.arrow_timer_on = false;
