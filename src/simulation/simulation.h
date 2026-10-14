@@ -2800,6 +2800,8 @@ private:
 	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
 	// 0 A.D.'s ProductionQueue holds an item until there is room.
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false);
+	bool petra_relic_targeted(uint32_t relic_id) const;
+	bool petra_unit_target_ok(int32_t t) const;
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
 	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
 	bool petra_emergency_rally(const Building &b) const {
