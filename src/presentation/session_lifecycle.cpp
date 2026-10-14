@@ -1028,6 +1028,7 @@ void RtsoMain::_process(double delta) {
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
+	show_trigger_dialogs(sim->take_trigger_dialogs());
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
