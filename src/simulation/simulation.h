@@ -2202,6 +2202,10 @@ private:
 	void fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) const;
 	void rebuild_nav_grid(); // Phase1: rebuild NavGrid from buildings+water (mirrors CCmpObstructionManager rasterize)
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
+	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
+	bool near_deep_water(float x, float z, float c) const;
+	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
+	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
