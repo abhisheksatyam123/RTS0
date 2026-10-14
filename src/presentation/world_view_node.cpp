@@ -38,6 +38,8 @@
 #include <godot_cpp/classes/curve.hpp>
 #include <godot_cpp/classes/curve_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/sprite3d.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/texture2d_array.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
@@ -174,6 +176,22 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 		v.hp_fg->set_mesh(hp_fg_mesh);
 		v.hp_fg->set_material_override(hp_green_mat);
 		add_child(v.hp_fg);
+
+		v.xp_bg = memnew(MeshInstance3D);
+		v.xp_bg->set_mesh(xp_bg_mesh);
+		v.xp_bg->set_material_override(hp_bg_mat);
+		add_child(v.xp_bg);
+
+		v.xp_fg = memnew(MeshInstance3D);
+		v.xp_fg->set_mesh(xp_fg_mesh);
+		v.xp_fg->set_material_override(xp_mat);
+		add_child(v.xp_fg);
+
+		v.rank_icon = memnew(Sprite3D);
+		v.rank_icon->set_billboard_mode(BaseMaterial3D::BILLBOARD_ENABLED);
+		v.rank_icon->set_draw_flag(SpriteBase3D::FLAG_SHADED, false);
+		v.rank_icon->set_alpha_cut_mode(SpriteBase3D::ALPHA_CUT_DISCARD);
+		add_child(v.rank_icon);
 	}
 	UnitVis &v = unit_pool[slot];
 	v.sim_id = sim_id;
@@ -181,6 +199,9 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 	v.root->set_visible(true);
 	v.hp_bg->set_visible(false);
 	v.hp_fg->set_visible(false);
+	v.xp_bg->set_visible(false);
+	v.xp_fg->set_visible(false);
+	v.rank_icon->set_visible(false);
 	unit_slot[sim_id] = slot;
 	return v;
 }
@@ -280,6 +301,15 @@ void RtsoWorldView::_ready() {
 	hp_blue_mat->set_albedo(Color(0.25f, 0.65f, 1.0f, 0.95f));
 	hp_blue_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
 
+	// The experience bar: 2/3 of a health bar's height (StatusBars AddExperienceBar).
+	xp_bg_mesh.instantiate();
+	xp_bg_mesh->set_size(Vector3(0.9f, 0.055f, 0.04f));
+	xp_fg_mesh.instantiate();
+	xp_fg_mesh->set_size(Vector3(0.88f, 0.045f, 0.05f));
+	xp_mat.instantiate();
+	xp_mat->set_albedo(Color(0.95f, 0.75f, 0.2f, 0.95f));
+	xp_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+
 	// Terrain Plane
 	plane_mesh.instantiate();
 	plane_mesh->set_size(Vector2(rtso::Simulation::MAP_HALF * 2.0f, rtso::Simulation::MAP_HALF * 2.0f));
@@ -374,8 +404,9 @@ void RtsoWorldView::_ready() {
 		// family). Bushes and saplings are small leafy trees; a date fruit supply is a short
 		// date palm. Scales as in pick_tree_kinds.
 		static_assert(FLORA_KINDS == rtso::FLORA_COUNT, "one batch per FloraKind");
+		static_assert(rtso::FLORA_FAMILY_COUNT == 27, "kKinds lists the families");
 		struct Kind { const char *id; float scale; bool tree; };
-		static const Kind kKinds[FLORA_KINDS] = {
+		static const Kind kKinds[rtso::FLORA_FAMILY_COUNT] = {
 			{ nullptr, 1.0f, true }, { "tree", 1.0f, true }, { "pine", 1.0f, true }, { "palm", 1.0f, true },
 			{ "oak", 1.15f, true }, { "baobab", 0.45f, true }, { "acacia", 0.6f, true }, { "bamboo", 1.0f, true },
 			{ "tree", 0.45f, true }, { "fruit_bush", 1.0f, false }, { "apple", 1.0f, false }, { "palm", 0.7f, false },
@@ -387,14 +418,22 @@ void RtsoWorldView::_ready() {
 			{ "maple", 0.3f, true }, { "juniper", 0.3f, true }, { "teak", 0.21f, true },
 		};
 		for (int k = 1; k < FLORA_KINDS; ++k) {
+			// A template kind draws its own 0.28 actor (extract_0ad_assets.py ZIP_FLORA keeps
+			// 0 A.D.'s metres, as fetch_0ad_trees.py does); a fruit supply does not sway.
+			Kind kd{ nullptr, 0.3f, true };
+			if (k < rtso::FLORA_FAMILY_COUNT) kd = kKinds[k];
+			else {
+				const auto &t = rtso::flora_template_info(k - rtso::FLORA_TEMPLATE_FIRST);
+				kd = Kind{ t.model_id, 0.3f, !t.fruit };
+			}
 			rtso::ModelLibrary::Entry models[TREE_VARIANTS];
-			flora_variants[k] = tree_family_models(kKinds[k].id, models, TREE_VARIANTS);
-			flora_scale[k] = kKinds[k].scale;
+			flora_variants[k] = tree_family_models(kd.id, models, TREE_VARIANTS);
+			flora_scale[k] = kd.scale;
 			for (int v = 0; v < flora_variants[k]; ++v) {
 				const auto &e = models[v];
 				enable_instance_tint(e.mesh);
-				flora_mm[k][v] = create_multimesh(kKinds[k].tree ? wind_mesh(e.mesh) : e.mesh, true);
-				flora_y[k][v] = e.y_offset * kKinds[k].scale;
+				flora_mm[k][v] = create_multimesh(kd.tree ? wind_mesh(e.mesh) : e.mesh, true);
+				flora_y[k][v] = e.y_offset * kd.scale;
 				flora_mmi[k][v] = memnew(MultiMeshInstance3D);
 				flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
 				add_child(flora_mmi[k][v]);
@@ -1547,6 +1586,9 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.ring) v.ring->set_visible(false);
 	if (v.hp_bg) v.hp_bg->set_visible(false);
 	if (v.hp_fg) v.hp_fg->set_visible(false);
+	if (v.xp_bg) v.xp_bg->set_visible(false);
+	if (v.xp_fg) v.xp_fg->set_visible(false);
+	if (v.rank_icon) v.rank_icon->set_visible(false);
 	if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 		v.anim->set_active(false);
 }
@@ -2634,6 +2676,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	std::unordered_set<uint32_t> active_unit_ids;
 
+	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
+	const bool status_xp_bar = rtso::user_config::get_bool("gui.session.experiencestatusbar");
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint32_t id = uview.id[i];
@@ -2819,6 +2863,34 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Vector3 fg_offset((hp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f);
 			v.hp_fg->set_transform(Transform3D(fg_basis, hp_pos + fg_offset));
 		}
+		// StatusBars.js: the experience bar under the health bar and the rank icon on top,
+		// per gui.session.experiencestatusbar and gui.session.rankabovestatusbar.
+		const float need_xp = show_hp && status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
+		const bool show_xp = need_xp > 0.0f;
+		v.xp_bg->set_visible(show_xp);
+		v.xp_fg->set_visible(show_xp);
+		if (show_xp) {
+			const float xp_ratio = Math::clamp((float)uview.xp[i] / need_xp, 0.0f, 1.0f);
+			Vector3 xp_pos(x, v.hp_bg->get_transform().origin.y - 0.08f, z);
+			v.xp_bg->set_transform(Transform3D(Basis(), xp_pos));
+			Basis xb;
+			xb.scale(Vector3(std::max(xp_ratio, 0.001f), 1.0f, 1.0f));
+			v.xp_fg->set_transform(Transform3D(xb, xp_pos + Vector3((xp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f)));
+		}
+		const uint8_t rank = show_hp && status_rank_icon ? uview.rank[i] : 0;
+		if (rank >= 2) {
+			if (v.rank_shown != rank) {
+				v.rank_shown = rank;
+				v.rank_icon->set_texture(ResourceLoader::get_singleton()->load(rank >= 3 ?
+						"res://assets/textures/ui/archive/icons/ranks/Elite.png" :
+						"res://assets/textures/ui/archive/icons/ranks/Advanced.png"));
+				const Ref<Texture2D> tex = v.rank_icon->get_texture();
+				// Half a bar wide (StatusBars AddRankIcon: BarWidth / 2).
+				if (tex.is_valid() && tex->get_width() > 0) v.rank_icon->set_pixel_size(0.45f / tex->get_width());
+			}
+			v.rank_icon->set_position(Vector3(x, v.hp_bg->get_transform().origin.y + 0.3f, z));
+		}
+		v.rank_icon->set_visible(rank >= 2);
 	}
 
 	for (size_t s = 0; s < unit_pool.size(); ++s) {

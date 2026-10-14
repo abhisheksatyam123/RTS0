@@ -4145,70 +4145,70 @@
       "amount": 5000
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -56.74,
       "z": 35.01,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -59.02,
       "z": 34.75,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -41.17,
       "z": 54.34,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -38.22,
       "z": 51.44,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -34.23,
       "z": 49.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -31.92,
       "z": 49.69,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -31.26,
       "z": 52.56,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -57.12,
       "z": 56.32,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -55.94,
       "z": 56.34,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_temperate",
       "x": -56.15,
       "z": 56.26,
       "amount": 100,
@@ -12609,301 +12609,301 @@
       "amount": 200
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -71.99,
       "z": 52.47,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -70.87,
       "z": 48.88,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -67.88,
       "z": 44.02,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -66.84,
       "z": 47.7,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -61.87,
       "z": 43.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -62.01,
       "z": 47.78,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -56.84,
       "z": 44.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -58.74,
       "z": 38.65,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -63.66,
       "z": 38.0,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -69.36,
       "z": 40.17,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -72.99,
       "z": 42.48,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -77.38,
       "z": 43.19,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -79.47,
       "z": 44.98,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -74.37,
       "z": 46.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -54.17,
       "z": 40.54,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -51.23,
       "z": 43.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -44.03,
       "z": 44.7,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -47.09,
       "z": 41.32,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -51.26,
       "z": 48.23,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -56.04,
       "z": 49.75,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -47.37,
       "z": 47.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -43.84,
       "z": 55.94,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -38.75,
       "z": 58.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -39.93,
       "z": 62.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -44.03,
       "z": 68.36,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -47.72,
       "z": 75.87,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -43.13,
       "z": 76.61,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -36.91,
       "z": 67.52,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -40.38,
       "z": 71.49,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -35.6,
       "z": 72.08,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -32.62,
       "z": 65.3,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -37.4,
       "z": 63.41,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -33.29,
       "z": 60.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -31.81,
       "z": 70.93,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -43.32,
       "z": 59.85,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -38.19,
       "z": 78.35,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -28.51,
       "z": 63.51,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -34.53,
       "z": 78.58,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -40.82,
       "z": 42.45,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -34.52,
       "z": 35.55,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -32.24,
       "z": 42.9,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -30.66,
       "z": 38.07,
       "amount": 100,
       "max_gatherers": 4
     },
     {
-      "type": "bush",
+      "type": "tree/bush_badlands",
       "x": -33.36,
       "z": 46.61,
       "amount": 100,
@@ -14115,241 +14115,281 @@
       "type": "cavalry",
       "player": 2,
       "x": -56.23,
-      "z": 62.48
+      "z": 62.48,
+      "template": "units/default_cavalry"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": -56.74,
-      "z": 61.79
+      "z": 61.79,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": -57.17,
-      "z": 61.49
+      "z": 61.49,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": -57.54,
-      "z": 61.07
+      "z": 61.07,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -55.88,
-      "z": 62.75
+      "z": 62.75,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -55.56,
-      "z": 63.16
+      "z": 63.16,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -55.2,
-      "z": 63.66
+      "z": 63.66,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -56.05,
-      "z": 61.56
+      "z": 61.56,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -56.32,
-      "z": 61.21
+      "z": 61.21,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -56.59,
-      "z": 60.98
+      "z": 60.98,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 70.24,
-      "z": 51.72
+      "z": 51.72,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 70.51,
-      "z": 51.95
+      "z": 51.95,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 3,
       "x": 70.78,
-      "z": 52.29
+      "z": 52.29,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 71.64,
-      "z": 54.39
+      "z": 54.39,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 71.28,
-      "z": 53.89
+      "z": 53.89,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 3,
       "x": 70.96,
-      "z": 53.49
+      "z": 53.49,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 69.29,
-      "z": 51.81
+      "z": 51.81,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 69.67,
-      "z": 52.23
+      "z": 52.23,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 3,
       "x": 70.09,
-      "z": 52.53
+      "z": 52.53,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "cavalry",
       "player": 3,
       "x": 70.6,
-      "z": 53.22
+      "z": 53.22,
+      "template": "units/default_cavalry"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 50.95,
-      "z": -58.59
+      "z": -58.59,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 51.22,
-      "z": -58.36
+      "z": -58.36,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 4,
       "x": 51.49,
-      "z": -58.02
+      "z": -58.02,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "archer",
       "player": 4,
       "x": 52.34,
-      "z": -55.91
+      "z": -55.91,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 4,
       "x": 52.1,
-      "z": -56.35
+      "z": -56.35,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 4,
       "x": 51.66,
-      "z": -56.82
+      "z": -56.82,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": 50.0,
-      "z": -58.5
+      "z": -58.5,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": 50.37,
-      "z": -58.08
+      "z": -58.08,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 4,
       "x": 50.79,
-      "z": -57.79
+      "z": -57.79,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "cavalry",
       "player": 4,
       "x": 51.31,
-      "z": -57.09
+      "z": -57.09,
+      "template": "units/default_cavalry"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -43.25,
-      "z": -64.32
+      "z": -64.32,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -44.0,
-      "z": -64.42
+      "z": -64.42,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -43.61,
-      "z": -64.7
+      "z": -64.7,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -44.41,
-      "z": -64.0
+      "z": -64.0,
+      "template": "units/default_infantry_ranged_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -48.49,
-      "z": -69.01
+      "z": -69.01,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -48.82,
-      "z": -68.25
+      "z": -68.25,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -45.33,
-      "z": -61.06
+      "z": -61.06,
+      "template": "units/default_cavalry"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -48.21,
-      "z": -69.67
+      "z": -69.67,
+      "template": "units/default_infantry_melee_b"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -43.51,
-      "z": -63.87
+      "z": -63.87,
+      "template": "units/default_support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -43.95,
-      "z": -63.45
+      "z": -63.45,
+      "template": "units/default_support_civilian"
     }
   ],
   "treasures": [

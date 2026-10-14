@@ -364,8 +364,9 @@ size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
 [node name="Preview" type="Panel" parent="VBox/HBox/Right"]
-custom_minimum_size = Vector2(0, 150)
+custom_minimum_size = Vector2(0, 104)
 layout_mode = 2
+size_flags_vertical = 3
 
 [node name="Image" type="TextureRect" parent="VBox/HBox/Right/Preview"]
 visible = false
@@ -399,7 +400,7 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="Crest" type="TextureRect" parent="VBox/HBox/Right/CivPreview"]
-custom_minimum_size = Vector2(72, 72)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
@@ -412,7 +413,6 @@ autowrap_mode = 2
 
 [node name="SlotsBox" type="VBoxContainer" parent="VBox/HBox/Right"]
 layout_mode = 2
-size_flags_vertical = 3
 theme_override_constants/separation = 4
 
 [node name="SlotCountRow" type="HBoxContainer" parent="VBox/HBox/Right/SlotsBox"]

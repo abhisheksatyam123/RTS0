@@ -203,6 +203,9 @@ public:
 	NetPeer* getPeer(uint32_t peer_id);
 	const NetStats& getStats() const { return stats_; }
 	uint32_t getLocalPeerId() const { return local_peer_id_; }
+	// Client: milliseconds since anything came from the host (0 A.D.
+	// GetLastReceivedTime, for the "Losing connection to server" warning).
+	uint32_t hostSilentMs() const;
 	// How every connected client is doing (0 A.D. NMT_CLIENT_PERFORMANCE): the
 	// host measures it, a client has the host's latest report.
 	const std::vector<ClientPerformanceMsg::Entry> &clientPerformance() const { return client_perf_; }

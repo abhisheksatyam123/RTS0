@@ -19,8 +19,7 @@ namespace rtso {
 // RTS0 runs it on the 2-unit (8 m) spatial grid, with source positions kept
 // to half a cell, 4 m: 0 A.D.'s LOS tile (which it refines further). All
 // circle maths is integer, so a removal clears exactly the cells its add lit.
-// Like 0 A.D.'s LOS (and unlike RTS0's presentation fog), terrain does not
-// block it.
+// Like 0 A.D.'s LOS, terrain does not block it; the fog players see is this LOS.
 struct LosSource {
 	int16_t qx = 0, qz = 0; // centre in half cells from the map's -x/-z corner
 	uint16_t rq = 0;        // vision radius in half cells; 0 = no source
@@ -45,6 +44,7 @@ public:
 		const size_t n = (size_t)res * (size_t)res;
 		counts_.assign(n * PLAYERS, 0);
 		state_.assign(n, 0);
+		build_off_world();
 		if (wtab_.empty()) {
 			wtab_.resize((size_t)MAX_RQ * MAX_RQ);
 			for (int r = 0; r < MAX_RQ; ++r)
@@ -53,6 +53,19 @@ public:
 	}
 	int res() const { return res_; }
 	size_t cells() const { return state_.size(); }
+
+	// 0 A.D. circular maps (CCmpRangeManager SetLosCircular / LosIsOffWorld): the cells
+	// whose centres lie outside the circle the map covers are off the world, never
+	// visible or explored by anyone. Square maps (the default) have no such cells.
+	void set_circular(bool on) {
+		circular_ = on;
+		build_off_world();
+		for (size_t c = 0; c < off_world_.size(); ++c)
+			if (off_world_[c]) state_[c] = 0;
+	}
+	bool circular() const { return circular_; }
+	bool off_world(int cell) const { return !off_world_.empty() && off_world_[(size_t)cell]; }
+	size_t in_world_cells() const { return state_.size() - off_world_count_; }
 
 	// The source a vision circle of radius r around (x, z) makes for owner.
 	LosSource source_at(float x, float z, float r, uint8_t owner) const {
@@ -104,9 +117,12 @@ public:
 	const std::vector<uint16_t> &state() const { return state_; }
 
 	// Every cell explored by every player (0 A.D. "Explored map", or a loaded save's bits).
-	void set_explored(int cell, uint8_t bits) { state_[(size_t)cell] |= (uint16_t)((uint16_t)bits << 8); }
+	void set_explored(int cell, uint8_t bits) {
+		if (!off_world(cell)) state_[(size_t)cell] |= (uint16_t)((uint16_t)bits << 8);
+	}
 	void explore_all(uint8_t players) {
-		for (auto &s : state_) s |= (uint16_t)((uint16_t)players << 8);
+		for (size_t c = 0; c < state_.size(); ++c)
+			if (!off_world((int)c)) state_[c] |= (uint16_t)((uint16_t)players << 8);
 	}
 
 	uint32_t hash() const {
@@ -133,8 +149,31 @@ private:
 	int row_hi(const LosSource &s) const { return std::min(res_ - 1, fdiv((int)s.qz + (int)s.rq - Q / 2)); }
 
 	void add_cells(uint16_t *counts, uint16_t bits, size_t row, int i0, int i1) {
+		if (off_world_.empty()) {
+			for (int i = i0; i <= i1; ++i)
+				if (counts[row + (size_t)i]++ == 0) state_[row + (size_t)i] |= bits;
+			return;
+		}
 		for (int i = i0; i <= i1; ++i)
-			if (counts[row + (size_t)i]++ == 0) state_[row + (size_t)i] |= bits;
+			if (counts[row + (size_t)i]++ == 0 && !off_world_[row + (size_t)i]) state_[row + (size_t)i] |= bits;
+	}
+
+	// LosIsOffWorld for a circular map: a cell is off the world when its centre is at least
+	// the map's half width from the centre.
+	void build_off_world() {
+		off_world_.clear();
+		off_world_count_ = 0;
+		if (!circular_ || res_ <= 0) return;
+		off_world_.assign((size_t)res_ * (size_t)res_, 0);
+		const int64_t r = (int64_t)res_; // radius res / 2, in half cells
+		for (int j = 0; j < res_; ++j)
+			for (int i = 0; i < res_; ++i) {
+				const int64_t dx = 2 * i + 1 - r, dz = 2 * j + 1 - r;
+				if (dx * dx + dz * dz >= r * r) {
+					off_world_[(size_t)j * (size_t)res_ + (size_t)i] = 1;
+					++off_world_count_;
+				}
+			}
 	}
 	void remove_cells(uint16_t *counts, uint16_t vis, size_t row, int i0, int i1) {
 		for (int i = i0; i <= i1; ++i)
@@ -194,6 +233,9 @@ private:
 	std::vector<uint16_t> counts_; // [player][cell] sources seeing the cell
 	std::vector<uint16_t> state_;  // per cell: bit p visible to p, bit 8 + p explored by p
 	std::vector<uint8_t> wtab_;   // half_width table
+	bool circular_ = false;
+	std::vector<uint8_t> off_world_; // per cell: 1 = outside a circular map (empty on square maps)
+	size_t off_world_count_ = 0;
 };
 
 } // namespace rtso
