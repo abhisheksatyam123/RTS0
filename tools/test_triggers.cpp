@@ -403,6 +403,13 @@ static void check_survival() {
 		      s.get_terrain_height(b.x, b.z) > 25.0f * k, "player %d: seeker at %.1f, civic centre at %.1f", p,
 		      s.get_terrain_height(s.units_.pos_x[u], s.units_.pos_z[u]), s.get_terrain_height(b.x, b.z));
 	}
+	// "nonbuilder|undeletable|": the seeker can't build or be deleted.
+	{
+		const int32_t u = s.lookup_unit(seeker[0]);
+		CHECK(unit_can_build(s.units_.unit_type[u], s.units_.tmpl[u]) && !s.unit_builds((size_t)u), "seeker builds");
+		s.cmd_delete(0, &seeker[0], 1);
+		CHECK(s.units_.alive[u], "seeker deleted");
+	}
 	// 0.28's placement obstructors: no foundation in the low centre, while the plateau round a
 	// civic centre stays open.
 	auto place = [&](uint8_t player, float x, float z, uint8_t type) {

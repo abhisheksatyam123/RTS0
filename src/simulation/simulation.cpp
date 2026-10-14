@@ -4721,7 +4721,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 	for (size_t i = 0; i < count; ++i) {
 		int32_t uidx = lookup_unit(unit_ids[i]);
 		if (uidx < 0 || !units_.alive[uidx]) continue;
-		if (!unit_can_build(units_.unit_type[uidx], units_.tmpl[uidx])) continue;
+		if (!unit_builds((size_t)uidx)) continue;
 		// Builder.js CanRepair: only the builder's own or allied foundations and structures.
 		if (b.team != units_.team[uidx] && !is_ally(units_.team[uidx], b.team)) continue;
 
@@ -13875,7 +13875,7 @@ void Simulation::apply_rally_step(uint32_t uid, const Building &b, const Buildin
 	const int32_t i = lookup_unit(uid);
 	if (i < 0) return;
 	const uint8_t ut = units_.unit_type[i];
-	const bool builder = unit_can_build(ut, units_.tmpl[i]);
+	const bool builder = unit_builds((size_t)i);
 	auto rit = res_id_to_idx_.find(st.res_id);
 	if (st.res_id != 0 && rit != res_id_to_idx_.end() && resources_.alive[rit->second] && resources_.amount[rit->second] > 0) {
 		if (can_gather((size_t)i, rit->second)) {
@@ -14024,7 +14024,7 @@ void Simulation::tick_unit_ai(float dt) {
 			}
 			// GUARDING Timer: a builder repairs the structure it guards once it is damaged
 			// (PushOrderFront Repair), then guards again.
-			if ((i + ticks_) % 4 == 0 && unit_can_build(units_.unit_type[i], units_.tmpl[i])) {
+			if ((i + ticks_) % 4 == 0 && unit_builds(i)) {
 				auto bit = building_id_to_idx_.find(units_.order_target[i]);
 				if (bit != building_id_to_idx_.end()) {
 					const Building &gb = buildings_[bit->second];
@@ -14229,7 +14229,7 @@ void Simulation::cmd_delete(uint8_t player, const uint32_t *ids, size_t count) {
 	for (size_t k = 0; k < count; ++k) {
 		const uint32_t id = ids[k];
 		const int32_t i = lookup_unit(id);
-		if (is_relic_unit(i)) continue; // template_unit_catafalque.xml Identity/Undeletable
+		if (is_relic_unit(i) || undeletable_unit(id)) continue; // template_unit_catafalque.xml Identity/Undeletable; Survival's seekers
 		if (i >= 0 && units_.alive[i] && units_.team[i] == player) {
 			units_.hp[i] = 0.0f;
 			units_.alive[i] = 0;
@@ -14733,7 +14733,7 @@ bool Simulation::is_repairable_unit(uint32_t unit_id) const {
 bool Simulation::can_repair_unit(size_t i, int32_t t) const {
 	if (t < 0 || (size_t)t == i || !units_.alive[t] || units_.hp[t] <= 0.0f || units_.hp[t] >= units_.max_hp[t]) return false;
 	if (units_.action_state[t] == ACTION_GARRISONED || unit_repair_time_ratio((size_t)t) <= 0.0f) return false;
-	if (!unit_can_build(units_.unit_type[i], units_.tmpl[i])) return false;
+	if (!unit_builds(i)) return false;
 	const uint8_t a = units_.team[i], b = units_.team[t];
 	return a == b || is_ally(a, b);
 }
@@ -16654,7 +16654,7 @@ void Simulation::petra_manage_economy(float dt) {
 				if (d < best) { best = d; my_base = (int)a + 1; }
 			}
 		}
-		const bool builder = unit_can_build(units_.unit_type[widx], units_.tmpl[widx]);
+		const bool builder = unit_builds((size_t)widx);
 		const uint32_t uid = units_.id[widx];
 
 		// findSupply: the first listed supply with room, that the worker gathers, and that is
