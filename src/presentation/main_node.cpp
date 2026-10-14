@@ -643,19 +643,58 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 }
 
 void RtsoMain::chat_send_wire(const std::string &wire) {
-	// 0 A.D. gui/session/chat/ChatCommands.js: the host removes a player by name.
-	for (const char *cmd : {"/kick ", "/ban "}) {
-		const std::string prefix = cmd;
-		if (wire.compare(0, prefix.size(), prefix) != 0) continue;
-		const std::string name = wire.substr(prefix.size());
-		const bool ban = prefix == "/ban ";
-		String msg;
-		if (!net_host_.isHost()) msg = "Only the host can kick or ban players";
-		else if (!net_host_.kickPeer(net_host_.peerByName(name), ban)) msg = "No player named " + String::utf8(name.c_str());
-		if (!msg.is_empty() && lobby_status) lobby_status->set_text(msg);
-		return;
-	}
 	net_host_.sendChat(wire);
+}
+
+// 0 A.D. gui/common/network.js g_NetworkCommands, run before the text would
+// be sent: /kick and /ban a player by name, /kickspecs and /banspecs every
+// observer, /list the connected users, /clear the chat history. Only the
+// host (the controller) kicks; a single-player game has nobody to kick.
+bool RtsoMain::chat_network_command(const String &text) {
+	if (!text.begins_with("/")) return false;
+	const int space = text.find(" ");
+	const String command = space < 0 ? text : text.substr(0, space);
+	const String argument = space < 0 ? String() : text.substr(space + 1).strip_edges();
+	auto system = [&](const String &line) { chat_window_.append_line(line + String("\n")); };
+	const bool networked = net_lockstep();
+	if (command == "/kick" || command == "/ban" || command == "/kickspecs" || command == "/banspecs") {
+		const bool ban = command == "/ban" || command == "/banspecs";
+		const bool specs = command.ends_with("specs");
+		if (networked && !net_host_.isHost()) {
+			system(tr("Only the host can kick clients!"));
+		} else if (!networked) {
+			system(specs ? tr("Offline game! No spectators to kick or ban.") : tr("Offline game! Can not kick or ban."));
+		} else if (specs) {
+			for (const auto &e : net_host_.playerAssignment())
+				if (e.player >= rtso::MAX_PLAYERS && e.client != 0 && e.status != rtso::PlayerAssignmentMsg::LEFT)
+					net_host_.kickPeer(net_host_.peerByName(e.name), ban);
+		} else {
+			net_host_.kickPeer(net_host_.peerByName(argument.utf8().get_data()), ban);
+		}
+		return true;
+	}
+	if (command == "/list") {
+		// getUsernameList: sorted by player slot, observers last, in their colours.
+		std::vector<std::pair<uint32_t, String>> users;
+		if (networked) {
+			for (const auto &e : net_host_.playerAssignment())
+				if (e.status != rtso::PlayerAssignmentMsg::LEFT)
+					users.emplace_back(e.player < rtso::MAX_PLAYERS ? e.player : 1000u + e.client,
+							chat_user(e.client == turn_mgr_.local_client_id() ? String() : "peer-" + String::num_int64(e.client)));
+		} else {
+			users.emplace_back(0u, chat_user(""));
+		}
+		std::stable_sort(users.begin(), users.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+		String names;
+		for (const auto &u : users) names += (names.is_empty() ? String() : tr(", ")) + u.second;
+		system(sprintf0(tr("Users (%(num)s): %(users)s"), {{"num", String::num_int64((int64_t)users.size())}, {"users", names}}));
+		return true;
+	}
+	if (command == "/clear") {
+		chat_window_.clear();
+		return true;
+	}
+	return false;
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
@@ -711,8 +750,11 @@ void RtsoMain::detect_attacks(const std::vector<rtso::Simulation::AttackedEvent>
 	for (const auto &a : attacks) {
 		// Attacks against other players, or dealt by myself, are not registered.
 		if (a.target_owner != me || a.attacker_owner == me) continue;
-		if (attack_detection_.report(a.x, a.z, match_elapsed_time))
+		if (attack_detection_.report(a.x, a.z, match_elapsed_time)) {
 			notify_attack(Vector3(a.x, 0, a.z), a.attacker_owner, a.target_is_building != 0);
+			// messages.js "attack": a followed player's attacked entity takes the camera and the selection.
+			if (follow_player_ && followed_view() == (int)me) follow_focus(a.target_id, true);
+		}
 	}
 }
 
@@ -1121,6 +1163,14 @@ void RtsoMain::post_network_chat() {
 		const String name = String::utf8(k.name.empty() ? k.guid.c_str() : k.name.c_str()).replace("[", "[lb]");
 		chat_window_.append_line(sprintf0(k.ban ? tr("%(username)s has been banned") : tr("%(username)s has been kicked"), {{"username", name}}) + "\n");
 	}
+	// NMT_REJOINED, once the rejoiner has loaded (ChatMessageFormatNetwork rejoined).
+	const auto &rejoined = turn_mgr_.rejoined_clients();
+	for (; rejoined_chatted_ < rejoined.size(); ++rejoined_chatted_)
+		for (const auto &e : now)
+			if (e.client == rejoined[rejoined_chatted_] && e.status != rtso::PlayerAssignmentMsg::LEFT) {
+				chat_window_.append_line(sprintf0(tr("%(player)s has rejoined the game."), {{"player", who(e)}}) + "\n");
+				break;
+			}
 }
 
 // 0 A.D. Menu.toggle: the menu slides open over the running game; only its
@@ -1774,6 +1824,8 @@ void RtsoMain::update_observer_view_picker() {
 		observer_mode_label_ = memnew(Label);
 		observer_mode_label_->set_text("Observer Mode");
 		row->add_child(observer_mode_label_);
+		observer_follow_box_ = new_follow_player_box();
+		row->add_child(observer_follow_box_);
 		CanvasLayer *layer = memnew(CanvasLayer);
 		layer->set_layer(5);
 		add_child(layer);
@@ -1910,6 +1962,116 @@ void RtsoMain::_on_research_progress_pressed(int slot) {
 		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 		return;
 	}
+}
+
+// DeveloperOverlay.toggle: only with cheats in a networked game; DeveloperOverlay.sendNotification
+// tells the other players ("aichat", shown as the player's chat line).
+void RtsoMain::toggle_dev_overlay() {
+	if (!sim || (net_lockstep() && !sim->cheats_enabled())) return;
+	const bool open = !dev_overlay_.is_open();
+	dev_overlay_.set_open(open);
+	chat_window_.post_own(tr(open ? "The Developer Overlay was opened." : "The Developer Overlay was closed."));
+	refresh_dev_overlay();
+}
+
+// DeveloperOverlayControlCheckboxes.js onPress handlers.
+void RtsoMain::_on_dev_command(int command) {
+	using D = rtso::RtsoDevOverlay;
+	if (!sim) return;
+	const bool on = dev_overlay_.checked(command);
+	const uint8_t me = local_player();
+	auto cheat = [&](uint8_t action, int32_t parameter, const std::vector<uint32_t> &ids) {
+		if (turn_cmds()) post_lockstep(39, ids.data(), ids.size(), 0.0f, 0.0f, (uint32_t)parameter, action);
+		else sim->cmd_cheat(me, action, parameter, 0, ids.data(), ids.size());
+	};
+	switch (command) {
+		case D::DEV_SELECTION_STATE: // SelectionEntityState
+			dev_overlay_.show_state(on);
+			break;
+		case D::DEV_REVEAL_MAP: // RevealMap: "reveal-map" with enable
+			cheat(rtso::Simulation::CHEAT_DEV_REVEAL_MAP, on ? 1 : 0, {});
+			break;
+		case D::DEV_RESTRICT_CAMERA: // RestrictCamera: GameView_SetConstrainCameraEnabled
+			if (cam_rig) cam_rig->set_constrain_camera(on);
+			break;
+		case D::DEV_PROMOTE: { // PromoteSelectedUnits: "promote" the selection; checked() is always false
+			std::vector<uint32_t> ids;
+			for (int k = 0; k < selected_ids.size(); ++k) ids.push_back((uint32_t)(int64_t)selected_ids[k]);
+			if (!ids.empty()) cheat(rtso::Simulation::CHEAT_DEV_PROMOTE, 0, ids);
+			break;
+		}
+		default:
+			break;
+	}
+	refresh_dev_overlay();
+}
+
+// The checked() handlers while the overlay is open, and DeveloperOverlayEntityState.update:
+// the first selected entity's state.
+void RtsoMain::refresh_dev_overlay() {
+	using D = rtso::RtsoDevOverlay;
+	if (!sim) return;
+	if (dev_overlay_.is_open()) {
+		dev_overlay_.set_checked(D::DEV_REVEAL_MAP, sim->reveal_map());
+		dev_overlay_.set_checked(D::DEV_RESTRICT_CAMERA, cam_rig ? cam_rig->is_constrain_camera() : true);
+		dev_overlay_.set_checked(D::DEV_PROMOTE, false);
+	}
+	if (!dev_overlay_.state_shown()) return;
+	String text = vformat("simulation: {timeElapsed:%d, players:\"<<<omitted>>>\"}", (int64_t)(match_elapsed_time * 1000.0));
+	const uint32_t first = !selected_ids.is_empty() ? (uint32_t)(int64_t)selected_ids[0] : 0;
+	if (first) {
+		auto uv = sim->units();
+		for (size_t i = 0; i < uv.count; ++i) {
+			if (uv.id[i] != first) continue;
+			const uint16_t tmpl = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
+			const char *tid = tmpl < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(tmpl).id : "";
+			text += "\n\nentity: {\n";
+			text += vformat("  id:%d\n  template:\"%s\"\n  player:%d\n", (int64_t)uv.id[i], String::utf8(tid ? tid : ""), (int64_t)uv.team[i]);
+			text += vformat("  hitpoints:%.1f\n  maxHitpoints:%.1f\n", uv.hp[i], uv.max_hp[i]);
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  heading:{x:%.2f, z:%.2f}\n", uv.pos_x[i], uv.pos_z[i],
+					uv.heading_x ? uv.heading_x[i] : 0.0f, uv.heading_z ? uv.heading_z[i] : 1.0f);
+			text += vformat("  unitType:%d\n  actionState:%d\n  stance:%d\n  rank:%d\n  xp:%d\n  kills:%d\n",
+					(int64_t)uv.unit_type[i], (int64_t)uv.action_state[i], (int64_t)uv.stance[i], (int64_t)uv.rank[i],
+					(int64_t)(uv.xp ? uv.xp[i] : 0), (int64_t)(uv.kills ? uv.kills[i] : 0));
+			text += vformat("  carrying:{type:%d, amount:%d}\n  formation:%d\n}", (int64_t)uv.res_type_carried[i],
+					(int64_t)uv.carry[i], (int64_t)uv.formation[i]);
+			break;
+		}
+	} else if (selected_building_id) {
+		for (const auto &b : sim->buildings()) {
+			if (b.id != selected_building_id) continue;
+			text += "\n\nentity: {\n";
+			text += vformat("  id:%d\n  type:%d\n  player:%d\n  hitpoints:%.1f\n  maxHitpoints:%.1f\n", (int64_t)b.id,
+					(int64_t)b.type, (int64_t)b.team, b.hp, b.max_hp);
+			text += vformat("  position:{x:%.2f, z:%.2f}\n  buildProgress:%.2f\n  queue:%d\n}", b.x, b.z, b.build_progress,
+					(int64_t)b.queue.size());
+			break;
+		}
+	}
+	dev_overlay_.set_state_text(text);
+}
+
+// Test hook: the overlay's open state, its boxes, the state text and the camera constraint.
+Dictionary RtsoMain::debug_dev_overlay() const {
+	using D = rtso::RtsoDevOverlay;
+	Dictionary d;
+	d["open"] = dev_overlay_.is_open();
+	d["reveal"] = dev_overlay_.checked(D::DEV_REVEAL_MAP);
+	d["restrict"] = dev_overlay_.checked(D::DEV_RESTRICT_CAMERA);
+	d["state_shown"] = dev_overlay_.state_shown();
+	d["state"] = dev_overlay_.state_text();
+	d["map_revealed"] = sim ? sim->reveal_map() : false;
+	d["chat_log"] = chat_window_.log_text();
+	d["camera_x"] = cam_rig ? cam_rig->get_target_pos().x : 0.0f;
+	int ranks = 0; // the selection's ranks added up
+	if (sim) {
+		auto v = sim->units();
+		for (int k = 0; k < selected_ids.size(); ++k)
+			for (size_t i = 0; i < v.count; ++i)
+				if (v.alive[i] && v.id[i] == (uint32_t)selected_ids[k]) ranks += v.rank[i];
+	}
+	d["selection_ranks"] = ranks;
+	return d;
 }
 
 // The group's living units (dead ones leave it), then selected or added;
@@ -2102,6 +2264,109 @@ void RtsoMain::try_train_template(uint32_t building_id, uint16_t tmpl, int count
 	}
 	if (sim->cmd_train_template(local_player(), building_id, tmpl, count))
 		play_civ_voice("select");
+}
+
+// FollowPlayer.xml: a "Follow Player" tick box with that tooltip, shown while an
+// observer or replay viewer watches one player (not Observer).
+CheckBox *RtsoMain::new_follow_player_box() {
+	CheckBox *box = memnew(CheckBox);
+	box->set_text("Follow Player");
+	box->set_tooltip_text("Follow Player");
+	box->set_focus_mode(Control::FOCUS_NONE);
+	box->set_pressed_no_signal(follow_player_);
+	box->set_visible(false);
+	box->connect("toggled", Callable(this, "set_follow_player"));
+	return box;
+}
+
+// The player an observer or replay viewer is watching, or -1 (Observer, Gaia, or playing).
+int RtsoMain::followed_view() const {
+	if (turn_mgr_.is_replaying()) return replay_view_ < rtso::MAX_PLAYERS ? (int)replay_view_ : -1;
+	if (spectating()) return observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
+	return -1;
+}
+
+void RtsoMain::set_follow_player(bool on) {
+	follow_player_ = on;
+	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
+		if (box) box->set_pressed_no_signal(on);
+}
+
+// messages.js "playercommand": with Follow Player on, each command the watched player
+// gives moves the camera to it and selects the units it ordered. Commands come from the
+// TurnManager, so these are the commands players gave; Petra's own orders are not
+// commands in RTS0 and only its attacks are followed.
+void RtsoMain::follow_player_tick() {
+	const int view = followed_view();
+	for (CheckBox *box : {observer_follow_box_, replay_follow_box_})
+		if (box) box->set_visible(view >= 0);
+	const bool on = follow_player_ && view >= 0 && sim;
+	turn_mgr_.set_record_applied(on);
+	if (!on) return;
+	for (const auto &a : turn_mgr_.take_applied_commands())
+		if ((int)a.player == view) follow_command(a.cmd);
+}
+
+void RtsoMain::follow_command(const rtso::NetCommand &c) {
+	using rtso::NetCommandType;
+	const auto type = (NetCommandType)c.cmd_type;
+	if (!cam_rig) return;
+	if (type == NetCommandType::NET_CMD_BUILD_REPAIR) {
+		// Focus the structure to build.
+		for (const auto &b : sim->buildings())
+			if (b.id == c.target_id) {
+				cam_rig->set_follow_id(0);
+				cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+				break;
+			}
+	} else if (type != NetCommandType::NET_CMD_TRAIN && type != NetCommandType::NET_CMD_RESEARCH &&
+			type != NetCommandType::NET_CMD_TRAIN_TEMPLATE && type != NetCommandType::NET_CMD_TRAIN_FROM_UNIT &&
+			type != NetCommandType::NET_CMD_RALLY && !c.entity_ids.empty()) {
+		// Focus the commanded entities, but keep the focus when training.
+		follow_focus(c.entity_ids[0], false);
+	}
+	// Select the units the command affected, and its target.
+	if (type == NetCommandType::NET_CMD_RALLY) return;
+	clear_selection();
+	auto uv = sim->units();
+	auto pick = [&](uint32_t id) {
+		if (!id) return;
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == id) {
+				if (uv.alive[i]) selected_ids.push_back((int32_t)id);
+				return;
+			}
+		if (selected_building_id == 0)
+			for (const auto &b : sim->buildings())
+				if (b.id == id && !b.wrecked) selected_building_id = id;
+	};
+	for (uint32_t id : c.entity_ids) pick(id);
+	pick(c.target_id);
+}
+
+// selection_panels_helpers.js setCameraFollow: a unit is followed, a structure looked at.
+void RtsoMain::follow_focus(uint32_t id, bool select) {
+	if (!sim || !cam_rig || !id) return;
+	auto uv = sim->units();
+	for (size_t i = 0; i < uv.count; ++i)
+		if (uv.id[i] == id && uv.alive[i]) {
+			cam_rig->set_follow_id(id);
+			if (select) {
+				clear_selection();
+				selected_ids.push_back((int32_t)id);
+			}
+			return;
+		}
+	for (const auto &b : sim->buildings())
+		if (b.id == id && !b.wrecked) {
+			cam_rig->set_follow_id(0);
+			cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
+			if (select) {
+				clear_selection();
+				selected_building_id = id;
+			}
+			return;
+		}
 }
 
 void RtsoMain::clear_selection() {
@@ -2935,6 +3200,10 @@ void RtsoMain::_on_lobby_start_pressed() {
 		emit_signal("net_setup_refused", String("Not every player is ready"));
 		return;
 	}
+	if (!net_saved_game_.is_empty()) {
+		host_start_saved_game();
+		return;
+	}
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
@@ -2986,6 +3255,15 @@ void RtsoMain::apply_net_game_start() {
 	turn_mgr_.set_game_start_applied_sim(sim);
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
+	if (setup.saved_game) {
+		// NMT_SAVED_GAME_START: not our world but the host's, sent as a rejoiner
+		// gets it; _process plays on once apply_pending_rejoin has loaded it.
+		net_setup_.setup = setup;
+		++net_setup_.seq;
+		turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
+		if (lobby_status) lobby_status->set_text("Loading the host's saved game");
+		return;
+	}
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
 	turn_mgr_.cancel_rejoin();
 	// The host numbers joiners 1, 2, ... in connect order; that id is our client id.
@@ -3095,7 +3373,7 @@ Dictionary RtsoMain::get_tech_tree() const {
 		Dictionary b;
 		b["id"] = (int)t;
 		b["name"] = String::utf8(bi.name);
-		b["phase"] = (int)rtso::building_required_phase(t);
+		b["phase"] = (int)rtso::building_required_phase(t, civ);
 		blds.push_back(b);
 	}
 	for (int t = 1; t < rtso::TECH_COUNT; ++t) {

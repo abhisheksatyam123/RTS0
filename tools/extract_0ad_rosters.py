@@ -256,6 +256,15 @@ UNIQUE_BUILDINGS = [
     ("BLD_INN", ["inn"], "inn", "house"),
     ("BLD_TENT", ["tent"], "tent", "house"),
     ("BLD_TRIUMPHAL_ARCH", ["arch"], "triumphal_arch", "arch"),
+    # More of them: the Persian Gate of All Nations and warehouse, the Gallic tavern, the
+    # Mauryan rampart tower, the Kushite shrine and the Han old fortress and Laozi gate.
+    ("BLD_HALL", ["hall"], "pers_hall", "palace"),
+    ("BLD_WAREHOUSE", ["warehouse"], "warehouse", "storehouse"),
+    ("BLD_TAVERN", ["tavern"], "tavern", "house"),
+    ("BLD_TOWER_DOUBLE", ["tower_double"], "maur_tower_double", "tower"),
+    ("BLD_KUSH_SHRINE", ["shrine"], "kush_shrine", "temple"),
+    ("BLD_FORTRESS_OLD", ["fortress_old"], "han_fortress_old", "fortress"),
+    ("BLD_LAOZI_GATE", ["laozigate"], "laozi_gate", "temple"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -263,7 +272,7 @@ WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wall
 # (sim_types.h wallset_info), not a square.
 ONE_CELL = {"BLD_SIEGE_WALL", "BLD_SIEGE_WALL_GATE"}
 # Civ structures named by Identity/SpecificName rather than a GenericName they share.
-SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC", "BLD_INN"}
+SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC", "BLD_INN", "BLD_WAREHOUSE"}
 # Structures no Builder list names: only an Upgrade reaches them.
 UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
                 "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE",
@@ -275,7 +284,9 @@ GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
 # mixins/trading_post.xml): no civ builds them.
 GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA"}
 # Civ structures in UNIQUE_BUILDINGS that only maps place: no civ builds them.
-MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH"}
+MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH",
+            "BLD_HALL", "BLD_WAREHOUSE", "BLD_TAVERN", "BLD_TOWER_DOUBLE", "BLD_KUSH_SHRINE", "BLD_FORTRESS_OLD",
+            "BLD_LAOZI_GATE"}
 # Generic structures a civ structure's Upgrade can start from (structures/cart/house,
 # structures/han/civil_centre, structures/han/defense_tower).
 UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
@@ -285,6 +296,8 @@ for _enum, _stems, _model, _portrait in UNIQUE_BUILDINGS:
     for _st in _stems:
         TRAINER_BUILDING[_st] = _enum
 TRAINER_BUILDING.update({"imperial_ministry": "BLD_MINISTRY", "ministry": "BLD_MINISTRY"})
+# "shrine" names the Gaia shrines' Trainer (GAIA_NATIVE_TRAINERS); kush/shrine trains nothing.
+TRAINER_BUILDING["shrine"] = "BLD_SHRINE"
 # 0 A.D. Builder/Entities structure kinds -> the generic RTS0 BuildingTypes they
 # let a civ lay (a stone wallset brings its towers and gates).
 BUILDER_BUILDING = {
@@ -978,7 +991,8 @@ def load_team_bonuses(sim_root, rows):
 
 # RTS0 AuraManager kinds (aura_manager.h AuraType).
 AURA_KIND = {"AURA_GATHER": 0, "AURA_HEAL": 1, "AURA_ATTACK": 2, "AURA_SPEED": 3, "AURA_ARMOR": 4,
-             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7, "AURA_VISION_ADD": 18}
+             "AURA_HEALTH": 5, "AURA_VISION": 6, "AURA_HEAL_AMOUNT": 7, "AURA_VISION_ADD": 18,
+             "AURA_ATTACK_RATE": 19}
 MULTIPLY_AURAS = ("AURA_ATTACK", "AURA_SPEED", "AURA_HEALTH", "AURA_VISION")
 GLOBAL_AURA_RANGE = 1000.0
 
@@ -1037,7 +1051,7 @@ def aura_modifications(a):
         if v.startswith("Attack/") and "/Damage/" in v and "multiply" in m:
             kind, value = "AURA_ATTACK", m["multiply"]
         elif v.startswith("Attack/") and v.endswith("/RepeatTime") and "multiply" in m and m["multiply"] > 0:
-            kind, value = "AURA_ATTACK", 1.0 / m["multiply"]
+            kind, value = "AURA_ATTACK_RATE", m["multiply"]
         elif v == "UnitMotion/WalkSpeed" and "multiply" in m:
             kind, value = "AURA_SPEED", m["multiply"]
         elif v == "Health/Max" and "multiply" in m:
@@ -1057,6 +1071,8 @@ def aura_modifications(a):
         if kind is None:
             continue
         gain = value - 1.0 if kind in MULTIPLY_AURAS else value
+        if kind == "AURA_ATTACK_RATE":  # a shorter RepeatTime helps
+            gain = 1.0 / value - 1.0
         if enemy and kind in MULTIPLY_AURAS + ("AURA_ARMOR", "AURA_HEAL", "AURA_HEAL_AMOUNT", "AURA_VISION_ADD"):
             gain = -gain
         out.append((kind, value, gain))

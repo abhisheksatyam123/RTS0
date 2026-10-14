@@ -19457,5 +19457,6 @@
     ],
     "water_waviness": 3.0,
     "water_murkiness": 0.813477
-  }
+  },
+  "circular": true
 }

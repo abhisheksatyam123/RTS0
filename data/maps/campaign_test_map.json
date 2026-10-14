@@ -17147,5 +17147,6 @@
       "z": 26.03,
       "template": "athen/support_trader"
     }
-  ]
+  ],
+  "circular": false
 }

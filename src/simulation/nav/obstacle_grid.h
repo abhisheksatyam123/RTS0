@@ -86,6 +86,78 @@ private:
 	std::vector<uint64_t> masks_; // (cell row * w_ + cell column) * words_ + word
 };
 
+// A long list of small obstacles (trees, fruit bushes, treasures) bucketed by the cell holding
+// each one's centre, for lists too long for ObstacleGrid's bit sets. A query visits the cells
+// under its box grown by the widest obstacle, row by row, and each cell's obstacles in list
+// order, so a given query always visits the same obstacles in the same order. Rebuild it
+// whenever the list changes.
+class BucketGrid {
+public:
+	template <class List>
+	void build(const List& list, float map_half)
+	{
+		origin_ = -map_half;
+		w_ = std::max(1, static_cast<int>(std::ceil(2.0f * map_half / CELL)));
+		max_ext_ = 0.0f;
+		start_.assign(static_cast<size_t>(w_) * w_ + 1, 0);
+		for (const auto& o : list) {
+			++start_[cell(o.x, o.z) + 1];
+			max_ext_ = std::max(max_ext_, footprint_extent(o));
+		}
+		for (size_t c = 1; c < start_.size(); ++c) start_[c] += start_[c - 1];
+		items_.resize(list.size());
+		std::vector<uint32_t> fill(start_.begin(), start_.end() - 1);
+		for (size_t i = 0; i < list.size(); ++i) items_[fill[cell(list[i].x, list[i].z)]++] = static_cast<uint32_t>(i);
+	}
+
+	// Calls f(i) for each obstacle i whose footprint may reach into the box [x0, x1] x [z0, z1]:
+	// every one that does, and some that don't (f tests each).
+	template <class F>
+	void for_each_in_box(float x0, float z0, float x1, float z1, F&& f) const
+	{
+		if (items_.empty()) return;
+		const int cx0 = axis(x0 - max_ext_), cx1 = axis(x1 + max_ext_);
+		const int cz0 = axis(z0 - max_ext_), cz1 = axis(z1 + max_ext_);
+		for (int cz = cz0; cz <= cz1; ++cz) {
+			const size_t row = static_cast<size_t>(cz) * w_;
+			for (uint32_t k = start_[row + cx0], e = start_[row + cx1 + 1]; k < e; ++k) f(items_[k]);
+		}
+	}
+
+	bool empty() const { return items_.empty(); }
+
+private:
+	static constexpr float CELL = 2.0f;
+	int axis(float f) const
+	{
+		const float c = (f - origin_) / CELL;
+		return c >= 0.0f ? (c < static_cast<float>(w_) ? static_cast<int>(c) : w_ - 1) : 0;
+	}
+	size_t cell(float x, float z) const { return static_cast<size_t>(axis(z)) * w_ + axis(x); }
+
+	int w_ = 0;
+	float origin_ = 0.0f, max_ext_ = 0.0f;
+	std::vector<uint32_t> start_; // CSR: cell c's obstacles are items_[start_[c] .. start_[c + 1])
+	std::vector<uint32_t> items_;
+};
+
+// Two lists iterated as one (a then b), for the steering templates that take one range of
+// obstacles: the buildings and mines, then the trees near the unit.
+template <class T>
+struct ConcatRange {
+	const std::vector<T>& a;
+	const std::vector<T>& b;
+	struct iterator {
+		const ConcatRange* r;
+		size_t i;
+		const T& operator*() const { return i < r->a.size() ? r->a[i] : r->b[i - r->a.size()]; }
+		iterator& operator++() { ++i; return *this; }
+		bool operator!=(const iterator& o) const { return i != o.i; }
+	};
+	iterator begin() const { return {this, 0}; }
+	iterator end() const { return {this, a.size() + b.size()}; }
+};
+
 } // namespace nav
 } // namespace rtso
 

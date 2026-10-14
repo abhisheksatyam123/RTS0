@@ -535,6 +535,14 @@ Dictionary RtsoMain::get_replay_status() const {
 	picker["gaia"] = observer_view_gaia_;
 	picker["observer_mode"] = observer_mode_label_ && observer_mode_label_->is_visible_in_tree();
 	d["observer_picker"] = picker;
+	Dictionary follow;
+	CheckBox *box = turn_mgr_.is_replaying() ? replay_follow_box_ : observer_follow_box_;
+	follow["visible"] = box && box->is_visible_in_tree();
+	follow["on"] = follow_player_;
+	follow["camera_follows"] = cam_rig ? (int64_t)cam_rig->follow_id() : (int64_t)0;
+	follow["selected"] = PackedInt32Array(selected_ids);
+	follow["selected_building"] = (int64_t)selected_building_id;
+	d["follow_player"] = follow;
 	// The game speed dropdown's titles as this client would see them now.
 	Array speed_items;
 	const Array speeds = speed_choices(fast_forward_allowed());
@@ -626,6 +634,8 @@ void RtsoMain::build_replay_view_picker() {
 	replay_observer_label_ = memnew(Label);
 	replay_observer_label_->set_text("Observer Mode");
 	row->add_child(replay_observer_label_);
+	replay_follow_box_ = new_follow_player_box();
+	row->add_child(replay_follow_box_);
 	// Game speed and pause, as the session menu offers them in a 0 A.D. replay.
 	Label *speed_caption = memnew(Label);
 	speed_caption->set_text("  Speed:");
@@ -749,5 +759,66 @@ bool RtsoMain::load_pending_save() {
 	turn_mgr_.reset();
 	if (!load_game(path)) return false;
 	match_elapsed_time = (double)meta.get("elapsed", 0.0);
+	// Host Saved Game: host it once loaded; Start continues it for everyone.
+	net_saved_game_ = (bool)ms->get("net_saved_game") && String(ms->get("net_mode")) == "host" ? path : String();
+	ms->set("net_saved_game", false);
 	return true;
+}
+
+// 0 A.D. NMT_SAVED_GAME_START, with gamesetup PlayerAssignmentsController's
+// seating: a client takes the seat its name had in the save, else the first
+// free seat a human played (no AI's), else watches. The host seats itself the
+// same way. Every client then loads the host's world (TurnManager::start_saved_game).
+void RtsoMain::host_start_saved_game() {
+	Dictionary meta = read_json(net_saved_game_.get_basename() + ".json");
+	std::vector<std::pair<uint8_t, String>> human; // seat, name in the save
+	const Array players = meta.get("players", Array());
+	for (int i = 0; i < players.size(); ++i) {
+		const Dictionary p = players[i];
+		const int id = (int)p.get("id", -1);
+		if (id >= 0 && id < rtso::MAX_PLAYERS && !(bool)p.get("ai", false) && !(bool)p.get("defeated", false))
+			human.emplace_back((uint8_t)id, String(p.get("name", "")).to_lower());
+	}
+	std::set<uint8_t> taken;
+	auto seat_for = [&](const std::string &name, bool observer) -> uint8_t {
+		if (observer) return 0xFF;
+		const String n = String::utf8(name.c_str()).to_lower();
+		for (const auto &h : human)
+			if (h.second == n && !taken.count(h.first)) { taken.insert(h.first); return h.first; }
+		for (const auto &h : human)
+			if (!taken.count(h.first)) { taken.insert(h.first); return h.first; }
+		return 0xFF;
+	};
+	std::map<uint32_t, uint8_t> seats;
+	// Names first, so a returning player is not pushed out by an earlier joiner.
+	std::vector<const rtso::NetPeer *> clients;
+	for (const auto &p : net_host_.getPeers())
+		if (p.id != 0 && p.connected && p.is_authenticated && !p.kick_disconnect_ms) clients.push_back(&p);
+	auto named = [&](const std::string &name) {
+		const String n = String::utf8(name.c_str()).to_lower();
+		for (const auto &h : human) if (h.second == n) return true;
+		return false;
+	};
+	seats[0] = seat_for(net_host_.localPlayerName(), false);
+	for (const auto *p : clients) if (named(p->player_name)) seats[p->id] = seat_for(p->player_name, p->is_observer);
+	for (const auto *p : clients) if (!seats.count(p->id)) seats[p->id] = seat_for(p->player_name, p->is_observer);
+	rtso::GameSetupParams setup;
+	match_settings_setup(setup);
+	setup.saved_game = 1;
+	turn_mgr_.reset();
+	turn_mgr_.set_net_host(&net_host_, 0);
+	turn_mgr_.set_game_start_applied_sim(sim);
+	turn_mgr_.start_saved_game(seats, sim);
+	start_net_speed(setup.speed);
+	net_setup_.setup = setup;
+	++net_setup_.seq;
+	net_host_.note_game_start_sent();
+	net_host_.sendGameStart(rtso::format_game_start_full(setup));
+	net_game_started_ = true;
+	selected_ids.clear();
+	selected_building_id = 0;
+	UtilityFunctions::print("[RTS0][GameStart] HOST continues saved game ", net_saved_game_, " as player ",
+			(int)seats[0] + 1, " with ", (int64_t)clients.size(), " client(s)");
+	if (lobby_status) lobby_status->set_text("Continuing the saved game; waiting for every player to load it");
+	net_saved_game_ = String();
 }

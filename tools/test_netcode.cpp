@@ -595,6 +595,7 @@ struct PeerOpts {
     uint32_t host_vanish_turn = 0; // host: drops off after this turn without a word
     uint32_t stale_rejoin_turn = 0; // joiner: asks to rejoin again mid-match, as a slow loader does
     bool rejoin = false;        // this joiner takes over a dropped seat mid-match
+    bool saved_game = false;    // the host continues a saved game: its world has run on alone
     bool observe = false;       // this joiner watches a running match without a seat
     std::string name = "peer";  // the name this peer authenticates with
     std::string password;       // host: required from joiners; client: what it sends
@@ -697,6 +698,10 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         sim.set_ceasefire_seconds(60.0f * (float)s.ceasefire);
     };
     if (host) apply_setup(seats);
+    // A saved game: the host's world is 10 s on from the joiners' boot world,
+    // so only the host's world, sent at Start, can keep them in sync.
+    if (host && opt.saved_game)
+        for (int i = 0; i < 200; ++i) sim.tick(Simulation::FIXED_STEP);
 
     const uint8_t sim_civ[2] = {sim.team_civ(0), sim.team_civ(1)};
 
@@ -771,6 +776,13 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         }
         std::printf("[net-peer] join: rejoin turn=%u client=%u player=%u\n", tm.rejoin_turn(),
                     tm.local_client_id(), (unsigned)tm.local_player());
+    } else if (host && opt.saved_game) {
+        std::map<uint32_t, uint8_t> saved;
+        for (uint32_t c = 0; c < opt.humans; ++c) saved[c] = (uint8_t)c;
+        tm.start_saved_game(saved, &sim);
+        seats.saved_game = 1;
+        net.sendGameStart(format_game_start_full(seats));
+        std::printf("[net-peer] host: saved start hash=%08X\n", tm.compute_sim_hash(sim));
     } else if (host) {
         tm.mark_game_started(&sim);
         net.sendGameStart(format_game_start_full(seats));
@@ -787,14 +799,32 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         }
         tm.set_game_start_applied_sim(&sim);
         tm.take_pending_game_start_full(seats);
-        apply_setup(seats);
+        if (seats.saved_game) {
+            // 0 A.D. NMT_SAVED_GAME_START: the host's world, not our own.
+            tm.request_rejoin(false);
+            t_start = now_us();
+            while (!tm.apply_pending_rejoin(sim)) {
+                net.poll(arena);
+                arena.reset();
+                if (tm.rejoin_reject_reason() || now_us() - t_start > 30'000'000ull) {
+                    std::fprintf(stderr, "[net-peer] join: no saved game (reason %u)\n", (unsigned)tm.rejoin_reject_reason());
+                    return 3;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            }
+            std::printf("[net-peer] join: saved start turn=%u player=%u hash=%08X\n", tm.rejoin_turn(),
+                        (unsigned)tm.local_player(), tm.compute_sim_hash(sim));
+        } else {
+            apply_setup(seats);
+        }
     }
     // The host numbers joiners 1, 2, ... in connect order (NetHost ACK).
-    if (!host && !opt.rejoin && net.getLocalPeerId()) me = net.getLocalPeerId();
+    const bool took_world = opt.rejoin || tm.saved_game() || tm.rejoined();
+    if (!host && !took_world && net.getLocalPeerId()) me = net.getLocalPeerId();
     // The seat this process plays, which picks its part of the script (a
     // rejoiner plays the seat it took over).
-    const uint32_t script_id = opt.rejoin ? (uint32_t)tm.local_player() : me;
-    if (!opt.rejoin) {
+    const uint32_t script_id = took_world && !host ? (uint32_t)tm.local_player() : me;
+    if (!took_world) {
         tm.set_local_client_id(me);
         std::vector<uint32_t> peers;
         for (uint32_t c = 0; c < opt.humans; ++c) peers.push_back(c);
@@ -999,7 +1029,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
         // Pause (0 A.D. NMT_CLIENT_PAUSED): the host pauses for pause_ms of
         // wall clock; both peers must hold their turns until it resumes.
         if (host && opt.pause_turn && !pause_done && tm.current_turn() >= opt.pause_turn) {
-            if (!tm.client_paused(me)) { tm.set_local_paused(true); pause_since = now; }
+            if (!tm.client_paused(me)) {
+                tm.set_local_paused(true);
+                pause_since = now;
+                std::fflush(log); // the playtest reads the log to see the pause start
+            }
             else if (now - pause_since >= opt.pause_ms * 1000ull) { tm.set_local_paused(false); pause_done = true; }
         }
         if (tm.is_paused()) {
@@ -1198,6 +1232,11 @@ int run(bool host, uint16_t port, uint32_t seed, uint32_t turns, const PeerOpts 
     if (tm.is_observer())
         std::printf("[net-peer] join: catchup behind_late=%.1f\n",
                     behind_samples ? (double)behind_sum / (double)behind_samples : 0.0);
+    if (!tm.rejoined_clients().empty()) {
+        std::string ids;
+        for (uint32_t c : tm.rejoined_clients()) ids += (ids.empty() ? "" : ",") + std::to_string(c);
+        std::printf("[net-peer] %s: rejoined me=%u clients=%s\n", host ? "host" : "join", tm.local_client_id(), ids.c_str());
+    }
     if (opt.pause_turn)
         std::printf("[net-peer] %s: pause seen=%d by=%u at_turn=%u held_ms=%u\n", host ? "host" : "join",
                     pause_seen ? 1 : 0, paused_by, paused_at_turn, (unsigned)(held_us / 1000));
@@ -1261,6 +1300,7 @@ int main(int argc, char **argv) {
     //   [--host-vanish-turn N] the host drops off after turn N without telling anyone
     //   [--stale-rejoin-turn N] a seated joiner asks to rejoin again after turn N
     //   [--rejoin 1]        this joiner takes over a dropped seat mid-match
+    //   [--saved-game 1]    the host continues a saved game: joiners load its world
     if (argc >= 7 && std::strcmp(argv[1], "--net-peer") == 0) {
         netpeer::PeerOpts opt;
         for (int i = 7; i + 1 < argc; i += 2) {
@@ -1278,6 +1318,7 @@ int main(int argc, char **argv) {
             else if (std::strcmp(k, "--host-vanish-turn") == 0) opt.host_vanish_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--stale-rejoin-turn") == 0) opt.stale_rejoin_turn = (uint32_t)std::atoi(v);
             else if (std::strcmp(k, "--rejoin") == 0) opt.rejoin = std::atoi(v) != 0;
+            else if (std::strcmp(k, "--saved-game") == 0) opt.saved_game = std::atoi(v) != 0;
             else if (std::strcmp(k, "--observe") == 0) opt.observe = opt.rejoin = std::atoi(v) != 0;
             else if (std::strcmp(k, "--name") == 0) opt.name = v;
             else if (std::strcmp(k, "--password") == 0) opt.password = v;

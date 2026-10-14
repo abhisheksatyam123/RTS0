@@ -197,6 +197,8 @@ void TurnManager::apply_peer_left(uint32_t client_id, uint32_t last_turn) {
 void TurnManager::apply_peer_control(const NetCommand &c) {
 	ensure_lockstep_peers();
 	const uint32_t id = c.target_id;
+	if (id != 0 && id == local_client_id_ && c.cmd_type == CMD_PEER_JOINED && c.target_z > 0.5f)
+		rejoined_clients_.push_back(id); // the rejoiner hears it too
 	if (id == 0 || id == local_client_id_) return;
 	if (c.cmd_type == CMD_PEER_LEFT) {
 		apply_peer_left(id, (uint32_t)c.target_x);
@@ -208,6 +210,7 @@ void TurnManager::apply_peer_control(const NetCommand &c) {
 		lockstep_until_.erase(id);
 		left_clients_.erase(id);
 		client_player_[id] = c.param;
+		if (c.target_z > 0.5f) rejoined_clients_.push_back(id);
 		std::cerr << "[TurnManager] client " << id << " takes player " << (unsigned)c.param
 		          << " from turn " << (uint32_t)c.target_x << "\n";
 	}
@@ -415,7 +418,12 @@ void TurnManager::admit_rejoiner(uint32_t client_id) {
 	c.target_id = client_id;
 	c.param = seat;
 	c.target_x = (float)L;
+	// 0 A.D. NMT_REJOINED: everyone hears "has rejoined the game.", except for
+	// the clients of a saved game, which load it at Start as a new game does.
+	const bool rejoined = !saved_waiting_.count(client_id);
+	c.target_z = rejoined ? 1.0f : 0.0f;
 	pending_control_.push_back(c);
+	if (rejoined) rejoined_clients_.push_back(client_id);
 	RejoinMsg in;
 	in.kind = RejoinMsg::LOCKSTEP;
 	in.turn = L;
@@ -492,10 +500,13 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	};
 	if (!net_game_started() || current_turn_ == 0) { reject(2); return; }
 	ensure_lockstep_peers();
+	// A client the saved game was started with takes the seat it was given.
+	auto saved_seat = saved_seats_.find(client_id);
+	const bool saved_client = saved_seat != saved_seats_.end() && !lockstep_since_.count(client_id);
 	// A player seated at Start that still plays: its request from game setup
 	// came late (a slow load outlasts REJOIN_RETRY_MS, so it asks again). It
 	// is in the match already; serving it would drop it from the lockstep.
-	if (peer_active(client_id) && !lockstep_since_.count(client_id) && !observer_requests_.count(client_id)) {
+	if (!saved_client && peer_active(client_id) && !lockstep_since_.count(client_id) && !observer_requests_.count(client_id)) {
 		reject(2);
 		return;
 	}
@@ -526,6 +537,10 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 		for (const auto &other : client_player_)
 			if (other.second == cp->second && peer_active(other.first)) held = true;
 		if (!held && (seat == 0xFF || cp->second < seat)) seat = cp->second;
+	}
+	if (saved_client) {
+		seat = observer_requests_.count(client_id) ? 0xFF : saved_seat->second;
+		known_observer = true; // seated by the host at Start, not a late observer
 	}
 	const bool observer = seat == 0xFF;
 	if (observer) observer_requests_.insert(client_id);
@@ -563,6 +578,17 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	net_host_->setPeerObserver(client_id, observer);
 	// A player joins the lockstep once it has loaded (admit_rejoiner).
 	if (!observer) rejoin_loading_[client_id] = seat;
+	// 0 A.D. NetServer OnRejoined: the rejoiner is told who is pausing
+	// (it keeps the list through its rejoin reset; later changes reach it as
+	// they reach everyone).
+	for (uint32_t who : paused_clients_) {
+		ClientPausedMsg cpm;
+		cpm.guid = std::to_string(who);
+		cpm.pause = 1;
+		std::vector<uint8_t> payload = NetPacketSerializer::frame_client_paused(cpm);
+		net_host_->sendCommand(client_id,
+				NetPacketSerializer::pack_message(NetMessageType::NMT_CLIENT_PAUSED, current_turn_, payload));
+	}
 
 	RejoinMsg hdr;
 	hdr.kind = RejoinMsg::HEADER;
@@ -624,6 +650,56 @@ void TurnManager::serve_rejoin(uint32_t client_id, Simulation &sim) {
 	}
 	std::cerr << "[TurnManager] rejoin: client " << client_id << " takes player " << (unsigned)seat
 	          << " at turn " << T << " (" << world.size() << " bytes, " << batches.size() << " batches)\n";
+}
+
+void TurnManager::start_saved_game(const std::map<uint32_t, uint8_t> &seats, const Simulation *sim) {
+	saved_game_ = true;
+	saved_seats_.clear();
+	saved_waiting_.clear();
+	client_player_.clear();
+	auto host = seats.find(0);
+	client_player_[0] = host == seats.end() ? 0xFF : host->second;
+	for (const auto &s : seats) {
+		if (s.first == 0) continue;
+		saved_seats_[s.first] = s.second;
+		saved_waiting_.insert(s.first);
+	}
+	// Nobody else is in the lockstep until it has loaded (admit_rejoiner).
+	set_lockstep_peers({0});
+	// Turn 1 is the saved world as sent: every rejoin world is from turn >= 1.
+	current_turn_ = 1;
+	saved_since_ms_ = rejoin_now_ms();
+	mark_game_started(sim);
+	// Our batches for the turns up to COMMAND_DELAY ahead, which a match from
+	// turn 0 never needs: empty, as nothing was ordered yet.
+	for (uint32_t t = current_turn_ + 1; t <= current_turn_ + COMMAND_DELAY; ++t) {
+		if (t <= COMMAND_DELAY) continue;
+		SimulationCommandMsg scm;
+		scm.turn = t;
+		scm.client_id = local_client_id_;
+		std::vector<uint8_t> payload = NetPacketSerializer::frame_simulation_command(scm);
+		net_host_->broadcastCommand(NetPacketSerializer::pack_message(NetMessageType::NMT_SIMULATION_COMMAND, t, payload));
+		receive_remote_turn_batch(t, local_client_id_, {});
+	}
+	std::cerr << "[TurnManager] saved game: waiting for " << saved_waiting_.size() << " client(s) to load\n";
+}
+
+// Host: hold the saved game's first turn while a client it started with is
+// still loading. One that never asks or left is not waited for.
+bool TurnManager::saved_game_hold() {
+	if (saved_waiting_.empty()) return false;
+	for (auto it = saved_waiting_.begin(); it != saved_waiting_.end();) {
+		const NetPeer *p = net_host_ ? net_host_->getPeer(*it) : nullptr;
+		auto seat = client_player_.find(*it);
+		const bool watching_served = seat != client_player_.end() && seat->second == 0xFF;
+		if (!p || !p->connected || lockstep_since_.count(*it) || watching_served) it = saved_waiting_.erase(it);
+		else ++it;
+	}
+	if (!saved_waiting_.empty() && rejoin_now_ms() - saved_since_ms_ > SAVED_GAME_WAIT_MS) {
+		std::cerr << "[TurnManager] saved game: starting without " << saved_waiting_.size() << " client(s)\n";
+		saved_waiting_.clear();
+	}
+	return !saved_waiting_.empty();
 }
 
 bool TurnManager::apply_pending_rejoin(Simulation &sim) {
@@ -778,6 +854,10 @@ void TurnManager::reset() {
 	lockstep_since_.clear();
 	rejoin_requests_.clear();
 	rejoin_loading_.clear();
+	saved_game_ = false;
+	saved_seats_.clear();
+	saved_waiting_.clear();
+	saved_since_ms_ = 0;
 	rejoin_lockstep_wait_ = false;
 	observer_requests_.clear();
 	observer_turn_.clear();
@@ -1333,7 +1413,7 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 	}
 	// 0 A.D. pause: no turn runs anywhere while any client is paused, and the
 	// paused time is not banked (no catch-up burst on resume).
-	if (is_paused()) {
+	if (is_paused() || (net_host_ && net_host_->isHost() && saved_game_hold())) {
 		turn_timer_ = std::min(turn_timer_, TURN_DURATION);
 		return false;
 	}
@@ -1480,6 +1560,11 @@ bool TurnManager::tick(float dt, Simulation &sim) {
 		const bool queued = (c.param & NET_PARAM_QUEUED) != 0;
 		const bool capture = (c.param & NET_PARAM_NO_CAPTURE) == 0;
 		note_player_command(sim, pl, c);
+		if (record_applied_ && applied_cmds_.size() < 256) {
+			applied_cmds_.push_back({pl, c});
+			if (c.cmd_type != (uint8_t)NetCommandType::NET_CMD_RALLY) // its entity_ids are targets
+				applied_cmds_.back().cmd.entity_ids.assign(ids, ids + n);
+		}
 		// The sender's own livestock in the selection walks, stops and garrisons in a
 		// corral too (0 A.D. livestock are units; filter_owned_units keeps units only).
 		const uint32_t *raw = c.entity_ids.data();

@@ -4170,112 +4170,176 @@
       "player": 1,
       "x": -21.42,
       "z": 6.27,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -21.46,
       "z": 4.23,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -21.66,
       "z": 2.15,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -21.71,
       "z": 0.28,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -21.73,
       "z": -4.2,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -21.69,
       "z": -2.11,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -20.16,
       "z": 7.47,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -20.14,
       "z": 4.89,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -19.92,
       "z": 9.08,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -20.04,
       "z": 13.25,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -19.72,
       "z": 2.61,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -20.13,
       "z": -3.36,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -19.95,
       "z": 0.82,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -20.01,
       "z": -1.39,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -19.82,
       "z": 11.43,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -19.92,
       "z": -5.42,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "archer",
@@ -4317,63 +4381,94 @@
       "player": 2,
       "x": 15.96,
       "z": -0.2,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 16.02,
       "z": -2.04,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 15.92,
       "z": -3.83,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 16.09,
       "z": -6.1,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 16.1,
       "z": -8.0,
-      "template": "athen/infantry_javelineer_a"
+      "template": "athen/infantry_javelineer_a",
+      "parents": [
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 14.87,
       "z": -1.32,
-      "template": "athen/infantry_javelineer_e"
+      "template": "athen/infantry_javelineer_e",
+      "parents": [
+        "athen/infantry_javelineer_a",
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 14.61,
       "z": -3.66,
-      "template": "athen/infantry_javelineer_e"
+      "template": "athen/infantry_javelineer_e",
+      "parents": [
+        "athen/infantry_javelineer_a",
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 14.99,
       "z": -5.49,
-      "template": "athen/infantry_javelineer_e"
+      "template": "athen/infantry_javelineer_e",
+      "parents": [
+        "athen/infantry_javelineer_a",
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 2,
       "x": 14.87,
       "z": -7.78,
-      "template": "athen/infantry_javelineer_e"
+      "template": "athen/infantry_javelineer_e",
+      "parents": [
+        "athen/infantry_javelineer_a",
+        "athen/infantry_javelineer_b"
+      ]
     },
     {
       "type": "spearman",
@@ -4506,112 +4601,172 @@
       "player": 2,
       "x": 20.47,
       "z": -12.11,
-      "template": "mace/champion_infantry_spearman_02"
+      "template": "mace/champion_infantry_spearman_02",
+      "parents": [
+        "mace/champion_infantry_spearman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 18.92,
       "z": -14.83,
-      "template": "mace/champion_infantry_spearman_02"
+      "template": "mace/champion_infantry_spearman_02",
+      "parents": [
+        "mace/champion_infantry_spearman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 20.43,
       "z": -14.67,
-      "template": "mace/champion_infantry_spearman_02"
+      "template": "mace/champion_infantry_spearman_02",
+      "parents": [
+        "mace/champion_infantry_spearman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 17.85,
       "z": -13.11,
-      "template": "mace/champion_infantry_spearman_02"
+      "template": "mace/champion_infantry_spearman_02",
+      "parents": [
+        "mace/champion_infantry_spearman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 2,
       "x": 19.06,
       "z": -12.18,
-      "template": "mace/champion_infantry_spearman_02"
+      "template": "mace/champion_infantry_spearman_02",
+      "parents": [
+        "mace/champion_infantry_spearman"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 20.09,
       "z": -0.47,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 19.93,
       "z": -2.6,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 19.78,
       "z": -4.41,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 19.87,
       "z": -6.43,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 20.42,
       "z": -8.28,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -23.0,
       "z": -4.15,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -23.1,
       "z": -2.03,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -23.05,
       "z": 0.54,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -22.76,
       "z": 2.26,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -22.79,
       "z": 4.78,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -22.87,
       "z": 6.83,
-      "template": "athen/infantry_marine_archer_e"
+      "template": "athen/infantry_marine_archer_e",
+      "parents": [
+        "athen/infantry_marine_archer_a",
+        "athen/infantry_marine_archer_b"
+      ]
     }
-  ]
+  ],
+  "circular": false
 }

@@ -18622,157 +18622,263 @@
       "type": "trireme",
       "player": 1,
       "x": 5.31,
-      "z": 97.93
+      "z": 97.93,
+      "template": "athen/ship_arrow"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": -3.43,
-      "z": 146.11
+      "z": 146.11,
+      "template": "athen/ship_scout"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 0.23,
-      "z": 149.11
+      "z": 149.11,
+      "template": "athen/ship_scout"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 24.06,
-      "z": 111.24
+      "z": 111.24,
+      "template": "athen/ship_merchant"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 74.99,
-      "z": 27.29
+      "z": 27.29,
+      "template": "athen/ship_merchant"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 28.27,
-      "z": 78.44
+      "z": 78.44,
+      "template": "athen/ship_merchant"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -105.96,
-      "z": 95.09
+      "z": 95.09,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -105.53,
-      "z": 95.44
+      "z": 95.44,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -105.11,
-      "z": 95.82
+      "z": 95.82,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -104.87,
-      "z": 96.24
+      "z": 96.24,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -104.45,
-      "z": 96.76
+      "z": 96.76,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -104.06,
-      "z": 97.13
+      "z": 97.13,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -103.73,
-      "z": 97.51
+      "z": 97.51,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -103.43,
-      "z": 97.85
+      "z": 97.85,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -103.14,
-      "z": 98.13
+      "z": 98.13,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -102.76,
-      "z": 98.52
+      "z": 98.52,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -105.19,
-      "z": 94.47
+      "z": 94.47,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -104.98,
-      "z": 94.84
+      "z": 94.84,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -104.64,
-      "z": 95.24
+      "z": 95.24,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -104.3,
-      "z": 95.67
+      "z": 95.67,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -103.98,
-      "z": 96.01
+      "z": 96.01,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -103.62,
-      "z": 96.41
+      "z": 96.41,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -103.26,
-      "z": 96.77
+      "z": 96.77,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -102.9,
-      "z": 97.12
+      "z": 97.12,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -102.63,
-      "z": 97.39
+      "z": 97.39,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -102.27,
-      "z": 97.79
+      "z": 97.79,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     }
   ],
   "treasures": [],
@@ -18840,5 +18946,6 @@
     "saturation": 1.0,
     "bloom": 0.186523,
     "post_effect": "hdr"
-  }
+  },
+  "circular": true
 }

@@ -52,6 +52,9 @@ public:
 	virtual void chat_send_wire(const std::string &wire) = 0;
 	// 0 A.D. Cheats.executeCheat: true when `text` was a cheat code (it is not sent as chat).
 	virtual bool chat_try_cheat(const String &text) = 0;
+	// 0 A.D. g_NetworkCommands (gui/common/network.js): true when `text` was
+	// /kick, /ban, /kickspecs, /banspecs, /list or /clear (it is not sent as chat).
+	virtual bool chat_network_command(const String &text) = 0;
 	// ChatAddressees.js isAddressee for the local player: tag is the wire tag ("[Allies]",
 	// "[Enemies]", "[Observers]", "[Player-N]") of a message from sender_guid.
 	virtual bool chat_is_addressee(const String &sender_guid, const String &tag) = 0;
@@ -247,7 +250,7 @@ public:
 	void send_pressed() {
 		if (!host_ || !input_ || !log_) return;
 		String text = input_->get_text().strip_edges();
-		if (!text.is_empty() && host_->chat_try_cheat(text)) {
+		if (!text.is_empty() && (host_->chat_network_command(text) || host_->chat_try_cheat(text))) {
 			input_->clear();
 			if (panel_) panel_->set_visible(false);
 			return;
@@ -331,11 +334,28 @@ public:
 		return true;
 	}
 
+	// A message from the local player that isn't typed (the developer overlay's
+	// notices): shown as their chat line, and sent to the other players.
+	void post_own(const String &text) {
+		if (!log_ || !host_) return;
+		const String line = format_line("", host_->chat_user(""), text);
+		log_->append_text(stamp() + line + "\n");
+		post_overlay(stamp() + line);
+		if (host_->net_lockstep()) host_->chat_send_wire(text.utf8().get_data());
+	}
+
 	// Raw bbcode line (Petra log, diplomacy/tribute feedback).
 	void append_line(const String &bbcode) {
 		const String line = bbcode.is_empty() ? bbcode : stamp() + bbcode;
 		if (log_) log_->append_text(line);
 		post_overlay(line.strip_edges(false, true));
+	}
+
+	// 0 A.D. clearChatMessages (/clear): empties the history and the overlay.
+	void clear() {
+		if (log_) log_->clear();
+		overlay_lines_.clear();
+		if (overlay_) rebuild_overlay();
 	}
 
 	// Test hooks: the log as plain text, and the input line.

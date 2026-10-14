@@ -19,6 +19,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -193,6 +194,51 @@ def peer_lines(outs: list, tag: str) -> dict:
     return found
 
 
+class Peer:
+    """A peer process whose output goes to a temp file, not a pipe: a pipe that
+    nobody reads until the end fills up (a lossy link logs a lot), the peer
+    blocks writing to it, and every wait on the others then runs its whole
+    timeout. Each peer also has a hard deadline, so a hung step fails within
+    --step-timeout instead of stacking one wait per peer."""
+    step_timeout = 600.0
+
+    def __init__(self, args, **kw):
+        kw.pop("stdout", None)
+        kw.pop("stderr", None)
+        kw.pop("text", None)
+        self._out = tempfile.NamedTemporaryFile(mode="w+")
+        self._proc = subprocess.Popen(args, stdout=self._out, stderr=subprocess.STDOUT, text=True, **kw)
+        self._deadline = time.time() + Peer.step_timeout
+
+    def __getattr__(self, name):
+        return getattr(self._proc, name)
+
+    def communicate(self, timeout=None):
+        left = max(1.0, self._deadline - time.time())
+        if timeout is None:
+            # Only after kill(): the process is going, so wait for it.
+            self._proc.wait()
+        else:
+            try:
+                self._proc.wait(timeout=min(timeout, left))
+            except subprocess.TimeoutExpired:
+                print(f"[net] peer {self._proc.args[2] if len(self._proc.args) > 2 else ''} "
+                      f"still running at its step deadline; killed", flush=True)
+                raise
+        self._out.seek(0)
+        return self._out.read(), None
+
+    def printed(self, text: str) -> bool:
+        """Whether the peer has printed text so far (a second handle, so the
+        peer's own write position is left alone)."""
+        with open(self._out.name) as f:
+            return text in f.read()
+
+    def wait(self, timeout=None):
+        left = max(1.0, self._deadline - time.time())
+        return self._proc.wait(timeout=left if timeout is None else min(timeout, left))
+
+
 def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
                  port: int, out_dir: str, timeout: int, defeat_turn: int = 0,
                  more: tuple = ()) -> dict:
@@ -207,10 +253,10 @@ def run_net_case(binary: str, seed: int, turns: int, speed: float, loss: float,
     extra = ["--speed", str(speed), "--loss", str(loss), "--defeat-turn", str(defeat_turn),
              "--pause-turn", str(PAUSE_TURN), "--saveload-turn", str(SAVELOAD_TURN), *more]
     t0 = time.time()
-    host = subprocess.Popen([binary, "--net-peer", "host", *common, logs[0], *extra],
+    host = Peer([binary, "--net-peer", "host", *common, logs[0], *extra],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     time.sleep(0.3)
-    join = subprocess.Popen([binary, "--net-peer", "join", *common, logs[1], *extra],
+    join = Peer([binary, "--net-peer", "join", *common, logs[1], *extra],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     outs, rcs = [], []
     for p in (join, host):
@@ -424,9 +470,12 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
             os.remove(path)  # a stale log from an earlier run must not pass for this one
     common = ["--speed", str(speed), "--loss", str(loss)]
     def peer(role, log, *more):
-        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+        return Peer([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    host = peer("host", logs["host"])
+    # The host pauses at PAUSE for 5 s, and bob comes back during it: as 0.28's
+    # NetServer does, the host must tell him who is pausing.
+    pause = leave + 100
+    host = peer("host", logs["host"], "--pause-turn", str(pause), "--pause-ms", "5000")
     time.sleep(0.3)
     left = peer("join", logs["left"], "--name", "bob", "--quit-turn", str(leave))
     outs, rcs = [], []
@@ -441,9 +490,11 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     finish(left)
     time.sleep(0.5)
     intruder = peer("join", logs["intruder"], "--name", "mallory", "--rejoin", "1")
-    while intruder.poll() is None and not read_hashes(logs["intruder"]):
-        time.sleep(0.1)
-    back = peer("join", logs["back"], "--name", "bob", "--rejoin", "1")
+    while intruder.poll() is None and not intruder.printed("rejoin turn="):
+        time.sleep(0.05)
+    while host.poll() is None and len(read_hashes(logs["host"])) < pause:
+        time.sleep(0.05)
+    back = peer("join", logs["back"], "--name", "bob", "--rejoin", "1", "--pause-turn", str(pause))
     finish(intruder)
     finish(back)
     finish(host)
@@ -451,22 +502,31 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     rep = peer_lines([outs[2]], "rejoin")
     h, b = read_hashes(logs["host"]), read_hashes(logs["back"])
     t0 = int(rep.get("join", {}).get("turn", "0"))
+    # 0 A.D. NMT_REJOINED: the host and bob both hear "has rejoined the game."
+    # (bob's own client id is the one the host lists; mallory only watches).
+    host_rejoined = peer_lines([outs[3]], "rejoined").get("host", {})
+    back_rejoined = peer_lines([outs[2]], "rejoined").get("join", {})
+    back_pause = peer_lines([outs[2]], "pause").get("join", {})
+    rejoined_ok = (back_rejoined.get("me") and host_rejoined.get("clients") == back_rejoined.get("me")
+                   and back_rejoined.get("clients") == back_rejoined.get("me"))
+    pause_ok = back_pause.get("seen") == "1" and back_pause.get("by") == "0"
     after = [t for t in sorted(b) if t > t0]
     bad = next((t for t in after if h.get(t) != b[t]), None)
     ok = (rcs == [0, 0, 0, 0] and t0 >= leave and rep.get("join", {}).get("player") == "1" and len(h) == turns
           and after == list(range(t0 + 1, turns + 1)) and bad is None and intruder_seat == "255"
-          and "in the lockstep from turn" in (outs[2] or ""))
+          and "in the lockstep from turn" in (outs[2] or "") and rejoined_ok and pause_ok)
     if ok:
         joined = re.search(r"in the lockstep from turn (\d+) \(at turn (\d+)\)", outs[2] or "")
         print(f"[net] PASS rejoin: bob came back into player 2 at turn {t0}, then turns {t0 + 1}-{turns} "
               f"matched the host (final hash {h[turns]}); the match ran on while he loaded, and the lockstep "
-              f"took him at turn {joined.group(1)}; mallory, who asked first, could only watch")
+              f"took him at turn {joined.group(1)}; he came back while the host paused and was told so, and both "
+              f"heard that he has rejoined; mallory, who asked first, could only watch")
     else:
         for o in outs:
             for line in (o or "").splitlines():
                 if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
                     print("   " + line)
-        print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} intruder_seat={intruder_seat} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
+        print(f"[net] FAIL rejoin: rc={rcs} rejoin={rep} intruder_seat={intruder_seat} rejoined={host_rejoined}/{back_rejoined} back_pause={back_pause} host_turns={len(h)} back_turns={len(b)} first_bad={bad}")
     return ok
 
 
@@ -567,7 +627,7 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
             os.remove(path)
     common = ["--speed", str(speed), "--loss", str(loss)]
     def peer(role, log, *more):
-        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+        return Peer([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     # 0 A.D. network.observerlimit: the host takes one observer, so a second is refused.
     host = peer("host", logs["host"], "--name", "alice", "--observer-limit", "1",
@@ -577,7 +637,7 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
     # request; the host must keep him seated (his row stays '1:bob:1:0').
     join = peer("join", logs["join"], "--name", "bob", "--stale-rejoin-turn", "60")
     # Join once the match is well under way.
-    deadline = time.time() + timeout
+    deadline = time.time() + min(timeout, Peer.step_timeout)
     while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:
         time.sleep(0.1)
     obs = peer("join", logs["obs"], "--name", "watcher", "--observe", "1")
@@ -670,12 +730,12 @@ def run_observer_lag_case(binary: str, seed: int, speed: float, loss: float, por
             os.remove(path)
     common = ["--speed", str(speed), "--loss", str(loss)]
     def peer(role, log, *more):
-        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+        return Peer([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     host = peer("host", logs["host"], "--name", "alice", "--observer-max-lag", "10")
     time.sleep(0.3)
     join = peer("join", logs["join"], "--name", "bob")
-    deadline = time.time() + timeout
+    deadline = time.time() + min(timeout, Peer.step_timeout)
     while time.time() < deadline and len(read_hashes(logs["host"])) < 120 and host.poll() is None:
         time.sleep(0.1)
     obs = peer("join", logs["obs"], "--name", "watcher", "--observe", "1", "--stall-turn", "250", "--stall-ms", "3000")
@@ -717,6 +777,62 @@ def run_observer_lag_case(binary: str, seed: int, speed: float, loss: float, por
     return ok
 
 
+def run_saved_game_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                        timeout: int) -> bool:
+    """0 A.D. NMT_SAVED_GAME_START: the host continues a saved game. Its world
+    has run 10 s on alone, so the joiner's own boot world differs; the joiner
+    takes the host's world at Start, its seat from the host, and the match
+    holds until it has loaded. Both must then agree on every turn."""
+    turns = 400
+    print("\n---- saved game: the host continues a saved game, the joiner loads its world ----")
+    logs = {r: os.path.join(out_dir, f"saved_{r}.log") for r in ("host", "join")}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss), "--saved-game", "1"]
+    def peer(role, log, *more):
+        return Peer([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    host = peer("host", logs["host"], "--name", "alice")
+    time.sleep(0.3)
+    join = peer("join", logs["join"], "--name", "bob")
+    outs, rcs = {}, {}
+    for role, p in (("join", join), ("host", host)):
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role], rcs[role] = out, p.returncode
+    start_h = peer_lines([outs["host"]], "saved").get("host", {})
+    start_j = peer_lines([outs["join"]], "saved").get("join", {})
+    h, j = read_hashes(logs["host"]), read_hashes(logs["join"])
+    first = min(j) if j else 0
+    bad = next((t for t in sorted(j) if h.get(t) != j[t]), None)
+    checks = {
+        "exit codes": all(rc == 0 for rc in rcs.values()),
+        "the joiner loaded the host's world": start_j.get("hash") == start_h.get("hash") and start_h.get("hash"),
+        "the joiner kept its seat": start_j.get("player") == "1",
+        # The lockstep took it at turn 1 + COMMAND_DELAY + 1: the host was still at turn 1.
+        "no turn ran before it loaded": first == 2 and bool(h) and sorted(h)[0] == 2
+                                        and "in the lockstep from turn 4" in (outs["host"] or ""),
+        "both ran every turn in sync": len(h) == turns - 1 and sorted(j) == sorted(h) and bad is None,
+    }
+    ok = all(checks.values())
+    if ok:
+        print(f"[net] PASS saved game: the joiner loaded the host's world (hash {start_h.get('hash')}) as player 2 "
+              f"before turn 2 ran, then turns 2-{turns} matched (final hash {h[turns]})")
+    else:
+        for role in ("host", "join"):
+            for line in (outs[role] or "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
+                    print(f"   [{role}] " + line)
+        failed = ", ".join(k for k, v in checks.items() if not v)
+        print(f"[net] FAIL saved game ({failed}): rc={rcs} turns={len(h)}/{len(j)} first={first} first_bad={bad} "
+              f"start={start_h}/{start_j}")
+    return ok
+
+
 def run_kick_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
                   timeout: int) -> bool:
     """0 A.D. password-protected hosting and kick/ban: three humans join a game
@@ -732,7 +848,7 @@ def run_kick_case(binary: str, seed: int, speed: float, loss: float, port: int, 
             os.remove(path)
     common = ["--speed", str(speed), "--loss", str(loss), "--humans", "3"]
     def peer(role, log, *more):
-        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+        return Peer([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     procs = {"host": peer("host", logs["host"], "--name", "host", "--password", "pw",
                           "--kick-turn", str(kick), "--kick-name", "carol", "--ban", "1")}
@@ -799,7 +915,7 @@ def run_host_gone_case(binary: str, seed: int, speed: float, loss: float, port: 
                 os.remove(path)
         common = ["--speed", str(speed), "--loss", str(loss), "--humans", str(1 + len(joiners))]
         def peer(role, log, *more):
-            return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+            return Peer([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         procs = {"host": peer("host", logs["host"], flag, str(leave))}
         for j in joiners:
@@ -852,7 +968,7 @@ def run_oos_case(binary: str, seed: int, speed: float, port: int, out_dir: str, 
         os.makedirs(d)
     procs = {}
     for role in ("host", "join"):
-        procs[role] = subprocess.Popen(
+        procs[role] = Peer(
             [binary, "--net-peer", role, str(port), str(seed), "400", os.path.join(out_dir, f"oos_{role}.log"),
              "--speed", str(speed), "--force-oos", str(force), "--oos-dir", dirs[role],
              "--name", "alice" if role == "host" else "bob"],
@@ -917,6 +1033,8 @@ def main() -> int:
                     help="keep hashing after a match ends (defeat freezes the sim)")
     ap.add_argument("--timeout", type=int, default=900,
                     help="per-seed wall-clock timeout in seconds (default 900)")
+    ap.add_argument("--step-timeout", type=int, default=600,
+                    help="hard limit in seconds on each UDP case's peers, so a hung case fails fast (default 600)")
     ap.add_argument("--rebuild", action="store_true",
                     help="force rebuild even if the binary is newer than sources")
     ap.add_argument("--verbose-build", action="store_true")
@@ -930,6 +1048,7 @@ def main() -> int:
     ap.add_argument("--net-defeat-turn", type=int, default=450,
                     help="wipe out the joiner's player at this turn of the UDP session (0 = off)")
     args = ap.parse_args()
+    Peer.step_timeout = args.step_timeout
 
     if not shutil.which(compiler()) and not os.path.exists(compiler()):
         print(f"[build] C++ compiler not found: {compiler()}", file=sys.stderr)
@@ -1099,6 +1218,8 @@ def main() -> int:
                                     args.net_port + 6, out_dir, args.timeout) and net_ok
         net_ok = run_observer_lag_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                        args.net_port + 8, out_dir, args.timeout) and net_ok
+        net_ok = run_saved_game_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                     args.net_port + 9, out_dir, args.timeout) and net_ok
         # The observer case again on a link that loses 45% of its datagrams: every
         # reliable packet (turn batches, the rejoin world's chunks) must still
         # arrive, as ENet's do, or the late observer stalls or never gets in.

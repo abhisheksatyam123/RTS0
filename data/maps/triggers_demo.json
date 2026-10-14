@@ -15199,7 +15199,7 @@
       "template": "athen/infantry_slinger_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -66.88,
       "z": 68.31,
@@ -15228,5 +15228,6 @@
       "x": 26.72,
       "z": 0.37
     }
-  ]
+  ],
+  "circular": true
 }

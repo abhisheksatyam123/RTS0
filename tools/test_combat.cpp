@@ -41,8 +41,8 @@
 //     armour at impact; one landing on nothing misses; arrows at structures scatter.
 // 16. A ranged hunter shoots arrows at the animal (Attack.js PerformAttack); the one that
 //     kills it gives the archer its Loot xp and the archer goes on to gather the carcass.
-// 17. Poisoned and Burning damage counts as an attack by whoever applied it: the xp, the
-//     kill and the statistics go to them, and the source is saved.
+// 17. Poisoned and Burning damage counts as an attack by whoever applied it: the kill and
+//     the statistics go to them (no xp, as 0.28's HandleAttackEffects), and the source is saved.
 // 18. Germanic hero and champion auras: Boiorix gives his own soldiers within 60 m +5 m
 //     ranged and +2 m melee reach, Lugius costs enemy units and structures within 100 m
 //     20 m vision, the Seeress drains enemies within 15 m by 2 hp/s, down to death.
@@ -903,7 +903,8 @@ static void test_status_credit() {
 	std::printf("      poisoned swordsman dead %d; archer xp %d -> %d; player 0 kills %u -> %u\n", (int)!s.units_.alive[vi],
 			xp0, s.units_.xp[idx(s, archer)], kills0, s.stats_[0].enemy_units_killed[STAT_UNIT_TOTAL]);
 	check(!s.units_.alive[vi], "poison kills the swordsman");
-	check(s.units_.xp[idx(s, archer)] > xp0, "the poisoner gets the xp of the damage it did");
+	// helpers/Attack.js HandleAttackEffects: a StatusEffect's damage gives no xp.
+	check(s.units_.xp[idx(s, archer)] == xp0 && s.units_.xp_partial[idx(s, archer)] == 0.0f, "poison damage gives the poisoner no xp");
 	check(s.stats_[0].enemy_units_killed[STAT_UNIT_TOTAL] == kills0 + 1, "the kill counts for the poisoner's player");
 
 	// Saved and loaded, a status keeps its source.
@@ -919,6 +920,69 @@ static void test_status_credit() {
 	std::remove(path);
 	const int bv = idx(b, a_v);
 	check(bv >= 0 && b.units_.poison_src[bv] == a_arch && b.units_.poison_owner[bv] == 0, "the poison's source survives save and load");
+}
+
+static void test_reach_and_responses() {
+	std::printf("20. CanAttack heights\n");
+	// Attack.js CanAttack: a swordsman can't reach an archer on a wall's turret point (the
+	// height offset is more than its MaxRange), so it never picks that archer, even when shot.
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t wall = s.spawn_building_world(-40.0f, -40.0f, BLD_WALL_SEGMENT, 0, 1.0f);
+		const uint32_t archer = s.spawn_unit(-40.0f, -37.0f, 0, UNIT_ARCHER);
+		s.order_garrison(&archer, 1, wall);
+		for (int k = 0; k < 200; ++k) s.tick(DT);
+		check(s.turret_holder_of(archer) == wall, "the archer stands on the wall");
+		const uint32_t sw = s.spawn_unit(-40.0f, -34.0f, 1, UNIT_SWORDSMAN, 1.0e6f);
+		bool went_for_archer = false;
+		for (int k = 0; k < 200; ++k) {
+			s.tick(DT);
+			if (s.units_.target_unit_id[idx(s, sw)] == archer) went_for_archer = true;
+		}
+		check(!s.unit_can_target((size_t)idx(s, sw), (size_t)idx(s, archer)), "the swordsman can't target the archer on the wall");
+		check(!went_for_archer, "the swordsman never goes for the archer, though it is shot at");
+	}
+}
+
+static void test_attack_rate_and_invulnerable() {
+	std::printf("21. attack-rate auras and invulnerable targets\n");
+	// Cleopatra's Patriot multiplies Attack/*/RepeatTime by 0.8 (not damage by 1.25).
+	{
+		Simulation s;
+		setup(s);
+		const uint16_t cleo = template_named("ptol/hero_cleopatra_vii");
+		const uint16_t pike = template_named("ptol/infantry_pikeman_b");
+		check(cleo != CIV_UNIT_TEMPLATE_NONE && pike != CIV_UNIT_TEMPLATE_NONE, "roster has Cleopatra and a pikeman");
+		s.spawn_unit(0.0f, 0.0f, 0, UNIT_HERO, 0.0f, cleo);
+		const uint32_t near_u = s.spawn_unit(3.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, pike);
+		const uint32_t far_u = s.spawn_unit(40.0f, 0.0f, 0, UNIT_SPEARMAN, 0.0f, pike);
+		s.rebuild_auras();
+		const int n = idx(s, near_u), f = idx(s, far_u);
+		check(std::fabs(s.unit_repeat_time(n) - 0.8f * s.units_.attack_cooldown[n]) < 1e-4f, "a pikeman near her attacks 20% sooner");
+		check(s.unit_repeat_time(f) == s.units_.attack_cooldown[f], "one out of her range doesn't");
+		check(s.aura_mgr_.query_modifier(s.units_.pos_x[n], s.units_.pos_z[n], 0, AURA_ATTACK, s.units_.tmpl[n],
+				&s.unit_combat_at(n).classes) == 0.0f, "and hits no harder");
+	}
+	// helpers/Attack.js HandleAttackEffects: an invulnerable target takes no damage, gives
+	// no xp, sends no Attacked message and takes no status.
+	{
+		Simulation s;
+		setup(s);
+		uint32_t sw = s.spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN);
+		const uint32_t v = dummy(s, 1.5f, 0.0f, UNIT_SWORDSMAN, 100.0f);
+		s.triggers_.invulnerable.push_back(v);
+		const float hp0 = s.units_.hp[idx(s, v)];
+		s.order_attack(&sw, 1, v);
+		for (int k = 0; k < 200; ++k) s.tick(DT);
+		const int a = idx(s, sw), t = idx(s, v);
+		check(s.units_.hp[t] == hp0, "the invulnerable unit takes no damage");
+		check(s.units_.xp[a] == 0 && s.units_.xp_partial[a] == 0.0f, "its attacker gains no xp");
+		check(s.units_.attacked_by[t] == 0, "and it isn't told it was attacked");
+		const CombatProfile &mp = unit_combat(template_named("maur/champion_maiden_archer"), UNIT_ARCHER_MAIDEN);
+		s.apply_status((size_t)t, mp, sw, 0);
+		check(s.units_.status_effects[t] == 0, "nor poisoned");
+	}
 }
 
 static void test_germanic_auras() {
@@ -1055,6 +1119,8 @@ int main() {
 	test_status_credit();
 	test_germanic_auras();
 	test_aura_stacking();
+	test_reach_and_responses();
+	test_attack_rate_and_invulnerable();
 	if (g_failures) {
 		std::printf("test_combat: FAIL (%d)\n", g_failures);
 		return 1;

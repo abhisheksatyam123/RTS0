@@ -11500,5 +11500,6 @@
       "z": -3.68,
       "template": "brit/support_civilian"
     }
-  ]
+  ],
+  "circular": true
 }
