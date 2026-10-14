@@ -1976,6 +1976,50 @@ static void test_repairs() {
 // researchManager.js update: wanted techs (gather rates, capacities) in any phase,
 // preferred ones (stone and metal rates, arrows, regeneration) from the town phase,
 // then any technology at random from the city phase.
+// researchManager.js parity: Petra finds what any of its researchers offers this civ (Han
+// unlock_spies at the ministry, not the civic centre), pays the player's price and time
+// (no AI research-time bonus: config.js Cheat's Cost/BuildTime reaches no technology),
+// and stops phasing once the phase research has started (ResearchPlan.onStart).
+static void test_research_parity_028() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
+	s->players_[1].civ = CIV_HAN;
+	s->players_[1].phase = 3;
+	std::vector<uint8_t> techs;
+	s->petra_available_techs(techs);
+	const bool spies_before = std::find(techs.begin(), techs.end(), (uint8_t)TECH_UNLOCK_SPIES) != techs.end();
+	s->spawn_building(cx + 9, cz, BLD_MINISTRY, 1);
+	s->petra_available_techs(techs);
+	const bool spies_after = std::find(techs.begin(), techs.end(), (uint8_t)TECH_UNLOCK_SPIES) != techs.end();
+	CHECK(!spies_before && spies_after, "Han Petra researches unlock_spies at the ministry");
+
+	float paid[RES_COUNT], time = 0.0f;
+	s->tech_price(1, TECH_HEALTH_CIVILIANS_01, BLD_HOUSE, paid, time);
+	CHECK(std::fabs(time - tech_info(TECH_HEALTH_CIVILIANS_01).research_time * s->tech_mods(1).bld_research_time[BLD_HOUSE]) < 0.01f,
+		"an AI researches in the player's time");
+
+	s->players_[1].phase = 1;
+	s->players_[1].civ = CIV_ATHENIANS;
+	for (int k = 0; k < 160; ++k) s->spawn_unit(cc->x - 12.0f + (float)(k % 16), cc->z - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
+	const bool phasing = s->petra_phasing();
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	for (int k = 0; k < 5; ++k) s->spawn_building(cx - 12 + 4 * k, cz + 10, BLD_HOUSE, 1);
+	const bool queued = s->cmd_research(1, cc_id, TECH_PHASE_TOWN);
+	std::printf("  research parity: phasing %d, town phase queued %d, phasing while it researches %d\n", phasing, queued, s->petra_phasing());
+	CHECK(phasing && queued && !s->petra_phasing(), "phasing ends once the phase research starts");
+}
+
 static void test_research_choices() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -3677,6 +3721,7 @@ int main() {
 	test_defend_allies();
 	test_retake_civic_centre();
 	test_research_choices();
+	test_research_parity_028();
 	test_concurrent_attacks();
 	test_fasten_end_game();
 	test_abort_nearest_base();
