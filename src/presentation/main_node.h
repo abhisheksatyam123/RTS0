@@ -675,6 +675,21 @@ private:
 	// The developer overlay's Change perspective: the player view dropdown shows for a
 	// player too, and picking in it takes that player over (PlayerViewControl.setChangePerspective).
 	bool change_perspective_ = false;
+	// The developer overlay's time warp (TimeWarp.js, offline only): a snapshot every
+	// 10 turns, session.timewarp.rewind loads the latest (and drops it), and
+	// session.timewarp.fastforward runs the game at 20x while held.
+	bool time_warp_ = false;
+	bool time_warp_ff_ = false;
+	float time_warp_speed_ = 1.0f; // the speed to go back to when fast forward is let go
+	uint32_t time_warp_turn_ = UINT32_MAX;
+	uint32_t time_warp_serial_ = 0;
+	std::vector<String> time_warp_snapshots_;
+	void set_time_warp(bool on);
+	void time_warp_tick();
+public:
+	bool time_warp_rewind();
+	int time_warp_snapshot_count() const { return (int)time_warp_snapshots_.size(); }
+private:
 	int perspective_pick_ = -1; // the dropdown item picked, until the lockstep turn seats us there
 	OptionButton *observer_view_picker_ = nullptr;
 	Label *observer_mode_label_ = nullptr;
