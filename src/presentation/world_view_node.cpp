@@ -3,6 +3,7 @@
 #include "territory_boundary.h"
 #include "terrain_blend.h"
 #include "session_audio.h"
+#include "user_config.h"
 #include "../graphics/assets/packed_siege_models.h"
 #include "../animation/psa_loader.h"
 #include <godot_cpp/core/class_db.hpp>
@@ -123,9 +124,23 @@ static int tree_family_models(const char *id, rtso::ModelLibrary::Entry *out, in
 	return n;
 }
 
+// 0.28 variant_diversity: of an actor's n variations, "none" draws only the first,
+// "limited" at most two, "full" (the default) any of them.
+static int diverse_variants(int n) {
+	static uint32_t gen = ~0u;
+	static int cap = 1 << 30;
+	if (rtso::user_config::generation() != gen) {
+		gen = rtso::user_config::generation();
+		const std::string v = rtso::user_config::get("variant_diversity");
+		cap = v == "none" ? 1 : v == "limited" ? 2 : 1 << 30;
+	}
+	return std::min(n, cap);
+}
+
 // Which of a family's n models a tree draws: a hash of its id, apart from the
 // kind (id % kinds) and the rotation (id % 12) so variants mix within every kind.
 static int tree_variant_of(uint32_t id, int n) {
+	n = diverse_variants(n);
 	return n > 1 ? (int)(((id * 2654435761u) >> 16) % (uint32_t)n) : 0;
 }
 
@@ -1240,6 +1255,7 @@ static WantAnim resolve_unit_anim(uint8_t uaction, float speed2, bool alive, int
 // unit keeps one by its id: half fall with the second death, and a quarter
 // stand with the second idle (the first is the most frequent in 0 A.D.).
 static WantAnim with_variant(WantAnim w, uint32_t id) {
+	if (diverse_variants(2) < 2) return w; // variant_diversity "none": every unit alike
 	const uint32_t h = id * 2654435761u;
 	if (w.clip == CLIP_DEATH && (h & 0x80000000u)) w.clip = CLIP_DEATH2;
 	else if (w.clip == CLIP_IDLE && (h >> 29) == 3u) w.clip = CLIP_IDLE2;
@@ -3128,7 +3144,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		for (const auto &t : tv) {
 			const float lit = los_brightness(t.x, t.z);
 			if (lit <= 0.0f) continue;
-			Basis rot(Vector3(0, 1, 0), (float)(t.id % 12) * 0.52f);
+			Basis rot(Vector3(0, 1, 0), rtso::Simulation::treasure_angle(t.id));
 			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
 			treasure_mm->set_instance_transform(it, xf);
 			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));
@@ -3150,7 +3166,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			if (los_brightness(sc.x, sc.z) <= 0.0f) continue;
 			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
 			if (kinds.empty()) ++ns;
-			else ++kinds[sc.id % kinds.size()].count;
+			else ++kinds[sc.id % diverse_variants((int)kinds.size())].count;
 		}
 		scenery_mm->set_instance_count(ns);
 		for (auto &kinds : scenery_variants_)
@@ -3166,7 +3182,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			const float scale = info.width > 0.0f ? 2.0f * sc.half_w / info.width : 0.25f;
 			auto &kinds = scenery_variants_[sc.type < rtso::SCENERY_TYPE_COUNT ? sc.type : 0];
 			if (!kinds.empty()) {
-				SceneryVariant &k = kinds[sc.id % kinds.size()];
+				SceneryVariant &k = kinds[sc.id % diverse_variants((int)kinds.size())];
 				const Basis b = Basis(Vector3(0, 1, 0), sc.angle).scaled_local(Vector3(scale, scale, scale));
 				k.mm->set_instance_transform(k.count, Transform3D(b, Vector3(sc.x, sim->get_terrain_height(sc.x, sc.z), sc.z)));
 				k.mm->set_instance_color(k.count++, Color(lit, lit, lit, 1.0f));
