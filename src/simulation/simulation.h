@@ -3006,7 +3006,7 @@ private:
 	uint32_t nearest_dropsite(size_t i) const;
 	bool attack_target_hidden(size_t i, size_t t) const;
 	void deposit_carry(size_t i);
-	void finish_order(size_t i);
+	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;

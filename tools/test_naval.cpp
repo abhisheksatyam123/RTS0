@@ -1351,6 +1351,24 @@ static void test_whale_hunt() {
 	CHECK(on_w2);
 }
 
+// UnitAI GATHER APPROACHING: a walk that fails (MoveFailed, likelyFailure) goes to FINDINGNEWTARGET,
+// which takes the nearest resource of the kind other than the one the unit couldn't reach. A woman
+// sent to berries across the sea stops at the shore, then gathers the berries on her own side.
+static void test_gather_unreachable() {
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0);
+	const uint32_t far_bush = s.spawn_resource_world(0.0f, -26.0f, RES_FOOD, 200);
+	const uint32_t near_bush = s.spawn_resource_world(8.0f, 28.0f, RES_FOOD, 200);
+	const uint32_t woman = s.spawn_unit(0.0f, 30.0f, 0, UNIT_FEMALE_CITIZEN);
+	s.order_gather(&woman, 1, far_bush, false, false);
+	run(s, 30.0f);
+	const int32_t i = idx(s, woman);
+	std::printf("  gather across the sea: now on the %s bush, carrying %d\n",
+			gather_target(s, woman) == near_bush ? "near" : gather_target(s, woman) == far_bush ? "far" : "no", s.units().carry[i]);
+	CHECK(gather_target(s, woman) == near_bush && s.units().carry[i] > 0);
+}
+
 int main() {
 	test_transport();
 	test_dropsite_own_land();
@@ -1379,6 +1397,7 @@ int main() {
 	test_petra_workers_across_water();
 	test_fire_ship();
 	test_whale_hunt();
+	test_gather_unreachable();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
 }
