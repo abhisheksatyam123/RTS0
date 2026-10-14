@@ -1207,6 +1207,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	// 0 A.D. per-tile terrain textures from the final biome.
 	RmsGenerator::paint_terrain(*this, seed, (uint8_t)type);
 	RmsGenerator::plant_flora(*this, seed, (uint8_t)type);
+	RmsGenerator::set_mine_gatherers(*this, (uint8_t)type);
 	if (nomad_) remove_player_structures();
 	register_map_triggers(type);
 	rebuild_nav_grid();
@@ -1520,7 +1521,7 @@ bool Simulation::find_path(float sx, float sz, float tx, float tz, WaypointPath 
 	return nav_grid_.find_path(sx, sz, tx, tz, out, pass);
 }
 
-void Simulation::ensure_territory_regions() {
+void Simulation::ensure_territory_regions() const {
 	const int W = territory_grid_.w, Hh = territory_grid_.h;
 	if (!territory_regions_dirty_ && territory_region_.w == W && territory_region_.h == Hh) return;
 	territory_regions_dirty_ = false;
@@ -1589,7 +1590,7 @@ void Simulation::ensure_territory_regions() {
 
 bool Simulation::territory_connected_at(float x, float z) const {
 	if (territory_grid_.blank()) return true;
-	const_cast<Simulation *>(this)->ensure_territory_regions();
+	ensure_territory_regions();
 	const int W = territory_grid_.w, Hh = territory_grid_.h;
 	if (W <= 0 || Hh <= 0) return true;
 	const int tx = std::clamp((int)((x + map_half_) / (map_half_ * 2.0f) * (float)W), 0, W - 1);
@@ -7564,25 +7565,28 @@ void Simulation::stat_unit_captured(size_t idx, uint8_t from) {
 void Simulation::stat_building_constructed(const Building &b) {
 	if (b.team >= MAX_PLAYERS) return;
 	PlayerStatistics &st = stats_[b.team];
-	const uint8_t c = stat_building_class(b.type);
-	if (c < STAT_BLD_TOTAL) st.buildings_constructed[c]++;
+	const uint32_t cls = stat_building_classes(b.type);
+	for (uint8_t c = 0; c < STAT_BLD_TOTAL; ++c)
+		if (cls & (1u << c)) st.buildings_constructed[c]++;
 	st.buildings_constructed[STAT_BLD_TOTAL]++;
 }
 
 void Simulation::stat_building_lost(const Building &b, uint8_t killer) {
 	// Foundations are not counted (StatisticsTracker.js KilledEntity / LostEntity skip them).
 	if (b.build_progress < 1.0f) return;
-	const uint8_t c = stat_building_class(b.type);
+	const uint32_t cls = stat_building_classes(b.type);
 	const uint32_t value = stat_building_value(b);
 	if (b.team < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[b.team];
-		if (c < STAT_BLD_TOTAL) st.buildings_lost[c]++;
+		for (uint8_t c = 0; c < STAT_BLD_TOTAL; ++c)
+			if (cls & (1u << c)) st.buildings_lost[c]++;
 		st.buildings_lost[STAT_BLD_TOTAL]++;
 		st.buildings_lost_value += value;
 	}
 	if (killer < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[killer];
-		if (c < STAT_BLD_TOTAL) st.enemy_buildings_destroyed[c]++;
+		for (uint8_t c = 0; c < STAT_BLD_TOTAL; ++c)
+			if (cls & (1u << c)) st.enemy_buildings_destroyed[c]++;
 		st.enemy_buildings_destroyed[STAT_BLD_TOTAL]++;
 		st.enemy_buildings_destroyed_value += value;
 	}
@@ -7591,17 +7595,19 @@ void Simulation::stat_building_lost(const Building &b, uint8_t killer) {
 void Simulation::stat_building_captured(const Building &b, uint8_t from) {
 	petra_decay_events_.push_back(b.id); // OwnershipChanged for Petra's decaying structures
 	// The new owner captured it (CapturedBuilding); the old one lost it (LostEntity).
-	const uint8_t c = stat_building_class(b.type);
+	const uint32_t cls = stat_building_classes(b.type);
 	const uint32_t value = stat_building_value(b);
 	if (b.team < MAX_PLAYERS) {
 		PlayerStatistics &st = stats_[b.team];
-		if (c < STAT_BLD_TOTAL) st.buildings_captured[c]++;
+		for (uint8_t c = 0; c < STAT_BLD_TOTAL; ++c)
+			if (cls & (1u << c)) st.buildings_captured[c]++;
 		st.buildings_captured[STAT_BLD_TOTAL]++;
 		st.buildings_captured_value += value;
 	}
 	if (from < MAX_PLAYERS && b.build_progress >= 1.0f) {
 		PlayerStatistics &st = stats_[from];
-		if (c < STAT_BLD_TOTAL) st.buildings_lost[c]++;
+		for (uint8_t c = 0; c < STAT_BLD_TOTAL; ++c)
+			if (cls & (1u << c)) st.buildings_lost[c]++;
 		st.buildings_lost[STAT_BLD_TOTAL]++;
 		st.buildings_lost_value += value;
 	}
@@ -7626,85 +7632,77 @@ PlayerStatistics Simulation::statistics(uint8_t player_id) const {
 	return st;
 }
 
-// Each player's explored cells, refreshed once a second from what its own units
-// and structures can see. RTS0 keeps full fog only for player 0 (fow_grid_),
-// so this coarse grid gives every player GetPercentMapExplored cheaply.
-void Simulation::update_statistics_explored() {
-	const int res = std::max(1, (int)std::ceil(map_half_ * 2.0f / STATISTICS_EXPLORE_CELL));
-	if (res != stats_explore_res_) {
-		stats_explore_res_ = res;
-		for (auto &g : stats_explored_) g.assign((size_t)res * res, 0);
-	}
-	const float cell = map_half_ * 2.0f / (float)res;
-	auto mark = [&](uint8_t p, float x, float z, float radius) {
-		if (p >= MAX_PLAYERS) return;
-		std::vector<uint8_t> &g = stats_explored_[p];
-		const int cx0 = std::clamp((int)((x - radius + map_half_) / cell), 0, res - 1);
-		const int cx1 = std::clamp((int)((x + radius + map_half_) / cell), 0, res - 1);
-		const int cz0 = std::clamp((int)((z - radius + map_half_) / cell), 0, res - 1);
-		const int cz1 = std::clamp((int)((z + radius + map_half_) / cell), 0, res - 1);
-		const float r2 = (radius + cell * 0.5f) * (radius + cell * 0.5f);
-		for (int cz = cz0; cz <= cz1; ++cz) {
-			const float dz = (cz + 0.5f) * cell - map_half_ - z;
-			for (int cx = cx0; cx <= cx1; ++cx) {
-				const float dx = (cx + 0.5f) * cell - map_half_ - x;
-				if (dx * dx + dz * dz <= r2) g[(size_t)cz * res + cx] = 1;
-			}
-		}
-	};
-	// Vision ranges as tick_fow's update_player_fow uses them.
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] && units_.action_state[i] != ACTION_GARRISONED) continue;
-		const uint8_t t = units_.unit_type[i];
-		const float r = (t == UNIT_TRIREME) ? 28.0f : (t == UNIT_CATAPULT) ? 24.0f : (t == UNIT_ARCHER) ? 22.0f
-			: (t == UNIT_CAVALRY || t == UNIT_ELEPHANT) ? 20.0f : 16.0f;
-		mark(units_.team[i], units_.pos_x[i], units_.pos_z[i], r);
-	}
-	for (const Building &b : buildings_)
-		if (b.hp > 0.0f && !b.wrecked) mark(b.team, b.x, b.z, b.build_progress >= 1.0f ? 24.0f : 8.0f);
+// The players whose map statistics add up with player_id's: its Diplomacy team
+// when teams are locked (GetTeamPercentMapExplored / GetTeamPercentMapControlled
+// read the player's own value otherwise, the team columns being hidden then).
+uint8_t Simulation::stat_team_mask(uint8_t player_id) const {
+	if (player_id >= MAX_PLAYERS) return 0;
+	uint8_t m = (uint8_t)(1u << player_id);
+	if (!teams_locked()) return m;
+	for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
+		if (players_[q].active && players_[q].team == players_[player_id].team) m |= (uint8_t)(1u << q);
+	return m;
+}
+
+// CCmpRangeManager::GetPercentMapExplored / GetUnionPercentMapExplored: the LOS cells
+// any of `players` (a bit mask) explored with its own vision, over every cell, rounded
+// down. Explored Map explores every cell (ExploreMap); Revealed Map explores nothing
+// by itself (LosRevealAll), so it counts what the player's units saw.
+float Simulation::explored_percent(uint8_t players) const {
+	if (explore_map_) return 100.0f;
+	const std::vector<uint16_t> &cells = los_.state();
+	if (cells.empty()) return 0.0f;
+	size_t n = 0;
+	for (const uint16_t c : cells) n += ((c >> 8) & players) != 0;
+	return (float)(n * 100 / cells.size());
 }
 
 float Simulation::percent_map_explored(uint8_t player_id) const {
-	if (player_id >= MAX_PLAYERS) return 0.0f;
-	if (reveal_map_ || explore_map_) return 100.0f;
-	const auto &g = stats_explored_[player_id];
-	if (g.empty()) return 0.0f;
-	size_t n = 0;
-	for (uint8_t c : g) n += c;
-	return 100.0f * (float)n / (float)g.size();
+	return player_id < MAX_PLAYERS ? explored_percent((uint8_t)(1u << player_id)) : 0.0f;
 }
 
 float Simulation::team_percent_map_explored(uint8_t player_id) const {
-	if (player_id >= MAX_PLAYERS) return 0.0f;
-	if (reveal_map_ || explore_map_) return 100.0f;
-	const auto &mine = stats_explored_[player_id];
-	if (mine.empty()) return 0.0f;
-	size_t n = 0;
-	for (size_t c = 0; c < mine.size(); ++c) {
-		uint8_t seen = 0;
-		for (uint8_t q = 0; q < MAX_PLAYERS && !seen; ++q)
-			if (q == player_id || (is_ally(player_id, q) && is_ally(q, player_id)))
-				seen = stats_explored_[q].size() == mine.size() ? stats_explored_[q][c] : 0;
-		n += seen;
-	}
-	return 100.0f * (float)n / (float)mine.size();
+	return player_id < MAX_PLAYERS ? explored_percent(stat_team_mask(player_id)) : 0.0f;
+}
+
+// CCmpTerritoryManager::GetTerritoryPercentage for every player: its connected territory
+// tiles a land unit can stand on (cost below ImpassableCost), over all such tiles,
+// rounded down. Water, steep slopes and territory cut off from its roots don't count.
+std::array<uint8_t, MAX_PLAYERS> Simulation::territory_percentages() const {
+	std::array<uint8_t, MAX_PLAYERS> out{};
+	const int W = territory_grid_.w, Hh = territory_grid_.h;
+	if (W <= 0 || Hh <= 0) return out;
+	ensure_territory_regions();
+	const bool cost = territory_cost_.w == W && territory_cost_.h == Hh;
+	std::array<uint32_t, MAX_PLAYERS> owned{};
+	uint32_t passable = 0;
+	for (int y = 0; y < Hh; ++y)
+		for (int x = 0; x < W; ++x) {
+			if (cost && territory_cost_.at(x, y) >= TERRITORY_IMPASSABLE_COST) continue;
+			++passable;
+			const uint16_t id = territory_region_.at(x, y);
+			if (!id) continue;
+			const TerritoryRegion &r = territory_regions_[id - 1];
+			if (r.connected && r.owner < MAX_PLAYERS) ++owned[r.owner];
+		}
+	if (passable == 0) return out;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) out[p] = (uint8_t)(owned[p] * 100 / passable);
+	return out;
 }
 
 float Simulation::percent_map_controlled(uint8_t player_id) const {
-	if (player_id >= MAX_PLAYERS || territory_grid_.data.empty()) return 0.0f;
-	size_t n = 0;
-	for (uint8_t v : territory_grid_.data) n += (v == player_id + 1);
-	return 100.0f * (float)n / (float)territory_grid_.data.size();
+	return player_id < MAX_PLAYERS ? (float)territory_percentages()[player_id] : 0.0f;
 }
 
+// GetTeamPercentMapControlled: the team members' percentages added up.
 float Simulation::team_percent_map_controlled(uint8_t player_id) const {
-	if (player_id >= MAX_PLAYERS || territory_grid_.data.empty()) return 0.0f;
-	bool team[MAX_PLAYERS] = {};
+	if (player_id >= MAX_PLAYERS) return 0.0f;
+	const std::array<uint8_t, MAX_PLAYERS> pc = territory_percentages();
+	const uint8_t team = stat_team_mask(player_id);
+	int sum = 0;
 	for (uint8_t q = 0; q < MAX_PLAYERS; ++q)
-		team[q] = q == player_id || (is_ally(player_id, q) && is_ally(q, player_id));
-	size_t n = 0;
-	for (uint8_t v : territory_grid_.data) n += (v >= 1 && v <= MAX_PLAYERS && team[v - 1]);
-	return 100.0f * (float)n / (float)territory_grid_.data.size();
+		if (team & (1u << q)) sum += pc[q];
+	return (float)sum;
 }
 
 StatisticsSample Simulation::statistics_snapshot() const {
@@ -7725,7 +7723,6 @@ void Simulation::tick_statistics() {
 	// the ticks before this one.
 	const uint64_t tick = ticks_ + 1;
 	if (tick % (uint64_t)std::lround(1.0f / FIXED_STEP) == 0) {
-		update_statistics_explored();
 		// StatisticsTracker.OnTerritoriesChanged / OnGlobalPlayerDefeated: the peaks follow
 		// the territory as it changes, not only the 30 s rows.
 		for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {

@@ -565,6 +565,23 @@ int main() {
 			big += rv.type[i] == RES_WOOD && rv.subtype[i] == RES_SUB_NONE && (rv.amount[i] == 600 || rv.amount[i] == 500);
 		CHECK(big > 0, "india: %d trees hold banyan, strangler or teak wood", big);
 	}
+	// 10b'''. Large quarries: template_gaia_rock_large's MaxGatherers is 24, but the temperate
+	// and alpine biomes' stoneLarge (gaia/rock/temperate_large_02) takes 48.
+	for (int b : {BIOME_TEMPERATE, BIOME_OASIS}) {
+		Simulation sim;
+		sim.set_biome_override(b);
+		sim.generate_random_map(MAP_MAINLAND, 7, 2, 128.0f);
+		const auto rv = sim.resources();
+		const int want = b == BIOME_TEMPERATE ? 48 : 24;
+		int quarries = 0, ok = 0;
+		for (size_t i = 0; i < rv.count; ++i)
+			if (rv.alive[i] && rv.type[i] == RES_STONE && rv.subtype[i] == RES_SUB_NONE && rv.amount[i] == LARGE_MINE_SUPPLY) {
+				++quarries;
+				ok += sim.resource_max_gatherers(rv.id[i]) == want;
+			}
+		CHECK(quarries > 0 && ok == quarries, "%s: %d of %d large quarries take %d gatherers",
+				b == BIOME_TEMPERATE ? "temperate" : "oasis", ok, quarries, want);
+	}
 	// 10c. Per-script terrains and plants.
 	int scripts = 0, patch_scripts = 0, patch_painted = 0;
 	for (int type = 0; type < MAP_TYPE_COUNT; ++type) {

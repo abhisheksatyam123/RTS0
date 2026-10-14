@@ -236,6 +236,7 @@ enum TechClass : uint64_t {
 };
 inline constexpr TechClasses TC_WAGON = tc_bit(64);
 inline constexpr TechClasses TC_COLONY = tc_bit(65);
+inline constexpr TechClasses TC_AUXILIARY = tc_bit(66);
 
 // One 0 A.D. "affects" alternative: every `need` class and no `forbid` class.
 struct TechClassExpr { TechClasses need; TechClasses forbid; };
