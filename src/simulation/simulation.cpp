@@ -6509,14 +6509,6 @@ void Simulation::deposit_carry(size_t i) {
 	int amt = units_.carry[i];
 	uint8_t rt = units_.res_type_carried[i];
 	if (rt < RES_COUNT) {
-		// StatisticsTracker vegetarianFood: food from fruit or grain, not meat or fish.
-		bool vegetarian = false;
-		if (rt == RES_FOOD && units_.target_resource_id[i] != 0) {
-			auto vit = res_id_to_idx_.find(units_.target_resource_id[i]);
-			vegetarian = vit != res_id_to_idx_.end() &&
-				(resources_.subtype[vit->second] == RES_SUB_NONE || resources_.subtype[vit->second] == RES_SUB_GRAIN);
-		}
-		stat_gathered(units_.team[i], rt, amt, vegetarian);
 		PlayerState &ps = player(units_.team[i]);
 		if (units_.team[i] == 0) {
 			// Player 0 also feeds the HUD rate window and match record.
@@ -10371,6 +10363,10 @@ void Simulation::tick_gather(float dt) {
 					if (field_efficiency <= 0.0f) resources_.amount[ridx] -= take; // fields are infinite
 					units_.carry[i] += take;
 					units_.res_type_carried[i] = rt;
+					// ResourceGatherer PerformGather: StatisticsTracker counts each load as it is gathered,
+					// by the supply's type then (vegetarianFood: fruit or grain, not meat or fish).
+					stat_gathered(uteam, rt, take, rt == RES_FOOD &&
+						(resources_.subtype[ridx] == RES_SUB_NONE || resources_.subtype[ridx] == RES_SUB_GRAIN));
 					if (units_.carry[i] >= carry_cap(i, rt) || resources_.amount[ridx] <= 0) {
 						if (units_.carry[i] >= carry_cap(i, rt)) units_.action_state[i] = ACTION_RETURN_DROPSITE;
 						units_.attack_timer[i] = 0.0f;
