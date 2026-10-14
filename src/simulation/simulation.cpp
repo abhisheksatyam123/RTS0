@@ -23660,6 +23660,21 @@ void Simulation::petra_manage_diplomacy(float dt) {
 		}
 	}
 
+	// checkEvents Attacked (every turn): an ally hitting an enemy inside our territory
+	// raises our cooperative trait, once per hit; attacked_by holds this tick's hits.
+	for (size_t t = 0; t < units_.count; ++t) {
+		if (units_.attacked_by[t] == 0 || !units_.alive[t] || !is_hostile(petra_pid_, units_.team[t])) continue;
+		const int32_t a = lookup_unit(units_.attacked_by[t]);
+		uint8_t by = a >= 0 ? units_.team[a] : GAIA_PLAYER;
+		if (a < 0) {
+			auto bit = building_id_to_idx_.find(units_.attacked_by[t]);
+			if (bit != building_id_to_idx_.end()) by = buildings_[bit->second].team;
+		}
+		if (by >= MAX_PLAYERS || by == petra_pid_ || !is_ally(petra_pid_, by)) continue;
+		if (territory_owner_at(units_.pos_x[t], units_.pos_z[t]) != (int)petra_pid_) continue;
+		petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.003f);
+	}
+
 	PetraDiplomacy &dip = petra_diplo_;
 	dip.elapsed += dt;
 	petra_diplo_timer_ += dt;
@@ -23698,15 +23713,6 @@ void Simulation::petra_manage_diplomacy(float dt) {
 			petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.0001f * tributes);
 		}
 		for (uint8_t r = 0; r < RES_COUNT; ++r) petra_tribute_inbox_[me][p][r] = 0.0f;
-	}
-
-	// checkEvents Attacked: so does an ally fighting an enemy inside our territory.
-	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.team[i] == me || !is_ally(me, units_.team[i]) || units_.target_unit_id[i] == 0) continue;
-		const int32_t t = lookup_unit(units_.target_unit_id[i]);
-		if (t < 0 || !units_.alive[t] || !is_hostile(me, units_.team[t])) continue;
-		if (territory_owner_at(units_.pos_x[t], units_.pos_z[t]) != (int)me) continue;
-		petra_config_.cooperative = std::min(1.0f, petra_config_.cooperative + 0.003f);
 	}
 
 	// checkEvents DiplomacyChanged / init: another player's stance toward us
