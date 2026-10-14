@@ -1245,6 +1245,8 @@ github_scenarios = {
     "pickup_test_map": ("pickup_test_map", "mediterranean"),
     "unit_chasing_test": ("unit_chasing_test", "mediterranean"),
     "unit_dancing_test": ("unit_dancing_test", "mediterranean"),
+    "unit_pushing_test": ("unit_pushing_test", "mediterranean"),
+    "unit_motion_integration_test": ("unit_motion_integration_test", "mediterranean"),
 }
 # 0 A.D. tutorials (maps/tutorials/), fetched with --github-tutorials: file -> (id, biome).
 github_tutorials = {
