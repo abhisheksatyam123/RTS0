@@ -6713,15 +6713,19 @@ void Simulation::tick_siege_garrisons() {
 		if (pit == transport_passengers_.end() || pit->second.empty()) continue;
 		const float cx = units_.pos_x[i], cz = units_.pos_z[i];
 		// Each passenger in order takes its own free spot round the engine (siege_spawn_point, its
-		// front toward the engine's own position). With none it lands on the engine's centre, as a
-		// forced eject does in GetSpawnPosition.
+		// front toward the engine's own position). EjectOrKill's unload is not forced, so one with
+		// no spot (GetSpawnPosition finds none) is killed.
 		for (uint32_t puid : pit->second) {
 			int32_t p = lookup_unit(puid);
 			if (p < 0) continue;
 			float ex = cx, ez = cz;
 			if (!siege_spawn_point(i, units_.unit_type[p], puid, cx, cz, ex, ez)) {
-				ex = std::clamp(cx, -map_half_ + 1.0f, map_half_ - 1.0f);
-				ez = std::clamp(cz, -map_half_ + 1.0f, map_half_ - 1.0f);
+				units_.hp[p] = 0.0f;
+				units_.alive[p] = 0;
+				units_.action_state[p] = ACTION_DYING;
+				if (units_.team[p] == 0) record_.units_lost++;
+				kill_passengers_of((size_t)p);
+				continue;
 			}
 			units_.pos_x[p] = ex;
 			units_.pos_z[p] = ez;
