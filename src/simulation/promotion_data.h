@@ -293,6 +293,12 @@ inline constexpr PromotionStart PROMOTION_STARTS[] = {
 	{"rome/infantry_swordsman_a", 2},
 	{"kush/support_healer_e", 3},
 	{"rome/infantry_antesignanus", 3},
+	{"pers/support_healer_e", 3},
+	{"rome/support_healer_e", 3},
+	{"mace/support_healer_e", 3},
+	{"gaul/support_healer_e", 3},
+	{"ptol/support_healer_e", 3},
+	{"han/support_healer_e", 3},
 };
 
 // What one rank adds: unit_advanced.json (Advanced and Elite units) and unit_elite.json

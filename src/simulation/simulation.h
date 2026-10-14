@@ -374,7 +374,7 @@ public:
 	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
 	bool can_capture_relic(size_t i, int32_t r) const;
 	bool unit_can_target_building(size_t i, uint8_t building_type) const {
-		return combat_can_target(unit_combat_at(i), building_combat(building_type));
+		return structure_has_health(building_type) && combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
 	uint16_t unit_template(uint32_t unit_id) const;
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
@@ -487,11 +487,18 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
 	}
+	// ResourceSupply/Max a regrowing supply (fruit) returns to, 0 when RTS0 keeps none.
+	int32_t resource_supply_max(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_amount[it->second];
+	}
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
+	void set_building_civ(uint32_t building_id, uint8_t civ);
 	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
 	uint32_t spawn_relic(float x, float z, int civ_pick = -1); // civ_pick: which catafalque (-1: from the id)
 	std::vector<std::pair<float, float>> relic_spawn_points() const; // TriggerHelper.GetLandSpawnPoints
@@ -845,6 +852,23 @@ public:
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
 	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
+	// GetEntityState for the selection details (selection_details.js, tooltips.js): unit i's
+	// live numbers in 0 A.D.'s own units (metres, metres a second), technologies, rank and
+	// auras applied.
+	struct UnitDetails {
+		float damage[4] = {};     // hack, pierce, crush, fire
+		float capture = 0.0f;     // Attack/Capture
+		float interval = 0.0f;    // seconds between attacks
+		float min_range = 0.0f, max_range = 0.0f;
+		bool ranged = false;
+		float resistance[3] = {}; // hack, pierce, crush levels
+		float walk = 0.0f, run = 0.0f;
+		float gather[7] = {};     // grain, fruit, meat, fish, wood, stone, metal a second
+		int32_t carry_max = 0;    // what it can carry of the resource it holds
+		float heal_hp = 0.0f, heal_range = 0.0f, heal_interval = 0.0f; // 0 hp: no Heal
+		LootInfo loot{};
+	};
+	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -1670,6 +1694,9 @@ public:
 		uint8_t pad[3];
 	};
 	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	// A treasure's facing (radians), fixed by its id; the world view draws it so and its
+	// Obstruction/Static rectangle blocks foundations along it.
+	static float treasure_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
 	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
