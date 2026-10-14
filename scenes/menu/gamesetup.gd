@@ -125,15 +125,30 @@ const RMS_MAPS := [
 	["random_migration", "Migration (RMS)", "Random", 8, 128, "temperate", "Home islands on the outside, a rich continent in the middle; ships needed to reach it. Supports 2-8 players."],
 	["random_ngorongoro", "Ngorongoro (RMS)", "Random", 8, 128, "savanna", "Savanna lowlands round the crater's highlands and a central Eden rich in metal, from a real elevation map. Supports 2-8 players."],
 	["random_river_archipelago", "River Archipelago (RMS)", "Random", 8, 128, "india", "Narrow tropical strips of land split by waterways with few shallow bridges; Mauryan tribesmen hold the outermost islands. Supports 2-8 players."],
+	["random_continent", "Continent (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. Supports 2-8 players."],
+	["random_foothills", "Foothills (RMS)", "Random", 8, 128, "temperate", "A land map with rolling hills and no obstructions. Supports 2-8 players."],
+	["random_coast_range", "Coast Range (RMS)", "Random", 8, 128, "temperate", "All players starts on a continent surrounded by water. This map is designed and balanced for 2 teams only. Supports 2-8 players."],
 ]
 
-# 0 A.D. population limits per player (0 = unlimited) and ceasefire lengths in minutes.
-# 0 A.D. population_capacities.json (default 300), then world_population_capacities.json:
-# a negative value is a World Population shared by the players still in the game.
-const POP_CAPS := [[50, "50"], [100, "100"], [150, "150"], [200, "200"], [250, "250"], [300, "300"], [0, "Unlimited"],
-	[-100, "World 100"], [-200, "World 200"], [-300, "World 300"], [-400, "World 400"], [-500, "World 500"],
-	[-600, "World 600"], [-700, "World 700"], [-800, "World 800"], [-900, "World 900"], [-1000, "World 1000"],
-	[-1100, "World 1100"], [-1200, "World 1200"], [-1600, "World 1600"], [-2000, "World 2000"], [-2400, "World 2400"]]
+# 0 A.D. 0.28 Population Cap Type and its caps (simulation/data/settings/
+# population_capacities.json): [name, title, tooltip, cap title, cap tooltip,
+# caps, default cap]; 10000 reads "Unlimited". RTS0's pop_cap setting is the
+# cap per player (0 = unlimited), its negative a World Population, and with
+# team_pop the cap a Team Population (Simulation::set_team_pop_cap).
+# Ceasefire lengths in minutes follow.
+const POP_CAP_TYPES := [
+	["player", "Player Population", "Locked population cap for all players.", "Player Population Cap",
+		"Choose the player population cap.", [50, 100, 150, 200, 250, 300, 10000], 300],
+	["team", "Team Population", "Distributes a team's total population cap evenly over all its living members. Enables the setting 'Locked teams'.",
+		"Team Population Cap", "Choose the team population cap.",
+		[100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 1000, 10000], 400],
+	["world", "World Population", "Distributes the total population cap evenly over all living players.", "World Population Cap",
+		"Choose the world population cap.", [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1600, 2000, 2400, 10000], 600],
+]
+const POP_TYPE_PLAYER := 0
+const POP_TYPE_TEAM := 1
+const POP_TYPE_WORLD := 2
+const POP_UNLIMITED := 10000
 const CEASEFIRES := [0, 1, 2, 3, 4, 5, 10, 15, 20, 30, 45, 60]
 # 0 A.D. Wonder / Capture the Relic hold times in minutes (default 20) and relic counts (default 2).
 const VICTORY_TIMES := [0, 1, 2, 5, 10, 15, 20, 30, 45, 60]
@@ -141,14 +156,25 @@ const RELIC_COUNTS := [1, 2, 3, 4, 5, 6, 8, 10, 12, 16]
 # 0 A.D. map trigger options: Flood's WaterLevel and Extinct Volcano's SeaLevelRiseTime.
 const WATER_LEVELS := ["Rising water", "Shallow water", "Deep water"]
 const SEA_RISE_TIMES := [0, 5, 10, 15, 20, 25, 30, 40, 50, 60]
-# 0 A.D. Team Placement (gamesettings/attributes/TeamPlacement.js), index ==
-# rtso::TeamPlacement; offered by the maps whose JSON lists TeamPlacements.
-const TEAM_PLACEMENTS := [["Random", "Select a random team placement pattern when starting the game."],
-	["Circle", "Allied players are grouped and placed with opposing players on one circle spanning the map."],
-	["Line", "Allied players are placed in a linear pattern."],
-	["Random Group", "Allied players are grouped, but otherwise placed randomly on the map."],
-	["Stronghold", "Allied players are grouped in one random place of the map."]]
-const TEAM_PLACEMENT_MAPS := ["random_ambush", "random_frontier"]
+# 0 A.D. 0.28 Player Placement (simulation/data/settings/player_placements.json,
+# gamesetup PlayerPlacement.js), index == rtso::TeamPlacement: [0.28 id, name,
+# description]. A random map offers the patterns its JSON lists in
+# PlayerPlacements (data/map_types.json "player_placements"), in that order,
+# after Random.
+const TEAM_PLACEMENTS := [["random", "Random", "Select a random player placement pattern when starting the game."],
+	["circle", "Circle", "Players are placed in a circle spanning the map."],
+	["groupedLines", "Grouped Lines", "Allied players are placed along opposing radial lines."],
+	["randomGroup", "Random Group", "Allied players are grouped, but otherwise placed randomly on the map."],
+	["stronghold", "Stronghold", "Allied players are tightly grouped together."],
+	["river", "River", "Allied players are placed on two parallel lines."]]
+# RTS0's own random maps whose script name matches a 0.28 map's (Archipelago
+# is random_archipelago_0ad): they take none of its settings.
+const OWN_RMS_MAPS := ["random_archipelago"]
+# The sim places players by pattern on every map that lists one, River (5)
+# included (#429); off, only Ambush and Frontier offer it, without River.
+const PLACEMENT_EVERY_MAP := true
+const PLACEMENT_MAPS_BEFORE := ["random_ambush", "random_frontier"]
+const TEAM_PLACEMENT_TOOLTIP := "Select one of the starting position patterns of this map."
 # 0 A.D. Landscape (unknown.json Landscapes, gamesettings Landscape.js): [name,
 # value, description]; value is RmsGenerator::UNKNOWN_LANDSCAPE_* (3 + landscape).
 const LANDSCAPES := [["Random", 0, "Choose a random landscape."],
@@ -275,6 +301,9 @@ var _color_icons: Array = []
 var _maps: Array = []          # all map dicts
 var _filtered: Array = []      # after filter
 var _sel_map: int = 0
+# The Player Placement picked (rtso::TeamPlacement), kept while maps change.
+var _pop_type := POP_TYPE_PLAYER
+var _team_placement := 0
 var _map_type := "skirmish"
 var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
@@ -325,16 +354,65 @@ func _load_maps() -> void:
 		m["keywords"] = t.get("keywords", [])
 		m["settings"] = t.get("settings", {})
 	var random_kw: Dictionary = types.get("random_keywords", {})
+	var placements: Dictionary = types.get("player_placements", {})
 	for r in RMS_MAPS:
 		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
 		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
-			"keywords": random_kw.get(rms_script(r[0]), []), "players": r[3],
+			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
+			"players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6]})
 
 ## The 0.28 maps/random script an RTS0 random map ports ("random_archipelago_0ad" -> "archipelago").
 static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
+
+## 0.28 PlayerPlacement.render: Random, then the map's patterns; the pick stays
+## when the new map offers it, else Random.
+func _rebuild_team_placement(placements: Array) -> void:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0:
+		return
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	tpl.clear()
+	tpl.add_item(TEAM_PLACEMENTS[0][1], 0)
+	for v in placements:
+		tpl.add_item(TEAM_PLACEMENTS[v][1], v)
+	var i := ([0] + placements).find(_team_placement)
+	tpl.select(maxi(i, 0))
+	_update_team_placement_tooltip()
+
+func _selected_team_placement() -> int:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0 or not slot.visible:
+		return 0
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	return maxi(tpl.get_item_id(tpl.get_selected()), 0) if tpl.get_selected() >= 0 else 0
+
+func _on_team_placement_selected(_index: int) -> void:
+	_team_placement = _selected_team_placement()
+	_update_team_placement_tooltip()
+
+## The selected pattern's description (0.28 shows the hovered one), else the title's.
+func _update_team_placement_tooltip() -> void:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot")
+	if slot == null or slot.get_child_count() == 0:
+		return
+	var tpl: RtsoSafeSelect = slot.get_child(0)
+	var v := tpl.get_item_id(tpl.get_selected()) if tpl.get_selected() >= 0 else 0
+	tpl.tooltip_text = TEAM_PLACEMENTS[clampi(v, 0, TEAM_PLACEMENTS.size() - 1)][2]
+	var lbl := get_node_or_null("VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel")
+	if lbl:
+		lbl.tooltip_text = TEAM_PLACEMENT_TOOLTIP
+
+## A map's 0.28 PlayerPlacements ids as rtso::TeamPlacement values.
+static func placement_values(ids: Array) -> Array:
+	var out := []
+	for id in ids:
+		var v := TEAM_PLACEMENTS.map(func(p): return p[0]).find(str(id))
+		if v > 0 and (v != 5 or PLACEMENT_EVERY_MAP):
+			out.append(v)
+	return out
 
 static func _map_types_data() -> Dictionary:
 	var f := FileAccess.open(MAP_TYPES_FILE, FileAccess.READ)
@@ -379,6 +457,58 @@ func _read_scenario(map_id: String) -> Dictionary:
 	pl.sort_custom(func(a, b): return int(a.get("id", 0)) < int(b.get("id", 0)))
 	d["map_players"] = pl
 	return d
+
+func _pop_type_select() -> RtsoSafeSelect:
+	return $VBox/HBox/LeftScroll/Left/PopCapTypeSlot.get_child(0)
+
+func _pop_select() -> RtsoSafeSelect:
+	return $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
+
+## Selects the type and cap a pop_cap setting (and team_pop) stand for, as
+## 0.28's PopulationCapType and PopulationCap dropdowns show them.
+func _select_pop(setting: int, team: bool) -> void:
+	var type := POP_TYPE_TEAM if team and setting > 0 else (POP_TYPE_WORLD if setting < 0 else POP_TYPE_PLAYER)
+	var cap := absi(setting) if setting != 0 else POP_UNLIMITED
+	_set_pop_type(type, cap)
+
+## PopulationCapType.onSelectionChange: the new type's caps at its default.
+func _on_pop_type_selected(i: int) -> void:
+	_set_pop_type(clampi(i, 0, POP_CAP_TYPES.size() - 1), -1)
+
+func _set_pop_type(type: int, cap: int) -> void:
+	_pop_type = type
+	var t: Array = POP_CAP_TYPES[type]
+	_pop_type_select().select(type)
+	_pop_type_select().tooltip_text = tr(t[2])
+	$VBox/HBox/LeftScroll/Left/PopCapLabel.text = tr(t[3])
+	var pop := _pop_select()
+	pop.clear()
+	for v in t[5]:
+		pop.add_item(tr("Unlimited") if int(v) >= POP_UNLIMITED else str(v))
+	var at: int = t[5].find(cap)
+	pop.select(at if at >= 0 else t[5].find(t[6]))
+	pop.tooltip_text = tr(t[4])
+	_update_lock_teams_for_pop()
+
+## The selected cap as RTS0's pop_cap setting.
+func _pop_cap_setting() -> int:
+	var caps: Array = POP_CAP_TYPES[_pop_type][5]
+	var v := int(caps[clampi(_pop_select().get_selected(), 0, caps.size() - 1)])
+	match _pop_type:
+		POP_TYPE_PLAYER:
+			return 0 if v >= POP_UNLIMITED else v
+		POP_TYPE_WORLD:
+			return -v
+	return v
+
+## 0.28 LockedTeams: Team Population turns Locked teams on and keeps it on.
+func _update_lock_teams_for_pop() -> void:
+	var lock: CheckBox = $VBox/HBox/LeftScroll/Left/StartRow/LockTeams
+	if _pop_type == POP_TYPE_TEAM:
+		lock.button_pressed = true
+		lock.disabled = true
+	else:
+		lock.disabled = _is_scenario()
 
 func _make_option(slot: Control) -> RtsoSafeSelect:
 	for c in slot.get_children():
@@ -549,7 +679,7 @@ func _apply_map_locks() -> void:
 	left.get_node("MapSizeSlot").visible = _slot_count_node().editable
 	var checks := {"LastManStanding": "LastManStanding", "StartRow/LockTeams": "LockTeams",
 		"StartRow/DisableTreasures": "DisableTreasures", "MapVisRow/RevealMap": "RevealMap",
-		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/DisableSpies": "DisableSpies"}
+		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/AlliedView": "AllyView", "MapVisRow/DisableSpies": "DisableSpies"}
 	for path in checks:
 		var cb: BaseButton = left.get_node(path)
 		cb.disabled = scen
@@ -559,6 +689,7 @@ func _apply_map_locks() -> void:
 	var res: RtsoSafeSelect = left.get_node("ResSlot").get_child(0)
 	var cf: RtsoSafeSelect = left.get_node("CeasefireSlot").get_child(0)
 	pop.disabled = scen
+	_pop_type_select().disabled = scen
 	res.disabled = scen
 	cf.disabled = scen
 	# VictoryConditions.onMapChange: a scenario's list replaces the conditions (an empty
@@ -576,7 +707,8 @@ func _apply_map_locks() -> void:
 			_victory_checks[bit].disabled = true
 	if not scen:
 		pop.select(pop.get_selected())  # back from "Per Player"
-		pop.tooltip_text = ""
+		pop.tooltip_text = tr(POP_CAP_TYPES[_pop_type][4])
+		_update_lock_teams_for_pop()
 		res.select(res.get_selected())
 		if _was_scenario:
 			# The scenario's teams would leave allies without an enemy: no team, as 0 A.D. starts.
@@ -588,10 +720,7 @@ func _apply_map_locks() -> void:
 	_was_scenario = true
 	cf.select(maxi(CEASEFIRES.find(int(s.get("Ceasefire", 0))), 0))
 	var players: Array = s.get("players", [])
-	var cap := int(s.get("PopulationCap", 300))
-	for i in range(POP_CAPS.size()):
-		if int(POP_CAPS[i][0]) == cap:
-			pop.select(i)
+	_select_pop(int(s.get("PopulationCap", 300)), false)
 	# InitGame.js SetPerPlayerPopulationCaps: the map file's pop_limit per player.
 	var map_players: Array = m.get("map_players", [])
 	var per_player: Array = map_players.filter(func(p): return p.has("pop_limit"))
@@ -602,8 +731,6 @@ func _apply_map_locks() -> void:
 			if map_players[i].has("pop_limit"):
 				lines.append("Player %d: %d" % [int(map_players[i].get("id", i + 1)), int(map_players[i]["pop_limit"])])
 		pop.tooltip_text = "Population limits set by the map.\n" + "\n".join(lines)
-	else:
-		pop.tooltip_text = ""
 	res.select(maxi(START_RES_AMOUNTS.find(int(s.get("StartingResources", 300))), 0))
 	if players.any(func(p): return typeof(p) == TYPE_DICTIONARY and p.has("resources")):
 		res.text = "Per Player"
@@ -628,7 +755,9 @@ func _update_map_options() -> void:
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.visible = id == "random_flood"
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseLabel.visible = id == "random_extinct_volcano"
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.visible = id == "random_extinct_volcano"
-	var tp := id in TEAM_PLACEMENT_MAPS
+	var placements: Array = _selected_map().get("placements", [])
+	var tp := not placements.is_empty()
+	_rebuild_team_placement(placements)
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
 	var ls := id in LANDSCAPE_MAPS
@@ -907,10 +1036,14 @@ func _build_options() -> void:
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
 	msz.select(DEFAULT_MAP_SIZE)
-	var pop := _make_option($VBox/HBox/LeftScroll/Left/PopCapSlot)
-	for p in POP_CAPS:
-		pop.add_item(p[1])
-	pop.select(5) # 0 A.D. default: 300
+	var popt := _make_option($VBox/HBox/LeftScroll/Left/PopCapTypeSlot)
+	for t in POP_CAP_TYPES:
+		popt.add_item(tr(t[1]))
+	popt.select(POP_TYPE_PLAYER)
+	popt.tooltip_text = tr("Select a population capacity type.")
+	popt.item_selected.connect(_on_pop_type_selected)
+	_make_option($VBox/HBox/LeftScroll/Left/PopCapSlot)
+	_select_pop(300, false) # 0 A.D. default: 300 per player
 	var cf := _make_option($VBox/HBox/LeftScroll/Left/CeasefireSlot)
 	for c in CEASEFIRES:
 		cf.add_item("No ceasefire" if c == 0 else "%d min" % c)
@@ -935,12 +1068,8 @@ func _build_options() -> void:
 		sr.add_item("rise at %d min" % t)
 	sr.select(SEA_RISE_TIMES.find(25))
 	var tpl := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot)
-	var tips := PackedStringArray()
-	for p in TEAM_PLACEMENTS:
-		tpl.add_item(p[0])
-		tips.append("%s: %s" % [p[0], p[1]])
-	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.tooltip_text = "\n".join(tips)
-	tpl.select(0)
+	tpl.item_selected.connect(_on_team_placement_selected)
+	_rebuild_team_placement([])
 	var lsc := _make_option($VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot)
 	var ltips := PackedStringArray()
 	for l in LANDSCAPES:
@@ -1032,8 +1161,8 @@ func _on_victory_toggled(on: bool, bit: int) -> void:
 
 ## The MatchSettings fields game setup restores, also the keys of the persisted file.
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
-	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
-	"ceasefire_min", "reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "water_level",
+	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap", "team_pop",
+	"ceasefire_min", "reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "water_level",
 	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
@@ -1073,7 +1202,8 @@ func page_state() -> Dictionary:
 		"nomad": $VBox/HBox/LeftScroll/Left/StartRow/Nomad.button_pressed,
 		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed,
 		"lock_teams": st["lock_teams"], "disable_spies": st["disable_spies"], "disable_treasures": st["disable_treasures"],
-		"pop_cap": st["pop_cap"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
+		"pop_cap": st["pop_cap"], "team_pop": st["team_pop"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
+		"ally_view": bool(st.get("ally_view", false)),
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
 		"team_placement": st["team_placement"], "landscape": st["landscape"],
@@ -1110,14 +1240,12 @@ func _apply_settings(ms: Dictionary) -> void:
 	$VBox/HBox/LeftScroll/Left/StartRow/LockTeams.button_pressed = bool(ms.get("lock_teams"))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/DisableSpies.button_pressed = bool(ms.get("disable_spies"))
 	$VBox/HBox/LeftScroll/Left/StartRow/DisableTreasures.button_pressed = bool(ms.get("disable_treasures"))
-	var pop: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
-	for i in range(POP_CAPS.size()):
-		if int(POP_CAPS[i][0]) == int(ms.get("pop_cap")):
-			pop.select(i)
+	_select_pop(int(ms.get("pop_cap")), bool(ms.get("team_pop")))
 	var cf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/CeasefireSlot.get_child(0)
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed = bool(ms.get("explore_map"))
+	$VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed = bool(ms.get("ally_view"))
 	var wt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
 	var rt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
 	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
@@ -1132,8 +1260,8 @@ func _apply_settings(ms: Dictionary) -> void:
 	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
 	var si := SEA_RISE_TIMES.find(int(ms.get("sea_level_rise_min")))
 	sr.select(si if si >= 0 else SEA_RISE_TIMES.find(25))
-	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
-	tpl.select(clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1))
+	_team_placement = clampi(int(ms.get("team_placement")), 0, TEAM_PLACEMENTS.size() - 1)
+	_rebuild_team_placement(_selected_map().get("placements", []))
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	lsc.select(0)
 	for i in range(LANDSCAPES.size()):
@@ -1205,7 +1333,6 @@ func _collect_setup() -> Dictionary:
 	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
 	var wl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/WaterLevelSlot.get_child(0)
 	var sr: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/SeaRiseSlot.get_child(0)
-	var tpl: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.get_child(0)
 	var lsc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/LandscapeSlot.get_child(0)
 	var tdf: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/TriggerDifficultySlot.get_child(0)
 	var dsel: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapOptionsRow/DaytimeSlot.get_child(0)
@@ -1250,16 +1377,18 @@ func _collect_setup() -> Dictionary:
 	return {"map": m, "seed": seed, "victory": victory_code(vmask),
 		"waves": $VBox/HBox/LeftScroll/Left/Waves.button_pressed,
 		"lms": $VBox/HBox/LeftScroll/Left/LastManStanding.button_pressed,
-		"pop_cap": int(POP_CAPS[maxi(pop.get_selected(), 0)][0]),
+		"pop_cap": _pop_cap_setting(),
+		"team_pop": _pop_type == POP_TYPE_TEAM,
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
 		"reveal": $VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed,
 		"explore": $VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed,
+		"ally_view": $VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed,
 		"wonder_min": int(VICTORY_TIMES[maxi(wt.get_selected(), 0)]),
 		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
 		"water_level": maxi(wl.get_selected(), 0),
 		"sea_level_rise_min": int(SEA_RISE_TIMES[maxi(sr.get_selected(), 0)]),
-		"team_placement": maxi(tpl.get_selected(), 0),
+		"team_placement": _selected_team_placement(),
 		"landscape": int(LANDSCAPES[maxi(lsc.get_selected(), 0)][1]),
 		# Maps without trigger difficulties play at the default, Medium.
 		"trigger_difficulty": maxi(tdf.get_selected(), 0) + 1 if str(m.get("id", "")) in TRIGGER_DIFFICULTY_MAPS else 3,
@@ -1347,9 +1476,11 @@ func _on_start_pressed() -> void:
 	ms.waves_enabled = bool(st["waves"])
 	ms.last_man_standing = bool(st["lms"])
 	ms.pop_cap = int(st["pop_cap"])
+	ms.team_pop = bool(st["team_pop"])
 	ms.ceasefire_min = int(st["ceasefire"])
 	ms.reveal_map = bool(st["reveal"])
 	ms.explore_map = bool(st["explore"])
+	ms.ally_view = bool(st.get("ally_view", false))
 	ms.wonder_min = int(st["wonder_min"])
 	ms.relic_min = int(st["relic_min"])
 	ms.relic_count = int(st["relic_count"])

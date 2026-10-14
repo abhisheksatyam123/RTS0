@@ -4,63 +4,764 @@
  "civs": {
   "athen": {
    "name": "Athenians",
-   "history": "The Greek city-state of Athens is remembered as a famed center for the arts, learning, and philosophy, as well as one of the earliest forms of democracy. That wasn't to say that they weren't warriors. Athens at its height had one of the most powerful navies in the ancient world and through conquering and colonizing built a vast empire.\\nAncient Athens rose to an imperial power after defeating the invading Persians twice in the early fifth century BC and fell in 330 BC, when they lost the Battle of Chaeronea to King Phillip II of Macedonia. While after that it never rose again to power, Athens still was renowned for its learning and its scholars were well sought out as teachers."
+   "history": "The Greek city-state of Athens is remembered as a famed center for the arts, learning, and philosophy, as well as one of the earliest forms of democracy. That wasn't to say that they weren't warriors. Athens at its height had one of the most powerful navies in the ancient world and through conquering and colonizing built a vast empire.\\nAncient Athens rose to an imperial power after defeating the invading Persians twice in the early fifth century BC and fell in 330 BC, when they lost the Battle of Chaeronea to King Phillip II of Macedonia. While after that it never rose again to power, Athens still was renowned for its learning and its scholars were well sought out as teachers.",
+   "bonuses": [
+    {
+     "name": "Delian League",
+     "info": "Shortly after the great naval victories at Salamis and Mykale, the Greek city-states instituted the so-called Delian League in 478 BC, whose purpose was to push the Persians out of the Aegean region. The allied states contributed ships and money, while the Athenians offered their entire navy.",
+     "description": "Ships −25% construction time."
+    },
+    {
+     "name": "Hellenic Architecture",
+     "info": "The Greeks used stone construction from early Mycenaean times.",
+     "description": "Structures +10% health and +10% capture points."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Democracy",
+     "description": "Civic Center technologies −50% research time and −30% cost."
+    }
+   ],
+   "specific_techs": [
+    "arsenal_philon",
+    "civbonuses/delian_league",
+    "civbonuses/greek_structures",
+    "hoplite_tradition",
+    "iphicratean_reforms",
+    "long_walls",
+    "ostracism",
+    "pheidian_workshop",
+    "warship_health"
+   ],
+   "specific_structures": [
+    24,
+    26,
+    27
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "spart": {
    "name": "Spartans",
-   "history": "Sparta was a prominent city-state in Ancient Greece, and its dominant military power started in the 7th century BC. It peaked after the Peloponnesian Wars in the late fifth century BC but declined soon after, ending when they lost to Thebes in the battle of Leuctra in 371 BC.\\nSpartan culture was obsessed with military training; all Spartan boys were drafted into strict training at age seven, and their military service lasted until they were sixty. All trades were done by their serfs, the Helots. Spartans lived a strict and minimalistic lifestyle, separate from many of the other civilizations, due to reforms such as iron money, which were given by Lycurgus, the legendary lawgiver."
+   "history": "Sparta was a prominent city-state in Ancient Greece, and its dominant military power started in the 7th century BC. It peaked after the Peloponnesian Wars in the late fifth century BC but declined soon after, ending when they lost to Thebes in the battle of Leuctra in 371 BC.\\nSpartan culture was obsessed with military training; all Spartan boys were drafted into strict training at age seven, and their military service lasted until they were sixty. All trades were done by their serfs, the Helots. Spartans lived a strict and minimalistic lifestyle, separate from many of the other civilizations, due to reforms such as iron money, which were given by Lycurgus, the legendary lawgiver.",
+   "bonuses": [
+    {
+     "name": "Hellenic Architecture",
+     "info": "The Greeks used stone construction from early Mycenaean times.",
+     "description": "Structures +10% health and +10% capture points."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Peloponnesian League",
+     "description": "Heroes are trained for free."
+    }
+   ],
+   "specific_techs": [
+    "agoge",
+    "civbonuses/greek_structures",
+    "helot_economy",
+    "hoplite_tradition",
+    "krypteia",
+    "tyrtean_paeans",
+    "unlock_neodamodes",
+    "warship_health"
+   ],
+   "specific_structures": [
+    24,
+    29
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmā",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "pers": {
    "name": "Persians",
-   "history": "The Persian Empire, when ruled by the Achaemenid dynasty, was one of the greatest empires of antiquity, stretching at its zenith from the Indus Valley in the east to Greece in the west. The Persians were the pioneers of empire-building of the ancient world, successfully imposing a centralized rule over various peoples with different customs, laws, religions and languages, and building a cosmopolitan army made up of contingents from each of these nations."
+   "history": "The Persian Empire, when ruled by the Achaemenid dynasty, was one of the greatest empires of antiquity, stretching at its zenith from the Indus Valley in the east to Greece in the west. The Persians were the pioneers of empire-building of the ancient world, successfully imposing a centralized rule over various peoples with different customs, laws, religions and languages, and building a cosmopolitan army made up of contingents from each of these nations.",
+   "bonuses": [
+    {
+     "name": "Great King's Levy",
+     "info": "The Persians could and did levy a large number of infantry during wartime due to the sheer size of the Achaemenid Empire and the way in which it was set-up. In general the Persian infantry was well trained and fought with great tenacity. However while this was true the infantry were poor hand-to-hand, close combat fighters. Also, with the exception of the elite regiments, the Persian infantry was not a standing professional force.",
+     "description": "+10% maximum population limit."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Training Regimes",
+     "description": "Barracks and Stables −20% wood and stone cost and build time."
+    }
+   ],
+   "specific_techs": [
+    "archery_tradition",
+    "architecture_pers",
+    "civbonuses/pers_population",
+    "equine_transports",
+    "immortals",
+    "nisean_horses",
+    "ship_movement_speed",
+    "subterranean_aqueducts",
+    "unlock_champion_chariots"
+   ],
+   "specific_structures": [
+    30,
+    51,
+    53,
+    54,
+    55,
+    56
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Āvahana",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Vardana",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Vazaraka Vardana",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "rome": {
    "name": "Romans",
-   "history": "The Romans controlled one of the largest empires of the ancient world, stretching at its peak from southern Scotland to the Sahara Desert, and containing between 60 million and 80 million inhabitants, one quarter of the Earth's population at that time. Rome also remained one of the strongest nations on earth for almost 800 years. The Romans were the supreme builders of the ancient world, excelled at siege warfare and had an exquisite infantry and navy."
+   "history": "The Romans controlled one of the largest empires of the ancient world, stretching at its peak from southern Scotland to the Sahara Desert, and containing between 60 million and 80 million inhabitants, one quarter of the Earth's population at that time. Rome also remained one of the strongest nations on earth for almost 800 years. The Romans were the supreme builders of the ancient world, excelled at siege warfare and had an exquisite infantry and navy.",
+   "bonuses": [
+    {
+     "name": "Legionary Engineers",
+     "info": "Soldiers were well Trained to Operate Siege Engines.",
+     "description": "Siege Catapults and Onagers 10% faster fire rate and +20% movement speed."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Conscription",
+     "description": "Citizen Infantry −10% training time."
+    }
+   ],
+   "specific_techs": [
+    "civbonuses/rome_siege",
+    "roman_reforms",
+    "roman_roads",
+    "warship_health"
+   ],
+   "specific_structures": [
+    31,
+    49
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Vicus",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Oppidum",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Urbs",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "cart": {
    "name": "Carthaginians",
-   "history": "Carthage, a city-state in modern-day Tunisia, was a formidable force in the western Mediterranean, eventually taking over much of North Africa and modern-day Spain in the third century BC. The sailors of Carthage were among the fiercest contenders on the high seas, and masters of naval trade. They deployed towered War Elephants on the battlefield to fearsome effect, and had defensive walls so strong, they were never breached."
+   "history": "Carthage, a city-state in modern-day Tunisia, was a formidable force in the western Mediterranean, eventually taking over much of North Africa and modern-day Spain in the third century BC. The sailors of Carthage were among the fiercest contenders on the high seas, and masters of naval trade. They deployed towered War Elephants on the battlefield to fearsome effect, and had defensive walls so strong, they were never breached.",
+   "bonuses": [
+    {
+     "name": "Servants",
+     "info": "Hire servants to help quarry stone. Increases stone gathering rates.",
+     "description": "Workers +25% stone gather rate."
+    },
+    {
+     "name": "Servants",
+     "info": "Hire servants to help quarry stone. Increases stone gathering rates.",
+     "description": "Workers +25% stone gather rate."
+    },
+    {
+     "name": "Servants",
+     "info": "Hire servants to help quarry stone. Increases stone gathering rates.",
+     "description": "Workers +25% stone gather rate."
+    },
+    {
+     "name": "Triple Walls",
+     "info": "Carthaginians built their city walls in three concentric circuits. These walls were never breached. Even when the city was taken by the Romans, it was via the city's harbor, not by storming its walls.",
+     "description": "City Walls +200% health, but +100% build time and stone cost."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Mercenary Transports",
+     "description": "Mercenaries −50% train time."
+    }
+   ],
+   "specific_techs": [
+    "celtic_auxiliaries",
+    "civbonuses/cart_stone_01",
+    "civbonuses/cart_stone_02",
+    "civbonuses/cart_stone_03",
+    "civbonuses/cart_walls",
+    "colonization",
+    "exploration",
+    "ship_movement_speed",
+    "warship_health"
+   ],
+   "specific_structures": [
+    25,
+    52,
+    57,
+    61,
+    62
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kapr",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Ir",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Qart",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "mace": {
    "name": "Macedonians",
-   "history": "Macedonia was an ancient Greek kingdom, centered in the northeastern part of the Greek peninsula. Under the leadership of Alexander the Great, Macedonian forces and allies took over most of the world they knew, including Egypt, Persia and parts of the Indian subcontinent, allowing a diffusion of Hellenic and eastern cultures for years to come."
+   "history": "Macedonia was an ancient Greek kingdom, centered in the northeastern part of the Greek peninsula. Under the leadership of Alexander the Great, Macedonian forces and allies took over most of the world they knew, including Egypt, Persia and parts of the Indian subcontinent, allowing a diffusion of Hellenic and eastern cultures for years to come.",
+   "bonuses": [
+    {
+     "name": "Hellenic Architecture",
+     "info": "The Greeks used stone construction from early Mycenaean times.",
+     "description": "Structures +10% health and +10% capture points."
+    },
+    {
+     "name": "Resource-Rich Economy",
+     "info": "The Macedonian economy relied greatly on their vast natural resources.",
+     "description": "Storehouse technologies −100% research time."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Mechanical Innovation",
+     "description": "Siege Weapons and Arsenals −25% resource costs and build time."
+    }
+   ],
+   "specific_techs": [
+    "civbonuses/greek_structures",
+    "civbonuses/mace_storehouse",
+    "hellenistic_metropolis",
+    "silvershields",
+    "warship_health"
+   ],
+   "specific_structures": [
+    24
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "brit": {
    "name": "Britons",
-   "history": "The Britons were the Celtic tribes of the British Isles. Using chariots, longswordsmen and powerful melee soldiers, they staged fearsome revolts against Rome to protect their customs and interests. Also, they built thousands of unique structures such as hill forts, crannogs and brochs."
+   "history": "The Britons were the Celtic tribes of the British Isles. Using chariots, longswordsmen and powerful melee soldiers, they staged fearsome revolts against Rome to protect their customs and interests. Also, they built thousands of unique structures such as hill forts, crannogs and brochs.",
+   "bonuses": [
+    {
+     "name": "Woad Warriors",
+     "info": "Britons paint their bodies with Woad, which produces a blue color and gives them a fiercesome appearance in battle.",
+     "description": "All Infantry Units +5% movement speed, and gain +1 loot taking."
+    },
+    {
+     "name": "Wooden Construction",
+     "info": "Celtic structures were mostly made of wood with rubble foundations.",
+     "description": "Structures −20% build time, −20% health, and −20% capture points."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Druids",
+     "description": "Healers −20% resource costs."
+    }
+   ],
+   "specific_techs": [
+    "civbonuses/brit_woad_warriors",
+    "civbonuses/celt_structures",
+    "ship_health",
+    "unlock_champion_chariots"
+   ],
+   "specific_structures": [
+    34,
+    65
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Ialon",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Bona",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Dūnon",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "gaul": {
    "name": "Gauls",
-   "history": "The Gauls were the Celtic tribes of continental Europe. Dominated by a priestly class of Druids, they featured a sophisticated culture of advanced metalworking, agriculture, trade and even road engineering. With heavy infantry and cavalry, Gallic warriors valiantly resisted Caesar's campaign of conquest and Rome's authoritarian rule."
+   "history": "The Gauls were the Celtic tribes of continental Europe. Dominated by a priestly class of Druids, they featured a sophisticated culture of advanced metalworking, agriculture, trade and even road engineering. With heavy infantry and cavalry, Gallic warriors valiantly resisted Caesar's campaign of conquest and Rome's authoritarian rule.",
+   "bonuses": [
+    {
+     "name": "Wooden Construction",
+     "info": "Celtic structures were mostly made of wood with rubble foundations.",
+     "description": "Structures −20% build time, −20% health, and −20% capture points."
+    },
+    {
+     "name": "Superior Cavalry",
+     "info": "The Gauls were well-known for their effective cavalry. Celtic mercenaries were in demand throughout the Mediterranean.",
+     "description": "Cavalry +10% melee attack damage."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Products from Gaul",
+     "description": "Forges −15% technology resource costs and research time."
+    }
+   ],
+   "specific_techs": [
+    "civbonuses/celt_structures",
+    "civbonuses/gaul_cavalry",
+    "gather_farming_harvester",
+    "ship_health"
+   ],
+   "specific_structures": [
+    35
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Ialon",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Bona",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Dūnon",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "iber": {
    "name": "Iberians",
-   "history": "The Iberians were a people of mysterious origins and language, with a strong tradition of horsemanship and metalworking. A relatively peaceful culture, they usually fought in other's battles only as mercenaries. However, they proved tenacious when Rome sought to take their land and freedom from them, and employed pioneering guerrilla tactics and flaming javelins as they fought back."
+   "history": "The Iberians were a people of mysterious origins and language, with a strong tradition of horsemanship and metalworking. A relatively peaceful culture, they usually fought in other's battles only as mercenaries. However, they proved tenacious when Rome sought to take their land and freedom from them, and employed pioneering guerrilla tactics and flaming javelins as they fought back.",
+   "bonuses": [],
+   "team_bonuses": [
+    {
+     "name": "Saripeko",
+     "description": "Citizen Javelineers −10% resource costs."
+    }
+   ],
+   "specific_techs": [
+    "ship_health",
+    "soldier_attack_melee_03_variant"
+   ],
+   "specific_structures": [
+    36
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Treba",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Contrebia",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Iltir",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "maur": {
    "name": "Mauryas",
-   "history": "Founded in 322 BC by Chandragupta Maurya, the Mauryan Empire was the first to rule most of the Indian subcontinent, and was one of the largest and most populous empires of antiquity. Its military featured bowmen who used the long-range bamboo longbow, fierce female warriors, chariots, and thousands of armored war elephants. Its philosophers, especially the famous Acharya Chanakya, contributed to such varied fields such as economics, religion, diplomacy, warfare, and good governance. Under the rule of Ashoka the Great, the empire saw 40 years of peace, harmony, and prosperity."
+   "history": "Founded in 322 BC by Chandragupta Maurya, the Mauryan Empire was the first to rule most of the Indian subcontinent, and was one of the largest and most populous empires of antiquity. Its military featured bowmen who used the long-range bamboo longbow, fierce female warriors, chariots, and thousands of armored war elephants. Its philosophers, especially the famous Acharya Chanakya, contributed to such varied fields such as economics, religion, diplomacy, warfare, and good governance. Under the rule of Ashoka the Great, the empire saw 40 years of peace, harmony, and prosperity.",
+   "bonuses": [
+    {
+     "name": "Elephant Tradition",
+     "info": "India is the land of the elephants. Elephant warfare originated in India and continued for millennia. It was also the source of elephants for the eastern Mediterranean. Indian kings were able to field large numbers of war elephants.",
+     "description": "Elephants −30% training time."
+    },
+    {
+     "name": "Chakravarti Samrāt",
+     "info": "The Mauryan Empire encompassed dozens of formerly independent kingdoms over an area of 5 million square kilometers, with a population of close to 60 million people. The Mauryan regents held the title Emperor of Emperors and commanded a standing army of 600,000 infantry, 9000 elephants, 8000 chariots, and 30,000 cavalry, making it arguably the largest army of its time.",
+     "description": "+10% maximum population limit."
+    },
+    {
+     "name": "Wooden Walls",
+     "info": "The Mauryas built their city walls out of wood, an abundant natural resource in India.",
+     "description": "City Walls −20% build time and −20% health."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Ashoka's Religious Support",
+     "description": "Temples −50% resource costs and building time; Temple technologies −50% resource costs and research time."
+    }
+   ],
+   "specific_techs": [
+    "archery_tradition",
+    "civbonuses/maur_elephants",
+    "civbonuses/maur_population",
+    "civbonuses/maur_walls",
+    "gather_ahimsa",
+    "gather_wicker_baskets_maur",
+    "pair_gather_food_maur",
+    "soldier_attack_melee_03_variant",
+    "unlock_champion_chariots"
+   ],
+   "specific_structures": [
+    23,
+    37,
+    38
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Gāma",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Nayara",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Pura",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "kush": {
    "name": "Kushites",
-   "history": "The Kingdom of Kush was an African kingdom located at the confluences of the Blue Nile, White Nile, and River Atbara, in present-day Sudan. It rose following the collapse of Egypt's New Kingdom, with its early capital at Napata. In the 8th century BC, the Kushites invaded Egypt and established the Twenty-fifth dynasty, ruling as Pharaohs until expelled by the Assyrians. The capital moved to Meroe, the center of the Meroitic kingdom known as Aethiopia in Greek geography. Weakened due to internal rebellion, The kingdom lasted until the 4th century AD and was overtaken by the Kingdom of Axum. Influenced by Egyptian culture, the Kushites built throughout their reign pyramids and temples and worshipped gods like Amun."
+   "history": "The Kingdom of Kush was an African kingdom located at the confluences of the Blue Nile, White Nile, and River Atbara, in present-day Sudan. It rose following the collapse of Egypt's New Kingdom, with its early capital at Napata. In the 8th century BC, the Kushites invaded Egypt and established the Twenty-fifth dynasty, ruling as Pharaohs until expelled by the Assyrians. The capital moved to Meroe, the center of the Meroitic kingdom known as Aethiopia in Greek geography. Weakened due to internal rebellion, The kingdom lasted until the 4th century AD and was overtaken by the Kingdom of Axum. Influenced by Egyptian culture, the Kushites built throughout their reign pyramids and temples and worshipped gods like Amun.",
+   "bonuses": [],
+   "team_bonuses": [
+    {
+     "name": "Elephant Suppliers",
+     "description": "Elephants −20% resource costs and training time."
+    }
+   ],
+   "specific_techs": [
+    "archery_tradition",
+    "architecture_kush",
+    "warship_ranged_attack"
+   ],
+   "specific_structures": [
+    39,
+    40,
+    46,
+    47,
+    48
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Wḥyt",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Dmj",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Ri",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "ptol": {
    "name": "Ptolemies",
-   "history": "The Ptolemaic dynasty was a Macedonian Greek royal family which ruled the Ptolemaic Empire in Egypt during the Hellenistic period. Their rule lasted for 275 years, from 305 BC to 30 BC. They were the last dynasty of ancient Egypt."
+   "history": "The Ptolemaic dynasty was a Macedonian Greek royal family which ruled the Ptolemaic Empire in Egypt during the Hellenistic period. Their rule lasted for 275 years, from 305 BC to 30 BC. They were the last dynasty of ancient Egypt.",
+   "bonuses": [
+    {
+     "name": "Sun-dried Mud Bricks",
+     "info": "Sun-dried mud bricks were a common building material in hot and dry areas, especially where wood was scarce. Although not as strong and durable as fired bricks or natural stone and vulnerable to constant rains and heavy floods, mud bricks have the advantage they are cheap and easy to produce.",
+     "description": "Houses and Economic Structures −40% wood cost, health, and capture points as well as +50% build time."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Breadbasket of the Mediterranean",
+     "description": "+1.0 food trickle rate."
+    }
+   ],
+   "specific_techs": [
+    "civbonuses/ptol_structures",
+    "gather_farming_fertilizer_ptol",
+    "gather_farming_training_ptol",
+    "hellenistic_metropolis",
+    "juggernauts",
+    "pair_unlock_cult_ptol",
+    "pharaonic_cult",
+    "serapis_cult"
+   ],
+   "specific_structures": [
+    24,
+    33,
+    42,
+    43
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "sele": {
    "name": "Seleucids",
-   "history": "The Macedonian-Greek dynasty that ruled most of Alexander's former empire."
+   "history": "The Macedonian-Greek dynasty that ruled most of Alexander's former empire.",
+   "bonuses": [
+    {
+     "name": "Fertile Crescent",
+     "info": "The Seleucid empire was located in a highly fertile region with productive soils. Farms are cheaper and faster to build.",
+     "description": "Farms −25% wood cost and −75% build time."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Syrian Tetrapolis",
+     "description": "Civil Centers and Colonies −20% resource cost and −30% construction time."
+    }
+   ],
+   "specific_techs": [
+    "civbonuses/sele_farms",
+    "hellenistic_metropolis",
+    "nisean_horses",
+    "pair_unlock_champions_sele",
+    "parade_of_daphne",
+    "reformed_army_sele",
+    "traditional_army_sele",
+    "unlock_champion_chariots"
+   ],
+   "specific_structures": [
+    24,
+    43
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Kōmē",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Kōmopolis",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Megalopolis",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "han": {
    "name": "Han",
-   "history": "The Han dynasty was the second imperial dynasty of China. Founded by the commoner Liu Bang, the empire lasted from 202 BC to AD 220 with a short break from AD 9 to AD 23 when Wang Mang took the throne, making it the longest imperial dynasty in Chinese history. The Han dynasty was a period of relative peace, as well as cultural and technological growth, and for that reason is considered the first \"Golden Age of China\". The name of today's largest ethnic group in the world, the Han Chinese, derives from this very period."
+   "history": "The Han dynasty was the second imperial dynasty of China. Founded by the commoner Liu Bang, the empire lasted from 202 BC to AD 220 with a short break from AD 9 to AD 23 when Wang Mang took the throne, making it the longest imperial dynasty in Chinese history. The Han dynasty was a period of relative peace, as well as cultural and technological growth, and for that reason is considered the first \"Golden Age of China\". The name of today's largest ethnic group in the world, the Han Chinese, derives from this very period.",
+   "bonuses": [
+    {
+     "name": "Federated States",
+     "info": "By uniting China under one emperor, the Han Dynasty ruled over 40 million people, one of the largest empires of antiquity by population.",
+     "description": "+10% maximum population limit."
+    },
+    {
+     "name": "Great Wall",
+     "info": "The Han built massive walls made from rammed earth. These were gigantic fortifications several meters thick and stretching for kilometers.",
+     "description": "City Walls +50% health."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Silk Road",
+     "description": "Allies +20% international trade bonus."
+    }
+   ],
+   "specific_techs": [
+    "art_of_war",
+    "civbonuses/han_population",
+    "civbonuses/han_walls",
+    "civil_engineering_01",
+    "civil_engineering_02",
+    "civil_service_01",
+    "civil_service_02",
+    "crossbow_training",
+    "exploration",
+    "gather_farming_chain_pump",
+    "gather_farming_seed_drill",
+    "gather_farming_water_weeding",
+    "pair_unlock_civil_engineering_han",
+    "pair_unlock_civil_service_han",
+    "poison_arrows",
+    "poison_blades",
+    "silk_road"
+   ],
+   "specific_structures": [
+    45,
+    58,
+    59
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "Xiāng",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "Xìan",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "Jùn",
+     "icon": "city_phase.png"
+    }
+   ]
   },
   "germ": {
    "name": "Germans",
-   "history": "The largest migration in Europe of this period was that of the Cimbri people. The Cimbri were a large group of Germanic peoples originally from the Jutland region, in the north of modern-day Denmark. In the late 2nd century BC, their migration south into Italy and France would spark the decade-long Cimbrian War against the Roman Republic, bringing \"Terror Germanicus\" to the hearts of the Roman people."
+   "history": "The largest migration in Europe of this period was that of the Cimbri people. The Cimbri were a large group of Germanic peoples originally from the Jutland region, in the north of modern-day Denmark. In the late 2nd century BC, their migration south into Italy and France would spark the decade-long Cimbrian War against the Roman Republic, bringing \"Terror Germanicus\" to the hearts of the Roman people.",
+   "bonuses": [
+    {
+     "name": "Bovine Tradition",
+     "info": "Germanic convoys brought livestock, in particular cattle, and placed great importance on these animals for religious sacrifices.",
+     "description": "Civilians +100% meat gather rate."
+    },
+    {
+     "name": "Cimbrian Caravans",
+     "info": "Women and children accompanied the Germanic armies on long-range migrations.",
+     "description": "Civilians +0.5 movement speed."
+    }
+   ],
+   "team_bonuses": [
+    {
+     "name": "Stolen Arms",
+     "description": "Swordsmen and Axemen of all kinds -5 metal cost."
+    }
+   ],
+   "specific_techs": [
+    "civbonuses/germ_meat",
+    "civbonuses/germ_women",
+    "grove_of_fetters",
+    "resettlement",
+    "wagon_trains"
+   ],
+   "specific_structures": [
+    36,
+    66,
+    67,
+    68
+   ],
+   "phases": [
+    {
+     "generic_name": "Village Phase",
+     "specific_name": "",
+     "icon": "village_phase.png"
+    },
+    {
+     "generic_name": "Town Phase",
+     "specific_name": "",
+     "icon": "town_phase.png"
+    },
+    {
+     "generic_name": "City Phase",
+     "specific_name": "",
+     "icon": "city_phase.png"
+    }
+   ]
   }
  },
  "units": {

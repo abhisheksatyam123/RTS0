@@ -185,7 +185,7 @@ func open_run(r: CampaignRun) -> void:
 func delete_pressed() -> void:
 	if mode != "load" or selected < 0:
 		return
-	confirm.dialog_text = "Are you sure you want to delete run %s? This cannot be undone." % list.get_item_text(selected)
+	confirm.dialog_text = tr("Are you sure you want to delete run %s? This cannot be undone.") % list.get_item_text(selected)
 	confirm.popup_centered(Vector2i(420, 140))
 
 func delete_selected() -> void:

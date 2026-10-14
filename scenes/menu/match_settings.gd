@@ -28,6 +28,8 @@ var ceasefire_min: int = 0
 # 0 A.D. map visibility: everything visible, or terrain known from the start.
 var reveal_map: bool = false
 var explore_map: bool = false
+# 0 A.D. AllyView: every player starts seeing what their allies see (Cartography researched).
+var ally_view: bool = false
 # Wonder / Capture the Relic: hold times in minutes and the number of relics.
 var wonder_min: int = 20
 var relic_min: int = 20
@@ -62,7 +64,7 @@ var rated: bool = false
 # 0 rising, 1 shallow, 2 deep; Extinct Volcano minutes until the water rises.
 var water_level: int = 0
 var sea_level_rise_min: int = 25
-# 0 A.D. TeamPlacement for Ambush and Frontier: rtso::TeamPlacement, 0 = the map picks.
+# 0 A.D. Player Placement (the patterns a random map lists): rtso::TeamPlacement, 0 = Random.
 var team_placement: int = 0
 var landscape: int = 0 # Unknown map Landscape (RmsGenerator::UNKNOWN_LANDSCAPE_*), 0 = random
 var trigger_difficulty: int = 3 # 0 A.D. Trigger Difficulty: 1 Very Easy .. 5 Very Hard, 3 Medium

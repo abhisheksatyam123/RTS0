@@ -35,6 +35,9 @@ func _ready() -> void:
 	add_child(top)
 	_select = Common.civ_select(_on_civ_selected)
 	_select.visible = not lock_civ
+	var heading := Common.civ_heading()
+	heading.visible = _select.visible
+	top.add_child(heading)
 	top.add_child(_select)
 	_emblem = TextureRect.new()
 	_emblem.custom_minimum_size = Vector2(56, 56)
@@ -74,36 +77,65 @@ func set_civ(index: int) -> void:
 	var hist := Common.civ_history(civ)
 	_history.text = (Common.heading("History of the %s" % d["name"], 18) + "\n" + hist) if hist != "" else ""
 
+## 0.28 CivInfoPage.formatEntry: "• Name (i)" with the info text on hover, and the
+## description on the next line, indented.
+static func entry(label: String, info: String, description: String) -> String:
+	var t := "• [b]%s[/b]" % label
+	if info != "":
+		t += " [hint=\"%s\"][color=#9fd3ff](i)[/color][/hint]" % info.replace("\"", "\u201d").replace("]", ")")
+	if description != "":
+		t += "\n     " + description
+	return t + "\n"
+
+static func _heading(one: String, many: String, n: int) -> String:
+	return Common.heading(one if n == 1 else many, 14)
+
+## 0.28 GameplaySection: civ and team bonuses (BonusesSubsection), specific
+## technologies, specific structures and heroes, each as formatEntry lines.
 func gameplay_text(d: Dictionary) -> String:
 	var t := Common.heading("%s Gameplay" % d["name"], 20) + "\n"
-	var extract: Dictionary = _civinfo.get(d["code"], {})
-	var bonuses: Array = extract.get("bonuses", [])
-	t += Common.heading("Civilization Bonus" if bonuses.size() == 1 else "Civilization Bonuses")
-	if bonuses.is_empty():
+	var civ_ref: Dictionary = Common.text().get("civs", {}).get(d["code"], {})
+	# Bonuses: auto-researched civ techs, then player auras, then {civ}.json CivBonuses.
+	var lines := PackedStringArray()
+	for b in civ_ref.get("bonuses", []):
+		lines.append(entry(b["name"], b.get("info", ""), b.get("description", "")))
+	for b in _civinfo.get(d["code"], {}).get("bonuses", []):
+		lines.append(entry(b["name"], b.get("history", ""), b.get("description", "")))
+	t += _heading("Civilization Bonus", "Civilization Bonuses", lines.size())
+	if lines.is_empty():
 		t += d["bonus_text"] + "\n"
-	for b in bonuses:
-		t += "[b]%s[/b]: %s\n" % [b["name"], b["description"]]
-		if b.get("history", "") != "":
-			t += "[i][color=#bbbbaa]%s[/color][/i]\n" % b["history"]
-	t += "\n" + Common.heading("Team Bonus" if d["team_bonuses"].size() == 1 else "Team Bonuses")
-	for b in d["team_bonuses"]:
-		t += "[b]%s[/b]: %s\n" % [b["name"], b["description"]]
-	t += "\n" + Common.heading("Specific Technology" if d["techs"].size() == 1 else "Specific Technologies")
+	t += "".join(lines)
+	lines = PackedStringArray()
+	for b in civ_ref.get("team_bonuses", d["team_bonuses"]):
+		lines.append(entry(b["name"], "", b.get("description", "")))
+	t += "\n" + _heading("Team Bonus", "Team Bonuses", lines.size()) + "".join(lines)
+	# Specific Technologies: requirements naming the civ (Subsection.getTechnologyCaptions).
+	var specific: Array = civ_ref.get("specific_techs", [])
+	lines = PackedStringArray()
 	for tch in d["techs"]:
-		t += "%s  [color=%s]%s Phase[/color]\n    %s\n" % [Common.link("tech", int(tch["id"]), tch["name"]),
-			Common.DIM, Common.phase_name(int(tch["phase"])), tch["description"]]
-	t += "\n" + Common.heading("Specific Structure" if d["structures"].size() == 1 else "Specific Structures")
+		var tmpl: String = tch.get("template", "")
+		if not (tmpl in specific if civ_ref.has("specific_techs") else bool(tch.get("civ_specific", false))):
+			continue
+		var tx: Dictionary = Common.tech_text(tmpl)
+		lines.append(entry(Common.link("tech", int(tch["id"]), tch["name"]), tx.get("description", tch["description"]),
+			tx.get("tooltip", "")))
+	t += "\n" + _heading("Specific Technology", "Specific Technologies", lines.size()) + "".join(lines)
+	# Specific Structures: "CivSpecific Structure" classes.
+	var own := [] # JSON numbers are floats; the structure types are ints
+	for x in civ_ref.get("specific_structures", []):
+		own.append(int(x))
+	lines = PackedStringArray()
 	for s in d["structures"]:
+		if not (int(s["type"]) in own if civ_ref.has("specific_structures") else bool(s.get("unique", false))):
+			continue
 		var st: Dictionary = Common.structure_text(int(s["type"]), civ)
-		t += "%s  [color=%s]%s Phase[/color]\n" % [Common.link("structure", int(s["type"]), s["name"]),
-			Common.DIM, Common.phase_name(int(s["phase"]))]
-		if st.get("tooltip", "") != "":
-			t += "    %s\n" % st["tooltip"]
-	t += "\n" + Common.heading("Hero" if d["heroes"].size() == 1 else "Heroes")
+		var label := Common.entity_name(st.get("generic_name", s["name"]), st.get("specific_name", ""))
+		lines.append(entry(Common.link("structure", int(s["type"]), label), "", st.get("tooltip", "")))
+	t += "\n" + _heading("Specific Structure", "Specific Structures", lines.size()) + "".join(lines)
+	lines = PackedStringArray()
 	for h in d["heroes"]:
-		t += "%s  [color=%s]%s Phase, %s[/color]\n" % [
-			Common.link("unit", int(h["tmpl"]), Common.entity_name(h["name"], h["specific_name"])),
-			Common.DIM, Common.phase_name(int(h["phase"])), h["cost"]]
-		for a in h["auras"]:
-			t += "    [color=#c9a0ff]%s[/color]: %s\n" % [a["name"], a["description"]]
+		var ut: Dictionary = Common.unit_text(h.get("id", ""))
+		var label := Common.entity_name(ut.get("generic_name", h["name"]), ut.get("specific_name", h["specific_name"]))
+		lines.append(entry(Common.link("unit", int(h["tmpl"]), label), "", ut.get("tooltip", "")))
+	t += "\n" + _heading("Hero", "Heroes", lines.size()) + "".join(lines)
 	return t

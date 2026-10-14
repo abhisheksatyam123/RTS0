@@ -20,11 +20,9 @@ func _ready() -> void:
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(_tabs)
 	_tree = Structree.new()
-	_tree.lock_civ = true
 	_tree.viewer_host = self
 	_tabs.add_child(_tree)
 	_civinfo = CivInfo.new()
-	_civinfo.lock_civ = true
 	_civinfo.viewer_host = self
 	_tabs.add_child(_civinfo)
 	_tabs.tab_changed.connect(func(i): $Center/Panel/VBox/Header/Title.text = _tabs.get_tab_title(i))
