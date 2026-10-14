@@ -839,7 +839,6 @@ static void test_petra_concurrent_transports() {
 	s.players_[1].phase = 2;
 	s.spawn_building_world(-30.0f, 40.0f, BLD_TOWN_CENTER, 1);
 	s.spawn_building_world(-48.0f, 20.0f, BLD_DOCK, 1);
-	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.spawn_unit(-40.0f, 10.0f, 1, UNIT_TRIREME);
 	s.spawn_unit(-20.0f, 10.0f, 1, UNIT_TRIREME);
 	std::vector<uint32_t> army;
@@ -858,26 +857,35 @@ static void test_petra_concurrent_transports() {
 	CHECK(plan_of(PETRA_TRANSPORT_BUILDERS) != nullptr);
 	// One plan per owner: a second builders' crossing waits for the first.
 	CHECK(!s.petra_start_transport(army, -30.0f, 40.0f, -30.0f, -40.0f, 0, PETRA_TRANSPORT_BUILDERS));
+	// The target, placed now: Petra's soldiers would capture it while the builders cross.
+	const uint32_t house = s.spawn_building_world(30.0f, -40.0f, BLD_OUTPOST, 0); // an outpost: no decay on neutral land
 	s.petra_attack_mgr_.kind = PETRA_ATTACK_ATTACK;
 	s.petra_attack_mgr_.target_size = 6;
 	s.petra_attack_mgr_.min_size = 6;
 	s.petra_attack_mgr_.rushes_set = 1;
+	// A fresh plan: Petra may already muster its own, with the soldiers it trained meanwhile.
+	s.petra_attack_plan_ = Simulation::AttackPlan();
 	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	s.petra_attack_plan_.target_building_id = house;
 	s.petra_attack_plan_.state_timer = 0.0f;
-	// The army is the six given above: drop the batches Petra queued for the attack before
-	// it, which the plan would wait for (updatePreparation waits for its units in training).
-	for (auto &b : s.buildings_)
-		if (b.team == 1)
-			b.queue.erase(std::remove_if(b.queue.begin(), b.queue.end(),
-			                             [](const ProductionOrder &o) { return o.petra_plan == PETRA_ORDER_ATTACK; }),
-			              b.queue.end());
+	// The army is the six given above: drop the batches Petra queues for the attack, which
+	// the plan would wait for (updatePreparation waits for its units in training), here and
+	// on each second below (trainMoreUnits keeps filling its ranged and cavalry classes).
+	auto drop_attack_batches = [&] {
+		for (auto &b : s.buildings_)
+			if (b.team == 1)
+				b.queue.erase(std::remove_if(b.queue.begin(), b.queue.end(),
+				                             [](const ProductionOrder &o) { return o.petra_plan == PETRA_ORDER_ATTACK; }),
+				              b.queue.end());
+	};
+	drop_attack_batches();
 	bool both = false, shared = false;
 	std::vector<uint32_t> landed;
 	// The most villagers on the south land at once: once the civic centre stands, Petra may ship a
 	// builder home again for a resource the new base lacks.
 	int villagers_south = 0;
 	for (int k = 0; k < 120; ++k) {
+		if (s.petra_attack_plan_.state == Simulation::AttackPlan::MUSTER) drop_attack_batches();
 		run(s, 1.0f);
 		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
 		if (a && b) {
