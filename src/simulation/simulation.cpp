@@ -10347,6 +10347,12 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 				continue;
 			}
 		}
+		// A hunter whose path ends short of the animal (on the shore of its island) gets no closer.
+		if (turn_ends && units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && hunt_falls_short(i)) {
+			m = MotionTurn{.pressure = m.pressure};
+			give_up_hunt(i);
+			continue;
+		}
 		if (steps.want_x[i] != 0.0f || steps.want_z[i] != 0.0f) {
 			if (!m.stepped) {
 				m.from_x = steps.from_x[i];
@@ -10477,6 +10483,48 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
+}
+
+bool Simulation::hunt_falls_short(size_t i) const {
+	const uint32_t tid = units_.target_unit_id[i];
+	if (i >= unit_paths_.size() || lookup_unit(tid) >= 0) return false;
+	const auto fit = fauna_id_to_idx_.find(tid);
+	if (fit == fauna_id_to_idx_.end() || !fauna_.alive[fit->second]) return false;
+	const WaypointPath &wp = unit_paths_[i];
+	if (!wp.has_goal || wp.count <= 0) return false;
+	const float gx = wp.goal_x - units_.target_x[i], gz = wp.goal_z - units_.target_z[i];
+	if (gx * gx + gz * gz > 4.0f) return false; // not this hunt's path
+	const float ex = wp.xs[wp.count - 1], ez = wp.zs[wp.count - 1];
+	// MakeGoalReachable moved the goal: the path's end is out of reach of the animal's spot...
+	const float reach = attack_reach(i) + 2.0f;
+	const float sx = ex - wp.goal_x, sz = ez - wp.goal_z;
+	if (sx * sx + sz * sz <= reach * reach) return false;
+	// ... and the hunter has walked to it.
+	const float ux = units_.pos_x[i] - ex, uz = units_.pos_z[i] - ez;
+	return ux * ux + uz * uz <= 2.5f * 2.5f;
+}
+
+void Simulation::give_up_hunt(size_t i) {
+	const uint32_t uid = units_.id[i], tid = units_.target_unit_id[i];
+	units_.target_unit_id[i] = 0;
+	if (i < unit_paths_.size()) unit_paths_[i].clear();
+	units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+	if (units_.order_kind[i] == ORDER_GATHER) {
+		finish_order(i, true);
+		return;
+	}
+	// Another animal of the kind nearby, never the one it couldn't reach ("previousTarget == ent").
+	if (units_.hunt_fauna[i] != 0) {
+		const uint32_t prey = find_nearby_prey(i, units_.pos_x[i], units_.pos_z[i], NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE,
+				units_.hunt_fauna[i], tid);
+		if (prey != 0) {
+			order_hunt(&uid, 1, prey);
+			return;
+		}
+	}
+	units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
+	units_.has_order[i] = 0;
+	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
 // HandleObstructedMove's fixes for a unit obstructed on its way along a long path, more than
@@ -28359,14 +28407,14 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 // animal (RTS0 drops the carcass's template, so "the same template" is approximated by the
 // herd nearby). A ship (the fishing boat's Harpoon) goes only for sea animals, which are
 // fish (type.specific "fish", not "meat", so any whale will do); a land unit never does.
-uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna) const {
+uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna, uint32_t exclude) const {
 	if (units_.attack_damage[i] <= 0.0f) return 0;
 	const bool ship = unit_is_ship(units_.unit_type[i]);
 	uint32_t best = 0;
 	float best_d2 = std::min(max_d2, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE);
 	const bool fog = los_.cells() != 0;
 	for (size_t f = 0; f < fauna_.count; ++f) {
-		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
+		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0 || fauna_.id[f] == exclude) continue;
 		const uint8_t b = fauna_.behavior[f];
 		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED || b == FAUNA_MOVING) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
@@ -28455,6 +28503,61 @@ bool Simulation::fauna_can_step(size_t f, float x, float z) const {
 		for (const SteerObstacle &b : sep_obstacles_)
 			if (enters(b)) return false;
 	return !hit;
+}
+
+void Simulation::fauna_path_aim(size_t f, float tx, float tz, float &ax, float &az, uint32_t ignore_building_id) const {
+	ax = tx;
+	az = tz;
+	if (nav_grid_.res <= 0) return;
+	const FaunaTypeInfo &info = fauna_type_info(fauna_.fauna_type[f]);
+	const uint8_t pass = info.is_naval() ? PASS_SHIP : PASS_INFANTRY;
+	const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
+	auto [sx, sy] = nav_grid_.world_to_cell(fx, fz);
+	auto [gx, gy] = nav_grid_.world_to_cell(tx, tz);
+	// CheckMovement's line, but impassable navcells round the end are the goal's own (a corral,
+	// a unit standing against a wall): only a gap of passable ones after a block means a detour.
+	auto line_clear = [&]() {
+		int state = 0; // 0 on the start's impassable cells, 1 on passable, 2 in a block after them
+		bool clear = true;
+		nav_grid_.walk_line(sx + 0.5f, sy + 0.5f, gx + 0.5f, gy + 0.5f, [&](int x, int y) {
+			const bool open = nav_grid_.is_passable_for(x, y, pass);
+			if (open) {
+				if (state == 2) clear = false;
+				state = 1;
+			} else if (state == 1) {
+				state = 2;
+			}
+			return clear;
+		});
+		return clear;
+	};
+	if (!(sx == gx && sy == gy) && !line_clear()) {
+		WaypointPath path;
+		find_path(fx, fz, tx, tz, path, pass);
+		if (path.count > 0) {
+			ax = path.xs[0];
+			az = path.zs[0];
+			// A corner navcell centre can lie on a structure's edge; the short path below would
+			// take that structure for the destination. Aim just outside it, grown by the clearance.
+			const float r = (info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT) + 0.35f;
+			for (int k = 0; k < 2 && path.count > 1 && !info.is_naval(); ++k) {
+				bool moved = false;
+				auto push = [&](const SteerObstacle &b) { moved |= nav::footprint_push_out(b, r, ax, az); };
+				if (!sep_grid_.for_each_near(ax, az, r, [&](uint32_t n) { push(sep_obstacles_[n]); return false; }))
+					for (const SteerObstacle &b : sep_obstacles_) push(b);
+				if (!moved) break;
+			}
+		}
+	}
+	if (info.is_naval()) return;
+	// The short path round the structures near the way there (UnitMotion's short pathfinder, the
+	// structures grown by the animal's clearance), so it doesn't stall against a corner.
+	nav::Vec2 out;
+	const float c = info.is_large() ? CLEARANCE_LARGE : CLEARANCE_DEFAULT;
+	if (nav::steer_around_buildings(nav::Vec2(fx, fz), nav::Vec2(ax, az), c, sep_obstacles_, ignore_building_id, nav_grid_, out)) {
+		ax = out.x;
+		az = out.y;
+	}
 }
 
 bool Simulation::fauna_threat_pos(uint32_t id, float &x, float &z) const {
@@ -28943,13 +29046,16 @@ void Simulation::tick_fauna(float dt) {
 			}
 			bool stop = len <= (corral ? 0.0f : 0.4f) || info.speed <= 0.0f;
 			if (!stop) {
-				// Straight on; round a pond or cliff 45 or 90 degrees to either side.
+				// Along the long path (UnitMotion), round a building corner 45 or 90 degrees to either side.
 				static const float kTurn[5] = {0.0f, 0.7853982f, -0.7853982f, 1.5707963f, -1.5707963f};
+				float ax, az;
+				fauna_path_aim(i, tx, tz, ax, az, corral ? corral->id : 0);
+				const float adx = ax - fx, adz = az - fz, alen = std::max(std::hypot(adx, adz), 1e-4f);
 				const float sp = std::min(info.speed, len / std::max(dt, 1e-3f));
 				stop = true;
 				for (float a : kTurn) {
 					const float c = std::cos(a), sn = std::sin(a);
-					const float vx = (dx * c - dz * sn) / len * sp, vz = (dx * sn + dz * c) / len * sp;
+					const float vx = (adx * c - adz * sn) / alen * sp, vz = (adx * sn + adz * c) / alen * sp;
 					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
 					fauna_.vel_x[i] = vx;
 					fauna_.vel_z[i] = vz;
@@ -29022,14 +29128,16 @@ void Simulation::tick_fauna(float dt) {
 				// (UnitAI.js: "if (cmpUnitAI.IsFleeing()) this.SetSpeedMultiplier(this.GetRunMultiplier())").
 				const bool fleeing = t >= 0 ? units_.action_state[t] == ACTION_FLEE : fauna_.behavior[tf] == FAUNA_FLEE;
 				const float sp = info.speed * (fleeing ? info.run_mult : 1.0f);
-				// Straight at the target; when a pond or cliff is in the way, 45 or 90 degrees
-				// to either side (animals have no long-range path here; polar_sea_triggers.js
-				// sends its wolves across the whole map).
+				// Along the long path round ponds, cliffs and walls (UnitMotion; polar_sea_triggers.js
+				// sends its wolves across the whole map); a building corner 45 or 90 degrees to either side.
 				static const float kTurn[5] = {0.0f, 0.7853982f, -0.7853982f, 1.5707963f, -1.5707963f};
+				float ax, az;
+				fauna_path_aim(i, fx + dx, fz + dz, ax, az);
+				const float adx = ax - fx, adz = az - fz, alen = std::max(std::hypot(adx, adz), 1e-4f);
 				fauna_.vel_x[i] = fauna_.vel_z[i] = 0.0f;
 				for (float a : kTurn) {
 					const float c = std::cos(a), sn = std::sin(a);
-					const float vx = (dx * c - dz * sn) / len * sp, vz = (dx * sn + dz * c) / len * sp;
+					const float vx = (adx * c - adz * sn) / alen * sp, vz = (adx * sn + adz * c) / alen * sp;
 					if (!fauna_can_step(i, fx + vx * dt, fz + vz * dt)) continue;
 					fauna_.vel_x[i] = vx;
 					fauna_.vel_z[i] = vz;
@@ -29072,7 +29180,15 @@ void Simulation::tick_fauna(float dt) {
 			const float before_x = fauna_.pos_x[i], before_z = fauna_.pos_z[i];
 			step(i, fauna_.vel_x[i], fauna_.vel_z[i]);
 			if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
-				// Cornered (water, cliff or map edge): slide sideways.
+				// Blocked (water, cliff, wall): MoveToTargetRange's long path to a spot flee distance
+				// from the attacker, the pathfinder taking the nearest reachable one.
+				float ax, az;
+				fauna_path_aim(i, tx + away_x / dist * fauna_.flee_distance[i], tz + away_z / dist * fauna_.flee_distance[i], ax, az);
+				const float adx = ax - fx, adz = az - fz, alen = std::hypot(adx, adz);
+				if (alen > 1e-3f) step(i, adx / alen * sp, adz / alen * sp);
+			}
+			if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
+				// Cornered (map edge): slide sideways.
 				const float sx = -away_z / dist * sp, sz = away_x / dist * sp;
 				step(i, sx, sz);
 				if (fauna_.pos_x[i] == before_x && fauna_.pos_z[i] == before_z) {
