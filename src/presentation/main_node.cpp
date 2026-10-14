@@ -311,6 +311,19 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 	return inspector_.debug_state();
 }
 
+// Test hook: the local player's stock of resource `res` (0 wood, 1 metal, 2 stone, 3 food).
+void RtsoMain::debug_set_resource(int res, float amount) {
+	if (sim && res >= 0 && res < rtso::RES_COUNT) sim->player(local_player()).res[res] = amount;
+}
+
+// Test hook: whether a structure is being placed.
+bool RtsoMain::debug_placing() const { return build_mode; }
+
+// Test hook: a unit carries `amount` of resource `res` (0 wood, 1 metal, 2 stone, 3 food).
+void RtsoMain::debug_set_carry(int64_t unit_id, int res, int amount) {
+	if (sim) sim->debug_set_carry((uint32_t)unit_id, (uint8_t)res, amount);
+}
+
 Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 	Dictionary d;
 	if (!sim) return d;
@@ -415,6 +428,7 @@ Array RtsoMain::debug_command_row() {
 		e["disabled"] = btn->is_disabled();
 		e["id"] = (int64_t)btn->get_instance_id();
 		e["paired"] = paired; // one of a research pair (selection_panels.js Research)
+		e["corners"] = btn->find_child("corners", false, false) != nullptr; // guiSelection
 		Label *cnt = Object::cast_to<Label>(btn->find_child("unitUpgradeCount", false, false));
 		e["count"] = cnt ? cnt->get_text().to_int() : 0;
 		e["progress"] = btn->has_meta("progress") ? (int)btn->get_meta("progress") : -1; // pixels left
@@ -1489,6 +1503,11 @@ void RtsoMain::_on_entity_command(const String &name) {
 	};
 	if (name == "delete") {
 		request_delete();
+	} else if (name == "autoqueue-on" || name == "autoqueue-off") { // turnAutoQueueOn / Off
+		_on_autoqueue_pressed(name == "autoqueue-on" ? 1 : 0);
+	} else if (name == "share-dropsite") { // set-dropsite-sharing, toggled
+		for (const auto &b : sim->buildings())
+			if (b.id == selected_building_id) { _on_dropsite_sharing_pressed(b.dropsite_shared ? 0 : 1); break; }
 	} else if (name == "stop") { // stopUnits
 		if (n == 0) return;
 		if (turn_cmds())
@@ -1803,6 +1822,26 @@ void RtsoMain::_on_pack_pressed(int pack) {
 				selected_ids.size(), 0, 0, 0, pack ? 1 : 0);
 	else
 		sim->order_pack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), pack != 0);
+}
+
+// 0.28 cancelPackUnit: only the selected engines packing (pack 1) or unpacking (pack 0)
+// go back; Order.CancelPack / CancelUnpack (the opposite order, while in progress).
+void RtsoMain::_on_pack_cancel_pressed(int pack) {
+	if (!sim || selected_ids.is_empty()) return;
+	const uint8_t want = pack ? rtso::PACK_PACKING : rtso::PACK_UNPACKING;
+	std::vector<uint32_t> ids;
+	auto uv = sim->units();
+	for (int s = 0; s < selected_ids.size(); ++s)
+		for (size_t i = 0; i < uv.count; ++i)
+			if (uv.id[i] == (uint32_t)selected_ids[s]) {
+				if (uv.alive[i] && uv.pack_state[i] == want) ids.push_back(uv.id[i]);
+				break;
+			}
+	if (ids.empty()) return;
+	if (turn_cmds())
+		post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_PACK, ids.data(), ids.size(), 0, 0, 0, pack ? 0 : 1);
+	else
+		sim->order_pack(ids.data(), ids.size(), pack == 0);
 }
 
 // BarterButton sell press: BarterButtonManager.setSelectedResource.
@@ -2195,6 +2234,9 @@ uint32_t RtsoMain::own_fauna_at(float x, float z) const {
 
 void RtsoMain::prune_selection() {
 	if (!sim || selected_ids.is_empty()) return;
+	// selection.js g_MaxSelectionSize: addList stops at 300 entities, the earliest kept.
+	constexpr int64_t kMaxSelectionSize = 300;
+	if (selected_ids.size() > kMaxSelectionSize) selected_ids.resize(kMaxSelectionSize);
 	auto uview = sim->units();
 	std::unordered_set<int32_t> wanted(selected_ids.ptr(), selected_ids.ptr() + selected_ids.size());
 	std::unordered_set<int32_t> living;
@@ -3720,7 +3762,12 @@ void RtsoMain::_on_lobby_start_pressed() {
 	turn_mgr_.reset();
 	turn_mgr_.set_net_host(&net_host_, 0);
 	turn_mgr_.assign_slot_players(setup);
-	apply_game_setup(setup);
+	{
+		// The joiners wait while the host loads the map (0.28 page_loading).
+		rtso::NetHost::KeepAlive keep(net_host_);
+		show_net_loading_page(setup.map_id);
+		apply_game_setup(setup);
+	}
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.mark_game_started(sim);
 	start_net_speed(setup.speed);
@@ -3751,6 +3798,17 @@ void RtsoMain::start_net_speed(uint16_t speed) {
 	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
 }
 
+// 0.28 switches every peer to page_loading at "start": the loading page goes
+// over the match while it loads the map, following load_progress.
+void RtsoMain::show_net_loading_page(const std::string &map_id) {
+	Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/menu/loading.tscn");
+	if (scene.is_null() || !is_inside_tree()) return;
+	Node *page = scene->instantiate();
+	page->set("overlay_for", this);
+	page->set("overlay_map", String::utf8(map_id.c_str()));
+	get_tree()->get_root()->add_child(page);
+}
+
 void RtsoMain::apply_net_game_start() {
 	if (!sim) return;
 	turn_mgr_.set_game_start_applied_sim(sim);
@@ -3772,7 +3830,12 @@ void RtsoMain::apply_net_game_start() {
 	if (!net_host_.isHost()) my_client = net_host_.getLocalPeerId() ? net_host_.getLocalPeerId() : 1;
 	turn_mgr_.set_net_host(&net_host_, my_client);
 	turn_mgr_.assign_slot_players(setup);
-	apply_game_setup(setup); // after seating, so it selects the local player's units
+	{
+		// The host waits while this joiner loads the map.
+		rtso::NetHost::KeepAlive keep(net_host_);
+		show_net_loading_page(setup.map_id);
+		apply_game_setup(setup); // after seating, so it selects the local player's units
+	}
 	turn_mgr_.set_game_start_applied_sim(sim);
 	turn_mgr_.note_game_start_applied(sim);
 	start_net_speed(setup.speed);
@@ -3970,6 +4033,17 @@ Dictionary RtsoMain::debug_placement_tip() const {
 	d["visible"] = placement_tip_ && placement_tip_->is_visible();
 	d["text"] = placement_tip_ ? placement_tip_->get_text() : String();
 	d["error"] = placement_tip_error_;
+	return d;
+}
+
+// Tests: the action tooltip beside the cursor and the cursor's name.
+Dictionary RtsoMain::debug_cursor_tip() {
+	update_cursor();
+	Dictionary d;
+	d["visible"] = cursor_tip_ && cursor_tip_->is_visible();
+	d["text"] = cursor_tip_ ? cursor_tip_->get_text() : String();
+	d["color"] = cursor_tip_ ? cursor_tip_->get_theme_color("font_color") : Color();
+	d["cursor"] = String(cursor_name_.c_str());
 	return d;
 }
 

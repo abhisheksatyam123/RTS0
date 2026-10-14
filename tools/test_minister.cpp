@@ -215,6 +215,16 @@ int main() {
 		const float bt = s.structure_build_time(hb());
 		std::printf("house: %.4f of it in 4 s (want %.4f)\n", with, 4.0f * 1.1f / bt);
 		CHECK(std::fabs(with - 4.0f * 1.1f / bt) < 0.01f);
+		// The details panel's builders and time left (Foundation.js GetBuildTime): one builder at
+		// x1.1, and with one more (totalBuilderRate + 1, at 2^0.7 / 2 each).
+		{
+			Simulation::BuildWork wk;
+			CHECK(s.structure_build_work(hb(), wk) && !wk.repair && wk.builders == 1);
+			const float left = (1.0f - hb().hp / hb().max_hp) * bt;
+			CHECK(std::fabs(wk.remaining - left / 1.1f) < 0.05f);
+			CHECK(std::fabs(wk.remaining_new - left / (2.1f * std::pow(2.0f, 0.7f) / 2.0f)) < 0.05f);
+			std::printf("house: %d builder, %.2f s left, %.2f s with another\n", wk.builders, wk.remaining, wk.remaining_new);
+		}
 
 		// Xerxes once, even beside a second aura source of the same name.
 		fresh(s);

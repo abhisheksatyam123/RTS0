@@ -297,6 +297,37 @@ inline String status_tooltip(uint8_t kind, float damage, float interval, float r
 	return sprintf0(tr0("%(statusName)s: %(statusInfo)s"), {{"statusName", tr0(burning ? "Burning" : "Poisoned")}, {"statusInfo", info}});
 }
 
+// The resourceCarrying caption of a foundation or a structure being repaired: "(3) 0:12" (0.28
+// puts the builders and the m:ss on two lines beside the repair icon), empty with no builders.
+inline String build_work_caption(int builders, float remaining) {
+	if (builders <= 0) return String();
+	const int64_t secs = (int64_t)remaining;
+	return sprintf0(tr0("(%(number)s)\n%(time)s"), {{"number", num(builders)},
+			{"time", num(secs / 60) + ":" + String::num_int64(secs % 60).pad_zeros(2)}}).replace("\n", " ");
+}
+
+// getBuildTimeTooltip / getRepairTimeTooltip.
+inline String build_work_tooltip(bool repair, int builders, float remaining, float remaining_new) {
+	String tip = sprintf0(tr0("%(label)s %(details)s"),
+			{{"label", tr0(repair ? "Number of repairers:" : "Number of builders:")}, {"details", num(builders)}});
+	if (builders > 0) {
+		tip += "\n" + sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0(repair ? "Remaining repair time:" : "Remaining build time:")},
+				{"details", seconds_string(std::floor(remaining))}});
+		const int64_t cut = (int64_t)std::lround(remaining - remaining_new);
+		tip += "\n" + sprintf0(tr0(repair
+				? (cut == 1 ? "Add another worker to speed up the repairs by %(second)s second." : "Add another worker to speed up the repairs by %(second)s seconds.")
+				: (cut == 1 ? "Add another worker to speed up the construction by %(second)s second." : "Add another worker to speed up the construction by %(second)s seconds.")),
+				{{"second", num(cut)}});
+	} else {
+		const int64_t t = (int64_t)std::lround(remaining_new);
+		tip += "\n" + sprintf0(tr0(repair
+				? (t == 1 ? "Add a worker to finish the repairs in %(second)s second." : "Add a worker to finish the repairs in %(second)s seconds.")
+				: (t == 1 ? "Add a worker to finish the construction in %(second)s second." : "Add a worker to finish the construction in %(second)s seconds.")),
+				{{"second", num(t)}});
+	}
+	return tip;
+}
+
 // damageDetails over a templates.json damage map ({"Pierce": 15.5}), in 0.28's damage type order.
 inline String damage_map_details(const godot::Dictionary &dmg) {
 	static const char *const kTypes[] = {"Hack", "Pierce", "Crush", "Fire", "Poison"};

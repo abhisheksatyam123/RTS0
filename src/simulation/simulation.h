@@ -560,6 +560,13 @@ public:
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// Test hook: a unit carries `amount` of resource `res`.
+	void debug_set_carry(uint32_t unit_id, uint8_t res, int32_t amount) {
+		const int32_t idx = lookup_unit(unit_id);
+		if (idx < 0 || res >= RES_COUNT) return;
+		units_.res_type_carried[idx] = res;
+		units_.carry[idx] = amount;
+	}
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
 	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
@@ -936,6 +943,15 @@ public:
 		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
 	};
 	StructureDetails structure_details(const Building &b) const;
+	// Foundation.js / Repairable.js GetBuildTime for the details panel: the builders at work on a
+	// foundation (or repairers on a damaged structure), the seconds left at their pace and with
+	// one more builder (totalBuilderRate + 1). False when it is neither building nor damaged.
+	struct BuildWork {
+		bool repair = false;
+		int builders = 0;
+		float remaining = 0.0f, remaining_new = 0.0f;
+	};
+	bool structure_build_work(const Building &b, BuildWork &out) const;
 	// The statuses on an entity, as selection_details.js lists entState.statusEffects: each
 	// stacked copy with its Damage, Interval and the Duration still to run (seconds). Returns
 	// how many there are; at most `max` are written to `out`.
@@ -993,6 +1009,11 @@ public:
 	// Garrison & Turret System (GarrisonHolder.js, TurretHolder.js)
 	int get_garrison_count(uint32_t building_id) const;
 	int get_garrison_capacity(uint32_t building_id) const;
+	// GarrisonHolder.OccupiedSlots of a structure: its units' Garrisonable sizes.
+	int get_garrison_occupied(uint32_t building_id) const {
+		auto bit = building_id_to_idx_.find(building_id);
+		return bit == building_id_to_idx_.end() ? 0 : occupied_slots(buildings_[bit->second].garrisoned_units);
+	}
 	const std::vector<uint32_t> *get_garrisoned_units(uint32_t building_id) const;
 
 	// Victory Conditions (VictoryManager.js, EndGameManager.js)
@@ -2309,6 +2330,7 @@ private:
 	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
 	static constexpr float UNIT_REPAIR_TIME_RATIO = 4.0f; // template_unit_siege.xml, template_unit_ship.xml
 	static float foundation_build_multiplier(int builders);
+	float structure_repair_rate(const Building &b) const;
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
@@ -2388,6 +2410,7 @@ private:
 	bool line_crosses_impassable(float x0, float z0, float x1, float z1, uint8_t ship_pass = 0) const;
 	// Deep water within c of (x, z) on both axes: 0 A.D. expands it by a land unit's class clearance.
 	bool near_deep_water(float x, float z, float c) const;
+	bool near_impassable_terrain(float x, float z, float c) const; // deep water or a steep tile
 	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
 	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
 	// A unit with clearance c may not step past a circular map's edge (past_map_edge); one already
@@ -2991,8 +3014,9 @@ private:
 	// not, unlike petra_land_at's regions. 0 off land. Derived from the nav grid, not saved.
 	uint16_t petra_access_at(float x, float z) const;
 	struct PetraAccess {
-		std::vector<uint8_t> pass;  // nav cell is land by terrain
+		std::vector<uint8_t> pass;  // cell (terrain tile, else nav cell) is land by terrain
 		std::vector<uint16_t> land; // its land id from 1, 0 none
+		std::vector<uint16_t> near; // an off-land cell's nearest land within 8 m, once looked up (0xFFFF before)
 		int res = 0;
 		uint32_t stamp = 0;
 	};
@@ -3371,6 +3395,9 @@ private:
 	}
 	std::vector<SteerObstacle> steer_obstacles_;
 	uint32_t short_path_key_ = 1; // this tick's steering obstacles and water level (ShortPathMemo::key)
+	// Each unit's last short path search among them (ShortPathSearchMemo), by unit index; not
+	// saved, as a search finds the same again.
+	std::vector<ShortPathSearchMemo> short_path_search_;
 	std::vector<SteerObstacle> sep_obstacles_; // separation()'s list, built the same way
 	// SteerObstacle::type of a Gaia mine (mine_footprint), after the buildings in both lists.
 	static constexpr uint8_t MINE_OBSTACLE = 0xFF;

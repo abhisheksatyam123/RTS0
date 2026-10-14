@@ -75,6 +75,11 @@
 //     a woman comes from can be shut by a neighbour touching it there. She repairs it from the
 //     nearest open spot she can reach (0 A.D. MoveToTargetRange's goal is the whole range round
 //     the house) instead of pushing at the shut one for good.
+// 25. Cliff clearance: 0.28 takes each navcell's slope from its 4 m terrain tile and grows steep
+//     tiles by the class clearance as it grows deep water. On a heightmap with a tile a unit, a
+//     rock (one raised height sample, steep tiles inside a navcell that is not steep) is walked
+//     round, never within the walker's clearance; an elephant and a swordsman sent to the foot of a
+//     one-tile cliff stop 3 m and 0.8 m off it.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -670,7 +675,9 @@ static void cliffs() {
 }
 
 // 16. Chases.
-static void channel_setup(Simulation &s, float half_width) {
+// A sea across the map, |z| < half_width. Its banks rise 6 over one 2-unit tile, a cliff, unless
+// `bank` gives them a slope (height per unit) a unit may stand on.
+static void channel_setup(Simulation &s, float half_width, float bank = 0.0f) {
 	setup(s);
 	constexpr int RES = 65;
 	constexpr float HALF = 64.0f;
@@ -679,7 +686,8 @@ static void channel_setup(Simulation &s, float half_width) {
 	for (int j = 0; j < RES; ++j)
 		for (int i = 0; i < RES; ++i) {
 			const float z = -HALF + 2.0f * HALF * j / (RES - 1);
-			h[(size_t)j * RES + i] = std::fabs(z) < half_width ? -3.0f : 3.0f;
+			h[(size_t)j * RES + i] = bank > 0.0f ? std::clamp((std::fabs(z) - half_width + 1.0f) * bank, -3.0f, 3.0f)
+			                       : std::fabs(z) < half_width ? -3.0f : 3.0f;
 		}
 	s.set_terrain_data(h, RES, 0.0f);
 	s.begin_bulk_spawn();
@@ -1126,11 +1134,12 @@ static void mines() {
 
 // 20. Shore clearance.
 static void shore_clearance() {
-	// channel_setup(s, 16) makes the navcells from z -14 to 14 deep (their centres lie under the sea).
+	// channel_setup(s, 16, 0.75) makes the navcells from z -14 to 14 deep (their centres lie under the
+	// sea) and a beach no steeper than 1.5 over a tile, so the water alone keeps units off.
 	auto gap = [](const Simulation &s, uint32_t id) { return s.units_.pos_z[index_of(s, id)] - 14.0f; };
 	for (int large = 0; large < 2; ++large) {
 		Simulation s;
-		channel_setup(s, 16.0f);
+		channel_setup(s, 16.0f, 0.75f);
 		if (!large) check(s.near_deep_water(0.0f, 13.9f, 0.0f) && !s.near_deep_water(0.0f, 14.1f, 0.0f), "the sea's edge is not at z 14");
 		// The spot (20, 14.5) lies half a unit off the water: within an elephant's 0.75, not a swordsman's 0.2.
 		const uint32_t id = s.spawn_unit(-20.0f, 18.0f, 0, large ? UNIT_ELEPHANT : UNIT_SWORDSMAN);
@@ -1153,7 +1162,7 @@ static void shore_clearance() {
 	}
 	{
 		Simulation s;
-		channel_setup(s, 16.0f);
+		channel_setup(s, 16.0f, 0.75f);
 		std::vector<uint32_t> herd;
 		for (int k = 0; k < 6; ++k) herd.push_back(s.spawn_unit(0.2f * (float)(k % 3), 14.9f + 0.2f * (float)(k / 3), 0, UNIT_ELEPHANT));
 		float min_gap = 99.0f, spread = 0.0f;
@@ -1315,6 +1324,100 @@ static void repair_in_house_cluster() {
 	}
 }
 
+// 25. Cliff clearance. A flat map with heights every unit (a terrain tile a unit, as on generated
+// maps), a cliff rising 8 over the tile x 0 to 1, and a rock: the height sample at (-20, -9) raised
+// 3, so the four tiles round it are steep and the 2-unit navcell holding them (its corners flat) is not.
+static void cliff_clearance_setup(Simulation &s) {
+	setup(s);
+	constexpr int RES = 129;
+	constexpr float HALF = 64.0f;
+	s.set_map_half(HALF);
+	std::vector<float> h((size_t)RES * RES);
+	for (int j = 0; j < RES; ++j)
+		for (int i = 0; i < RES; ++i) {
+			const float x = -HALF + 2.0f * HALF * i / (RES - 1), z = -HALF + 2.0f * HALF * j / (RES - 1);
+			h[(size_t)j * RES + i] = x >= 1.0f ? 8.0f : (x == -20.0f + 1.0f && z == -9.0f) ? 3.0f : 0.0f;
+		}
+	s.set_terrain_data(h, RES, -1.0f);
+	s.begin_bulk_spawn();
+	s.end_bulk_spawn();
+}
+
+static void cliff_clearance() {
+	{
+		Simulation s;
+		cliff_clearance_setup(s);
+		const auto [cx, cy] = s.nav_grid_.world_to_cell(-19.0f, -9.0f);
+		check(s.nav_grid_.near_steep_tile(-19.0f, -9.0f, 0.0f) && !s.nav_grid_.is_steep(cx, cy),
+				"the rock is not a steep tile in a navcell that is not steep");
+		const uint32_t id = s.spawn_unit(-30.0f, -9.0f, 0, UNIT_SWORDSMAN);
+		s.cmd_move(&id, 1, -8.0f, -9.0f);
+		int arrived = -1, near = 0;
+		for (int t = 0; t < 1200 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			near += s.nav_grid_.near_steep_tile(s.units_.pos_x[i], s.units_.pos_z[i], CLEARANCE_DEFAULT - 0.01f);
+			if (std::hypot(s.units_.pos_x[i] + 8.0f, s.units_.pos_z[i] + 9.0f) < 0.5f) arrived = t;
+		}
+		std::printf("  cliff clearance: a swordsman walked past a rock in %d ticks (-1 = never in 1200), %d ticks within its clearance of it\n",
+				arrived, near);
+		check(arrived >= 0, "a walk past a rock never got there");
+		check(near == 0, "a walker came within its clearance of a steep tile");
+	}
+	for (int large = 0; large < 2; ++large) {
+		Simulation s;
+		cliff_clearance_setup(s);
+		const uint32_t id = s.spawn_unit(-10.0f, 6.0f, 0, large ? UNIT_ELEPHANT : UNIT_SWORDSMAN);
+		s.cmd_move(&id, 1, -0.1f, 6.0f);
+		float max_x = -99.0f;
+		int idle = -1;
+		for (int t = 0; t < 1200 && idle < 0; ++t) {
+			s.tick(DT);
+			max_x = std::max(max_x, s.units_.pos_x[index_of(s, id)]);
+			if (s.units_.action_state[index_of(s, id)] == ACTION_IDLE) idle = t;
+		}
+		const int i = index_of(s, id);
+		const float c = unit_building_clearance(s.units_.tmpl[i], s.units_.unit_type[i]);
+		std::printf("  cliff clearance: %s sent to the cliff's foot stopped after %d ticks (-1 = never in 1200) at x %.2f, "
+				"%.2f off the cliff at least (clearance %.2f)\n", large ? "elephant" : "swordsman", idle, s.units_.pos_x[i], -max_x, c);
+		check(idle >= 0, "a walk to a cliff's foot never ended");
+		check(-max_x >= c - 0.01f, "a land unit came within its clearance of a cliff");
+		check(s.units_.pos_x[i] >= -c - 0.5f, "a land unit sent to a cliff's foot stopped short of where it could stand");
+	}
+	{
+		// A unit set down within its clearance of the rock may walk on across it, as CheckLineMovement
+		// lets a unit on impassable navcells cross more of them; it stuck there before.
+		Simulation s;
+		cliff_clearance_setup(s);
+		const uint32_t id = s.spawn_unit(-20.1f, -9.0f, 0, UNIT_SWORDSMAN);
+		const bool inside = s.nav_grid_.near_steep_tile(-20.1f, -9.0f, CLEARANCE_DEFAULT) && !s.nav_grid_.near_steep_tile(-20.1f, -9.0f, 0.0f);
+		s.cmd_move(&id, 1, -16.0f, -9.0f);
+		int arrived = -1;
+		for (int t = 0; t < 600 && arrived < 0; ++t) {
+			s.tick(DT);
+			const int i = index_of(s, id);
+			if (std::hypot(s.units_.pos_x[i] + 16.0f, s.units_.pos_z[i] + 9.0f) < 0.5f) arrived = t;
+		}
+		std::printf("  cliff clearance: a swordsman inside the rock's clearance (%s) walked across it in %d ticks (-1 = never in 600)\n",
+				inside ? "yes" : "no", arrived);
+		check(inside, "the swordsman didn't start within its clearance of the rock");
+		check(arrived >= 0, "a unit within its clearance of a rock couldn't walk across it");
+	}
+	// building-land judges slopes per tile too: no house on the rock, one beside it. The cliff cuts
+	// the land in two as Petra sees it (petra_access_at); the rock doesn't.
+	Simulation s;
+	cliff_clearance_setup(s);
+	const int on = (int)s.check_placement(0, -10, -5, BLD_HOUSE), beside = (int)s.check_placement(0, -12, -5, BLD_HOUSE);
+	const uint16_t below = s.petra_access_at(-5.0f, 0.0f), above = s.petra_access_at(5.0f, 0.0f);
+	const uint16_t west = s.petra_access_at(-25.0f, -9.0f), east = s.petra_access_at(-15.0f, -9.0f);
+	std::printf("  cliff clearance: a house on the rock placed %d, beside it %d (2 = terrain, 3 = no territory); land below the "
+			"cliff %u, above %u, either side of the rock %u and %u\n", on, beside, below, above, west, east);
+	check(on == Simulation::PLACE_TERRAIN, "a house was placed over steep tiles");
+	check(beside != Simulation::PLACE_TERRAIN, "a house beside a rock was refused for its terrain");
+	check(below && above && below != above, "a cliff didn't cut the land");
+	check(west && west == east && west == below, "a rock cut the land");
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -1341,6 +1444,7 @@ int main() {
 	circular_map_edge();
 	forest_cells();
 	repair_in_house_cluster();
+	cliff_clearance();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
