@@ -21,6 +21,8 @@
   python3 tools/port_0ad_maps.py --player-data-only DIR  # refresh each ported map's PlayerData (civs, starting
                                                   # resources, locked teams, PopulationLimit) from an unpacked
                                                   # 0 A.D. public.zip at DIR (maps/ under it)
+  python3 tools/port_0ad_maps.py --circular-only DIR  # refresh each ported map's "circular" (ScriptSettings
+                                                  # CircularMap) from an unpacked 0 A.D. public.zip at DIR
 
 Maps fetched with --github get their world size from the .pmp (one RTS0 world unit per
 0 A.D. tile, clamped to 128..512) and a heightmap of one sample per 4 tiles.
@@ -617,7 +619,7 @@ def apply_player_data(players, settings):
 def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean", height_scale=None, source=None, gaia_only=False,
              terrain_only=False, environment_only=False, triggers_only=False, player_data_only=False,
              supplies_only=False, walls_only=False, livestock_only=False, structures_only=False,
-             units_only=False):
+             units_only=False, circular_only=False):
     print(f"Porting map: {map_id} ({xml_rel})...")
     with (source if source is not None else zipfile.ZipFile(zip_path, 'r')) as z:
         files = z  # `z` is reused below for entity positions
@@ -630,6 +632,19 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
         name = settings.get("Name", map_id.replace("_", " ").title())
         desc = settings.get("Description", "")
         environment = extract_environment(root)
+        # ScriptSettings CircularMap: the map's playable area is the inscribed circle.
+        circular = bool(settings.get("CircularMap", False))
+        if circular_only:
+            out_path = f"data/maps/{map_id}.json"
+            if not os.path.exists(out_path):
+                return
+            with open(out_path) as f:
+                old = json.load(f)
+            old["circular"] = circular
+            with open(out_path, "w") as f:
+                json.dump(old, f, indent=2)
+            print(f"  -> {out_path}: circular {circular}")
+            return
         if player_data_only:
             # Keep the existing map; only refresh what its PlayerData sets.
             out_path = f"data/maps/{map_id}.json"
@@ -954,6 +969,7 @@ def port_map(map_id, xml_rel, pmp_rel, world_size_m=256.0, biome="mediterranean"
             "desc": desc,
             "biome": biome,
             "nomad": nomad,
+            "circular": circular,
             "world_size": world_size_m,
             "water_height": water_height,
             "heightmap_res": target_res,
@@ -1279,7 +1295,7 @@ for _civ in ["athenians", "britons", "carthaginians", "gauls", "han", "iberians"
     github_scenarios[f"sandbox_{_civ}"] = (f"sandbox_{_civ}", "mediterranean")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 2 and sys.argv[1] == "--player-data-only":
+    if len(sys.argv) > 2 and sys.argv[1] in ("--player-data-only", "--circular-only"):
         src = DirSource(sys.argv[2])
         tables = [(mid, xrel) for mid, xrel, *_ in maps_list]
         tables += [(mid, f"maps/skirmishes/{name}.xml") for name, (mid, _) in github_skirmishes.items()]
@@ -1287,7 +1303,8 @@ if __name__ == "__main__":
                    ("tutorials", github_tutorials)) for name, (mid, _) in table.items()]
         for mid, xrel in sorted(set(tables)):
             try:
-                port_map(mid, xrel, None, source=src, player_data_only=True)
+                port_map(mid, xrel, None, source=src, **({"player_data_only": True} if sys.argv[1] == "--player-data-only"
+                                                          else {"circular_only": True}))
             except FileNotFoundError:
                 print(f"  !! {mid}: no {xrel} in 0 A.D.")
     elif len(sys.argv) > 2 and sys.argv[1] in ("--supplies-only", "--livestock-only", "--structures-only", "--units-only"):

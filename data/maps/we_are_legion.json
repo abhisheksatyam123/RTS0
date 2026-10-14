@@ -5841,5 +5841,6 @@
         "rome/champion_infantry_swordsman"
       ]
     }
-  ]
+  ],
+  "circular": true
 }

@@ -7013,5 +7013,6 @@
   ],
   "trigger_scripts": [
     "introductory_tutorial"
-  ]
+  ],
+  "circular": true
 }

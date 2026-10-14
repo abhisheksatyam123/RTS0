@@ -11381,5 +11381,6 @@
         "mace/cavalry_spearman_b"
       ]
     }
-  ]
+  ],
+  "circular": true
 }

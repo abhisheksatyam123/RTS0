@@ -5813,5 +5813,6 @@
         "cart/cavalry_spearman_ital_b"
       ]
     }
-  ]
+  ],
+  "circular": true
 }

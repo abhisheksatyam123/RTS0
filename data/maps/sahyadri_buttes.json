@@ -41938,5 +41938,6 @@
       "z": -139.7,
       "template": "units/default_support_civilian"
     }
-  ]
+  ],
+  "circular": true
 }

@@ -10162,5 +10162,6 @@
       "z": 94.56,
       "template": "units/special_starting_unit"
     }
-  ]
+  ],
+  "circular": true
 }

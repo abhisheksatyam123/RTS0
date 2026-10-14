@@ -8337,5 +8337,6 @@
       "template": "maur/civil_centre"
     }
   ],
-  "units": []
+  "units": [],
+  "circular": false
 }

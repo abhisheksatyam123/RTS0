@@ -4767,5 +4767,6 @@
         "athen/infantry_marine_archer_b"
       ]
     }
-  ]
+  ],
+  "circular": false
 }
