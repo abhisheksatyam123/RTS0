@@ -1226,6 +1226,19 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 	if (mm.is_valid() && dragging) {
 		sel_rect->set_rect(drag_start, mm->get_position(), true);
 	}
+	// input.js INPUT_BUILDING_PLACEMENT mousemotion: placing a structure (not a wall) that the
+	// player can no longer afford stops placement on the next mouse move.
+	if (mm.is_valid() && build_mode && sim && current_build_type != rtso::BLD_WALL_SEGMENT &&
+			current_build_type != rtso::BLD_PALISADE && current_build_type != rtso::BLD_SIEGE_WALL) {
+		float cost[rtso::RES_COUNT];
+		sim->structure_cost_for(local_player(), (uint8_t)current_build_type, cost);
+		const auto &ps = sim->player(local_player());
+		for (int r = 0; r < rtso::RES_COUNT; ++r)
+			if (ps.res[r] < cost[r]) {
+				enter_build_mode(false);
+				break;
+			}
+	}
 }
 
 bool RtsoMain::try_place_wall(const Vector3 &end, bool queued) {
