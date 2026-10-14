@@ -21,7 +21,7 @@ These were the biggest gaps between a RTS0 match and a 0 A.D. one, ordered by im
 7. ~~**No batch training.**~~ Fixed by the production queue PR (U7): batch training follows Trainer.js.
 8. ~~**Single-player Game Setup ignores the player count.**~~ Fixed by #76 (U6): single-player random maps seat every slot.
 9. ~~**Siege engines and towers pick the wrong targets.**~~ Fixed: RestrictedClasses come from each template (combat PRs), and structures shoot as 0 A.D.'s `BuildingAI.js` (structure arrows PR).
-10. ~~**Guard and patrol are broken.**~~ Fixed by the unit orders PR (Guard.js, UnitAI PATROL).
+10. ~~**Guard and patrol are broken.**~~ Fixed by the unit orders PR (Guard.js, UnitAI PATROL). A guard near the unit it guards walks no faster than that unit moves (ESCORTING TryMatchTargetSpeed). Left: reach to structures still counts from a unit's collision radius rather than 0.28's clearance square (0.8 m, 3 m large), and build and garrison reach stay long, because units stand 4 m off structures until Migrate's nav clearance extension follows 0.28's 1 m (stopping closer also kept Petra's siege at home in test_petra).
 
 Each area below is built by its own parallel thread. Their order and status live in [PLAN.md](PLAN.md#game-level-work-areas-af); update the row here when an area lands.
 

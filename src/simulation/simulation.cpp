@@ -8230,6 +8230,9 @@ float Simulation::unit_move_speed(size_t i) const {
 	return spd;
 }
 
+// How close a guard keeps to the unit it guards (Guard.js/UnitAI guardRange).
+static constexpr float GUARD_RANGE = 3.0f;
+
 void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 	steps = MoveSteps{};
 	const size_t n = units_.count;
@@ -8361,6 +8364,22 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		short_path_key_ = key ? key : 1u;
 	}
 
+	// UnitAI ESCORTING Timer: a guard within 3 guard ranges of the unit it guards walks no
+	// faster than that unit moves now (TryMatchTargetSpeed, mayRun false). Read before the
+	// parallel pass, which writes the velocities.
+	float *guard_cap = arena.alloc_array<float>(n);
+	if (!guard_cap) return;
+	for (size_t i = 0; i < n; ++i) {
+		guard_cap[i] = 0.0f;
+		if (!alive[i] || units_.action_state[i] != ACTION_GUARD || units_.target_unit_id[i] == 0) continue;
+		const int32_t g = lookup_unit(units_.target_unit_id[i]);
+		if (g < 0 || !alive[g]) continue;
+		const float gdx = px[g] - px[i], gdz = pz[g] - pz[i];
+		if (gdx * gdx + gdz * gdz > (3.0f * GUARD_RANGE) * (3.0f * GUARD_RANGE)) continue;
+		const float gs = std::sqrt(vx[g] * vx[g] + vz[g] * vz[g]);
+		if (gs > 0.0f) guard_cap[i] = std::min(unit_walk_speed(i), gs);
+	}
+
 	JobSystem::instance().for_each_index(n, [&](size_t i) {
 		if (!alive[i]) {
 			vx[i] = vz[i] = 0;
@@ -8392,11 +8411,11 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		if (units_.action_state[i] == ACTION_GUARD && units_.target_unit_id[i] != 0) {
 			int32_t gtidx = lookup_unit(units_.target_unit_id[i]);
 			if (gtidx >= 0 && units_.alive[gtidx]) {
-				// Stay within 3m of guarded unit
+				// Stay within GUARD_RANGE of guarded unit
 				float gdx = px[gtidx] - px[i];
 				float gdz = pz[gtidx] - pz[i];
 				float gd2 = gdx * gdx + gdz * gdz;
-				if (gd2 > 3.0f * 3.0f) {
+				if (gd2 > GUARD_RANGE * GUARD_RANGE) {
 					tx[i] = px[gtidx];
 					tz[i] = pz[gtidx];
 					has[i] = 1;
@@ -8697,7 +8716,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		float inv = 1.0f / sqrtf(d2);
 		float ux = dx * inv;
 		float uz = dz * inv;
-		const float spd = unit_move_speed(i);
+		const float spd = guard_cap[i] > 0.0f ? std::min(unit_move_speed(i), guard_cap[i]) : unit_move_speed(i);
 		// Formation members walk to the slot tick_formations gives them (Formation.js FormationWalk).
 		float move_dx = ux * spd * dt;
 		float move_dz = uz * spd * dt;
