@@ -244,8 +244,8 @@ UNIQUE_BUILDINGS = [
     ("BLD_WAGON_ENCAMPMENT_FORTIFIED", ["encampment_fortified"], "encampment_fortified", "army_camp"),
     # Gaia structures maps place (GAIA_UNIQUE): nobody builds them; captured, never destroyed.
     # The type's row is read from the first template; each placed one keeps its template's civ.
-    ("BLD_SHRINE", ["shrine_greek_01"], "temple", "temple"),
-    ("BLD_TRADING_POST", ["trading_post_desert"], "market", "market"),
+    ("BLD_SHRINE", ["shrine_greek_01"], "shrine", "temple"),
+    ("BLD_TRADING_POST", ["trading_post_desert"], "trading_post", "market"),
     # Structures only maps place (MAP_ONLY): no Builder list names them. The bolt and artillery
     # towers, the royal stoa, the Persian inn, the Roman tent and triumphal arch are civ
     # templates (their row is read from the first civ's); the Hellenic stoa is generic.
@@ -253,8 +253,8 @@ UNIQUE_BUILDINGS = [
     ("BLD_TOWER_ARTILLERY", ["tower_artillery"], "tower_artillery", "tower_artillery"),
     ("BLD_STOA", ["royal_stoa"], "greek_stoa_great", "stoa"),
     ("BLD_HELLENIC_STOA", ["hellenic_stoa"], "greek_stoa", "stoa"),
-    ("BLD_INN", ["inn"], "house", "house"),
-    ("BLD_TENT", ["tent"], "house", "house"),
+    ("BLD_INN", ["inn"], "inn", "house"),
+    ("BLD_TENT", ["tent"], "tent", "house"),
     ("BLD_TRIUMPHAL_ARCH", ["arch"], "triumphal_arch", "arch"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).

@@ -2408,6 +2408,13 @@ private:
 	// petra_find_position leaves out every structure's influence for houses (set for one call).
 	bool petra_require_houses_ = false;
 	bool petra_place_no_room_ = false; // last petra_place_building found no spot (read at once, not saved)
+	// queueplanBuilding.js canStart: one foundation per AI turn (HQ.turnCache.buildingBuilt).
+	// Both are set only inside one AI's turn (tick_petra_ai), so a save between ticks never
+	// holds them (not saved); a call from outside a turn isn't limited.
+	bool petra_in_turn_ = false;
+	bool petra_turn_built_ = false;
+	bool petra_building_built() const { return petra_in_turn_ && petra_turn_built_; }
+	uint32_t petra_spawn_foundation(int cx, int cz, uint8_t btype);
 	uint64_t petra_placement_signature(uint8_t btype, int start_cx, int start_cz, int max_r) const;
 
 	uint32_t next_id_ = 1;

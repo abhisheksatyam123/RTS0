@@ -3609,6 +3609,37 @@ static void test_building_plan_028() {
 	s->units_.gather_res[wi] = 1;
 	s->petra_check_resource_levels(1100); // an empty count looks again 10 turns on
 	CHECK(dc.used[0] == 1, "a gatherer at work is counted");
+
+	// queueplanBuilding.js canStart: one foundation per AI turn (turnCache.buildingBuilt).
+	s->petra_in_turn_ = true;
+	s->petra_turn_built_ = false;
+	const uint32_t f1 = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	const uint32_t f2 = s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE);
+	CHECK(f1 != 0 && f2 == 0 && !s->petra_place_no_room_, "a second foundation waits for the next AI turn");
+	CHECK(s->petra_place_dropsite(RES_WOOD, 0.0f) == 0, "so does a storehouse");
+	s->petra_turn_built_ = false; // the next turn
+	CHECK(s->petra_place_generic(BLD_HOUSE, PETRA_Q_HOUSE) != 0, "the next turn lays one");
+	s->petra_in_turn_ = s->petra_turn_built_ = false;
+	// Played: each AI lays at most one foundation a turn.
+	{
+		auto m = std::make_unique<Simulation>();
+		m->set_sim_seed(7);
+		m->reset();
+		m->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 2, 64.0f);
+		m->set_player_resources(1, 5000, 5000, 5000, 5000);
+		size_t before = m->buildings_.size();
+		int most = 0, turns = 0;
+		for (int t = 0; t < 4 * 60 * 20; ++t) {
+			m->tick(Simulation::FIXED_STEP);
+			int added = 0;
+			for (size_t k = before; k < m->buildings_.size(); ++k) added += m->buildings_[k].team == 1;
+			if (m->buildings_.size() != before) ++turns;
+			most = std::max(most, added);
+			before = m->buildings_.size();
+		}
+		std::printf("  one per turn: %d ticks laid foundations, at most %d in one\n", turns, most);
+		CHECK(turns > 0 && most == 1, "no AI turn lays two foundations");
+	}
 }
 
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking

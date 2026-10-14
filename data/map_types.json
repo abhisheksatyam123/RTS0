@@ -140,6 +140,10 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"barcania": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"battle_for_the_tiber": {
 			"keywords": [],
 			"settings": {
@@ -206,7 +210,29 @@
 			},
 			"type": "scenario"
 		},
+		"butana_steppe": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"caspian_sea": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"cisalpine_winter": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"corinthian_isthmus": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"corsica_and_sardinia": {
+			"keywords": [
+				"naval"
+			],
+			"type": "skirmish"
+		},
+		"crocodilopolis": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -267,6 +293,14 @@
 			"type": "scenario"
 		},
 		"deccan_plateau": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"dueling_cliffs": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"egypt": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -337,6 +371,10 @@
 			],
 			"type": "skirmish"
 		},
+		"gallic_highlands": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"gambia_river": {
 			"keywords": [],
 			"type": "skirmish"
@@ -372,7 +410,38 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"golden_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"gorge": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "pers",
+						"team": -1
+					},
+					{
+						"civ": "cart",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"greek_acropolis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"greek_acropolis_night": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -425,7 +494,15 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"libyan_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"lorraine_plain": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"magadha": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -577,7 +654,17 @@
 			],
 			"type": "skirmish"
 		},
+		"north_african_savanna": {
+			"keywords": [
+				"demo"
+			],
+			"type": "skirmish"
+		},
 		"northern_island": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"nubian_frontier": {
 			"keywords": [],
 			"type": "skirmish"
 		},
@@ -1367,6 +1454,29 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"temperate_map": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
+		},
 		"temperate_roadway": {
 			"keywords": [],
 			"type": "skirmish"
@@ -1491,6 +1601,43 @@
 		"via_augusta": {
 			"keywords": [],
 			"type": "skirmish"
+		},
+		"walltest": {
+			"keywords": [
+				"hidden"
+			],
+			"settings": {
+				"LockTeams": false,
+				"RevealMap": false,
+				"VictoryConditions": [
+					"conquest"
+				],
+				"players": [
+					{
+						"civ": "athen",
+						"pop": 100000,
+						"resources": {
+							"food": 100000,
+							"metal": 100000,
+							"stone": 100000,
+							"wood": 100000
+						},
+						"team": -1
+					},
+					{
+						"civ": "athen",
+						"pop": 2,
+						"resources": {
+							"food": 5000,
+							"metal": 5000,
+							"stone": 5000,
+							"wood": 5000
+						},
+						"team": -1
+					}
+				]
+			},
+			"type": "scenario"
 		},
 		"watering_holes": {
 			"keywords": [],
