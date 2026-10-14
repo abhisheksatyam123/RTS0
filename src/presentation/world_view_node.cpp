@@ -2765,16 +2765,17 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			z = cur.y;
 		}
 
-		// Smooth visual rotation interpolation to prevent snapping
-		float yaw = 0.0f;
+		// Smooth visual rotation interpolation to prevent snapping. The unit turns towards its heading
+		// (Position rotation, which the sim turns at the template's TurnRate: a unit turning on the spot,
+		// or a ship drifting backwards, faces its heading). In Godot, forward is -Z: local -Z rotated by
+		// atan2(-hx, -hz) points along (hx, hz).
+		const float head_yaw = Math::atan2(-uview.heading_x[i], -uview.heading_z[i]);
+		float yaw = head_yaw;
 		auto yaw_it = crowd_yaw.find(id);
 		if (yaw_it != crowd_yaw.end()) yaw = yaw_it->second;
 
-		float target_yaw = yaw;
-		if (speed2 > 0.001f) {
-			// In Godot, forward is -Z. Local -Z rotated by atan2(-vx, -vz) points along (vx, vz)
-			target_yaw = Math::atan2(-vx, -vz);
-		} else if (uaction == rtso::ACTION_ATTACK || uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD) {
+		float target_yaw = head_yaw;
+		if (speed2 <= 0.001f && (uaction == rtso::ACTION_ATTACK || uaction == rtso::ACTION_GATHER || uaction == rtso::ACTION_BUILD)) {
 			// Face active combat or harvest target
 			float tdx = uview.target_x[i] - x;
 			float tdz = uview.target_z[i] - z;

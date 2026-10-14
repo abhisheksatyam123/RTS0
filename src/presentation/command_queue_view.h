@@ -37,6 +37,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../simulation/entity_limits_data.h"
 #include "../simulation/simulation.h"
 #include "hotkeys.h"
 #include "l10n.h"
@@ -101,6 +102,7 @@ public:
 		roster_list_->add_theme_stylebox_override("panel", cmd_style);
 		if (theme.is_valid()) roster_list_->set_theme(theme);
 		roster_list_->set_visible(false);
+		roster_list_->set_allow_rmb_select(true); // a right click opens the Template Viewer
 		roster_list_->connect("item_clicked", Callable(owner_, "_on_roster_item_clicked"));
 		roster_list_->connect("gui_input", Callable(owner_, "_on_roster_gui_input"));
 		parent->add_child(roster_list_);
@@ -286,13 +288,15 @@ public:
 						btn->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 						btn->add_theme_constant_override("icon_max_width", 20);
 					}
-					// 0.28 Research panel: names, tooltip, cost, requirements, needed resources.
+					// 0.28 Research panel: names, tooltip, cost, right-click, requirements, needed resources.
 					String tip = String::utf8(ti.name);
 					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
 							(int64_t)paid[rtso::RES_GOLD], 0, (int64_t)std::ceil(rtime)};
 					const String tech_cost_tip = rtso::cost_tooltip(tech_cost);
 					if (!tech_cost_tip.is_empty()) tip += "\n" + tech_cost_tip;
+					tip += "\n" + right_click_tooltip();
+					on_right_click_details(btn, "tech", t, pciv);
 					String why;
 					switch (rc) {
 						case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; break;
@@ -622,6 +626,7 @@ public:
 				{
 					bool any_guarding = false, any_busy = false, any_work = false, any_fighter = false;
 					bool any_guard = false, any_can_add_guard = false, any_garrison = false, any_deletable = false;
+					bool any_turret = false; // "leave-turret": a selected unit on a turret point
 					int passengers = 0;
 					for (int s = 0; s < selected_ids.size(); ++s) {
 						const uint32_t id = (uint32_t)selected_ids[s];
@@ -641,6 +646,7 @@ public:
 							any_guard = any_guard || can_guard;
 							any_can_add_guard = any_can_add_guard || (can_guard && !guarding);
 							any_garrison = any_garrison || !rtso::unit_is_ship(ut); // Garrisonable
+							any_turret = any_turret || sim->turret_holder_of(id) != 0;
 							if (sim->is_transport(id)) passengers += sim->get_transport_passenger_count(id);
 							any_deletable = any_deletable || (ut != rtso::UNIT_CATAFALQUE && !sim->undeletable_unit(id)); // isUndeletable
 							break;
@@ -664,6 +670,9 @@ public:
 					if (any_garrison)
 						add_entity_command("garrison", "Garrison", "session.garrison",
 								"Garrison\nOrder the selected units to garrison in a structure or another unit.", "garrison.png");
+					if (any_turret)
+						add_entity_command("leave-turret", "Unload", "",
+								"Unload\nOrder the selected units to leave their turret points.", "leave-turret.png");
 					if (has_worker)
 						add_entity_command("repair", "Repair", "session.repair",
 								"Repair\nOrder the selected units to repair a structure, ship, or siege engine.", "repair.png");
@@ -685,7 +694,7 @@ public:
 				if (has_worker) {
 					// Build menu in 0 A.D. order; cost and phase come from the building table.
 					static const int b_types[] = {
-						rtso::BLD_HOUSE, rtso::BLD_STOREHOUSE, rtso::BLD_FARMSTEAD, rtso::BLD_FIELD,
+						rtso::BLD_TOWN_CENTER, rtso::BLD_HOUSE, rtso::BLD_STOREHOUSE, rtso::BLD_FARMSTEAD, rtso::BLD_FIELD,
 						rtso::BLD_CORRAL, rtso::BLD_DOCK, rtso::BLD_BARRACKS, rtso::BLD_STABLE,
 						rtso::BLD_RANGE, rtso::BLD_SENTRY_TOWER, rtso::BLD_OUTPOST, rtso::BLD_PALISADE,
 						rtso::BLD_FORGE, rtso::BLD_MARKET, rtso::BLD_TEMPLE, rtso::BLD_TOWER,
@@ -732,20 +741,26 @@ public:
 						const String generic = text.get("generic_name", String::utf8(bi.name));
 						const String specific = text.get("specific_name", String());
 						String tip = specific.is_empty() || specific == generic ? generic : specific + String(" (") + generic + String(")");
-						const String identity_tip = text.get("tooltip", String());
-						if (!identity_tip.is_empty()) tip += "\n" + identity_tip;
+						auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
+						add_line(classes_tooltip(text));
+						add_line(identity_tooltip(text));
 						const rtso::CostTip b_cost{(int64_t)price[rtso::RES_FOOD], (int64_t)price[rtso::RES_WOOD],
 								(int64_t)price[rtso::RES_STONE], (int64_t)price[rtso::RES_GOLD], 0,
 								(int64_t)std::round(sim->structure_build_time_for(local_player(), (uint8_t)bt))};
-						if (!rtso::cost_tooltip(b_cost).is_empty()) tip += "\n" + rtso::cost_tooltip(b_cost);
+						add_line(rtso::cost_tooltip(b_cost));
+						add_line(dropsite_tooltip(text));
 						const int garrison = rtso::structure_garrison_max((uint8_t)bt, my_civ);
 						if (garrison > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s: %(garrisonLimit)s"),
 									{{"label", rtso::tr0("Garrison Limit")}, {"garrisonLimit", String::num_int64(garrison)}});
+						add_line(turrets_tooltip(text));
 						const int pop_bonus = sim->structure_pop_bonus((uint8_t)bt, local_player());
 						if (pop_bonus > 0)
 							tip += "\n" + rtso::sprintf0(rtso::tr0("%(label)s %(bonus)s"),
 									{{"label", rtso::tr0("Population Bonus:")}, {"bonus", String::num_int64(pop_bonus)}});
+						add_line(right_click_tooltip());
+						on_right_click_details(bb, "structure", bt, my_civ);
+						add_line(limit_tooltip(local_player(), rtso::BUILDING_LIMIT_CATEGORY[bt]));
 						Ref<Texture2D> b_ico = structure_icon(bi.portrait_id);
 						if (b_ico.is_valid()) {
 							bb->set_button_icon(b_ico);
@@ -846,8 +861,9 @@ private:
 			roster_list_->set_visible(roster_list_->get_item_count() > 0);
 			return;
 		}
-		// A shrine trains its own civ's Elite Healer (units/{native}/support_healer_e).
-		for (uint16_t i : rtso::civ_roster_ids(b->type == rtso::BLD_SHRINE ? b->civ : civ)) {
+		// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) offer the
+		// structure's own civ's units.
+		for (uint16_t i : rtso::civ_roster_ids(rtso::building_trains_native(b->type) ? b->civ : civ)) {
 			const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 			if (!(u.trainers & rtso::bld_bit(b->type))) continue;
 			// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
@@ -962,10 +978,20 @@ private:
 		// 0.28 Training panel: names, cost (population and time too), health and
 		// attack, then the batch line; callers add requirements.
 		tip = rtso::entity_names(String::utf8(u.name), String::utf8(u.specific_name ? u.specific_name : ""));
+		auto add_line = [&tip](const String &line) { if (!line.is_empty()) tip += "\n" + line; };
+		const Dictionary text = unit_template_text(u.id);
+		add_line(classes_tooltip(text));
+		add_line(auras_tooltip(u));
+		add_line(identity_tooltip(text));
 		const rtso::CostTip unit_cost{(int64_t)cost[rtso::RES_FOOD], (int64_t)cost[rtso::RES_WOOD], (int64_t)cost[rtso::RES_STONE],
 				(int64_t)cost[rtso::RES_GOLD], (int64_t)u.pop_cost, (int64_t)std::ceil(u.train_time)};
-		const String cost_tip = rtso::cost_tooltip(unit_cost);
-		if (!cost_tip.is_empty()) tip += "\n" + cost_tip;
+		add_line(rtso::cost_tooltip(unit_cost));
+		// formatLimitString, formatMatchLimitString (heroes: MatchLimit 1).
+		if (i < rtso::CIV_UNIT_TEMPLATE_COUNT) {
+			add_line(limit_tooltip(pid, rtso::UNIT_LIMITS[i].category));
+			if (rtso::UNIT_LIMITS[i].match_limit == 1)
+				add_line(rtso::tr0(host_->ui_sim()->match_limit_allows(pid, i) ? "Can be trained only once." : "Could only be trained once."));
+		}
 		// Options' Detailed tooltips (showdetailedtooltips, off by default): health, attack,
 		// healer, resistance, garrison, turrets, projectiles, speed and dropsite, from the
 		// Template Viewer's lines (template_viewer.gd detailed_tooltip).
@@ -978,6 +1004,7 @@ private:
 			}
 			if (!it->second.is_empty()) tip += "\n" + it->second;
 		}
+		add_line(right_click_tooltip());
 		const String batch = rtso::batch_training_string(1, host_->ui_batch_size(), 0);
 		if (!batch.is_empty()) tip += "\n" + batch;
 		return idx;
@@ -1089,20 +1116,125 @@ private:
 		return rtso::load_ui_texture("res://assets/textures/ui/archive/portraits/structures/" + file + ".png");
 	}
 
-	// 0.28's Identity text for a civ's structure (generic_name, specific_name, tooltip) from
 	// data/reference/templates.json (tools/extract_0ad_reference.py), read once.
-	static godot::Dictionary structure_template_text(uint8_t civ, int type) {
+	static const godot::Dictionary &reference_templates() {
 		using namespace godot;
-		static Dictionary structures;
+		static Dictionary all;
 		static bool loaded = false;
 		if (!loaded) {
 			loaded = true;
 			Ref<FileAccess> f = FileAccess::open("res://data/reference/templates.json", FileAccess::READ);
-			if (f.is_valid()) structures = Dictionary(JSON::parse_string(f->get_as_text())).get("structures", Dictionary());
+			if (f.is_valid()) all = Dictionary(JSON::parse_string(f->get_as_text()));
 		}
+		return all;
+	}
+
+	// 0.28's Identity text for a civ's structure (generic_name, specific_name, tooltip,
+	// classes, viewer) from templates.json.
+	static godot::Dictionary structure_template_text(uint8_t civ, int type) {
+		using namespace godot;
 		if (civ >= rtso::CIV_COUNT) return Dictionary();
+		const Dictionary structures = reference_templates().get("structures", Dictionary());
 		const Dictionary by_civ = structures.get(String(rtso::civ_info(civ).code), Dictionary());
 		return by_civ.get(String::num_int64(type), Dictionary());
+	}
+
+	// The same for a roster unit ("athen/infantry_spearman_b").
+	static godot::Dictionary unit_template_text(const char *id) {
+		using namespace godot;
+		const Dictionary units = reference_templates().get("units", Dictionary());
+		return units.get(String::utf8(id), Dictionary());
+	}
+
+	// getVisibleEntityClassesFormatted: "Classes: Infantry, Melee", or "".
+	static godot::String classes_tooltip(const godot::Dictionary &text) {
+		using namespace godot;
+		const Array classes = text.get("classes", Array());
+		if (classes.is_empty()) return String();
+		String list;
+		for (int k = 0; k < classes.size(); ++k) {
+			if (k) list += rtso::tr0(", ");
+			list += rtso::tr0(String(classes[k]));
+		}
+		return rtso::tr0("Classes:") + " " + list;
+	}
+
+	// getEntityTooltip: the template's Identity/Tooltip.
+	static godot::String identity_tooltip(const godot::Dictionary &text) {
+		return text.get("tooltip", godot::String());
+	}
+
+	// getAurasTooltip: "Name: description Range: 30 meters" per aura of a roster unit.
+	static godot::String auras_tooltip(const rtso::CivUnitTemplate &u) {
+		using namespace godot;
+		String out;
+		for (int16_t a : u.auras) {
+			if (a < 0) continue;
+			const auto &aura = rtso::civ_hero_aura(a);
+			String line = rtso::sprintf0(rtso::tr0("%(auralabel)s %(aurainfo)s"),
+					{{"auralabel", rtso::sprintf0(rtso::tr0("%(auraname)s:"), {{"auraname", rtso::tr0(String::utf8(aura.name))}})},
+					 {"aurainfo", rtso::tr0(String::utf8(aura.description ? aura.description : ""))}});
+			if (aura.radius > 0.0f) {
+				const int64_t r = (int64_t)std::lround(aura.radius);
+				line += " " + rtso::sprintf0(rtso::tr0("%(label)s %(val)s %(unit)s"),
+						{{"label", rtso::tr0("Range:")}, {"val", String::num_int64(r)}, {"unit", rtso::tr0(r == 1 ? "meter" : "meters")}});
+			}
+			out += (out.is_empty() ? String() : String("\n")) + line;
+		}
+		return out;
+	}
+
+	// getResourceDropsiteTooltip: "Dropsite for: Food Wood", a resource's name for its icon.
+	static godot::String dropsite_tooltip(const godot::Dictionary &text) {
+		using namespace godot;
+		const Array types = Dictionary(text.get("viewer", Dictionary())).get("dropsite", Array());
+		if (types.is_empty()) return String();
+		String icons;
+		for (int k = 0; k < types.size(); ++k) {
+			if (k) icons += "  ";
+			icons += rtso::tr0(String(types[k]).capitalize());
+		}
+		return rtso::sprintf0(rtso::tr0("%(label)s %(icons)s"), {{"label", rtso::tr0("Dropsite for:")}, {"icons", icons}});
+	}
+
+	// getTurretsTooltip: "Turret Positions: 4".
+	static godot::String turrets_tooltip(const godot::Dictionary &text) {
+		using namespace godot;
+		const int turrets = (int)Dictionary(text.get("viewer", Dictionary())).get("turrets", 0);
+		if (turrets <= 0) return String();
+		return rtso::sprintf0(rtso::tr0("%(label)s: %(turretsLimit)s"),
+				{{"label", rtso::tr0("Turret Positions")}, {"turretsLimit", String::num_int64(turrets)}});
+	}
+
+	// formatLimitString: "Current Count: 1, Limit: 1." and each LimitChanger the player owns.
+	godot::String limit_tooltip(uint8_t pid, uint8_t category) const {
+		using namespace godot;
+		rtso::Simulation *sim = host_->ui_sim();
+		if (category == rtso::LIMIT_NONE || category >= rtso::LIMIT_CATEGORY_COUNT) return String();
+		const int limit = sim->entity_limit(pid, category);
+		if (limit < 0) return String();
+		String text = rtso::sprintf0(rtso::tr0("Current Count: %(count)s, Limit: %(limit)s."),
+				{{"count", String::num_int64(sim->entity_limit_count(pid, category))}, {"limit", String::num_int64(limit)}});
+		const uint8_t civ = sim->player_civ(pid);
+		for (const rtso::LimitChanger &c : rtso::LIMIT_CHANGERS) {
+			if (c.civ != civ || c.category != category || c.bld >= rtso::BLD_TYPE_COUNT || c.value == 0) continue;
+			int owned = 0;
+			for (const auto &b : sim->buildings())
+				owned += b.team == pid && b.type == c.bld && b.hp > 0.0f && !b.wrecked && b.build_progress >= 1.0f;
+			if (!owned) continue;
+			const int change = owned * c.value;
+			text += "\n" + rtso::sprintf0(rtso::tr0(change > 0 ? "%(changer)s enlarges the limit with %(change)s."
+					: "%(changer)s lessens the limit with %(change)s."),
+					{{"changer", rtso::tr0(String::utf8(rtso::building_type_info(c.bld).name))}, {"change", String::num_int64(change)}});
+		}
+		return text;
+	}
+
+	// getTemplateViewerOnRightClickTooltip; the button's right click opens the Template Viewer.
+	static godot::String right_click_tooltip() { return rtso::tr0("Right-click for more information."); }
+	void on_right_click_details(godot::Control *c, const char *kind, int id, int civ) {
+		using namespace godot;
+		c->connect("gui_input", Callable(owner_, "_on_template_details_input").bind(String(kind), id, civ));
 	}
 
 	godot::Object *owner_ = nullptr;

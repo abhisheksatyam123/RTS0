@@ -4,6 +4,7 @@
 
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -59,8 +60,10 @@ void RtsoMain::_ready() {
 			if (comma > 0) {
 				float fx = coords.substr(0, comma).to_float();
 				float fz = coords.substr(comma + 1).to_float();
-				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), Color(1.0f, 0.45f, 0.1f));
-				range_overlays_.add_marker(fx, fz, Color(1.0f, 0.45f, 0.1f), user_opts_.flare_time);
+				const uint8_t sender = chat_player_of(guid);
+				const Color c = player_flare_color(sender);
+				if (minimap_view) minimap_view->add_ping(Vector2(fx, fz), c);
+				range_overlays_.add_flare(fx, fz, c, user_opts_.flare_time);
 				play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 				// ChatMessageFormatSimulation.flare: gui.session.notifications.flare
 				// "never", "observer" (only while observing) or "always".
@@ -600,6 +603,9 @@ void RtsoMain::_ready() {
 	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
+	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
+	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
+	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -806,6 +812,12 @@ void RtsoMain::_process(double delta) {
 		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
 		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
 		else if (net_host_.disconnectReason() == rtso::NDR_SERVER_FULL) lobby_status->set_text(tr("Server full."));
+		else if (net_host_.disconnectReason() == rtso::NDR_PLAYERNAME_IN_USE)
+			lobby_status->set_text(tr("Player name in use. If you were disconnected, retry in few seconds."));
+		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_PROTOCOL_VERSION)
+			lobby_status->set_text(tr("Incorrect network protocol version."));
+		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_SOFTWARE_VERSION)
+			lobby_status->set_text(tr("Different game engine versions or different mods loaded."));
 		const auto &kicks = net_host_.kicks();
 		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
 			const auto &k = kicks[kicks_shown_];
@@ -820,6 +832,14 @@ void RtsoMain::_process(double delta) {
 			// NetClientTurnManager: one 200ms turn batch, sim steps inside TurnManager::tick
 			if (turn_mgr_.tick((float)scaled_delta, *sim))
 				ticks = rtso::TurnManager::TICKS_PER_TURN;
+			// OutOfSyncNetwork: the box opens once the dump is written, and again
+			// if the host later names an earlier diverging turn.
+			if (turn_mgr_.has_out_of_sync() && !turn_mgr_.oos_dump_pending() &&
+					net_oos_shown_turn_ != turn_mgr_.oos_turn()) {
+				net_oos_shown_turn_ = turn_mgr_.oos_turn();
+				write_replay(); // "Replay saved to"
+				quit_confirmation("out_of_sync_network");
+			}
 			if (turn_mgr_.has_out_of_sync() && lobby_status) {
 				// 0 A.D. session.js "Out-Of-Sync" notice: the first diverging turn and who.
 				String who;
@@ -983,9 +1003,11 @@ void RtsoMain::_process(double delta) {
 							(allies ? " will win in " : "will win in ") + left + ".");
 				}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
+				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
+				// allies" when more than one player would win.
 				const uint8_t owner = sim->relics()[0].owner_team;
-				if (owner < rtso::MAX_PLAYERS) {
-					const uint8_t side = (uint8_t)(allies_of(owner) | (1u << owner));
+				const uint8_t side = sim->relic_countdown_players();
+				if (owner < rtso::MAX_PLAYERS && side) {
 					const bool team = (side & (side - 1)) != 0;
 					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
 					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
@@ -1029,10 +1051,14 @@ void RtsoMain::_process(double delta) {
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
+	show_trigger_dialogs(sim->take_trigger_dialogs());
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
+	panel_entities_.refresh(*sim, view_player(), (float)Time::get_singleton()->get_ticks_msec() / 1000.0f);
+	research_progress_.refresh(*sim, view_player());
+	control_groups_.refresh(*sim, local_player(), selected_groups);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
@@ -1164,6 +1190,7 @@ void RtsoMain::_process(double delta) {
 						placement_angle = rtso::Simulation::DEFAULT_BUILDING_ROT;
 					}
 				}
+				snap_placement_to_edges(current_build_type, cell_x, cell_y);
 				int footprint = rtso::building_type_info(current_build_type).footprint;
 
 				float gx = (cell_x + footprint * 0.5f) * rtso::Simulation::GRID;

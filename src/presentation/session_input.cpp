@@ -132,38 +132,15 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 				return;
 			}
-			PackedInt32Array recall;
-			Vector3 first_pos;
-			if (sim) {
-				auto gview = sim->units();
-				for (int m = 0; m < selected_groups[grp].size(); ++m) {
-					const int32_t gid = selected_groups[grp][m];
-					for (size_t i = 0; i < gview.count; ++i) {
-						if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
-							if (recall.is_empty()) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
-							recall.push_back(gid);
-							break;
-						}
-					}
-				}
-			}
-			selected_groups[grp] = recall;
-			if (recall.is_empty()) return;
 			if (add) {
-				for (int m = 0; m < recall.size(); ++m)
-					if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
-				selected_building_id = 0;
-				play_civ_voice("select");
+				perform_group(grp, GROUP_ADD);
 				return;
 			}
 			const uint64_t now_ms = Time::get_singleton()->get_ticks_msec();
-			if (grp == last_group_pressed_ && now_ms - last_group_press_ms_ < 500 && cam_rig)
-				cam_rig->set_target_pos(first_pos);
+			const bool snap = grp == last_group_pressed_ && now_ms - last_group_press_ms_ < 500;
 			last_group_pressed_ = grp;
 			last_group_press_ms_ = now_ms;
-			selected_ids = recall;
-			selected_building_id = 0;
-			play_civ_voice("select");
+			perform_group(grp, snap ? GROUP_SNAP : GROUP_SELECT);
 			return;
 		}
 
@@ -231,6 +208,10 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 		if (fired("camera.reset")) {
 			if (cam_rig) cam_rig->reset_camera();
+			return;
+		}
+		if (fired("camera.togglebirdseyeview")) {
+			if (cam_rig) cam_rig->toggle_birds_eye();
 			return;
 		}
 		if (fired("camera.follow")) {
@@ -411,7 +392,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				double_click_pending = false;
 				if (build_click_pending) {
 					build_click_pending = false;
-					const int cell_x = build_click_cell_x, cell_y = build_click_cell_y;
+					int cell_x = build_click_cell_x, cell_y = build_click_cell_y;
+					snap_placement_to_edges(current_build_type, cell_x, cell_y);
 					const float fp = (float)rtso::building_type_info(current_build_type).footprint;
 					const float angle = placement_angle_at(current_build_type, (cell_x + fp * 0.5f) * rtso::Simulation::GRID,
 							(cell_y + fp * 0.5f) * rtso::Simulation::GRID);
@@ -768,7 +750,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					if (dx * dx + dz * dz <= hit_r * hit_r) corral = b.id;
 				}
 				if (!corral)
-					range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+					range_overlays_.add_target_marker(click_pos.x, click_pos.z);
 				if (turn_cmds()) {
 					if (corral) post_lockstep(12, sel_ptr, sel_n, 0, 0, corral, qbit);
 					else post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
@@ -826,7 +808,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			const bool units_only = rtso::hotkeys::held("session.attackmoveUnit");
 			if (call_to_arms_mode || (!garrison_click && rtso::hotkeys::held("session.calltoarms"))) {
 				call_to_arms_mode = false;
-				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+				range_overlays_.add_target_marker(click_pos.x, click_pos.z);
 				const bool capture = rtso::hotkeys::held("session.capture");
 				if (turn_cmds())
 					post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_CALL_TO_ARMS, sel_ptr, sel_n, click_pos.x, click_pos.z, 0,
@@ -837,7 +819,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				return;
 			}
 			if (attack_move_mode || (!garrison_click && (rtso::hotkeys::held("session.attackmove") || units_only))) {
-				range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+				range_overlays_.add_target_marker(click_pos.x, click_pos.z);
 				if (turn_cmds())
 					post_lockstep(10, sel_ptr, sel_n, click_pos.x, click_pos.z, 0,
 							(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
@@ -1199,7 +1181,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			}
 
 			// 5. Default: Move Order (a player's walk ignores enemies until it arrives)
-			range_overlays_.add_marker(click_pos.x, click_pos.z, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+			range_overlays_.add_target_marker(click_pos.x, click_pos.z);
 			if (turn_cmds())
 				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
 			else {

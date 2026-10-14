@@ -67,6 +67,9 @@
 #include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
+#include "panel_entities_view.h"
+#include "research_progress_view.h"
+#include "control_groups_view.h"
 #include "range_overlays.h"
 #include "music_manager.h"
 #include "session_audio.h"
@@ -188,6 +191,9 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
+	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
+	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
+	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker
 	MeshInstance3D *ghost_mesh = nullptr;
@@ -301,6 +307,7 @@ public:
 	void _on_minimap_clicked(Vector2 world_pos);
 	void _on_minimap_order(Vector2 world_pos);
 	void trigger_flare(float x, float z);
+	Color player_flare_color(uint8_t pid) const;
 	void _on_flare_requested(Vector2 world_pos);
 	// g_EntityCommands (unit_actions.js): the command row's presses and their hotkeys.
 	void _on_entity_command(const String &name);
@@ -333,10 +340,17 @@ public:
 	void _on_remove_guard_pressed();
 	void _on_call_to_arms_pressed();
 	void _on_template_info_pressed();
+	void _on_template_details_input(const Ref<InputEvent> &event, const String &kind, int id, int civ);
 	void _on_alert_pressed(int end);
 	void _on_autoqueue_pressed(int on);
 	void _on_selection_group_clicked(int key);
 	void _on_selection_group_gui_input(const Ref<InputEvent> &event, int key);
+	void _on_panel_entity_gui_input(const Ref<InputEvent> &event, int slot);
+	void _on_research_progress_pressed(int slot);
+	void _on_control_group_gui_input(const Ref<InputEvent> &event, int button);
+	// input.js performGroup: select, add or snap (select and move the camera) group `grp`.
+	enum GroupAction { GROUP_SELECT, GROUP_ADD, GROUP_SNAP };
+	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
 	void _on_stance_selected(int stance);
@@ -489,6 +503,7 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
 	bool select_first_own(bool building); // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
@@ -507,6 +522,7 @@ public:
 	Array debug_command_row();
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count);
+	Dictionary debug_research_any();
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
@@ -559,6 +575,10 @@ private:
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;
+	// 0 A.D. input.js snap to edges: with isSnapToEdgesEnabled, turns placement_angle to the
+	// nearest structure's sides (ObstructionSnap.getPosition) and moves (cell_x, cell_y) to the
+	// building cell nearest the flush position.
+	void snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y);
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
@@ -577,6 +597,8 @@ private:
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
+	// messages.js "dialog" notifications: a trigger script's yes-no dialog (triggers_demo).
+	void show_trigger_dialogs(const std::vector<rtso::Simulation::TriggerDialog> &dialogs);
 	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
 	void toggle_diplomacy_colors();
 	void update_cursor();
@@ -615,6 +637,7 @@ private:
 	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
 	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
+	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
 	OptionButton *replay_speed_picker_ = nullptr;
 	Button *replay_pause_btn_ = nullptr;
