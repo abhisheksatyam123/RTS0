@@ -29,6 +29,15 @@ func frames(n: int) -> void:
 	for i in n:
 		await process_frame
 
+# Waits until `cond` holds, by game frames under --fixed-fps 20 or by wall time
+# without it (the sim steps on time, so frames alone may be too few).
+func until(cond: Callable, seconds := 5.0) -> void:
+	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
+	var n := 0
+	while not cond.call() and (n < int(seconds * 20.0) or Time.get_ticks_msec() < end):
+		await process_frame
+		n += 1
+
 func row() -> Array:
 	return main.debug_command_row()
 
@@ -87,10 +96,10 @@ func run() -> void:
 	var st: Dictionary = main.debug_selection_state()
 	var u0: Dictionary = st["units"][0]
 	main._on_minimap_order(u0["pos"] + Vector2(30, 0))
-	await frames(4)
+	await until(func(): return texts().has("Abort"))
 	check(texts().has("Abort"), "Abort shows while the units walk")
 	check(press("Abort"), "pressing Abort")
-	await frames(6)
+	await until(func(): return not texts().has("Abort"))
 	check(not texts().has("Abort"), "they stop, and Abort goes")
 
 	print("3. Delete")
@@ -117,7 +126,7 @@ func run() -> void:
 	if dlg:
 		dlg.emit_signal("confirmed")
 		dlg.hide()
-	await frames(10)
+	await until(func(): return not alive(victim))
 	check(not alive(victim), "Yes destroys the selection")
 	main.debug_selection_grid(true)
 	await frames(2)

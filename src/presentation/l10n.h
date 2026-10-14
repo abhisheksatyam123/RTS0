@@ -1,0 +1,124 @@
+#ifndef RTSO_L10N_H
+#define RTSO_L10N_H
+
+// 0 A.D.'s translate() and sprintf() for the presentation code: strings built
+// from parts look up one 0 A.D. format msgid ("%(player)s has sent you
+// %(amounts)s.") and fill its named arguments, so a language can reorder them
+// (assets/l10n/<lang>.po, loaded by scenes/menu/user_settings.gd).
+
+#include <godot_cpp/classes/translation_server.hpp>
+#include <godot_cpp/variant/string.hpp>
+
+#include <cmath>
+#include <cstdint>
+#include <initializer_list>
+#include <utility>
+
+#include "user_config.h"
+
+namespace rtso {
+
+// translate(msgid): the current language's string, else the English msgid.
+inline godot::String tr0(const godot::String &msgid) {
+	godot::TranslationServer *ts = godot::TranslationServer::get_singleton();
+	return ts ? godot::String(ts->translate(msgid)) : msgid;
+}
+
+// sprintf with named arguments: each "%(key)s" becomes its value.
+inline godot::String sprintf0(const godot::String &format,
+		std::initializer_list<std::pair<const char *, godot::String>> args) {
+	godot::String s = format;
+	for (const auto &a : args) s = s.replace(godot::String("%(") + a.first + ")s", a.second);
+	return s;
+}
+
+// tooltips.js getEntityNames under gui.session.howtoshownames (0 specific
+// first, 1 generic first, 2 only specific, 3 only generic): "Primary
+// (Secondary)", or the one name.
+inline godot::String entity_names(const godot::String &generic, const godot::String &specific) {
+	if (specific.is_empty()) return tr0(generic);
+	if (specific == generic) return specific;
+	const std::string mode = user_config::get("gui.session.howtoshownames");
+	const bool specific_first = mode != "1" && mode != "3";
+	const bool secondary = mode != "2" && mode != "3";
+	const godot::String primary = specific_first ? specific : tr0(generic);
+	if (!secondary) return sprintf0(tr0("%(primaryName)s"), {{"primaryName", primary}});
+	return sprintf0(tr0("%(primaryName)s (%(secondaryName)s)"),
+			{{"primaryName", primary}, {"secondaryName", specific_first ? tr0(generic) : specific}});
+}
+
+// tooltips.js getSecondsString: "%(time)s %(second)s".
+inline godot::String seconds_string(int64_t seconds) {
+	return sprintf0(tr0("%(time)s %(second)s"),
+			{{"time", godot::String::num_int64(seconds)}, {"second", tr0(seconds == 1 ? "second" : "seconds")}});
+}
+
+// "%(label)s %(details)s", the label/value line of tooltips.js.
+inline godot::String label_details(const godot::String &label, const godot::String &details) {
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0(label)}, {"details", details}});
+}
+
+// A cost in getCostTypes() order: food, wood, stone, metal, population, time.
+struct CostTip {
+	int64_t food = 0, wood = 0, stone = 0, metal = 0, population = 0, time = 0;
+};
+
+// getEntityCostComponentsTooltipString: one "%(component)s %(cost)s" per cost
+// type, the resource's name standing in for its icon; time reads as seconds.
+inline godot::String cost_components(const CostTip &c, const char *sep = "  ") {
+	godot::String out;
+	auto add = [&](const godot::String &entry) {
+		if (!out.is_empty()) out += sep;
+		out += entry;
+	};
+	const struct { int64_t v; const char *name; } parts[] = {
+		{c.food, "Food"}, {c.wood, "Wood"}, {c.stone, "Stone"}, {c.metal, "Metal"}, {c.population, "Population"}};
+	for (const auto &p : parts)
+		if (p.v > 0) add(sprintf0(tr0("%(component)s %(cost)s"), {{"component", tr0(p.name)}, {"cost", godot::String::num_int64(p.v)}}));
+	if (c.time > 0) add(seconds_string(c.time));
+	return out;
+}
+
+// getEntityCostTooltip: "Cost: Food 50  Wood 50  10 seconds", or "".
+inline godot::String cost_tooltip(const CostTip &c) {
+	const godot::String costs = cost_components(c);
+	if (costs.is_empty()) return costs;
+	return sprintf0(tr0("%(label)s %(costs)s"), {{"label", tr0("Cost:")}, {"costs", costs}});
+}
+
+// getNeededResourcesTooltip: "Insufficient resources: Food 20  Wood 5", or ""
+// when the stock covers the cost.
+inline godot::String needed_resources_tooltip(const CostTip &cost, const float stock_food, const float stock_wood,
+		const float stock_stone, const float stock_metal) {
+	CostTip need;
+	auto short_by = [](int64_t c, float s) { return c > s ? (int64_t)std::ceil((double)c - s) : (int64_t)0; };
+	need.food = short_by(cost.food, stock_food);
+	need.wood = short_by(cost.wood, stock_wood);
+	need.stone = short_by(cost.stone, stock_stone);
+	need.metal = short_by(cost.metal, stock_metal);
+	const godot::String parts = cost_components(need);
+	return parts.is_empty() ? parts : tr0("Insufficient resources:") + " " + parts;
+}
+
+// selection_panels_helpers.js formatBatchTrainingString: "Shift-click to
+// train 5.", "... 10 (2*5).", "... 27 (15 + 12).", or "" below two units.
+inline godot::String batch_training_string(int buildings, int batch, int remainder) {
+	const int total = buildings * batch + remainder;
+	if (total < 2) return godot::String();
+	godot::String full;
+	if (buildings > 1)
+		full = sprintf0(tr0("%(buildings)s*%(batchSize)s"),
+				{{"buildings", godot::String::num_int64(buildings)}, {"batchSize", godot::String::num_int64(batch)}});
+	else if (buildings == 1)
+		full = godot::String::num_int64(batch);
+	const char *format = "%(action)s to train %(number)s.";
+	if (buildings > 1 || (buildings == 1 && remainder > 0))
+		format = remainder > 0 ? "%(action)s to train %(number)s (%(fullBatch)s + %(remainderBatch)s)."
+				: "%(action)s to train %(number)s (%(fullBatch)s).";
+	return sprintf0(tr0(format), {{"action", tr0("Shift-click")}, {"number", godot::String::num_int64(total)},
+			{"fullBatch", full}, {"remainderBatch", godot::String::num_int64(remainder)}});
+}
+
+} // namespace rtso
+
+#endif

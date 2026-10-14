@@ -737,7 +737,29 @@ inline bool building_alert_raiser(uint8_t type, AlertRaiserInfo &out) {
 	}
 }
 
-inline constexpr float GARRISON_LOADING_RANGE = 2.0f * 0.28f; // 0 A.D. metres to RTS0, plus the unit's radius
+// GarrisonHolder LoadingRange of a structure, 0 A.D. metres to RTS0 (x0.28), counted from
+// its obstruction: 1 m for civic centres (military colonies, wagon encampments and the
+// crannog too), houses and apartments, and Han's ministry, farmstead and storehouse;
+// 6 m for the fortress and the Roman army camp; 4 m for the corral; 2 m elsewhere
+// (template_structure_*.xml and the civ templates of 0.28).
+inline constexpr float structure_loading_range(uint8_t type, uint8_t civ) {
+	switch (type) {
+		case BLD_TOWN_CENTER: case BLD_IMPERIAL_COURT: case BLD_CRANNOG: case BLD_MILITARY_COLONY:
+		case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED:
+		case BLD_HOUSE: case BLD_APARTMENT: case BLD_MINISTRY:
+			return 1.0f * 0.28f;
+		case BLD_FARMSTEAD: case BLD_STOREHOUSE:
+			return (civ == CIV_HAN ? 1.0f : 2.0f) * 0.28f;
+		case BLD_FORTRESS: case BLD_ARMY_CAMP:
+			return 6.0f * 0.28f;
+		case BLD_CORRAL:
+			return 4.0f * 0.28f;
+		default:
+			return 2.0f * 0.28f;
+	}
+}
+// template_unit_siege_ram.xml and template_unit_siege_tower.xml LoadingRange, 2 m.
+inline constexpr float SIEGE_LOADING_RANGE = 2.0f * 0.28f;
 // Attack.js Ranged MinRange as a share of MaxRange: template_unit_siege_stonethrower.xml
 // 26 of 85, template_unit_siege_boltshooter.xml 15 of 90. Scaled to each unit's own range.
 inline float unit_min_range_ratio(uint8_t type) {
