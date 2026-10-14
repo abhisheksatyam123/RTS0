@@ -923,7 +923,7 @@ static void test_status_credit() {
 }
 
 static void test_reach_and_responses() {
-	std::printf("20. CanAttack heights and Attacked responses\n");
+	std::printf("20. CanAttack heights\n");
 	// Attack.js CanAttack: a swordsman can't reach an archer on a wall's turret point (the
 	// height offset is more than its MaxRange), so it never picks that archer, even when shot.
 	{
@@ -942,22 +942,6 @@ static void test_reach_and_responses() {
 		}
 		check(!s.unit_can_target((size_t)idx(s, sw), (size_t)idx(s, archer)), "the swordsman can't target the archer on the wall");
 		check(!went_for_archer, "the swordsman never goes for the archer, though it is shot at");
-	}
-	// UnitAI INDIVIDUAL "Attacked": a soldier on an unforced order (gathering) answers a tower
-	// shooting it, as it would a unit.
-	{
-		Simulation s;
-		setup(s);
-		const uint32_t tower = s.spawn_building_world(-40.0f, -40.0f, BLD_TOWER, 0, 1.0f);
-		const uint32_t tree = s.spawn_resource_world(-40.0f, -46.0f, RES_WOOD, 5000);
-		const uint32_t sp = s.spawn_unit(-40.0f, -47.5f, 1, UNIT_SPEARMAN, 1.0e6f);
-		s.order_gather(&sp, 1, tree);
-		bool answered = false;
-		for (int k = 0; k < 600 && !answered; ++k) {
-			s.tick(DT);
-			answered = s.units_.target_building_id[idx(s, sp)] == tower;
-		}
-		check(answered, "a gathering spearman shot by a tower goes for the tower");
 	}
 }
 

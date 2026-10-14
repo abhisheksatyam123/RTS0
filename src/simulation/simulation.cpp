@@ -14130,7 +14130,8 @@ void Simulation::respond_to_attack(size_t i) {
 		if (bit == building_id_to_idx_.end()) return;
 		const Building &b = buildings_[bit->second];
 		if (b.wrecked || b.hp <= 0.0f || !is_hostile(units_.team[i], b.team)) return;
-		// INDIVIDUAL "Attacked": as for any attacker, only a forced order (or COMBAT) ignores it.
+		// A soldier at work keeps working (Petra sends its own defence); an idle one answers.
+		if (units_.attack_damage[i] > 0.0f && units_.stance[i] != STANCE_PASSIVE && units_.action_state[i] != ACTION_IDLE) return;
 		respond_to_attacker(i, b.id, b.x, b.z, false, true);
 		return;
 	}
