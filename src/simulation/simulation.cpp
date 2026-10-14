@@ -14829,10 +14829,22 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
-	if (!petra_ring_clear(cell_x, cell_y, footprint)) return false;
+	if (!petra_ring_clear(cell_x, cell_y, footprint, petra_clearance(btype))) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
+// 0 for houses, dropsites, fields and markets, which ought to stand close to each other or a
+// resource; 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest.
+uint8_t Simulation::petra_clearance(uint8_t btype) {
+	if (btype >= BLD_TYPE_COUNT) return 1;
+	const uint8_t r = building_research_base(btype);
+	if (r == BLD_FORTRESS || r == BLD_ARSENAL || r == BLD_ELEPHANT_STABLE) return 2;
+	if (is_dropsite_type(btype) || (building_tech_classes(btype) & TC_HOUSE) || btype == BLD_FIELD || is_land_market(btype))
+		return 0;
+	return 1;
 }
 
 // The ground petra_can_place needs: its footprint's cells free and a ring of whole cells round it
@@ -14840,12 +14852,15 @@ bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t 
 // a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
 // the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
 // On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
-bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
+// Clearance 0 (houses, dropsites, fields, markets) needs only the footprint free; 2 (fortress,
+// arsenal, elephant stable) also keeps any building 8 m off.
+bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance) const {
 	ensure_occupied_cells();
 	const int limit = (int)(map_half_ / GRID) - (footprint + 2);
+	const int lo = clearance ? -1 : 0, hi = clearance ? footprint : footprint - 1;
 	bool part = false;
-	for (int dx = -1; dx <= footprint; ++dx)
-		for (int dy = -1; dy <= footprint; ++dy) {
+	for (int dx = lo; dx <= hi; ++dx)
+		for (int dy = lo; dy <= hi; ++dy) {
 			const int cx = cell_x + dx, cy = cell_y + dy;
 			if (std::abs(cx) > limit || std::abs(cy) > limit) return false;
 			const uint8_t m = occupied_cells_.mark(cx, cy);
@@ -14854,11 +14869,11 @@ bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
 			if (!ring || m == CellSet::FULL) return false;
 			part = true;
 		}
-	if (!part) return true;
+	if (!part && clearance < 2) return true;
 	nav::Footprint grown;
 	grown.x = (cell_x + footprint * 0.5f) * GRID;
 	grown.z = (cell_y + footprint * 0.5f) * GRID;
-	grown.hu = grown.hv = (footprint + 1) * GRID * 0.5f;
+	grown.hu = grown.hv = (footprint + (clearance < 2 ? 1.0f : 2.0f)) * GRID * 0.5f;
 	return !footprint_hits_building(grown);
 }
 
@@ -18977,6 +18992,9 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 				const uint8_t st = units_.action_state[i];
 				if (st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
+				// GATHER.GATHERING only: one walking out to its supply (gather_res not yet set
+				// by tick_gather) counts as neither.
+				if (st == ACTION_GATHER && units_.gather_res[i] == 0) continue;
 				const uint8_t rt = units_.res_type_carried[i];
 				for (int j = 0; j < 3; ++j)
 					if (rt == kTypes[j]) (st == ACTION_GATHER ? used[j] : lost[j])++;
