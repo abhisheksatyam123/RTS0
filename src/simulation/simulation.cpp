@@ -4412,48 +4412,66 @@ void Simulation::cmd_move(const uint32_t *unit_ids, size_t count, float tx, floa
 			if (idx >= 0) begin_walk_order((size_t)idx);
 		}
 	}
-	if (!individual.empty()) cmd_move_individual(individual.data(), individual.size(), tx, tz);
+	if (!individual.empty()) cmd_move_individual(individual.data(), individual.size(), tx, tz, ctrls.empty());
 }
 
-void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz) {
-	if (count == 0) return;
-
-	// Units not in a formation spread over a square grid around the target, turned to face
-	// the walk (RTS0's group move; 0 A.D. sends them all to the point and lets them push).
-	const float spacing = 1.35f;
-	float centerX = 0.0f, centerZ = 0.0f;
-	int validCount = 0;
+// CCmpPathfinder::DistributeAround: points on a spiral round (x, z), the first ring 1 m out and each
+// next 1.75 m further, 9/pi m (2.9 m) apart along a ring, then handed out so that no swap of two
+// units' points cuts their squared travel (in whole metres, rounded up as fixed ToInt_RoundToInfinity
+// does). Lengths are at the formation scale.
+std::vector<std::pair<float, float>> Simulation::distribute_around(const uint32_t *unit_ids, size_t count, float x, float z) const {
+	std::vector<std::pair<float, float>> points;
+	points.reserve(count);
+	constexpr float kPi = 3.14159265f;
+	float angle = 0.0f, radius = 1.0f, step = 9.0f / (kPi * radius);
 	for (size_t i = 0; i < count; ++i) {
-		int32_t idx = lookup_unit(unit_ids[i]);
-		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {
-			centerX += units_.pos_x[idx];
-			centerZ += units_.pos_z[idx];
-			++validCount;
+		points.emplace_back(x + radius * std::cos(angle) * FORMATION_METRE, z - radius * std::sin(angle) * FORMATION_METRE);
+		angle += step;
+		if (angle >= 2.0f * kPi) {
+			angle = 0.0f;
+			radius += 1.75f;
+			step = 9.0f / (kPi * radius);
 		}
 	}
-	float cosH = 1.0f, sinH = 0.0f;
-	if (validCount > 0) {
-		centerX /= (float)validCount;
-		centerZ /= (float)validCount;
-		const float heading = atan2f(tz - centerZ, tx - centerX);
-		cosH = cosf(heading);
-		sinH = sinf(heading);
+	std::vector<std::pair<float, float>> at(count);
+	for (size_t i = 0; i < count; ++i) {
+		const int32_t idx = lookup_unit(unit_ids[i]);
+		if (idx < 0 || !units_.alive[idx]) return points;
+		at[i] = {units_.pos_x[idx], units_.pos_z[idx]};
 	}
+	auto dist2 = [](const std::pair<float, float> &a, const std::pair<float, float> &b) {
+		const int64_t dx = (int64_t)std::ceil((a.first - b.first) / FORMATION_METRE);
+		const int64_t dz = (int64_t)std::ceil((a.second - b.second) / FORMATION_METRE);
+		return dx * dx + dz * dz;
+	};
+	bool improved;
+	do {
+		improved = false;
+		for (size_t i = 0; i < count; ++i)
+			for (size_t j = i + 1; j < count; ++j)
+				if (dist2(points[j], at[i]) + dist2(points[i], at[j]) < dist2(points[i], at[i]) + dist2(points[j], at[j])) {
+					std::swap(points[i], points[j]);
+					improved = true;
+				}
+	} while (improved);
+	return points;
+}
+
+void Simulation::cmd_move_individual(const uint32_t *unit_ids, size_t count, float tx, float tz, bool spread) {
+	if (count == 0) return;
+
+	// Commands.js "walk", "attack-walk" and "patrol": units that all walk on their own (none in a
+	// formation) each walk to their own point round the target (DistributeAround); one alone, or the
+	// loose units of a selection with formations in it, walk to the point itself and push.
+	const std::vector<std::pair<float, float>> points =
+			spread && count > 1 ? distribute_around(unit_ids, count, tx, tz) : std::vector<std::pair<float, float>>();
 
 	for (size_t i = 0; i < count; ++i) {
 		int32_t idx = lookup_unit(unit_ids[i]);
 		if (idx < 0 || (size_t)idx >= units_.count || !units_.alive[idx]) continue;
 
-		const int side = std::max(1, (int)std::ceil(std::sqrt((float)count)));
-		const int row = (int)i / side;
-		const int col = (int)i % side;
-		const float ox = (col - (side - 1) * 0.5f) * spacing;
-		const float oz = (row - (side - 1) * 0.5f) * spacing;
-		float rx = ox * cosH - oz * sinH;
-		float rz = ox * sinH + oz * cosH;
-
-		float dest_x = tx + rx;
-		float dest_z = tz + rz;
+		float dest_x = points.empty() ? tx : points[i].first;
+		float dest_z = points.empty() ? tz : points[i].second;
 		dest_x = std::clamp(dest_x, -map_half_ + 1.0f, map_half_ - 1.0f);
 		dest_z = std::clamp(dest_z, -map_half_ + 1.0f, map_half_ - 1.0f);
 		units_.target_x[idx] = dest_x;
@@ -4698,7 +4716,7 @@ void Simulation::order_patrol(const uint32_t *unit_ids, size_t count, float tx, 
 	// Formations patrol as a whole (FORMATIONCONTROLLER PATROL); the rest walk on their own.
 	const std::vector<uint32_t> rest = !queued && !formations_.empty() ? formation_take_patrol(now, tx, tz) : now;
 	formation_remove_units(rest.data(), rest.size());
-	cmd_move_individual(rest.data(), rest.size(), tx, tz);
+	cmd_move_individual(rest.data(), rest.size(), tx, tz, rest.size() == now.size());
 	for (uint32_t uid : rest) {
 		int32_t idx = lookup_unit(uid);
 		if (idx >= 0 && (size_t)idx < units_.count && units_.alive[idx]) {

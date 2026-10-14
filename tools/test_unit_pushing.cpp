@@ -28,6 +28,10 @@
 //     one 50 ms tick two walkers never get far enough past each other to count as crossed.
 // 10. UnitMotion Weight by template: chariots (champion and hero) 30, elephants (a hero's too) and
 //     siege 50, catafalques 100, others 10.
+// 11. A group sent to one point (no formation) gets a point each round it, as Commands.js "walk" does
+//     with DistributeAround: a spiral from 1 m out, rings 1.75 m apart, points 9/pi m apart along a
+//     ring (at the formation scale), handed out so that no two units would travel less by swapping.
+//     A unit on its own walks to the point itself.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -309,6 +313,39 @@ int main() {
 			}
 		}
 		CHECK(wrong == 0, "every roster row weighs what its classes say");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		std::vector<uint32_t> group;
+		for (int k = 0; k < 10; ++k) group.push_back(s->spawn_unit(-20.0f + 1.5f * (k % 2), -7.0f + 1.5f * k, 0, UNIT_SPEARMAN, 0.0f));
+		std::vector<std::pair<float, float>> from;
+		for (uint32_t id : group) from.emplace_back(s->units_.pos_x[idx(*s, id)], s->units_.pos_z[idx(*s, id)]);
+		s->cmd_move(group.data(), group.size(), 10.0f, 5.0f);
+		// Ring radii in metres: 1 (3 points), 2.75 (7 points).
+		int ring1 = 0, ring2 = 0, other = 0, swaps = 0;
+		std::vector<std::pair<float, float>> to;
+		for (uint32_t id : group) {
+			const int i = idx(*s, id);
+			to.emplace_back(s->units_.target_x[i], s->units_.target_z[i]);
+			const float r = std::hypot(s->units_.target_x[i] - 10.0f, s->units_.target_z[i] - 5.0f) / FORMATION_METRE;
+			(std::fabs(r - 1.0f) < 0.01f ? ring1 : std::fabs(r - 2.75f) < 0.01f ? ring2 : other)++;
+		}
+		auto d2 = [](std::pair<float, float> a, std::pair<float, float> b) {
+			const int64_t dx = (int64_t)std::ceil((a.first - b.first) / FORMATION_METRE);
+			const int64_t dz = (int64_t)std::ceil((a.second - b.second) / FORMATION_METRE);
+			return dx * dx + dz * dz;
+		};
+		for (size_t a = 0; a < to.size(); ++a)
+			for (size_t b = a + 1; b < to.size(); ++b)
+				if (d2(to[b], from[a]) + d2(to[a], from[b]) < d2(to[a], from[a]) + d2(to[b], from[b])) ++swaps;
+		std::printf("  group of 10 to one point: %d on the first ring, %d on the second, %d elsewhere; %d swaps would cut travel\n",
+		            ring1, ring2, other, swaps);
+		CHECK(ring1 == 3 && ring2 == 7 && other == 0, "a group spreads on DistributeAround's spiral");
+		CHECK(swaps == 0, "and no two units would travel less by swapping points");
+		uint32_t lone = s->spawn_unit(20.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f);
+		s->cmd_move(&lone, 1, 25.0f, 25.0f);
+		CHECK(s->units_.target_x[idx(*s, lone)] == 25.0f && s->units_.target_z[idx(*s, lone)] == 25.0f, "a unit on its own walks to the point");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
