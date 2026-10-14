@@ -72,6 +72,7 @@
 #include "cinema_view.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
+#include "debug_overlays.h"
 #include "dev_overlay_view.h"
 #include "minimap_panel_view.h"
 #include "control_groups_view.h"
@@ -212,6 +213,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
+	rtso::RtsoDebugOverlays debug_overlays_; // its pathfinder, obstruction, unit motion and range overlays
 	rtso::RtsoControlGroups control_groups_; // the control groups' buttons on the left edge
 
 	// 3D Placement Ghost & Rally Marker

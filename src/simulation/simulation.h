@@ -399,6 +399,18 @@ public:
 	const CombatProfile &unit_combat_at(size_t i) const { return unit_combat(units_.tmpl[i], units_.unit_type[i]); }
 	// The passability class Clearance of the unit at SoA index i from buildings (unit_building_clearance).
 	float unit_clearance_at(size_t i) const { return unit_building_clearance(units_.tmpl[i], units_.unit_type[i]); }
+	// Attack MaxRange of the unit at SoA index i with technologies (the developer overlay's range overlay).
+	float unit_attack_range_at(size_t i) const { return i < units_.count ? units_.attack_range[i] : 0.0f; }
+	// The waypoints of its long path it has still to reach, *xs / *zs at the next one (the unit
+	// motion overlay); 0 when it has none.
+	int unit_waypoints_left(size_t i, const float **xs, const float **zs) const {
+		if (i >= units_.count || i >= unit_paths_.size()) return 0;
+		const int cur = units_.waypoint_cur[i], n = units_.waypoint_count[i];
+		if (cur < 0 || n > WaypointPath::MAX_WP || cur >= n) return 0;
+		*xs = unit_paths_[i].xs + cur;
+		*zs = unit_paths_[i].zs + cur;
+		return n - cur;
+	}
 	// Attack.js CanAttack: may unit i attack unit j / building b at all (RestrictedClasses)?
 	// A relic (catafalque) has no Health, so no attack but Capture reaches it.
 	bool unit_can_target(size_t i, size_t j) const {
@@ -931,6 +943,15 @@ public:
 		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
 	};
 	StructureDetails structure_details(const Building &b) const;
+	// Foundation.js / Repairable.js GetBuildTime for the details panel: the builders at work on a
+	// foundation (or repairers on a damaged structure), the seconds left at their pace and with
+	// one more builder (totalBuilderRate + 1). False when it is neither building nor damaged.
+	struct BuildWork {
+		bool repair = false;
+		int builders = 0;
+		float remaining = 0.0f, remaining_new = 0.0f;
+	};
+	bool structure_build_work(const Building &b, BuildWork &out) const;
 	// The statuses on an entity, as selection_details.js lists entState.statusEffects: each
 	// stacked copy with its Damage, Interval and the Duration still to run (seconds). Returns
 	// how many there are; at most `max` are written to `out`.
@@ -2304,6 +2325,7 @@ private:
 	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
 	static constexpr float UNIT_REPAIR_TIME_RATIO = 4.0f; // template_unit_siege.xml, template_unit_ship.xml
 	static float foundation_build_multiplier(int builders);
+	float structure_repair_rate(const Building &b) const;
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);

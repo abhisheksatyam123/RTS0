@@ -779,6 +779,7 @@ void RtsoMain::_ready() {
 	rally_flag->set_visible(false);
 	add_child(rally_flag);
 	range_overlays_.build(this);
+	debug_overlays_.build(this);
 
 	// (Unit selection now happens in apply_match_settings, after the map
 	// exists - the old block here ran before any map loaded and selected
@@ -1341,6 +1342,7 @@ void RtsoMain::_process(double delta) {
 	rtso::update_rally_marker(rally_flag, sim, selected_building_id, local_player());
 	range_overlays_.tick((float)delta);
 	range_overlays_.update(sim, local_player(), selected_building_id, selected_ids.ptr(), selected_ids.size());
+	debug_overlays_.update(sim);
 
 	if ((sim->is_victory() || sim->is_game_over()) && !summary_shown_) {
 		summary_shown_ = true;

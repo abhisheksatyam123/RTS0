@@ -302,6 +302,7 @@ public:
 		d["health"] = hp_label_->get_text();
 		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
 		d["stats"] = stats_->get_text();
+		d["xp_tooltip"] = xp_bar_->get_tooltip_text();
 		d["stats_tooltip"] = stats_->get_tooltip_text();
 		d["extra"] = extra_->get_text();
 		d["extra_tooltip"] = extra_->get_tooltip_text();
@@ -501,9 +502,17 @@ public:
 			if (found->max_capture_points > 0.0f)
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
 						rtso::seldet::capture(found->capture_points, found->max_capture_points));
-			stats_->set_text(found->build_progress < 1.0f
-					? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
-			stats_->set_tooltip_text(structure_tooltip(*sim, *found));
+			rtso::Simulation::BuildWork work;
+			String build_tip;
+			if (sim->structure_build_work(*found, work)) {
+				stats_->set_text(join_spaced(found->build_progress < 1.0f
+						? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : rtso::tr0("Repair"),
+						rtso::seldet::build_work_caption(work.builders, work.remaining)));
+				build_tip = build_work_tooltip(work);
+			} else {
+				stats_->set_text(String());
+			}
+			stats_->set_tooltip_text(rtso::seldet::join_lines({build_tip, structure_tooltip(*sim, *found)}));
 			return true;
 		}
 		if (kind_ == INSPECT_TREASURE) {
@@ -647,9 +656,13 @@ public:
 				else
 					show_bar(capture_bar_, capture_label_, false);
 
+				rtso::Simulation::BuildWork work;
+				const bool building_work = sim->structure_build_work(*found_b, work);
 				if (found_b->build_progress < 1.0f) {
 					set_bar(xp_bar_, xp_label_, found_b->build_progress, 1.0f,
-							"Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%");
+							join_spaced("Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%",
+									rtso::seldet::build_work_caption(work.builders, work.remaining)));
+					if (building_work) xp_bar_->set_tooltip_text(build_work_tooltip(work));
 				} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
 					set_bar(xp_bar_, xp_label_, found_b->upgrade_timer, found_b->upgrade_duration,
 							"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
@@ -659,6 +672,11 @@ public:
 					set_bar(xp_bar_, xp_label_, po.timer, po.duration,
 							"Researching " + String::utf8(rtso::tech_info(rt).name) + " (" +
 							String::num(po.duration - po.timer, 0) + " s left)");
+				} else if (building_work && work.repair) {
+					// selection_details.js: a damaged structure shows its repairers and the time left.
+					set_bar(xp_bar_, xp_label_, found_b->hp, found_b->max_hp,
+							join_spaced(rtso::tr0("Repair"), rtso::seldet::build_work_caption(work.builders, work.remaining)));
+					xp_bar_->set_tooltip_text(build_work_tooltip(work));
 				} else {
 					show_bar(xp_bar_, xp_label_, false);
 				}
@@ -854,11 +872,16 @@ public:
 
 private:
 	void clear_tooltips() {
-		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_}) c->set_tooltip_text("");
+		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_, xp_bar_}) c->set_tooltip_text("");
 		rank_icon_->set_visible(false);
 		rank_icon_->set_tooltip_text("");
 		for (godot::TextureRect *icon : status_icons_) icon->set_visible(false);
 		set_portrait_target(false, 0, 0.0f, 0.0f, String(), -1, 0);
+	}
+
+	static String join_spaced(const String &a, const String &b) { return b.is_empty() ? a : a + String("  ") + b; }
+	static String build_work_tooltip(const rtso::Simulation::BuildWork &w) {
+		return rtso::seldet::build_work_tooltip(w.repair, w.builders, w.remaining, w.remaining_new);
 	}
 
 	// What the portrait's clicks act on: follow_focus(id) for a unit or structure, else the
