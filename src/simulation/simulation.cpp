@@ -16638,13 +16638,34 @@ static constexpr float PETRA_HUNT_DROP_D2 = 12000.0f / 16.0f;      // ... others
 
 Simulation::PetraHuntScan Simulation::petra_hunt_scan() const {
 	PetraHuntScan scan;
+	// hasSharedDropsites ? getAnyDropsites("food") : getOwnDropsites("food"): our food dropsites,
+	// and a mutual ally's shared ones once we have Diaspora; the supply wagon and the worker
+	// elephant (template_unit_support_wagon/elephant ResourceDropsite food) count too.
+	auto lands = [&](float x, float z, float r, uint16_t out[4]) {
+		const float off[4][2] = {{r, 0.0f}, {-r, 0.0f}, {0.0f, r}, {0.0f, -r}};
+		for (int k = 0; k < 4; ++k) {
+			auto [cx, cz] = nav_grid_.world_to_cell(x + off[k][0], z + off[k][1]);
+			out[k] = nav_grid_.global_region_at(cx, cz, PASS_INFANTRY);
+		}
+	};
 	for (const auto &b : buildings_) {
-		if (b.team != petra_pid_ || b.hp <= 0 || b.build_progress < 1.0f) continue;
-		if (is_civic_centre(b.type) || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type))
-			scan.food_drops.push_back({b.x, b.z});
+		if (b.hp <= 0 || b.wrecked || b.build_progress < 1.0f || !dropsite_usable_by(petra_pid_, b)) continue;
+		if (b.team != petra_pid_ && !is_ally(b.team, petra_pid_)) continue; // isPlayerMutualAlly
+		if (!(is_civic_centre(b.type) || b.type == BLD_FARMSTEAD || b.type == BLD_DOCK || civ_building_is_dropsite(b.type)))
+			continue;
+		PetraHuntScan::FoodDrop d{b.x, b.z, {}};
+		lands(b.x, b.z, b.half_size + GRID, d.land);
+		scan.food_drops.push_back(d);
 	}
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i]) continue;
+		const uint8_t ut = units_.unit_type[i];
+		if ((ut == UNIT_WAGON || ut == UNIT_WORKER_ELEPHANT) && mobile_dropsite_usable_by(petra_pid_, i) &&
+		    (units_.team[i] == petra_pid_ || is_ally(units_.team[i], petra_pid_))) {
+			PetraHuntScan::FoodDrop d{units_.pos_x[i], units_.pos_z[i], {}};
+			lands(d.x, d.z, unit_collision_radius(ut) + GRID * 0.5f, d.land);
+			scan.food_drops.push_back(d);
+		}
 		const uint32_t tid = units_.target_unit_id[i];
 		if (tid != 0 && units_.action_state[i] == ACTION_ATTACK && is_fauna_id(tid) && lookup_unit(tid) < 0)
 			scan.on_animal[tid]++;
@@ -16654,6 +16675,16 @@ Simulation::PetraHuntScan Simulation::petra_hunt_scan() const {
 			scan.treasures_taken.push_back(units_.order_target[i]);
 	}
 	return scan;
+}
+
+// worker.js hasFoodDropsiteWithinDistance: one of our food dropsites on the supply's land
+// (getLandAccess; land 0 when there is no nav data) within d2 of (x, z).
+bool Simulation::petra_food_drop_near(const PetraHuntScan &scan, uint16_t land, float x, float z, float d2) const {
+	for (const auto &d : scan.food_drops) {
+		if ((x - d.x) * (x - d.x) + (z - d.z) * (z - d.z) >= d2) continue;
+		if (land == 0 || d.land[0] == land || d.land[1] == land || d.land[2] == land || d.land[3] == land) return true;
+	}
+	return false;
 }
 
 // The treasures our collectors are already heading for.
@@ -16709,6 +16740,7 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 	const bool ranged = template_has_ranged_attack(units_.tmpl[u], ut, civ_of(petra_pid_));
 	const uint8_t pass = fast ? PASS_CAVALRY : PASS_INFANTRY;
 	auto [ucx, ucz] = nav_grid_.world_to_cell(units_.pos_x[u], units_.pos_z[u]);
+	const uint16_t land = nav_grid_.global_region_at(ucx, ucz, PASS_INFANTRY); // supplyAccess == entAccess
 
 	uint32_t best = 0;
 	float best_d2 = 1e18f;
@@ -16725,10 +16757,7 @@ uint32_t Simulation::petra_find_hunt(size_t u, float px, float pz, const PetraHu
 		if (terr >= 0 && terr != (int)petra_pid_ && owner == terr) return; // nor an ally's cattle
 		if (!fast && can_flee && terr < 0) return;
 		const float drop_d2 = fast ? PETRA_HUNT_DROP_FAST_D2 : (can_flee ? PETRA_HUNT_DROP_FLEE_D2 : PETRA_HUNT_DROP_D2);
-		bool near_drop = false;
-		for (const auto &d : scan.food_drops)
-			if ((x - d.first) * (x - d.first) + (z - d.second) * (z - d.second) < drop_d2) { near_drop = true; break; }
-		if (!near_drop) return;
+		if (!petra_food_drop_near(scan, land, x, z, drop_d2)) return;
 		auto [cx, cz] = nav_grid_.world_to_cell(x, z);
 		// getLandAccess; a supply on a blocked cell (by a tree, a wreck) is reached from beside it.
 		if (nav_grid_.is_passable_for(cx, cz, pass) && !nav_grid_.reachable(ucx, ucz, cx, cz, pass)) return;
@@ -16878,9 +16907,8 @@ void Simulation::petra_check_hunt_drift(PetraHuntScan &scan) {
 		bool drifted = petra_foe(terr);
 		if (!drifted && terr < 0) {
 			const float d2 = (gcls == GATHER_CAVALRY ? 90000.0f : 30000.0f) / 16.0f;
-			drifted = true;
-			for (const auto &d : scan.food_drops)
-				if ((tx - d.first) * (tx - d.first) + (tz - d.second) * (tz - d.second) < d2) { drifted = false; break; }
+			auto [cx, cz] = nav_grid_.world_to_cell(units_.pos_x[i], units_.pos_z[i]);
+			drifted = !petra_food_drop_near(scan, nav_grid_.global_region_at(cx, cz, PASS_INFANTRY), tx, tz, d2);
 		}
 		if (!drifted) continue;
 		auto it = scan.on_animal.find(units_.target_unit_id[i]);
@@ -18307,39 +18335,83 @@ void Simulation::petra_manage_naval(float dt) {
 		if (tmpl != CIV_UNIT_TEMPLATE_NONE && petra_train_template(PETRA_Q_SHIPS, sea_dock[s], tmpl, 1, transport)) training = true;
 	}
 
-	// 3. worker.js fishing: an idle boat takes the nearest fish of its sea that
-	// it can fish safely and that has a free gatherer slot (IsSupplyFull).
+	// 3. worker.js startFishing: an idle boat, or one that drifted into enemy territory,
+	// takes the fish (or whale: getFishableSupplies is every SeaCreature) of its sea nearest
+	// to one of our docks there (a mutual ally's shared dock with Diaspora), that it can
+	// fish safely, with a free gatherer slot (IsSupplyFull) and worth one more gatherer
+	// (amount / (1 + gatherers) of 30 or more). A boat whose sea has nothing left to fish
+	// is deleted (resetFishingBoats; want_fish above already drops to 0 there).
 	std::unordered_map<uint32_t, int> fish_users;
 	for (size_t i = 0; i < units_.count; ++i) {
-		if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT || units_.target_resource_id[i] == 0) continue;
-		if (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE)
+		if (!units_.alive[i] || units_.unit_type[i] != UNIT_FISHING_BOAT) continue;
+		if (units_.target_resource_id[i] != 0 &&
+		    (units_.action_state[i] == ACTION_GATHER || units_.action_state[i] == ACTION_RETURN_DROPSITE))
 			fish_users[units_.target_resource_id[i]]++;
+		else if (units_.action_state[i] == ACTION_ATTACK && is_fauna_id(units_.target_unit_id[i]))
+			fish_users[units_.target_unit_id[i]]++;
 	}
+	std::vector<uint32_t> spent_boats;
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.unit_type[i] != UNIT_FISHING_BOAT) continue;
-		if (units_.action_state[i] != ACTION_IDLE) continue;
+		if (units_.action_state[i] != ACTION_IDLE) {
+			const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
+			if (terr < 0 || is_ally(petra_pid_, (uint8_t)terr)) continue; // still fishing at home
+		}
 		const uint16_t sea = petra_ship_sea(i);
-		uint32_t best_rid = 0;
+		std::vector<std::pair<float, float>> docks;
+		for (const Building &b : buildings_) {
+			if (b.type != BLD_DOCK || b.wrecked || b.hp <= 0.0f || b.build_progress < 1.0f) continue;
+			if (!dropsite_usable_by(petra_pid_, b) || (b.team != petra_pid_ && !is_ally(b.team, petra_pid_))) continue;
+			if (dock_sea(b) == sea) docks.emplace_back(b.x, b.z);
+		}
+		auto dock_d2 = [&](float x, float z) {
+			float m = 1000000.0f / 16.0f;
+			for (const auto &d : docks) m = std::min(m, (x - d.first) * (x - d.first) + (z - d.second) * (z - d.second));
+			return m;
+		};
+		auto on_sea = [&](float x, float z) {
+			auto [cx, cz] = nav_grid_.world_to_cell(x, z);
+			return nav_grid_.global_region_at(cx, cz, PASS_SHIP) == sea;
+		};
+		bool exhausted = true;
+		uint32_t best = 0;
+		bool best_live = false;
 		float best_d2 = 1e18f;
+		auto consider = [&](uint32_t id, float x, float z, int amount, int max_gatherers, bool live) {
+			if (!on_sea(x, z)) return;
+			exhausted = false;
+			auto fit = fish_users.find(id);
+			const int users = fit == fish_users.end() ? 0 : fit->second;
+			if (max_gatherers > 0 && users >= max_gatherers) return;
+			if (users > 0 && amount / (1 + users) < 30) return;
+			if (!petra_can_fish_safely(x, z, sea)) return;
+			const float d2 = dock_d2(x, z);
+			if (d2 > best_d2) return;
+			best_d2 = d2;
+			best = id;
+			best_live = live;
+		};
 		for (size_t r = 0; r < resources_.count; ++r) {
 			if (!resources_.alive[r] || resources_.amount[r] <= 0 || resources_.subtype[r] != RES_SUB_FISH) continue;
-			const float dx = resources_.x[r] - units_.pos_x[i], dz = resources_.z[r] - units_.pos_z[i];
-			const float d2 = dx * dx + dz * dz;
-			if (d2 >= best_d2) continue;
-			auto [fx, fz] = nav_grid_.world_to_cell(resources_.x[r], resources_.z[r]);
-			if (nav_grid_.global_region_at(fx, fz, PASS_SHIP) != sea) continue;
-			auto fit = fish_users.find(resources_.id[r]);
-			if (fit != fish_users.end() && fit->second >= resources_.max_gatherers[r]) continue;
-			if (!petra_can_fish_safely(resources_.x[r], resources_.z[r], sea)) continue;
-			best_d2 = d2;
-			best_rid = resources_.id[r];
+			consider(resources_.id[r], resources_.x[r], resources_.z[r], resources_.amount[r], resources_.max_gatherers[r], false);
 		}
-		if (best_rid) {
-			const uint32_t uid = units_.id[i];
-			order_gather(&uid, 1, best_rid);
-			fish_users[best_rid]++;
+		for (size_t f = 0; f < fauna_.count; ++f) {
+			if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.food_amount[f] <= 0) continue;
+			const auto &info = fauna_type_info(fauna_.fauna_type[f]);
+			if (!(info.flags & FAUNA_F_FISH)) continue;
+			consider(fauna_.id[f], fauna_.pos_x[f], fauna_.pos_z[f], fauna_.food_amount[f], info.max_gatherers, true);
 		}
+		if (exhausted) {
+			if (sea) spent_boats.push_back(units_.id[i]);
+			continue;
+		}
+		if (!best) continue;
+		const uint32_t uid = units_.id[i];
+		if (best_live) order_hunt(&uid, 1, best);
+		else order_gather(&uid, 1, best);
+		fish_users[best]++;
 	}
+	if (!spent_boats.empty()) cmd_delete(petra_pid_, spent_boats.data(), spent_boats.size());
 
 	// navalManager.js:58 seaWarShips: our warships by sea, for the attack targets.
 	petra_fleets_.clear_sea_fleets();
