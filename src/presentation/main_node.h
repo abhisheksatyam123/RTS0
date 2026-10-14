@@ -700,6 +700,7 @@ private:
 	Label *pause_by_label_ = nullptr;
 	void update_pause_overlay();
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
+	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the
 	// players still loading, "Synchronizing gameplay with other players…" while
