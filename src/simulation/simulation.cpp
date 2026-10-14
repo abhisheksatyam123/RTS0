@@ -1345,24 +1345,24 @@ void Simulation::rebuild_nav_grid() {
 				}
 		}
 	}
-	// Gaia mines block pathfinding (template_gaia BlockPathfinding): their turned squares (mine_footprint),
-	// rasterized as a building's, and one too small to cover a navcell blocks the navcell under its centre.
+	// Gaia mines block pathfinding (template_gaia BlockPathfinding): the navcells their turned square
+	// (mine_footprint), grown by the default class clearance, covers whole. 0 A.D.'s navcells are 1 m,
+	// RTS0's 8 m, as wide as a small mine: a navcell a mine only partly covers stays open to long paths,
+	// and units steer round the mine itself (steer_obstacles_). Blocking every navcell a mine touches
+	// would close passages 0 A.D. leaves open, such as a causeway on Snowflake Searocks.
 	for (size_t r = 0; r < resources_.count; ++r) {
 		nav::Footprint m;
 		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
-		int covered = 0;
-		rtso::nav::rasterize_rect_with_clearance(
-			rtso::nav::Vec2(m.x, m.z), rtso::nav::footprint_u(m), rtso::nav::footprint_v(m),
-			rtso::nav::Vec2(m.hu, m.hv), 0.0f, nav_cell, nav_origin,
-			nav_grid_.cells.w, nav_grid_.cells.h,
-			[&](int x, int y) {
-				nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
-				++covered;
-			});
-		if (covered == 0) {
-			auto [cx, cy] = nav_grid_.world_to_cell(m.x, m.z);
-			nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
-		}
+		const float grow = CLEARANCE_DEFAULT + 1e-4f, e = nav::footprint_extent(m) + grow;
+		auto in = [&](float x, float z) { return nav::footprint_contains(m, x, z, grow); };
+		const auto [x0, y0] = nav_grid_.world_to_cell(m.x - e, m.z - e);
+		const auto [x1, y1] = nav_grid_.world_to_cell(m.x + e, m.z + e);
+		for (int y = y0; y <= y1; ++y)
+			for (int x = x0; x <= x1; ++x) {
+				const float wx = nav_origin.x + (float)x * nav_cell, wz = nav_origin.y + (float)y * nav_cell;
+				if (in(wx, wz) && in(wx + nav_cell, wz) && in(wx, wz + nav_cell) && in(wx + nav_cell, wz + nav_cell))
+					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+			}
 	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the

@@ -58,7 +58,7 @@
 //     is within build range and stay there once it is finished (0 A.D. UnitMotion MoveToTargetRange
 //     ends in range, and its goal reaches past the unit's clearance, so any range is reached).
 // 19. Mines: a large mine's 13 m square (template_gaia_rock_large Obstruction/Static) blocks
-//     movement and long paths as a structure's footprint does. A swordsman sent through one walks
+//     movement as a structure's footprint does, and long paths on the navcells it covers whole. A swordsman sent through one walks
 //     round it, one sent along a row of them takes the gaps between, and six women sent to gather
 //     from one all reach it and work it from round its edge.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
