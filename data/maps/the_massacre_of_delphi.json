@@ -13380,259 +13380,374 @@
       "type": "villager",
       "player": 2,
       "x": 54.4,
-      "z": -55.41
+      "z": -55.41,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 54.89,
-      "z": -54.9
+      "z": -54.9,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 55.48,
-      "z": -54.27
+      "z": -54.27,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 55.07,
-      "z": -53.53
+      "z": -53.53,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 54.24,
-      "z": -54.23
+      "z": -54.23,
+      "template": "athen/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 53.7,
-      "z": -54.66
+      "z": -54.66,
+      "template": "athen/support_civilian"
     },
     {
       "type": "hero",
       "player": 2,
       "x": 56.75,
-      "z": -55.13
+      "z": -55.13,
+      "template": "athen/hero_themistocles"
     },
     {
       "type": "archer",
       "player": 2,
       "x": 56.13,
-      "z": -55.77
+      "z": -55.77,
+      "template": "athen/infantry_marine_archer_b"
+    },
+    {
+      "type": "archer",
+      "player": 2,
+      "x": 55.57,
+      "z": -56.16,
+      "template": "athen/infantry_javelineer_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 55.04,
-      "z": -56.87
+      "z": -56.87,
+      "template": "athen/infantry_spearman_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 56.13,
-      "z": -58.02
+      "z": -58.02,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 56.85,
-      "z": -57.46
+      "z": -57.46,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 57.61,
-      "z": -56.67
+      "z": -56.67,
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 56.88,
-      "z": -58.89
+      "z": -58.89,
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 57.68,
-      "z": -58.25
+      "z": -58.25,
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 58.4,
-      "z": -57.51
+      "z": -57.51,
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -61.7,
-      "z": 49.89
+      "z": 49.89,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -61.96,
-      "z": 49.44
+      "z": 49.44,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -62.32,
-      "z": 49.08
+      "z": 49.08,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -62.69,
-      "z": 48.57
+      "z": 48.57,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -63.06,
-      "z": 48.14
+      "z": 48.14,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -63.62,
-      "z": 48.65
+      "z": 48.65,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -63.16,
-      "z": 49.1
+      "z": 49.1,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -62.8,
-      "z": 49.61
+      "z": 49.61,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -62.51,
-      "z": 50.0
+      "z": 50.0,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -62.15,
-      "z": 50.48
+      "z": 50.48,
+      "template": "gaul/champion_fanatic"
     },
     {
       "type": "cavalry",
       "player": 2,
       "x": 58.77,
-      "z": -53.03
+      "z": -53.03,
+      "template": "athen/cavalry_javelineer_e",
+      "parents": [
+        "athen/cavalry_javelineer_a",
+        "athen/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 57.97,
-      "z": -54.13
+      "z": -54.13,
+      "template": "athen/cavalry_swordsman_e",
+      "parents": [
+        "athen/cavalry_swordsman_a",
+        "athen/cavalry_swordsman_b"
+      ]
     },
     {
       "type": "villager",
       "player": 1,
       "x": -58.84,
-      "z": 48.05
+      "z": 48.05,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -58.38,
-      "z": 48.43
+      "z": 48.43,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -57.79,
-      "z": 49.25
+      "z": 49.25,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -58.35,
-      "z": 47.4
+      "z": 47.4,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -57.76,
-      "z": 48.01
+      "z": 48.01,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -57.45,
-      "z": 48.43
+      "z": 48.43,
+      "template": "gaul/support_civilian"
     },
     {
       "type": "hero",
       "player": 1,
       "x": -55.15,
-      "z": 48.79
+      "z": 48.79,
+      "template": "gaul/hero_brennus"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -55.17,
-      "z": 44.6
+      "z": 44.6,
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -54.76,
-      "z": 45.04
+      "z": 45.04,
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -54.32,
-      "z": 45.49
+      "z": 45.49,
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -55.91,
-      "z": 45.39
+      "z": 45.39,
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -55.41,
-      "z": 45.82
+      "z": 45.82,
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -55.04,
-      "z": 46.11
+      "z": 46.11,
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -56.63,
-      "z": 46.12
+      "z": 46.12,
+      "template": "gaul/infantry_spearman_b"
+    },
+    {
+      "type": "archer",
+      "player": 1,
+      "x": -56.1,
+      "z": 47.03,
+      "template": "gaul/infantry_javelineer_b"
     },
     {
       "type": "cavalry",
       "player": 1,
       "x": -52.72,
-      "z": 48.81
+      "z": 48.81,
+      "template": "gaul/cavalry_javelineer_e",
+      "parents": [
+        "gaul/cavalry_javelineer_a",
+        "gaul/cavalry_javelineer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -51.87,
-      "z": 47.83
+      "z": 47.83,
+      "template": "gaul/cavalry_swordsman_e",
+      "parents": [
+        "gaul/cavalry_swordsman_a",
+        "gaul/cavalry_swordsman_b"
+      ]
     }
   ],
   "treasures": [

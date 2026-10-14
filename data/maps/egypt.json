@@ -56714,7 +56714,7 @@
   ],
   "units": [
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 3,
       "x": -190.29,
       "z": -109.36,
@@ -56763,25 +56763,29 @@
       "template": "ptol/hero_cleopatra_vii"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -62.68,
       "z": 162.43,
       "template": "ptol/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -61.52,
       "z": 163.41,
       "template": "ptol/champion_cavalry"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": 21.67,
       "z": 115.49,
-      "template": "ptol/cavalry_spearman_merc_e"
+      "template": "ptol/cavalry_spearman_merc_e",
+      "parents": [
+        "ptol/cavalry_spearman_merc_a",
+        "ptol/cavalry_spearman_merc_b"
+      ]
     },
     {
       "type": "spearman",
@@ -56802,7 +56806,10 @@
       "player": 5,
       "x": 84.63,
       "z": -15.34,
-      "template": "ptol/support_healer_a"
+      "template": "ptol/support_healer_a",
+      "parents": [
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -56816,56 +56823,85 @@
       "player": 5,
       "x": 80.55,
       "z": -6.26,
-      "template": "ptol/support_healer_a"
+      "template": "ptol/support_healer_a",
+      "parents": [
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 5,
       "x": 79.66,
       "z": -6.37,
-      "template": "ptol/support_healer_a"
+      "template": "ptol/support_healer_a",
+      "parents": [
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -60.06,
       "z": 177.19,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -60.39,
       "z": 182.2,
-      "template": "pers/support_healer_e"
+      "template": "pers/support_healer_e",
+      "parents": [
+        "pers/support_healer_a",
+        "pers/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -59.42,
       "z": 182.24,
-      "template": "maur/support_healer_e"
+      "template": "maur/support_healer_e",
+      "parents": [
+        "maur/support_healer_a",
+        "maur/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -59.33,
       "z": 176.92,
-      "template": "sele/support_healer_e"
+      "template": "sele/support_healer_e",
+      "parents": [
+        "sele/support_healer_a",
+        "sele/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -61.97,
       "z": 180.39,
-      "template": "sele/support_healer_e"
+      "template": "sele/support_healer_e",
+      "parents": [
+        "sele/support_healer_a",
+        "sele/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -59.69,
       "z": 181.82,
-      "template": "sele/support_healer_a"
+      "template": "sele/support_healer_a",
+      "parents": [
+        "sele/support_healer_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -56886,7 +56922,11 @@
       "player": 1,
       "x": -66.49,
       "z": 172.67,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "hero",
@@ -57026,147 +57066,230 @@
       "player": 6,
       "x": -168.52,
       "z": 77.02,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -168.85,
       "z": 77.45,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -169.33,
       "z": 77.87,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -169.75,
       "z": 78.18,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -169.24,
       "z": 78.71,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -168.83,
       "z": 79.23,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -168.34,
       "z": 79.76,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.88,
       "z": 80.22,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -168.85,
       "z": 78.4,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -168.31,
       "z": 78.87,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.91,
       "z": 79.28,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.43,
       "z": 79.75,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -168.42,
       "z": 77.94,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.96,
       "z": 78.41,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.5,
       "z": 78.79,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.06,
       "z": 79.21,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -168.04,
       "z": 77.5,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.58,
       "z": 77.86,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -167.17,
       "z": 78.31,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -166.7,
       "z": 78.81,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "healer",
       "player": 6,
       "x": -165.55,
       "z": 62.38,
-      "template": "rome/support_healer_a"
+      "template": "rome/support_healer_a",
+      "parents": [
+        "rome/support_healer_b"
+      ]
     },
     {
       "type": "healer",
@@ -57180,7 +57303,11 @@
       "player": 6,
       "x": -165.93,
       "z": 63.5,
-      "template": "rome/support_healer_e"
+      "template": "rome/support_healer_e",
+      "parents": [
+        "rome/support_healer_a",
+        "rome/support_healer_b"
+      ]
     },
     {
       "type": "hero",
@@ -57194,56 +57321,80 @@
       "player": 3,
       "x": -187.62,
       "z": -85.28,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -188.37,
       "z": -85.24,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -189.09,
       "z": -85.14,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -189.84,
       "z": -85.06,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -189.83,
       "z": -85.71,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -189.09,
       "z": -85.71,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -188.39,
       "z": -85.81,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -187.68,
       "z": -85.82,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -57446,14 +57597,21 @@
       "player": 1,
       "x": -45.91,
       "z": 146.65,
-      "template": "sele/infantry_spearman_e"
+      "template": "sele/infantry_spearman_e",
+      "parents": [
+        "sele/infantry_spearman_a",
+        "sele/infantry_spearman_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -44.81,
       "z": 145.6,
-      "template": "ptol/infantry_javelineer_a"
+      "template": "ptol/infantry_javelineer_a",
+      "parents": [
+        "ptol/infantry_javelineer_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -57488,52 +57646,64 @@
       "player": 3,
       "x": -190.49,
       "z": -85.14,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -186.93,
       "z": -85.72,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -186.97,
       "z": -85.19,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -190.4,
       "z": -85.73,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -189.91,
       "z": -86.8,
       "template": "cart/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -190.49,
       "z": -86.76,
       "template": "cart/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -187.21,
       "z": -86.98,
       "template": "cart/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -187.75,
       "z": -86.93,
@@ -57586,94 +57756,127 @@
       "player": 3,
       "x": -224.56,
       "z": -107.23,
-      "template": "cart/infantry_spearman_e"
+      "template": "cart/infantry_spearman_e",
+      "parents": [
+        "cart/infantry_spearman_a",
+        "cart/infantry_spearman_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -167.2,
       "z": 80.67,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -167.75,
       "z": 81.24,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -168.19,
       "z": 81.67,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -166.67,
       "z": 80.23,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -166.29,
       "z": 79.78,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -165.43,
       "z": 79.02,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -165.0,
       "z": 78.61,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 6,
       "x": -165.85,
       "z": 79.4,
-      "template": "rome/infantry_javelineer_a"
+      "template": "rome/infantry_javelineer_a",
+      "parents": [
+        "rome/infantry_javelineer_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -169.96,
       "z": 76.39,
-      "template": "rome/champion_infantry_swordsman_04"
+      "template": "rome/champion_infantry_swordsman_04",
+      "parents": [
+        "rome/champion_infantry_swordsman_03",
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 6,
       "x": -171.51,
       "z": 76.14,
       "template": "rome/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 6,
       "x": -171.12,
       "z": 75.72,
       "template": "rome/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 6,
       "x": -170.32,
       "z": 74.93,
       "template": "rome/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 6,
       "x": -170.75,
       "z": 75.3,
@@ -57726,7 +57929,10 @@
       "player": 6,
       "x": -213.05,
       "z": 52.79,
-      "template": "rome/infantry_spearman_a"
+      "template": "rome/infantry_spearman_a",
+      "parents": [
+        "rome/infantry_spearman_b"
+      ]
     },
     {
       "type": "hero",
@@ -57736,28 +57942,28 @@
       "template": "ptol/hero_ptolemy_iv"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 5,
       "x": 72.42,
       "z": -23.84,
       "template": "ptol/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 5,
       "x": 71.89,
       "z": -24.29,
       "template": "ptol/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 5,
       "x": 71.5,
       "z": -24.88,
       "template": "ptol/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 5,
       "x": 72.7,
       "z": -23.09,
@@ -57936,7 +58142,10 @@
       "player": 5,
       "x": 84.99,
       "z": 6.72,
-      "template": "ptol/infantry_javelineer_a"
+      "template": "ptol/infantry_javelineer_a",
+      "parents": [
+        "ptol/infantry_javelineer_b"
+      ]
     },
     {
       "type": "villager",
@@ -57985,7 +58194,10 @@
       "player": 4,
       "x": 169.36,
       "z": 126.53,
-      "template": "pers/infantry_spearman_a"
+      "template": "pers/infantry_spearman_a",
+      "parents": [
+        "pers/infantry_spearman_b"
+      ]
     },
     {
       "type": "archer",
@@ -58044,42 +58256,42 @@
       "template": "pers/kardakes_skirmisher"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 169.07,
       "z": 162.12,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 168.58,
       "z": 161.72,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 168.18,
       "z": 161.36,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 167.74,
       "z": 160.95,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 169.61,
       "z": 162.62,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 167.26,
       "z": 160.52,
@@ -58090,38 +58302,50 @@
       "player": 3,
       "x": -191.05,
       "z": -85.08,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -190.96,
       "z": -85.68,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -186.43,
       "z": -85.11,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
       "type": "archer",
       "player": 3,
       "x": -186.33,
       "z": -85.7,
-      "template": "cart/infantry_archer_a"
+      "template": "cart/infantry_archer_a",
+      "parents": [
+        "cart/infantry_archer_b"
+      ]
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -191.12,
       "z": -86.79,
       "template": "cart/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -186.62,
       "z": -86.94,
@@ -58188,42 +58412,66 @@
       "player": 3,
       "x": -191.6,
       "z": -84.71,
-      "template": "cart/support_healer_e"
+      "template": "cart/support_healer_e",
+      "parents": [
+        "cart/support_healer_a",
+        "cart/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 3,
       "x": -185.3,
       "z": -84.68,
-      "template": "cart/support_healer_e"
+      "template": "cart/support_healer_e",
+      "parents": [
+        "cart/support_healer_a",
+        "cart/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 3,
       "x": -192.96,
       "z": -93.86,
-      "template": "cart/support_healer_e"
+      "template": "cart/support_healer_e",
+      "parents": [
+        "cart/support_healer_a",
+        "cart/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 3,
       "x": -193.44,
       "z": -90.42,
-      "template": "cart/support_healer_e"
+      "template": "cart/support_healer_e",
+      "parents": [
+        "cart/support_healer_a",
+        "cart/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 4,
       "x": 163.65,
       "z": 157.46,
-      "template": "pers/support_healer_e"
+      "template": "pers/support_healer_e",
+      "parents": [
+        "pers/support_healer_a",
+        "pers/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 4,
       "x": 166.93,
       "z": 153.49,
-      "template": "pers/support_healer_e"
+      "template": "pers/support_healer_e",
+      "parents": [
+        "pers/support_healer_a",
+        "pers/support_healer_b"
+      ]
     },
     {
       "type": "spearman",
@@ -58258,42 +58506,66 @@
       "player": 2,
       "x": 123.53,
       "z": -129.71,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 122.98,
       "z": -130.12,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 122.4,
       "z": -130.47,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 122.11,
       "z": -130.0,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 120.68,
       "z": -131.74,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 120.27,
       "z": -131.97,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "villager",
@@ -58373,28 +58645,28 @@
       "template": "kush/champion_infantry_apedemak"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 124.93,
       "z": -132.27,
       "template": "kush/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 124.37,
       "z": -132.73,
       "template": "kush/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 122.75,
       "z": -133.82,
       "template": "kush/champion_cavalry"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 122.08,
       "z": -134.17,
@@ -58454,21 +58726,33 @@
       "player": 5,
       "x": 98.1,
       "z": -1.63,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 5,
       "x": 83.53,
       "z": 15.87,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 5,
       "x": 83.31,
       "z": 15.36,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -58503,49 +58787,77 @@
       "player": 2,
       "x": 127.88,
       "z": -151.49,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 129.43,
       "z": -153.98,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "healer",
       "player": 2,
       "x": 133.38,
       "z": -148.23,
-      "template": "kush/support_healer_e"
+      "template": "kush/support_healer_e",
+      "parents": [
+        "kush/support_healer_a",
+        "kush/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 2,
       "x": 132.93,
       "z": -148.37,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 2,
       "x": 137.17,
       "z": -148.34,
-      "template": "kush/support_healer_e"
+      "template": "kush/support_healer_e",
+      "parents": [
+        "kush/support_healer_a",
+        "kush/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 2,
       "x": 121.61,
       "z": -151.41,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 2,
       "x": 122.05,
       "z": -151.72,
-      "template": "kush/support_healer_e"
+      "template": "kush/support_healer_e",
+      "parents": [
+        "kush/support_healer_a",
+        "kush/support_healer_b"
+      ]
     },
     {
       "type": "trader",
@@ -58608,49 +58920,77 @@
       "player": 1,
       "x": -56.62,
       "z": 177.91,
-      "template": "kush/support_healer_e"
+      "template": "kush/support_healer_e",
+      "parents": [
+        "kush/support_healer_a",
+        "kush/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -55.93,
       "z": 178.68,
-      "template": "rome/support_healer_e"
+      "template": "rome/support_healer_e",
+      "parents": [
+        "rome/support_healer_a",
+        "rome/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -56.73,
       "z": 178.53,
-      "template": "gaul/support_healer_e"
+      "template": "gaul/support_healer_e",
+      "parents": [
+        "gaul/support_healer_a",
+        "gaul/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -56.24,
       "z": 177.88,
-      "template": "cart/support_healer_e"
+      "template": "cart/support_healer_e",
+      "parents": [
+        "cart/support_healer_a",
+        "cart/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -56.09,
       "z": 179.02,
-      "template": "iber/support_healer_e"
+      "template": "iber/support_healer_e",
+      "parents": [
+        "iber/support_healer_a",
+        "iber/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -73.5,
       "z": 154.53,
-      "template": "ptol/support_healer_e"
+      "template": "ptol/support_healer_e",
+      "parents": [
+        "ptol/support_healer_a",
+        "ptol/support_healer_b"
+      ]
     },
     {
       "type": "healer",
       "player": 1,
       "x": -73.29,
       "z": 153.83,
-      "template": "sele/support_healer_e"
+      "template": "sele/support_healer_e",
+      "parents": [
+        "sele/support_healer_a",
+        "sele/support_healer_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -58765,28 +59105,28 @@
       "template": "sele/champion_infantry_pikeman"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 166.78,
       "z": 160.08,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 166.24,
       "z": 159.58,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 170.3,
       "z": 163.07,
       "template": "pers/champion_cavalry_archer"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 170.74,
       "z": 163.48,
@@ -58797,14 +59137,22 @@
       "player": 2,
       "x": 121.06,
       "z": -131.39,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 121.55,
       "z": -131.15,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "swordsman",
@@ -58860,56 +59208,88 @@
       "player": 1,
       "x": -67.21,
       "z": 166.86,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -66.81,
       "z": 167.31,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -66.27,
       "z": 167.79,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -65.8,
       "z": 168.3,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -67.61,
       "z": 167.21,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -67.26,
       "z": 167.62,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -66.68,
       "z": 168.12,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "archer",
       "player": 1,
       "x": -66.2,
       "z": 168.72,
-      "template": "sele/infantry_archer_merc_e"
+      "template": "sele/infantry_archer_merc_e",
+      "parents": [
+        "sele/infantry_archer_merc_a",
+        "sele/infantry_archer_merc_b"
+      ]
     },
     {
       "type": "spearman",
@@ -59028,84 +59408,132 @@
       "player": 2,
       "x": 121.2,
       "z": -130.71,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 121.63,
       "z": -130.37,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 120.72,
       "z": -130.96,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 120.32,
       "z": -131.31,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 119.91,
       "z": -131.55,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 121.96,
       "z": -130.86,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 122.63,
       "z": -129.68,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 2,
       "x": 123.18,
       "z": -129.27,
-      "template": "kush/infantry_pikeman_e"
+      "template": "kush/infantry_pikeman_e",
+      "parents": [
+        "kush/infantry_pikeman_a",
+        "kush/infantry_pikeman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -170.31,
       "z": 77.65,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -169.89,
       "z": 77.34,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -169.41,
       "z": 76.93,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 6,
       "x": -169.08,
       "z": 76.49,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "trireme",

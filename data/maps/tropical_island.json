@@ -6328,21 +6328,33 @@
       "player": 1,
       "x": -26.77,
       "z": -35.76,
-      "template": "rome/champion_infantry_swordsman_03"
+      "template": "rome/champion_infantry_swordsman_03",
+      "parents": [
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -27.93,
       "z": -34.22,
-      "template": "rome/champion_infantry_swordsman_02"
+      "template": "rome/champion_infantry_swordsman_02",
+      "parents": [
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -28.31,
       "z": -35.03,
-      "template": "rome/champion_infantry_swordsman_04"
+      "template": "rome/champion_infantry_swordsman_04",
+      "parents": [
+        "rome/champion_infantry_swordsman_03",
+        "rome/champion_infantry_swordsman_02",
+        "rome/champion_infantry_swordsman"
+      ]
     },
     {
       "type": "trireme",

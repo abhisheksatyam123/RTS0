@@ -8625,7 +8625,7 @@
       "template": "iber/support_civilian"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 2,
       "x": 66.56,
       "z": -67.62,
@@ -8716,7 +8716,7 @@
       "template": "cart/infantry_javelineer_iber_b"
     },
     {
-      "type": "spearman",
+      "type": "cavalry",
       "player": 1,
       "x": -64.79,
       "z": 41.79,
@@ -8856,7 +8856,7 @@
       "template": "spart/infantry_javelineer_b"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 3,
       "x": -60.15,
       "z": -63.82,

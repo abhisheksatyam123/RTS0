@@ -4407,42 +4407,60 @@
       "player": 1,
       "x": -53.65,
       "z": -66.64,
-      "template": "cart/infantry_swordsman_gaul_a"
+      "template": "cart/infantry_swordsman_gaul_a",
+      "parents": [
+        "cart/infantry_swordsman_gaul_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -52.84,
       "z": -66.04,
-      "template": "gaul/infantry_spearman_a"
+      "template": "gaul/infantry_spearman_a",
+      "parents": [
+        "gaul/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -51.99,
       "z": -65.42,
-      "template": "athen/infantry_spearman_a"
+      "template": "athen/infantry_spearman_a",
+      "parents": [
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -51.1,
       "z": -64.36,
-      "template": "iber/infantry_swordsman_a"
+      "template": "iber/infantry_swordsman_a",
+      "parents": [
+        "iber/infantry_swordsman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -50.14,
       "z": -63.32,
-      "template": "pers/infantry_spearman_a"
+      "template": "pers/infantry_spearman_a",
+      "parents": [
+        "pers/infantry_spearman_b"
+      ]
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": -49.18,
       "z": -62.29,
-      "template": "rome/infantry_swordsman_a"
+      "template": "rome/infantry_swordsman_a",
+      "parents": [
+        "rome/infantry_swordsman_b"
+      ]
     }
   ]
 }
