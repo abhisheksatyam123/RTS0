@@ -3892,7 +3892,8 @@ void Simulation::compute_tech_mods(uint8_t player_id, TechMods &m) const {
 
 uint16_t Simulation::unit_test_script() const {
 	for (const TriggerRegistration &r : triggers_.triggers)
-		if (r.event == TRIGGER_ON_INIT_GAME && (r.action == TRIGGER_ACTION_UNIT_CHASING || r.action == TRIGGER_ACTION_UNIT_DANCING))
+		if (r.event == TRIGGER_ON_INIT_GAME && (r.action == TRIGGER_ACTION_UNIT_CHASING || r.action == TRIGGER_ACTION_UNIT_DANCING ||
+				r.action == TRIGGER_ACTION_UNIT_PUSHING))
 			return r.action;
 	return 0;
 }
@@ -3901,17 +3902,22 @@ void Simulation::script_modifiers(uint8_t player_id, TechMods &m) const {
 	const uint16_t script = unit_test_script();
 	if (!script || player_id > 1) return;
 	auto each = [&](auto &&f) {
-		for (int t = 0; t < UNIT_TYPE_COUNT; ++t) f(m.vision[t], m.vision_add[t], m.spread[t], m.required_xp[t]);
-		for (auto &tm : m.tmpl) f(tm.vision, tm.vision_add, tm.spread, tm.required_xp);
+		for (int t = 0; t < UNIT_TYPE_COUNT; ++t) f(m.vision[t], m.vision_add[t], m.spread[t], m.required_xp[t], m.gather[t]);
+		for (auto &tm : m.tmpl) f(tm.vision, tm.vision_add, tm.spread, tm.required_xp, tm.gather);
 	};
+	if (script == TRIGGER_ACTION_UNIT_PUSHING) {
+		// collecting_tree's "gatherrate": player 1's ResourceGatherer/BaseSpeed replaced by 100.
+		if (player_id == 0) each([](float &, float &, float &, float &, float *g) { for (int k = 0; k < GK_COUNT; ++k) g[k] *= 100.0f; });
+		return;
+	}
 	// "Prevent promotions, messes up things": Promotion/RequiredXp replaced by 50000 for both
 	// players (here a thousandfold, past any XP these tests give).
-	each([](float &, float &, float &, float &xp) { xp *= 1000.0f; });
+	each([](float &, float &, float &, float &xp, float *) { xp *= 1000.0f; });
 	if (script != TRIGGER_ACTION_UNIT_DANCING) return;
 	// "Reduce player 1 vision range (or patrolling units react)": Vision/Range replaced by 5 m.
-	if (player_id == 0) each([](float &v, float &add, float &, float &) { v = 0.0f; add = 5.0f; });
+	if (player_id == 0) each([](float &v, float &add, float &, float &, float *) { v = 0.0f; add = 5.0f; });
 	// RemoveSpread: player 2's Attack/Ranged/Projectile/Spread replaced by 0 for the second run.
-	if (player_id == 1 && triggers_.vars[0]) each([](float &, float &, float &spread, float &) { spread = 0.0f; });
+	if (player_id == 1 && triggers_.vars[0]) each([](float &, float &, float &spread, float &, float *) { spread = 0.0f; });
 }
 
 // Bit g of masks[p]: relic_global_auras() row g reaches player p, from an owned relic or a
@@ -28849,6 +28855,8 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"pickup_test_map_triggers", TRIGGER_ACTION_PICKUP_TEST, TUTORIAL_NONE},
 		{"unit_chasing_test_triggers", TRIGGER_ACTION_UNIT_CHASING, TUTORIAL_NONE},
 		{"unit_dancing_test_triggers", TRIGGER_ACTION_UNIT_DANCING, TUTORIAL_NONE},
+		{"unit_pushing_test", TRIGGER_ACTION_UNIT_PUSHING, TUTORIAL_NONE},
+		{"unit_motion_integration_test", TRIGGER_ACTION_UNIT_MOTION, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -29097,6 +29105,12 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 			break;
 		case TRIGGER_ACTION_UNIT_DANCING_EVENT:
 			trigger_unit_dancing_event(data);
+			break;
+		case TRIGGER_ACTION_UNIT_PUSHING:
+			trigger_unit_pushing((int)arg);
+			break;
+		case TRIGGER_ACTION_UNIT_MOTION:
+			trigger_unit_motion((int)arg);
 			break;
 		case TRIGGER_ACTION_TRIGGERS_DEMO_RANGE:
 			// RangeAction: warn(uneval(data)). vars 0-2 count what it saw (the demo keeps no state).
@@ -29812,6 +29826,319 @@ void Simulation::trigger_unit_dancing_event(const TriggerEventData &data) {
 		if (q == order_queues_.end() || q->second.empty()) idle.push_back(w.role);
 	}
 	for (const uint8_t role : idle) report(role, false);
+}
+
+uint32_t Simulation::script_structure(float mx, float mz, uint8_t type, uint8_t team, float progress) {
+	const auto [x, z] = script_metres(mx, mz);
+	return spawn_building_world(x, z, type, team, progress, 0.0f);
+}
+
+uint32_t Simulation::script_palisade(float mx, float mz, float length_m, float angle) {
+	// structures/palisades_long, _medium, _short: player 1's (QuickSpawn's default owner).
+	const auto [x, z] = script_metres(mx, mz);
+	return spawn_map_wall_piece(0, WALLSET_PALISADE, MAP_WALL_SEGMENT, x, z, angle, length_m / 4.0f);
+}
+
+uint32_t Simulation::script_tree(float mx, float mz, int32_t amount) {
+	// gaia/tree/acacia: 200 wood.
+	const auto [x, z] = script_metres(mx, mz);
+	return spawn_resource_world(x, z, RES_WOOD, amount, 0, 0, FLORA_ACACIA);
+}
+
+namespace {
+constexpr const char *kRam = "brit/siege_ram";
+constexpr const char *kElephant = "cart/champion_elephant";
+constexpr const char *kMarine = "athen/infantry_archer_b"; // unit_motion_integration_test UNIT_TEMPLATE
+}
+
+void Simulation::trigger_unit_pushing(int step) {
+	// maps/scenarios/unit_pushing_test.js: its 16 experiments at 4 s (the perf experiments
+	// stay commented out, as in 0.28), and player 1 wins at 300 s.
+	if (step == 0) {
+		triggers_.set_timeout(4000, TRIGGER_ACTION_UNIT_PUSHING, 1.0f);
+		triggers_.set_timeout(300000, TRIGGER_ACTION_UNIT_PUSHING, 2.0f);
+		rebuild_all_tech_mods();
+		return;
+	}
+	if (step == 2) {
+		set_player_won(kChaseTeam);
+		return;
+	}
+	auto unit = [&](float x, float z, const char *t, uint8_t team = kChaseTeam) { return script_spawn(x, z, t, team); };
+	float gx = 100.0f, gy = 100.0f;
+	// units_*_forest_of_units: a block of standing units, then a spearman (or cavalryman) and a ram walk through.
+	auto forest = [&](int lo, int hi, int step_m, const char *t) {
+		for (int i = lo; i <= hi; i += step_m)
+			for (int j = lo; j <= hi; j += step_m) unit(gx + (float)i, gy + 50.0f + (float)j, t);
+		script_walk(unit(gx, gy, t), gx, gy + 100.0f, true);
+		script_walk(unit(gx, gy - 10.0f, kRam), gx, gy + 100.0f, true);
+	};
+	// multicrossing: two 10x10 blocks walking through each other, the second dx metres aside.
+	auto crossing = [&](float dx) {
+		for (int i = 0; i < 20; i += 2)
+			for (int j = 0; j < 20; j += 2) script_walk(unit(gx + (float)i, gy + (float)j, kReg), gx + 10.0f, gy + 70.0f, false);
+		for (int i = 0; i < 20; i += 2)
+			for (int j = 0; j < 20; j += 2)
+				script_walk(unit(gx + (float)i + dx, gy + (float)j + 70.0f, kReg), gx + 10.0f + dx, gy, false);
+	};
+	for (int e = 0; e < 16; ++e) {
+		switch (e) {
+			case 0: forest(-16, 16, 8, kReg); break;  // units_sparse_forest_of_units
+			case 1: forest(-16, 16, 4, kReg); break;  // units_dense_forest_of_units
+			case 2: forest(-6, 6, 2, kReg); break;    // units_superdense_forest_of_units
+			case 3: forest(-12, 12, 2, kFast); break; // units_superdense_forest_of_fast_units
+			case 4: { // building: eight spearmen build a storehouse foundation
+				const uint32_t target = script_structure(gx + 20.0f, gy + 20.0f, BLD_STOREHOUSE, kChaseTeam, 0.0f);
+				for (int i = 0; i < 8; ++i)
+					if (const uint32_t u = unit(gx + (float)i, gy, kReg); u && target) order_build_or_repair(&u, 1, target);
+				break;
+			}
+			case 5: { // collecting_tree: eight spearmen on a 50000-wood acacia beside a storehouse
+				// The script also makes the storehouse a territory root; RTS0 has no such modifier,
+				// so it decays as any storehouse outside territory.
+				const uint32_t tree = script_tree(gx + 10.0f, gy + 10.0f, 50000);
+				script_structure(gx - 10.0f, gy - 10.0f, BLD_STOREHOUSE, kChaseTeam, 1.0f);
+				for (int i = 0; i < 8; ++i)
+					if (const uint32_t u = unit(gx + (float)i, gy, kReg); u && tree) order_gather(&u, 1, tree);
+				break;
+			}
+			case 6: crossing(0.0f); break;  // multicrossing
+			case 7: crossing(5.0f); break;  // multicrossing_spaced
+			case 8: crossing(-5.0f); break; // multicrossing_spaced_2
+			case 9: // crossing_perpendicular
+				for (int i = 0; i < 20; i += 4)
+					for (int j = 0; j < 20; j += 4) script_walk(unit(gx + (float)i, gy + (float)j, kReg), gx + 10.0f, gy + 70.0f, false);
+				for (int i = 0; i < 20; i += 4)
+					for (int j = 0; j < 20; j += 4)
+						script_walk(unit(gx + (float)i + 35.0f, gy + (float)j + 35.0f, kReg), gx - 35.0f, gy + 35.0f, false);
+				break;
+			case 10: { // elephant_formation: 25 elephants walk 10 m in a box
+				std::vector<uint32_t> ents;
+				for (int i = 0; i < 20; i += 4)
+					for (int j = 0; j < 20; j += 4)
+						if (const uint32_t u = unit(gx + (float)i, gy + (float)j, kElephant)) ents.push_back(u);
+				if (!ents.empty()) {
+					order_set_formation(ents.data(), ents.size(), FORMATION_BOX);
+					const auto [x, z] = script_metres(gx, gy + 10.0f);
+					order_walk(ents.data(), ents.size(), x, z);
+				}
+				break;
+			}
+			case 12: // battle: 32 spearmen a side, 50 m apart
+				for (int i = 0; i < 4; ++i)
+					for (int j = 0; j < 8; ++j) {
+						unit(gx + (float)i, gy + (float)j, kReg);
+						unit(gx + (float)i, gy + 50.0f + (float)j, kReg, kAttackerTeam);
+					}
+				break;
+			case 14: // overlapping: twenty spearmen on one spot, twenty on another
+				for (int i = 0; i < 20; ++i) unit(gx, gy, kReg);
+				for (int i = 0; i < 20; ++i) unit(gx + 15.0f, gy + 15.0f, kReg);
+				break;
+			case 15: // large_against_units: a ram and an elephant walk into 266 spearmen walking the other way
+				for (int i = -18; i < 20; i += 2)
+					for (int j = 0; j < 40; j += 3) script_walk(unit(gx + (float)i, gy + 10.0f + (float)j, kReg), gx, gy - 50.0f, false);
+				script_walk(unit(gx - 5.0f, gy, kRam), gx - 5.0f, gy + 100.0f, false);
+				script_walk(unit(gx + 5.0f, gy, kElephant), gx + 5.0f, gy + 100.0f, false);
+				break;
+			default: break; // sep1, sep2: gaps
+		}
+		gx += 90.0f;
+		if (gx > 20.0f * 16.0f * 4.0f - 20.0f) {
+			gx = 100.0f;
+			gy += 150.0f;
+		}
+	}
+}
+
+void Simulation::trigger_unit_motion(int step) {
+	// maps/scenarios/unit_motion_integration_test.js: 22 movement experiments at 3 s; 4 s later
+	// the enclosed one's far palisade goes. vars 0: that palisade. UNIT_TEMPLATE is the Cretan
+	// marine archer (athen/infantry_archer_b here, see the Pickup test); FAST_UNIT_TEMPLATE,
+	// the advanced athen/cavalry_swordsman_a, is the basic one (RTS0 ranks units, not templates).
+	if (step == 0) {
+		triggers_.set_timeout(3000, TRIGGER_ACTION_UNIT_MOTION, 1.0f);
+		return;
+	}
+	if (step == 2) { // enclosed's timeout: Engine.DestroyEntity
+		auto it = building_id_to_idx_.find((uint32_t)triggers_.vars[0]);
+		if (it != building_id_to_idx_.end() && !buildings_[it->second].wrecked) destroy_building(buildings_[it->second]);
+		return;
+	}
+	auto unit = [&](float x, float z, const char *t = kMarine) { return script_spawn(x, z, t, kChaseTeam); };
+	auto house = [&](float x, float z) { return script_structure(x, z, BLD_HOUSE, kChaseTeam, 1.0f); };
+	auto walk = [&](uint32_t id, float x, float z) { script_walk(id, x, z, false); return id; };
+	constexpr float kLong = 14.0f, kMedium = 9.0f, kShort = 4.0f, kHalfPi = 1.5707964f;
+	float gx = 100.0f, gy = 100.0f;
+	for (int e = 0; e < 22; ++e) {
+		switch (e) {
+			case 0: walk(unit(gx, gy), gx, gy + 100.0f); break; // single_unit
+			case 1: { // two_followers: one walks, one walks behind it, a third guards the second
+				walk(unit(gx, gy), gx, gy + 100.0f);
+				const uint32_t follow = walk(unit(gx, gy + 2.0f), gx, gy + 102.0f);
+				if (const uint32_t g = unit(gx, gy - 2.0f); g && follow) order_guard(&g, 1, follow);
+				break;
+			}
+			case 2: // follow_faster
+				walk(unit(gx, gy, kFast), gx, gy + 100.0f);
+				walk(unit(gx, gy + 4.0f), gx, gy + 104.0f);
+				break;
+			case 3: // group
+				for (int i = -3; i <= 3; ++i)
+					for (int j = -3; j <= 3; ++j) walk(unit(gx + (float)i * 2.0f, gy + (float)j * 2.0f), gx, gy + 100.0f);
+				break;
+			case 4: // single_unit_building
+				house(gx, gy + 40.0f);
+				walk(unit(gx, gy), gx, gy + 100.0f);
+				break;
+			case 5: // single_unit_pass_nopass
+				walk(unit(gx, gy), gx, gy + 100.0f);
+				house(gx - 10.0f, gy + 40.0f);
+				house(gx + 10.0f, gy + 40.0f);
+				house(gx - 8.0f, gy + 70.0f);
+				house(gx + 8.0f, gy + 70.0f);
+				walk(unit(gx, gy - 10.0f), gx, gy + 100.0f);
+				break;
+			case 6: { // units_dense_forest
+				static const float kFront[5][2] = {{0, 0}, {-2, 0}, {2, 2}, {-2, 0}, {2, 2}};
+				for (const auto &p : kFront) walk(unit(gx + p[0], gy + p[1]), gx, gy + 100.0f);
+				for (int i = -16; i <= 16; i += 4)
+					for (int j = -16; j <= 16; j += 4) script_tree(gx + (float)i, gy + 50.0f + (float)j);
+				static const float kBack[5][2] = {{0, -20}, {-2, -20}, {2, -18}, {-2, -20}, {2, -18}};
+				for (const auto &p : kBack) walk(unit(gx + p[0], gy + p[1]), gx, gy + 100.0f);
+				break;
+			}
+			case 7: // units_sparse_forest
+				gx += 10.0f;
+				for (int i = -4; i <= 4; i += 2)
+					for (int j = -4; j <= 4; j += 2) walk(unit(gx + (float)i, gy + (float)j), gx, gy + 100.0f);
+				for (int i = -16; i <= 16; i += 8)
+					for (int j = -16; j <= 16; j += 8) script_tree(gx + (float)i, gy + 50.0f + (float)j);
+				for (int i = -4; i <= 4; i += 2)
+					for (int j = -4; j <= 4; j += 2) walk(unit(gx + (float)i, gy - 20.0f + (float)j), gx, gy + 100.0f);
+				break;
+			case 8: // units_running_into_eachother
+				for (int i = -4; i <= 4; i += 2)
+					for (int j = -4; j <= 4; j += 2) walk(unit(gx + (float)i, gy + (float)j), gx, gy + 100.0f);
+				for (int i = -4; i <= 4; i += 2)
+					for (int j = -4; j <= 4; j += 2) walk(unit(gx + (float)i, gy + 100.0f + (float)j), gx, gy);
+				break;
+			case 9: // enclosed: four archers in a palisade square, one in a second whose far side goes at 4 s
+				script_palisade(gx, gy - 8.0f, kLong, 0.0f);
+				script_palisade(gx, gy + 8.0f, kLong, 0.0f);
+				script_palisade(gx - 8.0f, gy, kLong, kHalfPi);
+				script_palisade(gx + 8.0f, gy, kLong, kHalfPi);
+				walk(unit(gx - 1.0f, gy - 1.0f), gx + 100.0f, gy + 100.0f);
+				walk(unit(gx + 1.0f, gy - 1.0f), gx - 100.0f, gy + 100.0f);
+				walk(unit(gx + 1.0f, gy + 1.0f), gx - 100.0f, gy - 100.0f);
+				walk(unit(gx - 1.0f, gy + 1.0f), gx + 100.0f, gy - 100.0f);
+				script_palisade(gx, gy + 20.0f, kLong, 0.0f);
+				triggers_.vars[0] = (int32_t)script_palisade(gx, gy + 36.0f, kLong, 0.0f);
+				script_palisade(gx - 8.0f, gy + 28.0f, kLong, kHalfPi);
+				script_palisade(gx + 8.0f, gy + 28.0f, kLong, kHalfPi);
+				walk(unit(gx, gy + 28.0f), gx, gy + 100.0f);
+				triggers_.set_timeout(4000, TRIGGER_ACTION_UNIT_MOTION, 2.0f);
+				break;
+			case 10: // line_of_rams
+				for (int i = -20; i <= 20; i += 4) walk(unit(gx + (float)i, gy, kRam), gx + (float)i, gy + 50.0f);
+				walk(unit(gx, gy - 10.0f), gx, gy + 100.0f);
+				break;
+			case 11: case 12: case 13: { // units_{sparse,dense,superdense}_forest_of_units, standing ground
+				const int lo = e == 13 ? -6 : -16, step_m = e == 11 ? 8 : e == 12 ? 4 : 2;
+				for (int i = lo; i <= -lo; i += step_m)
+					for (int j = lo; j <= -lo; j += step_m)
+						if (const uint32_t u = unit(gx + (float)i, gy + 50.0f + (float)j)) order_set_stance(&u, 1, STANCE_STAND_GROUND);
+				walk(unit(gx, gy), gx, gy + 100.0f);
+				walk(unit(gx, gy - 10.0f, kRam), gx, gy + 100.0f);
+				break;
+			}
+			case 14: { // u_shape_tight_exit: 42 archers file out of a palisade U past 7 gatherers
+				script_palisade(gx + 8.0f, gy, kLong, kHalfPi);
+				script_palisade(gx + 8.0f, gy + 12.0f, kLong, kHalfPi);
+				script_palisade(gx, gy + 16.0f, kLong, 0.0f);
+				script_palisade(gx, gy + 4.0f, kMedium, kHalfPi);
+				script_palisade(gx - 8.0f, gy + 12.0f, kLong, kHalfPi);
+				script_palisade(gx - 16.0f, gy + 8.0f, kLong, kHalfPi);
+				script_palisade(gx - 4.0f, gy, kMedium, 0.0f);
+				script_palisade(gx - 12.0f, gy, kMedium, 0.0f);
+				script_palisade(gx - 10.0f, gy + 8.0f, kShort, kHalfPi * 0.5f);
+				script_palisade(gx, gy - 10.0f, kLong, 0.0f);
+				script_palisade(gx + 8.0f, gy - 5.0f, kLong, kHalfPi);
+				script_palisade(gx - 8.0f, gy - 7.0f, kLong, kHalfPi);
+				const uint32_t tree = script_tree(gx, gy + 80.0f);
+				for (int i = -3; i <= 3; ++i) {
+					for (int j = -2; j <= 3; ++j) walk(unit(gx + (float)i, gy + (float)j - 5.0f), gx, gy + 100.0f);
+					if (const uint32_t u = unit(gx + (float)i, gy - 8.0f); u && tree) order_gather(&u, 1, tree);
+				}
+				break;
+			}
+			case 15: { // cluttered_around_tree: a ring of archers round the tree a gatherer walks to
+				const uint32_t tree = script_tree(gx, gy + 50.0f);
+				for (int i = -3; i <= 3; ++i)
+					for (int j = -3; j <= 3; ++j)
+						if (std::abs(i) == 3 || std::abs(j) == 3) unit(gx + (float)i, gy + (float)j + 50.0f);
+				if (const uint32_t u = unit(gx, gy); u && tree) order_gather(&u, 1, tree);
+				break;
+			}
+			case 16: case 17: { // formation_move, formation_attack: 49 archers in a box
+				std::vector<uint32_t> ents;
+				for (int i = -3; i <= 3; ++i)
+					for (int j = -3; j <= 3; ++j)
+						if (const uint32_t u = unit(gx + (float)i * 2.0f, gy + (float)j * 2.0f)) ents.push_back(u);
+				if (ents.empty()) break;
+				order_set_formation(ents.data(), ents.size(), FORMATION_BOX);
+				if (e == 16) {
+					const auto [x, z] = script_metres(gx, gy + 100.0f);
+					order_walk(ents.data(), ents.size(), x, z);
+				} else {
+					// "target": 5, the map's one entity: player 2's civic centre.
+					for (const Building &b : buildings_)
+						if (b.team == kAttackerTeam && b.type == BLD_TOWN_CENTER && !b.wrecked) {
+							order_attack_building(ents.data(), ents.size(), b.id);
+							break;
+						}
+				}
+				break;
+			}
+			case 18: { // multiple_resources: a civic centre and three chickens, one hunted
+				script_structure(gx, gy + 80.0f, BLD_TOWN_CENTER, kChaseTeam, 1.0f);
+				uint32_t chicken = 0;
+				for (const float dx : {0.0f, 3.0f, -3.0f}) {
+					const auto [x, z] = script_metres(gx + dx, gy + 50.0f);
+					const uint32_t f = spawn_fauna(x, z, FAUNA_CHICKEN);
+					if (!chicken) chicken = f;
+				}
+				if (const uint32_t u = unit(gx, gy); u && chicken) order_hunt(&u, 1, chicken);
+				break;
+			}
+			case 19: // locked_within: houses round the archer and round its goal
+				for (const auto &p : std::initializer_list<std::pair<float, float>>{{10, 7}, {-10, 7}, {0, 0}, {8, 20}, {-8, 20}, {8, 30},
+						{-8, 30}, {8, 40}, {-8, 40}, {10, 93}, {-10, 93}, {0, 100}, {8, 80}, {-8, 80}})
+					house(gx + p.first, gy + p.second);
+				walk(unit(gx, gy + 10.0f), gx, gy + 90.0f);
+				break;
+			case 20: // need_to_backtrack: a funnel of houses closed by nine archers
+				gx += 50.0f;
+				for (const float s : {1.0f, -1.0f}) {
+					house(gx + 10.0f * s, gy + 60.0f);
+					house(gx + 20.0f * s, gy + 50.0f);
+					house(gx + 30.0f * s, gy + 40.0f);
+				}
+				for (int i = -4; i <= 4; ++i) unit(gx + (float)i, gy + 65.0f);
+				walk(unit(gx, gy + 10.0f), gx, gy + 90.0f);
+				break;
+			case 21: // small_exit_of_hill (#5795): 121 archers walk out of a hill's narrow exit
+				for (int i = -5; i <= 5; ++i)
+					for (int j = -5; j <= 5; ++j) walk(unit(350.0f + (float)i, 615.0f + (float)j), 350.0f, 500.0f);
+				break;
+			default: break;
+		}
+		gx += 40.0f;
+		if (gx >= 540.0f) {
+			gx = 100.0f;
+			gy += 140.0f;
+		}
+	}
 }
 
 void Simulation::trigger_survival_wave() {

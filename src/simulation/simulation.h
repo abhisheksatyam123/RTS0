@@ -2607,6 +2607,11 @@ private:
 	void trigger_unit_chasing_ownership(const TriggerEventData &data);
 	void trigger_unit_dancing(int step);
 	void trigger_unit_dancing_event(const TriggerEventData &data);
+	void trigger_unit_pushing(int step);
+	void trigger_unit_motion(int step);
+	uint32_t script_structure(float mx, float mz, uint8_t type, uint8_t team, float progress);
+	uint32_t script_palisade(float mx, float mz, float length_m, float angle);
+	uint32_t script_tree(float mx, float mz, int32_t amount = 200);
 	// The unit motion test scripts' helpers: 0 A.D. metres from the map corner to world units,
 	// QuickSpawn (followed as TriggerWatch role/label unless role is 0xFF), WalkTo, and removing
 	// every unit an experiment (role) followed.
@@ -2615,7 +2620,7 @@ private:
 	void script_walk(uint32_t id, float mx, float mz, bool queued);
 	void script_delete_role(uint8_t role);
 	// Their ModifiersManager.AddModifiers (no promotions; the dancing test's 5 m vision and
-	// spread off), from the script that is running: kept out of the save as they follow from it.
+	// spread off; the pushing test's gather speed), from the script that is running: kept out of the save as they follow from it.
 	uint16_t unit_test_script() const;
 	void script_modifiers(uint8_t player_id, TechMods &m) const;
 	void trigger_survival_treasures();

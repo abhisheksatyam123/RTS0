@@ -97,6 +97,8 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_UNIT_CHASING_OWNERSHIP = 39,    // its OwnershipChanged
 	TRIGGER_ACTION_UNIT_DANCING = 40,              // scenarios/unit_dancing_test_triggers.js: arg 0 init, 1 SetupUnits, 2 RemoveSpread, 3 EndGame
 	TRIGGER_ACTION_UNIT_DANCING_EVENT = 41,        // its ReportResults hooks (a dancer killed, or idle)
+	TRIGGER_ACTION_UNIT_PUSHING = 42,              // scenarios/unit_pushing_test.js: arg 0 init, 1 Setup, 2 EndGame
+	TRIGGER_ACTION_UNIT_MOTION = 43,               // scenarios/unit_motion_integration_test.js: arg 0 init, 1 SetupUnits, 2 enclosed_timeout
 	TRIGGER_ACTION_COUNT
 };
 

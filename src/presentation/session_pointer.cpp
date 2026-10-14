@@ -291,7 +291,7 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	if (selected_ids.is_empty()) return;
 	const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
 	const size_t sel_n = selected_ids.size();
-	range_overlays_.add_marker(world_pos.x, world_pos.y, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
+	range_overlays_.add_target_marker(world_pos.x, world_pos.y);
 	const bool units_only = rtso::hotkeys::held("session.attackmoveUnit"); // targetClasses Unit
 	if (rtso::hotkeys::held("session.attackmove") || units_only) {
 		if (turn_cmds())
