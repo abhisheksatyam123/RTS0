@@ -2072,10 +2072,12 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 // cursor shows what a right-click would do with the current selection.
 // unit_actions.js "unset-rallypoint" getActionInfo: the target is the selected
 // structure itself and it has a rally point.
-// unit_actions.js: right-clicking an enemy with a structure that shoots arrows selected
-// sends Commands.js "focus-fire" (BuildingAI.AddFocusTarget; Shift queues it) instead of
-// setting the rally point there. Lockstep command 50.
+// unit_actions.js "focus-fire": right-clicking an enemy while holding session.focusfire
+// (F) with a structure that shoots arrows selected sends Commands.js "focus-fire"
+// (BuildingAI.AddFocusTarget; Shift queues it) instead of setting the rally point
+// there. Without the hotkey the click sets the rally point, as in 0.28. Lockstep command 50.
 bool RtsoMain::try_focus_fire(const Vector3 &at) {
+	if (!rtso::hotkeys::held("session.focusfire")) return false;
 	const uint8_t me = local_player();
 	const auto bit = std::find_if(sim->buildings().begin(), sim->buildings().end(),
 			[&](const rtso::Simulation::Building &b) { return b.id == selected_building_id; });

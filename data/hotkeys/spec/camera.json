@@ -23,6 +23,10 @@
 				"name": "Focus on last attack notification",
 				"desc": "Focus the camera on the position of the last attack notification."
 			},
+			"camera.togglebirdseyeview": {
+				"name": "Toggle bird's eye view",
+				"desc": "Toggle between regular and bird's eye (top-down) views."
+			},
 			"camera.zoom.in": {
 				"name": "Zoom in",
 				"desc": "Zoom camera in."

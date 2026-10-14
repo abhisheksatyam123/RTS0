@@ -1,8 +1,9 @@
 #ifndef RTSO_HOTKEY_DEFAULTS_H
 #define RTSO_HOTKEY_DEFAULTS_H
 
-// The [hotkey.*] sections of 0 A.D. binaries/data/config/default.cfg (0 A.D. 61a3b95,
-// GPL-2.0-or-later), copied verbatim, followed by RTS0's own [hotkey.rts0.*] keys.
+// The [hotkey.*] sections of 0 A.D. 0.28 binaries/data/config/default.cfg
+// (GPL-2.0-or-later), copied verbatim by tools/extract_0ad_hotkeys.py, followed
+// by RTS0's own [hotkey.rts0.*] keys.
 // Parsed by hotkeys.cpp; user overrides load from user://config/user.cfg on top.
 
 namespace rtso {
@@ -27,6 +28,7 @@ togglefullscreen = "Alt+Return"          ; Toggle fullscreen/windowed mode
 screenshot.watermark = "Alt+K"           ; Toggle product/company watermark for official screenshots
 wireframe = "Alt+Shift+W"                ; Toggle wireframe mode
 silhouettes = "Alt+Shift+S"              ; Toggle unit silhouettes
+mousegrabtoggle = F3                     ; Toggle mouse grabbing mode
 
 ; > DIALOG HOTKEYS
 summary = "Ctrl+Tab"                     ; Toggle in-game summary
@@ -59,9 +61,10 @@ quickload = "Shift+F8"
 
 [hotkey.camera]
 reset = "R"                                   ; Reset camera rotation to default.
-follow = "F"                                  ; Follow the first unit in the selection
+follow = ""                                   ; Follow the first unit in the selection
 rallypointfocus = ""                          ; Focus the camera on the rally point of the selected building
 lastattackfocus = "Space"                     ; Focus the camera on the last notified attack
+togglebirdseyeview = "Shift+Tab"              ; Toggle bird's eye view
 zoom.in = Plus, NumPlus                       ; Zoom camera in (continuous control)
 zoom.out = Minus, NumMinus                    ; Zoom camera out (continuous control)
 zoom.wheel.in = WheelUp                       ; Zoom camera in (stepped control)
@@ -71,8 +74,7 @@ rotate.down = "Ctrl+DownArrow", "Ctrl+S"      ; Rotate camera to look downwards
 rotate.cw = "Ctrl+LeftArrow", "Ctrl+A", Q     ; Rotate camera clockwise around terrain
 rotate.ccw = "Ctrl+RightArrow", "Ctrl+D", E   ; Rotate camera anticlockwise around terrain
 rotate.wheel.cw = "Shift+WheelUp", MouseX1    ; Rotate camera clockwise around terrain (stepped control)
-)cfg"
-R"cfg(rotate.wheel.ccw = "Shift+WheelDown", MouseX2 ; Rotate camera anticlockwise around terrain (stepped control)
+rotate.wheel.ccw = "Shift+WheelDown", MouseX2 ; Rotate camera anticlockwise around terrain (stepped control)
 pan = MouseMiddle                             ; Enable scrolling by moving mouse
 left = A, LeftArrow                           ; Scroll or rotate left
 right = D, RightArrow                         ; Scroll or rotate right
@@ -85,7 +87,8 @@ rotate.speed.decrease = "Ctrl+Alt+R"          ; Decrease rotation speed
 zoom.speed.increase = "Ctrl+Shift+Z"          ; Increase zoom speed
 zoom.speed.decrease = "Ctrl+Alt+Z"            ; Decrease zoom speed
 
-[hotkey.camera.jump]
+)cfg"
+R"cfg([hotkey.camera.jump]
 1 = F5                       ; Jump to position N
 2 = F6
 3 = F7
@@ -132,8 +135,7 @@ singleselection = "" ; Modifier to select units individually, opposed to per for
 1 = "Shift+1", "Shift+Num1"
 2 = "Shift+2", "Shift+Num2"
 3 = "Shift+3", "Shift+Num3"
-)cfg"
-R"cfg(4 = "Shift+4", "Shift+Num4"
+4 = "Shift+4", "Shift+Num4"
 5 = "Shift+5", "Shift+Num5"
 6 = "Shift+6", "Shift+Num6"
 7 = "Shift+7", "Shift+Num7"
@@ -163,7 +165,8 @@ R"cfg(4 = "Shift+4", "Shift+Num4"
 9 = 9, Num9
 10 = 0, Num0
 
-[hotkey.gamesetup]
+)cfg"
+R"cfg([hotkey.gamesetup]
 mapbrowser.open = "M"
 
 [hotkey.session]
@@ -175,7 +178,7 @@ unloadturrets = "U" ; Unload turreted units.
 leaveturret = "U" ; Leave turret point.
 move = ""                    ; Modifier to move to a point instead of another action (e.g. gather)
 capture = "C"                ; Modifier to capture instead of another action (e.g. attack)
-attack = ""                  ; Modifier to attack instead of another action (e.g. capture)
+attack = "F"                 ; Modifier to attack instead of another action (e.g. capture)
 attackmove = Ctrl            ; Modifier to attackmove when clicking on a point
 attackmoveUnit = "Ctrl+Q"    ; Modifier to attackmove targeting only units when clicking on a point
 garrison = Ctrl              ; Modifier to garrison when clicking on building
@@ -193,8 +196,7 @@ masstribute = Shift          ; Modifier to tribute bunch of resources
 noconfirmation = Shift       ; Do not ask confirmation when deleting a building/unit
 fulltradeswap = Shift        ; Modifier to put the desired trade resource to 100%
 unloadtype = Shift           ; Modifier to unload all units of type
-)cfg"
-R"cfg(deselectgroup = Ctrl         ; Modifier to deselect units when clicking group icon, instead of selecting
+deselectgroup = Ctrl         ; Modifier to deselect units when clicking group icon, instead of selecting
 rotate.cw = RightBracket     ; Rotate building placement preview clockwise
 rotate.ccw = LeftBracket     ; Rotate building placement preview anticlockwise
 snaptoedges = Ctrl           ; Modifier to align new structures with nearby existing structure
@@ -202,8 +204,9 @@ toggledefaultformation = ""  ; Switch between null default formation and the las
 flare = K                    ; Modifier to send a flare to your allies
 flareactivate = ""           ; Modifier to activate the mode to send a flare to your allies
 calltoarms = ""              ; Modifier to call the selected units to the arms.
+focusfire = "F"              ; Modifier to control exclusively a building's arrows if it can attack
 ; Overlays
-showstatusbars = Tab         ; Toggle display of status bars
+showstatusbars = ""          ; Toggle display of status bars
 devcommands.toggle = "Alt+D" ; Toggle developer commands panel
 highlightguarding = PageDown ; Toggle highlight of guarding units
 highlightguarded = PageUp    ; Toggle highlight of guarded units
@@ -217,14 +220,15 @@ toggle = "Alt+G"             ; Toggle visibility of session GUI
 menu.toggle = "F10"          ; Toggle in-game menu
 diplomacy.toggle = "Ctrl+H"  ; Toggle in-game diplomacy page
 barter.toggle = "Ctrl+B"     ; Toggle in-game barter/trade page
-objectives.toggle = "Ctrl+O" ; Toggle in-game objectives page
+matchsettings.toggle = "Ctrl+O" ; Toggle in-game match settings page
 tutorial.toggle = "Ctrl+P"   ; Toggle in-game tutorial panel
 
 [hotkey.session.savedgames]
 delete = Delete, Backspace    ; Delete the selected saved game asking confirmation
 noconfirmation = Shift        ; Do not ask confirmation when deleting a game
 
-[hotkey.session.queueunit]   ; > UNIT TRAINING
+)cfg"
+R"cfg([hotkey.session.queueunit]   ; > UNIT TRAINING
 1 = "Z"            ; add first unit type to queue
 2 = "X"            ; add second unit type to queue
 3 = "C"            ; add third unit type to queue
@@ -241,6 +245,10 @@ rewind = "Shift+Backspace"        ; If timewarp mode enabled, go back to earlier
 [hotkey.tab]
 next = "Tab", "Alt+S"             ; Show the next tab
 prev = "Shift+Tab", "Alt+W"       ; Show the previous tab
+
+[hotkey.item]
+next = "RightArrow"               ; Show the next item of a list
+prev = "LeftArrow"                ; Show the previous item of a list
 
 [hotkey.text]    ; > GUI TEXTBOX HOTKEYS
 delete.left = "Ctrl+Backspace"    ; Delete word to the left of cursor

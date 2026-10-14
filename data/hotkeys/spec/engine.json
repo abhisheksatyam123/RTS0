@@ -79,6 +79,14 @@
 				"name": "Previous tab",
 				"desc": "Show the previous tab."
 			},
+            "item.next": {
+				"name": "Next item",
+				"desc": "Show the next item."
+			},
+			"item.prev": {
+				"name": "Previous item",
+				"desc": "Show the previous item."
+			},
 			"text.delete.left": {
 				"name": "Delete before cursor",
 				"desc": "Delete word to the left of cursor."
@@ -94,6 +102,10 @@
 			"text.move.right": {
 				"name": "Move cursor to right word",
 				"desc": "Move cursor to start of word to the right of cursor."
+			},
+			"mousegrabtoggle": {
+				"name": "Toggle mouse grab",
+				"desc": "Constrain to window boundaries or release the mouse."
 			}
 		}
 	}

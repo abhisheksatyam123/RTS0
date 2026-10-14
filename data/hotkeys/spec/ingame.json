@@ -182,6 +182,10 @@
 			"session.calltoarms": {
 				"name": "Call to arms",
 				"desc": "Send the selected units on attack move to the specified location after dropping resources."
+			},
+			"session.focusfire": {
+				"name": "Focus Fire",
+				"desc": "Exclusively control a building's arrows without setting a rallypoint."
 			}
 		}
 	}
