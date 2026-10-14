@@ -217,13 +217,15 @@ def play_setup_leave(args, lobby):
     def said(key):
         return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs["join"]) if f" {key}=" in l), "")
     status = said("setup_status")
-    ok = (host.returncode == 0 and join.returncode == 0
+    moved = said("moved_to_observers")
+    ok = (host.returncode == 0 and join.returncode == 0 and moved == "Observers: bob"
           and status == "Lost connection to the server. | The host has ended the game. reason=2 saw_page=true page=false"
           and said("setup_exit_scene") == "res://scenes/menu/lobby.tscn")
     for role in ("host", "join"):
         for line in gmp_lines(outs[role]):
             print("   " + line)
     if ok:
+        print("[gmp] PASS the host's player assignment made bob an observer; his page listed: Observers: bob")
         print(f"[gmp] PASS the host left the setup; the client's page closed for: {status.split(' reason=')[0]}; "
               f"OK went back to the lobby")
         return True
