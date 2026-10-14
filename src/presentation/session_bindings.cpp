@@ -162,6 +162,8 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
 	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
 	ClassDB::bind_method(D_METHOD("debug_set_carry", "unit_id", "res", "amount"), &RtsoMain::debug_set_carry);
+	ClassDB::bind_method(D_METHOD("debug_set_resource", "res", "amount"), &RtsoMain::debug_set_resource);
+	ClassDB::bind_method(D_METHOD("debug_placing"), &RtsoMain::debug_placing);
 	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
 	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
 	ClassDB::bind_method(D_METHOD("debug_garrison_icons"), &RtsoMain::debug_garrison_icons);

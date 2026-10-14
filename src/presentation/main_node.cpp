@@ -309,6 +309,14 @@ Dictionary RtsoMain::debug_inspector(const String &what) {
 	return inspector_.debug_state();
 }
 
+// Test hook: the local player's stock of resource `res` (0 wood, 1 metal, 2 stone, 3 food).
+void RtsoMain::debug_set_resource(int res, float amount) {
+	if (sim && res >= 0 && res < rtso::RES_COUNT) sim->player(local_player()).res[res] = amount;
+}
+
+// Test hook: whether a structure is being placed.
+bool RtsoMain::debug_placing() const { return build_mode; }
+
 // Test hook: a unit carries `amount` of resource `res` (0 wood, 1 metal, 2 stone, 3 food).
 void RtsoMain::debug_set_carry(int64_t unit_id, int res, int amount) {
 	if (sim) sim->debug_set_carry((uint32_t)unit_id, (uint8_t)res, amount);
@@ -2224,6 +2232,9 @@ uint32_t RtsoMain::own_fauna_at(float x, float z) const {
 
 void RtsoMain::prune_selection() {
 	if (!sim || selected_ids.is_empty()) return;
+	// selection.js g_MaxSelectionSize: addList stops at 300 entities, the earliest kept.
+	constexpr int64_t kMaxSelectionSize = 300;
+	if (selected_ids.size() > kMaxSelectionSize) selected_ids.resize(kMaxSelectionSize);
 	auto uview = sim->units();
 	std::unordered_set<int32_t> wanted(selected_ids.ptr(), selected_ids.ptr() + selected_ids.size());
 	std::unordered_set<int32_t> living;
