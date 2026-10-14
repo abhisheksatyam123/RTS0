@@ -549,7 +549,7 @@ func _apply_map_locks() -> void:
 	left.get_node("MapSizeSlot").visible = _slot_count_node().editable
 	var checks := {"LastManStanding": "LastManStanding", "StartRow/LockTeams": "LockTeams",
 		"StartRow/DisableTreasures": "DisableTreasures", "MapVisRow/RevealMap": "RevealMap",
-		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/DisableSpies": "DisableSpies"}
+		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/AlliedView": "AllyView", "MapVisRow/DisableSpies": "DisableSpies"}
 	for path in checks:
 		var cb: BaseButton = left.get_node(path)
 		cb.disabled = scen
@@ -1033,7 +1033,7 @@ func _on_victory_toggled(on: bool, bit: int) -> void:
 ## The MatchSettings fields game setup restores, also the keys of the persisted file.
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
-	"ceasefire_min", "reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "water_level",
+	"ceasefire_min", "reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "water_level",
 	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
@@ -1074,6 +1074,7 @@ func page_state() -> Dictionary:
 		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed,
 		"lock_teams": st["lock_teams"], "disable_spies": st["disable_spies"], "disable_treasures": st["disable_treasures"],
 		"pop_cap": st["pop_cap"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
+		"ally_view": bool(st.get("ally_view", false)),
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
 		"team_placement": st["team_placement"], "landscape": st["landscape"],
@@ -1118,6 +1119,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed = bool(ms.get("explore_map"))
+	$VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed = bool(ms.get("ally_view"))
 	var wt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
 	var rt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
 	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
@@ -1254,6 +1256,7 @@ func _collect_setup() -> Dictionary:
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
 		"reveal": $VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed,
 		"explore": $VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed,
+		"ally_view": $VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed,
 		"wonder_min": int(VICTORY_TIMES[maxi(wt.get_selected(), 0)]),
 		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
@@ -1350,6 +1353,7 @@ func _on_start_pressed() -> void:
 	ms.ceasefire_min = int(st["ceasefire"])
 	ms.reveal_map = bool(st["reveal"])
 	ms.explore_map = bool(st["explore"])
+	ms.ally_view = bool(st.get("ally_view", false))
 	ms.wonder_min = int(st["wonder_min"])
 	ms.relic_min = int(st["relic_min"])
 	ms.relic_count = int(st["relic_count"])
