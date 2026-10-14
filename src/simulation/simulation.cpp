@@ -3112,7 +3112,7 @@ int Simulation::phase_structures(uint8_t player_id, uint8_t phase) const {
 	int n = 0;
 	for (const auto &b : buildings_)
 		if (b.team == player_id && b.build_progress >= 1.0f && b.hp > 0.0f && !b.wrecked &&
-				building_phase_class(b.type) == phase)
+				building_phase_class(b.type, b.civ) == phase)
 			++n;
 	return n;
 }
@@ -3135,6 +3135,8 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 	if (!tech_available_to_civ(tech_id, ps.civ)) return TECH_ERR_CIV;
 	if (tinfo.required_phase > ps.phase) return TECH_ERR_PHASE;
 	if (tinfo.prerequisite != TECH_NONE && !ps.has_tech(tinfo.prerequisite)) return TECH_ERR_PREREQUISITE;
+	// DeriveTechnologyRequirements: the technology it supersedes must be researched first.
+	if (const uint8_t sup = tech_supersedes(tech_id); sup != TECH_NONE && !ps.has_tech(sup)) return TECH_ERR_PREREQUISITE;
 	// 0 A.D. phase_town_generic / phase_city_generic "entity" requirements.
 	if (tech_id == TECH_PHASE_TOWN && phase_structures(player_id, 1) < 5) return TECH_ERR_STRUCTURES;
 	if (tech_id == TECH_PHASE_CITY && phase_structures(player_id, 2) < 3) return TECH_ERR_STRUCTURES;
@@ -9659,6 +9661,11 @@ void Simulation::tick_gather(float dt) {
 						if (rt == RES_GOLD && civ_info(civ).metal_gather_mult > 1.0f &&
 								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
 							for (uint8_t ph = player_phase(uteam); ph >= 2; --ph) rate *= civ_info(civ).metal_gather_mult;
+						// Carthaginian civbonuses/cart_stone_01..03 (auto-researched at Village, Town and
+						// City; Carthage has no servants/serfs/slaves): Workers stone.rock x1.25 each.
+						if (rt == RES_STONE && civ == CIV_CARTHAGINIANS &&
+								(unit_classes(units_.tmpl[i], units_.unit_type[i]) & TC_WORKER))
+							for (uint8_t ph = player_phase(uteam); ph >= 1; --ph) rate *= 1.25f;
 						// Germanic Bovine Tradition (civbonuses/germ_meat.json): Civilians
 						// ResourceGatherer/Rates/food.meat x2.
 						if (kind == GK_MEAT && civ == CIV_GERMANS &&
@@ -19214,7 +19221,7 @@ void Simulation::petra_manage_research(float dt) {
 	auto build_phase_structures = [&](uint8_t cls, int need) {
 		if (!home || phase_structures(petra_pid_, cls) >= need) return;
 		for (const auto &b : buildings_)
-			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type) == cls)
+			if (b.team == petra_pid_ && b.build_progress < 1.0f && b.hp > 0.0f && building_phase_class(b.type, b.civ) == cls)
 				return; // one at a time; it counts once finished
 		static constexpr uint8_t kVillage[] = {BLD_HOUSE};
 		static constexpr uint8_t kTown[] = {BLD_MARKET, BLD_TEMPLE, BLD_FORGE}; // checkPhaseRequirements order

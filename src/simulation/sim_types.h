@@ -1404,13 +1404,22 @@ inline int building_upgrade_count(uint8_t from, uint8_t civ) {
 // 0 A.D. VisibleClasses "Village" (1) / "Town" (2): the structures that count
 // toward phase_town_generic (five Village) and phase_city_generic (three Town).
 // Civic centres, fields, towers and walls count toward neither.
-inline uint8_t building_phase_class(uint8_t type) {
+// Civ structures carry their own: brit/kennel, ptol/mercenary_camp, han/ministry,
+// kush/pyramid_small, spart/syssiton and pers/ice_house are Village; rome/army_camp
+// and temple_vesta, kush/camp_blemmye and camp_noba, spart/gerousia, athen/gymnasium,
+// iber/monument, cart/super_dock, mace/arsenal and maur/elephant_stable are Town.
+inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 	switch (building_research_base(type)) {
 		case BLD_HOUSE: case BLD_APARTMENT: case BLD_BARRACKS: case BLD_STOREHOUSE: case BLD_FARMSTEAD:
-		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE:
+		case BLD_DOCK: case BLD_CORRAL: case BLD_STABLE: case BLD_RANGE: case BLD_KENNEL:
+		case BLD_MERCENARY_CAMP: case BLD_MINISTRY: case BLD_PYRAMID_SMALL: case BLD_SYSSITON: case BLD_ICE_HOUSE:
 			return 1;
-		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY:
+		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY: case BLD_ARMY_CAMP:
+		case BLD_TEMPLE_VESTA: case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_GEROUSIA: case BLD_GYMNASIUM:
+		case BLD_MONUMENT: case BLD_SUPER_DOCK:
 			return 2;
+		case BLD_ARSENAL: return civ == CIV_MACEDONIANS ? 2 : 0;
+		case BLD_ELEPHANT_STABLE: return civ == CIV_MAURYANS ? 2 : 0;
 		default:
 			return 0;
 	}
