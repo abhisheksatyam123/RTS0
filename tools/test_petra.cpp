@@ -1761,7 +1761,9 @@ static void test_relic_capture() {
 	s->relics_.clear();
 	s->spawn_relic(tx + 12.0f, tz - 12.0f);
 	s->spawn_relic(-tx, -tz); // far side, unseen
-	run_for(*s, 60.0f);
+	// The 0.28 start's infantry and civilians (Capture 2.5 and 1) wear the relic's 250 points
+	// down against its regeneration in a little over a minute.
+	run_for(*s, 90.0f);
 	const auto &near = s->relics_[0], &far = s->relics_[1];
 	std::printf("  relics: own-territory relic %s, unseen relic %s\n",
 		near.claimed ? (near.owner_team == 1 ? "taken by AI 1" : "taken by another") : "left", far.claimed ? "taken" : "left alone");
