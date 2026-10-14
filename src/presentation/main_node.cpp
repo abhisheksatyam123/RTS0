@@ -2935,6 +2935,10 @@ void RtsoMain::_on_lobby_start_pressed() {
 		emit_signal("net_setup_refused", String("Not every player is ready"));
 		return;
 	}
+	if (!net_saved_game_.is_empty()) {
+		host_start_saved_game();
+		return;
+	}
 	rtso::GameSetupParams setup;
 	match_settings_setup(setup);
 	if (setup.seed == 0) setup.seed = (uint32_t)Time::get_singleton()->get_ticks_msec();
@@ -2986,6 +2990,15 @@ void RtsoMain::apply_net_game_start() {
 	turn_mgr_.set_game_start_applied_sim(sim);
 	rtso::GameSetupParams setup;
 	if (!turn_mgr_.take_pending_game_start_full(setup)) return;
+	if (setup.saved_game) {
+		// NMT_SAVED_GAME_START: not our world but the host's, sent as a rejoiner
+		// gets it; _process plays on once apply_pending_rejoin has loaded it.
+		net_setup_.setup = setup;
+		++net_setup_.seq;
+		turn_mgr_.request_rejoin(lobby_observe && lobby_observe->is_pressed());
+		if (lobby_status) lobby_status->set_text("Loading the host's saved game");
+		return;
+	}
 	turn_mgr_.reset_keep_inbound(); // host batches can arrive in the same poll as GAME_START
 	turn_mgr_.cancel_rejoin();
 	// The host numbers joiners 1, 2, ... in connect order; that id is our client id.
