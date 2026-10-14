@@ -9859,6 +9859,27 @@ void Simulation::tick_gather(float dt) {
 		if (units_.action_state[i] != ACTION_GATHER || rid == 0 || units_.unit_type[i] == UNIT_FISHING_BOAT) continue;
 		if (!field_bld_by_res_.count(rid)) supply_gatherers_[rid].total++;
 	}
+	// ResourceSupply.AddGatherer: a unit holds its slot from APPROACHING on, not only once it
+	// arrives, so the ones over MaxGatherers are turned away wherever they are. Units already
+	// gathering keep theirs, then the approaching ones in unit order; a full worker heading
+	// off to a dropsite (RETURNRESOURCE) holds none.
+	std::vector<uint8_t> supply_slot(n, 0);
+	for (int pass = 0; pass < 2 && !supply_gatherers_.empty(); ++pass) {
+		for (size_t i = 0; i < n; ++i) {
+			const uint32_t rid = units_.target_resource_id[i];
+			if (!units_.alive[i] || units_.action_state[i] != ACTION_GATHER || rid == 0 || supply_slot[i]) continue;
+			if (units_.unit_type[i] == UNIT_FISHING_BOAT || field_bld_by_res_.count(rid)) continue;
+			const bool working = units_.gather_res[i] == rid && units_.gather_rate[i] > 0.0f;
+			if (pass == 0 && !working) continue;
+			if (units_.carry[i] > 0 && units_.carry[i] >= carry_cap(i, units_.res_type_carried[i])) continue;
+			auto rit = res_id_to_idx_.find(rid);
+			if (rit == res_id_to_idx_.end()) continue;
+			FieldGatherers &sg = supply_gatherers_[rid];
+			if (sg.slots_taken >= resources_.max_gatherers[rit->second]) continue;
+			sg.slots_taken++;
+			supply_slot[i] = 1;
+		}
+	}
 	for (size_t i = 0; i < n; ++i) {
 		if (!units_.alive[i]) continue;
 		const uint8_t gcls = unit_gather_class(units_.unit_type[i], units_.tmpl[i]);
@@ -9889,9 +9910,10 @@ void Simulation::tick_gather(float dt) {
 				else if (b.type == BLD_DOCK) valid_drop = true; // template_structure_military_dock: every resource
 
 				if (valid_drop) {
-					float dx = units_.pos_x[i] - b.x;
-					float dz = units_.pos_z[i] - b.z;
-					float d2 = dx * dx + dz * dz;
+					// FindNearestDropsite: the distance to the footprint (DistanceToPoint), where the
+					// load is dropped off, not to the centre.
+					const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
+					const float d2 = gap.x * gap.x + gap.y * gap.y;
 					// Only a dropsite the worker can walk to (0 A.D. picks reachable ones): one on
 					// another island is out, so the worker waits for a local one.
 					if (d2 < best_d2 && (units_.unit_type[i] == UNIT_FISHING_BOAT || petra_same_land(i, b))) {
@@ -9904,13 +9926,14 @@ void Simulation::tick_gather(float dt) {
 			if (units_.unit_type[i] != UNIT_FISHING_BOAT) {
 				for (uint32_t e : mobile_drops) {
 					if (!mobile_dropsite_usable_by(uteam, e)) continue;
-					const float dx = units_.pos_x[i] - units_.pos_x[e];
-					const float dz = units_.pos_z[i] - units_.pos_z[e];
-					const float d2 = dx * dx + dz * dz;
+					const float half = unit_collision_radius(units_.unit_type[e]);
+					const float gx = std::max(0.0f, std::fabs(units_.pos_x[i] - units_.pos_x[e]) - half);
+					const float gz = std::max(0.0f, std::fabs(units_.pos_z[i] - units_.pos_z[e]) - half);
+					const float d2 = gx * gx + gz * gz;
 					if (d2 < best_d2) {
 						best_d2 = d2;
 						drop_x = units_.pos_x[e]; drop_z = units_.pos_z[e]; drop = nullptr;
-						drop_half = unit_collision_radius(units_.unit_type[e]);
+						drop_half = half;
 						found_dropsite = true;
 					}
 				}
@@ -10033,34 +10056,41 @@ void Simulation::tick_gather(float dt) {
 				// already removed this farmer: the diminishing returns count the others only.
 				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS) - 1);
 			}
+			if (!fish && field_it == field_bld_by_res_.end() && !supply_slot[i]) {
+				// MaxGatherers: a full supply turns the unit away as soon as it is over the cap
+				// (APPROACHING enter, AddGatherer fails), not once it has walked there. It looks
+				// for another supply of the same kind near itself (not on a forced order), then
+				// near the full one (UnitAI FINDINGNEWTARGET), or gives up.
+				const uint32_t rid = units_.target_resource_id[i];
+				FieldGatherers &sg = supply_gatherers_[rid];
+				uint32_t alt = 0;
+				if (!(units_.order_flags[i] & ORDER_FLAG_FORCE))
+					alt = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], rt, uteam,
+							resources_.subtype[ridx], &supply_gatherers_, rid);
+				if (alt == 0)
+					alt = find_nearby_resource(resources_.x[ridx], resources_.z[ridx], rt, uteam,
+							resources_.subtype[ridx], &supply_gatherers_, rid);
+				sg.total--;
+				if (alt != 0) {
+					// The new supply has a free slot (find_nearby_resource skips full ones).
+					FieldGatherers &ag = supply_gatherers_[alt];
+					ag.total++;
+					ag.slots_taken++;
+					supply_slot[i] = 1;
+					UnitOrder o = current_order(i);
+					o.target = alt;
+					apply_order(units_.id[i], o);
+				} else {
+					units_.target_resource_id[i] = 0;
+					units_.action_state[i] = ACTION_IDLE;
+					finish_order(i);
+				}
+				continue;
+			}
 			float dx = units_.pos_x[i] - resources_.x[ridx];
 			float dz = units_.pos_z[i] - resources_.z[ridx];
 			const float reach = fish ? FISH_GATHER_REACH : 2.5f;
 			if (dx * dx + dz * dz < reach * reach) {
-				if (!fish && field_efficiency <= 0.0f) {
-					// MaxGatherers: the first units working it take its slots; the rest look for
-					// another supply of the same kind nearby (UnitAI FINDINGNEWTARGET) or give up.
-					const uint32_t rid = units_.target_resource_id[i];
-					FieldGatherers &sg = supply_gatherers_[rid];
-					if (sg.slots_taken >= resources_.max_gatherers[ridx]) {
-						const uint32_t alt = find_nearby_resource(units_.pos_x[i], units_.pos_z[i], rt, uteam,
-								resources_.subtype[ridx], &supply_gatherers_, rid);
-						if (alt != 0) {
-							sg.total--;
-							supply_gatherers_[alt].total++;
-							UnitOrder o = current_order(i);
-							o.target = alt;
-							apply_order(units_.id[i], o);
-						} else {
-							sg.total--;
-							units_.target_resource_id[i] = 0;
-							units_.action_state[i] = ACTION_IDLE;
-							finish_order(i);
-						}
-						continue;
-					}
-					sg.slots_taken++;
-				}
 				// ResourceGatherer: one unit every 1 / rate seconds, the rate being the class's
 				// Rates entry with technology and AI difficulty multipliers (ResourceGatherer/Rates/*,
 				// ResourceGatherer/BaseSpeed) and a field's diminishing returns. StartGathering fixes
@@ -14629,8 +14659,9 @@ uint32_t Simulation::nearest_dropsite(size_t i) const {
 	float best_d2 = 0.0f;
 	for (const Building &b : buildings_) {
 		if (!dropsite_accepts(i, b)) continue;
-		const float dx = b.x - units_.pos_x[i], dz = b.z - units_.pos_z[i];
-		const float d2 = dx * dx + dz * dz;
+		// UnitAI.FindNearestDropsite: by the distance to the footprint (DistanceToPoint).
+		const nav::Vec2 gap = nav::footprint_gap(b, units_.pos_x[i], units_.pos_z[i]);
+		const float d2 = gap.x * gap.x + gap.y * gap.y;
 		if (best == 0 || d2 < best_d2) { best = b.id; best_d2 = d2; }
 	}
 	return best;
