@@ -151,8 +151,11 @@ class RtsoWorldView : public Node3D {
 	Ref<MultiMesh> gold_mm, stone_mm, food_mm, fish_mm;
 	// Gaia ruins (a stone/metal supply, buildings/ruins.glb) and treasures (a placeholder chest).
 	MultiMeshInstance3D *ruins_mmi = nullptr;
-	MultiMeshInstance3D *treasure_mmi = nullptr;
-	Ref<MultiMesh> ruins_mm, treasure_mm;
+	// One multimesh per treasure type: its 0.28 actor (gaia_data.h TreasureTypeInfo::model_id).
+	MultiMeshInstance3D *treasure_mmi[rtso::TREASURE_TYPE_COUNT] = {};
+	Ref<MultiMesh> treasure_mm[rtso::TREASURE_TYPE_COUNT];
+	float treasure_y_offset[rtso::TREASURE_TYPE_COUNT] = {};
+	Ref<MultiMesh> ruins_mm;
 	// Gaia scenery (fences, columns, obelisks): 0 A.D.'s actor meshes from
 	// data/scenery_actors.json, one MultiMesh per type and mesh variant; a box of
 	// the obstruction's size for a type without one.
