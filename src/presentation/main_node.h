@@ -307,6 +307,7 @@ public:
 	void _on_minimap_clicked(Vector2 world_pos);
 	void _on_minimap_order(Vector2 world_pos);
 	void trigger_flare(float x, float z);
+	Color player_flare_color(uint8_t pid) const;
 	void _on_flare_requested(Vector2 world_pos);
 	// g_EntityCommands (unit_actions.js): the command row's presses and their hotkeys.
 	void _on_entity_command(const String &name);
@@ -502,6 +503,7 @@ public:
 	void _toggle_session_dialog(String name);
 	double last_flare_time_ = -10.0; // input.js g_LastFlareTime
 	int get_target_marker_count() const { return (int)range_overlays_.marker_count(); } // tests
+	int get_target_marker_actor_count() const { return range_overlays_.marker_actor_count(); } // tests
 	bool select_first_own(bool building); // tests
 	int get_work_sound_count() const { return session_audio_.work_sounds_played(); } // tests
 	void debug_gather_nearest();
@@ -573,6 +575,10 @@ private:
 	void update_ghost_mesh();
 	// The placement rotation for a building at (x, z): docks face the sea (GetDockAngle).
 	float placement_angle_at(uint8_t btype, float x, float z) const;
+	// 0 A.D. input.js snap to edges: with isSnapToEdgesEnabled, turns placement_angle to the
+	// nearest structure's sides (ObstructionSnap.getPosition) and moves (cell_x, cell_y) to the
+	// building cell nearest the flush position.
+	void snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y);
 	// GetFoundationSnapData snapEntities: a wall end within half a tower of one of
 	// the player's wall towers snaps onto it.
 	void try_train_unit(rtso::UnitType utype);
@@ -631,6 +637,7 @@ private:
 	Label *replay_observer_label_ = nullptr; // PlayerViewControl's "Observer Mode"
 	bool replay_view_gaia_ = false;          // Gaia picked (its view is the observer's)
 	bool replay_oos_shown_ = false;          // OutOfSyncReplay has asked
+	uint32_t net_oos_shown_turn_ = 0;        // OutOfSyncNetwork showed this turn (0 none)
 	static constexpr int kReplayViewGaiaId = 100;
 	OptionButton *replay_speed_picker_ = nullptr;
 	Button *replay_pause_btn_ = nullptr;
@@ -693,6 +700,10 @@ private:
 	void stop_replay_recording();
 	bool start_pending_replay();
 	bool load_pending_save();
+	// 0 A.D. "Host Saved Game": the save the host loaded before hosting; Start
+	// then continues it for everyone (host_start_saved_game).
+	String net_saved_game_;
+	void host_start_saved_game();
 	void tick_match_archive();
 	Dictionary statistics_summary() const;
 	Dictionary summary_gui(bool in_game) const;

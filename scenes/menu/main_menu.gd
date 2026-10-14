@@ -82,6 +82,7 @@ var submenu_data = {
 			{"label": "Game Lobby", "tooltip": "%(hotkey)s: Launch the multiplayer lobby to join and host publicly visible games and chat with other players.", "hotkey": "lobby", "action": "open_lobby"},
 			{"label": "Connect by IP", "tooltip": "Joining an existing multiplayer game at a given IP address.", "action": "open_lobby"},
 			{"label": "Host New Game", "tooltip": "Host a new multiplayer game. Other players can connect directly to you via your IP address.", "action": "open_lobby"},
+			{"label": "Host Saved Game", "tooltip": "Continue playing a game from a savegame.", "action": "open_lobby"},
 			{"label": "Replays", "tooltip": "Playback previous games.", "action": "open_replays_mp"}
 		]
 	},

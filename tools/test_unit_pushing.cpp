@@ -31,8 +31,11 @@
 //     siege 50, catafalques 100, others 10.
 // 11. UnitMotion Acceleration (PerformMove): a ram gains speed at 4.2 m/s^2 and a spearman at 35, so
 //     from rest a ram covers a t^2 / 2 for its first 1.7 s and a spearman is at full speed within
-//     0.26 s. Turning past InstantTurnAngle (0.75 rad for siege, 1.5 for infantry) starts it again from
-//     rest; a gentler turn keeps cos(angle) of its speed.
+//     0.26 s. Turning past InstantTurnAngle (0.75 rad for siege, 1.5 for infantry) stops it: it turns
+//     on the spot at its TurnRate (4 rad/s for siege, 14 for infantry) until within that angle, so a
+//     ram sent back the way it came stands for 0.6 s and a spearman for 0.12 s, then starts again from
+//     rest; a gentler turn keeps cos(angle) of its speed. A unit attacking another faces it, and a
+//     trained one faces away from the structure that trained it.
 // 12. A group sent to one point (no formation) gets a point each round it, as Commands.js "walk" does
 //     with DistributeAround: a spiral from 1 m out, rings 1.75 m apart, points 9/pi m apart along a
 //     ring (at the crowd scale, PUSH_SCALE), handed out so that no two units would travel less by swapping.
@@ -332,6 +335,11 @@ int main() {
 		const float a_ram = unit_motion(s->units_.tmpl[ir], UNIT_SIEGE_RAM).acceleration;
 		const float a_spear = unit_motion(s->units_.tmpl[is], UNIT_SPEARMAN).acceleration;
 		const float v_ram = s->unit_move_speed(ir), v_spear = s->unit_move_speed(is);
+		// Both face their way already (spawned units face +z), so neither turns first.
+		for (int i : {ir, is}) {
+			s->units_.heading_x[i] = 1.0f;
+			s->units_.heading_z[i] = 0.0f;
+		}
 		s->cmd_move(&ram, 1, 20.0f, 10.0f);
 		s->cmd_move(&spear, 1, 20.0f, -10.0f);
 		auto speed = [&](int i) { return std::hypot(s->units_.vel_x[i], s->units_.vel_z[i]); };
@@ -356,15 +364,36 @@ int main() {
 		      "a ram from rest covers a t^2 / 2");
 		CHECK(std::fabs(spear_05 - from_rest(a_spear, v_spear, 0.5f)) < 0.03f, "a spearman reaches full speed within 0.26 s");
 		CHECK(ram_v10 < 0.7f * v_ram && std::fabs(ram_v25 - v_ram) < 1e-3f, "the ram reaches full speed after 1.7 s");
-		// Turn back: past InstantTurnAngle, so both start again from rest.
+		// Turn back: past InstantTurnAngle, so both stop, turn on the spot at their TurnRate until
+		// within it, and start again from rest.
 		const float rx = s->units_.pos_x[ir], sx = s->units_.pos_x[is];
-		s->cmd_move(&ram, 1, -20.0f, 10.0f);
+		const UnitMotionProfile &mr = unit_motion(s->units_.tmpl[ir], UNIT_SIEGE_RAM);
+		const UnitMotionProfile &ms = unit_motion(s->units_.tmpl[is], UNIT_SPEARMAN);
+		const float ram_turn = (3.14159265f - mr.instant_turn_angle) / mr.turn_rate;
+		const float spear_turn = (3.14159265f - ms.instant_turn_angle) / ms.turn_rate;
+		s->cmd_move(&ram, 1, -45.0f, 10.0f);
 		s->cmd_move(&spear, 1, -20.0f, -10.0f);
-		s->tick(DT);
-		std::printf("  turned back: the ram moved %.4f in the first tick at %.3f, the spearman %.4f at %.3f\n",
-		            rx - s->units_.pos_x[ir], speed(ir), sx - s->units_.pos_x[is], speed(is));
-		CHECK(std::fabs(speed(ir) - a_ram * DT) < 1e-3f && std::fabs(speed(is) - a_spear * DT) < 1e-3f,
-		      "turning back starts a unit again from rest");
+		int ram_still = 0, spear_still = 0; // ticks before each moves
+		for (int t = 0; t < 20; ++t) {
+			s->tick(DT);
+			if (s->units_.pos_x[ir] == rx) ram_still = t + 1;
+			if (s->units_.pos_x[is] == sx) spear_still = t + 1;
+		}
+		const float ram_back = rx - s->units_.pos_x[ir], spear_back = sx - s->units_.pos_x[is];
+		std::printf("  turned back: the ram stood %d ticks (%.3f s to turn) and went %.4f in 1 s (%.4f expected),"
+		            " the spearman %d (%.3f s) and %.4f (%.4f); headings (%.3f, %.3f) and (%.3f, %.3f)\n",
+		            ram_still, ram_turn, ram_back, from_rest(a_ram, v_ram, 1.0f - ram_turn), spear_still, spear_turn,
+		            spear_back, from_rest(a_spear, v_spear, 1.0f - spear_turn), s->units_.heading_x[ir],
+		            s->units_.heading_z[ir], s->units_.heading_x[is], s->units_.heading_z[is]);
+		CHECK(std::fabs(ram_turn - 0.598f) < 0.01f && std::fabs(spear_turn - 0.117f) < 0.01f,
+		      "turning back takes a ram 0.6 s and a spearman 0.12 s (TurnRate 4 and 14, InstantTurnAngle 0.75 and 1.5)");
+		CHECK(ram_still == (int)(ram_turn / DT) && spear_still == (int)(spear_turn / DT),
+		      "a unit stands while it turns past its InstantTurnAngle");
+		CHECK(std::fabs(ram_back - from_rest(a_ram, v_ram, 1.0f - ram_turn)) < 0.01f &&
+		      std::fabs(spear_back - from_rest(a_spear, v_spear, 1.0f - spear_turn)) < 0.02f,
+		      "then starts again from rest");
+		CHECK(std::fabs(s->units_.heading_x[ir] + 1.0f) < 1e-5f && std::fabs(s->units_.heading_z[ir]) < 1e-5f &&
+		      std::fabs(s->units_.heading_x[is] + 1.0f) < 1e-5f, "and faces its way");
 		// A gentle turn: 30 degrees off a full-speed walk keeps cos(30) of the speed.
 		for (int t = 0; t < 40; ++t) s->tick(DT);
 		const float v0 = speed(ir);
@@ -373,6 +402,39 @@ int main() {
 		const float want = std::min(v_ram, v0 * std::cos(0.5236f) + a_ram * DT);
 		std::printf("  a 30 degree turn at %.3f: %.3f after one tick (%.3f expected)\n", v0, speed(ir), want);
 		CHECK(std::fabs(v0 - v_ram) < 1e-3f && std::fabs(speed(ir) - want) < 2e-3f, "a turn short of InstantTurnAngle keeps cos(angle) of the speed");
+	}
+	{
+		// UnitAI FaceTowardsTarget: an attacker in reach faces its target. Garrisonable.UnLoad: a unit
+		// put out of a structure faces away from it.
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		uint32_t sword = s->spawn_unit(0.0f, 0.0f, 0, UNIT_SWORDSMAN, 0.0f);
+		uint32_t foe = s->spawn_unit(-0.6f, -0.8f, 1, UNIT_SWORDSMAN, 0.0f);
+		const int iw = idx(*s, sword);
+		s->order_attack(&sword, 1, foe);
+		for (int t = 0; t < 4; ++t) s->tick(DT);
+		const int jf = idx(*s, foe);
+		const float fx = s->units_.pos_x[jf] - s->units_.pos_x[iw], fz = s->units_.pos_z[jf] - s->units_.pos_z[iw];
+		const float fl = std::hypot(fx, fz);
+		const float face = (s->units_.heading_x[iw] * fx + s->units_.heading_z[iw] * fz) / fl;
+		std::printf("  an attacker in reach heads (%.3f, %.3f), its target lies (%.3f, %.3f): cos %.4f\n",
+		            s->units_.heading_x[iw], s->units_.heading_z[iw], fx / fl, fz / fl, face);
+		CHECK(face > 0.999f, "an attacker in reach faces its target");
+		const uint32_t bar = s->spawn_building_world(20.0f, -20.0f, BLD_BARRACKS, 0, 1.0f);
+		uint32_t pike = s->spawn_unit(30.0f, -20.0f, 0, UNIT_SPEARMAN, 0.0f);
+		s->order_garrison(&pike, 1, bar);
+		bool inside = false;
+		for (int t = 0; t < 400 && !inside; ++t) {
+			s->tick(DT);
+			inside = !s->units_.alive[idx(*s, pike)];
+		}
+		s->cmd_unload(0, bar, &pike, 1);
+		const int ip = idx(*s, pike);
+		const float ox = s->units_.pos_x[ip] - 20.0f, oz = s->units_.pos_z[ip] + 20.0f, ol = std::hypot(ox, oz);
+		const float away = (s->units_.heading_x[ip] * ox + s->units_.heading_z[ip] * oz) / ol;
+		std::printf("  unloaded at (%.2f, %.2f), heading (%.3f, %.3f): cos %.4f from the barracks' centre\n",
+		            s->units_.pos_x[ip], s->units_.pos_z[ip], s->units_.heading_x[ip], s->units_.heading_z[ip], away);
+		CHECK(inside && s->units_.alive[ip] && away > 0.999f, "a unit unloaded from a structure faces away from it");
 	}
 	{
 		auto s = std::make_unique<Simulation>();

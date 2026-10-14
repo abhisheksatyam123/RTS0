@@ -413,10 +413,13 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 	lines.append("[b]Players: %d/%d[/b]" % [int(room.get("players", 1)), int(room.get("max_players", 8))])
 	var teams := {}
 	var observers := PackedStringArray()
+	var buddy_list := buddies()
 	for p in room.get("player_names", []):
 		var name := str(p.get("name", ""))
+		# gamedescription.js: "• " before a buddy's name.
+		var mark := "• " if buddy_list.has(name) and not p.get("ai", 0) else ""
 		if p.get("observer", 0):
-			observers.append(esc.call(rated_name(name, ratings.get(name))))
+			observers.append(mark + esc.call(rated_name(name, ratings.get(name))))
 			continue
 		var civ := str(p.get("civ", ""))
 		var civ_title := "Random" if civ == "random" else ("Unknown Civilization" if civ == "" else civ)
@@ -432,7 +435,7 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 		var t := int(p.get("team", -1))
 		if not teams.has(t):
 			teams[t] = PackedStringArray()
-		teams[t].append("%s (%s)" % [esc.call(who), ", ".join(parts)])
+		teams[t].append("%s%s (%s)" % [mark, esc.call(who), ", ".join(parts)])
 	var keys := teams.keys()
 	keys.sort()
 	if keys.has(-1):
@@ -520,6 +523,15 @@ static func rating_report(stats: Dictionary, summary: Dictionary, seat: int) -> 
 		"treasuresCollected": stat.call("treasuresCollected"),
 		"lootCollected": stat.call("lootCollected"),
 	}
+
+
+## gamedescription.js g_Buddies: lobby.buddies, comma separated.
+static func buddies() -> PackedStringArray:
+	var out := PackedStringArray()
+	for n in RtsoUserConfig.new().get_value("lobby.buddies").split(","):
+		if n != "":
+			out.append(n)
+	return out
 
 
 # PlayerColor.ColorPlayerName: "name (rating)" once the player has a rating.

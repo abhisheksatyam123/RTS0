@@ -32690,14 +32690,14 @@
       "template": "athen/infantry_spearman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 6,
       "x": -41.61,
       "z": 197.05,
       "template": "athen/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 6,
       "x": -41.05,
       "z": 197.9,

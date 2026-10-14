@@ -7544,7 +7544,7 @@
       "template": "athen/infantry_spearman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 0.99,
       "z": 27.92,
@@ -7579,14 +7579,14 @@
       "template": "athen/support_civilian"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 8,
       "x": 23.25,
       "z": 18.79,
       "template": "athen/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 4,
       "x": 30.51,
       "z": -0.75,
@@ -7635,14 +7635,14 @@
       "template": "athen/support_civilian"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 6,
       "x": 25.47,
       "z": -20.26,
       "template": "athen/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 2,
       "x": 2.73,
       "z": -31.3,
@@ -7691,14 +7691,14 @@
       "template": "athen/infantry_spearman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 7,
       "x": -21.24,
       "z": -24.75,
       "template": "athen/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 3,
       "x": -32.95,
       "z": -0.43,
@@ -7747,7 +7747,7 @@
       "template": "athen/support_civilian"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 5,
       "x": -20.58,
       "z": 27.14,

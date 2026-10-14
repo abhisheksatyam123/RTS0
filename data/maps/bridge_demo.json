@@ -12816,14 +12816,22 @@
       "player": 1,
       "x": 34.44,
       "z": 19.63,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
       "player": 1,
       "x": 32.11,
       "z": 19.13,
-      "template": "athen/infantry_spearman_e"
+      "template": "athen/infantry_spearman_e",
+      "parents": [
+        "athen/infantry_spearman_a",
+        "athen/infantry_spearman_b"
+      ]
     },
     {
       "type": "spearman",
@@ -12858,7 +12866,11 @@
       "player": 2,
       "x": -25.11,
       "z": 31.05,
-      "template": "gaul/infantry_spearman_e"
+      "template": "gaul/infantry_spearman_e",
+      "parents": [
+        "gaul/infantry_spearman_a",
+        "gaul/infantry_spearman_b"
+      ]
     }
   ]
 }
