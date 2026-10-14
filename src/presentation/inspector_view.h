@@ -36,6 +36,7 @@
 #include "l10n.h"
 #include "selection_details.h"
 #include "selection_grid.h"
+#include "template_portraits.h"
 #include "top_panel.h" // rtso::load_ui_texture
 
 class RtsoInspectorHost {
@@ -216,6 +217,7 @@ public:
 		d["title"] = title_->get_text();
 		d["title_tooltip"] = title_->get_tooltip_text();
 		d["portrait_tooltip"] = portrait_->get_tooltip_text();
+		d["portrait"] = portrait_->get_texture().is_valid() ? portrait_->get_texture()->get_path() : godot::String();
 		d["health"] = hp_label_->get_text();
 		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
 		d["stats"] = stats_->get_text();
@@ -332,7 +334,7 @@ public:
 			const uint8_t utype = uv.unit_type[u];
 			const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
-			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
+			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
 			static const char *kRank[] = {"", "", "Advanced ", "Elite "};
 			title_->set_text(rank_prefix(uv.rank[u]) + String::utf8(uinfo.name));
 			class_->set_text(owner_text(uv.team[u]));
@@ -350,7 +352,7 @@ public:
 					(!all && !sim->is_entity_visible_to_viewer(fv.pos_x[f], fv.pos_z[f], owner, vp)))
 				return false;
 			const auto &fi = rtso::fauna_type_info(fv.fauna_type[f]);
-			portrait_->set_texture(Ref<Texture2D>());
+			portrait_->set_texture(rtso::portraits::fauna(fv.fauna_type[f]));
 			title_->set_text(String::utf8(fi.name));
 			class_->set_text(owner_text(owner));
 			health(fv.hp[f], fv.max_hp[f]);
@@ -379,7 +381,7 @@ public:
 				if (b.id == id_) { found = &b; break; }
 			if (!found || found->wrecked || found->hp <= 0.0f) return false;
 			const auto &binfo = rtso::building_type_info(found->type);
-			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
+			portrait_->set_texture(rtso::portraits::structure(found->civ, found->type));
 			title_->set_text(String(binfo.name));
 			class_->set_text(owner_text(found->team));
 			health(found->hp, found->max_hp);
@@ -402,7 +404,7 @@ public:
 			String reward;
 			for (int k = 0; k < 4; ++k)
 				if (ti.amount[k] > 0) reward += (reward.is_empty() ? "" : ", ") + String::num_int64(ti.amount[k]) + " " + kRes[k];
-			portrait_->set_texture(Ref<Texture2D>());
+			portrait_->set_texture(rtso::portraits::treasure(found->type));
 			title_->set_text(String::utf8(ti.name));
 			class_->set_text("Gaia");
 			bar(hp_bar_, hp_label_, false);
@@ -426,7 +428,7 @@ public:
 					: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
 			kind = "Food";
 		}
-		portrait_->set_texture(Ref<Texture2D>());
+		portrait_->set_texture(rtso::portraits::resource(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0));
 		title_->set_text(title);
 		class_->set_text("Gaia");
 		bar(hp_bar_, hp_label_, false);
@@ -507,7 +509,7 @@ public:
 
 			if (found_b) {
 				const auto &binfo = rtso::building_type_info(found_b->type);
-				portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
+				portrait_->set_texture(rtso::portraits::structure(found_b->civ, found_b->type));
 				title_->set_text(String(binfo.name));
 				const uint8_t owner = found_b->team;
 				String owner_name = owner == rtso::GAIA_PLAYER ? String("Gaia")
@@ -611,7 +613,7 @@ public:
 			const uint8_t utype = uview.unit_type[u];
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
-			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
+			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
 
 			// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
 			const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
@@ -691,7 +693,7 @@ public:
 			extra_->set_text(extra);
 		} else {
 			portrait_->set_texture(groups.empty() ? Ref<Texture2D>()
-					: rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(groups.front().unit_type)) + ".png"));
+					: rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
 			title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
 			// displayMultiple's numberOfUnits tooltip: garrison size, carried resources, loot.
 			{

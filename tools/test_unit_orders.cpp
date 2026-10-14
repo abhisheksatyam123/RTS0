@@ -2380,6 +2380,24 @@ static void test_structure_arrows_and_force() {
 	check(s.units_.target_building_id[idx_of(s, violent)] == tower, "a violent one answers even on a forced walk");
 }
 
+static void test_can_patrol() {
+	std::printf("67. support units and civilian ships walk instead of patrolling (UnitAI CanPatrol)\n");
+	Simulation s;
+	setup(s);
+	uint32_t woman = s.spawn_unit(0, 0, 0, UNIT_FEMALE_CITIZEN);
+	uint32_t spartan = s.spawn_unit(0, 4, 0, UNIT_FEMALE_CITIZEN, 0.0f, civ_unit_template_by_id("spart/support_female_citizen"));
+	uint32_t trader = s.spawn_unit(0, 8, 0, UNIT_TRADER);
+	uint32_t soldier = s.spawn_unit(0, -4, 0, UNIT_SPEARMAN);
+	for (uint32_t u : {woman, spartan, trader, soldier}) s.order_patrol(&u, 1, 20, 0);
+	check(s.unit_order(woman).kind == ORDER_WALK, "a woman walks to the point");
+	check(s.unit_order(trader).kind == ORDER_WALK, "so does a trader");
+	check(s.unit_order(spartan).kind == ORDER_PATROL, "a Spartan woman patrols");
+	check(s.unit_order(soldier).kind == ORDER_PATROL, "a soldier patrols");
+	check(run_until(s, 20.0f, [&] { return dist(s, woman, 20, 0) < 2.0f; }), "the woman gets there");
+	run(s, 10.0f);
+	check(dist(s, woman, 20, 0) < 2.0f, "and stays, not walking back");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2573,6 +2591,7 @@ int main(int argc, char **argv) {
 	test_scenery_capture();
 	test_arakamani_temples();
 	test_range_check_between_hits();
+	test_can_patrol();
 	if (g_failures) {
 		std::printf("test_unit_orders: FAIL (%d)\n", g_failures);
 		return 1;
