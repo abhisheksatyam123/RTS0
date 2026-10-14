@@ -585,6 +585,9 @@ def run_observer_case(binary: str, seed: int, speed: float, loss: float, port: i
             p.kill()
             out, _ = p.communicate()
         outs[role], rcs[role] = out, p.returncode
+        # Each peer's whole output, for a failure the summary lines don't explain.
+        with open(os.path.join(out_dir, f"observer_{role}.out"), "w") as f:
+            f.write(out or "")
     def lines(role, tag):
         return peer_lines([outs[role]], tag).get("host" if role == "host" else "join", {})
     rep = lines("obs", "rejoin")

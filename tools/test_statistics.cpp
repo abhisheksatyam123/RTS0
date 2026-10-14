@@ -65,8 +65,16 @@ static void test_kill_credit() {
 	CHECK(stat_unit_classes(UNIT_SPEARMAN, ROSTER_CITIZEN) == ((1u << STAT_UNIT_INFANTRY) | (1u << STAT_UNIT_WORKER)));
 	CHECK(stat_unit_classes(UNIT_SPEARMAN, ROSTER_CHAMPION) == ((1u << STAT_UNIT_INFANTRY) | (1u << STAT_UNIT_CHAMPION)));
 	CHECK(stat_unit_classes(UNIT_MERCHANT_SHIP, 0) == ((1u << STAT_UNIT_SHIP) | (1u << STAT_UNIT_TRADER)));
-	CHECK(stat_building_class(BLD_TOWN_CENTER) == STAT_BLD_CIV_CENTRE);
-	CHECK(stat_building_class(BLD_WALL_SEGMENT) == STAT_BLD_TOTAL);
+	CHECK(stat_building_classes(BLD_TOWN_CENTER) == (1u << STAT_BLD_CIV_CENTRE));
+	CHECK(stat_building_classes(BLD_MILITARY_COLONY) == (1u << STAT_BLD_CIV_CENTRE));
+	CHECK(stat_building_classes(BLD_WALL_SEGMENT) == 0);
+	// 0.28: towers, temples and fields are in no column; docks are Economic and
+	// Military, fortresses Fortress and Military.
+	CHECK(stat_building_classes(BLD_TOWER) == 0 && stat_building_classes(BLD_SENTRY_TOWER) == 0);
+	CHECK(stat_building_classes(BLD_TEMPLE) == 0 && stat_building_classes(BLD_FIELD) == 0);
+	CHECK(stat_building_classes(BLD_DOCK) == ((1u << STAT_BLD_ECONOMIC) | (1u << STAT_BLD_MILITARY)));
+	CHECK(stat_building_classes(BLD_FORTRESS) == ((1u << STAT_BLD_FORTRESS) | (1u << STAT_BLD_MILITARY)));
+	CHECK(stat_building_classes(BLD_MERCENARY_CAMP) == (1u << STAT_BLD_MILITARY));
 }
 
 static void test_tribute_barter() {
@@ -88,6 +96,48 @@ static void test_tribute_barter() {
 	// Barter.js sells through TrySubtractResources, so the sale is also used (the summary
 	// shows used minus sold); a tribute is not (SubtractResourcesOrNotify).
 	CHECK(a.resources_used[RES_FOOD] == 100 && a.resources_used[RES_WOOD] == 0);
+}
+
+static void test_map_measures() {
+	std::printf("map exploration and control\n");
+	Simulation s;
+	s.reset();
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.set_player_active(0, true, false);
+	s.set_player_active(1, true, false);
+	s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(40.0f, -40.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	run(s, 2 * 20);
+	// Whole percentages, as GetTerritoryPercentage and GetPercentMapExplored return them.
+	const float c0 = s.percent_map_controlled(0), c1 = s.percent_map_controlled(1);
+	const float e0 = s.percent_map_explored(0);
+	CHECK(c0 > 0.0f && c0 == std::floor(c0) && c1 > 0.0f);
+	CHECK(e0 > 0.0f && e0 < 100.0f && e0 == std::floor(e0));
+	// Territory cut off from its civic centre is not counted (only connected tiles are).
+	auto tiles = [&](uint8_t owner) {
+		size_t n = 0;
+		for (uint8_t v : s.territory_grid().data) n += v == owner + 1;
+		return n;
+	};
+	const size_t owned = tiles(0);
+	s.spawn_building_world(40.0f, 45.0f, BLD_BARRACKS, 0, 1.0f);
+	run(s, 2 * 20);
+	CHECK(tiles(0) > owned);
+	CHECK(s.percent_map_controlled(0) == c0);
+	// The team columns add the team up only when teams are locked.
+	const uint8_t teams[MAX_PLAYERS] = {1, 1};
+	s.set_setup_teams(teams);
+	CHECK(s.team_percent_map_controlled(0) == c0);
+	CHECK(s.team_percent_map_explored(0) == s.percent_map_explored(0));
+	s.set_lock_teams(true);
+	CHECK(s.team_percent_map_controlled(0) == c0 + c1);
+	CHECK(s.team_percent_map_explored(0) > s.percent_map_explored(0));
+	// Revealed Map shows the map without exploring it; Explored Map explores all of it.
+	const float seen = s.percent_map_explored(0);
+	s.set_reveal_map(true);
+	CHECK(s.percent_map_explored(0) == seen);
+	s.set_explore_map(true);
+	CHECK(s.percent_map_explored(0) == 100.0f);
 }
 
 static bool same(const PlayerStatistics &a, const PlayerStatistics &b) {
@@ -239,6 +289,7 @@ int main() {
 	test_delete_not_lost();
 	test_tribute_barter();
 	test_counts();
+	test_map_measures();
 	test_match();
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;

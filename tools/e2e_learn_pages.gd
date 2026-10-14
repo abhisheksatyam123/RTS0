@@ -41,16 +41,19 @@ func run() -> void:
 	var cat = menu.find_child("CatafalqueOverview", true, false)
 	check(cat != null, "the page opens over the menu")
 	if cat:
-		check(cat.entries.size() == 14, "14 catafalques, one per civ: %d" % cat.entries.size())
+		check(cat.entries.size() == 15, "15 catafalques, one per civ (0.28's Germans too): %d" % cat.entries.size())
 		var athen: Dictionary = cat.entries.filter(func(e): return e["civ"] == 0)[0] if not cat.entries.is_empty() else {}
 		check(str(athen.get("name", "")).contains("Solon"), "the Athenian catafalque is Solon's: " + str(athen.get("name", "")))
 		check(str(athen.get("tooltip", "")).begins_with("Economic Reforms: ") and str(athen.get("tooltip", "")).contains("Economic Fortune: "),
 			"its tooltip lists its auras")
 		check(cat.entries.all(func(e): return e["tooltip"] != "" and e["emblem"] != ""), "every catafalque has auras and an emblem")
+		# 15 round the circle: the first on top, the eighth and ninth either side of the bottom.
 		var first: Control = cat.find_child("Emblem0", true, false)
-		var opposite: Control = cat.find_child("Emblem7", true, false)
-		check(first and opposite and first.position.y < opposite.position.y and absf(first.position.x - opposite.position.x) < 1.0,
-			"the first emblem is at the top of the circle, the eighth at the bottom")
+		var left: Control = cat.find_child("Emblem7", true, false)
+		var right: Control = cat.find_child("Emblem8", true, false)
+		check(first and left and right and first.position.y < left.position.y and absf(left.position.y - right.position.y) < 1.0
+			and absf((left.position.x + right.position.x) / 2.0 - first.position.x) < 1.0,
+			"the first emblem is at the top of the circle, the eighth and ninth either side of the bottom")
 		var img: TextureRect = first.get_child(0) if first else null
 		check(img != null and img.tooltip_text == cat.entries[0]["tooltip"], "hovering an emblem shows its auras")
 		cat.close_page()

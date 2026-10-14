@@ -1,5 +1,4 @@
-// 0 A.D. ResourceTrickle.js: the Wonder (1 of each every 2 s), the Han Imperial Ministry
-// (0.1 wood, stone and metal every 2 s), animals garrisoned in a corral (1, 2 or 3 food
+// 0 A.D. ResourceTrickle.js: the Wonder (1 of each every 2 s), animals garrisoned in a corral (1, 2 or 3 food
 // every 5 s by size, at most 8 animals) and the Ptolemaic team bonus (+1 food a second).
 // Farmsteads and markets trickle nothing. Corrals train their civ's animals. The Persian
 // ice house trickles food, more after Subterranean Aqueducts.
@@ -47,8 +46,8 @@ static void corral_animal(Simulation &s, uint32_t corral, float x, float z, uint
 int main() {
 	static Simulation s;
 
-	// 1. The Wonder pays its owner, any player, 1 of each every 2 s; the Ministry 0.1 wood,
-	//    stone and metal; farmsteads and markets nothing.
+	// 1. The Wonder pays its owner, any player, 1 of each every 2 s; the Han ministry
+	//    (no ResourceTrickle in 0.28), farmsteads and markets nothing.
 	{
 		fresh(s);
 		s.spawn_building_world(30.0f, 30.0f, BLD_WONDER, 1, 1.0f);
@@ -62,7 +61,7 @@ int main() {
 			CHECK(near(s.players_[1].res[r] - p1[r], 5.0f));
 		CHECK(near(s.players_[0].res[RES_FOOD] - p0[RES_FOOD], 0.0f));
 		for (uint8_t r : {RES_WOOD, RES_STONE, RES_GOLD})
-			CHECK(near(s.players_[0].res[r] - p0[r], 0.5f));
+			CHECK(near(s.players_[0].res[r] - p0[r], 0.0f));
 		std::printf("wonder +%.1f of each in 10 s, ministry +%.1f wood\n",
 				s.players_[1].res[RES_WOOD] - p1[RES_WOOD], s.players_[0].res[RES_WOOD] - p0[RES_WOOD]);
 	}
@@ -132,6 +131,8 @@ int main() {
 		fresh(s);
 		const uint32_t c = s.spawn_building_world(-25.0f, -15.0f, BLD_CORRAL, 0, 1.0f); // in the civic centre's territory
 		s.players_[0].res[RES_FOOD] = 1000.0f;
+		CHECK(!s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE)); // cattle need the City Phase
+		s.players_[0].phase = 3;
 		CHECK(s.cmd_breed_livestock(0, c, FAUNA_CATTLE_COW_TRAINABLE));
 		CHECK(near(s.players_[0].res[RES_FOOD], 850.0f));
 		const auto &q = s.buildings_[s.building_id_to_idx_.at(c)].queue;

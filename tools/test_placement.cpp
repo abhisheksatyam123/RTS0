@@ -250,6 +250,42 @@ static void test_unconnected_territory() {
 	(void)fort;
 }
 
+// rome/army_camp (neutral enemy, 80 m from an ArmyCamp), ptol/mercenary_camp (own neutral,
+// 100 m from a MercenaryCamp), kush/camp_noba (own neutral), iber/monument (150 m from a
+// Monument), maur/pillar_ashoka (75 m from a Pillar).
+static void test_camps() {
+	// TerritoryInfluence of the civ's own template: big houses 20 m at 40000, the Iberian tower 38 m.
+	CHECK(std::fabs(structure_territory_influence(BLD_HOUSE, CIV_ATHENIANS).radius - 5.6f) < 1e-4f &&
+		structure_territory_influence(BLD_HOUSE, CIV_ATHENIANS).weight == 40000);
+	CHECK(std::fabs(structure_territory_influence(BLD_HOUSE, CIV_BRITONS).radius - 4.48f) < 1e-4f);
+	CHECK(std::fabs(structure_territory_influence(BLD_TOWER, CIV_IBERIANS).radius - 10.64f) < 1e-4f);
+	static Simulation s;
+	fresh(s);
+	s.spawn_building_world(-40.0f, 40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+	s.spawn_building_world(40.0f, -40.0f, BLD_TOWN_CENTER, 1, 1.0f);
+	s.rebuild_territory();
+	CHECK(at(s, 0, -30.0f, 50.0f, BLD_ARMY_CAMP) == Simulation::PLACE_TERRITORY); // own
+	CHECK(at(s, 0, 30.0f, 50.0f, BLD_ARMY_CAMP) == Simulation::PLACE_OK);         // neutral
+	CHECK(at(s, 0, 50.0f, -52.0f, BLD_ARMY_CAMP) == Simulation::PLACE_OK);        // enemy
+	s.spawn_building_world(30.0f, 50.0f, BLD_ARMY_CAMP, 0, 0.0f);
+	CHECK(at(s, 0, 50.0f, -52.0f, BLD_ARMY_CAMP) == Simulation::PLACE_OK);        // 100 away
+	CHECK(at(s, 0, 50.0f, 40.0f, BLD_ARMY_CAMP) == Simulation::PLACE_DISTANCE);
+	CHECK(at(s, 1, 50.0f, 40.0f, BLD_ARMY_CAMP) == Simulation::PLACE_OK);         // only one's own count
+	CHECK(at(s, 0, -30.0f, 50.0f, BLD_MERCENARY_CAMP) == Simulation::PLACE_OK);
+	CHECK(at(s, 0, 50.0f, 40.0f, BLD_MERCENARY_CAMP) == Simulation::PLACE_OK);
+	CHECK(at(s, 0, 50.0f, -52.0f, BLD_MERCENARY_CAMP) == Simulation::PLACE_TERRITORY);
+	s.spawn_building_world(-30.0f, 50.0f, BLD_MERCENARY_CAMP, 0, 0.0f);
+	CHECK(at(s, 0, -8.0f, 52.0f, BLD_MERCENARY_CAMP) == Simulation::PLACE_DISTANCE);
+	CHECK(at(s, 0, 50.0f, 40.0f, BLD_CAMP_NOBA) == Simulation::PLACE_OK);
+	CHECK(at(s, 0, 50.0f, 40.0f, BLD_MONUMENT) == Simulation::PLACE_TERRITORY);
+	CHECK(at(s, 0, -50.0f, 25.0f, BLD_MONUMENT) == Simulation::PLACE_OK);
+	s.spawn_building_world(-50.0f, 25.0f, BLD_MONUMENT, 0, 0.0f);
+	CHECK(at(s, 0, -20.0f, 30.0f, BLD_MONUMENT) == Simulation::PLACE_DISTANCE);
+	CHECK(at(s, 0, -20.0f, 30.0f, BLD_PILLAR) == Simulation::PLACE_OK);
+	s.spawn_building_world(-20.0f, 30.0f, BLD_PILLAR, 0, 0.0f);
+	CHECK(at(s, 0, -5.0f, 40.0f, BLD_PILLAR) == Simulation::PLACE_DISTANCE);
+}
+
 int main() {
 	static Simulation s;
 	fresh(s);
@@ -331,6 +367,7 @@ int main() {
 	test_foundation_clearing();
 	test_turned_and_freed_ground();
 	test_unconnected_territory();
+	test_camps();
 
 	std::printf("RESULT: %s (%d)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
