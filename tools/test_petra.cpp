@@ -488,6 +488,104 @@ static void test_diplomacy() {
 		CHECK(s->is_defeated(0), "the human is out");
 		CHECK(!s->is_ally(1, 2), "one AI betrays the other once no enemy is left");
 	}
+
+	// init: a mutual ally at the start is an accepted alliance; PlayerDefeated
+	// drops a defeated player's requests.
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(3);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 3, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p != 0);
+		s->set_mutual_ally(1, 2);
+		run_for(*s, 10.0f);
+		CHECK(s->petra_diplo_.received[2].status == PetraReceivedRequest::ACCEPTED,
+		      "a starting mutual ally is recorded as an accepted alliance");
+		s->petra_diplo_.received[0].status = PetraReceivedRequest::WAITING_FOR_TRIBUTE;
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		run_for(*s, 20.0f);
+		std::printf("  init and defeat: defeated %d, ally recorded %d, defeated player's request %d\n", (int)s->is_defeated(0),
+		            (int)s->petra_diplo_.received[2].status, (int)s->petra_diplo_.received[0].status);
+		CHECK(s->is_defeated(0) && s->petra_diplo_.received[0].status == PetraReceivedRequest::NONE,
+		      "a defeated player's request is dropped");
+	}
+
+	// Last Man Standing with unlocked teams: lobby teams only set the starting
+	// alliances, so teammates fall out too once no enemy is left.
+	{
+		auto s = three_player_match(7);
+		s->set_last_man_standing(true);
+		s->players_[1].team = s->players_[2].team = 1;
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		float t = 0.0f;
+		for (; t < 20.0f * 60.0f && s->is_ally(1, 2); t += Simulation::FIXED_STEP) s->tick(Simulation::FIXED_STEP);
+		std::printf("  last man standing, unlocked teams: teammates fall out at %.0fs\n", s->is_ally(1, 2) ? -1.0f : t);
+		CHECK(!s->is_ally(1, 2), "teammates turn on each other when teams are unlocked");
+	}
+
+	// Last Man Standing in a wonder game: an ally with a finished wonder is
+	// betrayed first, even when another ally has more entities (DM:335-348).
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(9);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 9, 4, 96.0f);
+		for (uint8_t p = 0; p < 4; ++p) s->set_player_active(p, true, p != 0);
+		s->set_victory_condition(VICTORY_WONDER);
+		s->set_last_man_standing(true);
+		s->set_mutual_ally(1, 2);
+		s->set_mutual_ally(1, 3);
+		s->set_mutual_ally(2, 3);
+		run_for(*s, 5.0f);
+		auto &u = s->units_;
+		for (size_t i = 0; i < u.count; ++i) if (u.team[i] == 0) u.alive[i] = false;
+		for (auto &b : s->buildings_) if (b.team == 0) b.hp = 0.0f;
+		float t1x = 0.0f, t1z = 0.0f, t2x = 0.0f, t2z = 0.0f, t3x = 0.0f, t3z = 0.0f;
+		for (const auto &b : s->buildings()) {
+			if (b.type != BLD_TOWN_CENTER) continue;
+			if (b.team == 1) { t1x = b.x; t1z = b.z; }
+			if (b.team == 2) { t2x = b.x; t2z = b.z; }
+			if (b.team == 3) { t3x = b.x; t3z = b.z; }
+		}
+		for (int i = 0; i < 50; ++i) s->spawn_unit(t1x + 8.0f + (float)(i % 10), t1z + 8.0f + (float)(i / 10), 1, UNIT_SPEARMAN);
+		for (int i = 0; i < 30; ++i) s->spawn_unit(t2x + 8.0f + (float)(i % 10), t2z + 8.0f + (float)(i / 10), 2, UNIT_SPEARMAN);
+		s->spawn_building_world(t3x * 0.7f, t3z * 0.7f, BLD_WONDER, 3, 1.0f);
+		int first = -1;
+		for (float t = 0.0f; t < 4.0f * 60.0f && first < 0; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			if (s->get_diplomacy(1, 2) != Simulation::DIPLO_ALLY) first = 2;
+			else if (s->get_diplomacy(1, 3) != Simulation::DIPLO_ALLY) first = 3;
+		}
+		std::printf("  last man standing, wonder game: AI 1 turns first on player %d (player 3 has the wonder)\n", first);
+		CHECK(first == 3, "the ally with a finished wonder is betrayed first");
+	}
+
+	// Tribute: 0.28 gives an ally 30% of any resource we have over 200 and it
+	// lacks, our own scarcest included.
+	{
+		auto s = three_player_match(5);
+		s->set_mutual_ally(1, 2);
+		float own[RES_COUNT];
+		own[RES_WOOD] = own[RES_GOLD] = 3000.0f;
+		own[RES_STONE] = own[RES_FOOD] = 1000.0f;
+		for (uint8_t r = 0; r < RES_COUNT; ++r) {
+			s->players_[1].res[r] = own[r];
+			s->players_[2].res[r] = 0.0f;
+		}
+		bool sent = false;
+		for (float t = 0.0f; t < 120.0f && !sent; t += Simulation::FIXED_STEP) {
+			s->tick(Simulation::FIXED_STEP);
+			sent = said_to(*s, 1, 2, PETRA_CHAT_TRIBUTE);
+		}
+		const float stone = s->players_[2].res[RES_STONE], food = s->players_[2].res[RES_FOOD];
+		std::printf("  tribute of our scarcest: AI 2 gets stone %.0f, food %.0f\n", stone, food);
+		CHECK(sent && (stone > 0.0f || food > 0.0f), "our two scarcest resources are tributed too");
+	}
 }
 
 // attackManager.js update(): rushes while any are left, then "Attack" twice
@@ -550,10 +648,11 @@ static void test_attack_plans() {
 		auto s = match(PETRA_BEHAVIOR_AGGRESSIVE);
 		// Fortresses on dry land around its base keep the idle player standing after the Attacks raze its
 		// base (an unmanned fortress shoots only its 10 default arrows, BuildingAI), so there is
-		// still a target to plan the HugeAttack against. The one at (20, 4) keeps Petra's second
-		// Civic Center off the neutral strip below it, as in test_roster_army.
+		// still a target to plan the HugeAttack against. The one at (20, 12) keeps Petra's second
+		// Civic Center off the neutral strip below it and off the way east from Petra's Civic
+		// Center, as in test_roster_army.
 		s->spawn_building_world(24.0f, 37.0f, BLD_FORTRESS, 0, 1.0f);
-		s->spawn_building_world(20.0f, 4.0f, BLD_FORTRESS, 0, 1.0f);
+		s->spawn_building_world(20.0f, 12.0f, BLD_FORTRESS, 0, 1.0f);
 		s->spawn_building_world(6.0f, 22.0f, BLD_FORTRESS, 0, 1.0f);
 		int attack_size = 0, huge_size = 0;
 		std::vector<int> kinds;
@@ -1286,6 +1385,44 @@ static void test_regicide_hero() {
 	CHECK(healing, "an attacked hero below 70% health garrisons in a healing structure");
 }
 
+// victoryManager.js reacts to every Attacked event on the hero: a hurt hero
+// under a tower's arrows, with no unit targeting it, still goes to heal.
+static void test_regicide_hero_tower_fire() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_REGICIDE);
+	s->set_regicide_garrison(true);
+	run_for(*s, 1.0f);
+	auto &u = s->units_;
+	const uint32_t hero = s->regicide_hero(1);
+	CHECK(hero != 0, "regicide gives AI 1 a hero");
+	if (!hero) return;
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = tx * 0.6f, hz = tz * 0.6f;
+	int32_t h = s->lookup_unit(hero);
+	u.pos_x[h] = hx; u.pos_z[h] = hz;
+	const uint32_t stance_hero = hero;
+	s->order_set_stance(&stance_hero, 1, STANCE_STAND_GROUND);
+	s->spawn_building_world(hx + 5.0f, hz + 5.0f, BLD_TOWER, 0, 1.0f);
+	bool hit = false, reacted = false;
+	for (float t = 0.0f; t < 12.0f && !reacted; t += Simulation::FIXED_STEP) {
+		h = s->lookup_unit(hero);
+		if (h < 0 || !u.alive[h]) break;
+		if (u.action_state[h] != ACTION_GARRISONED) u.hp[h] = u.max_hp[h] * 0.6f;
+		s->tick(Simulation::FIXED_STEP);
+		h = s->lookup_unit(hero);
+		if (h < 0) break;
+		hit |= u.attacked_by[h] != 0;
+		reacted = u.order_kind[h] == ORDER_GARRISON || u.action_state[h] == ACTION_GARRISONED || u.stance[h] == STANCE_PASSIVE;
+	}
+	std::printf("  regicide hero under tower fire: hit %s, retreats %s\n", hit ? "yes" : "no", reacted ? "yes" : "no");
+	CHECK(hit && reacted, "a hurt hero under tower fire retreats to heal");
+}
+
 // With RegicideGarrison off the hero can't garrison: victoryManager.js
 // pickCriticalEntRetreatLocation sends it home on foot instead (no garrison
 // order that is refused and retried every turn).
@@ -1827,7 +1964,7 @@ static void test_repairs() {
 	const uint32_t cc_id = cc->id, house_id = house ? house->id : 0;
 	// Enough workers that the builder cap (0.6 of them for a civic centre under 30%) leaves
 	// room for seven repairers whatever foundations are going up at this point.
-	for (int k = 0; k < 8; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	cc->hp = cc->max_hp * 0.25f;
 	if (house) house->hp = house->max_hp * 0.5f;
 	// Most repairers at once over 3 s: a foundation laid where some stand pushes them off for a
@@ -1863,6 +2000,50 @@ static void test_repairs() {
 // researchManager.js update: wanted techs (gather rates, capacities) in any phase,
 // preferred ones (stone and metal rates, arrows, regeneration) from the town phase,
 // then any technology at random from the city phase.
+// researchManager.js parity: Petra finds what any of its researchers offers this civ (Han
+// unlock_spies at the ministry, not the civic centre), pays the player's price and time
+// (no AI research-time bonus: config.js Cheat's Cost/BuildTime reaches no technology),
+// and stops phasing once the phase research has started (ResearchPlan.onStart).
+static void test_research_parity_028() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	const Simulation::Building *cc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) cc = &b;
+	CHECK(cc != nullptr, "Petra has a civic centre");
+	if (!cc) return;
+	const uint32_t cc_id = cc->id;
+	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
+	s->players_[1].civ = CIV_HAN;
+	s->players_[1].phase = 3;
+	std::vector<uint8_t> techs;
+	s->petra_available_techs(techs);
+	const bool spies_before = std::find(techs.begin(), techs.end(), (uint8_t)TECH_UNLOCK_SPIES) != techs.end();
+	s->spawn_building(cx + 9, cz, BLD_MINISTRY, 1);
+	s->petra_available_techs(techs);
+	const bool spies_after = std::find(techs.begin(), techs.end(), (uint8_t)TECH_UNLOCK_SPIES) != techs.end();
+	CHECK(!spies_before && spies_after, "Han Petra researches unlock_spies at the ministry");
+
+	float paid[RES_COUNT], time = 0.0f;
+	s->tech_price(1, TECH_HEALTH_CIVILIANS_01, BLD_HOUSE, paid, time);
+	CHECK(std::fabs(time - tech_info(TECH_HEALTH_CIVILIANS_01).research_time * s->tech_mods(1).bld_research_time[BLD_HOUSE]) < 0.01f,
+		"an AI researches in the player's time");
+
+	s->players_[1].phase = 1;
+	s->players_[1].civ = CIV_ATHENIANS;
+	for (int k = 0; k < 160; ++k) s->spawn_unit(cc->x - 12.0f + (float)(k % 16), cc->z - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
+	const bool phasing = s->petra_phasing();
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	for (int k = 0; k < 5; ++k) s->spawn_building(cx - 12 + 4 * k, cz + 10, BLD_HOUSE, 1);
+	const bool queued = s->cmd_research(1, cc_id, TECH_PHASE_TOWN);
+	std::printf("  research parity: phasing %d, town phase queued %d, phasing while it researches %d\n", phasing, queued, s->petra_phasing());
+	CHECK(phasing && queued && !s->petra_phasing(), "phasing ends once the phase research starts");
+}
+
 static void test_research_choices() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -2163,10 +2344,19 @@ static void test_idle_return() {
 	s->set_victory_condition(VICTORY_ENDLESS);
 	run_for(*s, 20.0f);
 	auto &u = s->units_;
+	// The support worker nearest Petra's civic centre (one off building a far house may have
+	// no short way back).
+	float cx = 0.0f, cz = 0.0f;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { cx = b.x; cz = b.z; }
 	uint32_t uid = 0;
-	for (size_t i = 0; i < u.count && !uid; ++i)
-		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
-	CHECK(uid != 0, "Petra has a villager");
+	float best = 0.0f;
+	for (size_t i = 0; i < u.count; ++i) {
+		if (!u.alive[i] || u.team[i] != 1 || unit_gather_class(u.unit_type[i], u.tmpl[i]) != GATHER_SUPPORT) continue;
+		const float d = (u.pos_x[i] - cx) * (u.pos_x[i] - cx) + (u.pos_z[i] - cz) * (u.pos_z[i] - cz);
+		if (!uid || d < best) { uid = u.id[i]; best = d; }
+	}
+	CHECK(uid != 0, "Petra has a support worker");
 	if (!uid) return;
 	s->cmd_stop(&uid, 1);
 	const int32_t i = s->lookup_unit(uid);
@@ -2196,8 +2386,8 @@ static void test_idle_return_to_wagon() {
 	auto &u = s->units_;
 	uint32_t uid = 0;
 	for (size_t i = 0; i < u.count && !uid; ++i)
-		if (u.alive[i] && u.team[i] == 1 && u.unit_type[i] == UNIT_VILLAGER) uid = u.id[i];
-	CHECK(uid != 0, "Petra has a villager");
+		if (u.alive[i] && u.team[i] == 1 && unit_gather_class(u.unit_type[i], u.tmpl[i]) == GATHER_SUPPORT) uid = u.id[i];
+	CHECK(uid != 0, "Petra has a support worker");
 	if (!uid) return;
 	// No structure of its own takes the load any more.
 	for (auto &b : s->buildings_) if (b.team == 1) b.team = GAIA_PLAYER;
@@ -2252,7 +2442,7 @@ static void test_gather_limits() {
 	for (auto &b : s->buildings_)
 		if (b.team == 1 && b.hp > 0.0f && b.build_progress < 1.0f) s->destroy_building(b);
 	const uint32_t tree_id = r.id[tree], mine_id = r.id[mine];
-	for (int k = 0; k < 16; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
+	for (int k = 0; k < 8; ++k) s->spawn_unit(cc->x - 8.0f + (float)(k % 4), cc->z - 8.0f - (float)(k / 4), 1, UNIT_FEMALE_CITIZEN);
 	auto &u = s->units_;
 	std::vector<uint32_t> workers;
 	for (size_t i = 0; i < u.count; ++i)
@@ -3030,6 +3220,30 @@ static void test_defensive_location() {
 	if (s->petra_find_defensive_location(BLD_SENTRY_TOWER, cx2, cz2))
 		CHECK(std::hypot((float)(cx2 - cx) * Simulation::GRID, (float)(cz2 - cz) * Simulation::GRID) >= 30.0f / 4.0f - 1.0f,
 		      "the next tower keeps 30 m from it");
+
+	// Wonder victory with our wonder up: the frontier rule is dropped and the tower
+	// goes just beyond 50 m of the wonder's footprint, ringing it.
+	{
+		auto w = std::make_unique<Simulation>();
+		w->set_sim_seed(42);
+		w->reset();
+		w->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		w->set_victory_condition(VICTORY_WONDER);
+		run_for(*w, 20.0f);
+		w->petra_pid_ = 1;
+		const float dx = ox - ex, dz = oz - ez, dl = std::hypot(dx, dz);
+		const uint32_t wid = w->spawn_building_world(ox + dx / dl * 14.0f, oz + dz / dl * 14.0f, BLD_WONDER, 1, 1.0f);
+		auto wit = w->building_id_to_idx_.find(wid);
+		CHECK(wit != w->building_id_to_idx_.end(), "a wonder for AI 1");
+		if (wit == w->building_id_to_idx_.end()) return;
+		const auto &wb = w->buildings_[wit->second];
+		int wx = 0, wz = 0;
+		const bool got = w->petra_find_defensive_location(BLD_SENTRY_TOWER, wx, wz);
+		const float px = (float)wx * Simulation::GRID + foot, pz = (float)wz * Simulation::GRID + foot;
+		const float d = std::hypot(px - wb.x, pz - wb.z), dmin = 50.0f / 4.0f + wb.half_size;
+		std::printf("  wonder victory: sentry tower spot %.1f from our wonder (at least %.1f)\n", d, dmin);
+		CHECK(got && d >= dmin - 1.5f && d < dmin + 6.0f, "the tower rings our wonder just beyond 50 m");
+	}
 }
 
 // attackPlan.js addUnits for a raid: every free FastMoving soldier but two, kept back to hunt.
@@ -3508,6 +3722,7 @@ int main() {
 	test_emergency();
 	test_regicide_hero();
 	test_regicide_hero_no_garrison();
+	test_regicide_hero_tower_fire();
 	test_nomad_first_base();
 	test_entity_limit_placement();
 	test_army_answers_attackers();
@@ -3539,6 +3754,7 @@ int main() {
 	test_defend_allies();
 	test_retake_civic_centre();
 	test_research_choices();
+	test_research_parity_028();
 	test_concurrent_attacks();
 	test_fasten_end_game();
 	test_abort_nearest_base();

@@ -56,6 +56,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
 	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
 	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
+	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
 	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
 	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
@@ -155,6 +156,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
 	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
+	ClassDB::bind_method(D_METHOD("has_lobby_client"), &RtsoMain::has_lobby_client);
 	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
 	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
@@ -178,6 +180,10 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
 	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
 	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
+	ClassDB::bind_method(D_METHOD("get_net_nat_state"), &RtsoMain::get_net_nat_state);
+	ClassDB::bind_method(D_METHOD("net_query_stun", "server", "port"), &RtsoMain::net_query_stun);
+	ClassDB::bind_method(D_METHOD("net_hole_punch", "ip", "port"), &RtsoMain::net_hole_punch);
+	ClassDB::bind_method(D_METHOD("net_retarget_host", "ip", "port"), &RtsoMain::net_retarget_host);
 	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
 
 	const StringName cls = get_class_static();
@@ -833,132 +839,7 @@ void RtsoMain::_ready() {
 	// =========================================================================
 	// 2. BOTTOM INSPECTOR PANEL (5-Bar Stack: Health, Capture, XP, Stamina, Aura)
 	// =========================================================================
-	inspector_panel = memnew(Panel);
-	inspector_panel->set_anchor(SIDE_LEFT, 0.0f);
-	inspector_panel->set_anchor(SIDE_RIGHT, 0.0f);
-	inspector_panel->set_anchor(SIDE_TOP, 1.0f);
-	inspector_panel->set_anchor(SIDE_BOTTOM, 1.0f);
-	inspector_panel->set_offset(SIDE_LEFT, 214.0f);
-	inspector_panel->set_offset(SIDE_RIGHT, 730.0f);
-	inspector_panel->set_offset(SIDE_TOP, -198.0f);
-	inspector_panel->set_offset(SIDE_BOTTOM, -10.0f);
-
-	Ref<StyleBoxFlat> insp_style;
-	insp_style.instantiate();
-	insp_style->set_bg_color(Color(0.10f, 0.11f, 0.15f, 0.94f));
-	insp_style->set_corner_radius_all(3);
-	insp_style->set_border_width_all(2);
-	insp_style->set_border_color(Color(0.90f, 0.75f, 0.31f, 1.0f));
-	inspector_panel->add_theme_stylebox_override("panel", insp_style);
-	if (zeroad_theme.is_valid()) inspector_panel->set_theme(zeroad_theme);
-	ui_layer->add_child(inspector_panel);
-
-	inspector_portrait = memnew(TextureRect);
-	inspector_portrait->set_position(Vector2(10, 10));
-	inspector_portrait->set_size(Vector2(84, 84));
-	inspector_portrait->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-	inspector_portrait->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_COVERED);
-	inspector_panel->add_child(inspector_portrait);
-
-	inspector_title = memnew(Label);
-	inspector_title->set_position(Vector2(102, 6));
-	inspector_title->set_size(Vector2(404, 18));
-	inspector_title->add_theme_font_size_override("font_size", 13);
-	inspector_title->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
-	inspector_panel->add_child(inspector_title);
-
-	inspector_class = memnew(Label);
-	inspector_class->set_position(Vector2(102, 24));
-	inspector_class->set_size(Vector2(404, 15));
-	inspector_class->add_theme_font_size_override("font_size", 10);
-	inspector_class->add_theme_color_override("font_color", Color(0.7f, 0.75f, 0.85f));
-	inspector_panel->add_child(inspector_class);
-
-	// Helper lambda to setup 5 inspector bars with PNG icons or fallback text-based glyph icon labels
-	// (0 A.D. gui/session/selection_details.js icon parity: HP/CP/XP/STA/AURA)
-	auto make_insp_bar = [&](ProgressBar *&pbar, Label *&plbl, int y, Color fill_col, const char *glyph_text, const char *icon_path = nullptr) {
-		Label *glyph_lbl = memnew(Label);
-		glyph_lbl->set_position(Vector2(102, y - 2));
-		glyph_lbl->set_size(Vector2(42, 14));
-		glyph_lbl->set_text(glyph_text);
-		glyph_lbl->add_theme_font_size_override("font_size", 9);
-		glyph_lbl->add_theme_color_override("font_color", fill_col);
-		inspector_panel->add_child(glyph_lbl);
-
-		if (icon_path && *icon_path) {
-			Ref<Texture2D> icon_tex = load_tex(icon_path);
-			if (icon_tex.is_valid()) {
-				TextureRect *icon_rect = memnew(TextureRect);
-				icon_rect->set_position(Vector2(102, y - 2));
-				icon_rect->set_size(Vector2(14, 14));
-				icon_rect->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
-				icon_rect->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-				icon_rect->set_texture(icon_tex);
-				inspector_panel->add_child(icon_rect);
-				glyph_lbl->set_visible(false);
-			}
-		}
-
-		pbar = memnew(ProgressBar);
-		pbar->set_position(Vector2(148, y));
-		pbar->set_size(Vector2(358, 11));
-		pbar->set_show_percentage(false);
-
-		Ref<StyleBoxFlat> bg_sb;
-		bg_sb.instantiate();
-		bg_sb->set_bg_color(Color(0.10f, 0.12f, 0.16f, 0.85f));
-		bg_sb->set_corner_radius_all(2);
-		pbar->add_theme_stylebox_override("background", bg_sb);
-
-		Ref<StyleBoxFlat> fg_sb;
-		fg_sb.instantiate();
-		fg_sb->set_bg_color(fill_col);
-		fg_sb->set_corner_radius_all(2);
-		pbar->add_theme_stylebox_override("fill", fg_sb);
-		inspector_panel->add_child(pbar);
-
-		plbl = memnew(Label);
-		plbl->set_position(Vector2(148, y - 1));
-		plbl->set_size(Vector2(358, 13));
-		plbl->add_theme_font_size_override("font_size", 9);
-		plbl->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-		plbl->add_theme_color_override("font_color", Color(0.95f, 0.95f, 0.98f));
-		inspector_panel->add_child(plbl);
-	};
-
-	// 1. Health Bar (Green)
-	make_insp_bar(inspector_hp_bar, inspector_hp_label, 41, Color(0.25f, 0.75f, 0.35f), "HP", "res://assets/textures/ui/icons/insp_health_fg.png");
-	// 2. Capture Points Bar (Cyan / Blue)
-	make_insp_bar(inspector_capture_bar, inspector_capture_label, 54, Color(0.35f, 0.55f, 0.95f), "CP", "res://assets/textures/ui/icons/insp_capture_bar.png");
-	// 3. Veterancy / Experience XP Bar (Gold / Amber)
-	make_insp_bar(inspector_xp_bar, inspector_xp_label, 67, Color(0.95f, 0.75f, 0.20f), "XP", "res://assets/textures/ui/icons/insp_experience_fg.png");
-	// 4. Stamina / Energy Bar (Teal / Mint)
-	make_insp_bar(inspector_stamina_bar, inspector_stamina_label, 80, Color(0.20f, 0.85f, 0.75f), "STA", "res://assets/textures/ui/icons/insp_stamina_fg.png");
-	// 5. Aura Influence Bar (Magenta / Violet) - no public.zip session icon, fallback to text glyph badge
-	make_insp_bar(inspector_aura_bar, inspector_aura_label, 93, Color(0.85f, 0.35f, 0.85f), "AURA", nullptr);
-
-	inspector_stats = memnew(Label);
-	inspector_stats->set_position(Vector2(102, 108));
-	inspector_stats->set_size(Vector2(404, 38));
-	inspector_stats->add_theme_font_size_override("font_size", 10);
-	inspector_stats->add_theme_color_override("font_color", Color(0.85f, 0.88f, 0.95f));
-	inspector_panel->add_child(inspector_stats);
-
-	inspector_extra = memnew(Label);
-	inspector_extra->set_position(Vector2(10, 100));
-	inspector_extra->set_size(Vector2(88, 48));
-	inspector_extra->add_theme_font_size_override("font_size", 9);
-	inspector_extra->add_theme_color_override("font_color", Color(0.4f, 0.95f, 0.6f));
-	inspector_panel->add_child(inspector_extra);
-
-	ungarrison_btn = memnew(Button);
-	ungarrison_btn->set_position(Vector2(10, 150));
-	ungarrison_btn->set_size(Vector2(88, 26));
-	ungarrison_btn->set_text("Ungarrison (Z)");
-	ungarrison_btn->add_theme_font_size_override("font_size", 10);
-	ungarrison_btn->connect("pressed", Callable(this, "_on_ungarrison_pressed"));
-	ungarrison_btn->set_visible(false);
-	inspector_panel->add_child(ungarrison_btn);
+	inspector_.build(this, ui_layer, zeroad_theme, this);
 
 	// 0 A.D. selection_details.js: the "i" button opens the Template Viewer
 	// (gui/reference/viewer) for the selected unit or structure.
@@ -969,12 +850,8 @@ void RtsoMain::_ready() {
 	template_info_btn_->add_theme_font_size_override("font_size", 12);
 	template_info_btn_->set_focus_mode(Control::FOCUS_NONE);
 	template_info_btn_->connect("pressed", Callable(this, "_on_template_info_pressed"));
-	inspector_panel->add_child(template_info_btn_);
+	inspector_.panel()->add_child(template_info_btn_);
 
-	// Multi-selection and garrison icon grids (0 A.D. selection_panels.js).
-	selection_grid_.build(inspector_panel, Vector2(102, 60), Vector2(404, 120), this, "_on_selection_group_clicked", 10, 36.0f);
-	selection_grid_.set_right_click("_on_selection_group_gui_input");
-	garrison_grid_.build(inspector_panel, Vector2(102, 148), Vector2(404, 34), this, "_on_garrison_group_clicked", 12, 30.0f);
 
 	// =========================================================================
 	// 3. COMMAND & ACTION PANEL (Stances, Formations, Training, 8-Slot Queue)
@@ -1686,7 +1563,7 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 	}
 	d["selected"] = selected_ids.size();
 	Array icons;
-	if (GridContainer *g = selection_grid_.grid()) {
+	if (GridContainer *g = inspector_.selection_grid().grid()) {
 		for (int i = 0; i < g->get_child_count(); ++i)
 			if (Button *b = Object::cast_to<Button>(g->get_child(i))) {
 				Dictionary e;
@@ -2589,14 +2466,17 @@ void RtsoMain::quickload() {
 	show_notice(load_game(kQuicksavePath) ? "Quickloaded game" : "Quickload failed");
 }
 
+// PauseControl.js canPause(explicit): an observer who is not the host cannot
+// pause a multiplayer match (resuming their own pause stays allowed).
+bool RtsoMain::can_pause() const {
+	return hotkey_paused_ || !net_lockstep() || turn_mgr_.is_replaying() || local_player() < rtso::MAX_PLAYERS ||
+			net_host_.isHost();
+}
+
 void RtsoMain::toggle_pause() {
-	// PauseControl.js canPause: an observer who is not the host cannot pause a
-	// multiplayer match (resuming their own pause stays allowed).
-	if (!hotkey_paused_ && net_lockstep() && !turn_mgr_.is_replaying() && local_player() >= rtso::MAX_PLAYERS &&
-			!net_host_.isHost())
-		return;
+	if (!can_pause()) return;
 	hotkey_paused_ = !hotkey_paused_;
-	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_ || paused_via_menu);
+	if (net_lockstep()) turn_mgr_.set_local_paused(hotkey_paused_);
 	if (replay_pause_btn_) replay_pause_btn_->set_text(hotkey_paused_ ? "Resume" : "Pause");
 	update_pause_overlay();
 }
@@ -2728,19 +2608,10 @@ void RtsoMain::post_network_chat() {
 	}
 }
 
+// 0 A.D. Menu.toggle: the menu slides open over the running game; only its
+// Pause button (and the pages it opens in single player) pause.
 void RtsoMain::_on_menu_button_pressed() {
-	Node *pause = get_node_or_null(NodePath("PauseMenu"));
-	if (pause) {
-		pause->call("toggle");
-		set_menu_paused(!paused_via_menu);
-	}
-}
-
-// In a networked match the pause menu pauses every peer (0 A.D.
-// NMT_CLIENT_PAUSED); offline it just stops the local sim.
-void RtsoMain::set_menu_paused(bool paused) {
-	paused_via_menu = paused;
-	if (net_lockstep()) turn_mgr_.set_local_paused(paused || hotkey_paused_);
+	if (Node *pause = get_node_or_null(NodePath("PauseMenu"))) pause->call("toggle");
 }
 
 // Template Viewer for the selection: the selected structure, else the first
@@ -3403,7 +3274,7 @@ void RtsoMain::_process(double delta) {
 		if (!hotkey_paused_ && banner_panel) banner_panel->set_visible(false);
 	}
 	update_pause_overlay();
-	if ((paused_via_menu || hotkey_paused_) && !net_lockstep()) return;
+	if (hotkey_paused_ && !net_lockstep()) return;
 	double scaled_delta = delta * game_speed;
 	match_elapsed_time += scaled_delta;
 
@@ -3528,9 +3399,9 @@ void RtsoMain::_process(double delta) {
 	rtso::display_colors::state().viewer = viewer; // DiplomacyColors: g_ViewedPlayer's stances
 	view->set_local_player(viewer);
 	if (viewer < rtso::MAX_PLAYERS) sim->set_fow_viewer(viewer); // an observer reads the revealed grid
-	if (inspected_kind_ == INSPECT_UNIT || inspected_kind_ == INSPECT_FAUNA) {
+	if (inspector_.kind() == RtsoInspectorView::INSPECT_UNIT || inspector_.kind() == RtsoInspectorView::INSPECT_FAUNA) {
 		PackedInt32Array shown = selected_ids;
-		shown.push_back((int32_t)inspected_id_);
+		shown.push_back((int32_t)inspector_.id());
 		view->sync(sim, (float)delta, shown);
 	} else {
 		view->sync(sim, (float)delta, selected_ids);
@@ -3633,7 +3504,7 @@ void RtsoMain::_process(double delta) {
 		if (!sim->pending_petra_chat().empty()) sim->clear_petra_chat();
 	}
 	prune_selection();
-	if (!selected_ids.is_empty() || selected_building_id != 0) inspected_kind_ = INSPECT_NONE;
+	if (!selected_ids.is_empty() || selected_building_id != 0) inspector_.clear();
 	update_inspector();
 	update_command_panel();
 	const auto attacks = sim->take_attacked_events();
@@ -4031,442 +3902,7 @@ void RtsoMain::prune_selection() {
 	selected_ids = kept;
 }
 
-// What a click on (x, z) inspects when it hits nothing of the player's own: another
-// player's unit, an animal, another player's structure or a resource, nearest first by
-// that order, and only what the player sees (units, animals) or has explored.
-bool RtsoMain::inspect_at(const Vector3 &click_pos) {
-	if (!sim) return false;
-	const uint8_t vp = view_player();
-	const bool all = sim->reveal_map() || vp >= rtso::MAX_PLAYERS;
-	auto seen = [&](float x, float z, uint8_t team) { return all || sim->is_entity_visible_to_viewer(x, z, team, vp); };
-	auto explored = [&](float x, float z) { return all || sim->fow_state_at(x, z, vp) != rtso::Simulation::FOW_UNEXPLORED; };
-	auto pick = [&](uint8_t kind, uint32_t id) {
-		inspected_kind_ = kind;
-		inspected_id_ = id;
-		return true;
-	};
-	const float cx = click_pos.x, cz = click_pos.z;
-	{
-		auto uv = sim->units();
-		size_t best = (size_t)-1;
-		float best_d2 = 1.4f * 1.4f;
-		for (size_t i = 0; i < uv.count; ++i) {
-			if (!uv.alive[i] || uv.team[i] == local_player() || !seen(uv.pos_x[i], uv.pos_z[i], uv.team[i])) continue;
-			const float dx = uv.pos_x[i] - cx, dz = uv.pos_z[i] - cz, d2 = dx * dx + dz * dz;
-			if (d2 < best_d2) { best_d2 = d2; best = i; }
-		}
-		if (best != (size_t)-1) return pick(INSPECT_UNIT, uv.id[best]);
-	}
-	{
-		auto fv = sim->fauna();
-		size_t best = (size_t)-1;
-		float best_d2 = 1.6f * 1.6f;
-		for (size_t f = 0; f < fv.count; ++f) {
-			if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED) continue;
-			if (!seen(fv.pos_x[f], fv.pos_z[f], fv.owner ? fv.owner[f] : rtso::GAIA_PLAYER)) continue;
-			const float dx = fv.pos_x[f] - cx, dz = fv.pos_z[f] - cz, d2 = dx * dx + dz * dz;
-			if (d2 < best_d2) { best_d2 = d2; best = f; }
-		}
-		if (best != (size_t)-1) return pick(INSPECT_FAUNA, fv.id[best]);
-	}
-	for (const auto &b : sim->buildings()) {
-		if (b.team == local_player() || b.wrecked || !explored(b.x, b.z)) continue;
-		const float hr = (b.hu > 0.0f ? std::max(b.hu, b.hv) : b.half_size) + 0.4f;
-		const float dx = b.x - cx, dz = b.z - cz;
-		if (dx * dx + dz * dz <= hr * hr) return pick(INSPECT_BUILDING, b.id);
-	}
-	{
-		auto rv = sim->resources();
-		size_t best = (size_t)-1;
-		float best_d2 = 1.3f * 1.3f;
-		for (size_t r = 0; r < rv.count; ++r) {
-			if (!rv.alive[r] || rv.subtype[r] == rtso::RES_SUB_GRAIN || !explored(rv.x[r], rv.z[r])) continue;
-			const float dx = rv.x[r] - cx, dz = rv.z[r] - cz, d2 = dx * dx + dz * dz;
-			if (d2 < best_d2) { best_d2 = d2; best = r; }
-		}
-		if (best != (size_t)-1) return pick(INSPECT_RESOURCE, rv.id[best]);
-	}
-	inspected_kind_ = INSPECT_NONE;
-	return false;
-}
-
-namespace {
-String inspect_armour(float hack, float pierce, float crush) {
-	return "Armor: " + String::num(hack, 0) + " hack, " + String::num(pierce, 0) + " pierce, " + String::num(crush, 0) + " crush";
-}
-String flora_title(uint8_t flora) {
-	static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",
-		"Berry Bush", "Apple Tree", "Date Palm", "Carob", "Poplar", "Fan Palm", "Beech", "Dead Tree", "Cypress",
-		"Aleppo Pine", "Fir", "Tropical Bush", "Olive", "Banyan", "Tropical Palm", "Maple", "Juniper", "Teak"};
-	return flora < sizeof(kNames) / sizeof(kNames[0]) ? String(kNames[flora]) : String("Tree");
-}
-} // namespace
-
-bool RtsoMain::fill_inspected_details() {
-	if (!sim || inspected_kind_ == INSPECT_NONE) return false;
-	const uint8_t vp = view_player();
-	const bool all = sim->reveal_map() || vp >= rtso::MAX_PLAYERS;
-	auto bar = [](ProgressBar *pb, Label *lbl, bool on, float value = 0.0f, float max = 1.0f, const String &text = String()) {
-		pb->set_visible(on);
-		lbl->set_visible(on);
-		if (!on) return;
-		pb->set_max(max > 0.0f ? max : 1.0f);
-		pb->set_value(value);
-		lbl->set_text(text);
-	};
-	auto owner_text = [&](uint8_t owner) {
-		return owner >= rtso::MAX_PLAYERS ? String("Gaia")
-				: player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
-	};
-	auto health = [&](float hp, float max) {
-		bar(inspector_hp_bar, inspector_hp_label, max > 0.0f, hp, max,
-				"Health: " + String::num((double)hp, 0) + " / " + String::num((double)max, 0));
-	};
-	bar(inspector_capture_bar, inspector_capture_label, false);
-	bar(inspector_xp_bar, inspector_xp_label, false);
-	bar(inspector_aura_bar, inspector_aura_label, false);
-	inspector_extra->set_text("");
-
-	if (inspected_kind_ == INSPECT_UNIT) {
-		auto uv = sim->units();
-		size_t u = 0;
-		for (; u < uv.count; ++u)
-			if (uv.id[u] == inspected_id_) break;
-		if (u == uv.count || !uv.alive[u] || (!all && !sim->is_entity_visible_to_viewer(uv.pos_x[u], uv.pos_z[u], uv.team[u], vp)))
-			return false;
-		const uint8_t utype = uv.unit_type[u];
-		const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
-		const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
-		inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
-		static const char *kRank[] = {"", "", "Advanced ", "Elite "};
-		inspector_title->set_text(String(kRank[std::min(std::max(1, (int)uv.rank[u]), 3)]) + String::utf8(uinfo.name));
-		inspector_class->set_text(owner_text(uv.team[u]));
-		health(uv.hp[u], uv.max_hp[u]);
-		String stats;
-		if (uinfo.attack_damage > 0.0f) stats = "Attack: " + String::num(uinfo.attack_damage, 1) + ", interval " + String::num(uinfo.attack_cooldown, 2) + " s\n";
-		inspector_stats->set_text(stats + inspect_armour(uinfo.hack_armor, uinfo.pierce_armor, uinfo.crush_armor));
-		return true;
-	}
-	if (inspected_kind_ == INSPECT_FAUNA) {
-		auto fv = sim->fauna();
-		size_t f = 0;
-		for (; f < fv.count; ++f)
-			if (fv.id[f] == inspected_id_) break;
-		const uint8_t owner = f < fv.count && fv.owner ? fv.owner[f] : rtso::GAIA_PLAYER;
-		if (f == fv.count || !fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED ||
-				(!all && !sim->is_entity_visible_to_viewer(fv.pos_x[f], fv.pos_z[f], owner, vp)))
-			return false;
-		const auto &fi = rtso::fauna_type_info(fv.fauna_type[f]);
-		inspector_portrait->set_texture(Ref<Texture2D>());
-		inspector_title->set_text(String::utf8(fi.name));
-		inspector_class->set_text(owner_text(owner));
-		health(fv.hp[f], fv.max_hp[f]);
-		String stats;
-		if (fi.attack_damage() > 0.0f) stats = "Attack: " + String::num(fi.attack_damage(), 1) + ", interval " + String::num(fi.attack_cooldown, 2) + " s\n";
-		inspector_stats->set_text(stats + inspect_armour(fi.hack_armor, fi.pierce_armor, fi.crush_armor));
-		if (fv.food_amount[f] > 0) inspector_extra->set_text("Food: " + String::num_int64(fv.food_amount[f]));
-		return true;
-	}
-	if (inspected_kind_ == INSPECT_BUILDING) {
-		const rtso::Simulation::Building *found = nullptr;
-		for (const auto &b : sim->buildings())
-			if (b.id == inspected_id_) { found = &b; break; }
-		if (!found || found->wrecked || found->hp <= 0.0f) return false;
-		const auto &binfo = rtso::building_type_info(found->type);
-		inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
-		inspector_title->set_text(String(binfo.name));
-		inspector_class->set_text(owner_text(found->team));
-		health(found->hp, found->max_hp);
-		if (found->max_capture_points > 0.0f)
-			bar(inspector_capture_bar, inspector_capture_label, true, found->capture_points, found->max_capture_points,
-					"Capture points: " + String::num((double)found->capture_points, 0) + " / " + String::num((double)found->max_capture_points, 0));
-		inspector_stats->set_text(found->build_progress < 1.0f
-				? "Construction: " + String::num((double)(found->build_progress * 100.0f), 0) + "%" : String());
-		return true;
-	}
-	// A resource: its kind and what is left (selection_details.js resourceSupply).
-	auto rv = sim->resources();
-	size_t r = 0;
-	for (; r < rv.count; ++r)
-		if (rv.id[r] == inspected_id_) break;
-	if (r == rv.count || !rv.alive[r] || rv.amount[r] <= 0) return false;
-	String title, kind;
-	switch (rv.type[r]) {
-	case rtso::RES_WOOD: title = flora_title(rv.flora ? rv.flora[r] : 0); kind = "Wood"; break;
-	case rtso::RES_GOLD: title = rv.subtype[r] == rtso::RES_SUB_RUINS ? "Ruins" : "Metal Mine"; kind = "Metal"; break;
-	case rtso::RES_STONE: title = rv.subtype[r] == rtso::RES_SUB_RUINS ? "Ruins" : "Stone Quarry"; kind = "Stone"; break;
-	default:
-		title = rv.subtype[r] == rtso::RES_SUB_MEAT ? String("Carcass") : rv.subtype[r] == rtso::RES_SUB_FISH ? String("Fish")
-				: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
-		kind = "Food";
-	}
-	inspector_portrait->set_texture(Ref<Texture2D>());
-	inspector_title->set_text(title);
-	inspector_class->set_text("Gaia");
-	bar(inspector_hp_bar, inspector_hp_label, false);
-	inspector_stats->set_text(kind + ": " + String::num_int64(rv.amount[r]) + "\nGatherers: up to " +
-			String::num_int64(sim->resource_max_gatherers(rv.id[r])));
-	return true;
-}
-
-// The player's own selected livestock (0 A.D. livestock are units): one animal's details,
-// or a count for several. False when the selection holds anything else.
-bool RtsoMain::fill_livestock_details() {
-	if (!sim || selected_ids.is_empty()) return false;
-	for (int s = 0; s < selected_ids.size(); ++s)
-		if (!sim->fauna_selectable_by(local_player(), (uint32_t)selected_ids[s])) return false;
-	const uint8_t keep_kind = inspected_kind_;
-	const uint32_t keep_id = inspected_id_;
-	inspected_kind_ = INSPECT_FAUNA;
-	inspected_id_ = (uint32_t)selected_ids[0];
-	const bool ok = fill_inspected_details();
-	inspected_kind_ = keep_kind;
-	inspected_id_ = keep_id;
-	if (ok && selected_ids.size() > 1) inspector_title->set_text(String::num_int64(selected_ids.size()) + " animals selected");
-	return ok;
-}
-
-void RtsoMain::update_inspector() {
-	if (!inspector_panel) return;
-	auto show_bar = [](ProgressBar *bar, Label *lbl, bool v) {
-		bar->set_visible(v);
-		lbl->set_visible(v);
-	};
-	auto set_bar = [&](ProgressBar *bar, Label *lbl, float value, float max, const String &text) {
-		show_bar(bar, lbl, true);
-		bar->set_max(max > 0.0f ? max : 1.0f);
-		bar->set_value(value);
-		lbl->set_text(text);
-	};
-	auto armour_text = [](float hack, float pierce, float crush) {
-		return "Armor: " + String::num(hack, 0) + " hack, " + String::num(pierce, 0) + " pierce, " + String::num(crush, 0) + " crush";
-	};
-	// The stamina bar has no 0 A.D. counterpart.
-	show_bar(inspector_stamina_bar, inspector_stamina_label, false);
-	// Each grid shows if a branch below asks for it; the guard applies the
-	// result once, whichever way update_inspector returns.
-	bool show_selection_grid = false, show_garrison_grid = false;
-	struct GridVisibility {
-		RtsoSelectionGrid &sel, &gar;
-		bool &show_sel, &show_gar;
-		~GridVisibility() {
-			sel.set_visible(show_sel);
-			gar.set_visible(show_gar);
-		}
-	} grid_visibility{selection_grid_, garrison_grid_, show_selection_grid, show_garrison_grid};
-
-	if (selected_building_id != 0) {
-		const rtso::Simulation::Building *found_b = nullptr;
-		for (const auto &b : sim->buildings()) {
-			if (b.id == selected_building_id) { found_b = &b; break; }
-		}
-
-		if (found_b) {
-			const auto &binfo = rtso::building_type_info(found_b->type);
-			inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
-			inspector_title->set_text(String(binfo.name));
-			const uint8_t owner = found_b->team;
-			String owner_name = owner == rtso::GAIA_PLAYER ? String("Gaia")
-					: player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
-			inspector_class->set_text(owner_name + (found_b->garrison_cap > 0
-					? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
-					: String()));
-
-			set_bar(inspector_hp_bar, inspector_hp_label, found_b->hp, found_b->max_hp,
-					"Health: " + String::num((double)found_b->hp, 0) + " / " + String::num((double)found_b->max_hp, 0));
-
-			if (found_b->max_capture_points > 0.0f)
-				set_bar(inspector_capture_bar, inspector_capture_label, found_b->capture_points, found_b->max_capture_points,
-						"Capture points: " + String::num((double)found_b->capture_points, 0) + " / " + String::num((double)found_b->max_capture_points, 0));
-			else
-				show_bar(inspector_capture_bar, inspector_capture_label, false);
-
-			if (found_b->build_progress < 1.0f) {
-				set_bar(inspector_xp_bar, inspector_xp_label, found_b->build_progress, 1.0f,
-						"Construction: " + String::num((double)(found_b->build_progress * 100.0f), 0) + "%");
-			} else if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT && found_b->upgrade_duration > 0.0f) {
-				set_bar(inspector_xp_bar, inspector_xp_label, found_b->upgrade_timer, found_b->upgrade_duration,
-						"Upgrading to " + String(rtso::building_type_name(found_b->upgrade_to)) + " (" +
-						String::num(found_b->upgrade_duration - found_b->upgrade_timer, 0) + " s left)");
-			} else if (const uint8_t rt = rtso::Simulation::researching(*found_b); rt != rtso::TECH_NONE && found_b->queue.front().duration > 0.0f) {
-				const rtso::ProductionOrder &po = found_b->queue.front();
-				set_bar(inspector_xp_bar, inspector_xp_label, po.timer, po.duration,
-						"Researching " + String::utf8(rtso::tech_info(rt).name) + " (" +
-						String::num(po.duration - po.timer, 0) + " s left)");
-			} else {
-				show_bar(inspector_xp_bar, inspector_xp_label, false);
-			}
-			show_bar(inspector_aura_bar, inspector_aura_label, false);
-
-			String status;
-			if (rtso::is_gate_type(found_b->type))
-				status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
-			else if (!found_b->queue.empty())
-				status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
-						" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (right-click a slot to cancel)";
-			if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
-				status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
-						String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
-						String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-			inspector_stats->set_text(status);
-			// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
-			const int penned = found_b->type == rtso::BLD_CORRAL ? sim->corral_count(found_b->id) : 0;
-			String extra = found_b->has_rally_point ? "Rally point set" : "";
-			if (penned > 0)
-				extra += String(extra.is_empty() ? "" : "\n") + "Penned animals: " + String::num_int64(penned) + " / " +
-						String::num_int64(rtso::CORRAL_GARRISON_MAX);
-			inspector_extra->set_text(extra);
-
-			// Garrison panel: one icon per unit type inside, click to unload one,
-			// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
-			// structure only our own units inside (Commands.js unload / unload-all-by-owner).
-			const std::vector<uint32_t> mine = sim->unloadable_by(local_player(), found_b->id);
-			if (!mine.empty()) {
-				auto uview = sim->units();
-				garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
-						"Click to unload one, Shift+click to unload all of this type.");
-				show_garrison_grid = true;
-			}
-			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-			ungarrison_btn->set_visible(!mine.empty() || (penned > 0 && owner == local_player()));
-			inspector_panel->set_visible(true);
-			return;
-		}
-	}
-
-	if (selected_ids.is_empty()) {
-		ungarrison_btn->set_visible(false);
-		if (inspected_kind_ != INSPECT_NONE && !fill_inspected_details()) inspected_kind_ = INSPECT_NONE;
-		inspector_panel->set_visible(inspected_kind_ != INSPECT_NONE);
-		return;
-	}
-	if (fill_livestock_details()) {
-		ungarrison_btn->set_visible(false);
-		inspector_panel->set_visible(true);
-		return;
-	}
-	auto uview = sim->units();
-	const uint32_t *ids = (const uint32_t *)selected_ids.ptr();
-	const auto groups = RtsoSelectionGrid::group_units(uview, ids, selected_ids.size());
-	float hp_sum = 0, hp_max_sum = 0;
-	for (const auto &g : groups) {
-		hp_sum += g.hp;
-		hp_max_sum += g.max_hp;
-	}
-	set_bar(inspector_hp_bar, inspector_hp_label, hp_sum, hp_max_sum,
-			"Health: " + String::num((double)hp_sum, 0) + " / " + String::num((double)hp_max_sum, 0));
-	show_bar(inspector_capture_bar, inspector_capture_label, false);
-
-	if (selected_ids.size() == 1 && !groups.empty()) {
-		size_t u = 0;
-		for (; u < uview.count; ++u)
-			if (uview.id[u] == (uint32_t)selected_ids[0]) break;
-		if (u == uview.count) {
-			inspector_panel->set_visible(false);
-			return;
-		}
-		const uint8_t utype = uview.unit_type[u];
-		const uint16_t tmpl = uview.tmpl ? uview.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
-		const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
-		inspector_portrait->set_texture(load_tex("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
-
-		// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
-		const int rank = std::max(1, (int)uview.rank[u]);
-		static const char *kRank[] = {"", "", "Advanced ", "Elite "};
-		const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
-		const String name = String(kRank[std::min(rank, 3)]) +
-				rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
-		inspector_title->set_text(name);
-		const uint8_t owner = uview.team[u];
-		inspector_class->set_text(player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
-				") - Kills: " + String::num_int64(uview.kills[u]));
-
-		// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
-		if (const float need = sim->promotion_required_xp(u); need > 0.0f) {
-			set_bar(inspector_xp_bar, inspector_xp_label, (float)uview.xp[u], need,
-					"Experience: " + String::num_int64(uview.xp[u]) + " / " + String::num(need, 0));
-		} else {
-			show_bar(inspector_xp_bar, inspector_xp_label, false);
-		}
-
-		String auras;
-		if (tmpl != rtso::CIV_UNIT_TEMPLATE_NONE) {
-			for (int16_t a : rtso::civ_unit_template(tmpl).auras) {
-				if (a < 0) continue;
-				if (!auras.is_empty()) auras += ", ";
-				auras += String::utf8(rtso::civ_hero_aura(a).name);
-			}
-		}
-		if (!auras.is_empty()) set_bar(inspector_aura_bar, inspector_aura_label, 1.0f, 1.0f, "Auras: " + auras);
-		else show_bar(inspector_aura_bar, inspector_aura_label, false);
-
-		// Attack and armour (gui/common/tooltips.js getAttackTooltip / getArmorTooltip).
-		String stats;
-		if (uinfo.attack_damage > 0.0f) {
-			String dmg;
-			auto add = [&](float v, const char *kind) {
-				if (v <= 0.0f) return;
-				if (!dmg.is_empty()) dmg += ", ";
-				dmg += String::num(v, 1) + " " + kind;
-			};
-			add(uinfo.hack_damage, "hack");
-			add(uinfo.pierce_damage, "pierce");
-			add(uinfo.crush_damage, "crush");
-			if (dmg.is_empty()) dmg = String::num(uinfo.attack_damage, 1);
-			stats = "Attack: " + dmg + ", interval " + String::num(uinfo.attack_cooldown, 2) + " s";
-			if (uinfo.attack_range > 2.5f) stats += ", range " + String::num(uinfo.attack_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
-			stats += "\n";
-		}
-		stats += armour_text(uinfo.hack_armor, uinfo.pierce_armor, uinfo.crush_armor);
-		inspector_stats->set_text(stats);
-
-		static const char *kRes[] = {"wood", "metal", "stone", "food"};
-		String extra;
-		uint32_t route_a = 0, route_b = 0;
-		int route_leg = 0;
-		if (rtso::unit_is_trader(uview.unit_type[u]) &&
-				sim->trader_route(uview.id[u], route_a, route_b, route_leg)) {
-			// selection_details.js: a trader shows its goods and their total gain.
-			const rtso::Simulation::Building *ma = nullptr, *mb = nullptr;
-			for (const auto &bb : sim->buildings()) {
-				if (bb.id == route_a) ma = &bb;
-				if (bb.id == route_b) mb = &bb;
-			}
-			if (ma && mb) {
-				const auto g = sim->calculate_trade_gain(*ma, *mb, uview.team[u], uview.unit_type[u]);
-				const uint8_t goods = uview.res_type_carried[u];
-				extra = "Trading " + String(goods < rtso::RES_COUNT ? kRes[goods] : "goods") + ", gain " +
-						String::num_int64(g.trader + g.market1 + g.market2) + " (" + String::num_int64(g.trader) +
-						" to you)";
-			} else {
-				extra = "Trade route lost";
-			}
-		} else if (uview.carry[u] > 0 && uview.res_type_carried[u] < rtso::RES_COUNT)
-			extra = "Carrying " + String::num_int64(uview.carry[u]) + " " + kRes[uview.res_type_carried[u]];
-		if (sim->is_transport((uint32_t)selected_ids[0])) {
-			const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
-			extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
-			ungarrison_btn->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-			ungarrison_btn->set_visible(p_count > 0);
-		} else {
-			ungarrison_btn->set_visible(false);
-		}
-		inspector_extra->set_text(extra);
-	} else {
-		inspector_portrait->set_texture(groups.empty() ? Ref<Texture2D>()
-				: load_tex("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(groups.front().unit_type)) + ".png"));
-		inspector_title->set_text(String::num_int64(selected_ids.size()) + " units selected");
-		inspector_class->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
-		show_bar(inspector_xp_bar, inspector_xp_label, false);
-		show_bar(inspector_aura_bar, inspector_aura_label, false);
-		inspector_stats->set_text("");
-		inspector_extra->set_text("");
-		ungarrison_btn->set_visible(false);
-		selection_grid_.update(groups, "Click to select only these, Ctrl+click or right-click to deselect them.");
-		show_selection_grid = true;
-	}
-	inspector_panel->set_visible(true);
-}
+void RtsoMain::update_inspector() { inspector_.update(); }
 
 // Multi-selection icon click (0 A.D. selection_panels.js Selection.execute):
 // select only that group, or drop it with session.deselectgroup (Ctrl).
@@ -5266,7 +4702,8 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		roster_list->set_visible(roster_list->get_item_count() > 0);
 		return;
 	}
-	for (uint16_t i : rtso::civ_roster_ids(civ)) {
+	// A shrine trains its own civ's Elite Healer (units/{native}/support_healer_e).
+	for (uint16_t i : rtso::civ_roster_ids(b->type == rtso::BLD_SHRINE ? b->civ : civ)) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
 		// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
@@ -5943,7 +5380,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 							if (hit_bld != 0) {
 								selected_building_id = hit_bld;
 								if (!is_shift) selected_ids.clear();
-							} else if (!is_ctrl && inspect_at(click_pos)) {
+							} else if (!is_ctrl && inspector_.inspect_at(click_pos)) {
 								// Another player's unit or structure, an animal or a resource:
 								// selected for its details only (0 A.D. EntitySelection).
 								selected_ids.clear();
@@ -6984,7 +6421,10 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 		// 0 A.D. template stem ("bear_brown" / "fauna_bear_brown"); older maps use deer/boar/sheep/wolf.
 		uint8_t ftype = rtso::fauna_type_by_name(ftype_str.utf8().get_data());
 		if (ftype >= rtso::FAUNA_COUNT) ftype = rtso::FAUNA_DEER;
-		sim->spawn_fauna(fx, fz, ftype);
+		// A player's livestock carries its owner (map player 1 is slot 0).
+		const int fp = (int)f.get("player", 0);
+		const uint8_t owner = fp <= 0 ? rtso::GAIA_PLAYER : (uint8_t)std::min(fp - 1, rtso::MAX_PLAYERS - 1);
+		sim->spawn_fauna(fx, fz, ftype, owner);
 	}
 	// 0 A.D. gaia/treasure/* and gaia/ruins/* by template stem (tools/port_0ad_maps.py).
 	Array treasure_arr = d.get("treasures", Array());
@@ -7035,9 +6475,12 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
 			continue;
 		}
-		const uint8_t btype = map_building_type(b.get("type", ""));
+		// structures/shrine_* and trading_post_*: their own types, keeping the template's civ.
+		const rtso::GaiaStructureTemplate gt = rtso::gaia_structure_template(String(b.get("template", "")).utf8().get_data());
+		const uint8_t btype = gt.type < rtso::BLD_TYPE_COUNT ? gt.type : map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+		if (gt.type < rtso::BLD_TYPE_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());
@@ -7248,6 +6691,10 @@ void RtsoMain::_start_menu_net() {
 	if (lobby_btn) lobby_btn->set_visible(true);
 	if (mode == "host") _on_lobby_host_pressed();
 	else _on_lobby_join_pressed();
+	// tools/playtest_godot_mp.py --firewall: each peer drops datagrams from
+	// endpoints it never sent to, as a NAT does, so only a hole punch lets
+	// the other side in.
+	if (OS::get_singleton()->get_cmdline_user_args().has("net_firewall=1")) net_host_.set_simulated_firewall(true);
 }
 
 Dictionary RtsoMain::get_lobby_state() const {
@@ -7273,6 +6720,31 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
 	d["chat"] = chat_window_.log_text();
 	return d;
+}
+
+Dictionary RtsoMain::get_net_nat_state() const {
+	Dictionary d;
+	d["stun"] = net_host_.stunState();
+	d["public_ip"] = String(net_host_.publicIp().c_str());
+	d["public_port"] = (int)net_host_.publicPort();
+	d["local_ip"] = String(net_host_.lanIp().c_str());
+	d["local_port"] = (int)net_host_.localPort();
+	return d;
+}
+
+void RtsoMain::net_query_stun(const String &server, int port) {
+	if (port <= 0 || port > 65535 || server.is_empty()) return;
+	net_host_.queryStun(server.utf8().get_data(), (uint16_t)port);
+}
+
+void RtsoMain::net_hole_punch(const String &ip, int port) {
+	if (port <= 0 || port > 65535) return;
+	net_host_.holePunch(ip.utf8().get_data(), (uint16_t)port);
+}
+
+void RtsoMain::net_retarget_host(const String &ip, int port) {
+	if (port <= 0 || port > 65535 || net_game_started_) return;
+	net_host_.retargetHost(ip.utf8().get_data(), (uint16_t)port);
 }
 
 int64_t RtsoMain::get_turn_hash(int64_t turn) const {

@@ -11,6 +11,7 @@
 #include "cell_set.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "map_biomes_data.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
 #include "tutorial_data.h"
@@ -373,7 +374,7 @@ public:
 	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
 	bool can_capture_relic(size_t i, int32_t r) const;
 	bool unit_can_target_building(size_t i, uint8_t building_type) const {
-		return combat_can_target(unit_combat_at(i), building_combat(building_type));
+		return structure_has_health(building_type) && combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
 	uint16_t unit_template(uint32_t unit_id) const;
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
@@ -491,6 +492,8 @@ public:
 			float rot = DEFAULT_BUILDING_ROT);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
+	void set_building_civ(uint32_t building_id, uint8_t civ);
 	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
 	uint32_t spawn_relic(float x, float z, int civ_pick = -1); // civ_pick: which catafalque (-1: from the id)
 	std::vector<std::pair<float, float>> relic_spawn_points() const; // TriggerHelper.GetLandSpawnPoints
@@ -914,6 +917,11 @@ public:
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
+	// The Game Setup biome a random map takes: the override when the map's 0.28 SupportedBiomes
+	// list it (map_biomes_data.h), else -1 and the map keeps its own biome.
+	int map_biome_pick(int type) const {
+		return biome_override_ >= 0 && (map_supported_biomes(type) >> biome_override_ & 1u) ? biome_override_ : -1;
+	}
 	// 0 A.D. Team Placement (TEAM_PLACEMENT_*) for the random maps that offer it
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
@@ -1661,6 +1669,9 @@ public:
 		uint8_t pad[3];
 	};
 	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	// A treasure's facing (radians), fixed by its id; the world view draws it so and its
+	// Obstruction/Static rectangle blocks foundations along it.
+	static float treasure_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
 	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
@@ -2969,7 +2980,7 @@ private:
 	uint32_t nearest_dropsite(size_t i) const;
 	bool attack_target_hidden(size_t i, size_t t) const;
 	void deposit_carry(size_t i);
-	void finish_order(size_t i);
+	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;

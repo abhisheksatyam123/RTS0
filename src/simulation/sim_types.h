@@ -479,7 +479,11 @@ enum BuildingType : uint8_t {
 	BLD_GREAT_HALL = 66,      // germ/great_hall (Town phase; champions and the ram)
 	BLD_WAGON_ENCAMPMENT = 67, // germ/encampment (a Colony that claims no territory; researches Wagon Trains)
 	BLD_WAGON_ENCAMPMENT_FORTIFIED = 68, // germ/encampment_fortified (its City-phase Upgrade; also trains the log ram)
-	BLD_TYPE_COUNT = 69
+	// Gaia structures maps place and nobody builds (mixins/shrine.xml, mixins/trading_post.xml):
+	// no Health (captured, never destroyed), no territory; the building's civ is its template's.
+	BLD_SHRINE = 69,          // structures/shrine_* (a temple: trains its civ's Elite Healer)
+	BLD_TRADING_POST = 70,    // structures/trading_post_* (a market for trade and barter)
+	BLD_TYPE_COUNT = 71
 };
 
 #include "civ_building_data.h"
@@ -502,6 +506,37 @@ inline constexpr uint8_t building_research_base(uint8_t type) {
 	       : (type == BLD_EMBASSY_IBERIAN || type == BLD_EMBASSY_ITALIC) ? (uint8_t)BLD_EMBASSY : type;
 }
 
+// Health disable="" (mixins/shrine.xml, mixins/trading_post.xml): attacks can't damage the
+// structure (Attack.js CanAttack needs Health), so it changes hands only by capture.
+inline constexpr bool structure_has_health(uint8_t type) {
+	return type != BLD_SHRINE && type != BLD_TRADING_POST;
+}
+
+// The Gaia shrine or trading post a map's structures/<stem> template places, and its
+// Identity/Civ (structures/shrine_*.xml, trading_post_*.xml); BLD_TYPE_COUNT for others.
+struct GaiaStructureTemplate { const char *stem; uint8_t type; uint8_t civ; };
+inline GaiaStructureTemplate gaia_structure_template(const char *tpl) {
+	static const GaiaStructureTemplate kRows[] = {
+		{"shrine_celtic", BLD_SHRINE, CIV_GAULS}, {"shrine_chinese", BLD_SHRINE, CIV_HAN},
+		{"shrine_egyptian", BLD_SHRINE, CIV_PTOLEMIES}, {"shrine_greek_01", BLD_SHRINE, CIV_MACEDONIANS},
+		{"shrine_greek_02", BLD_SHRINE, CIV_MACEDONIANS}, {"shrine_italian", BLD_SHRINE, CIV_ROMANS},
+		{"shrine_kushite", BLD_SHRINE, CIV_KUSHITES}, {"shrine_persian", BLD_SHRINE, CIV_PERSIANS},
+		{"trading_post_celtic", BLD_TRADING_POST, CIV_GAULS}, {"trading_post_desert", BLD_TRADING_POST, CIV_PERSIANS},
+	};
+	const char *stem = tpl;
+	for (const char *c = tpl; *c; ++c)
+		if (*c == '/') stem = c + 1;
+	for (const auto &r : kRows)
+		if (std::strcmp(r.stem, stem) == 0) return r;
+	return {"", BLD_TYPE_COUNT, CIV_GAIA};
+}
+
+// 0 A.D. Market component with TradeType land and class Barter: the market and the Gaia
+// trading post (mixins/trading_post.xml keeps template_structure_economic_market's).
+inline constexpr bool is_land_market(uint8_t type) {
+	return type == BLD_MARKET || type == BLD_TRADING_POST;
+}
+
 // 0 A.D. class CivCentre: the Civic Center and its Han Imperial Court form (a
 // territory root, a dropsite for every resource, a conquest-critical base).
 inline constexpr bool is_civic_centre(uint8_t type) {
@@ -517,7 +552,7 @@ inline constexpr bool is_conquest_critical(uint8_t type) {
 		case BLD_OUTPOST: case BLD_PALISADE: case BLD_WALL_TOWER: case BLD_THEATER: case BLD_AMPHITHEATER:
 		case BLD_LIBRARY: case BLD_MONUMENT: case BLD_PILLAR: case BLD_PYRAMID_LARGE: case BLD_PYRAMID_SMALL:
 		case BLD_LIGHTHOUSE: case BLD_ICE_HOUSE: case BLD_TOWER_GREAT: case BLD_PALISADE_GATE:
-		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE:
+		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: case BLD_TRADING_POST:
 			return false;
 		default:
 			return type < BLD_TYPE_COUNT;
@@ -1000,16 +1035,9 @@ inline bool unit_is_siege_engine(uint8_t type) {
 // body (unit_collision_radius) and 0 A.D.'s crowd lengths scale by PUSH_SCALE, which puts two
 // villagers left alone 1.4 units apart as before.
 inline constexpr float PUSH_SCALE = 5.0f / 6.0f; // RTS0 units per 0 A.D. metre in a crowd
+inline constexpr float PUSH_CLEARANCE_PER_RADIUS = 0.8f * PUSH_SCALE / 0.5f;
 inline float unit_push_clearance(uint8_t type) {
-	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
-}
-
-// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines, elephants (war
-// and worker: template_unit_elephant, template_unit_support_elephant) and the supply wagon.
-// A heavy unit pushes harder and is harder to push.
-inline float unit_push_weight(uint8_t type) {
-	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT || type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON
-		? 50.0f : 10.0f;
+	return unit_collision_radius(type) * PUSH_CLEARANCE_PER_RADIUS;
 }
 
 // 0 A.D. ResourceDropsite on a unit: the Mauryan worker elephant (template_unit_support_elephant)
@@ -1455,7 +1483,7 @@ inline uint8_t building_phase_class(uint8_t type, uint8_t civ = 0xFF) {
 			return 1;
 		case BLD_MARKET: case BLD_TEMPLE: case BLD_FORGE: case BLD_EMBASSY: case BLD_ARMY_CAMP:
 		case BLD_TEMPLE_VESTA: case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_GEROUSIA: case BLD_GYMNASIUM:
-		case BLD_MONUMENT: case BLD_SUPER_DOCK:
+		case BLD_MONUMENT: case BLD_SUPER_DOCK: case BLD_TRADING_POST: // a shrine is -Town
 			return 2;
 		case BLD_ARSENAL: return civ == CIV_MACEDONIANS ? 2 : 0;
 		case BLD_ELEPHANT_STABLE: return civ == CIV_MAURYANS ? 2 : 0;
@@ -1615,6 +1643,10 @@ inline bool building_researches_tech(uint8_t type, uint8_t tech_id, uint8_t civ)
 	case BLD_WAGON_ENCAMPMENT: case BLD_WAGON_ENCAMPMENT_FORTIFIED:
 		return r == BLD_WAGON_ENCAMPMENT || (r == BLD_TOWN_CENTER && tech_id != TECH_PHASE_TOWN
 		                                     && tech_id != TECH_PHASE_CITY && tech_id != TECH_HELLENISTIC_METROPOLIS);
+	// mixins/shrine.xml: Researcher disable="". mixins/trading_post.xml drops the market's trade
+	// technologies (trader_health, trade_gain_01/02, trade_commercial_treaty).
+	case BLD_SHRINE: return false;
+	case BLD_TRADING_POST: return tech_id == TECH_UNLOCK_SHARED_LOS || tech_id == TECH_UNLOCK_SHARED_DROPSITES;
 	default: return r == building_research_base(type);
 	}
 }
@@ -1685,8 +1717,8 @@ inline float building_garrison_heal(uint8_t type) {
 		// and germ/encampment BuffHeal 1
 		case BLD_TOWN_CENTER: case BLD_CORRAL: case BLD_MINISTRY: case BLD_MILITARY_COLONY:
 		case BLD_WAGON_ENCAMPMENT: return 1.0f;
-		// kush/temple_amun, rome/temple_mars and rome/temple_vesta keep template_structure_civic_temple's 3
-		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: return 3.0f;
+		// kush/temple_amun, rome/temple_mars, rome/temple_vesta and the shrines keep template_structure_civic_temple's 3
+		case BLD_TEMPLE: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_MARS: case BLD_TEMPLE_VESTA: case BLD_SHRINE: return 3.0f;
 		case BLD_WONDER: return 5.0f;
 		default: return 0.0f;
 	}
@@ -1731,11 +1763,11 @@ inline TechClasses building_tech_classes(uint8_t type) {
 		case BLD_FARMSTEAD: return c | TC_FARMSTEAD;
 		case BLD_FIELD: return c | TC_FIELD;
 		case BLD_CORRAL: return c | TC_CORRAL;
-		case BLD_MARKET: return c | TC_MARKET;
+		case BLD_MARKET: case BLD_TRADING_POST: return c | TC_MARKET;
 		case BLD_FORTRESS: return c | TC_FORTRESS | TC_DEFENSIVE;
 		case BLD_GATE: case BLD_WALL_SEGMENT: case BLD_PALISADE: case BLD_PALISADE_GATE:
 		case BLD_SIEGE_WALL: case BLD_SIEGE_WALL_GATE: return c | TC_WALL | TC_DEFENSIVE;
-		case BLD_TEMPLE: return c | TC_TEMPLE | TC_CIVIC;
+		case BLD_TEMPLE: case BLD_SHRINE: return c | TC_TEMPLE | TC_CIVIC;
 		case BLD_WONDER: return c | TC_WONDER;
 		case BLD_DOCK: return c | TC_DOCK;
 		case BLD_STABLE: case BLD_ELEPHANT_STABLE: return c | TC_STABLE;
@@ -1791,7 +1823,7 @@ inline GarrisonClassList structure_garrison_list(uint8_t type, uint8_t civ) {
 		case BLD_LIBRARY: case BLD_ASSEMBLY: case BLD_PALACE: case BLD_LIGHTHOUSE: case BLD_MILITARY_COLONY:
 		case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA: case BLD_TEMPLE_AMUN: case BLD_TEMPLE_VESTA:
 		case BLD_TEMPLE_MARS: case BLD_TACHARA_FOOD: case BLD_TACHARA_WOOD: case BLD_TACHARA_STONE:
-		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL:
+		case BLD_TACHARA_METAL: case BLD_WAGON_ENCAMPMENT: case BLD_GREAT_HALL: case BLD_SHRINE:
 			add(SUP); add(INF); add(CAV); break; // template_structure_civic_civil_centre, _special, ...
 		case BLD_HOUSE: case BLD_APARTMENT: add(SUP, TC_ELEPHANT); break; // Support+!Elephant
 		case BLD_BARRACKS: case BLD_RANGE: case BLD_MERCENARY_CAMP: case BLD_WALL_TOWER: add(INF); break;
@@ -2183,6 +2215,22 @@ inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
 	if (type == UNIT_CATAFALQUE || type == UNIT_WAGON) return true;
 	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
+}
+
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines, every elephant
+// (template_unit_elephant and the champion, hero and support elephants) and the supply wagon,
+// three times for chariots (mixins/chariot: the champion and hero chariots) and ten times for
+// catafalques (template_unit_catafalque). A heavy unit pushes harder and is harder to push.
+// Every roster row with the Siege, Elephant or Chariot class has one of these unit types, or is a
+// hero, whose row's classes say what it rides (test_unit_pushing checks every row); pushing reads
+// this for every unit every tick, so the rest never touch the roster table.
+inline uint16_t unit_push_weight(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_CATAFALQUE) return 100;
+	if (unit_is_siege_engine(type) || type == UNIT_ELEPHANT || type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON) return 50;
+	if (type == UNIT_CHARIOT || type == UNIT_SCYTHED_CHARIOT) return 30;
+	if (type != UNIT_HERO || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return 10;
+	const TechClasses c = civ_unit_template(tmpl).tech_classes;
+	return (c & TC_ELEPHANT) != 0 ? 50 : (c & TC_CHARIOT) != 0 ? 30 : 10;
 }
 
 // How close a unit's centre comes to a building: its passability class Clearance. Ships keep
