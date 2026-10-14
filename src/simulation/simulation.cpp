@@ -12895,6 +12895,42 @@ void Simulation::unit_resistance(size_t i, float out[3]) const {
 		for (int k = 0; k < 3; ++k) out[k] += WALL_TURRET_ARMOR;
 }
 
+Simulation::UnitDetails Simulation::unit_details(size_t i) const {
+	// RTS0 scales 0 A.D. distances (ranged x COMBAT_DISTANCE_SCALE, melee reach x0.6) and walk
+	// speeds (x0.356); the details divide them back out, as the reference pages do.
+	constexpr float kMeleeRangeScale = 0.6f, kSpeedScale = 0.356f;
+	UnitDetails d;
+	if (i >= units_.count) return d;
+	const uint8_t ut = units_.unit_type[i];
+	const uint16_t tmpl = units_.tmpl[i];
+	const auto &info = unit_info_at(i);
+	if (info.attack_damage > 0.0f) {
+		unit_attack_effects(i, d.damage);
+		d.interval = info.attack_cooldown;
+		d.ranged = template_has_ranged_attack(tmpl, ut, civ_of(units_.team[i]));
+		d.max_range = units_.attack_range[i] / (d.ranged ? COMBAT_DISTANCE_SCALE : kMeleeRangeScale);
+		d.min_range = d.max_range * unit_min_range_ratio(ut);
+	}
+	d.capture = unit_capture_attack_at(i);
+	unit_resistance(i, d.resistance);
+	d.walk = unit_walk_speed(i) / kSpeedScale;
+	d.run = d.walk * unit_run_multiplier(i);
+	const uint8_t gcls = unit_gather_class(ut, tmpl);
+	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
+		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
+		for (uint8_t k = 0; k < 7; ++k) d.gather[k] = gather_class_rate(gcls, k) * m.gather[k] * ai_gather_mult(units_.team[i]);
+	}
+	if (units_.res_type_carried[i] < RES_COUNT) d.carry_max = carry_cap(i, units_.res_type_carried[i]);
+	if (unit_is_healer(tmpl, ut)) {
+		d.heal_hp = heal_amount_of(i);
+		d.heal_range = healer_range_of(i) / COMBAT_DISTANCE_SCALE;
+		d.heal_interval = units_.team[i] < MAX_PLAYERS
+			? HEAL_INTERVAL_S * std::max(0.1f, tech_mods(units_.team[i]).heal_interval[UNIT_HEALER]) : HEAL_INTERVAL_S;
+	}
+	d.loot = unit_loot(tmpl, ut);
+	return d;
+}
+
 // 0 A.D. helpers/Attack.js CauseDamageOverArea: every entity of a player the
 // attack hurts (its enemies, everyone with FriendlyFire) within the Splash Range
 // of where the attack landed, the attacked target included, takes the Splash
