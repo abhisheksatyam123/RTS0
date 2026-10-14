@@ -4,11 +4,11 @@
  "civs": {
   "athen": {
    "name": "Athenians",
-   "history": "As the cradle of Western civilization and the birthplace of democracy, Athens was famed as a center for the arts, learning and philosophy. The Athenians were also powerful warriors, particularly at sea. At its peak, Athens dominated a large part of the Hellenic world for several decades."
+   "history": "The Greek city-state of Athens is remembered as a famed center for the arts, learning, and philosophy, as well as one of the earliest forms of democracy. That wasn't to say that they weren't warriors. Athens at its height had one of the most powerful navies in the ancient world and through conquering and colonizing built a vast empire.\\nAncient Athens rose to an imperial power after defeating the invading Persians twice in the early fifth century BC and fell in 330 BC, when they lost the Battle of Chaeronea to King Phillip II of Macedonia. While after that it never rose again to power, Athens still was renowned for its learning and its scholars were well sought out as teachers."
   },
   "spart": {
    "name": "Spartans",
-   "history": "Sparta was a prominent city-state in ancient Greece, and its dominant military power on land from circa 650 B.C. Spartan culture was obsessed with military training and excellence, with rigorous training for boys beginning at age seven. Thanks to its military might, Sparta led a coalition of Greek forces during the Greco-Persian Wars, and won over Athens in the Peloponnesian Wars, though at great cost."
+   "history": "Sparta was a prominent city-state in Ancient Greece, and its dominant military power started in the 7th century BC. It peaked after the Peloponnesian Wars in the late fifth century BC but declined soon after, ending when they lost to Thebes in the battle of Leuctra in 371 BC.\\nSpartan culture was obsessed with military training; all Spartan boys were drafted into strict training at age seven, and their military service lasted until they were sixty. All trades were done by their serfs, the Helots. Spartans lived a strict and minimalistic lifestyle, separate from many of the other civilizations, due to reforms such as iron money, which were given by Lycurgus, the legendary lawgiver."
   },
   "pers": {
    "name": "Persians",
@@ -20,7 +20,7 @@
   },
   "cart": {
    "name": "Carthaginians",
-   "history": "Carthage, a city-state in modern-day Tunisia, was a formidable force in the western Mediterranean, eventually taking over much of North Africa and modern-day Spain in the third century B.C. The sailors of Carthage were among the fiercest contenders on the high seas, and masters of naval trade. They deployed towered War Elephants on the battlefield to fearsome effect, and had defensive walls so strong, they were never breached."
+   "history": "Carthage, a city-state in modern-day Tunisia, was a formidable force in the western Mediterranean, eventually taking over much of North Africa and modern-day Spain in the third century BC. The sailors of Carthage were among the fiercest contenders on the high seas, and masters of naval trade. They deployed towered War Elephants on the battlefield to fearsome effect, and had defensive walls so strong, they were never breached."
   },
   "mace": {
    "name": "Macedonians",
@@ -40,11 +40,11 @@
   },
   "maur": {
    "name": "Mauryas",
-   "history": "Founded in 322 B.C. by Chandragupta Maurya, the Mauryan Empire was the first to rule most of the Indian subcontinent, and was one of the largest and most populous empires of antiquity. Its military featured bowmen who used the long-range bamboo longbow, fierce female warriors, chariots, and thousands of armored war elephants. Its philosophers, especially the famous Acharya Chanakya, contributed to such varied fields such as economics, religion, diplomacy, warfare, and good governance. Under the rule of Ashoka the Great, the empire saw 40 years of peace, harmony, and prosperity."
+   "history": "Founded in 322 BC by Chandragupta Maurya, the Mauryan Empire was the first to rule most of the Indian subcontinent, and was one of the largest and most populous empires of antiquity. Its military featured bowmen who used the long-range bamboo longbow, fierce female warriors, chariots, and thousands of armored war elephants. Its philosophers, especially the famous Acharya Chanakya, contributed to such varied fields such as economics, religion, diplomacy, warfare, and good governance. Under the rule of Ashoka the Great, the empire saw 40 years of peace, harmony, and prosperity."
   },
   "kush": {
    "name": "Kushites",
-   "history": "The Kingdom of Kush was an ancient African kingdom situated on the confluences of the Blue Nile, White Nile and River Atbara in what is now the Republic of Sudan. The Kushite era of rule in the region was established after the Bronze Age collapse of the New Kingdom of Egypt, and it was centered at Napata in its early phase. They invaded Egypt in the 8th century BC, and the Kushite emperors ruled as Pharaohs of the Twenty-fifth dynasty of Egypt for a century, until they were expelled by the Assyrians. Kushite culture was influenced heavily by the Egyptians, with Kushite pyramid building and monumental temple architecture still extent. The Kushites even worshipped many Egyptian gods, including Amun. During Classical antiquity, the Kushite imperial capital was at Meroe. In early Greek geography, the Meroitic kingdom was known as Aethiopia. The Kushite kingdom persisted until the 4th century AD, when it weakened and disintegrated due to internal rebellion, eventually succumbing to the rising power of Axum."
+   "history": "The Kingdom of Kush was an African kingdom located at the confluences of the Blue Nile, White Nile, and River Atbara, in present-day Sudan. It rose following the collapse of Egypt's New Kingdom, with its early capital at Napata. In the 8th century BC, the Kushites invaded Egypt and established the Twenty-fifth dynasty, ruling as Pharaohs until expelled by the Assyrians. The capital moved to Meroe, the center of the Meroitic kingdom known as Aethiopia in Greek geography. Weakened due to internal rebellion, The kingdom lasted until the 4th century AD and was overtaken by the Kingdom of Axum. Influenced by Egyptian culture, the Kushites built throughout their reign pyramids and temples and worshipped gods like Amun."
   },
   "ptol": {
    "name": "Ptolemies",
@@ -56,7 +56,7 @@
   },
   "han": {
    "name": "Han",
-   "history": "The Han dynasty (206 BC – AD 220) was the second imperial dynasty of China, preceded by the Qin dynasty (221–207 BC) and succeeded by the Three Kingdoms period (AD 220–280). It is considered a golden age in Chinese history, and China made significant progress in arts and sciences during the Han period. The core of the Han empire was around the Wei River, and the Han capital was Chang'an, very close to the Qin capital Xianyang (both are now part of Xi'an, Shaanxi)."
+   "history": "The Han dynasty was the second imperial dynasty of China. Founded by the commoner Liu Bang, the empire lasted from 202 BC to AD 220 with a short break from AD 9 to AD 23 when Wang Mang took the throne, making it the longest imperial dynasty in Chinese history. The Han dynasty was a period of relative peace, as well as cultural and technological growth, and for that reason is considered the first \"Golden Age of China\". The name of today's largest ethnic group in the world, the Han Chinese, derives from this very period."
   },
   "germ": {
    "name": "Germans",
@@ -95,7 +95,7 @@
   "athen/champion_infantry": {
    "generic_name": "City Guard",
    "specific_name": "Epílektos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -136,7 +136,7 @@
   },
   "athen/champion_ranged": {
    "generic_name": "Scythian Archer",
-   "specific_name": "Toxótēs Skythikós",
+   "specific_name": "Speusínios",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -177,7 +177,7 @@
   "athen/hero_pericles": {
    "generic_name": "Pericles",
    "specific_name": "Periklēs",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -376,7 +376,7 @@
   "athen/infantry_spearman_b": {
    "generic_name": "Athenian Hoplite",
    "specific_name": "Hoplítēs Athēnaîos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -418,7 +418,7 @@
   "athen/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Triḗrēs Athēnaía",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -454,7 +454,7 @@
   "athen/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Triḗrēs Athēnaía",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -467,7 +467,7 @@
   "athen/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Pentēkóntoros",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -631,7 +631,7 @@
   "spart/cavalry_spearman_b": {
    "generic_name": "Greek Allied Cavalry",
    "specific_name": "Hippeús Symmakhikós",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -645,7 +645,7 @@
   "spart/champion_infantry_spear": {
    "generic_name": "Spartan Hoplite",
    "specific_name": "Spartiátēs",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -698,7 +698,7 @@
   "spart/hero_agis": {
    "generic_name": "Agis III",
    "specific_name": "Agis",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -726,7 +726,7 @@
   "spart/hero_leonidas": {
    "generic_name": "Leonidas I",
    "specific_name": "Leōnidēs",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -779,7 +779,7 @@
   "spart/infantry_spearman_b": {
    "generic_name": "Perioikoi Hoplite",
    "specific_name": "Hoplítēs Períoikos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -818,7 +818,7 @@
   "spart/infantry_spearman_neodamodes": {
    "generic_name": "Neodamodes Hoplite",
    "specific_name": "Neodamōdeis",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -832,7 +832,7 @@
   "spart/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Dierēs",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -868,7 +868,7 @@
   "spart/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Triḗrēs",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -881,7 +881,7 @@
   "spart/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Pentēkóntoros",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -1055,7 +1055,7 @@
   "pers/cavalry_spearman_b": {
    "generic_name": "Cappadocian Cavalry",
    "specific_name": "Asabāra Katpatuka",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -1069,7 +1069,7 @@
   "pers/champion_cavalry": {
    "generic_name": "Bactrian Heavy Lancer",
    "specific_name": "Asabāra Baxtriš",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -1126,7 +1126,7 @@
   "pers/champion_infantry": {
    "generic_name": "Persian Immortal",
    "specific_name": "Anušiya",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -1268,7 +1268,7 @@
   "pers/infantry_spearman_b": {
    "generic_name": "Shield Bearer",
    "specific_name": "Sparabara",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -1310,7 +1310,7 @@
   "pers/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Hamaraniyanava Vazarka",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -1346,7 +1346,7 @@
   "pers/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Hamaraniyanava Vazarka",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -1359,7 +1359,7 @@
   "pers/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Hamaraniyanava",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -1499,7 +1499,7 @@
   "rome/cavalry_spearman_b": {
    "generic_name": "Roman Cavalry",
    "specific_name": "Eques Rōmānus",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -1527,7 +1527,7 @@
   "rome/champion_infantry_spear_gladiator": {
    "generic_name": "Gladiator Spearman",
    "specific_name": "Hoplomachus",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -1929,7 +1929,7 @@
   "rome/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Trirēmis Rōmāna",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -1965,7 +1965,7 @@
   "rome/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Quadrirēmis Rōmāna",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -1978,7 +1978,7 @@
   "rome/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Liburna",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -1991,7 +1991,7 @@
   "rome/ship_siege": {
    "generic_name": "Siege Ship",
    "specific_name": "Quīnquerēmis Rōmāna",
-   "tooltip": "Garrison units for transport across water. Good against Arrow Ships and Structures.",
+   "tooltip": "Garrison units for transport across water. Good against Ships and Structures.",
    "history": "",
    "classes": [
     "Ship",
@@ -2016,7 +2016,7 @@
   "rome/siege_onager_packed": {
    "generic_name": "Siege Catapult",
    "specific_name": "Onager",
-   "tooltip": "An area of effect siege unit unlocked by Marian Reforms.",
+   "tooltip": "",
    "history": "",
    "classes": [
     "Siege",
@@ -2165,7 +2165,7 @@
   "cart/cavalry_spearman_ital_b": {
    "generic_name": "Italic Cavalry",
    "specific_name": "Ḥayyāl Romaḥ Raḫūv",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -2210,7 +2210,7 @@
   "cart/champion_cavalry": {
    "generic_name": "Sacred Band Cavalry",
    "specific_name": "Sacred Band of Astarte",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -2237,7 +2237,7 @@
   "cart/champion_infantry": {
    "generic_name": "Sacred Band Infantry",
    "specific_name": "Sacred Band of Ba'al",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -2429,7 +2429,7 @@
   "cart/infantry_spearman_b": {
    "generic_name": "Libyan Spearman",
    "specific_name": "Sǝḫīr Ḥanīt",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -2566,7 +2566,7 @@
   "cart/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Tlat-Mašōt",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -2602,7 +2602,7 @@
   "cart/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Tlat-Mašōt",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -2615,7 +2615,7 @@
   "cart/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Du-Mašōt",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -2628,7 +2628,7 @@
   "cart/ship_siege": {
    "generic_name": "Siege Ship",
    "specific_name": "Ḥameš-Mašōt",
-   "tooltip": "Garrison units for transport across water. Good against Arrow Ships and Structures.",
+   "tooltip": "Garrison units for transport across water. Good against Ships and Structures.",
    "history": "",
    "classes": [
     "Ship",
@@ -2799,7 +2799,7 @@
   "mace/cavalry_spearman_b": {
    "generic_name": "Thessalian Lancer",
    "specific_name": "Xystophóros Thessalikós",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -2813,7 +2813,7 @@
   "mace/champion_cavalry": {
    "generic_name": "Companion Cavalry",
    "specific_name": "Hetaîros",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -2841,7 +2841,7 @@
   "mace/champion_infantry_spearman": {
    "generic_name": "Macedonian Shield Bearer",
    "specific_name": "Hypaspistḗs",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -2993,7 +2993,7 @@
   "mace/infantry_pikeman_b": {
    "generic_name": "Foot Companion",
    "specific_name": "Pezétairos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -3074,7 +3074,7 @@
   "mace/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Tetrērēs",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -3110,7 +3110,7 @@
   "mace/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Triḗrēs Makedonikḗ",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -3123,7 +3123,7 @@
   "mace/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Hemiolos",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -3463,7 +3463,7 @@
   "brit/infantry_spearman_b": {
    "generic_name": "Celtic Spearman",
    "specific_name": "Catucos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -3504,7 +3504,7 @@
   "brit/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Pontos",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -3517,14 +3517,13 @@
   "brit/ship_fire": {
    "generic_name": "Fire Ship",
    "specific_name": "Briton Fire Ship",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
-    "Melee",
-    "Fire"
+    "Melee"
    ],
    "builds": []
   },
@@ -3554,7 +3553,7 @@
   "brit/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Skiff",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -3717,7 +3716,7 @@
   "gaul/champion_cavalry": {
    "generic_name": "Gallic Noble Cavalry",
    "specific_name": "Uerouicos",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -3731,7 +3730,7 @@
   "gaul/champion_fanatic": {
    "generic_name": "Naked Fanatic",
    "specific_name": "Bariogaisatos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -3801,7 +3800,7 @@
   "gaul/hero_viridomarus": {
    "generic_name": "Viridomarus",
    "specific_name": "Britomaros",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -3895,7 +3894,7 @@
   "gaul/infantry_spearman_b": {
    "generic_name": "Spearman",
    "specific_name": "Catucos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -3935,7 +3934,7 @@
   "gaul/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Pontos",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -3948,14 +3947,13 @@
   "gaul/ship_fire": {
    "generic_name": "Fire Ship",
    "specific_name": "Gallic Fire Ship",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
-    "Melee",
-    "Fire"
+    "Melee"
    ],
    "builds": []
   },
@@ -3985,7 +3983,7 @@
   "gaul/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Skiff",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -4121,7 +4119,7 @@
   "iber/cavalry_spearman_b": {
    "generic_name": "Cavalry Spearman",
    "specific_name": "Lantzari",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -4285,7 +4283,7 @@
   "iber/infantry_spearman_b": {
    "generic_name": "Spearman",
    "specific_name": "Ezkutari",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -4365,7 +4363,7 @@
   "iber/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Ponti",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -4378,14 +4376,13 @@
   "iber/ship_fire": {
    "generic_name": "Fire Ship",
    "specific_name": "Iberian Fire Ship",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
-    "Melee",
-    "Fire"
+    "Melee"
    ],
    "builds": []
   },
@@ -4415,7 +4412,7 @@
   "iber/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Skiff",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -4621,7 +4618,7 @@
   "maur/champion_maiden_archer": {
    "generic_name": "Maiden Guard Archer",
    "specific_name": "Visha Kanya",
-   "tooltip": "",
+   "tooltip": "Strong versus heavily armored units.",
    "history": "",
    "classes": [
     "Soldier",
@@ -4731,7 +4728,7 @@
   "maur/infantry_spearman_b": {
    "generic_name": "Bamboo Spearman",
    "specific_name": "Kauntika",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -4815,7 +4812,7 @@
   "maur/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Yudhpot",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -4851,7 +4848,7 @@
   "maur/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Yudhpot",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -5012,7 +5009,7 @@
   },
   "kush/cavalry_javelineer_b": {
    "generic_name": "Napatan Light Cavalry",
-   "specific_name": "iry hr ssmwtt",
+   "specific_name": "Iry hr ssmwtt",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -5026,7 +5023,7 @@
   },
   "kush/cavalry_javelineer_merc_b": {
    "generic_name": "Blemmye Desert Raider",
-   "specific_name": "nhw Bulahau gml",
+   "specific_name": "Nhw Bulahau gml",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -5043,7 +5040,7 @@
   "kush/cavalry_spearman_b": {
    "generic_name": "Meroitic Heavy Cavalry",
    "specific_name": "Htr",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -5057,7 +5054,7 @@
   "kush/champion_cavalry": {
    "generic_name": "Noble Cavalry",
    "specific_name": "Htr Msʿ n mh-ib",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -5083,7 +5080,7 @@
   },
   "kush/champion_infantry_amun": {
    "generic_name": "Napatan Temple Guard",
-   "specific_name": "rs ʿImn",
+   "specific_name": "Rs ʿImn",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -5097,7 +5094,7 @@
   },
   "kush/champion_infantry_apedemak": {
    "generic_name": "Meroitic Temple Guard",
-   "specific_name": "rs ʿIprmk",
+   "specific_name": "Rs ʿIprmk",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -5212,7 +5209,7 @@
   },
   "kush/infantry_javelineer_merc_b": {
    "generic_name": "Noba Skirmisher",
-   "specific_name": "nhw ʿhȝw Noba",
+   "specific_name": "Nhw ʿhȝw Noba",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -5258,7 +5255,7 @@
   },
   "kush/infantry_maceman_merc_b": {
    "generic_name": "Noba Maceman",
-   "specific_name": "nhw Noba",
+   "specific_name": "Nhw Noba",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -5304,8 +5301,8 @@
   },
   "kush/infantry_pikeman_b": {
    "generic_name": "Meroitic Pikeman",
-   "specific_name": "siȝwrd",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "specific_name": "Siȝwrd",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -5349,8 +5346,8 @@
   },
   "kush/infantry_spearman_b": {
    "generic_name": "Nubian Spearman",
-   "specific_name": "iry-rdwy Nhsyw",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "specific_name": "Iry-rdwy Nhsyw",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -5394,7 +5391,7 @@
   },
   "kush/infantry_swordsman_b": {
    "generic_name": "Meroitic Swordsman",
-   "specific_name": "knw hps",
+   "specific_name": "Knw hps",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -5439,8 +5436,8 @@
   },
   "kush/ship_arrow": {
    "generic_name": "Arrow Ship",
-   "specific_name": "shry ʿȝ",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "specific_name": "Shry ʿȝ",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -5476,7 +5473,7 @@
   "kush/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -5500,7 +5497,7 @@
   },
   "kush/siege_tower": {
    "generic_name": "Kushite Siege Tower",
-   "specific_name": "iwn n ms",
+   "specific_name": "Iwn n ms",
    "tooltip": "Garrison units for transport and to increase firepower.",
    "history": "",
    "classes": [
@@ -5596,7 +5593,7 @@
   },
   "kush/support_healer_b": {
    "generic_name": "Priest",
-   "specific_name": "wʿb nsw",
+   "specific_name": "Wʿb nsw",
    "tooltip": "Heal units.",
    "history": "",
    "classes": [
@@ -5607,7 +5604,7 @@
   },
   "kush/support_healer_e": {
    "generic_name": "Priest",
-   "specific_name": "wʿb nsw",
+   "specific_name": "Wʿb nsw",
    "tooltip": "Heal units.",
    "history": "",
    "classes": [
@@ -5618,7 +5615,7 @@
   },
   "kush/support_trader": {
    "generic_name": "Nilotic Merchant",
-   "specific_name": "rmt sbt",
+   "specific_name": "Rmt sbt",
    "tooltip": "Trade resources between your own markets and those of your allies.",
    "history": "",
    "classes": [
@@ -5661,7 +5658,7 @@
   "ptol/cavalry_spearman_merc_b": {
    "generic_name": "Macedonian Settler Cavalry",
    "specific_name": "Hippeús Makedonikós",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -5676,7 +5673,7 @@
   "ptol/champion_cavalry": {
    "generic_name": "Royal Guard Cavalry",
    "specific_name": "Ágēma Basiléōs",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -5703,7 +5700,7 @@
   "ptol/champion_infantry_pikeman": {
    "generic_name": "Royal Guard Infantry",
    "specific_name": "Phalangitès Agema",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -5848,7 +5845,7 @@
   "ptol/infantry_pikeman_b": {
    "generic_name": "Egyptian Pikeman",
    "specific_name": "Phalaggomákhimos",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -5936,7 +5933,7 @@
   "ptol/infantry_spearman_merc_b": {
    "generic_name": "Mercenary Thureos Spearman",
    "specific_name": "Thureophóros Misthophóros",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -6026,7 +6023,7 @@
   "ptol/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Tetrērēs",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -6062,7 +6059,7 @@
   "ptol/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Pentērēs",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -6075,7 +6072,7 @@
   "ptol/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Dierēs",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -6088,7 +6085,7 @@
   "ptol/ship_siege": {
    "generic_name": "Siege Ship",
    "specific_name": "Octērēs",
-   "tooltip": "Garrison units for transport across water. Good against Arrow Ships and Structures.",
+   "tooltip": "Garrison units for transport across water. Good against Ships and Structures.",
    "history": "",
    "classes": [
     "Ship",
@@ -6282,7 +6279,7 @@
   "sele/cavalry_spearman_merc_b": {
    "generic_name": "Companion Cavalry",
    "specific_name": "Hippos Hetairike",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -6297,7 +6294,7 @@
   "sele/champion_cavalry": {
    "generic_name": "Seleucid Cataphract",
    "specific_name": "Seleukidón Kataphraktos",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -6340,7 +6337,7 @@
   "sele/champion_infantry_pikeman": {
    "generic_name": "Silver Shield",
    "specific_name": "Argyraspis",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -6494,7 +6491,7 @@
   "sele/infantry_pikeman_b": {
    "generic_name": "Phalangite",
    "specific_name": "Phalangitēs",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -6536,7 +6533,7 @@
   "sele/infantry_spearman_b": {
    "generic_name": "Militia Thureos Spearman",
    "specific_name": "Thureophóros Politès",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -6621,7 +6618,7 @@
   "sele/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Seleukidó̱n Triērēs",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -6657,7 +6654,7 @@
   "sele/ship_ram": {
    "generic_name": "Ramming Ship",
    "specific_name": "Seleukidó̱n Tetrērēs",
-   "tooltip": "Garrison units for transport across water. Strong against Siege Ships. Countered by Arrow Ships.",
+   "tooltip": "Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -6670,7 +6667,7 @@
   "sele/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Dierēs",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -6683,7 +6680,7 @@
   "sele/ship_siege": {
    "generic_name": "Siege Ship",
    "specific_name": "Pentères",
-   "tooltip": "Garrison units for transport across water. Good against Arrow Ships and Structures.",
+   "tooltip": "Garrison units for transport across water. Good against Ships and Structures.",
    "history": "",
    "classes": [
     "Ship",
@@ -6847,7 +6844,7 @@
   "han/cavalry_spearman_b": {
    "generic_name": "Cavalry Spearman",
    "specific_name": "Máo Qíbīng",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -6873,9 +6870,9 @@
    "builds": []
   },
   "han/champion_cavalry_spearman_academy": {
-   "generic_name": "Champion Cavalry Spearman",
-   "specific_name": "Wu Wei Yin Cao Cao Guard",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "generic_name": "Youzhou Cavalry",
+   "specific_name": "Yōuzhōu Tūqí",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -6916,9 +6913,9 @@
    "builds": []
   },
   "han/champion_infantry_spearman_academy": {
-   "generic_name": "Palace Guard Spearman",
+   "generic_name": "Tiger Guard Spearman",
    "specific_name": "Hǔ Bēn",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -7057,7 +7054,7 @@
   "han/infantry_pikeman_b": {
    "generic_name": "Halberdier",
    "specific_name": "Jǐ Bīng",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -7098,7 +7095,7 @@
   "han/infantry_spearman_b": {
    "generic_name": "Spearman",
    "specific_name": "Máo Bīng",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -7139,7 +7136,7 @@
   "han/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Lóu Chuán",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -7175,7 +7172,7 @@
   "han/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Zhàn Chuán",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -7188,7 +7185,7 @@
   "han/ship_siege": {
    "generic_name": "Siege Ship",
    "specific_name": "Dà Lóu Chuán",
-   "tooltip": "Garrison units for transport across water. Good against Arrow Ships and Structures.",
+   "tooltip": "Garrison units for transport across water. Good against Ships and Structures.",
    "history": "",
    "classes": [
     "Ship",
@@ -7200,7 +7197,7 @@
   },
   "han/siege_mangonel_packed": {
    "generic_name": "Mangonel",
-   "specific_name": "Tóushí Chē",
+   "specific_name": "Pào",
    "tooltip": "",
    "history": "",
    "classes": [
@@ -7336,7 +7333,7 @@
   "spart/champion_infantry_spear_olympian": {
    "generic_name": "Spartan Olympic Hoplite",
    "specific_name": "Spartiátēs",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -7407,7 +7404,7 @@
   "mace/champion_infantry_spearman_02": {
    "generic_name": "Macedonian Shield Bearer",
    "specific_name": "Hypaspistḗs Argyraspídi",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Soldier",
@@ -7420,8 +7417,8 @@
   },
   "han/support_minister": {
    "generic_name": "Imperial Minister",
-   "specific_name": "Guānlì",
-   "tooltip": "Use to boost the efficiency of nearby units and buildings. Garrison within a building to boost the efficiency of its production queue. Only Han buildings can garrison ministers.",
+   "specific_name": "Qīng",
+   "tooltip": "Use to boost the efficiency of nearby units and buildings.",
    "history": "",
    "classes": [
     "Support",
@@ -7587,14 +7584,13 @@
   "brit/ship_fire_fire": {
    "generic_name": "Fire Ship",
    "specific_name": "Briton Fire Ship",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
     "Melee",
-    "Fire",
     "Ignited"
    ],
    "builds": []
@@ -7602,14 +7598,13 @@
   "gaul/ship_fire_fire": {
    "generic_name": "Fire Ship",
    "specific_name": "Gallic Fire Ship",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
     "Melee",
-    "Fire",
     "Ignited"
    ],
    "builds": []
@@ -7617,17 +7612,1100 @@
   "iber/ship_fire_fire": {
    "generic_name": "Fire Ship",
    "specific_name": "Iberian Fire Ship",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
     "Melee",
-    "Fire",
     "Ignited"
    ],
    "builds": []
+  },
+  "athen/support_civilian": {
+   "generic_name": "Athenian Artisan",
+   "specific_name": "Thēs",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    24,
+    26,
+    27
+   ]
+  },
+  "athen/support_civilian_house": {
+   "generic_name": "Athenian Artisan",
+   "specific_name": "Thēs",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    24,
+    26,
+    27
+   ]
+  },
+  "spart/support_civilian": {
+   "generic_name": "Helot",
+   "specific_name": "Heilōs",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    9,
+    10,
+    11,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    24,
+    28,
+    29
+   ]
+  },
+  "spart/support_civilian_house": {
+   "generic_name": "Helot",
+   "specific_name": "Heilōs",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    9,
+    10,
+    11,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    24,
+    28,
+    29
+   ]
+  },
+  "pers/support_civilian": {
+   "generic_name": "Persian Laborer",
+   "specific_name": "Martiyā",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    30,
+    51
+   ]
+  },
+  "pers/support_civilian_house": {
+   "generic_name": "Persian Laborer",
+   "specific_name": "Martiyā",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    30,
+    51
+   ]
+  },
+  "rome/support_civilian": {
+   "generic_name": "Plebeian",
+   "specific_name": "Plebeius",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    31,
+    49
+   ]
+  },
+  "rome/support_civilian_house": {
+   "generic_name": "Plebeian",
+   "specific_name": "Plebeius",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    31,
+    49
+   ]
+  },
+  "cart/support_civilian": {
+   "generic_name": "Carthaginian Artisan",
+   "specific_name": "Ḥaroš",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    25,
+    52,
+    57,
+    61,
+    62
+   ]
+  },
+  "cart/support_civilian_house": {
+   "generic_name": "Carthaginian Artisan",
+   "specific_name": "Ḥaroš",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    25,
+    52,
+    57,
+    61,
+    62
+   ]
+  },
+  "mace/support_civilian": {
+   "generic_name": "Macedonian Laborer",
+   "specific_name": "Geōrgos Makedonikos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    24
+   ]
+  },
+  "mace/support_civilian_house": {
+   "generic_name": "Macedonian Laborer",
+   "specific_name": "Geōrgos Makedonikos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    24
+   ]
+  },
+  "brit/support_civilian": {
+   "generic_name": "Briton Countryman",
+   "specific_name": "Ambactos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    34,
+    65
+   ]
+  },
+  "brit/support_civilian_house": {
+   "generic_name": "Briton Countryman",
+   "specific_name": "Ambactos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    34,
+    65
+   ]
+  },
+  "gaul/support_civilian": {
+   "generic_name": "Gallic Laborer",
+   "specific_name": "Ambactos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    35
+   ]
+  },
+  "gaul/support_civilian_house": {
+   "generic_name": "Gallic Laborer",
+   "specific_name": "Ambactos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    35
+   ]
+  },
+  "iber/support_civilian": {
+   "generic_name": "Iberian Townsperson",
+   "specific_name": "Iltiŕse",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    36
+   ]
+  },
+  "iber/support_civilian_house": {
+   "generic_name": "Iberian Townsperson",
+   "specific_name": "Iltiŕse",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    36
+   ]
+  },
+  "maur/support_civilian": {
+   "generic_name": "Indian Laborer",
+   "specific_name": "Kammakara",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    37,
+    38
+   ]
+  },
+  "maur/support_civilian_house": {
+   "generic_name": "Indian Laborer",
+   "specific_name": "Kammakara",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    37,
+    38
+   ]
+  },
+  "kush/support_civilian": {
+   "generic_name": "Kushite Laborer",
+   "specific_name": "Sḫtj",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    39,
+    40,
+    46,
+    47,
+    48
+   ]
+  },
+  "kush/support_civilian_house": {
+   "generic_name": "Kushite Laborer",
+   "specific_name": "Sḫtj",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    39,
+    40,
+    46,
+    47,
+    48
+   ]
+  },
+  "ptol/support_civilian": {
+   "generic_name": "Egyptian Laborer",
+   "specific_name": "Geōrgos Aigyptios",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    33,
+    42,
+    43
+   ]
+  },
+  "ptol/support_civilian_house": {
+   "generic_name": "Egyptian Laborer",
+   "specific_name": "Geōrgos Aigyptios",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    33,
+    42,
+    43
+   ]
+  },
+  "sele/support_civilian": {
+   "generic_name": "Syrian Laborer",
+   "specific_name": "Geōrgos Syrikos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    43
+   ]
+  },
+  "sele/support_civilian_house": {
+   "generic_name": "Syrian Laborer",
+   "specific_name": "Geōrgos Syrikos",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    43
+   ]
+  },
+  "han/support_civilian": {
+   "generic_name": "Han Farmer",
+   "specific_name": "Nóng",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    44,
+    45
+   ]
+  },
+  "han/support_civilian_house": {
+   "generic_name": "Han Farmer",
+   "specific_name": "Nóng",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Support",
+    "Builder",
+    "Civilian",
+    "Worker"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    44,
+    45
+   ]
   },
   "germ/cavalry_javelineer_b": {
    "generic_name": "Tigurinian Light Cavalry",
@@ -7646,7 +8724,7 @@
   "germ/cavalry_spearman_b": {
    "generic_name": "Cimbrian Spear Cavalry",
    "specific_name": "Gaizazridjô",
-   "tooltip": "Counters: 2× vs Cavalry.",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
     "Citizen",
@@ -7793,7 +8871,7 @@
     20,
     21,
     22,
-    67
+    66
    ]
   },
   "germ/infantry_slinger_b": {
@@ -7833,13 +8911,13 @@
     20,
     21,
     22,
-    67
+    66
    ]
   },
   "germ/infantry_spearman_b": {
    "generic_name": "Cimbrian Spearman",
    "specific_name": "Gaizamannaz",
-   "tooltip": "Counters: 3× vs Cavalry.",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
    "history": "",
    "classes": [
     "Builder",
@@ -7874,7 +8952,7 @@
     20,
     21,
     22,
-    67
+    66
    ]
   },
   "germ/infantry_swordsman_b": {
@@ -7914,13 +8992,13 @@
     20,
     21,
     22,
-    67
+    66
    ]
   },
   "germ/ship_arrow": {
    "generic_name": "Arrow Ship",
    "specific_name": "Harjaskipą",
-   "tooltip": "Garrison units for transport across water. Countered by Siege Ships.",
+   "tooltip": "Counters: 3× vs Ships. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -7933,14 +9011,13 @@
   "germ/ship_fire": {
    "generic_name": "Germanic Fire Ship",
    "specific_name": "Brandabaitaz",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
-    "Melee",
-    "Fire"
+    "Melee"
    ],
    "builds": []
   },
@@ -7970,7 +9047,7 @@
   "germ/ship_scout": {
    "generic_name": "Scout Ship",
    "specific_name": "Skeutabaitaz",
-   "tooltip": "Scout for coastlines. Garrison units for transport across water.",
+   "tooltip": "Counters: 3× vs Ships. Scout for coastlines. Garrison units for transport across water.",
    "history": "",
    "classes": [
     "Ship",
@@ -8038,7 +9115,7 @@
     20,
     21,
     22,
-    67
+    66
    ]
   },
   "germ/support_civilian_house": {
@@ -8075,7 +9152,7 @@
     20,
     21,
     22,
-    67
+    66
    ]
   },
   "germ/support_healer_b": {
@@ -8114,39 +9191,146 @@
   "germ/ship_fire_fire": {
    "generic_name": "Germanic Fire Ship",
    "specific_name": "Brandabaitaz",
-   "tooltip": "Unrepairable. Gradually loses health after ignition.",
+   "tooltip": "Counters: 3× vs Ships and Buildings. Cannot be garrisoned, and, after ignition, cannot be repaired. Strong against Ram Ships.",
    "history": "",
    "classes": [
     "Ship",
     "Warship",
     "Fireship",
     "Melee",
-    "Fire",
     "Ignited"
    ],
    "builds": []
   },
-  "germ/support_wagon": {
-   "generic_name": "Mobile Dropsite",
-   "specific_name": "Wagnaz",
-   "tooltip": "Mobile dropsite for all resources.",
+  "rome/infantry_spearman_conscript": {
+   "generic_name": "Levy Auxiliary Spearman",
+   "specific_name": "Peditatus Auxilia",
+   "tooltip": "Conscript spearmen cannot promote.",
    "history": "",
    "classes": [
-    "Support",
-    "Wagon",
-    "Dropsite"
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Melee",
+    "Spearman"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    31,
+    49
+   ]
+  },
+  "cart/infantry_spearman_ital_b": {
+   "generic_name": "Samnite Spearman",
+   "specific_name": "Seḫīr Romaḥ",
+   "tooltip": "Counters: 2.5× vs Cavalry.",
+   "history": "",
+   "classes": [
+    "Builder",
+    "Citizen",
+    "Worker",
+    "Soldier",
+    "Infantry",
+    "Melee",
+    "Spearman",
+    "Mercenary"
+   ],
+   "builds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    25,
+    52,
+    57,
+    61,
+    62
+   ]
+  },
+  "rome/cavalry_javelineer_auxiliary_b": {
+   "generic_name": "Auxiliary Cavalry Javelineer",
+   "specific_name": "Eques Alaris Numidarum",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Citizen",
+    "Soldier",
+    "Cavalry",
+    "Ranged",
+    "Javelineer",
+    "Auxiliary"
    ],
    "builds": []
   },
-  "germ/support_wagon_house": {
-   "generic_name": "Mobile Dropsite",
-   "specific_name": "Supply Wagon",
-   "tooltip": "Mobile dropsite for all resources.",
+  "rome/cavalry_spearman_auxiliary_b": {
+   "generic_name": "Auxiliary Cavalry Spearman",
+   "specific_name": "Eques Alaris",
+   "tooltip": "Counters: 1.75× vs Cavalry.",
    "history": "",
    "classes": [
-    "Support",
-    "Wagon",
-    "Dropsite"
+    "Citizen",
+    "Soldier",
+    "Cavalry",
+    "Melee",
+    "Spearman",
+    "Auxiliary"
+   ],
+   "builds": []
+  },
+  "rome/champion_infantry_swordsman_first": {
+   "generic_name": "First Cohort Legionary",
+   "specific_name": "Cohors Prima Legiōnārius",
+   "tooltip": "",
+   "history": "",
+   "classes": [
+    "Soldier",
+    "Champion",
+    "Infantry",
+    "Melee",
+    "Swordsman",
+    "Legionary"
    ],
    "builds": []
   }
@@ -8156,7 +9340,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Agora",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -8502,7 +9686,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Agora",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -8812,7 +9996,7 @@
    "28": {
     "generic_name": "Spartan Senate",
     "specific_name": "Gerousia",
-    "tooltip": "Research technologies.",
+    "tooltip": "Research technologies and train Heroes.",
     "history": "",
     "classes": [
      "Town",
@@ -8823,7 +10007,7 @@
    "29": {
     "generic_name": "Military Mess Hall",
     "specific_name": "Syssition",
-    "tooltip": "Train Champions and Heroes.",
+    "tooltip": "Train Champions.",
     "history": "",
     "classes": [
      "Village",
@@ -8848,7 +10032,7 @@
    "0": {
     "generic_name": "Provincial Governor",
     "specific_name": "Xšaçapāvan",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -9238,7 +10422,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Forum",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -9635,7 +10819,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Merkāz",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -9948,7 +11132,7 @@
     "tooltip": "Build upon a shoreline in own, neutral, or allied territory. Acquire large tracts of territory. Territory root. Construct Warships and research technologies.",
     "history": "",
     "classes": [
-     "City",
+     "Town",
      "Naval",
      "Shipyard"
     ],
@@ -10007,7 +11191,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Agora",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -10342,7 +11526,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Tigernotreba",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -10676,7 +11860,7 @@
    "65": {
     "generic_name": "Island Settlement",
     "specific_name": "Cranogion",
-    "tooltip": "Build upon a shoreline in own, neutral, or allied territory. Acquire large tracts of territory. Territory root. Train Citizens, construct Ships, and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build upon a shoreline in own, neutral, or allied territory. Acquire large tracts of territory. Territory root. Train Civilians, construct Ships, and research civil technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -10691,7 +11875,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Lissos",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -11025,8 +12209,8 @@
   "iber": {
    "0": {
     "generic_name": "Civic Center",
-    "specific_name": "Oppidum",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "specific_name": "Iltun",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -11361,7 +12545,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Rajadhanika",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -11481,7 +12665,7 @@
    },
    "10": {
     "generic_name": "Wonder",
-    "specific_name": "Great Stupa",
+    "specific_name": "Sānchi Mahāstūpa",
     "tooltip": "Bring glory to your civilization and add large tracts of land to your empire.",
     "history": "",
     "classes": [
@@ -11707,7 +12891,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Pr-nsw",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -11730,7 +12914,7 @@
    },
    "2": {
     "generic_name": "Barracks",
-    "specific_name": "pr-msʿyw",
+    "specific_name": "Pr-msʿyw",
     "tooltip": "Train Infantry and research Infantry technologies.",
     "history": "",
     "classes": [
@@ -11742,7 +12926,7 @@
    },
    "3": {
     "generic_name": "Storehouse",
-    "specific_name": "wdȝt",
+    "specific_name": "Wdȝt",
     "tooltip": "Research gathering technologies.",
     "history": "",
     "classes": [
@@ -11754,7 +12938,7 @@
    },
    "4": {
     "generic_name": "Stone Tower",
-    "specific_name": "tsmt ʿȝ",
+    "specific_name": "Tsmt ʿȝ",
     "tooltip": "Garrison Infantry for additional arrows. Needs the “Murder Holes” technology to protect its foot.",
     "history": "",
     "classes": [
@@ -11766,7 +12950,7 @@
    },
    "5": {
     "generic_name": "Farmstead",
-    "specific_name": "snwt",
+    "specific_name": "Snwt",
     "tooltip": "Research food gathering technologies.",
     "history": "",
     "classes": [
@@ -11854,7 +13038,7 @@
    },
    "12": {
     "generic_name": "Wall",
-    "specific_name": "sbty",
+    "specific_name": "Sbty",
     "tooltip": "Can be converted into a Gate.",
     "history": "",
     "classes": [
@@ -11865,7 +13049,7 @@
    },
    "13": {
     "generic_name": "Corral",
-    "specific_name": "ihy",
+    "specific_name": "Ihy",
     "tooltip": "Raise Domestic Animals for food. Garrison animals to gain a trickle of food.",
     "history": "",
     "classes": [
@@ -11878,7 +13062,7 @@
    },
    "14": {
     "generic_name": "Field",
-    "specific_name": "sht",
+    "specific_name": "Sht",
     "tooltip": "Harvest grain for food. Each subsequent gatherer works less efficiently.",
     "history": "",
     "classes": [
@@ -11913,7 +13097,7 @@
    },
    "17": {
     "generic_name": "Forge",
-    "specific_name": "hmw hʿy n rȝ-ʿ",
+    "specific_name": "Hmw hʿy n rȝ-ʿ",
     "tooltip": "Research attack damage and damage resistance technologies.",
     "history": "",
     "classes": [
@@ -11937,7 +13121,7 @@
    },
    "19": {
     "generic_name": "Sentry Tower",
-    "specific_name": "tsmt",
+    "specific_name": "Tsmt",
     "tooltip": "Garrison Infantry for additional arrows. Needs the “Murder Holes” technology to protect its foot.",
     "history": "",
     "classes": [
@@ -11949,7 +13133,7 @@
    },
    "20": {
     "generic_name": "Outpost",
-    "specific_name": "trtr",
+    "specific_name": "Trtr",
     "tooltip": "Build in own or neutral territory.",
     "history": "",
     "classes": [
@@ -11971,7 +13155,7 @@
    },
    "22": {
     "generic_name": "Wall Turret",
-    "specific_name": "sȝwt",
+    "specific_name": "Sȝwt",
     "tooltip": "Wall off your town for a stout defense.",
     "history": "",
     "classes": [
@@ -12093,7 +13277,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Agora",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -12437,7 +13621,7 @@
    "43": {
     "generic_name": "Military Colony",
     "specific_name": "Klērouchia",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -12464,7 +13648,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Agora",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -12785,7 +13969,7 @@
    "43": {
     "generic_name": "Military Colony",
     "specific_name": "Klērouchia",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -12812,7 +13996,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Guān Shǔ",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -12993,7 +14177,7 @@
    },
    "15": {
     "generic_name": "Stable",
-    "specific_name": "Mǎ Jiù",
+    "specific_name": "Mǎ Yuàn",
     "tooltip": "Train Cavalry and research Cavalry technologies.",
     "history": "",
     "classes": [
@@ -13121,8 +14305,8 @@
    },
    "44": {
     "generic_name": "Imperial Academy",
-    "specific_name": "Dìguó Xuéyuàn",
-    "tooltip": "Train Champions and research their technologies.",
+    "specific_name": "Tàixué",
+    "tooltip": "Train Champions.",
     "history": "",
     "classes": [
      "Military",
@@ -13140,14 +14324,14 @@
     "classes": [
      "Civic",
      "ImperialMinistry",
-     "Town"
+     "Village"
     ],
     "template": "structures/han/ministry"
    },
    "58": {
     "generic_name": "Imperial Court",
     "specific_name": "Cháotíng",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -13188,7 +14372,7 @@
    "0": {
     "generic_name": "Civic Center",
     "specific_name": "Fulkasrēdaz",
-    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Citizens and research technologies. Garrison Soldiers for additional arrows.",
+    "tooltip": "Build in own or neutral territory. Acquire large tracts of territory. Territory root. Train Civilians and research technologies. Garrison Soldiers for additional arrows.",
     "history": "",
     "classes": [
      "Civic",
@@ -13527,33 +14711,6 @@
      "City"
     ],
     "template": "structures/germ/great_hall"
-   },
-   "67": {
-    "generic_name": "Wagon Encampment",
-    "specific_name": "",
-    "tooltip": "Buildable in own or neutral territory. Train Citizens and Wagons and research technologies.",
-    "history": "",
-    "classes": [
-     "Civic",
-     "Defensive",
-     "Colony",
-     "Encampment"
-    ],
-    "template": "structures/germ/encampment"
-   },
-   "68": {
-    "generic_name": "Fortified Wagon Encampment",
-    "specific_name": "",
-    "tooltip": "Buildable in own or neutral territory. Train Citizens and Wagons and research technologies.",
-    "history": "",
-    "classes": [
-     "Civic",
-     "Defensive",
-     "Colony",
-     "Encampment",
-     "Fortified"
-    ],
-    "template": "structures/germ/encampment_fortified"
    }
   }
  },
@@ -13613,13 +14770,33 @@
    "description": "Train your horses to move faster.",
    "requirements_tooltip": "Unlocked in Village Phase."
   },
+  "celtic_auxiliaries": {
+   "tooltip": "Mercenaries −50% metal cost but +50 food cost.",
+   "description": "The Second Punic War, Celtic troops were mainly auxiliaries.",
+   "requirements_tooltip": "Unlocked in City Phase."
+  },
   "civbonuses/brit_woad_warriors": {
    "tooltip": "All Infantry Units +5% movement speed, and gain +1 loot taking.",
    "description": "Britons paint their bodies with Woad, which produces a blue color and gives them a fiercesome appearance in battle.",
    "requirements_tooltip": ""
   },
+  "civbonuses/cart_stone_01": {
+   "tooltip": "Workers +25% stone gather rate.",
+   "description": "Hire servants to help quarry stone. Increases stone gathering rates.",
+   "requirements_tooltip": ""
+  },
+  "civbonuses/cart_stone_02": {
+   "tooltip": "Workers +25% stone gather rate.",
+   "description": "Hire servants to help quarry stone. Increases stone gathering rates.",
+   "requirements_tooltip": ""
+  },
+  "civbonuses/cart_stone_03": {
+   "tooltip": "Workers +25% stone gather rate.",
+   "description": "Hire servants to help quarry stone. Increases stone gathering rates.",
+   "requirements_tooltip": ""
+  },
   "civbonuses/cart_walls": {
-   "tooltip": "City Walls +100% build time, +100% stone cost, and +200% health.",
+   "tooltip": "City Walls +200% health, but +100% build time and stone cost.",
    "description": "Carthaginians built their city walls in three concentric circuits. These walls were never breached. Even when the city was taken by the Romans, it was via the city's harbor, not by storming its walls.",
    "requirements_tooltip": ""
   },
@@ -13636,6 +14813,16 @@
   "civbonuses/gaul_cavalry": {
    "tooltip": "Cavalry +10% melee attack damage.",
    "description": "The Gauls were well-known for their effective cavalry. Celtic mercenaries were in demand throughout the Mediterranean.",
+   "requirements_tooltip": ""
+  },
+  "civbonuses/germ_meat": {
+   "tooltip": "Civilians +100% meat gather rate.",
+   "description": "Germanic convoys brought livestock, in particular cattle, and placed great importance on these animals for religious sacrifices.",
+   "requirements_tooltip": ""
+  },
+  "civbonuses/germ_women": {
+   "tooltip": "Civilians +0.5 movement speed.",
+   "description": "Women and children accompanied the Germanic armies on long-range migrations.",
    "requirements_tooltip": ""
   },
   "civbonuses/greek_structures": {
@@ -13729,14 +14916,14 @@
    "requirements_tooltip": "Unlocked in Town Phase."
   },
   "dock_efficiency": {
-   "tooltip": "Docks work 20% faster (Ships −20% build time; Technologies −20% research time) and are built 20% faster.",
+   "tooltip": "Docks work 20% faster (Ships −20% build time; Technologies −20% research time) and are built 20% faster. Unlocks special naval technologies for some civilizations.",
    "description": "Employ skilled shipwrights with specialized tools to speed up ship construction.",
    "requirements_tooltip": "Unlocked in Town Phase."
   },
   "equine_transports": {
    "tooltip": "Phoenician Triremes gain the ability to train Cavalry.",
    "description": "Early Achaemenid rulers acted towards making Persia the first great Asian empire to rule the seas. The Great King behaved favourably towards the various sea peoples in order to secure their services, but also carried out various marine initiatives. During the reign of Darius the Great, for example, a canal was built in Egypt and a Persian navy was sent exploring the Indus river. According to Herodotus, some 300 ships in the Persian navy were retrofitted to carry horses and their riders.",
-   "requirements_tooltip": "Unlocked in City Phase."
+   "requirements_tooltip": "Unlocked in City Phase. Requires “Shipwrights.”"
   },
   "exploration": {
    "tooltip": "Traders and Ships +20% vision range.",
@@ -13883,6 +15070,11 @@
    "description": "Equip your foragers with wicker baskets for foraging.",
    "requirements_tooltip": ""
   },
+  "grove_of_fetters": {
+   "tooltip": "Unlock the “Human Sacrifice” aura for the Seeress, doubling aura damage. Priests and Seeresses +50% Health.",
+   "description": "Congregations held at specially adorned groves performed rites of sacrifice.",
+   "requirements_tooltip": "Unlocked in City Phase."
+  },
   "heal_range": {
    "tooltip": "Healers +5 healing range.",
    "description": "Increases the healing and vision range of all healers.",
@@ -13902,6 +15094,11 @@
    "tooltip": "Healers −20% healing time.",
    "description": "Increases the healing rate of all healers.",
    "requirements_tooltip": "Unlocked in City Phase."
+  },
+  "health_civilians_01": {
+   "tooltip": "Civilians +100% health.",
+   "description": "The loom allowed the creation of finer clothing for settlers. Women of the household were taught from a young age how to weave on the loom, and subsequently spent a large share of their lives working with it.",
+   "requirements_tooltip": "Unlocked in Village Phase."
   },
   "health_females_01": {
    "tooltip": "Female Citizens +100% health.",
@@ -13939,7 +15136,7 @@
    "requirements_tooltip": "Unlocked in Town Phase."
   },
   "juggernauts": {
-   "tooltip": "Siege Ships +50% health, +25% more projectiles, but −25% speed.",
+   "tooltip": "Warships +25% health, but −10% speed.",
    "description": "",
    "requirements_tooltip": "Unlocked in City Phase. Requires “Shipwrights.”"
   },
@@ -13954,7 +15151,7 @@
    "requirements_tooltip": "Unlocked in City Phase."
   },
   "nisean_horses": {
-   "tooltip": "Champion Cavalry Spearmen +20% health, but +10% training time.",
+   "tooltip": "Champion Cavalry Spearmen +10% health, but +10% training time.",
    "description": "The now-extinct Nisian breed of horse was one of the largest and robust horses of ancient times. They were highly sought after by the Seleucids and Persians as both rider and mount gained heavier armor as time progressed.",
    "requirements_tooltip": "Unlocked in City Phase."
   },
@@ -13984,17 +15181,17 @@
    "requirements_tooltip": ""
   },
   "phase_city_athen": {
-   "tooltip": "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +1 capture points regeneration rate for garrisoned units. Workers +10% metal gather rate.",
+   "tooltip": "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +1 capture points regeneration rate for garrisoned units. Workers +10% metal gather rate.",
    "description": "Advances from a bustling town to a veritable metropolis, full of the wonders of modern technology. This is the Athenian city phase, where metal gathering rates are boosted because of the 'Silver Owls' bonus.",
    "requirements_tooltip": "Requires three Town Structures."
   },
   "phase_city_generic": {
-   "tooltip": "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +1 capture points regeneration rate for garrisoned units.",
+   "tooltip": "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +1 capture points regeneration rate for garrisoned units.",
    "description": "Advances from a bustling town to a veritable metropolis, full of the wonders of modern technology.",
    "requirements_tooltip": "Requires three Town Structures."
   },
   "phase_city_pers": {
-   "tooltip": "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +1 capture points regeneration rate for garrisoned units. Decrease batch training time of units trained in Stables.",
+   "tooltip": "Advance to City Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +1 capture points regeneration rate for garrisoned units. Decrease batch training time of units trained in Stables.",
    "description": "Advances from a bustling town to a veritable metropolis, full of the wonders of modern technology. This is the Persian city phase.\nThe 'Times of War' bonus decreases the batch training time in Stables. Large batches will benefit more than small batches.\nIn mathematical terms: The training time of one batch gets divided by `batchSize^0.1`.",
    "requirements_tooltip": "Requires three Town Structures."
   },
@@ -14004,17 +15201,17 @@
    "requirements_tooltip": ""
   },
   "phase_town_athen": {
-   "tooltip": "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +0.5 capture points regeneration rate for garrisoned units. Workers +10% metal gather rate.",
+   "tooltip": "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +0.5 capture points regeneration rate for garrisoned units. Workers +10% metal gather rate.",
    "description": "Advances from a small village to a bustling town, ready to expand rapidly. This is the Athenian town phase, where metal gathering rates are boosted because of the 'Silver Owls' bonus.",
    "requirements_tooltip": "Requires five Village Structures."
   },
   "phase_town_generic": {
-   "tooltip": "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +0.5 capture points regeneration rate for garrisoned units.",
+   "tooltip": "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +0.5 capture points regeneration rate for garrisoned units.",
    "description": "Advances from a small village to a bustling town, ready to expand rapidly.",
    "requirements_tooltip": "Requires five Village Structures."
   },
   "phase_town_pers": {
-   "tooltip": "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +0.5 capture points regeneration rate for garrisoned units. Decrease batch training time of units trained in Stables.",
+   "tooltip": "Advance to Town Phase, which unlocks more entities and technologies. Civic Centers +25% territory influence radius. Structures +20% damage and +0.5 capture points regeneration rate for garrisoned units. Decrease batch training time of units trained in Stables.",
    "description": "Advances from a small village to a bustling town, ready to expand rapidly. This is the Persian town phase.\nThe 'Times of War' bonus dercreases the batch training time in Stables. Large batches will benefit more than small batches.\nIn mathematical terms: The training time of one batch gets divided by `batchSize^0.1`.",
    "requirements_tooltip": "Requires five Village Structures."
   },
@@ -14048,8 +15245,13 @@
    "description": "The Roman-style core of the Seleucid army.",
    "requirements_tooltip": "Unlocked in City Phase."
   },
+  "resettlement": {
+   "tooltip": "All Structures except for walls do not decay to neutral or enemy territory.",
+   "description": "The migration of the Cimbrian Confederation into Gaul gave rise to independent communities and settlements.",
+   "requirements_tooltip": "Unlocked in Town Phase."
+  },
   "roman_reforms": {
-   "tooltip": "Convert Infantry to Marian Legionaries, Cavalry to Auxiliary Cavalry, unlock Onagers and Centurions, but lose access to Spear Cavalry and Italic Heavy Infantry.",
+   "tooltip": "Convert Infantry to Marian Legionaries, and cavalry to Auxiliaries, and citizen spearmen to conscript infantry. Unlock Onagers and Centurions.",
    "description": "Regularize the army into a professional, organized force. The Marian reforms were a series of military reforms in the last century BC attributed to Gaius Marius involving the abolition of citzen cavalry, equipment changes, and standardization of the heavy infantry unit: the Legionary.",
    "requirements_tooltip": "Unlocked in City Phase."
   },
@@ -14068,20 +15270,15 @@
    "description": "Marines were a vital part of ship defense and offense.",
    "requirements_tooltip": "Unlocked in City Phase."
   },
-  "ship_cost_time": {
-   "tooltip": "Ships −20% construction time.",
-   "description": "Employ skilled shipwrights with specialized tools to speed up ship construction.",
-   "requirements_tooltip": "Unlocked in City Phase."
-  },
   "ship_health": {
    "tooltip": "Ships +25% health, but −10% speed.",
    "description": "Wooden reinforcement beams for ship hulls.",
-   "requirements_tooltip": "Unlocked in Town Phase."
+   "requirements_tooltip": "Unlocked in Town Phase. Requires “Shipwrights.”"
   },
   "ship_movement_speed": {
    "tooltip": "Ships +10% movement speed.",
-   "description": "Train your oarsmen and sailors to move more efficiently and speed up your ships.",
-   "requirements_tooltip": "Unlocked in City Phase."
+   "description": "The Phoenician cities had a tradition of seafaring which spanned a thousand years.",
+   "requirements_tooltip": "Unlocked in Town Phase. Requires “Shipwrights.”"
   },
   "ship_vision": {
    "tooltip": "Ships and Boats +10% vision range; Scout Ships an additional +25% vision range. Unlocks “Exploration” for the Carthaginians and Han Chinese.",
@@ -14213,13 +15410,18 @@
    "description": "Crenellations on the battlements allow soldiers wider range of fire in defending a keep.",
    "requirements_tooltip": "Unlocked in Town Phase."
   },
+  "tower_garrison": {
+   "tooltip": "Fortresses +6 default arrows.",
+   "description": "Hire soldiers to hold defenses against enemies.",
+   "requirements_tooltip": ""
+  },
   "tower_health": {
    "tooltip": "Towers +25% health.",
    "description": "Reinforce the foundations in preparation of an attack.",
    "requirements_tooltip": "Unlocked in City Phase."
   },
   "tower_murderholes": {
-   "tooltip": "Sentry and Stone Towers have 0 minimum attack range.",
+   "tooltip": "Fortresses, Sentry Towers, and Stone Towers have 0 minimum attack range.",
    "description": "Murder holes allow hitting enemies at the foot of the tower.",
    "requirements_tooltip": "Unlocked in City Phase."
   },
@@ -14229,7 +15431,7 @@
    "requirements_tooltip": "Unlocked in Town Phase."
   },
   "tower_watch": {
-   "tooltip": "Sentry and Stone Towers +1 default arrow count.",
+   "tooltip": "Sentry and Stone Towers +50% default arrow count.",
    "description": "A night's watch increases vigilance.",
    "requirements_tooltip": "Unlocked in Village Phase."
   },
@@ -14261,15 +15463,15 @@
   "tyrtean_paeans": {
    "tooltip": "Champion Hoplites +10% movement speed.",
    "description": "Paeans were battle hymns that were sung by the Hoplites when they charged the enemy lines. One of the first known Paeans was composed by Tirteus, a warrior poet of Sparta, during the First Messenian War.",
-   "requirements_tooltip": "Unlocked in Town Phase."
+   "requirements_tooltip": "Unlocked in Village Phase."
   },
   "unit_advanced": {
-   "tooltip": "Advanced and Elite units +20% training time, +25% health, +0.7 capture attack strength, +20% loot, and −30% gather speed; Healers +5 healing strength and +3 healing range; Melee units +1 resistance and +20% attack damage; Ranged units −20% spread.",
+   "tooltip": "Advanced and Elite units +20% training time, +25% health, +0.7 capture attack strength, +20% loot, and −30% gather speed; Healers +5 healing strength and +3 healing range; Melee units +10% attack damage; Ranged units −20% spread.",
    "description": "",
    "requirements_tooltip": ""
   },
   "unit_elite": {
-   "tooltip": "Elite units +20% training time, +25% health, +0.8 capture attack strength, +20% loot, and −30% gather speed; Healers +5 healing strength and +3 healing range; Melee units +1 resistance and +20% attack damage; Ranged units −20% spread.",
+   "tooltip": "Elite units +20% training time, +25% health, +0.8 capture attack strength, +20% loot, and −30% gather speed; Healers +5 healing strength and +3 healing range; Melee units +10% attack damage; Ranged units −20% spread.",
    "description": "",
    "requirements_tooltip": ""
   },
@@ -14288,6 +15490,16 @@
    "description": "Guard units (Champions) are professionals who wield the best weapons and have the best training.",
    "requirements_tooltip": "Unlocked in City Phase."
   },
+  "unlock_civilians_house_generic": {
+   "tooltip": "Unlock the ability to train Civilians from houses.",
+   "description": "A festival to celebrate fertility.",
+   "requirements_tooltip": ""
+  },
+  "unlock_civilians_house_kush": {
+   "tooltip": "Unlock the ability to train Civilians from houses.",
+   "description": "A festival to celebrate fertility.",
+   "requirements_tooltip": ""
+  },
   "unlock_females_house": {
    "tooltip": "Unlock the ability to train women from houses.",
    "description": "A festival attended by women-only, to celebrate female fertility.",
@@ -14301,7 +15513,7 @@
   "unlock_shared_dropsites": {
    "tooltip": "Allows using allied dropsites.",
    "description": "The extension of trade leads to the permanent establishment of storekeepers and their families in foreign countries, allowing them to exploit the wealth of these countries.",
-   "requirements_tooltip": "Requires three Traders"
+   "requirements_tooltip": ""
   },
   "unlock_shared_los": {
    "tooltip": "See what your allies see, browse their summary and check their resources and population count in the top panel.",
@@ -14318,6 +15530,11 @@
    "description": "Hire professional mercenaries to fight in your army.",
    "requirements_tooltip": ""
   },
+  "wagon_trains": {
+   "tooltip": "Supply Wagons +5 population space and Wagon Encampments +10 population space. Training Germanic Workers unlocked from the Supply Wagon as well.",
+   "description": "Long trains of wagons accompanied the Cimbri and Germanic peoples to provide shelter and transport goods",
+   "requirements_tooltip": "Unlocked in Town Phase."
+  },
   "warship_arrow_attack": {
    "tooltip": "Arrow Ships +10 crush attack damage and +10% attack range.",
    "description": "Mounting bolt shooters onto ships helped give added firepower.",
@@ -14326,17 +15543,17 @@
   "warship_fireship_attack": {
    "tooltip": "Fire Ships +25% health and +25% attack damage.",
    "description": "Pitch can be made from petroleum, coal tar, or pine tar. It can be used to help seal the hulls of boats as well as assist in igniting enemy ships.",
-   "requirements_tooltip": "Unlocked in City Phase. Requires “Naval Construction.”"
+   "requirements_tooltip": "Unlocked in City Phase."
   },
   "warship_health": {
-   "tooltip": "Arrow Ships and Ramming Ships +25% health.",
+   "tooltip": "Arrow Ships and Ramming Ships +20% health.",
    "description": "The hypozomata brace the structure of a ship.",
-   "requirements_tooltip": "Unlocked in City Phase. Requires “Ship Cladding.”"
+   "requirements_tooltip": "Unlocked in City Phase."
   },
   "warship_ramming_attack": {
    "tooltip": "Ramming Ships +30% attack damage.",
    "description": "A bronze beak at the prow of the ship, used for ramming enemy ships.",
-   "requirements_tooltip": "Unlocked in City Phase. Requires “Flanking Maneuvers.”"
+   "requirements_tooltip": "Unlocked in City Phase."
   },
   "warship_ramming_speed": {
    "tooltip": "Ramming Ships +25% speed and acceleration. Unlocks “Bronze Rams.”",
@@ -14346,12 +15563,7 @@
   "warship_ranged_attack": {
    "tooltip": "Ranged Warships +10% attack damage.",
    "description": "Flaming munitions were very useful against wooden targets such as ships.",
-   "requirements_tooltip": "Unlocked in City Phase. Requires “Naval Ballistae.”"
-  },
-  "warship_resistance": {
-   "tooltip": "Warships +1 pierce and crush armor. Unlocks “Undergirding Cables” for some civilizations.",
-   "description": "Armor for the flanks of a warship.",
-   "requirements_tooltip": "Unlocked in Town Phase."
+   "requirements_tooltip": "Unlocked in City Phase."
   },
   "warship_siege_attack": {
    "tooltip": "Siege Ships +20% attack range and vision range.",

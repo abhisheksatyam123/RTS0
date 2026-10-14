@@ -66,9 +66,9 @@ struct EntityAttackSounds {
 	uint8_t a, b, c, d;
 };
 
-inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 457;
+inline constexpr uint16_t ATTACK_SOUND_ROSTER_ROWS = 455;
 inline constexpr uint8_t ATTACK_SOUND_GENERIC_ROWS = 27;
-inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 69;
+inline constexpr uint8_t ATTACK_SOUND_BUILDING_ROWS = 67;
 inline constexpr uint8_t ATTACK_SOUND_FAUNA_ROWS = 61;
 
 // Melee, ranged and impact groups of a civ roster row (civ_unit_template_table order).
@@ -529,8 +529,6 @@ inline const EntityAttackSounds *roster_attack_sounds() {
 		{ATTACK_SOUND_NONE, 13, 7, 19}, // rome/cavalry_javelineer_auxiliary_b
 		{17, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 19}, // rome/cavalry_spearman_auxiliary_b
 		{19, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // rome/champion_infantry_swordsman_first
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_wagon
-		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, ATTACK_SOUND_NONE}, // germ/support_wagon_house
 	};
 	return kRows;
 }
@@ -640,8 +638,6 @@ inline const EntityAttackSounds &building_attack_sounds(uint8_t type) {
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_SIEGE_WALL_GATE: structures/rome/siege_wall_gate
 		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_CRANNOG: structures/brit/crannog
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // BLD_GREAT_HALL: structures/germ/great_hall
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT: structures/germ/encampment
-		{12, 5, 3, ATTACK_SOUND_NONE}, // BLD_WAGON_ENCAMPMENT_FORTIFIED: structures/germ/encampment_fortified
 		{ATTACK_SOUND_NONE, ATTACK_SOUND_NONE, 3, ATTACK_SOUND_NONE}, // default: template_structure
 	};
 	return kRows[type < ATTACK_SOUND_BUILDING_ROWS ? type : ATTACK_SOUND_BUILDING_ROWS];
