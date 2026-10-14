@@ -1497,9 +1497,10 @@ void Simulation::rebuild_territory_grids() {
 }
 
 // Whether the straight walk from (x0, z0) to (x1, z1) crosses a navcell no land unit can cross:
-// deep water, or a slope over MaxTerrainSlope (the end cells excepted: a dock, a shoreline
-// resource or a mine on a hillside may sit on one).
-bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1) const {
+// deep water, or a slope over MaxTerrainSlope; for a ship, one that isn't water: land or a
+// structure (the end cells excepted: a dock, a shoreline resource or a mine on a hillside may
+// sit on one).
+bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1, bool ship) const {
 	if ((terrain_water_height_ < -0.5f && !nav_grid_.any_steep()) || nav_grid_.cells.blank()) return false;
 	auto [cx0, cy0] = nav_grid_.world_to_cell(x0, z0);
 	auto [cx1, cy1] = nav_grid_.world_to_cell(x1, z1);
@@ -1508,7 +1509,8 @@ bool Simulation::line_crosses_impassable(float x0, float z0, float x1, float z1)
 	int err = dx + dy, x = cx0, y = cy0;
 	while (x != cx1 || y != cy1) {
 		if ((x != cx0 || y != cy0) && nav_grid_.cells.inside(x, y) &&
-		    (nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y))) return true;
+		    (ship ? !nav_grid_.is_passable_for(x, y, PASS_SHIP)
+		          : nav_grid_.cells.at(x, y) == NAV_WATER || nav_grid_.is_steep(x, y))) return true;
 		const int e2 = 2 * err;
 		if (e2 >= dy) { err += dy; x += sx; }
 		if (e2 <= dx) { err += dx; y += sy; }
@@ -8323,24 +8325,27 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// GATHER, BUILD, RETURN_DROPSITE and TRADE walk at (tx, tz) with no cmd_move path. When
 		// buildings, deep water or a slope too steep block that line, path them too, as 0 A.D.
 		// UnitMotion paths every move. An attacker closing in on its target is pathed only
-		// around water and slopes (it would stop at the shore otherwise). The path is kept
-		// while (tx, tz) stays within 2 world units of the target it was computed for.
+		// around water and slopes (it would stop at the shore otherwise). A ship is pathed on
+		// its own class when land or a structure lies on its line: fishing boats, merchant ships
+		// and warships sail round islands and headlands. The path is kept while (tx, tz) stays
+		// within 2 world units of the target it was computed for.
 		const uint8_t st = units_.action_state[i];
 		const bool closing_in = st == ACTION_ATTACK;
+		const bool ship = unit_is_ship(units_.unit_type[i]);
 		bool task_path = false;
 		if ((st == ACTION_GATHER || st == ACTION_BUILD || st == ACTION_RETURN_DROPSITE || st == ACTION_TRADE || closing_in) &&
-		    (size_t)i < unit_paths_.size() && !unit_is_ship(units_.unit_type[i])) {
+		    (size_t)i < unit_paths_.size()) {
 			WaypointPath &wp = unit_paths_[i];
 			const float gdx = wp.goal_x - tx[i];
 			const float gdz = wp.goal_z - tz[i];
 			task_path = wp.has_goal && gdx * gdx + gdz * gdz <= 4.0f;
-			if (!task_path && ((!closing_in && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
+			if (!task_path && ((!closing_in && !ship && rtso::nav::line_blocked_by_buildings(rtso::nav::Vec2(px[i], pz[i]),
 					rtso::nav::Vec2(tx[i], tz[i]), 2.0f * map_half_, unit_clearance_at(i),
 					steer_obstacles_, units_.target_building_id[i])) ||
-					line_crosses_impassable(px[i], pz[i], tx[i], tz[i]))) {
+					line_crosses_impassable(px[i], pz[i], tx[i], tz[i], ship))) {
 				const uint8_t ut = units_.unit_type[i];
 				const bool mounted = ut == UNIT_CAVALRY || ut == UNIT_CHARIOT || ut == UNIT_CAMEL || ut == UNIT_SCYTHED_CHARIOT;
-				find_path(px[i], pz[i], tx[i], tz[i], wp, mounted ? PASS_CAVALRY : PASS_INFANTRY);
+				find_path(px[i], pz[i], tx[i], tz[i], wp, ship ? PASS_SHIP : mounted ? PASS_CAVALRY : PASS_INFANTRY);
 				wp.has_goal = true;
 				wp.goal_x = tx[i];
 				wp.goal_z = tz[i];
@@ -8592,11 +8597,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// Walks get a goal on the beach from find_path; a unit walking straight at a target
 		// (a shoreline resource, a ship it boards or chases, an enemy across the water)
 		// stops at the shore and slides along it instead of stepping off. One already in
-		// deep water may still move.
-		if (!unit_is_ship(units_.unit_type[i]) && !nav_grid_.cells.blank()) {
+		// deep water may still move. Ships (template_unit_ship.xml) stay on water the same
+		// way: one heading for a point ashore (a dock's centre, a target on the beach, the last
+		// leg of a path to a goal on land) stops at the shore.
+		if (!nav_grid_.cells.blank()) {
 			auto deep = [&](float x, float z) {
 				auto [cx, cy] = nav_grid_.world_to_cell(x, z);
-				return nav_grid_.cells.inside(cx, cy) && nav_grid_.cells.at(cx, cy) == NAV_WATER;
+				if (!nav_grid_.cells.inside(cx, cy)) return false;
+				return ship ? !nav_grid_.is_passable_for(cx, cy, PASS_SHIP) : nav_grid_.cells.at(cx, cy) == NAV_WATER;
 			};
 			if (deep(npx[i], npz[i]) && !deep(px[i], pz[i])) {
 				if (!deep(npx[i], pz[i])) npz[i] = pz[i];
@@ -9404,7 +9412,7 @@ bool Simulation::chase_path_kept(size_t i) const {
 // find_path stopped it at the nearest point the unit can get to (MakeGoalReachable).
 bool Simulation::chase_falls_short(size_t i) const {
 	float kx, kz, gx, gz;
-	if (unit_is_ship(units_.unit_type[i]) || !chase_goal(i, kx, kz, gx, gz) || !chase_path_kept(i)) return false;
+	if (!chase_goal(i, kx, kz, gx, gz) || !chase_path_kept(i)) return false;
 	const WaypointPath &wp = unit_paths_[i];
 	if (wp.cur < wp.count) return false;
 	const float ex = wp.count > 0 ? wp.xs[wp.count - 1] : units_.pos_x[i];
