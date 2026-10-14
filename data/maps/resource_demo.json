@@ -5832,5 +5832,6 @@
         "gaul/infantry_spearman_b"
       ]
     }
-  ]
+  ],
+  "circular": true
 }

@@ -6273,5 +6273,6 @@
         "spart/infantry_spearman_b"
       ]
     }
-  ]
+  ],
+  "circular": true
 }

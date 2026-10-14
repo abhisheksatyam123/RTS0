@@ -4486,5 +4486,6 @@
       "z": -86.87,
       "template": "cart/ship_merchant"
     }
-  ]
+  ],
+  "circular": true
 }
