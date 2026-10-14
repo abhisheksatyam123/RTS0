@@ -1046,6 +1046,23 @@ public:
 	void set_circular_map(bool on);
 	// Off the world on a circular map: outside the circle of radius map_half() round the centre.
 	bool off_world(float x, float z) const { return circular_map() && x * x + z * z >= map_half_ * map_half_; }
+	// Past a circular map's passable edge, MAP_EDGE_DIST inside the circle, less a clearance c
+	// (0.28 CCmpPathfinder grows the impassable edge by each class's Clearance).
+	bool past_map_edge(float x, float z, float c = 0.0f) const {
+		if (!circular_map()) return false;
+		const float r = map_half_ - MAP_EDGE_DIST - c;
+		return r <= 0.0f || x * x + z * z > r * r;
+	}
+	// A footprint reaching past a circular map's passable edge (CheckBuildingPlacement).
+	template <class F>
+	bool footprint_past_map_edge(const F &f) const {
+		if (!circular_map()) return false;
+		const nav::Vec2 u = nav::footprint_u(f), v = nav::footprint_v(f);
+		for (float su : {-1.0f, 1.0f})
+			for (float sv : {-1.0f, 1.0f})
+				if (past_map_edge(f.x + su * f.hu * u.x + sv * f.hv * v.x, f.z + su * f.hu * u.y + sv * f.hv * v.y)) return true;
+		return false;
+	}
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -2267,6 +2284,11 @@ private:
 	bool near_deep_water(float x, float z, float c) const;
 	// A land unit with clearance c may not step from (x0, z0) to (x1, z1) (move_units, pushes).
 	bool land_step_barred(float x0, float z0, float x1, float z1, float c) const;
+	// A unit with clearance c may not step past a circular map's edge (past_map_edge); one already
+	// past it may step back in.
+	bool edge_step_barred(float x0, float z0, float x1, float z1, float c) const {
+		return past_map_edge(x1, z1, c) && x1 * x1 + z1 * z1 > x0 * x0 + z0 * z0;
+	}
 	bool find_path(float sx, float sz, float tx, float tz, WaypointPath &out, uint8_t pass = PASS_INFANTRY) const;
 	int territory_owner_at(float x, float z) const; // G2: query territory_grid_
 	void rebuild_territory(); // G2: rebuild territory/influence grids from TC/Fortress/Tower
