@@ -8154,151 +8154,176 @@
       "type": "villager",
       "player": 2,
       "x": -13.14,
-      "z": -103.08
+      "z": -103.08,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -12.11,
-      "z": -102.16
+      "z": -102.16,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -10.93,
-      "z": -101.11
+      "z": -101.11,
+      "template": "maur/support_civilian"
     },
     {
       "type": "villager",
       "player": 2,
       "x": -9.7,
-      "z": -99.79
+      "z": -99.79,
+      "template": "maur/support_civilian"
     },
     {
       "type": "elephant",
       "player": 2,
       "x": -21.9,
-      "z": -92.55
+      "z": -92.55,
+      "template": "maur/support_elephant"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -10.45,
-      "z": -93.85
+      "z": -93.85,
+      "template": "maur/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 2,
       "x": -12.04,
-      "z": -92.05
+      "z": -92.05,
+      "template": "maur/infantry_archer_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -21.12,
-      "z": -100.23
+      "z": -100.23,
+      "template": "maur/infantry_spearman_b"
     },
     {
       "type": "spearman",
       "player": 2,
       "x": -20.01,
-      "z": -101.41
+      "z": -101.41,
+      "template": "maur/infantry_spearman_b"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -9.12,
-      "z": 45.2
+      "z": 45.2,
+      "template": "ptol/infantry_pikeman_b"
     },
     {
       "type": "spearman",
       "player": 1,
       "x": -10.3,
-      "z": 46.39
+      "z": 46.39,
+      "template": "ptol/infantry_pikeman_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -2.7,
-      "z": 56.51
+      "z": 56.51,
+      "template": "ptol/infantry_archer_b"
     },
     {
       "type": "archer",
       "player": 1,
       "x": -1.51,
-      "z": 55.35
+      "z": 55.35,
+      "template": "ptol/infantry_archer_b"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -2.94,
-      "z": 45.16
+      "z": 45.16,
+      "template": "ptol/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -2.37,
-      "z": 46.0
+      "z": 46.0,
+      "template": "ptol/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -1.71,
-      "z": 46.95
+      "z": 46.95,
+      "template": "ptol/support_civilian"
     },
     {
       "type": "villager",
       "player": 1,
       "x": -0.7,
-      "z": 47.55
+      "z": 47.55,
+      "template": "ptol/support_civilian"
     },
     {
-      "type": "archer",
+      "type": "cavalry",
       "player": 1,
       "x": -12.53,
-      "z": 48.14
+      "z": 48.14,
+      "template": "ptol/cavalry_archer_b"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 39.73,
-      "z": 32.41
+      "z": 32.41,
+      "template": "ptol/ship_siege"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 39.44,
-      "z": 53.29
+      "z": 53.29,
+      "template": "ptol/ship_fishing"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 20.93,
-      "z": 104.97
+      "z": 104.97,
+      "template": "ptol/ship_fishing"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 19.87,
-      "z": 113.74
+      "z": 113.74,
+      "template": "ptol/ship_merchant"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 27.17,
-      "z": 23.18
+      "z": 23.18,
+      "template": "ptol/ship_scout"
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 32.72,
-      "z": 27.08
+      "z": 27.08,
+      "template": "ptol/ship_arrow"
     },
     {
       "type": "swordsman",
       "player": 1,
       "x": 49.21,
-      "z": 36.6
+      "z": 36.6,
+      "template": "ptol/champion_juggernaut"
     }
   ],
   "treasures": [
@@ -8577,5 +8602,6 @@
     "saturation": 0.765625,
     "bloom": 0.081836,
     "post_effect": "hdr"
-  }
+  },
+  "circular": true
 }

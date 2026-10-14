@@ -4227,21 +4227,21 @@
       "template": "athen/infantry_spearman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 8.09,
       "z": -2.5,
       "template": "athen/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": 12.18,
       "z": -2.73,
       "template": "athen/cavalry_swordsman_b"
     },
     {
-      "type": "swordsman",
+      "type": "cavalry",
       "player": 1,
       "x": -5.1,
       "z": -1.93,
@@ -4415,5 +4415,6 @@
       "z": 43.77,
       "template": "athen/infantry_spearman_b"
     }
-  ]
+  ],
+  "circular": false
 }

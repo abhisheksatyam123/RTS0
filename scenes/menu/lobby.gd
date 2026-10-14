@@ -215,6 +215,10 @@ func _build() -> void:
 	_host_pwd.secret = true
 	host.add_child(_host_pwd)
 	host.add_child(_button("Host Game", _on_host_pressed))
+	# LobbyPage hostSavedGameButton: pick a save, then host it.
+	var saved_btn := _button("Host Saved Game", _on_host_saved_pressed)
+	saved_btn.tooltip_text = "Continue playing a game from a savegame."
+	host.add_child(saved_btn)
 
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -740,6 +744,10 @@ static func multiplayer_name() -> String:
 	return n if not n.is_empty() else "Player"
 
 
+func _on_host_saved_pressed() -> void:
+	_on_host_pressed(true)
+
+
 func _on_join_pressed() -> void:
 	var port := _join_port.text.to_int()
 	if _join_ip.text.strip_edges() == "" or port <= 0 or port > 65535:
@@ -761,7 +769,7 @@ func _on_join_pressed() -> void:
 	MatchSettings.go("res://scenes/main.tscn")
 
 
-func _on_host_pressed() -> void:
+func _on_host_pressed(saved := false) -> void:
 	var port := _host_port.text.to_int()
 	if port <= 0 or port > 65535:
 		_say("Type a port for the game.")
@@ -773,6 +781,16 @@ func _on_host_pressed() -> void:
 	MatchSettings.net_port = port
 	MatchSettings.net_password = _host_pwd.text
 	MatchSettings.net_observe = false
+	if saved:
+		# gamesetup_mp.js handleAuthenticated: the host picks the save (the
+		# load page), and the match scene hosts it once loaded
+		# and registers its game in the lobby.
+		MatchSettings.net_saved_game = true
+		var d: Node = load("res://scenes/session/savegame_dialog.gd").open(self, "load")
+		d.closed.connect(func() -> void:
+			MatchSettings.net_saved_game = false
+			MatchSettings.net_mode = "")
+		return
 	if LobbySession.signed_in():
 		# The same id main_node registers, so both update one entry.
 		LobbySession.host_game({

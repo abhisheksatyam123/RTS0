@@ -15,6 +15,8 @@ It plays that match twice. The first time the client then leaves, and the
 host's chat must say "bob has left the game."; the second time the host leaves,
 and the client must show "Connection to the server has been lost." with "The
 host has ended the game.", whose Exit opens the summary as disconnected.
+Then the host saves a match, hosts that saved game, and the client must load
+the host's world into its old seat and stay in step with it.
 
 Both clients sit behind a simulated NAT firewall (each drops datagrams from
 endpoints it never sent to; --no-firewall turns it off), so the join works
@@ -33,6 +35,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 
@@ -69,9 +72,76 @@ def main():
     ok = True
     for leave in ("join", "host"):
         ok = play(args, lobby, leave) and ok
+    ok = play_saved(args, lobby) and ok
     server.shutdown()
     stun.close()
     return 0 if ok else 1
+
+
+def play_saved(args, lobby):
+    """0 A.D. Host Saved Game: a two-player match is played alone for 20 s and
+    saved; the host hosts that save, the joiner joins from the game list, and
+    at Start the joiner loads the host's world (it never built its own) and
+    takes the second seat. Their turn hashes must match."""
+    print("[gmp] ---- a saved game: the host continues it, the joiner loads its world ----")
+    port = args.port + 2
+    def client(role, name, *more):
+        cmd = [args.godot, "--headless", "--path", ROOT, "-s", "res://tools/godot_mp_probe.gd", "--",
+               f"role={role}", f"name={name}", f"lobby={lobby}", f"port={port}", f"turns={args.turns}",
+               f"timeout={args.timeout}", f"stun={args.stun_port}", "lan=0", *more]
+        if not args.no_firewall:
+            cmd.append("net_firewall=1")
+        # A file, not a pipe: a peer whose pipe fills while the other is read blocks.
+        log = tempfile.TemporaryFile(mode="w+")
+        p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, text=True)
+        p.log = log
+        return p
+    def output(p):
+        p.log.seek(0)
+        return p.log.read()
+    maker = client("make_save", "alice", "saves=gmp_saved_game")
+    maker.wait(timeout=args.timeout)
+    out_save = output(maker)
+    if maker.returncode != 0 or "saved gmp_saved_game" not in out_save:
+        print("\n".join(out_save.splitlines()[-30:]))
+        print("[gmp] FAIL could not make the save")
+        return False
+    host = client("host", "alice", "saved=gmp_saved_game")
+    time.sleep(2.0)
+    join = client("join", "bob")
+    outs = {}
+    for role, p in (("join", join), ("host", host)):
+        try:
+            p.wait(timeout=args.timeout + 30)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait()
+        outs[role] = output(p)
+    def done(role):
+        for line in gmp_lines(outs[role]):
+            if " done " in line:
+                return dict(kv.split("=", 1) for kv in line.split(" done ", 1)[1].split())
+        return {}
+    h, j = done("host"), done("join")
+    hosted = "HOST continues saved game" in outs["host"]
+    loaded = "rejoined as client" in outs["join"] and "JOINER consumed NMT_GAME_START" not in outs["join"]
+    ok = (host.returncode == 0 and join.returncode == 0 and h and j and hosted and loaded
+          and h.get("hash") == j.get("hash") and h.get("hash") not in (None, "00000000")
+          and h.get("seat") == "0" and j.get("seat") == "1")
+    for role in ("host", "join"):
+        for line in gmp_lines(outs[role]):
+            print("   " + line)
+    if ok:
+        print(f"[gmp] PASS a saved game: the host hosted the save, the joiner loaded the host's world at Start "
+              f"and took seat 1; turn {args.turns} hash {h['hash']} on both")
+        return True
+    for role in ("host", "join"):
+        print(f"---- {role} output ----")
+        print("\n".join(l for l in (outs[role] or "").splitlines()
+                        if "[RTS0]" in l or "TurnManager" in l or "NetHost" in l or "[gmp]" in l))
+    print(f"[gmp] FAIL saved game rc host/join={host.returncode}/{join.returncode} host={h} join={j} "
+          f"hosted={hosted} loaded={loaded}")
+    return False
 
 
 def play(args, lobby, leave):

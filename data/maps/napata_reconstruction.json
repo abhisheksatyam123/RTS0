@@ -69448,5 +69448,6 @@
     }
   ],
   "structures": [],
-  "units": []
+  "units": [],
+  "circular": true
 }

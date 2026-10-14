@@ -60,9 +60,9 @@ func run() -> void:
 	var single: Array = items(menu, "single").map(func(b): return b.text)
 	check(single.slice(0, 2) == ["Matches", "Load Game"] and single.has("Replays"), "Single-player: " + str(single))
 	var multi: Array = items(menu, "multi").map(func(b): return b.text)
-	check(multi == ["Game Lobby", "Connect by IP", "Host New Game", "Replays"], "Multiplayer: " + str(multi))
+	check(multi == ["Game Lobby", "Connect by IP", "Host New Game", "Host Saved Game", "Replays"], "Multiplayer: " + str(multi))
 	var settings: Array = items(menu, "settings").map(func(b): return b.text)
-	check(settings == ["Options", "Hotkeys", "Mod Selection", "Welcome Screen"], "Settings: " + str(settings))
+	check(settings == ["Options", "Hotkeys", "Language", "Mod Selection", "Welcome Screen"], "Settings: " + str(settings))
 
 	print("3. Hotkeys")
 	menu._execute_action("open_hotkeys")

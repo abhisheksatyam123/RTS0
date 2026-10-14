@@ -16729,5 +16729,6 @@
       "template": "army_mace_hero_alexander"
     }
   ],
-  "units": []
+  "units": [],
+  "circular": true
 }

@@ -75,6 +75,8 @@ void RtsoMiniMapView::_gui_input(const Ref<InputEvent> &event) {
 		float half = sim ? sim->map_half() : 64.0f;
 		float wx = (mpos.x / sz.x) * (half * 2.0f) - half;
 		float wz = (mpos.y / sz.y) * (half * 2.0f) - half;
+		// CMiniMap::IsMouseOver: a circular map's minimap is the circle, so a press in a corner misses it.
+		if (sim && sim->circular_map() && mb->is_pressed() && wx * wx + wz * wz > half * half) return;
 
 		if (mb->get_button_index() == MOUSE_BUTTON_LEFT) {
 			dragging = mb->is_pressed();
@@ -165,9 +167,16 @@ bool RtsoMiniMapView::ensure_territory_texture() {
 
 void RtsoMiniMapView::_draw() {
 	Vector2 sz = get_size();
-	// Background Panel
-	draw_rect(Rect2(Vector2(0, 0), sz), Color(0.08f, 0.09f, 0.12f, 0.96f), true);
-	draw_rect(Rect2(Vector2(0, 0), sz), Color(0.90f, 0.75f, 0.31f, 1.0f), false, 2.0f);
+	// 0 A.D. draws a circular map's minimap as a disc (MiniMapTexture m_MapIsCircular): the
+	// corners off the world stay empty.
+	const bool round = sim && sim->circular_map();
+	const Color panel(0.08f, 0.09f, 0.12f, 0.96f), rim(0.90f, 0.75f, 0.31f, 1.0f);
+	if (round) {
+		draw_circle(sz * 0.5f, std::min(sz.x, sz.y) * 0.5f, panel);
+	} else {
+		draw_rect(Rect2(Vector2(0, 0), sz), panel, true);
+		draw_rect(Rect2(Vector2(0, 0), sz), rim, false, 2.0f);
+	}
 
 	if (!sim) return;
 
@@ -200,16 +209,21 @@ void RtsoMiniMapView::_draw() {
 		const Color black_shroud(0.03f, 0.04f, 0.06f, 1.0f);  // 100% black unexplored
 		const Color fog_shroud(0.01f, 0.02f, 0.04f, 0.40f);    // 40% explored fog
 
+		// On a circular map the cells off the world are left undrawn, so the shroud is round too.
+		const float cell_world = half_map * 2.0f / (float)fow_res;
+		auto off_world = [&](int x, int z) {
+			return round && sim->off_world(-half_map + ((float)x + 0.5f) * cell_world, -half_map + ((float)z + 0.5f) * cell_world);
+		};
 		for (int z = 0; z < fow_res; ++z) {
 			int x = 0;
 			while (x < fow_res) {
 				uint8_t st = fow[z * fow_res + x];
-				if (st == rtso::Simulation::FOW_VISIBLE) {
+				if (st == rtso::Simulation::FOW_VISIBLE || off_world(x, z)) {
 					x++;
 					continue;
 				}
 				int run_start = x;
-				while (x < fow_res && fow[z * fow_res + x] == st) {
+				while (x < fow_res && fow[z * fow_res + x] == st && !off_world(x, z)) {
 					x++;
 				}
 				int run_len = x - run_start;
@@ -358,4 +372,7 @@ void RtsoMiniMapView::_draw() {
 	// 7. Draw Camera Viewport Frustum Box
 	Vector2 cam_mini = map_to_mini(cam_pos.x, cam_pos.z);
 	draw_rect(Rect2(cam_mini - Vector2(18, 14), Vector2(36, 28)), Color(1.0f, 1.0f, 1.0f, 0.6f), false, 1.5f);
+
+	// The disc's rim, over everything like the square's frame.
+	if (round) draw_arc(sz * 0.5f, std::min(sz.x, sz.y) * 0.5f - 1.0f, 0.0f, 6.2831853f, 96, rim, 2.0f);
 }

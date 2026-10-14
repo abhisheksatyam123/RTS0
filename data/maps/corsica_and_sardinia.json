@@ -42740,5 +42740,6 @@
       "z": 67.06,
       "template": "units/special_starting_unit"
     }
-  ]
+  ],
+  "circular": true
 }
