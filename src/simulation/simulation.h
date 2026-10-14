@@ -167,7 +167,8 @@ public:
 	// Facing of a building nobody rotated: toward -z, the way every building was drawn
 	// before rotation was simulated (0 A.D.'s placement default is 3pi/4).
 	static constexpr float DEFAULT_BUILDING_ROT = 3.14159265359f;
-	static constexpr uint32_t SAVE_VERSION = 79; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION = 80; // save_state's format; see the history beside it
+	static constexpr uint32_t SAVE_VERSION_STATUS_STACKS = 80; // each Poisoned/Burning hit its own status, on units, structures and animals
 	static constexpr uint32_t SAVE_VERSION_HEADING = 77; // each unit's heading (Position rotation, turned at TurnRate)
 	static constexpr uint32_t SAVE_VERSION_PETRA_HUNT_SEARCH = 79; // each Petra hunter's last fruitless hunt search; storehouse checks per base
 	static constexpr uint32_t SAVE_VERSION_PETRA_FAILED_GATHER = 75; // Petra's lastFailedGather; PetraConfig drops three unused fields
@@ -508,6 +509,8 @@ public:
 	uint32_t spawn_resource_world(float wx, float wz, uint8_t type, int32_t amount = 600, uint8_t subtype = 0, uint8_t max_gatherers = 0,
 			uint8_t flora = 0);
 	void set_resource_flora(uint32_t res_id, uint8_t flora);
+	// Map generation only: moves a resource before the nav grid is built.
+	void set_resource_position(uint32_t res_id, float x, float z);
 	// Sets a resource's amount, as map generation does for a tree whose 0 A.D. template holds more or
 	// less than TREE_WOOD_SUPPLY. A regrowing supply (fruit) moves its Max with it.
 	void set_resource_amount(uint32_t res_id, int32_t amount);
@@ -2188,7 +2191,14 @@ private:
 	// flee), returns fighters to their order, turns patrols, follows the order queue.
 	void tick_unit_ai(float dt);
 	void tick_status_effects(float dt);
+	// Attack/*/ApplyStatus from an attacker with profile `att` on unit t, structure b or animal f.
 	void apply_status(size_t t, const CombatProfile &att, uint32_t src_id = 0, uint8_t src_owner = 0xFF);
+	void apply_status_structure(Building &b, const CombatProfile &att, uint32_t src_id, uint8_t src_owner);
+	void apply_status_fauna(size_t f, const CombatProfile &att, uint32_t src_id, uint8_t src_owner);
+	void add_status(uint8_t target_kind, uint32_t target, const CombatProfile &att, uint32_t src_id, uint8_t src_owner);
+	// Structure b takes `dmg` from src_id of player src_team (Health.js TakeDamage): it catches
+	// fire below a third of its health and is razed at none. False once it is razed.
+	bool structure_takes_damage(Building &b, float dmg, uint32_t src_id, uint8_t src_team);
 	static constexpr float ATTACK_DUE = 1.0e-6f; // attack_timer: the hit lands this tick
 	void tick_attack_timer(size_t i, float dt);
 	bool attack_under_way(size_t i) const;
@@ -2200,7 +2210,6 @@ private:
 	void unit_attack_effects(size_t i, float out[4]) const;
 	float unit_repeat_time(size_t i) const; // hack, pierce, crush, fire
 	void unit_tech_damage(size_t i, float out[4]) const;
-	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
 	// Foundation.js Commit: own and allied units standing on the foundation are told to
@@ -2431,6 +2440,25 @@ private:
 	ResourceSoA resources_;
 	std::vector<Building> buildings_;
 	std::vector<Projectile> projectiles_;
+	// 0 A.D. StatusEffectsReceiver (Stackability Stack): every Poisoned or Burning hit is its own
+	// status with its own timer, credited to whoever applied it. It deals its Damage on the next
+	// turn and then every Interval, and ends once Duration has passed (ExecuteEffect), so it
+	// ticks floor(Duration / Interval) + 1 times. Saved (SAVE_VERSION_STATUS_STACKS) in order.
+	struct StatusInstance {
+		uint32_t target = 0; // unit, building or animal id (target_kind)
+		uint32_t src = 0;    // the attacker (status.source.entity)
+		float damage = 0.0f, interval = 0.0f, duration = 0.0f; // Damage per tick, Interval, Duration (s)
+		float elapsed = 0.0f; // _timeElapsed
+		float next = 0.0f;    // seconds to the next tick
+		uint8_t target_kind = 0; // STATUS_ON_*
+		uint8_t kind = 0;        // 1 Poisoned, 2 Burning
+		uint8_t src_owner = 0xFF; // status.source.owner
+		uint8_t first = 1;        // _firstTime: the first tick adds no Interval
+	};
+	static constexpr uint8_t STATUS_ON_UNIT = 0, STATUS_ON_STRUCTURE = 1, STATUS_ON_FAUNA = 2;
+	static constexpr uint32_t MAX_STATUSES = 1u << 16;
+	std::vector<StatusInstance> statuses_;
+	bool status_tick(const StatusInstance &st); // one ExecuteEffect; false once its target is gone
 	std::vector<Relic> relics_;
 	std::vector<Treasure> treasures_;
 	void tick_treasures(float dt);
@@ -3266,7 +3294,27 @@ private:
 	void ensure_gaia_obstacles();
 	// Appends to `out` the Gaia obstacles that may reach into the box (x, z) +- reach.
 	void gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const;
+	// Whether the trees in the way matter to a walker at (x, z) heading for (ax, az): one of them
+	// crosses the first `reach` of that line, kept `radius` off, or holds the walker. Only then does
+	// it need gaia_obstacles_near; cheaper, as it looks along the line only.
+	bool gaia_in_the_way(float x, float z, float ax, float az, float reach, float radius, uint32_t ignore) const;
+	// Navcells a wood closes to long paths: 1 where trees and bushes leave no way across the cell
+	// (forest_cell_closed). rebuild_nav_grid marks them obstructed. Recomputed when the Gaia
+	// obstacles change (update_forest_cells), and the nav grid rebuilt when a cell opens or closes.
+	std::vector<uint8_t> forest_cells_;
+	uint64_t forest_sig_ = 0;
+	bool forest_removals_only_ = false; // tick_gather felled trees from up-to-date forest_cells_
+	uint64_t forest_sig_of_gaia() const { return gaia_obstacles_sig_ ^ ((uint64_t)nav_grid_.res << 48); }
+	bool forest_cell_closed(int cx, int cy) const;
+	bool update_forest_cells();
 	nav::ObstacleGrid sep_grid_; // sep_obstacles_ by cell, rebuilt with it
+	// steer_obstacles_ by cell, rebuilt in move_units when they change, and the line test that
+	// looks only at those under the line (the same answer as nav::line_blocked_by_buildings over
+	// all of them).
+	nav::ObstacleGrid steer_grid_;
+	uint32_t steer_grid_key_ = 0;
+	float steer_grid_half_ = 0.0f;
+	bool steer_line_blocked(nav::Vec2 pos, nav::Vec2 aim, float max_len, float radius, uint32_t ignore) const;
 	// tick_capture()'s count and strength of nearby capturers per building and team, and the grid of
 	// building reach it finds them with. Rebuilt every tick.
 	struct CaptureTally { int count[MAX_PLAYERS]; float strength[MAX_PLAYERS]; };
@@ -3306,6 +3354,7 @@ private:
 	std::vector<uint16_t> combat_wild_scratch_; // tick_combat: dangerous animals this tick
 	std::vector<uint16_t> combat_herd_scratch_; // tick_combat: players' animals out of their corrals (structure targets)
 	std::vector<uint32_t> combat_look_again_scratch_; // tick_combat: units that hit a non-preferred target
+	std::vector<uint8_t> status_bits_scratch_; // tick_status_effects: each unit's Poisoned/Burning bits
 	// ResourceGatherer.CanGather: unit index i has a Rates entry for resource index r.
 	bool can_gather(size_t i, size_t r) const;
 	// With `busy`, skips `skip` and resources whose MaxGatherers are all taken (ResourceSupply.IsAvailable).

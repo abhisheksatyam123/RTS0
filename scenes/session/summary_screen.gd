@@ -530,6 +530,8 @@ static func format_value(v: Variant) -> String:
 		return out
 	if v is float and is_inf(v):
 		return INFINITY_SYMBOL
+	if v is float and v == floorf(v):
+		return str(int(v)) # JS prints +(2).toFixed(2) as "2"
 	return str(v)
 
 ## The plain value of one counter for a player (tests and charts).
@@ -550,7 +552,7 @@ func team_value(team: int, panel: int, column: int, index := -1) -> Variant:
 static func time_to_string(seconds: float) -> String:
 	var s := int(seconds)
 	if s >= 3600:
-		return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
+		return "%02d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
 	return "%02d:%02d" % [s / 60, s % 60]
 
 ## initGUILabels.
@@ -741,10 +743,9 @@ func _on_tab_wheel(event: InputEvent) -> void:
 		var n := panels.size() + 1
 		select_panel((panel_index + (1 if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else n - 1)) % n)
 
-## colorizeHotkey: the hotkey's first binding in brackets.
+## colorizeHotkey: every binding, shortest first, or "Unassigned hotkey: name".
 func _hotkey_text(hotkey: String) -> String:
-	var combos: PackedStringArray = _hotkeys.call("get_hotkey_map").get(hotkey, PackedStringArray()) if _hotkeys else PackedStringArray()
-	return "[%s]" % combos[0] if not combos.is_empty() else "[unassigned]"
+	return load("res://scenes/menu/replay_browser.gd").hotkey_text(_hotkeys.call("get_hotkey_map") if _hotkeys else {}, hotkey)
 
 func select_panel(i: int) -> void:
 	panel_index = clampi(i, 0, panels.size())

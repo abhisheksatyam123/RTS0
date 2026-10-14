@@ -893,7 +893,8 @@ static void test_garrisons() {
 		return std::find(b.garrisoned_units.begin(), b.garrisoned_units.end(), id) != b.garrisoned_units.end();
 	};
 	std::vector<uint32_t> archers;
-	for (int i = 0; i < 3; ++i) archers.push_back(s->spawn_unit(tx + 14.0f + 2.0f * (float)i, tz + 12.0f, 1, UNIT_ARCHER));
+	// The Town Center's GarrisonArrowClasses are Soldier: cavalry man it too.
+	for (int i = 0; i < 3; ++i) archers.push_back(s->spawn_unit(tx + 14.0f + 2.0f * (float)i, tz + 12.0f, 1, i == 2 ? UNIT_CAVALRY : UNIT_ARCHER));
 	std::vector<uint32_t> foes;
 	for (int i = 0; i < 3; ++i) foes.push_back(s->spawn_unit(tx - 10.0f, tz - 8.0f + 2.0f * (float)i, 0, UNIT_SPEARMAN));
 	int manned = 0;
@@ -914,8 +915,8 @@ static void test_garrisons() {
 	run_for(*s, 3.0f);
 	int left = 0;
 	for (uint32_t id : archers) left += inside(id) ? 0 : 1;
-	std::printf("  garrisons: %d of 3 archers manned the Town Center under attack, %d left after\n", manned, left);
-	CHECK(manned == 3, "infantry man a Town Center an enemy is in range of");
+	std::printf("  garrisons: %d of 2 archers and a horseman manned the Town Center under attack, %d left after\n", manned, left);
+	CHECK(manned == 3, "soldiers man a Town Center an enemy is in range of");
 	CHECK(left == 3, "and leave once no enemy is near");
 
 	// A hurt woman under attack shelters in the (healing) Town Center.
@@ -1125,6 +1126,23 @@ static void test_hunters_028() {
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a full carcass is skipped (isSupplyFull)");
 	full.on_carcass[meat] = 0;
 	CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) == meat, "the same carcass with room is picked");
+	// One walled in by blocked cells (deep in a circular map's edge) has no cell to be gathered from.
+	{
+		auto &g = s->nav_grid_;
+		const auto [mx, mz] = g.world_to_cell(px + 8.0f, pz - 8.0f);
+		std::vector<std::pair<size_t, uint8_t>> saved;
+		for (int dz = -2; dz <= 2; ++dz)
+			for (int dx = -2; dx <= 2; ++dx)
+				if (g.cells.inside(mx + dx, mz + dz)) {
+					saved.push_back({(size_t)(mz + dz) * g.res + (mx + dx), g.cells.at(mx + dx, mz + dz)});
+					g.cells.at(mx + dx, mz + dz) = NAV_OBSTRUCTED;
+					g.dirty.at(mx + dx, mz + dz) = 1;
+				}
+		g.rebuild_dirty_regions();
+		CHECK(s->petra_find_hunt((size_t)ri2, px + 8.0f, pz - 8.0f, full, live) != meat, "a carcass no cell beside it reaches is skipped");
+		for (const auto &[k, v] : saved) { g.cells.data[k] = v; g.dirty.data[k] = 1; }
+		g.rebuild_dirty_regions();
+	}
 
 	// getOwnDropsites("food") holds the supply wagon; getAnyDropsites adds a mutual ally's
 	// shared farmstead only once we have Diaspora (hasSharedDropsites).
@@ -1655,6 +1673,86 @@ static void test_army_answers_attackers() {
 	            turned ? "yes" : "no", helpers, (int)plan.state);
 	CHECK(turned, "a Petra soldier attacked while at a structure fights back at once");
 	CHECK(helpers == 2, "its two nearest squad mates turn on the attacker too");
+}
+
+// attackPlan.js update: an attack's units pick their targets among the targetPlayer's
+// units and structures (getEnemyUnits/getEnemyStructures(targetPlayer)), so an army sent at
+// one enemy doesn't drift onto a third party standing nearer.
+static void test_attack_targets_target_player() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	std::vector<uint32_t> squad;
+	for (int k = 0; k < 3; ++k) {
+		squad.push_back(s->spawn_unit(hx, hz + 1.5f * (float)k, 1, UNIT_SPEARMAN, 1.0e4f));
+		s->units_.stance[s->lookup_unit(squad.back())] = STANCE_STAND_GROUND; // only Petra's orders move them
+	}
+	const uint32_t third = s->spawn_unit(hx + 6.0f, hz + 1.5f, 2, UNIT_SWORDSMAN, 1.0e6f);
+	const uint32_t foe = s->spawn_unit(hx - 9.0f, hz + 1.5f, 0, UNIT_SWORDSMAN, 1.0e6f);
+	for (uint32_t id : {third, foe}) s->units_.stance[s->lookup_unit(id)] = STANCE_PASSIVE;
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = squad;
+	plan.initial_squad_size = squad.size();
+	plan.target_player = 0;
+	plan.target_building_id = s->spawn_building_world(hx - 30.0f, hz, BLD_HOUSE, 0, 1.0f);
+	plan.target_x = hx - 30.0f; plan.target_z = hz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_ai_turns(*s, 2);
+	int on_foe = 0, on_third = 0;
+	for (uint32_t id : squad) {
+		const int32_t i = s->lookup_unit(id);
+		if (i < 0) continue;
+		on_foe += s->units_.target_unit_id[i] == foe;
+		on_third += s->units_.target_unit_id[i] == third;
+	}
+	std::printf("  attack on player 0: %d soldiers on its swordsman, %d on player 2's nearer one\n", on_foe, on_third);
+	CHECK(on_third == 0 && on_foe > 0, "an attack's units fight only the target player's units (getEnemyUnits(targetPlayer))");
+}
+
+// attackPlan.js update: a unit that can attack walls goes for a Gate-class structure first
+// (+10000), the palisade and siege wall gates as much as the stone one.
+static void test_siege_prefers_any_gate() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_victory_condition(VICTORY_ENDLESS);
+	run_for(*s, 1.0f);
+	float tx = 0.0f, tz = 0.0f;
+	for (const auto &b : s->buildings())
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+	const float hx = -tx * 0.3f, hz = -tz * 0.3f;
+	for (size_t j = 0; j < s->units_.count; ++j)
+		if (s->units_.alive[j] && s->units_.team[j] == 0) { s->units_.alive[j] = 0; s->units_.action_state[j] = ACTION_DYING; }
+	run_for(*s, 0.5f);
+	const uint32_t gate = s->spawn_building_world(hx + 8.0f, hz, BLD_PALISADE_GATE, 0, 1.0f);
+	const uint32_t house = s->spawn_building_world(hx - 8.0f, hz, BLD_HOUSE, 0, 1.0f);
+	const uint32_t ram = s->spawn_unit(hx, hz + 4.0f, 1, UNIT_SIEGE_RAM, 1.0e5f);
+	s->units_.stance[s->lookup_unit(ram)] = STANCE_STAND_GROUND; // only Petra's orders move it
+	auto &plan = s->petra_attack_plan_;
+	plan.squad = {ram};
+	plan.initial_squad_size = 1;
+	plan.target_player = 0;
+	plan.target_building_id = house;
+	plan.target_x = hx; plan.target_z = hz;
+	plan.state = Simulation::AttackPlan::ATTACKED;
+	plan.state_timer = 0.0f;
+	run_ai_turns(*s, 2);
+	const int32_t r = s->lookup_unit(ram);
+	const uint32_t on = r >= 0 ? s->units_.target_building_id[r] : 0;
+	std::printf("  a ram by a palisade gate and a house goes for the %s\n", on == gate ? "gate" : on == house ? "house" : "neither");
+	CHECK(on == gate, "a palisade gate draws a wall-breaker first (Gate class +10000)");
 }
 
 // defenseManager.js assignDefenders: soldiers of a plan still mustering defend the base
@@ -3116,7 +3214,9 @@ static void test_retake_civic_centre() {
 	CHECK(tc_id != 0, "Petra has a Town Center");
 	if (!tc_id) return;
 	std::vector<uint32_t> mine, foes;
-	// Cavalry, which garrisonManager leaves out of the Town Center.
+	// Cavalry are Soldiers, the Town Center's GarrisonArrowClasses, so garrisonUnitsInside would
+	// send them in: a Town Center with no room keeps them outside, defending.
+	s->buildings_[s->building_id_to_idx_.at(tc_id)].garrison_cap = 0;
 	for (int i = 0; i < 10; ++i) mine.push_back(s->spawn_unit(tx + 10.0f + (float)(i % 5) * 2.0f, tz + 10.0f + (float)(i / 5) * 2.0f, 1, UNIT_CAVALRY));
 	for (int i = 0; i < 6; ++i) foes.push_back(s->spawn_unit(tx - 22.0f, tz - 6.0f + 2.0f * (float)i, 0, UNIT_SWORDSMAN));
 	auto hold = [&]() {
@@ -4242,6 +4342,8 @@ int main(int argc, char **argv) {
 	RUN(test_nomad_first_base);
 	RUN(test_entity_limit_placement);
 	RUN(test_army_answers_attackers);
+	RUN(test_attack_targets_target_player);
+	RUN(test_siege_prefers_any_gate);
 	RUN(test_mustering_units_defend);
 	RUN(test_attack_request);
 	RUN(test_relic_capture);

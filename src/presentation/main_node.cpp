@@ -360,6 +360,7 @@ Dictionary RtsoMain::debug_selection_state() {
 		const rtso::TechClasses tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
 		u["civilian"] = (bool)(tc & rtso::TC_CIVILIAN);
+		u["target_resource"] = (int64_t)uview.target_resource_id[i];
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -369,6 +370,23 @@ Dictionary RtsoMain::debug_selection_state() {
 	}
 	d["units"] = units;
 	d["viewport"] = get_viewport()->get_visible_rect().size;
+	// The resource nearest the first selected unit, and where it is on screen.
+	if (cam && !selected_ids.is_empty()) {
+		float ux = 0, uz = 0;
+		for (size_t i = 0; i < uview.count; ++i)
+			if (uview.id[i] == (uint32_t)selected_ids[0]) { ux = uview.pos_x[i]; uz = uview.pos_z[i]; }
+		auto rv = sim->resources();
+		float best = 1e30f;
+		for (size_t r = 0; r < rv.count; ++r) {
+			if (!rv.alive[r]) continue;
+			const float dd = (rv.x[r] - ux) * (rv.x[r] - ux) + (rv.z[r] - uz) * (rv.z[r] - uz);
+			if (dd < best) {
+				best = dd;
+				d["nearest_resource"] = (int64_t)rv.id[r];
+				d["nearest_resource_screen"] = cam->unproject_position(Vector3(rv.x[r], sim->get_terrain_height(rv.x[r], rv.z[r]), rv.z[r]));
+			}
+		}
+	}
 	return d;
 }
 
@@ -433,7 +451,7 @@ void RtsoMain::_on_top_counter_gui_input(const Ref<InputEvent> &event) {
 	Ref<InputEventMouseButton> mb = event;
 	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
 	RtsoTopPanel::cycle_order();
-	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time);
+	if (sim) top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
 }
 
 // Test hook: destroys the units (Delete's command) without touching the selection,
@@ -458,6 +476,7 @@ Dictionary RtsoMain::debug_dialogs() {
 	d["barter"] = barter ? bool(barter->call("is_open")) : false;
 	d["overlay"] = pause_overlay_ && pause_overlay_->is_visible();
 	d["overlay_resume"] = pause_resume_label_ && pause_resume_label_->is_visible();
+	d["overlay_by"] = pause_by_label_ ? pause_by_label_->get_text() : String();
 	d["chat_log"] = chat_window_.log_text();
 	return d;
 }
@@ -699,7 +718,8 @@ bool RtsoMain::chat_network_command(const String &text) {
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
-	if (rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare hotkey wins
+	if (flare_armed_ || rtso::hotkeys::held("session.flare")) { // MiniMap.js onWorldClick: the flare wins
+		flare_armed_ = false;
 		trigger_flare(world_pos.x, world_pos.y);
 		return;
 	}
@@ -852,11 +872,11 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	return true;
 }
 
-bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
+bool RtsoMain::over_own_rally_structure(const Vector3 &at, bool need_rally) const {
 	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
 	for (const auto &b : sim->buildings()) {
 		if (b.id != selected_building_id) continue;
-		if (b.team != local_player() || !b.has_rally_point) return false;
+		if (b.team != local_player() || (need_rally && !b.has_rally_point)) return false;
 		// Inside the turned footprint (u axis = (ux, uz), half extents hu, hv).
 		const float dx = at.x - b.x, dz = at.z - b.z;
 		const float u = dx * b.ux + dz * b.uz, v = -dx * b.uz + dz * b.ux;
@@ -864,6 +884,34 @@ bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
 		return std::fabs(u) <= hu && std::fabs(v) <= hv;
 	}
 	return false;
+}
+
+bool RtsoMain::selected_building_trains_units() const {
+	if (!sim || selected_building_id == 0) return false;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
+		for (uint16_t i : rtso::civ_roster_ids(civ))
+			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
+		return false;
+	}
+	return false;
+}
+
+// Test hook: the selected structure, where it is on screen and its rally point.
+Dictionary RtsoMain::debug_selected_building() const {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		d["id"] = (int64_t)b.id;
+		d["has_rally"] = b.has_rally_point;
+		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
+		d["autoqueue"] = b.autoqueue;
+		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
+	}
+	return d;
 }
 
 static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
@@ -983,7 +1031,8 @@ void RtsoMain::toggle_pause() {
 }
 
 // PauseOverlay.rebuild: shown for your own pause and while another client
-// pauses; the resume line only for your own; "Paused by" in multiplayer.
+// pauses; the resume line only for your own; "Paused by" in multiplayer, each
+// name in its player's colour (colorizePlayernameByGUID: white for an observer).
 void RtsoMain::update_pause_overlay() {
 	if (!pause_overlay_) return;
 	const bool networked = net_lockstep() && !turn_mgr_.is_replaying();
@@ -993,19 +1042,25 @@ void RtsoMain::update_pause_overlay() {
 		for (uint32_t c : turn_mgr_.paused_clients()) {
 			others = others || c != turn_mgr_.local_client_id();
 			String name;
+			uint8_t pl = 0xFF;
 			for (const auto &e : net_host_.playerAssignment())
-				if (e.client == c && !e.name.empty()) name = String::utf8(e.name.c_str());
-			if (name.is_empty()) {
-				const uint8_t pl = turn_mgr_.player_for_client(c);
-				name = pl < rtso::MAX_PLAYERS ? player_display_name(pl) : String("an observer");
-			}
-			who += (who.is_empty() ? "" : ", ") + name;
+				if (e.client == c) {
+					if (!e.name.empty()) name = String::utf8(e.name.c_str());
+					pl = e.player;
+				}
+			if (pl == 0xFF) pl = turn_mgr_.player_for_client(c);
+			const bool seated = pl < rtso::MAX_PLAYERS;
+			if (name.is_empty()) name = seated ? player_display_name(pl) : tr("Unknown Player");
+			const uint32_t rgb = seated && sim ? rtso::display_colors::rgb(*sim, pl) : 0xFFFFFFu;
+			who += String(who.is_empty() ? "" : ", ") + "[color=#" + String::num_int64(rgb, 16).lpad(6, "0") + "]" +
+					name.replace("[", "[lb]") + "[/color]";
 		}
 	const bool show = hotkey_paused_ || others;
 	if (pause_overlay_->is_visible() != show) pause_overlay_->set_visible(show);
 	if (!show) return;
 	pause_resume_label_->set_visible(hotkey_paused_);
-	const String by = networked && !who.is_empty() ? sprintf0(tr("Paused by %(players)s"), {{"players", who}}) : String();
+	const String by = networked && !who.is_empty()
+			? "[center]" + sprintf0(tr("Paused by %(players)s"), {{"players", who}}) + "[/center]" : String();
 	if (pause_by_label_->get_text() != by) pause_by_label_->set_text(by);
 }
 
@@ -1897,7 +1952,13 @@ std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 }
 
 void RtsoMain::update_hud() {
-	top_panel_.update(sim, local_player(), match_elapsed_time);
+	top_panel_.update(sim, local_player(), match_elapsed_time, spectating() || turn_mgr_.is_replaying());
+	if (sim) {
+		const uint8_t me = local_player();
+		const int idle = me < rtso::MAX_PLAYERS ? (int)sim->get_idle_workers(me).size() : 0;
+		minimap_panel_.update(idle, rtso::display_colors::state().enabled, me >= rtso::MAX_PLAYERS || spectating(),
+				turn_mgr_.is_replaying());
+	}
 	// GameSpeedButton is hidden in networked games; a replay's own row has the speed list.
 	if (speed_btn) speed_btn->set_visible(!net_lockstep() && !turn_mgr_.is_replaying());
 }
@@ -3578,6 +3639,38 @@ String RtsoMain::match_settings_player_state() const {
 
 // session.js closeOpenDialogs: the menu, chat, diplomacy, trade and match
 // settings close together; opening one of them closes the others first.
+// MiniMapFlareButton.onPress (and session.flareactivate): INPUT_FLARE, so the
+// next left click on the map or minimap sends a flare; never in a replay.
+void RtsoMain::_on_flare_button_pressed() {
+	if (turn_mgr_.is_replaying()) return;
+	flare_armed_ = true;
+}
+
+// Test hook: the minimap panel's buttons.
+Dictionary RtsoMain::debug_minimap_panel() const {
+	Dictionary d;
+	const char *names[3] = {"idle", "diplomacy", "flare"};
+	for (int i = 0; i < 3; ++i) {
+		TextureButton *b = minimap_panel_.button(i);
+		Dictionary e;
+		e["disabled"] = b ? b->is_disabled() : true;
+		e["tooltip"] = b ? b->get_tooltip_text() : String();
+		e["texture"] = b && b->get_texture_normal().is_valid() ? b->get_texture_normal()->get_path() : String();
+		d[names[i]] = e;
+	}
+	d["idle_count"] = minimap_panel_.idle_count_text();
+	d["flare_armed"] = flare_armed_;
+	return d;
+}
+
+// CivIcon.onPress: a left click on the top panel's civ emblem reopens the
+// reference page last viewed (the Structure Tree at first).
+void RtsoMain::_on_civ_icon_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("open_last");
+}
+
 bool RtsoMain::close_open_dialogs() {
 	bool any = false;
 	if (Node *menu = get_node_or_null(NodePath("PauseMenu")))
