@@ -12,7 +12,10 @@
 //   PlaySound("constructed")), sel_<structure> when the player selects one.
 // - Unit voices (template_unit_*.xml SoundGroups voice/{lang}/civ/civ_{phenotype}_*):
 //   per unit phenotype (male/female) and the civ's language.
-// - Deaths (actor/human/death, actor/mounted/death), heard where they happen.
+// - Deaths (Health.js PlaySound("death"), attack_sound_data.h): each unit's and animal's
+//   template death group (a human's {phenotype}_death, a horse's, a camel's, a dog's
+//   generic animal death, a ship's warship_death; siege has none), heard where it
+//   happens while the viewer sees that spot, every death of the frame.
 // - BattleDetection (simulation/components/BattleDetection.js) fed with the
 //   damage the player deals to other players, which drives the music state.
 // - Combat (template Sound/SoundGroups, attack_sound_data.h): a unit's attack_melee
@@ -120,6 +123,13 @@ inline const std::vector<const char *> &voice_stems(const std::string &action) {
 	static const std::vector<const char *> none;
 	auto it = m.find(action);
 	return it == m.end() ? none : it->second;
+}
+
+// A unit's death group: its roster template's, else its UnitType's generic template's;
+// a human's {phenotype}_death by its phenotype (voice_kind).
+inline uint8_t unit_death_sound(uint16_t tmpl, uint8_t unit_type) {
+	const uint8_t g = tmpl < ATTACK_SOUND_ROSTER_ROWS ? roster_death_sound(tmpl) : generic_death_sound(unit_type);
+	return g == ATTACK_SOUND_PHENOTYPE ? phenotype_death_sound(voice_kind(unit_type) == VoiceKind::FEMALE) : g;
 }
 
 // A unit's attack_melee, attack_ranged and attack_impact_ranged groups: its roster
@@ -259,16 +269,14 @@ public:
 		auto uv = sim->units();
 		std::unordered_map<uint32_t, Seen> seen;
 		seen.reserve(seen_.size() + 8);
-		int deaths = 0;
 		for (size_t i = 0; i < uv.count; ++i) {
 			const uint32_t id = uv.id[i];
 			auto prev = seen_.find(id);
 			if (!uv.alive[i]) {
 				// Garrisoned units are not alive either, but keep their health.
-				if (prev != seen_.end() && uv.hp[i] <= 0.0f && fire && deaths < 3) {
-					++deaths;
-					play_death(sim, me, uv.unit_type[i], uv.team[i], uv.pos_x[i], uv.pos_z[i]);
-				}
+				if (prev != seen_.end() && uv.hp[i] <= 0.0f && fire)
+					play_death(sim, me, unit_death_sound(uv.tmpl ? uv.tmpl[i] : CIV_UNIT_TEMPLATE_NONE, uv.unit_type[i]),
+							uv.team[i], uv.pos_x[i], uv.pos_z[i]);
 				if (uv.hp[i] > 0.0f) known_.insert(id);
 				continue;
 			}
@@ -284,6 +292,18 @@ public:
 		}
 		seen_.swap(seen);
 		trained_this_frame_ = false;
+		// Animals: a living one that turned into a carcass died (Health.js death; a
+		// removed one, eaten up or scripted away, makes no sound).
+		auto fv = sim->fauna();
+		std::unordered_set<uint32_t> fauna_seen;
+		fauna_seen.reserve(fauna_seen_.size() + 8);
+		for (size_t i = 0; i < fv.count; ++i) {
+			const bool living = fv.alive[i] && fv.behavior[i] != FAUNA_CARCASS;
+			if (!living && fire && fauna_seen_.count(fv.id[i]))
+				play_death(sim, me, fauna_death_sound(fv.fauna_type[i]), fv.owner[i], fv.pos_x[i], fv.pos_z[i]);
+			if (living) fauna_seen.insert(fv.id[i]);
+		}
+		fauna_seen_.swap(fauna_seen);
 		if (fire) tick_work_sounds(sim, me, uv, t);
 		// BattleDetection.js OnGlobalAttacked: damage my entities dealt to other players,
 		// counted by the sim at each hit (Simulation::battle_damage_dealt).
@@ -622,26 +642,17 @@ private:
 		if (voices_on) play_voice(civ, type, "trained");
 	}
 
-	void play_death(const Simulation *sim, uint8_t me, uint8_t type, uint8_t team, float x, float z) {
-		if (!spatial_ || !sim->is_entity_visible_to_viewer(x, z, team, me)) return;
-		const char *dir = "actor/human/death", *pre = "male_death";
-		switch (voice_kind(type)) {
-			case VoiceKind::FEMALE: pre = "female_death"; break;
-			case VoiceKind::NONE: return; // siege and ships break apart (world view plays those)
-			case VoiceKind::ELEPHANT: dir = "actor/fauna/animal"; pre = "elephant_death"; break;
-			default:
-				if (type == UNIT_CAVALRY || type == UNIT_CAMEL || type == UNIT_CHARIOT) {
-					dir = "actor/mounted/death";
-					pre = "death_horse";
-				} else if (type == UNIT_ELEPHANT) {
-					dir = "actor/fauna/animal";
-					pre = "elephant_death";
-				}
-		}
-		const auto &g = sound_group(dir, pre);
-		if (g.empty()) return;
-		godot::Ref<godot::AudioStream> s = stream(g[rng_() % g.size()]);
-		if (s.is_valid()) spatial_(s, godot::Vector3(x, 0.5f, z), -3.0f, 1.0f);
+	// Health.js PlaySound("death"): group g where the entity died, while the viewer sees it.
+	void play_death(const Simulation *sim, uint8_t me, uint8_t g, uint8_t team, float x, float z) {
+		if (!spatial_ || g == ATTACK_SOUND_NONE || !sim->is_entity_visible_to_viewer(x, z, team, me)) return;
+		float pitch = 1.0f;
+		const godot::String path = pick_attack_sound(g, rng_, &pitch);
+		if (path.is_empty()) return;
+		godot::Ref<godot::AudioStream> s = stream(path);
+		if (s.is_null()) return;
+		const float gain = attack_sound_group(g).gain;
+		spatial_(s, godot::Vector3(x, 0.5f, z), gain > 0.001f ? 20.0f * std::log10(gain) : -80.0f, pitch);
+		last_played_ = path;
 	}
 
 	godot::AudioStreamPlayer *pool_[kPool] = {};
@@ -649,6 +660,7 @@ private:
 	std::unordered_map<std::string, godot::Ref<godot::AudioStream>> streams_;
 	std::unordered_map<uint32_t, float> bld_progress_;
 	std::unordered_map<uint32_t, Seen> seen_;
+	std::unordered_set<uint32_t> fauna_seen_; // animals alive last frame
 	std::unordered_set<uint32_t> known_;
 	bool techs_[256] = {};
 	uint8_t seat_ = 0xFF;
