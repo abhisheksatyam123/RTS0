@@ -3950,10 +3950,51 @@ bool Simulation::cmd_set_diplomacy(uint8_t player_id, uint8_t target, uint8_t st
 	if (diplomacy_[player_id][target] != stance)
 		note_session({SessionNotice::DIPLOMACY, player_id, target, stance, {}}); // Commands.js "diplomacy" notification
 	set_diplomacy(player_id, target, stance);
+	note_diplomacy_changed(player_id, target, stance);
 	// Diplomacy.js OnDiplomacyChanged, "mutual worsening of relations": the other player's
 	// stance drops to match (war declared on it is war back), with no notification of its own.
-	if (diplomacy_[target][player_id] < stance) set_diplomacy(target, player_id, stance);
+	if (diplomacy_[target][player_id] < stance) {
+		set_diplomacy(target, player_id, stance);
+		note_diplomacy_changed(target, player_id, stance);
+	}
 	return true;
+}
+
+void Simulation::note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance) {
+	// Diplomacy.js SetDiplomacyIndex: MT_DiplomacyChanged {player, otherPlayer, value},
+	// Trigger.js OnGlobalDiplomacyChanged -> OnDiplomacyChanged.
+	if (triggers_.triggers.empty()) return;
+	TriggerEventData ev;
+	ev.player = player;
+	ev.to = other;
+	ev.value = stance;
+	trigger_event(TRIGGER_ON_DIPLOMACY_CHANGED, ev);
+}
+
+void Simulation::mark_players_defeated(uint8_t mask) {
+	// Player.js SetState("defeated"): MT_PlayerDefeated {playerId} once per player.
+	const uint8_t fresh = (uint8_t)(mask & ~defeated_mask_);
+	defeated_mask_ |= mask;
+	if (!fresh || triggers_.triggers.empty()) return;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if ((fresh >> p) & 1) {
+			TriggerEventData ev;
+			ev.player = p;
+			trigger_event(TRIGGER_ON_PLAYER_DEFEATED, ev);
+		}
+}
+
+void Simulation::mark_players_won(uint8_t mask) {
+	// Player.js SetState("won"): MT_PlayerWon {playerId} once per player.
+	const uint8_t fresh = (uint8_t)(mask & ~winner_mask_);
+	winner_mask_ = mask;
+	if (!fresh || triggers_.triggers.empty()) return;
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if ((fresh >> p) & 1) {
+			TriggerEventData ev;
+			ev.player = p;
+			trigger_event(TRIGGER_ON_PLAYER_WON, ev);
+		}
 }
 
 // globalscripts/Trade.js. Distances and the map size are in metres; one RTS0
@@ -10306,6 +10347,13 @@ bool Simulation::try_commit_foundation(Building &b) {
 	if (blocked) return false;
 	b.committed = true;
 	rebuild_nav_grid();
+	if (!triggers_.triggers.empty()) { // Foundation.js Commit: OnConstructionStarted {foundation, template}
+		TriggerEventData ev;
+		ev.entity = b.id;
+		ev.player = b.team;
+		ev.value = b.type;
+		trigger_event(TRIGGER_ON_CONSTRUCTION_STARTED, ev);
+	}
 	return true;
 }
 
@@ -12369,9 +12417,9 @@ void Simulation::end_match(uint8_t winners, uint8_t reason) {
 	const uint8_t beaten = (uint8_t)(participant_mask_ & ~winners & ~defeated_mask_);
 	if (winners) note_session({SessionNotice::WON, 0, winners, reason, {}});
 	if (beaten && (reason == SessionNotice::END_WONDER || reason == SessionNotice::END_RELIC)) note_session({SessionNotice::LOST, 0, beaten, reason, {}});
-	winner_mask_ = winners;
 	convert_to_gaia((uint8_t)(participant_mask_ & ~winners & ~defeated_mask_));
-	defeated_mask_ |= (uint8_t)(participant_mask_ & ~winners);
+	mark_players_won(winners);
+	mark_players_defeated((uint8_t)(participant_mask_ & ~winners));
 	victory_ = (winners & 1) != 0;
 	game_over_ = true;
 }
@@ -12504,7 +12552,7 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 	if (fallen) {
 		convert_to_gaia(fallen);
-		defeated_mask_ |= fallen;
+		mark_players_defeated(fallen);
 	}
 	const uint8_t standing = participant_mask_ & ~defeated_mask_;
 	if (participant_mask_ && !standing) { // everyone fell on the same tick
@@ -12775,7 +12823,7 @@ void Simulation::tick_waves(float dt) {
 
 	if (wave_number_ > 5) {
 		victory_ = true;
-		winner_mask_ = side_of(0);
+		mark_players_won(side_of(0));
 		return;
 	}
 
@@ -14378,7 +14426,7 @@ bool Simulation::cmd_cheat(uint8_t player, uint8_t action, int32_t parameter, ui
 		const uint8_t bit = (uint8_t)(1u << parameter);
 		participant_mask_ |= bit;
 		convert_to_gaia(bit);
-		defeated_mask_ |= bit;
+		mark_players_defeated(bit);
 		return true;
 	}
 	case CHEAT_CREATE_UNITS: { // "salad bowl": a spearman of each civ in turn from the selected trainer
@@ -28071,6 +28119,7 @@ void Simulation::trigger_event(uint8_t event, const TriggerEventData &data) {
 	// registration order. An action may register more triggers; those wait
 	// for the next event.
 	const size_t n = triggers_.triggers.size();
+	if (event < TRIGGER_EVENT_COUNT) ++trigger_event_calls_[event];
 	TriggerEventData ev = data;
 	ev.event = event;
 	for (size_t i = 0; i < n && i < triggers_.triggers.size(); ++i) {
@@ -28560,7 +28609,7 @@ void Simulation::defeat_player(uint8_t pid, uint8_t reason) {
 	if (pid >= MAX_PLAYERS || is_defeated(pid) || game_over_ || victory_) return;
 	// Player.js SetState("defeated"): everything it owns goes to Gaia.
 	convert_to_gaia((uint8_t)(1u << pid));
-	defeated_mask_ |= (uint8_t)(1u << pid);
+	mark_players_defeated((uint8_t)(1u << pid));
 	note_session({SessionNotice::DEFEATED, pid, 0, reason, {}});
 }
 
@@ -28569,7 +28618,7 @@ bool Simulation::cmd_resign(uint8_t pid) {
 	const uint8_t bit = (uint8_t)(1u << pid);
 	participant_mask_ |= bit; // a player that resigns before it held anything is still out
 	convert_to_gaia(bit);
-	defeated_mask_ |= bit;
+	mark_players_defeated(bit);
 	note_session({SessionNotice::DEFEATED, pid, 0, SessionNotice::END_RESIGNED, {}}); // Commands.js "resign"
 	return true;
 }
