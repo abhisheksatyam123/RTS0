@@ -420,7 +420,13 @@ public:
 	// "barter" and "phase"): presentation only like AttackedEvent, never saved,
 	// hashed or read by the simulation, at most kMaxSessionNotices between reads.
 	struct SessionNotice {
-		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5 };
+		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5,
+			DEFEATED = 6,   // player is out; tech: the EndReason
+			WON = 7,        // other: the winners' mask; tech: the EndReason
+			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
+		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
+			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -1756,6 +1762,8 @@ public:
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
+	// Seconds player p has held a finished wonder (0 when it holds none), for WonderVictory.js's countdowns.
+	float wonder_hold(uint8_t p) const { return p < MAX_PLAYERS ? wonder_hold_[p] : 0.0f; }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<Relic> &relics() const { return relics_; }
 
@@ -2174,7 +2182,7 @@ private:
 	void collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b);
 	void check_victory_conditions(float dt);
 	// The match ends with these players as the winners; everyone else has lost.
-	void end_match(uint8_t winners);
+	void end_match(uint8_t winners, uint8_t reason = SessionNotice::END_LAST_ALIVE);
 	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
