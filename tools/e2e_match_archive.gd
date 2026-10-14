@@ -125,12 +125,29 @@ func run() -> void:
 	check(not paused, "Stay goes back to the replay")
 	check(int(st.turns) >= turns_recorded, "the replay holds every recorded turn")
 	check(int(st.view) == -1 and int(st.hud_player) == -1, "a replay starts in the observer view, with no player's counters")
+	var items: Array = st.view_items
+	check(items.size() >= 4 and items[0] == "Observer" and items[1] == "Gaia"
+		and not str(items[2]).contains("("), "the picker lists Observer, Gaia and the players by name (PlayerViewControl): " + str(items))
+	check(st.observer_mode, "\"Observer Mode\" shows in the observer view")
 	m.set_replay_view(1)
 	st = m.get_replay_status()
 	check(int(st.view) == 1 and int(st.hud_player) == 1, "the player view follows player 2, counters and time notifications too")
+	check(not st.observer_mode, "and \"Observer Mode\" goes")
+	m.set_replay_view(254)
+	st = m.get_replay_status()
+	check(int(st.view) == -1 and st.view_gaia and st.observer_mode, "Gaia's view is the observer's, in Observer Mode")
 	m.set_replay_view(-1)
 	st = m.get_replay_status()
 	check(int(st.view) == -1 and int(st.hud_player) == -1, "and goes back to the observer, hiding the counters (CounterManager)")
+	# OutOfSyncReplay: a message box that pauses the replay until it is answered.
+	var oos = load("res://scenes/session/quit_confirmation.gd").out_of_sync_replay(m)
+	await process_frame
+	check(oos.title == "Out of Sync" and oos.caption.begins_with("Out-Of-Sync error on turn ")
+		and oos.caption.ends_with("The current game state is different from the original game state.") and paused,
+		"an out-of-sync replay asks with \"Out of Sync\" and pauses")
+	oos.press(0)
+	await process_frame
+	check(not paused, "OK resumes it")
 
 	print("3. load the save from the menu")
 	ms.load_save_path = "user://saves/e2e_test.rts0sav"

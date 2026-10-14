@@ -577,8 +577,9 @@ func map_caption() -> String:
 	var map_id := str(data.get("map_id", ""))
 	var random := map_id.begins_with("random_") or map_id.begins_with("procedural_")
 	var size := int(data.get("map_size", 0))
-	# RTS0's Game Setup has Random and Scenario map types (no Skirmish yet).
-	var kind: String = MAP_SIZE_NAMES.get(size, "Random") if random else "Scenario"
+	# summary.js: a random map's size, else the map type's title (Skirmish or Scenario).
+	var kind: String = MAP_SIZE_NAMES.get(size, "Random") if random \
+		else str(load("res://scenes/menu/replay_browser.gd").map_info(map_id)["type"])
 	return "%s - %s" % [map_name, kind] if kind != "" else map_name
 
 func _label(text: String, size := 13, color := Color.WHITE) -> Label:
