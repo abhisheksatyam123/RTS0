@@ -7930,15 +7930,21 @@ void Simulation::collect_unit_loot(uint32_t looter_id, uint8_t looter_player, si
 			unit_is_healer(units_.tmpl[victim], units_.unit_type[victim]))
 		loot.metal = 0;
 	// Loot/<res> technologies of the victim's owner on its roster template (Celtic Auxiliaries).
+	// Loot.js GetResources applies every Loot modifier, the rank's included, then floors once
+	// (multiplications before additions, as GetTechModifiedProperty).
+	float rank_mult = loot_rank_multiplier(units_.rank[victim]);
 	if (owner < MAX_PLAYERS && units_.tmpl[victim] < CIV_UNIT_TEMPLATE_COUNT && !loot_denied_unit(victim)) {
 		const TechMods::Template &tm = tech_mods(owner).tmpl[units_.tmpl[victim]];
-		loot.food = (uint16_t)std::max(0.0f, std::floor(loot.food * tm.loot_mul[RES_FOOD] + tm.loot_add[RES_FOOD]));
-		loot.wood = (uint16_t)std::max(0.0f, std::floor(loot.wood * tm.loot_mul[RES_WOOD] + tm.loot_add[RES_WOOD]));
-		loot.stone = (uint16_t)std::max(0.0f, std::floor(loot.stone * tm.loot_mul[RES_STONE] + tm.loot_add[RES_STONE]));
-		loot.metal = (uint16_t)std::max(0.0f, std::floor(loot.metal * tm.loot_mul[RES_GOLD] + tm.loot_add[RES_GOLD]));
+		auto mod = [&](uint16_t v, int r) {
+			return (uint16_t)std::max(0.0f, std::floor((float)v * rank_mult * tm.loot_mul[r] + tm.loot_add[r]));
+		};
+		loot.food = mod(loot.food, RES_FOOD);
+		loot.wood = mod(loot.wood, RES_WOOD);
+		loot.stone = mod(loot.stone, RES_STONE);
+		loot.metal = mod(loot.metal, RES_GOLD);
+		rank_mult = 1.0f;
 	}
-	collect_loot(looter_id, looter_player, loot, loot_rank_multiplier(units_.rank[victim]),
-			units_.res_type_carried[victim], units_.carry[victim]);
+	collect_loot(looter_id, looter_player, loot, rank_mult, units_.res_type_carried[victim], units_.carry[victim]);
 }
 
 void Simulation::collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b) {
@@ -13409,6 +13415,8 @@ void Simulation::tick_trickle(float dt) {
 			} else if (b.type >= BLD_TACHARA_FOOD && b.type <= BLD_TACHARA_METAL) {
 				// structures/pers/tachara_{food,wood,stone,metal}.xml: 10 of its resource.
 				rate[kTrickleRes[b.type - BLD_TACHARA_FOOD]] = 10.0f;
+			} else if (b.type == BLD_TACHARA) {
+				// structures/pers/tachara.xml: every Rate 0, which modifiers can still raise.
 			} else {
 				continue;
 			}
@@ -13426,6 +13434,11 @@ void Simulation::tick_trickle(float dt) {
 					v = (e.op == TOP_MUL) ? v * e.value : (e.op == TOP_SET) ? e.value : v + e.value;
 				}
 			}
+			// Global auras with no classes (Macedonian Financial Reorganization, +1 metal) modify
+			// every owned ResourceTrickle that lists the resource: the wonder's and each tachara's
+			// Rates name all four; the ice house's names food only.
+			if (b.type != BLD_ICE_HOUSE)
+				for (int r = 0; r < RES_COUNT; ++r) rate[r] += tech_mods_[b.team].trickle_add[r];
 			for (int r = 0; r < RES_COUNT; ++r) ps.res[r] += rate[r];
 		}
 	}
