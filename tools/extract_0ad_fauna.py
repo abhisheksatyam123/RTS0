@@ -64,7 +64,15 @@ MODEL = {
 }
 
 
+# 0.28 actors that need their own RTS0 model although the template name maps elsewhere.
+MODEL_BY_ZIP_ACTOR = {
+    "fauna/sheep3.xml": "sheep_gaia",  # Gaia sheep: sheep1 without the player-colour patch
+}
+
+
 def model_for(stem, actor):
+    if actor in MODEL_BY_ZIP_ACTOR:
+        return MODEL_BY_ZIP_ACTOR[actor]
     if actor in MODEL_BY_ACTOR:
         return MODEL_BY_ACTOR[actor]
     key = stem[len("fauna_"):]
@@ -186,8 +194,10 @@ def treasure_rows(loader):
         res = t.get("Treasure/Resources")
         amounts = {k: int(res.num(k)) for k in RES} if res is not None else {}
         st = t.get("Obstruction/Static")
+        actor = os.path.basename(t.value("VisualActor/Actor", "barrel_a.xml"))[:-4]
         rows.append({
             "stem": stem,
+            "model": "treasure_" + (actor[len("treasure_"):] if actor.startswith("treasure_") else actor),
             "name": t.value("Identity/SpecificName", t.value("Identity/GenericName", stem)),
             "collect": t.num("Treasure/CollectTime") / 1000.0,
             "amounts": [amounts.get(k, 0) for k in ("food", "wood", "stone", "metal")],
@@ -423,13 +433,14 @@ def emit(fauna, treasures, ruins, scenery, corral):
     w("\tfloat collect_time;        // Treasure/CollectTime, seconds")
     w("\tint amount[4];             // food, wood, stone, metal")
     w("\tfloat width, depth;       // Obstruction/Static in metres")
+    w("\tconst char *model_id;     // assets/models/props/<model_id>.glb (VisualActor, extract_0ad_assets.py ZIP_PROPS)")
     w("};")
     w("")
     w("inline const TreasureTypeInfo &treasure_type_info(uint8_t t) {")
     w("\tstatic const TreasureTypeInfo kTable[TREASURE_TYPE_COUNT] = {")
     for r in treasures:
         a = r["amounts"]
-        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {f(r['collect'])}, {{{a[0]}, {a[1]}, {a[2]}, {a[3]}}}, {f(r['width'])}, {f(r['depth'])}}},")
+        w(f"\t\t{{{cstr(r['stem'])}, {cstr(r['name'])}, {f(r['collect'])}, {{{a[0]}, {a[1]}, {a[2]}, {a[3]}}}, {f(r['width'])}, {f(r['depth'])}, {cstr(r['model'])}}},")
     w("\t};")
     w("\treturn kTable[t < TREASURE_TYPE_COUNT ? t : 0];")
     w("}")

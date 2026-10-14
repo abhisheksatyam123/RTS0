@@ -325,6 +325,8 @@ ASSETS = {
     "boar":             ("art/actors/fauna/boar.xml",                          "height", 1.10, None),
     "wolf":             ("art/actors/fauna/wolf.xml",                          "height", 1.00, None),
     "sheep":            ("art/actors/fauna/sheep1.xml",                        "height", 0.90, None),
+    # Gaia sheep: 0.28 gaia/fauna_sheep uses sheep3 (same mesh, no player-colour patch).
+    "sheep_gaia":       ("art/actors/fauna/sheep3.xml",                        "height", 0.90, None),
 
     # 14 BuildingTypes + common military/civ structures
     "town_center":      ("art/actors/structures/hellenes/civic_centre_new.xml","width",  6.20, (0.36, 0.62, 0.94)),
@@ -1097,6 +1099,63 @@ def register_civ_unit_assets(assets, zf=None):
 
 # Template model id -> the RTS0 model kind it is drawn as (spearman, cavalry...),
 # and the extracted model whose clips a mesh-only template model borrows.
+# The treasures' actors (gaia/treasure/*.xml VisualActor; templates sharing an actor
+# share its GLB), written to models/props/. Wrecks are sized like the ships (1 unit =
+# 4 m, a trireme is 7 long); the small props at twice that, next to units drawn about
+# 1 unit = 1 m tall.
+ZIP_PROPS = {
+    "treasure_barrel_a": ("art/actors/props/special/eyecandy/barrel_a.xml", "scale", 0.5, None),
+    "treasure_barrels_buried": ("art/actors/props/special/eyecandy/barrels_buried.xml", "scale", 0.5, None),
+    "treasure_produce_bin_a": ("art/actors/props/special/eyecandy/produce_bin_a.xml", "scale", 0.5, None),
+    "treasure_crate_a": ("art/actors/props/special/eyecandy/crate_a.xml", "scale", 0.5, None),
+    "treasure_amphorae": ("art/actors/props/special/eyecandy/amphorae.xml", "scale", 0.5, None),
+    "treasure_persian_food_big": ("art/actors/props/special/eyecandy/treasure_persian_food_big.xml", "scale", 0.5, None),
+    "treasure_persian_food_small": ("art/actors/props/special/eyecandy/treasure_persian_food_small.xml", "scale", 0.5, None),
+    "treasure_persian_metal_big": ("art/actors/props/special/eyecandy/treasure_persian_metal_big.xml", "scale", 0.5, None),
+    "treasure_persian_metal_small": ("art/actors/props/special/eyecandy/treasure_persian_metal_small.xml", "scale", 0.5, None),
+    "treasure_weapons": ("art/actors/props/special/eyecandy/treasure_weapons.xml", "scale", 0.5, None),
+    "treasure_shipwreck_ram_side": ("art/actors/props/special/eyecandy/shipwreck_ram_side.xml", "scale", 0.25, None),
+    "treasure_barrels_floating": ("art/actors/props/special/eyecandy/barrels_floating.xml", "scale", 0.25, None),
+    "treasure_shipwreck_ram_bow": ("art/actors/props/special/eyecandy/shipwreck_ram_bow.xml", "scale", 0.25, None),
+    "treasure_shipwreck_sail_boat": ("art/actors/props/special/eyecandy/shipwreck_sail_boat.xml", "scale", 0.25, None),
+    "treasure_shipwreck_sail_boat_cut": ("art/actors/props/special/eyecandy/shipwreck_sail_boat_cut.xml", "scale", 0.25, None),
+    "treasure_shipwreck_argo": ("art/actors/props/special/eyecandy/shipwreck_argo.xml", "scale", 0.25, None),
+    "treasure_standing_stones": ("art/actors/props/special/eyecandy/standing_stones.xml", "scale", 0.5, None),
+    "treasure_stone_pile": ("art/actors/props/special/eyecandy/stone_pile.xml", "scale", 0.5, None),
+    "treasure_brick_pile_06": ("art/actors/props/special/eyecandy/brick_pile_06.xml", "scale", 0.5, None),
+    "treasure_stone_pile_red": ("art/actors/props/special/eyecandy/stone_pile_red.xml", "scale", 0.5, None),
+    "treasure_stone_pile_sandstone": ("art/actors/props/special/eyecandy/stone_pile_sandstone.xml", "scale", 0.5, None),
+    "treasure_wood_pile": ("art/actors/props/special/eyecandy/wood_pile.xml", "scale", 0.5, None),
+    "treasure_golden_fleece": ("art/actors/special/golden_fleece.xml", "scale", 0.5, None),
+    "treasure_pegasus": ("art/actors/special/pegasus.xml", "scale", 0.5, None),
+    # Mines per random-map biome (maps/random/rmbiome stoneLarge/stoneSmall/metalLarge/metalSmall),
+    # drawn by world_view_node.cpp pick_mine_models.
+    "mine_stonemine_aegean_large": ("art/actors/geology/stonemine_aegean_large.xml", "scale", 0.25, None),
+    "mine_stonemine_aegean_small": ("art/actors/geology/stonemine_aegean_small.xml", "scale", 0.25, None),
+    "mine_metal_aegean_round": ("art/actors/geology/metal_aegean_round.xml", "scale", 0.25, None),
+    "mine_metal_aegean_small": ("art/actors/geology/metal_aegean_small.xml", "scale", 0.25, None),
+    "mine_stonemine_temperate_quarry_01": ("art/actors/geology/stonemine_temperate_quarry_01.xml", "scale", 0.25, None),
+    "mine_stonemine_granite": ("art/actors/geology/stonemine_granite.xml", "scale", 0.25, None),
+    "mine_metal_temperate_round": ("art/actors/geology/metal_temperate_round.xml", "scale", 0.25, None),
+    "mine_metal_temperate_small": ("art/actors/geology/metal_temperate_small.xml", "scale", 0.25, None),
+    "mine_metal_temperate_square": ("art/actors/geology/metal_temperate_square.xml", "scale", 0.25, None),
+    "mine_stonemine_granite_large": ("art/actors/geology/stonemine_granite_large.xml", "scale", 0.25, None),
+    "mine_metalmine_polar_round_snow": ("art/actors/geology/metalmine_polar_round_snow.xml", "scale", 0.25, None),
+    "mine_stonemine_temperate_quarry": ("art/actors/geology/stonemine_temperate_quarry.xml", "scale", 0.25, None),
+    "mine_stonemine_india_large": ("art/actors/geology/stonemine_india_large.xml", "scale", 0.25, None),
+    "mine_stonemine_india_small": ("art/actors/geology/stonemine_india_small.xml", "scale", 0.25, None),
+    "mine_metal_india_round": ("art/actors/geology/metal_india_round.xml", "scale", 0.25, None),
+    "mine_metal_india_small": ("art/actors/geology/metal_india_small.xml", "scale", 0.25, None),
+    "mine_stonemine_savanna_formations": ("art/actors/geology/stonemine_savanna_formations.xml", "scale", 0.25, None),
+    "mine_stonemine_savanna_small": ("art/actors/geology/stonemine_savanna_small.xml", "scale", 0.25, None),
+    "mine_metal_savanna_round": ("art/actors/geology/metal_savanna_round.xml", "scale", 0.25, None),
+    "mine_metal_savanna_small": ("art/actors/geology/metal_savanna_small.xml", "scale", 0.25, None),
+    "mine_stonemine_desert_quarry": ("art/actors/geology/stonemine_desert_quarry.xml", "scale", 0.25, None),
+    "mine_stonemine_desert_small": ("art/actors/geology/stonemine_desert_small.xml", "scale", 0.25, None),
+    "mine_metal_sahara_round": ("art/actors/geology/metal_sahara_round.xml", "scale", 0.25, None),
+    "mine_metal_sahara_small": ("art/actors/geology/metal_sahara_small.xml", "scale", 0.25, None),
+}
+
 TEMPLATE_BASE = {}
 TEMPLATE_DONOR = {}
 
@@ -1719,7 +1778,7 @@ UNIT_IDS = frozenset({
     "hero", "trireme", "elephant", "ram", "siege_ram", "healer", "chariot", "war_dog",
     "bolt_shooter", "fishing_boat", "merchant_ship", "female_citizen", "carnyx",
     "worker_elephant", "archer_maiden", "camel", "scythed_chariot",
-    "deer", "boar", "wolf", "sheep", "bolt_projectile",
+    "deer", "boar", "wolf", "sheep", "sheep_gaia", "bolt_projectile",
     "arrow_projectile", "stone_projectile",
     # G7-H2 map-fauna batch (animated; statics below go to BUILDING/VEGETATION sets)
     "goat", "zebra", "chicken", "crocodile", "giraffe", "rabbit",
@@ -3547,12 +3606,14 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
     dim = (maxx-minx, maxy-miny, maxz-minz)
     scale = _fit_scale(fit, target, dim)
     cx, cz = (minx+maxx)/2, (minz+maxz)/2
+    # Props keep the actor's origin height, so a wreck floats as deep as in 0 A.D.
+    base_y = 0.0 if asset_id in ZIP_PROPS else miny
     # rewrite primitive positions in place
     for pi, prim in enumerate(glb.primitives):
         pos, nrm, uv, idx, mi = prim[0], prim[1], prim[2], prim[3], prim[4]
         pos2, nrm2 = [], []
         for x, y, z in pos:
-            px, py, pz = (x - cx) * scale, (y - miny) * scale, (z - cz) * scale
+            px, py, pz = (x - cx) * scale, (y - base_y) * scale, (z - cz) * scale
             pos2.append(_rot_y((px, py, pz), yaw) if yaw else (px, py, pz))
         if yaw:
             nrm2 = [_rot_y(n, yaw) for n in nrm]
@@ -3577,7 +3638,7 @@ def compile_asset(vfs, asset_id, actor_ref, fit, target, tint, out_dir, rel_dir=
         "file": os.path.relpath(out_path, out_dir).replace(os.sep, "/"),
         "parts": len(parts),
         "size_meters": [round(final_dim[0], 3), round(final_dim[1], 3), round(final_dim[2], 3)],
-        "origin": "ground-center",
+        "origin": "actor-center" if asset_id in ZIP_PROPS else "ground-center",
         "sources": sorted(f"{kind}:{ref}" for kind, ref in sources),
         "upstream_material": material_name,
     }
@@ -4250,6 +4311,8 @@ def asset_dir(asset_id):
         return "models/buildings"
     if asset_id in VEGETATION_IDS:
         return "models/vegetation"
+    if asset_id in ZIP_PROPS:
+        return "models/props"
     raise ValueError(f"unknown asset id {asset_id!r} — add it to UNIT_IDS, BUILDING_IDS, or VEGETATION_IDS")
 
 
@@ -4374,6 +4437,9 @@ UNIT_CFG = {
         "Idle": "wolf_idle", "Walk": "wolf_walk", "Run": "wolf_run",
         "Attack": "wolf_attack", "Death": "wolf_death"}),
     "sheep": ("sheep", {
+        "Idle": "sheep_idle", "Walk": "sheep_walk", "Run": "sheep_run",
+        "Death": "sheep_death"}),
+    "sheep_gaia": ("sheep", {
         "Idle": "sheep_idle", "Walk": "sheep_walk", "Run": "sheep_run",
         "Death": "sheep_death"}),
     # G7-H2 map-fauna (skeleton, clips). Actor XML is harvested first; these are
@@ -4574,6 +4640,7 @@ _KIND_WANTED_CLIPS = {
     "hawk": ("Idle", "Walk", "Run", "Attack", "Death"),
     "wolf": ("Idle", "Walk", "Run", "Attack", "Death"),
     "sheep": ("Idle", "Walk", "Run", "Death"),
+    "sheep_gaia": ("Idle", "Walk", "Run", "Death"),
 }
 
 
@@ -4687,6 +4754,7 @@ def main():
         assets = dict(ASSETS)
         civ_ids = register_civ_unit_assets(assets, zf)
         bld_ids = register_civ_building_assets(assets, zf)
+        assets.update({k: v for k, v in ZIP_PROPS.items() if v[0] in vfs._names})
         print(f"[civ] registered {len(civ_ids)} civilization unit meshes + {len(bld_ids)} buildings")
         terrain = dict(TERRAIN_TILES)
         archive_actors = []
@@ -4729,6 +4797,7 @@ def main():
             known.update(FULL_ASSETS)
             register_civ_unit_assets(known, zf)
             register_civ_building_assets(known, zf)
+            known.update({k: v for k, v in ZIP_PROPS.items() if v[0] in vfs._names})
             known.update({k: assets[k] for k in TEMPLATE_BASE if k in assets})
             only = set(args.only)
             def wanted(aid):

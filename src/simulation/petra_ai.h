@@ -306,7 +306,8 @@ struct PetraSentDiplomacy {
 	float next_tribute_request[4] = {};  // per resource
 	uint8_t sent_type[8] = {};        // 0 none, 1 ally, 2 neutral
 	uint8_t warned_trade = 0;         // tradeManager.js warnedAllies: players told of a route with them, by bit
-	uint8_t pad[7] = {};
+	uint8_t current_enemy = 0;        // attackManager.js currentEnemyPlayer + 1 (0: none), kept between attacks
+	uint8_t pad[6] = {};
 };
 static_assert(sizeof(PetraSentDiplomacy) == 72, "PetraSentDiplomacy is saved raw: keep it padding-free");
 

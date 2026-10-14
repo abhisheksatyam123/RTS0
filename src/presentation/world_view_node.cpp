@@ -401,17 +401,27 @@ void RtsoWorldView::_ready() {
 			}
 		}
 	}
-	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
-	stone_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh), true);
+	for (int k = 0; k < MINE_KINDS; ++k) {
+		const bool metal = k == MINE_METAL_LARGE || k == MINE_METAL_SMALL;
+		mine_mm[k] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", metal ? "gold_vein" : "stone_mine").mesh), true);
+		mine_mmi[k] = memnew(MultiMeshInstance3D);
+		mine_mmi[k]->set_multimesh(mine_mm[k]);
+		add_child(mine_mmi[k]);
+	}
 	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
 
-	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
-	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
 	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
-	treasure_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "treasure_chest").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
-	treasure_mmi = memnew(MultiMeshInstance3D); treasure_mmi->set_multimesh(treasure_mm); add_child(treasure_mmi);
+	for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) {
+		auto e = rtso::ModelLibrary::get("props", rtso::treasure_type_info((uint8_t)k).model_id);
+		if (!e.mesh.is_valid()) e = rtso::ModelLibrary::get("vegetation", "treasure_chest");
+		treasure_y_offset[k] = e.y_offset;
+		treasure_mm[k] = create_multimesh(tinted(e.mesh), true);
+		treasure_mmi[k] = memnew(MultiMeshInstance3D);
+		treasure_mmi[k]->set_multimesh(treasure_mm[k]);
+		add_child(treasure_mmi[k]);
+	}
 	{
 		Ref<BoxMesh> box;
 		box.instantiate();
@@ -1931,6 +1941,48 @@ Node3D *RtsoWorldView::attach_carry_prop(Node *model, uint8_t clip, bool female)
 	return first;
 }
 
+// Mine models per biome: the stoneLarge, stoneSmall, metalLarge and metalSmall templates
+// actors of the 0 A.D. random-map biome each RTS0 biome follows (maps/random/rmbiome/generic/
+// *.json, named after each row; apply_biome_environment uses the same pairing). Models are
+// assets/models/props/mine_<actor>.glb (tools/extract_0ad_assets.py ZIP_PROPS), at 0.28 size.
+void RtsoWorldView::pick_mine_models(const std::string &biome) {
+	struct Set { const char *biome; const char *ids[MINE_KINDS]; }; // metal large, metal small, stone large, stone small
+	static const Set kSets[] = {
+		{ "mediterranean", { "metal_aegean_round", "metal_aegean_small", "stonemine_aegean_large", "stonemine_aegean_small" } }, // aegean
+		{ "aegean", { "metal_aegean_round", "metal_aegean_small", "stonemine_aegean_large", "stonemine_aegean_small" } }, // aegean
+		{ "latium", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry_01", "stonemine_granite" } }, // temperate
+		{ "temperate", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry_01", "stonemine_granite" } }, // temperate
+		{ "alpine", { "metal_temperate_square", "metal_temperate_small", "stonemine_temperate_quarry_01", "stonemine_granite" } }, // alpine
+		{ "polar", { "metalmine_polar_round_snow", "metal_aegean_small", "stonemine_granite_large", "stonemine_granite" } }, // arctic
+		{ "volcanic", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry", "stonemine_granite" } }, // autumn
+		{ "autumn", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry", "stonemine_granite" } }, // autumn
+		{ "steppe", { "metal_temperate_square", "metal_temperate_small", "stonemine_temperate_quarry", "stonemine_granite" } }, // steppe
+		{ "india", { "metal_india_round", "metal_india_small", "stonemine_india_large", "stonemine_india_small" } }, // india
+		{ "tropical", { "metal_india_round", "metal_india_small", "stonemine_india_large", "stonemine_india_small" } }, // india
+		{ "savanna", { "metal_savanna_round", "metal_savanna_small", "stonemine_savanna_formations", "stonemine_savanna_small" } }, // savanna
+		{ "persia", { "metal_savanna_round", "metal_savanna_small", "stonemine_savanna_formations", "stonemine_savanna_small" } }, // nubia
+		{ "nubia", { "metal_savanna_round", "metal_savanna_small", "stonemine_savanna_formations", "stonemine_savanna_small" } }, // nubia
+		{ "desert", { "metal_sahara_round", "metal_sahara_small", "stonemine_desert_quarry", "stonemine_desert_small" } }, // sahara
+		{ "oasis", { "metal_sahara_round", "metal_sahara_small", "stonemine_desert_quarry", "stonemine_desert_small" } }, // sahara
+	};
+	const Set *set = &kSets[0];
+	for (const auto &x : kSets)
+		if (biome == x.biome) { set = &x; break; }
+	mine_biome_ = biome;
+	for (int k = 0; k < MINE_KINDS; ++k) {
+		auto e = rtso::ModelLibrary::get("props", String("mine_") + set->ids[k]);
+		if (!e.mesh.is_valid()) {
+			const bool metal = k == MINE_METAL_LARGE || k == MINE_METAL_SMALL;
+			e = rtso::ModelLibrary::get("vegetation", metal ? "gold_vein" : "stone_mine");
+		}
+		if (!e.mesh.is_valid()) continue;
+		enable_instance_tint(e.mesh);
+		mine_mm[k]->set_instance_count(0);
+		mine_mm[k]->set_mesh(e.mesh);
+		mine_y[k] = e.y_offset;
+	}
+}
+
 // Tree models per biome, from the 0 A.D. flora each biome's random maps
 // plant (maps/random/rmbiome/*.json forest templates). Scales bring the wide
 // savanna trees down and the shorter oak up to the height of the other trees.
@@ -1951,6 +2003,8 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		{ "persia", { { "palm", 1.0f }, { "acacia", 0.5f }, { "tree", 0.9f } } },
 		{ "india", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "tree", 1.0f } } },
 		{ "tropical", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "palm", 1.2f } } },
+		{ "autumn", { { "oak", 1.15f }, { "tree", 1.0f }, { "oak", 1.0f } } },
+		{ "nubia", { { "acacia", 0.6f }, { "baobab", 0.45f }, { "palm", 1.0f } } },
 		{ "volcanic", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
 	};
 	const Set *set = &kSets[0];
@@ -2091,6 +2145,8 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 		{ "persia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 		{ "volcanic", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
 		{ "tropical", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
+		{ "autumn", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
+		{ "nubia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 	};
 	const Env *e = &kEnvs[0];
 	for (const auto &x : kEnvs)
@@ -3035,13 +3091,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
 	const auto &fres = mirages_.resources();
-	size_t n_tree = 0, g = 0, st = 0, fd = 0, nru = 0, fish_n = 0;
+	size_t n_tree = 0, fd = 0, nru = 0, fish_n = 0, n_mine[MINE_KINDS] = {};
+	if (sim->current_map_biome() != mine_biome_) pick_mine_models(sim->current_map_biome());
+	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) mine_large_.clear();
+	mine_large_time_ = sim->game_time();
+	mine_large_map_ = sim->current_map_id();
+	auto mine_of = [&](const rtso::FoggedResource &r) -> int {
+		auto it = mine_large_.find(r.id);
+		if (it == mine_large_.end()) it = mine_large_.emplace(r.id, r.amount > 2000).first;
+		const bool metal = r.type == rtso::RES_GOLD;
+		return it->second ? (metal ? MINE_METAL_LARGE : MINE_STONE_LARGE) : (metal ? MINE_METAL_SMALL : MINE_STONE_SMALL);
+	};
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
 		if (r.subtype == rtso::RES_SUB_RUINS) nru++;
 		else if (r.type == rtso::RES_WOOD) n_tree++;
-		else if (r.type == rtso::RES_GOLD) g++;
-		else if (r.type == rtso::RES_STONE) st++;
+		else if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) n_mine[mine_of(r)]++;
 		else if (r.subtype == rtso::RES_SUB_FISH) fish_n++;
 		else if (r.type == rtso::RES_FOOD) fd++;
 	}
@@ -3069,18 +3134,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		for (int v = 0; v < tree_variants[k]; ++v) tree_mm[k][v]->set_instance_count((int)n_kind[k][v]);
 	for (int k = 1; k < FLORA_KINDS; ++k)
 		for (int v = 0; v < flora_variants[k]; ++v) flora_mm[k][v]->set_instance_count((int)n_flora[k][v]);
-	gold_mm->set_instance_count((int)g);
-	stone_mm->set_instance_count((int)st);
+	for (int k = 0; k < MINE_KINDS; ++k) mine_mm[k]->set_instance_count((int)n_mine[k]);
 	if (food_mm.is_valid())
 		food_mm->set_instance_count((int)fd);
 	ruins_mm->set_instance_count((int)nru);
 	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
+	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, imine[MINE_KINDS] = {}, ifd = 0, iru = 0, ifish = 0;
 	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
-	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
-	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
 	String id_food = "fruit_bush"; auto e_food = rtso::ModelLibrary::get(cat_veg, id_food);
 
 	for (const auto &r : fres) {
@@ -3109,14 +3171,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k][v], rz));
 			tree_mm[k][v]->set_instance_transform((int)ia[k][v], xf);
 			tree_mm[k][v]->set_instance_color((int)ia[k][v]++, tint);
-		} else if (r.type == rtso::RES_GOLD) {
-			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
-			gold_mm->set_instance_transform((int)ig, xf);
-			gold_mm->set_instance_color((int)ig++, tint);
-		} else if (r.type == rtso::RES_STONE) {
-			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
-			stone_mm->set_instance_transform((int)ist, xf);
-			stone_mm->set_instance_color((int)ist++, tint);
+		} else if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) {
+			const int k = mine_of(r);
+			Transform3D xf(rot, Vector3(rx, ry + mine_y[k], rz));
+			mine_mm[k]->set_instance_transform((int)imine[k], xf);
+			mine_mm[k]->set_instance_color((int)imine[k]++, tint);
 		} else if (r.subtype == rtso::RES_SUB_FISH) {
 			// 0 A.D.'s fish shoal swims just under the surface (Position/Floating).
 			// The water has no refraction pass, so the top fish break the
@@ -3136,18 +3195,20 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// taken out of sight stays there as a mirage until the spot is seen again.
 	{
 		const auto &tv = mirages_.treasures();
-		auto e_chest = rtso::ModelLibrary::get("vegetation", "treasure_chest");
-		int nt = 0;
-		for (const auto &t : tv) if (los_brightness(t.x, t.z) > 0.0f) ++nt;
-		treasure_mm->set_instance_count(nt);
-		int it = 0;
+		int nt[rtso::TREASURE_TYPE_COUNT] = {};
+		for (const auto &t : tv)
+			if (t.type < rtso::TREASURE_TYPE_COUNT && los_brightness(t.x, t.z) > 0.0f) ++nt[t.type];
+		for (int k = 0; k < rtso::TREASURE_TYPE_COUNT; ++k) treasure_mm[k]->set_instance_count(nt[k]);
+		int it[rtso::TREASURE_TYPE_COUNT] = {};
 		for (const auto &t : tv) {
-			const float lit = los_brightness(t.x, t.z);
+			const float lit = t.type < rtso::TREASURE_TYPE_COUNT ? los_brightness(t.x, t.z) : 0.0f;
 			if (lit <= 0.0f) continue;
+			// Wrecks and floating cargo sit on the water, the rest on the ground.
+			const float ground = std::max(sim->get_terrain_height(t.x, t.z), sim->water_height());
 			Basis rot(Vector3(0, 1, 0), rtso::Simulation::treasure_angle(t.id));
-			Transform3D xf(rot, Vector3(t.x, sim->get_terrain_height(t.x, t.z) + e_chest.y_offset, t.z));
-			treasure_mm->set_instance_transform(it, xf);
-			treasure_mm->set_instance_color(it++, Color(lit, lit * 0.85f, lit * 0.4f, 1.0f));
+			Transform3D xf(rot, Vector3(t.x, ground + treasure_y_offset[t.type], t.z));
+			treasure_mm[t.type]->set_instance_transform(it[t.type], xf);
+			treasure_mm[t.type]->set_instance_color(it[t.type]++, Color(lit, lit, lit, 1.0f));
 		}
 	}
 

@@ -246,6 +246,16 @@ UNIQUE_BUILDINGS = [
     # The type's row is read from the first template; each placed one keeps its template's civ.
     ("BLD_SHRINE", ["shrine_greek_01"], "shrine", "temple"),
     ("BLD_TRADING_POST", ["trading_post_desert"], "trading_post", "market"),
+    # Structures only maps place (MAP_ONLY): no Builder list names them. The bolt and artillery
+    # towers, the royal stoa, the Persian inn, the Roman tent and triumphal arch are civ
+    # templates (their row is read from the first civ's); the Hellenic stoa is generic.
+    ("BLD_TOWER_BOLT", ["tower_bolt"], "tower_bolt", "tower_bolt"),
+    ("BLD_TOWER_ARTILLERY", ["tower_artillery"], "tower_artillery", "tower_artillery"),
+    ("BLD_STOA", ["royal_stoa"], "greek_stoa_great", "stoa"),
+    ("BLD_HELLENIC_STOA", ["hellenic_stoa"], "greek_stoa", "stoa"),
+    ("BLD_INN", ["inn"], "inn", "house"),
+    ("BLD_TENT", ["tent"], "tent", "house"),
+    ("BLD_TRIUMPHAL_ARCH", ["arch"], "triumphal_arch", "arch"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -253,7 +263,7 @@ WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wall
 # (sim_types.h wallset_info), not a square.
 ONE_CELL = {"BLD_SIEGE_WALL", "BLD_SIEGE_WALL_GATE"}
 # Civ structures named by Identity/SpecificName rather than a GenericName they share.
-SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC"}
+SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC", "BLD_INN"}
 # Structures no Builder list names: only an Upgrade reaches them.
 UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
                 "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE",
@@ -263,7 +273,9 @@ UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BL
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
 # Gaia structures in UNIQUE_BUILDINGS (structures/<stem>.xml, mixins/shrine.xml and
 # mixins/trading_post.xml): no civ builds them.
-GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST"}
+GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST", "BLD_HELLENIC_STOA"}
+# Civ structures in UNIQUE_BUILDINGS that only maps place: no civ builds them.
+MAP_ONLY = {"BLD_TOWER_BOLT", "BLD_TOWER_ARTILLERY", "BLD_STOA", "BLD_INN", "BLD_TENT", "BLD_TRIUMPHAL_ARCH"}
 # Generic structures a civ structure's Upgrade can start from (structures/cart/house,
 # structures/han/civil_centre, structures/han/defense_tower).
 UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
@@ -1655,6 +1667,8 @@ def unique_building_rows(sim_root, generic_masks=None):
             mask = (generic_masks or {}).get(GENERIC_UNIQUE[enum], 0)
             civs = [c for c in CIVS if mask >> CIV_INDEX[c] & 1]
             t, src = loader.load(name), name
+        if enum in MAP_ONLY:
+            civs = []
         if enum in GAIA_UNIQUE:
             civs, src = [], "structures/%s" % stems[0]
             t = loader.load(src)
@@ -1678,7 +1692,8 @@ def unique_building_rows(sim_root, generic_masks=None):
             "gold": int(t.num("Cost/Resources/metal")), "stone": int(t.num("Cost/Resources/stone")),
             "pop": int(t.num("Population/Bonus")), "garrison": int(t.num("GarrisonHolder/Max")),
             "build_time": t.num("Cost/BuildTime", 100.0) * 0.25,
-            "capture": t.num("Capturable/CapturePoints", 500.0),
+            # Capturable disable="" (rome/arch): never captured.
+            "capture": t.num("Capturable/CapturePoints", 500.0) if t.get("Capturable") is not None else 0.0,
             "regen": t.num("Capturable/RegenRate", 5.0),
             "garrison_regen": t.num("Capturable/GarrisonRegenRate", 1.0),
             "decay": t.num("TerritoryDecay/DecayRate", 0.0),  # disable="" (Cothon): no decay,

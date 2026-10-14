@@ -144,15 +144,30 @@ class RtsoWorldView : public Node3D {
 	float turret_draw_y(const rtso::Simulation *sim, uint32_t unit_id, float offset, float x, float z);
 	Ref<Shader> wind_shader_;
 	Ref<Mesh> wind_mesh(const Ref<Mesh> &src);
-	MultiMeshInstance3D *gold_mmi = nullptr;   // gold_vein.glb
-	MultiMeshInstance3D *stone_mmi = nullptr;  // stone_mine.glb
+	// Mines draw the 0.28 large and small metal and stone mine of the map's biome
+	// (maps/random/rmbiome metalLarge, metalSmall, stoneLarge, stoneSmall; pick_mine_models),
+	// falling back to gold_vein.glb and stone_mine.glb.
+	enum { MINE_METAL_LARGE, MINE_METAL_SMALL, MINE_STONE_LARGE, MINE_STONE_SMALL, MINE_KINDS };
+	MultiMeshInstance3D *mine_mmi[MINE_KINDS] = {};
+	Ref<MultiMesh> mine_mm[MINE_KINDS];
+	float mine_y[MINE_KINDS] = {};
+	std::string mine_biome_ = "-";
+	void pick_mine_models(const std::string &biome);
+	// A mine is large (template_gaia_*_large, 5000) or small (1000, a cut quarry 2000) by its
+	// supply when first drawn, so a worked large mine keeps its model. Cleared on a new match.
+	std::unordered_map<uint32_t, bool> mine_large_;
+	float mine_large_time_ = -1.0f;
+	std::string mine_large_map_;
 	MultiMeshInstance3D *food_mmi = nullptr;   // fruit_bush.glb
 	MultiMeshInstance3D *fish_mmi = nullptr;   // fish.glb (0 A.D. fauna/fish_generic.xml)
-	Ref<MultiMesh> gold_mm, stone_mm, food_mm, fish_mm;
+	Ref<MultiMesh> food_mm, fish_mm;
 	// Gaia ruins (a stone/metal supply, buildings/ruins.glb) and treasures (a placeholder chest).
 	MultiMeshInstance3D *ruins_mmi = nullptr;
-	MultiMeshInstance3D *treasure_mmi = nullptr;
-	Ref<MultiMesh> ruins_mm, treasure_mm;
+	// One multimesh per treasure type: its 0.28 actor (gaia_data.h TreasureTypeInfo::model_id).
+	MultiMeshInstance3D *treasure_mmi[rtso::TREASURE_TYPE_COUNT] = {};
+	Ref<MultiMesh> treasure_mm[rtso::TREASURE_TYPE_COUNT];
+	float treasure_y_offset[rtso::TREASURE_TYPE_COUNT] = {};
+	Ref<MultiMesh> ruins_mm;
 	// Gaia scenery (fences, columns, obelisks): 0 A.D.'s actor meshes from
 	// data/scenery_actors.json, one MultiMesh per type and mesh variant; a box of
 	// the obstruction's size for a type without one.

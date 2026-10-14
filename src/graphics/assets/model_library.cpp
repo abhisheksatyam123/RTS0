@@ -63,7 +63,7 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (id == "healer") return 1.72f;
 		if (id == "deer") return 1.35f;
 		if (id == "boar") return 1.15f;
-		if (id == "sheep") return 0.95f;
+		if (id == "sheep" || id == "sheep_gaia") return 0.95f;
 		if (id == "wolf") return 1.05f;
 		// Animal GLBs come out of the extractors already sized (a chicken 0.5,
 		// a bush elephant 3.2), so they keep their own height.
@@ -101,6 +101,8 @@ float ModelLibrary::target_height(const String &category, const String &id, floa
 		if (building_glb_id(id) != id) return natural_h;
 		return Math::clamp(natural_h, 2.0f, 8.0f);
 	}
+	// Props (0 A.D. treasures) are sized by the extractor (ZIP_PROPS).
+	if (category == "props") return natural_h;
 	if (id == "pine") return 8.0f;
 	else if (id == "palm") return 7.0f;
 	else if (id == "tree") return 6.0f;
@@ -1011,7 +1013,8 @@ ModelLibrary::Entry ModelLibrary::load(const String &category, const String &id)
 								const Entry &cls = get(category, String(tm->class_model));
 								if (cls.valid && cls.scale > 0.0f) e.scale = cls.scale;
 							}
-							e.y_offset = e.animated ? 0.0f : -e.aabb.position.y * e.scale;
+							// Props keep their 0 A.D. actor origin (a wreck sits partly under water).
+							e.y_offset = e.animated || category == "props" ? 0.0f : -e.aabb.position.y * e.scale;
 							e.valid = true;
 							char buf[192];
 							std::snprintf(buf, sizeof(buf), "%s/%s surfaces full=%d crowd=%d",
