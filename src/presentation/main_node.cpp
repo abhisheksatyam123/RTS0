@@ -2023,6 +2023,14 @@ void RtsoMain::_on_entity_command(const String &name) {
 		_on_remove_guard_pressed();
 	} else if (name == "unload-all") {
 		_on_ungarrison_pressed();
+	} else if (name == "leave-turret") {
+		// unit_actions.js leaveTurretPoints: every selected unit on a turret point steps down.
+		std::vector<uint32_t> ids;
+		for (int s = 0; s < selected_ids.size(); ++s)
+			if (sim->turret_holder_of((uint32_t)(int64_t)selected_ids[s])) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
+		if (ids.empty()) return;
+		if (turn_cmds()) post_lockstep(13, ids.data(), ids.size(), 0, 0, 0, 2);
+		else sim->cmd_leave_turret(local_player(), ids.data(), ids.size());
 	} else if (name == "select-trading-goods") {
 		_toggle_session_dialog("BarterDialog");
 	} else if (name == "focus-rally") {
@@ -3110,6 +3118,17 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["seat"] = (int)seat_player();
 	d["oos"] = turn_mgr_.has_out_of_sync();
 	d["oos_turn"] = (int64_t)turn_mgr_.oos_turn();
+	// OutOfSyncNetwork's message: who, whether ours matches the host's, and the files.
+	Array oos_players;
+	for (const auto &n : turn_mgr_.oos_players()) oos_players.push_back(String::utf8(n.c_str()));
+	d["oos_players"] = oos_players;
+	d["oos_identical"] = turn_mgr_.oos_matches_host();
+	d["oos_dump"] = String::utf8(turn_mgr_.oos_dump_path().c_str());
+	d["oos_replay"] = replay_dir_.is_empty() ? String()
+			: ProjectSettings::get_singleton()->globalize_path(replay_dir_ + String("commands.rts0rec"));
+	bool ai = false;
+	for (uint8_t p = 0; sim && p < rtso::MAX_PLAYERS; ++p) ai = ai || (sim->player(p).active && sim->player(p).is_ai);
+	d["oos_ai"] = ai;
 	d["disconnected"] = net_disconnected_;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
@@ -3672,6 +3691,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
+	net_oos_shown_turn_ = 0;
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();
@@ -3807,6 +3827,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
+	net_oos_shown_turn_ = 0;
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();
