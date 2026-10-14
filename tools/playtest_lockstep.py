@@ -717,6 +717,62 @@ def run_observer_lag_case(binary: str, seed: int, speed: float, loss: float, por
     return ok
 
 
+def run_saved_game_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
+                        timeout: int) -> bool:
+    """0 A.D. NMT_SAVED_GAME_START: the host continues a saved game. Its world
+    has run 10 s on alone, so the joiner's own boot world differs; the joiner
+    takes the host's world at Start, its seat from the host, and the match
+    holds until it has loaded. Both must then agree on every turn."""
+    turns = 400
+    print("\n---- saved game: the host continues a saved game, the joiner loads its world ----")
+    logs = {r: os.path.join(out_dir, f"saved_{r}.log") for r in ("host", "join")}
+    for path in logs.values():
+        if os.path.exists(path):
+            os.remove(path)
+    common = ["--speed", str(speed), "--loss", str(loss), "--saved-game", "1"]
+    def peer(role, log, *more):
+        return subprocess.Popen([binary, "--net-peer", role, str(port), str(seed), str(turns), log, *common, *more],
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    host = peer("host", logs["host"], "--name", "alice")
+    time.sleep(0.3)
+    join = peer("join", logs["join"], "--name", "bob")
+    outs, rcs = {}, {}
+    for role, p in (("join", join), ("host", host)):
+        try:
+            out, _ = p.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            out, _ = p.communicate()
+        outs[role], rcs[role] = out, p.returncode
+    start_h = peer_lines([outs["host"]], "saved").get("host", {})
+    start_j = peer_lines([outs["join"]], "saved").get("join", {})
+    h, j = read_hashes(logs["host"]), read_hashes(logs["join"])
+    first = min(j) if j else 0
+    bad = next((t for t in sorted(j) if h.get(t) != j[t]), None)
+    checks = {
+        "exit codes": all(rc == 0 for rc in rcs.values()),
+        "the joiner loaded the host's world": start_j.get("hash") == start_h.get("hash") and start_h.get("hash"),
+        "the joiner kept its seat": start_j.get("player") == "1",
+        # The lockstep took it at turn 1 + COMMAND_DELAY + 1: the host was still at turn 1.
+        "no turn ran before it loaded": first == 2 and bool(h) and sorted(h)[0] == 2
+                                        and "in the lockstep from turn 4" in (outs["host"] or ""),
+        "both ran every turn in sync": len(h) == turns - 1 and sorted(j) == sorted(h) and bad is None,
+    }
+    ok = all(checks.values())
+    if ok:
+        print(f"[net] PASS saved game: the joiner loaded the host's world (hash {start_h.get('hash')}) as player 2 "
+              f"before turn 2 ran, then turns 2-{turns} matched (final hash {h[turns]})")
+    else:
+        for role in ("host", "join"):
+            for line in (outs[role] or "").splitlines():
+                if line.startswith("[net-peer]") or line.startswith("[TurnManager]"):
+                    print(f"   [{role}] " + line)
+        failed = ", ".join(k for k, v in checks.items() if not v)
+        print(f"[net] FAIL saved game ({failed}): rc={rcs} turns={len(h)}/{len(j)} first={first} first_bad={bad} "
+              f"start={start_h}/{start_j}")
+    return ok
+
+
 def run_kick_case(binary: str, seed: int, speed: float, loss: float, port: int, out_dir: str,
                   timeout: int) -> bool:
     """0 A.D. password-protected hosting and kick/ban: three humans join a game
@@ -1099,6 +1155,8 @@ def main() -> int:
                                     args.net_port + 6, out_dir, args.timeout) and net_ok
         net_ok = run_observer_lag_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
                                        args.net_port + 8, out_dir, args.timeout) and net_ok
+        net_ok = run_saved_game_case(binary_path, args.seeds[0], args.net_speed, args.net_loss,
+                                     args.net_port + 9, out_dir, args.timeout) and net_ok
         # The observer case again on a link that loses 45% of its datagrams: every
         # reliable packet (turn batches, the rejoin world's chunks) must still
         # arrive, as ENet's do, or the late observer stalls or never gets in.
