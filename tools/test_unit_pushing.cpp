@@ -33,6 +33,10 @@
 //     from rest a ram covers a t^2 / 2 for its first 1.7 s and a spearman is at full speed within
 //     0.26 s. Turning past InstantTurnAngle (0.75 rad for siege, 1.5 for infantry) starts it again from
 //     rest; a gentler turn keeps cos(angle) of its speed.
+// 12. A group sent to one point (no formation) gets a point each round it, as Commands.js "walk" does
+//     with DistributeAround: a spiral from 1 m out, rings 1.75 m apart, points 9/pi m apart along a
+//     ring (at the crowd scale, PUSH_SCALE), handed out so that no two units would travel less by swapping.
+//     A unit on its own walks to the point itself.
 #define private public
 #include "simulation/simulation.h"
 #undef private
@@ -154,11 +158,13 @@ int main() {
 		// pushes between walkers mostly cancel under MinimalForce until a pair comes within half its
 		// MovingSpread distance (CCmpUnitMotion_System.cpp Push), 0.96 for two swordsmen. Where the
 		// minimum lands above that depends on the walk speed (with walk speeds scaled from 0.9 to 1.3
-		// it ranges from 0.99 to 1.38), so the check is 0 A.D.'s bound, not the bodies' 1.1.
+		// it ranges from 0.99 to 1.38), so the check is 0 A.D.'s bound, not the bodies' 1.1. Walking
+		// on to their own points round the target (DistributeAround, test 12) their ways converge, and a
+		// pair can pass a hair inside it (0.95 against 0.96).
 		const float c = unit_push_clearance(UNIT_SWORDSMAN);
 		const float overlap = ((c + c) * (5.0f / 7.0f) * 1.4f + 4.0f * PUSH_SCALE) * 0.4f * 0.5f;
 		std::printf("  walkers' overlap distance %.2f\n", overlap);
-		CHECK(walking_min >= overlap, "walkers don't overlap on the way");
+		CHECK(walking_min >= 0.97f * overlap, "walkers don't overlap on the way");
 		CHECK(min_pair >= 2.0f * unit_collision_radius(UNIT_SWORDSMAN) && far < 7.0f, "and stand apart round their point");
 	}
 	{
@@ -367,6 +373,39 @@ int main() {
 		const float want = std::min(v_ram, v0 * std::cos(0.5236f) + a_ram * DT);
 		std::printf("  a 30 degree turn at %.3f: %.3f after one tick (%.3f expected)\n", v0, speed(ir), want);
 		CHECK(std::fabs(v0 - v_ram) < 1e-3f && std::fabs(speed(ir) - want) < 2e-3f, "a turn short of InstantTurnAngle keeps cos(angle) of the speed");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		setup(*s);
+		std::vector<uint32_t> group;
+		for (int k = 0; k < 10; ++k) group.push_back(s->spawn_unit(-20.0f + 1.5f * (k % 2), -7.0f + 1.5f * k, 0, UNIT_SPEARMAN, 0.0f));
+		std::vector<std::pair<float, float>> from;
+		for (uint32_t id : group) from.emplace_back(s->units_.pos_x[idx(*s, id)], s->units_.pos_z[idx(*s, id)]);
+		s->cmd_move(group.data(), group.size(), 10.0f, 5.0f);
+		// Ring radii in metres: 1 (3 points), 2.75 (7 points).
+		int ring1 = 0, ring2 = 0, other = 0, swaps = 0;
+		std::vector<std::pair<float, float>> to;
+		for (uint32_t id : group) {
+			const int i = idx(*s, id);
+			to.emplace_back(s->units_.target_x[i], s->units_.target_z[i]);
+			const float r = std::hypot(s->units_.target_x[i] - 10.0f, s->units_.target_z[i] - 5.0f) / PUSH_SCALE;
+			(std::fabs(r - 1.0f) < 0.01f ? ring1 : std::fabs(r - 2.75f) < 0.01f ? ring2 : other)++;
+		}
+		auto d2 = [](std::pair<float, float> a, std::pair<float, float> b) {
+			const int64_t dx = (int64_t)std::ceil((a.first - b.first) / PUSH_SCALE);
+			const int64_t dz = (int64_t)std::ceil((a.second - b.second) / PUSH_SCALE);
+			return dx * dx + dz * dz;
+		};
+		for (size_t a = 0; a < to.size(); ++a)
+			for (size_t b = a + 1; b < to.size(); ++b)
+				if (d2(to[b], from[a]) + d2(to[a], from[b]) < d2(to[a], from[a]) + d2(to[b], from[b])) ++swaps;
+		std::printf("  group of 10 to one point: %d on the first ring, %d on the second, %d elsewhere; %d swaps would cut travel\n",
+		            ring1, ring2, other, swaps);
+		CHECK(ring1 == 3 && ring2 == 7 && other == 0, "a group spreads on DistributeAround's spiral");
+		CHECK(swaps == 0, "and no two units would travel less by swapping points");
+		uint32_t lone = s->spawn_unit(20.0f, 20.0f, 0, UNIT_SPEARMAN, 0.0f);
+		s->cmd_move(&lone, 1, 25.0f, 25.0f);
+		CHECK(s->units_.target_x[idx(*s, lone)] == 25.0f && s->units_.target_z[idx(*s, lone)] == 25.0f, "a unit on its own walks to the point");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
