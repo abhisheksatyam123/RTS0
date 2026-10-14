@@ -88,6 +88,7 @@ enum TriggerAction : uint16_t {
 	TRIGGER_ACTION_JEBEL_BARKAL_ATTACK = 30,       // JebelBarkal_SpawnAttackerGroups
 	TRIGGER_ACTION_JEBEL_BARKAL_OWNERSHIP = 31,    // JebelBarkal_OwnershipChange
 	TRIGGER_ACTION_GALLIC_FIELDS = 32,             // skirmishes/gallic_fields_3p.js: arg 0 init, 1 SpawnAndAttack
+	TRIGGER_ACTION_TRIGGERS_DEMO_RANGE = 33,       // scenarios/triggers_demo.js RangeAction (logs the OnRange data)
 	TRIGGER_ACTION_COUNT
 };
 
@@ -102,6 +103,11 @@ struct TriggerEventData {
 	uint16_t value = 0;    // template, tech or command type
 	uint16_t count = 0;    // batch size
 	uint8_t event = 0xFF;  // the TriggerEvent being run (set by Simulation::trigger_event)
+	// OnRange (TriggerPoint.js OnRangeUpdate): other is the TriggerRangeQuery index; the
+	// entities that entered and left this turn, and the query's currentCollection after.
+	const std::vector<uint32_t> *added = nullptr;
+	const std::vector<uint32_t> *removed = nullptr;
+	const std::vector<uint32_t> *collection = nullptr;
 };
 
 // OnPlayerCommand: the Commands.js command types the ported scripts look at (value).
@@ -152,6 +158,19 @@ struct TriggerPoint {
 	uint8_t reserved[2] = {};
 };
 static_assert(sizeof(TriggerPoint) == 12, "TriggerPoint is saved raw: keep it free of padding");
+
+// TriggerPoint.js RegisterRangeTrigger: the RangeManager active query an OnRange trigger
+// keeps on one of its trigger points, with the point's currentCollection for it.
+struct TriggerRangeQuery {
+	uint16_t trigger = 0xFFFF; // the OnRange registration (index into triggers)
+	uint16_t point = 0;        // index into points
+	float min_range = 0.0f;    // world units
+	float max_range = -1.0f;   // world units; below 0: no maximum
+	uint8_t players = 0xFF;    // bitmask of the player ids counted (0 A.D.'s data.players)
+	uint8_t units_only = 0;    // requiredComponent IID_UnitAI: units, not structures
+	uint8_t reserved[2] = {};
+	std::vector<uint32_t> collection; // entity ids in range, in the order they came in
+};
 
 // GuiInterface.AddTimeNotification: a message shown to players until end_ms.
 struct TimeNotification {
@@ -209,6 +228,7 @@ struct TriggerState {
 	std::vector<uint16_t> disabled_templates; // for every player (the ported scripts disable the same ones for all)
 	std::vector<uint32_t> invulnerable;       // Resistance.SetInvulnerability(true): unit ids
 	std::vector<TriggerWatch> watched;
+	std::vector<TriggerRangeQuery> range_queries; // OnRange, save v68
 
 	void clear() { *this = TriggerState(); }
 	bool active() const { return !triggers.empty() || !timers.empty(); }
@@ -234,6 +254,28 @@ struct TriggerState {
 		triggers.push_back(r);
 		const uint16_t idx = (uint16_t)(triggers.size() - 1);
 		if (enabled) enable_trigger(idx);
+		return idx;
+	}
+	// Trigger.js RegisterTrigger("OnRange", ...) with entities = GetTriggerPoints(point_ref):
+	// one query per trigger point carrying that reference.
+	uint16_t register_range_trigger(uint16_t action, uint8_t point_ref, float min_range, float max_range,
+			uint8_t players, bool units_only, bool enabled) {
+		const uint16_t idx = register_trigger(TRIGGER_ON_RANGE, action, enabled);
+		TriggerRegistration &r = triggers[idx];
+		r.range = max_range;
+		r.point_ref = point_ref;
+		r.players = players;
+		for (size_t i = 0; i < points.size(); ++i) {
+			if (points[i].ref != point_ref) continue;
+			TriggerRangeQuery q;
+			q.trigger = idx;
+			q.point = (uint16_t)i;
+			q.min_range = min_range;
+			q.max_range = max_range;
+			q.players = players;
+			q.units_only = units_only ? 1 : 0;
+			range_queries.push_back(q);
+		}
 		return idx;
 	}
 	void enable_trigger(uint16_t idx) {
@@ -325,6 +367,11 @@ struct TriggerState {
 		for (uint32_t u : invulnerable) mix(u);
 		mix((uint32_t)watched.size());
 		for (const auto &w : watched) { mix(w.id); mix(w.owner); mix(w.role); }
+		mix((uint32_t)range_queries.size());
+		for (const auto &q : range_queries) {
+			mix(q.trigger); mix(q.point); mix(q.players); mix((uint32_t)q.collection.size());
+			for (uint32_t e : q.collection) mix(e);
+		}
 		mix((uint32_t)attack_orders.size());
 		for (const auto &o : attack_orders) {
 			mix(o.fauna_id); mix(o.count);

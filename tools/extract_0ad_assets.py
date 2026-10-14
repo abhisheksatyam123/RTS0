@@ -986,6 +986,13 @@ ZIP_STRUCTURES = {
     "s_germans_wooden_wall_medium": ("art/actors/structures/germans/wooden_wall_medium.xml", "scale", 0.25, None),
     "s_germans_wooden_wall_long":   ("art/actors/structures/germans/wooden_wall_long.xml",   "scale", 0.25, None),
     "s_germans_wooden_wall_gate":   ("art/actors/structures/germans/wooden_wall_gate.xml",   "scale", 0.25, None),
+    # Carthage's three 0.28 embassies (the generic `embassy` is the older
+    # shared actor) and the apartment its houses upgrade to, sized like the
+    # embassy and the Carthaginian house they stood in for.
+    "s_carthaginians_embassy_celtic":  ("art/actors/structures/carthaginians/embassy_celtic.xml",  "width", 3.5, None),
+    "s_carthaginians_embassy_iberian": ("art/actors/structures/carthaginians/embassy_iberian.xml", "width", 3.5, None),
+    "s_carthaginians_embassy_italic":  ("art/actors/structures/carthaginians/embassy_italic.xml",  "width", 3.4, None),
+    "s_carthaginians_apartment":       ("art/actors/structures/carthaginians/apartment.xml",       "width", 2.7, None),
 }
 
 # Units only 0.28 has, drawn by RTS0's generic unit models of the same id
