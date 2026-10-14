@@ -135,11 +135,12 @@ func _entry(path: String, meta: Dictionary) -> Dictionary:
 	var info := map_info(map_id)
 	var size := int(meta.get("map_size", 0)) if info["type"] == "Random" else int(info["size"])
 	# PopulationCap and PopulationCapType (replay_menu.js sanitizeInitAttributes):
-	# settings.pop_cap is negative for a World Population, 0 for unlimited.
+	# settings.pop_cap is negative for a World Population, 0 for unlimited, and
+	# a Team Population's cap with settings.team_pop.
 	var setting_pop := int(settings.get("pop_cap", 300))
 	var world := int(attribs.get("worldpop", -setting_pop if setting_pop < 0 else 0))
 	var pop := int(attribs.get("popcap", maxi(setting_pop, 0)))
-	var pop_type := "world" if world > 0 else "player"
+	var pop_type := "world" if world > 0 else ("team" if bool(settings.get("team_pop", false)) else "player")
 	pop = world if world > 0 else (UNLIMITED_POP if pop <= 0 else pop)
 	var victory := int(attribs.get("victory", settings.get("victory", 0)))
 	var timestamp := int(meta.get("timestamp", 0))
@@ -227,14 +228,13 @@ static func population_name(pop: int, pop_type: String) -> String:
 	return "Unlimited" if pop >= UNLIMITED_POP else "%d (%s)" % [pop, pop_type]
 
 ## initPopCapFilter: the caps of every population type (gamesetup.gd's
-## POP_CAPS) merged into one ascending list, unlimited as 10000.
+## POP_CAP_TYPES) merged into one ascending list, unlimited as 10000.
 static func population_filter_caps() -> Array:
 	var caps := []
-	for p in SetupPage.POP_CAPS:
-		var v := int(p[0])
-		v = -v if v < 0 else (UNLIMITED_POP if v == 0 else v)
-		if not caps.has(v):
-			caps.append(v)
+	for t in SetupPage.POP_CAP_TYPES:
+		for v in t[5]:
+			if not caps.has(int(v)):
+				caps.append(int(v))
 	caps.sort()
 	return caps
 

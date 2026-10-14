@@ -19,6 +19,7 @@ var room := {}
 var _timer: Timer
 var _report_timer: Timer
 var _room_in_match := false # the match that hosts `room` has started
+var _room_started_at := 0 # unix time the hosted match started, 0 before
 var _reported := {} # matchID -> true: a player reports each match once
 
 
@@ -89,6 +90,7 @@ func sign_out() -> void:
 func host_game(game: Dictionary) -> void:
 	room = game.duplicate()
 	_room_in_match = false
+	_room_started_at = 0
 	post_json("/rooms", room)
 
 
@@ -116,7 +118,159 @@ func _beat() -> void:
 		return
 	room["players"] = int(st.get("players", 1))
 	room["state"] = "running" if st.get("started", false) else "init"
+	if st.get("started", false) and _room_started_at == 0:
+		_room_started_at = int(Time.get_unix_time_from_system())
+	room.merge(room_details(get_node("/root/MatchSettings"),
+		main.get_net_setup_state() if main.has_method("get_net_setup_state") else {}, _room_started_at), true)
 	post_json("/rooms", room)
+
+
+# The game's details 0 A.D.'s host sends the lobby with its game (Game.js
+# stanza: mapName, mapType, mapSize, victoryConditions, startTime, players),
+# from the host's Game Setup (MatchSettings) and its seats
+# (get_net_setup_state). Older lobby servers ignore the extra fields.
+static func room_details(ms: Object, net: Dictionary, started_at: int) -> Dictionary:
+	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
+	var map_id := str(ms.get("map_id"))
+	var map_name := map_id.replace("_", " ").capitalize()
+	var map_type := ""
+	for r in setup.RMS_MAPS:
+		if r[0] == map_id:
+			map_name = str(r[1]).trim_suffix(" (RMS)")
+			map_type = "random"
+	if map_type == "":
+		var known: Dictionary = setup._map_types_data().get("maps", {})
+		map_type = str((known.get(map_id, {}) as Dictionary).get("type", "skirmish"))
+	# Game.js translateMapSize: the size's name for a random map, "Default" otherwise.
+	var map_size := "Default"
+	if map_type == "random":
+		for sz in setup.MAP_SIZES:
+			if int(sz[0]) == int(ms.get("map_size")):
+				map_size = str(sz[1]).get_slice(" (", 0)
+	var victory := PackedStringArray()
+	var mask: int = setup.victory_mask(int(ms.get("victory")))
+	for k in setup.VICTORY_KINDS:
+		if mask & int(k[0]):
+			victory.append(k[1])
+	var at := func(key: String, i: int, default):
+		var a: Array = ms.get(key)
+		return a[i] if i < a.size() else default
+	var players := []
+	var slots: Array = net.get("slots", [])
+	var count := slots.size() if not net.is_empty() else int(ms.get("player_count"))
+	for i in count:
+		var kind := int(at.call("slot_types", i, 0))
+		var name := ""
+		if kind == 1:
+			name = str(at.call("slot_names", i, ""))
+			if name == "":
+				name = "AI"
+		elif kind == 0:
+			name = str((slots[i] as Dictionary).get("name", "")) if i < slots.size() else ""
+		if name == "":
+			continue # a closed or open seat
+		var civ := int(at.call("slot_civs", i, -1))
+		var p := {"name": name, "team": int(at.call("slot_teams", i, 0)) - 1, "ai": kind == 1,
+			"civ": "random" if civ < 0 else (str(setup.CIVS[civ]["code"]) if civ < setup.CIVS.size() else "")}
+		if kind == 1:
+			p["ai_difficulty"] = int(at.call("slot_diffs", i, ms.get("ai_difficulty")))
+			p["ai_behavior"] = int(at.call("slot_behs", i, ms.get("ai_behavior")))
+		players.append(p)
+	for o in net.get("observers", []):
+		players.append({"name": str(o.get("name", "")), "team": -1, "observer": true})
+	return {"map_id": map_id, "map_name": map_name, "map_type": map_type, "map_size": map_size,
+		"victory": ",".join(victory), "start_time": started_at, "player_names": players}
+
+
+# Game.js gameRating: the average rating of the playing (not observing)
+# players, a player with none counting as g_DefaultLobbyRating.
+const DEFAULT_LOBBY_RATING := 1200
+
+
+static func game_rating(room_players: Array, ratings: Dictionary) -> int:
+	var total := 0
+	var count := 0
+	for p in room_players:
+		if p.get("observer", 0):
+			continue
+		var r = ratings.get(str(p.get("name", "")))
+		total += int(r) if r != null and str(r) != "" else DEFAULT_LOBBY_RATING
+		count += 1
+	return roundi(float(total) / count) if count > 0 else DEFAULT_LOBBY_RATING
+
+
+# LobbyPage/GameDetails.js: the selected game's map and settings, its name,
+# host and start time, then "Players: n/m" over gamedescription.js
+# formatPlayerInfo's list (by team, observers last), each human as
+# "name (rating)" (their lobby nick).
+static func game_details(room: Dictionary, ratings: Dictionary) -> String:
+	var setup: GDScript = load("res://scenes/menu/gamesetup.gd")
+	var summary: GDScript = load("res://scenes/session/summary_screen.gd")
+	var esc := func(t) -> String: return str(t).replace("[", "[lb]")
+	var map_title := str(room.get("map_name", "")) if str(room.get("map_name", "")) != "" else str(room.get("map_id", ""))
+	var type_title := str(room.get("map_type", ""))
+	var desc := ""
+	for t in setup.MAP_TYPES:
+		if t[0] == type_title:
+			type_title = t[1]
+	for r in setup.RMS_MAPS:
+		if r[0] == str(room.get("map_id", "")):
+			desc = r[6]
+	var victory := str(room.get("victory", ""))
+	var lines := PackedStringArray(["[b]%s[/b]" % esc.call(map_title),
+		"[b]Victory Conditions:[/b] " + (esc.call(victory.replace(",", ", ")) if victory != "" else "Endless Game")])
+	if type_title != "":
+		lines.append("[b]Map Type:[/b] " + esc.call(type_title))
+	if str(room.get("map_size", "")) != "":
+		lines.append("[b]Map Size:[/b] " + esc.call(room["map_size"]))
+	if desc != "":
+		lines.append("[b]Map Description:[/b] " + esc.call(desc))
+	lines.append("")
+	lines.append(esc.call(room.get("name", room.get("id", ""))))
+	lines.append("Host: " + esc.call(room.get("host_name", "")))
+	if int(room.get("start_time", 0)) > 0:
+		var t := Time.get_datetime_dict_from_unix_time(int(room["start_time"]) + int(Time.get_time_zone_from_system().get("bias", 0)) * 60)
+		lines.append("Game started at %02d:%02d" % [int(t["hour"]), int(t["minute"])])
+	lines.append("")
+	lines.append("[b]Players: %d/%d[/b]" % [int(room.get("players", 1)), int(room.get("max_players", 8))])
+	var teams := {}
+	var observers := PackedStringArray()
+	for p in room.get("player_names", []):
+		var name := str(p.get("name", ""))
+		if p.get("observer", 0):
+			observers.append(esc.call(rated_name(name, ratings.get(name))))
+			continue
+		var civ := str(p.get("civ", ""))
+		var civ_title := "Random" if civ == "random" else ("Unknown Civilization" if civ == "" else civ)
+		for c in setup.CIVS:
+			if c["code"] == civ:
+				civ_title = c["name"]
+		var parts := [civ_title]
+		var who := name
+		if p.get("ai", 0):
+			parts.append(summary.ai_description(p))
+		else:
+			who = rated_name(name, ratings.get(name))
+		var t := int(p.get("team", -1))
+		if not teams.has(t):
+			teams[t] = PackedStringArray()
+		teams[t].append("%s (%s)" % [esc.call(who), ", ".join(parts)])
+	var keys := teams.keys()
+	keys.sort()
+	if keys.has(-1):
+		keys.erase(-1)
+		keys.append(-1)
+	var groups := PackedStringArray()
+	if keys.size() == 1:
+		groups.append("\n".join(teams[keys[0]]))
+	else:
+		for t in keys:
+			groups.append("[b]%s:[/b]\n%s" % ["No Team" if t == -1 else "Team %d" % (t + 1), "\n".join(teams[t])])
+	if not observers.is_empty():
+		groups.append("[b]%s:[/b]\n%s" % ["Observer" if observers.size() == 1 else "Observers", "\n".join(observers)])
+	if not groups.is_empty():
+		lines.append("\n\n".join(groups))
+	return "\n".join(lines)
 
 
 # gui/session/lobby/LobbyRatingReporter.js: once this player has won or been
@@ -125,7 +279,7 @@ func _beat() -> void:
 # Observers send nothing. The match id is the same on both machines: the
 # lockstep seed, map and the two names.
 func _check_report() -> void:
-	if token == "":
+	if token == "" or not bool(get_node("/root/MatchSettings").rated): # Rated Game off: LobbyRatingReporter sends nothing
 		return
 	var main := _match_node()
 	if main == null:

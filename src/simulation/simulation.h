@@ -848,8 +848,9 @@ public:
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
 	int ship_garrison_capacity(size_t i) const;
 	static int ship_template_capacity(uint8_t unit_type, uint16_t tmpl);
-	bool ship_garrison_allowed(size_t ship, uint8_t unit_type) const;
+	bool ship_garrison_allowed(size_t ship, size_t unit) const;
 	float ship_loading_reach(size_t ship, size_t unit) const;
+	float transport_loading_reach(size_t holder, size_t unit) const;
 	// PickSpawnPoint per passenger: a spot nobody stands on (the passengers already set down in
 	// this unload are in `taken`), false when there is none; without a passenger, the nearest dry ground.
 	struct SpawnSpot { float x, z, r; };
@@ -1355,6 +1356,13 @@ public:
 	bool is_game_over() const { return game_over_; }
 	bool is_victory() const { return victory_; }
 	uint8_t player_phase(uint8_t pid = 0) const { return player(pid).phase; }
+	// A corral animal's Identity/Requirements: fauna_pig_trainable needs phase_town and
+	// template_unit_fauna_herd_domestic_cattle (cow, sanga, zebu) phase_city.
+	static uint8_t livestock_required_phase(uint8_t animal) {
+		if (animal == FAUNA_PIG_TRAINABLE) return 2;
+		if (animal == FAUNA_CATTLE_COW_TRAINABLE || animal == FAUNA_CATTLE_SANGA_TRAINABLE || animal == FAUNA_CATTLE_ZEBU_TRAINABLE) return 3;
+		return 1;
+	}
 	void set_player_civ(uint8_t civ) { set_team_civ(0, civ); }
 	uint8_t player_civ(uint8_t pid = 0) const { return player(pid).civ; }
 	// A civ chosen after the player's starting structures were placed re-templates them too.
@@ -2041,6 +2049,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
+	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
+	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
+	int occupied_slots(const std::vector<uint32_t> &ids) const;  // GarrisonHolder.OccupiedSlots
+	bool garrison_room(const Building &b, size_t unit) const;
 	// The search behind pick_spawn_point and siege_spawn_point: the spots round a footprint centred
 	// on (cx, cz) and turned by rot, a square with half extents along_u (the front) and along_v, or a
 	// circle of radius circle_r when that is above 0. dry_ground also rejects spots under the water line.
@@ -2081,6 +2094,7 @@ private:
 	static constexpr float SLAUGHTER_RANGE = 2.0f * 0.6f; // Attack/Slaughter MaxRange 2 m, melee scale
 	static constexpr float SLAUGHTER_PREPARE = 0.9f; // Attack/Slaughter PrepareTime 900 ms
 	void fauna_hit_unit(size_t f, size_t u);              // an animal's melee attack lands on unit u
+	void fauna_hit_fauna(size_t f, size_t v);             // ... or on a player's livestock v
 	bool fauna_can_step(size_t f, float x, float z) const;
 	void tick_fow();  // updates FoW each sim tick
 	void tick_los();  // moves every LOS source that changed since the last tick
@@ -2171,6 +2185,7 @@ private:
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
 	void gain_xp(size_t idx, float amount);
 	void award_damage_xp(uint32_t attacker_id, size_t victim, float damage);
+	void award_structure_damage_xp(uint32_t attacker_id, const Building &b, float damage);
 	// attacker_id is 0 when no entity is left to name (a fire ship's death damage).
 	void note_attacked(uint32_t attacker_id, uint8_t attacker_owner, uint32_t target_id, uint8_t target_owner,
 			bool target_is_building, float damage, bool melee = false);

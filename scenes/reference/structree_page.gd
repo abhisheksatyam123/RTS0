@@ -13,6 +13,10 @@ const Common := preload("res://scenes/reference/reference_common.gd")
 const Viewer := preload("res://scenes/reference/template_viewer.gd")
 const PHASES := 3
 const ROW_ICON := 30
+## Wallsets (TemplateLister): their pieces are drawn on the wallset's box, not as
+## boxes of their own; ProductionRowManager puts the tower in the first row.
+const WALLSET_TOWER := {12: 22} # BLD_WALL_SEGMENT -> BLD_WALL_TOWER
+const WALLSET_PIECES := [8, 22, 60, 64] # gates and the wall tower
 
 signal civ_changed(civ: int)
 
@@ -25,6 +29,7 @@ var researched := {}
 var lock_civ := false
 
 var _select
+var _by_type := {} # the civ's structures by type, wallset pieces included
 var _emblem: TextureRect
 var _civ_name: Label
 var _history: RichTextLabel
@@ -39,6 +44,7 @@ class TipButton extends Button:
 	var tip_id := -1
 	var tip_civ := 0
 	var tip_extra := ""
+	var tip_researcher := -1 # the structure type whose TechCostMultiplier prices a tech
 
 	func _make_custom_tooltip(_for_text: String) -> Object:
 		var rt := RichTextLabel.new()
@@ -67,6 +73,7 @@ class TipButton extends Button:
 				extra = Common.tech_text(d.get("template", ""))
 		if d.is_empty():
 			return ""
+		d = Common.civ_costed(d, tip_kind, tip_civ, tip_researcher)
 		var parts: PackedStringArray = []
 		var generic: String = extra.get("generic_name", "")
 		if generic == "":
@@ -127,6 +134,9 @@ func _ready() -> void:
 	name_row.add_child(_civ_name)
 	_select = Common.civ_select(_on_civ_selected)
 	_select.visible = not lock_civ
+	var heading := Common.civ_heading()
+	heading.visible = _select.visible
+	name_row.add_child(heading)
 	name_row.add_child(_select)
 	_history = RichTextLabel.new()
 	_history.bbcode_enabled = true
@@ -182,7 +192,12 @@ func set_civ(index: int) -> void:
 	for c in _rows.get_children() + _trainers.get_children():
 		c.get_parent().remove_child(c)
 		c.queue_free()
-	var tree: Array = Common.ref().get_structure_tree(civ)
+	var tree: Array = []
+	_by_type.clear()
+	for b in Common.ref().get_structure_tree(civ):
+		_by_type[int(b["type"])] = b
+		if not int(b["type"]) in WALLSET_PIECES:
+			tree.append(b)
 	for phase in range(1, PHASES + 1):
 		_rows.add_child(_phase_ident(phase))
 		var flow := HFlowContainer.new()
@@ -203,15 +218,21 @@ func set_civ(index: int) -> void:
 func _phase_ident(phase: int) -> Control:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
+	# PhaseIdent.drawPhaseIcon: the civ's own phase tech (Kōmopolis for the Athenians).
+	var phases: Array = Common.text().get("civs", {}).get(Common.civ_code(civ), {}).get("phases", [])
+	var ph: Dictionary = phases[phase - 1] if phase - 1 < phases.size() else {}
+	var title := Common.entity_name(ph.get("generic_name", "%s Phase" % Common.phase_name(phase)), ph.get("specific_name", ""))
 	var icon := TextureRect.new()
-	icon.texture = Common.texture(RtsoReference.phase_icon(phase))
+	icon.texture = Common.texture(Common.ICON_ROOT + "technologies/" + ph["icon"]) if ph.get("icon", "") != "" else null
+	if icon.texture == null:
+		icon.texture = Common.texture(RtsoReference.phase_icon(phase))
 	icon.custom_minimum_size = Vector2(28, 28)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.tooltip_text = "%s Phase" % Common.phase_name(phase)
+	icon.tooltip_text = title
 	head.add_child(icon)
 	var lbl := Label.new()
-	lbl.text = "%s Phase" % Common.phase_name(phase)
+	lbl.text = title
 	lbl.add_theme_font_size_override("font_size", 18)
 	lbl.add_theme_color_override("font_color", Color(1, 0.83, 0.42))
 	head.add_child(lbl)
@@ -253,13 +274,16 @@ func _structure_box(b: Dictionary) -> Control:
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
 		bar.add_child(row)
 		rows[p] = row
-	_fill_rows(rows, own, b["units"], b["techs"], b["upgrades"], "structure")
+	_fill_rows(rows, own, b["units"], b["techs"], b["upgrades"], "structure", int(b["type"]))
+	var tower: Dictionary = _by_type.get(WALLSET_TOWER.get(int(b["type"]), -1), {})
+	if not tower.is_empty():
+		rows[own].add_child(_icon_button(Common.icon_for("structure", tower, civ), ROW_ICON, "structure", int(tower["type"])))
 	return panel
 
 func _row_for(rows: Dictionary, own: int, phase: int) -> Container:
 	return rows[clampi(phase, own, PHASES)] if rows.has(clampi(phase, own, PHASES)) else rows.values()[0]
 
-func _fill_rows(rows: Dictionary, own: int, units: Array, techs: Array, upgrades: Array, upgrade_kind: String) -> void:
+func _fill_rows(rows: Dictionary, own: int, units: Array, techs: Array, upgrades: Array, upgrade_kind: String, researcher := -1) -> void:
 	for u in units:
 		_row_for(rows, own, int(u["phase"])).add_child(
 			_icon_button(Common.icon_for("unit", u, civ), ROW_ICON, "unit", int(u["tmpl"])))
@@ -267,6 +291,7 @@ func _fill_rows(rows: Dictionary, own: int, units: Array, techs: Array, upgrades
 		var done := researched.has(int(t["id"]))
 		var tb := _icon_button(Common.icon_for("tech", t, civ), ROW_ICON, "tech", int(t["id"]),
 			"[color=#80ff80]Researched[/color]" if done else "")
+		tb.tip_researcher = researcher
 		if done:
 			tb.modulate = Color(0.55, 1.0, 0.55)
 		_row_for(rows, own, int(t["phase"])).add_child(tb)

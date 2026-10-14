@@ -743,6 +743,79 @@ int main() {
 		std::printf("livestock orders: ewe walked to (%.1f, %.1f), both penned\n", ex, ez);
 	}
 
+	// 13. 0.28 audit (fauna/audit-028-behaviour.md).
+	{
+		// a. COMBAT approaches at walk speed and runs only after a fleeing target.
+		fresh(s);
+		const auto &wi = fauna_type_info(FAUNA_WOLF);
+		uint32_t u = s.spawn_unit(6.0f, 0.0f, 0, UNIT_SPEARMAN);
+		uint32_t wolf = s.spawn_fauna(0.0f, 0.0f, FAUNA_WOLF);
+		s.fauna_start_attack((size_t)fidx(s, wolf), u);
+		s.tick(Simulation::FIXED_STEP);
+		int32_t w = fidx(s, wolf);
+		const float walk = std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]);
+		CHECK(std::fabs(walk - wi.speed) < 0.01f);
+		uint32_t sheep = s.spawn_fauna(-6.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.fauna_attacked((size_t)fidx(s, sheep), wolf, true);
+		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_FLEE);
+		s.fauna_start_attack((size_t)fidx(s, wolf), sheep);
+		s.tick(Simulation::FIXED_STEP);
+		w = fidx(s, wolf);
+		const float run_sp = std::hypot(s.fauna_.vel_x[w], s.fauna_.vel_z[w]);
+		CHECK(std::fabs(run_sp - wi.speed * wi.run_mult) < 0.01f);
+		std::printf("wolf chase: walks at %.2f, runs at %.2f after a fleeing sheep\n", walk, run_sp);
+	}
+	{
+		// b. A predator goes for a player's livestock out of its corral (attackfilter: owner > 0).
+		fresh(s);
+		uint32_t sheep = s.spawn_fauna(3.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		uint32_t wolf = s.spawn_fauna(0.0f, 0.0f, FAUNA_WOLF);
+		run(s, 0.5f);
+		CHECK(s.fauna_.behavior[fidx(s, wolf)] == FAUNA_ATTACK && s.fauna_.target_unit_id[fidx(s, wolf)] == sheep);
+		// Bitten, it flees (passive Domestic) with the wolf after it at a run.
+		run(s, 2.0f);
+		CHECK(f_alive(s, sheep) && s.fauna_.hp[fidx(s, sheep)] < fauna_type_info(FAUNA_SHEEP_TRAINABLE).max_hp);
+		CHECK(s.fauna_.behavior[fidx(s, sheep)] == FAUNA_FLEE);
+		// One that cannot get away is eaten and leaves its carcass.
+		s.fauna_.hp[fidx(s, sheep)] = 1.0f;
+		s.fauna_.behavior[fidx(s, sheep)] = FAUNA_IDLE_GRAZE;
+		s.fauna_.state_timer[fidx(s, sheep)] = 1000.0f;
+		for (int t = 0; t < 200 && f_alive(s, sheep); ++t) s.tick(Simulation::FIXED_STEP);
+		CHECK(!f_alive(s, sheep));
+		CHECK(meat_near(s, s.fauna_.pos_x[fidx(s, wolf)], s.fauna_.pos_z[fidx(s, wolf)], 6.0f) > 0);
+		// Penned livestock is garrisoned and out of reach.
+		uint32_t pen = s.spawn_building_world(20.0f, 0.0f, BLD_CORRAL, 1, 1.0f);
+		uint32_t ewe = s.spawn_fauna(20.0f, 0.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.fauna_.behavior[fidx(s, ewe)] = FAUNA_CORRALLED;
+		s.fauna_.corral_id[fidx(s, ewe)] = pen;
+		uint32_t wolf2 = s.spawn_fauna(22.0f, 0.0f, FAUNA_WOLF);
+		run(s, 0.5f);
+		CHECK(s.fauna_.target_unit_id[fidx(s, wolf2)] != ewe);
+	}
+	{
+		// c. Identity/Requirements: pigs need the Town Phase, cattle the City Phase.
+		fresh(s);
+		s.players_[0].res[RES_FOOD] = 5000.0f;
+		uint32_t pen = s.spawn_building_world(-40.0f, -40.0f, BLD_CORRAL, 0, 1.0f);
+		CHECK(s.cmd_breed_livestock(0, pen, FAUNA_SHEEP_TRAINABLE, 1));
+		CHECK(!s.cmd_breed_livestock(0, pen, FAUNA_PIG_TRAINABLE, 1));
+		CHECK(!s.cmd_breed_livestock(0, pen, FAUNA_CATTLE_COW_TRAINABLE, 1));
+		s.players_[0].phase = 2;
+		CHECK(s.cmd_breed_livestock(0, pen, FAUNA_PIG_TRAINABLE, 1));
+		CHECK(!s.cmd_breed_livestock(0, pen, FAUNA_CATTLE_COW_TRAINABLE, 1));
+		s.players_[0].phase = 3;
+		CHECK(s.cmd_breed_livestock(0, pen, FAUNA_CATTLE_COW_TRAINABLE, 1));
+	}
+	{
+		// d. A civic centre takes no animals: herded livestock stops beside it, unpenned.
+		fresh(s);
+		uint32_t herder = s.spawn_unit(44.0f, 42.0f, 1, UNIT_FEMALE_CITIZEN);
+		uint32_t sheep = s.spawn_fauna(45.0f, 42.0f, FAUNA_SHEEP_TRAINABLE, 1);
+		s.order_herd(&herder, 1, sheep);
+		run(s, 30.0f);
+		CHECK(f_alive(s, sheep) && s.fauna_.behavior[fidx(s, sheep)] != FAUNA_CORRALLED);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;

@@ -7,6 +7,10 @@ extends SceneTree
 #      lobby's player list shows each rating, selecting a player fills the
 #      profile panel (rank, highest rating, games, wins, losses, win rate) and
 #      the Leaderboard lists the rated players best first.
+#   3. GameDetails: the host's heartbeat sends its game's map, settings and
+#      players; selecting the game shows them, each human as "name (rating)",
+#      by team (GameDetails.js, formatPlayerInfo); the Rating column and
+#      filter (lobby.columns.gamerating) average the players' ratings.
 #
 #   godot --headless --path . -s tools/e2e_lobby_ratings.gd
 # Exit code 0 = pass. Needs python3 for the lobby server.
@@ -115,6 +119,69 @@ func run() -> void:
 		for it in lobby._board.get_root().get_children():
 			board.append([it.get_text(0), it.get_text(1), it.get_text(2)])
 	check(board == [["1", "alice", "1278"], ["2", "bob", "1122"]], "the Leaderboard, best first")
+
+	print("3. game details")
+	var ms: Node = root.get_node("/root/MatchSettings")
+	ms.map_id = "random_continental"
+	ms.map_size = 320
+	ms.victory = 0x80 | 1 | 16
+	ms.player_count = 3
+	ms.slot_types = [0, 1, 0]
+	ms.slot_civs = [0, -1, 1]
+	ms.slot_teams = [1, 2, 1]
+	ms.slot_names = ["", "Cleopatra", ""]
+	ms.slot_diffs = [3, 4, 3]
+	ms.slot_behs = [2, 3, 2]
+	var net := {"slots": [{"client": 0, "name": "alice"}, {"client": -1, "name": ""}, {"client": 1, "name": "bob"}],
+		"observers": [{"client": 2, "name": "carol"}]}
+	var det: Dictionary = LobbySessionScript.room_details(ms, net, 0)
+	check(det.get("map_name") == "Continental" and det.get("map_type") == "random" and det.get("map_size") == "Medium",
+		"the map's name, type and size (%s)" % str(det))
+	check(det.get("victory") == "Conquest,Wonder", "the victory conditions")
+	var names: Array = det.get("player_names", [])
+	check(names.size() == 4 and names[0] == {"name": "alice", "team": 0, "ai": false, "civ": "athen"}
+		and names[1].get("name") == "Cleopatra" and names[1].get("ai") and names[1].get("civ") == "random"
+		and names[1].get("team") == 1 and names[1].get("ai_difficulty") == 4 and names[1].get("ai_behavior") == 3
+		and names[2].get("name") == "bob" and names[3] == {"name": "carol", "team": -1, "observer": true},
+		"the seated players, the AI and the observers (%s)" % str(names))
+	ms.slot_types = [0, 2, 0]
+	check(LobbySessionScript.room_details(ms, net, 0)["player_names"].size() == 3, "a closed seat lists nobody")
+	ms.map_id = "acropolis_bay"
+	var sk: Dictionary = LobbySessionScript.room_details(ms, {}, 0)
+	check(sk.get("map_type") == "skirmish" and sk.get("map_size") == "Default", "a skirmish map's size is Default")
+	ms.slot_types = [0, 1, 0]
+	ms.map_id = "random_continental"
+	check(LobbySessionScript.game_rating(names, {"alice": 1278, "bob": 1122}) == 1200
+		and LobbySessionScript.game_rating(names, {"alice": 1500, "bob": 1500}) == 1400
+		and LobbySessionScript.game_rating([], {}) == 1200, "a game's rating averages its players, 1200 for none")
+	check(lobby.game_columns(true) == ["Name", "Host", "Map", "Rating", "Players", "Status"]
+		and lobby.game_columns(false).size() == 5, "the Rating column only with lobby.columns.gamerating")
+	check(lobby.rating_passes(">1300", 1300) and not lobby.rating_passes(">1300", 1299)
+		and lobby.rating_passes("<1200", 1199) and not lobby.rating_passes("<1200", 1200)
+		and lobby.rating_passes("", 0), "the Rating filter as GameListFilters/Rating.js")
+
+	var room := {"id": "room-20700", "host_port": 20700, "name": "alice's game", "host_name": "alice",
+		"players": 2, "max_players": 8, "state": "running"}
+	room.merge(LobbySessionScript.room_details(ms, net, 1760000000))
+	var reg := [0]
+	ls.post_json("/rooms", room, func(code: int, _o) -> void: reg[0] = code)
+	await until(func() -> bool: return reg[0] != 0)
+	check(reg[0] == 201, "the host registers its game with the details")
+	lobby._refresh()
+	await until(func() -> bool: return lobby._games.get_root() != null and lobby._games.get_root().get_child_count() == 1)
+	var game_item: TreeItem = lobby._games.get_root().get_child(0) if lobby._games.get_root() and lobby._games.get_root().get_child_count() else null
+	check(game_item != null, "the game is listed")
+	if game_item:
+		game_item.select(0)
+	await frames(2)
+	var text: String = lobby._details.get_parsed_text()
+	check(lobby._details.visible, "selecting the game shows its details")
+	for want in ["Continental", "Victory Conditions: Conquest, Wonder", "Map Type: Random", "Map Size: Medium",
+			"alice's game", "Host: alice", "Game started at ", "Players: 2/8", "Team 1:\nalice (1278) (Athenians)\nbob (1122) (Spartans)",
+			"Team 2:\nCleopatra (Random, Hard Aggressive Petra Bot)", "Observer:\ncarol"]:
+		check(text.contains(want), "the details say \"%s\"" % want.replace("\n", " / "))
+	if not text.contains("Team 1:"):
+		print(text)
 
 	ls.sign_out()
 	OS.kill(server_pid)
