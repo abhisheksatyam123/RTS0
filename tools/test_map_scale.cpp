@@ -223,7 +223,7 @@ int main() {
 	{
 		Simulation sim;
 		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
-		const float x = -100.0f, z = 100.0f;
+		const float x = -80.0f, z = 80.0f; // inside Mainland's circle
 		sim.spawn_unit(x, z, 2, UNIT_SPEARMAN);
 		sim.spawn_unit(-x, -z, 3, UNIT_SPEARMAN);
 		sim.set_player_team(2, 5);
@@ -244,14 +244,15 @@ int main() {
 	{
 		Simulation sim;
 		sim.generate_random_map(MAP_MAINLAND, 7, 4, 128.0f);
-		sim.spawn_unit(-100.0f, 100.0f, 2, UNIT_SPEARMAN);
+		sim.spawn_unit(-80.0f, 80.0f, 2, UNIT_SPEARMAN); // inside Mainland's circle
 		sim.set_explore_map(true);
 		sim.set_fow_viewer(2);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
-		CHECK(sim.fow_state_at(100.0f, -100.0f, 0) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for player 0");
-		CHECK(sim.fow_state_at(100.0f, -100.0f, 2) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for the viewer");
-		CHECK(sim.fow_state_at(-100.0f, 100.0f, 2) == Simulation::FOW_VISIBLE, "explored map: viewer can't see its own unit");
-		CHECK(!sim.is_entity_visible_to_viewer(-100.0f, 100.0f, 2, 0), "explored map shows player 0 an enemy unit");
+		CHECK(sim.fow_state_at(80.0f, -80.0f, 0) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for player 0");
+		CHECK(sim.fow_state_at(80.0f, -80.0f, 2) == Simulation::FOW_EXPLORED, "explored map: far cell not explored for the viewer");
+		CHECK(sim.fow_state_at(-80.0f, 80.0f, 2) == Simulation::FOW_VISIBLE, "explored map: viewer can't see its own unit");
+		CHECK(!sim.is_entity_visible_to_viewer(-80.0f, 80.0f, 2, 0), "explored map shows player 0 an enemy unit");
+		CHECK(sim.fow_state_at(120.0f, -120.0f, 2) == Simulation::FOW_UNEXPLORED, "explored map explores off the circular map");
 	}
 	{
 		Simulation sim;
@@ -259,13 +260,17 @@ int main() {
 		sim.set_reveal_map(true);
 		sim.set_fow_viewer(3);
 		for (int i = 0; i < 10; ++i) sim.tick(Simulation::FIXED_STEP);
-		const int n = sim.fow_res() * sim.fow_res();
+		// Mainland is circular: everything inside the circle (m_LosStateRevealed), nothing off it.
+		const int res = sim.fow_res();
+		const float cell = 2.0f * sim.map_half() / (float)res;
 		bool all0 = true, all3 = true;
-		for (int i = 0; i < n; ++i) {
-			all0 &= sim.fow_grid(0)[i] == Simulation::FOW_VISIBLE;
-			all3 &= sim.fow_grid(3)[i] == Simulation::FOW_VISIBLE;
+		for (int i = 0; i < res * res; ++i) {
+			const float cx = -sim.map_half() + ((float)(i % res) + 0.5f) * cell, cz = -sim.map_half() + ((float)(i / res) + 0.5f) * cell;
+			const uint8_t want = sim.off_world(cx, cz) ? Simulation::FOW_UNEXPLORED : Simulation::FOW_VISIBLE;
+			all0 &= sim.fow_grid(0)[i] == want;
+			all3 &= sim.fow_grid(3)[i] == want;
 		}
-		CHECK(all0 && all3, "revealed map: some cell is not visible");
+		CHECK(all0 && all3, "revealed map: some in-world cell is not visible, or an off-world one is");
 		CHECK(sim.map_scale_stats().fow_calls > 0, "fow never ticked");
 	}
 

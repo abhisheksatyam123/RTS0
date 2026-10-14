@@ -1173,6 +1173,7 @@ void Simulation::generate_random_map(MapType type, uint32_t seed, int num_player
 	cfg.trigger_difficulty = trigger_difficulty_;
 
 	set_sim_seed(seed);
+	set_circular_map(circular_map_choice_ ? circular_map_choice_ == 1 : map_circular((uint8_t)type));
 	RmsGenerator::generate(*this, cfg);
 	triggers_.difficulty = trigger_difficulty_; // Trigger.js SetDifficulty (generate reset the triggers)
 	// Daytime (danubius.js randBool(2/3) for day, polar_sea.js randBool(1/3) for dawn): drawn
@@ -7905,16 +7906,17 @@ uint8_t Simulation::stat_team_mask(uint8_t player_id) const {
 }
 
 // CCmpRangeManager::GetPercentMapExplored / GetUnionPercentMapExplored: the LOS cells
-// any of `players` (a bit mask) explored with its own vision, over every cell, rounded
+// any of `players` (a bit mask) explored with its own vision, over every in-world cell, rounded
 // down. Explored Map explores every cell (ExploreMap); Revealed Map explores nothing
 // by itself (LosRevealAll), so it counts what the player's units saw.
 float Simulation::explored_percent(uint8_t players) const {
 	if (explore_map_) return 100.0f;
 	const std::vector<uint16_t> &cells = los_.state();
-	if (cells.empty()) return 0.0f;
+	const size_t world = los_.in_world_cells(); // m_TotalInworldVertices: a circular map's circle
+	if (world == 0) return 0.0f;
 	size_t n = 0;
-	for (const uint16_t c : cells) n += ((c >> 8) & players) != 0;
-	return (float)(n * 100 / cells.size());
+	for (const uint16_t c : cells) n += ((c >> 8) & players) != 0; // off-world cells are never explored
+	return (float)(n * 100 / world);
 }
 
 float Simulation::percent_map_explored(uint8_t player_id) const {
@@ -15301,7 +15303,7 @@ void Simulation::petra_manage_scouting(float dt) {
 			candidate_z = std::clamp(candidate_z, -map_half_ + 4.0f, map_half_ - 4.0f);
 
 			// Stay out of enemy territory until we can fight (town phase).
-			if (!los_explored(petra_pid_, candidate_x, candidate_z) &&
+			if (!off_world(candidate_x, candidate_z) && !los_explored(petra_pid_, candidate_x, candidate_z) &&
 			    !(village && enemy_land_at(candidate_x, candidate_z)) &&
 			    get_terrain_height(candidate_x, candidate_z) > terrain_water_height_ + 0.3f &&
 			    is_position_safe(candidate_x, candidate_z, 5.0f)) {
@@ -26128,11 +26130,18 @@ void Simulation::tick_fow() {
 	ScopedUs prof(map_scale_stats_.fow_us, map_scale_stats_.fow_calls);
 	// 0 A.D. "Revealed map": everyone sees everything, so there is no per-cell work.
 	// The grids are filled once (a game-setup option, so every peer hashes the same).
+	// m_LosStateRevealed: a circular map's off-world cells stay unseen even then.
 	if (reveal_map_) {
-		if (!fow_grid_.empty() && fow_grid_[0] != FOW_VISIBLE) std::fill(fow_grid_.begin(), fow_grid_.end(), (uint8_t)FOW_VISIBLE);
+		const size_t mid = fow_grid_.size() / 2; // the centre row is always in the world
+		auto reveal = [&](std::vector<uint8_t> &grid) {
+			if (grid.size() != fow_grid_.size()) grid.assign(fow_grid_.size(), FOW_UNEXPLORED);
+			if (grid.empty() || (grid[mid] == FOW_VISIBLE && (grid[0] == FOW_VISIBLE) == !los_.off_world(0))) return;
+			for (size_t c = 0; c < grid.size(); ++c)
+				grid[c] = c < los_.cells() && los_.off_world((int)c) ? (uint8_t)FOW_UNEXPLORED : (uint8_t)FOW_VISIBLE;
+		};
+		reveal(fow_grid_);
 		const uint8_t v = fow_viewer_;
-		if (v != 0 && v < MAX_PLAYERS && (player_fow_[v].size() != fow_grid_.size() || player_fow_[v][0] != FOW_VISIBLE))
-			player_fow_[v].assign(fow_grid_.size(), FOW_VISIBLE);
+		if (v != 0 && v < MAX_PLAYERS) reveal(player_fow_[v]);
 		return;
 	}
 
@@ -26160,6 +26169,7 @@ void Simulation::fill_fow_from_los(std::vector<uint8_t> &grid, uint8_t player) c
 	const uint8_t floor = explore_map_ ? FOW_EXPLORED : FOW_UNEXPLORED;
 	const size_t n = std::min(grid.size(), los_.cells());
 	for (size_t c = 0; c < n; ++c) {
+		if (los_.off_world((int)c)) { grid[c] = FOW_UNEXPLORED; continue; } // outside a circular map
 		const uint8_t vis = los_.visible_bits((int)c) & mask, exp = los_.explored_bits((int)c) & mask;
 		grid[c] = vis ? (uint8_t)FOW_VISIBLE : (exp || grid[c] != FOW_UNEXPLORED) ? (uint8_t)FOW_EXPLORED : floor;
 	}
@@ -26204,8 +26214,14 @@ float Simulation::building_vision_range(const Building &b) const {
 	return bvr;
 }
 
+void Simulation::set_circular_map(bool on) {
+	set_setup_flag(SETUP_CIRCULAR_MAP, on);
+	los_.set_circular(on);
+}
+
 void Simulation::reset_los() {
 	los_.init(grid_res_, map_half_);
+	los_.set_circular(circular_map());
 	los_unit_src_.clear();
 	los_bld_src_.clear();
 	los_fauna_src_.clear();

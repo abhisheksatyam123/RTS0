@@ -231,6 +231,17 @@ inline uint8_t map_team_placements(uint8_t type) {
 }
 inline bool map_has_team_placement(uint8_t type) { return map_team_placements(type) != 0; }
 
+// 0 A.D. CircularMap: the map is the circle inside the square (LOS and passability end at
+// it). Every 0.28 random map is circular except the ones whose JSON says CircularMap false
+// (corsica, phoenician_levant, latium); RTS0's own maps (0-10) fill the square.
+inline bool map_circular(uint8_t type) {
+	if (type <= MAP_RANDOM_MEDITERRANEAN || type >= MAP_TYPE_COUNT) return false;
+	switch (type) {
+		case MAP_CORSICA: case MAP_PHOENICIAN_LEVANT: case MAP_LATIUM: return false;
+		default: return true;
+	}
+}
+
 inline const MapTypeInfo &map_type_info(uint8_t type) {
 	static const MapTypeInfo kTable[MAP_TYPE_COUNT] = {
 		{MAP_AEGEAN_ARCHIPELAGO, "aegean_archipelago", "Aegean Archipelago", "aegean", true, "Scattered Greek islands surrounded by crystal waters, rich in coastal fishing and maritime routes."},
