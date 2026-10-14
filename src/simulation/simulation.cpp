@@ -7907,15 +7907,19 @@ void Simulation::raise_alert(BattleAlert::Type type, float x, float z, uint32_t 
 	}
 }
 
-void Simulation::note_phases_aborted(const Building &b) {
-	if (b.team >= MAX_PLAYERS) return;
-	for (const ProductionOrder &o : b.queue)
-		if (o.is_tech()) note_phase(SessionNotice::PHASE_ABORTED, b.team, o.tech);
+// ProductionQueue.js OnOwnershipChanged -> ResetQueue: a structure that changes hands or is
+// destroyed (its owner becomes INVALID_PLAYER) refunds every item to its owner, which frees the
+// batch's population and the technologies it was researching (phases noted as aborted).
+void Simulation::reset_production_queue(Building &b) {
+	if (b.team < MAX_PLAYERS)
+		while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
+	b.queue.clear();
+	b.autoqueue = false;
 }
 
 void Simulation::mark_building_wreck(Building &b, uint8_t killer) {
 	if (b.wrecked) return;
-	note_phases_aborted(b);
+	reset_production_queue(b);
 	refund_foundation(b);
 	stat_building_lost(b, killer);
 	b.wrecked = true;
@@ -12155,11 +12159,7 @@ void Simulation::capture_points_tick(Building &b, size_t bi, bool timer_tick) {
 		b.rally_more.clear();
 		eject_or_kill(b, best == GAIA ? GAIA_PLAYER : (uint8_t)best); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
-		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
-		if (b.team < MAX_PLAYERS)
-			while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
-		b.queue.clear();
-		b.autoqueue = false;
+		reset_production_queue(b);
 		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		const uint8_t from = b.team;
 		b.team = best == GAIA ? GAIA_PLAYER : (uint8_t)best;
@@ -14624,7 +14624,7 @@ bool Simulation::can_capture_building(uint8_t player, const Building &b) const {
 }
 
 void Simulation::destroy_building(Building &b) {
-	if (!b.wrecked) note_phases_aborted(b);
+	reset_production_queue(b);
 	refund_foundation(b);
 	eject_or_kill(b);
 	b.garrisoned_units.clear();
@@ -14850,11 +14850,7 @@ void Simulation::cheat_convert(uint8_t to, const uint32_t *ids, size_t count) {
 		b.has_rally_point = false;
 		eject_or_kill(b, to); // GarrisonHolder.OnGlobalOwnershipChanged
 		cancel_upgrade(b, b.team);
-		// ProductionQueue.js OnOwnershipChanged -> ResetQueue: every item is refunded to its owner.
-		if (b.team < MAX_PLAYERS)
-			while (!b.queue.empty()) cmd_cancel_train(b.team, b.id, b.queue.size() - 1);
-		b.queue.clear();
-		b.autoqueue = false;
+		reset_production_queue(b);
 		b.focus_targets.clear(); // BuildingAI.OnOwnershipChanged
 		// OnOwnershipChanged: the old owner's points move to the new owner (Gaia's pool is
 		// what no player holds); the other sides keep theirs.
@@ -25801,6 +25797,10 @@ bool Simulation::load_state(const char *filepath) {
 			turret_height_[b.garrisoned_units[k]] = pts->pt[pi].y;
 		}
 	}
+	// Saves from before reset_production_queue ran on destruction kept a wreck's queue, which
+	// held its batch's population and its technologies for the rest of the match.
+	for (Building &b : buildings_)
+		if (b.wrecked && !b.queue.empty()) reset_production_queue(b);
 	rebuild_all_tech_mods();
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
 	relic_countdown_players_ = has_victory(VK_RELIC) ? relic_winners() : 0;
@@ -30759,7 +30759,7 @@ void Simulation::set_water_level(float h, float drown_depth) {
 			units_.pos_z[u] = b.z;
 		}
 		b.garrisoned_units.clear();
-		b.queue.clear();
+		reset_production_queue(b);
 		// mark_building_wreck, but nobody killed it: no loot for anyone.
 		b.wrecked = true;
 		occupied_stale_ = true;
