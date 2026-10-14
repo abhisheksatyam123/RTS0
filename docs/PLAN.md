@@ -136,7 +136,7 @@ To preserve determinism and avoid regression in live multiplayer playtests:
 
 6. **Phase 4.6: RtsoMain Final Coordinator Slimming**
    - `RtsoMain` retains high-level orchestration, Godot scene hooks (`_ready`, `_process`, `_unhandled_input`), 3D spatial picking, and bridge between UI signals and network lockstep. Target size: ~900-1000 lines.
-   - Started: `_unhandled_input` (input.js and the session hotkeys) lives in `session_input.cpp`, still an `RtsoMain` method.
+   - Started: `_unhandled_input` (input.js and the session hotkeys) lives in `session_input.cpp`, and match setup (`load_map_seeded`, `apply_game_setup`, `apply_match_settings`, `match_settings_setup`, `store_net_setup_in_match_settings`) in `session_setup.cpp`, still `RtsoMain` methods.
 
 ### Also open (unordered, after P1–P4)
 
