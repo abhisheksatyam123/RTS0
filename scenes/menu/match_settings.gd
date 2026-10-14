@@ -28,6 +28,8 @@ var ceasefire_min: int = 0
 # 0 A.D. map visibility: everything visible, or terrain known from the start.
 var reveal_map: bool = false
 var explore_map: bool = false
+# 0 A.D. AllyView: every player starts seeing what their allies see (Cartography researched).
+var ally_view: bool = false
 # Wonder / Capture the Relic: hold times in minutes and the number of relics.
 var wonder_min: int = 20
 var relic_min: int = 20

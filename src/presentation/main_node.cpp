@@ -5124,7 +5124,11 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 					String::num(sim->livestock_train_time(pid, f), 0) + " s, " +
 					String::num_int64(rtso::fauna_type_info(f).food_amount) + " food when slaughtered, " +
 					String::num(rtso::fauna_corral_food(f), 0) + " food every " +
-					String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned");
+					String::num(rtso::CORRAL_TRICKLE_INTERVAL, 0) + " s while penned" +
+					(rtso::Simulation::livestock_required_phase(f) > phase
+									? String(rtso::Simulation::livestock_required_phase(f) >= 3 ? "\nRequires City Phase" : "\nRequires Town Phase")
+									: String()));
+			if (rtso::Simulation::livestock_required_phase(f) > phase) roster_list->set_item_disabled(idx, true);
 		}
 		roster_list->set_visible(roster_list->get_item_count() > 0);
 		return;
@@ -6102,7 +6106,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			// 1. Right click on Allied War Trireme / Transport (Board Naval Transport)
 			uint32_t clicked_transport_id = 0;
 			for (size_t i = 0; i < uview.count; ++i) {
-				if (!uview.alive[i] || uview.team[i] != local_player() || uview.unit_type[i] != rtso::UNIT_TRIREME) continue;
+				if (!uview.alive[i] || !sim->is_ally(local_player(), uview.team[i]) || uview.unit_type[i] != rtso::UNIT_TRIREME) continue; // own or a mutual ally's
 				float dx = uview.pos_x[i] - click_pos.x;
 				float dz = uview.pos_z[i] - click_pos.z;
 				if (dx * dx + dz * dz <= 3.2f * 3.2f) {
@@ -6482,6 +6486,7 @@ void RtsoMain::apply_match_settings() {
 	sim->set_ceasefire_seconds(60.0f * (float)std::clamp((int)ms->get("ceasefire_min"), 0, 60));
 	sim->set_reveal_map((bool)ms->get("reveal_map"));
 	sim->set_explore_map((bool)ms->get("explore_map"));
+	sim->set_ally_view((bool)ms->get("ally_view"));
 	sim->set_wonder_duration(60.0f * (float)std::clamp((int)ms->get("wonder_min"), 0, 60));
 	sim->set_relic_duration(60.0f * (float)std::clamp((int)ms->get("relic_min"), 0, 60));
 	sim->set_relic_count((int)ms->get("relic_count"));
@@ -7424,6 +7429,7 @@ void RtsoMain::store_net_setup_in_match_settings(const rtso::GameSetupParams &se
 	ms->set("ceasefire_min", (int)setup.ceasefire);
 	ms->set("reveal_map", setup.reveal != 0);
 	ms->set("explore_map", setup.explore != 0);
+	ms->set("ally_view", setup.ally != 0);
 	ms->set("wonder_min", (int)setup.wonder_min);
 	ms->set("relic_min", (int)setup.relic_min);
 	ms->set("relic_count", (int)setup.relics);
@@ -7670,6 +7676,7 @@ void RtsoMain::match_settings_setup(rtso::GameSetupParams &setup) {
 		setup.ceasefire = (uint8_t)std::clamp((int)ms->get("ceasefire_min"), 0, 60);
 		setup.reveal = (bool)ms->get("reveal_map") ? 1 : 0;
 		setup.explore = (bool)ms->get("explore_map") ? 1 : 0;
+		setup.ally = (bool)ms->get("ally_view") ? 1 : 0;
 		setup.wonder_min = (uint8_t)std::clamp((int)ms->get("wonder_min"), 0, 60);
 		setup.relic_min = (uint8_t)std::clamp((int)ms->get("relic_min"), 0, 60);
 		setup.relics = (uint8_t)std::clamp((int)ms->get("relic_count"), 1, 16);
@@ -7825,6 +7832,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 	sim->set_ceasefire_seconds(60.0f * (float)setup.ceasefire);
 	sim->set_reveal_map(setup.reveal != 0);
 	sim->set_explore_map(setup.explore != 0);
+	sim->set_ally_view(setup.ally != 0);
 	sim->set_wonder_duration(60.0f * (float)setup.wonder_min);
 	sim->set_relic_duration(60.0f * (float)setup.relic_min);
 	sim->set_relic_count(setup.relics);
@@ -7877,6 +7885,7 @@ void RtsoMain::apply_game_setup(const rtso::GameSetupParams &setup) {
 		ms->set("ceasefire_min", (int)(sim->ceasefire_seconds() / 60.0f));
 		ms->set("reveal_map", sim->reveal_map());
 		ms->set("explore_map", sim->explore_map());
+		ms->set("ally_view", sim->ally_view());
 		ms->set("wonder_min", (int)(sim->wonder_duration() / 60.0f));
 		ms->set("relic_min", (int)(sim->relic_duration() / 60.0f));
 		ms->set("relic_count", sim->relic_count());
@@ -8181,6 +8190,7 @@ Dictionary RtsoMain::get_match_settings_info() const {
 	d["nomad"] = sim->nomad();
 	d["disable_treasures"] = sim->disable_treasures();
 	d["explore_map"] = sim->explore_map();
+	d["ally_view"] = sim->ally_view();
 	d["reveal_map"] = sim->reveal_map();
 	d["cheats"] = sim->cheats_enabled();
 	return d;

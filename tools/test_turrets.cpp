@@ -87,6 +87,12 @@ int main() {
 		const int32_t h = s.lookup_unit(hop);
 		CHECK(s.units_.alive[h] && s.turret_holder_of(hop) == 0);
 		std::printf("wall: %d archers on its turret points, the hoplite stays down\n", up);
+		// UnitAI.Garrison does nothing while the unit is a turret: it stays on the wall.
+		const uint32_t tower = s.spawn_building_world(12.0f, 12.0f, BLD_TOWER, 0, 1.0f);
+		const uint32_t on_wall = bld(s, wall).garrisoned_units[0];
+		s.order_garrison(&on_wall, 1, tower);
+		run(s, 4.0f);
+		CHECK(s.turret_holder_of(on_wall) == wall && bld(s, tower).garrisoned_units.empty());
 	}
 
 	// 3. An enemy walks up: the turret archers shoot it from the wall and don't move.

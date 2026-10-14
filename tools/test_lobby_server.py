@@ -52,6 +52,22 @@ def test_object():
     check(code == 200 and room["players"] == 2 and room["state"] == "running", "re-registering updates it")
     check(room["name"] == "Skirmish" and room["password"] == 1 and room["host_ip"] == "127.0.0.1",
           "fields left out keep their value")
+    check(room["player_names"] == [] and room["map_type"] == "" and room["start_time"] == 0,
+          "the optional details default to empty for an older host")
+    names = [{"name": " alice ", "team": 0, "civ": "athen"}, {"name": "Petra", "team": 9, "ai": True, "ai_difficulty": 4},
+             {"name": "eve", "observer": 1, "team": "x"}, {"team": 1}, "junk"]
+    code, room = lb.register({"id": "g1", "player_names": names, "map_type": "random", "map_size": "Normal",
+                              "start_time": 1760000000})
+    check(room["player_names"] == [{"name": "alice", "team": 0, "civ": "athen", "ai": 0, "observer": 0},
+                                   {"name": "Petra", "team": 7, "civ": "", "ai": 1, "observer": 0,
+                                    "ai_difficulty": 4, "ai_behavior": 2},
+                                   {"name": "eve", "team": -1, "civ": "", "ai": 0, "observer": 1}],
+          "a host's player names are kept, sanitized")
+    check(room["map_type"] == "random" and room["map_size"] == "Normal" and room["start_time"] == 1760000000,
+          "a host sends the map type, map size and start time")
+    check(lb.register({"id": "g1", "players": 3})[1]["player_names"][0]["name"] == "alice",
+          "player names left out keep their value")
+    check(lb.register({"id": "g1", "player_names": "bad"})[1]["player_names"] == [], "a bad player list is empty")
     check(lb.register({"id": "g3"}, "10.0.0.7")[1]["host_ip"] == "10.0.0.7", "without host_ip, the sender's address")
     check(lb.register({"id": "g2", "state": "bogus"})[1]["state"] == "init", "an unknown state reads as init")
     check(len(lb.room_list()[1]["rooms"]) == 3 and "seen" not in lb.room_list()[1]["rooms"][0],
