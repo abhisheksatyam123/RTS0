@@ -997,6 +997,31 @@ int main() {
 		CHECK(closest < fauna_type_info(FAUNA_WOLF).attack_range + 1.0f);
 	}
 
+	{
+		// k. GATHER/COMBAT MovementUpdate likelyFailure: a hunter whose path ends on the shore,
+		// short of an animal across deep water, gives the hunt up instead of standing there.
+		s.set_sim_seed(7);
+		s.reset();
+		s.set_map_half(64.0f);
+		const int res = 65;
+		std::vector<float> h((size_t)res * res);
+		for (int j = 0; j < res; ++j)
+			for (int k = 0; k < res; ++k) h[(size_t)j * res + k] = std::fabs(-64.0f + 128.0f * j / (res - 1)) < 16.0f ? -3.0f : 3.0f;
+		s.set_terrain_data(h, res, 0.0f);
+		s.begin_bulk_spawn();
+		s.end_bulk_spawn();
+		for (uint8_t p = 0; p < 2; ++p) s.set_player_active(p, true, false);
+		s.spawn_building_world(-40.0f, -40.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		uint32_t u = s.spawn_unit(0.0f, -22.0f, 0, UNIT_SPEARMAN);
+		uint32_t pig = s.spawn_fauna(0.0f, 24.0f, FAUNA_PIG);
+		s.order_hunt(&u, 1, pig);
+		CHECK(s.units_.target_unit_id[uidx(s, u)] == pig);
+		run(s, 15.0f);
+		const int32_t ui = uidx(s, u);
+		std::printf("unreachable hunt: hunter at (%.1f, %.1f), state %d\n", s.units_.pos_x[ui], s.units_.pos_z[ui], s.units_.action_state[ui]);
+		CHECK(s.units_.target_unit_id[ui] == 0 && s.units_.action_state[ui] == ACTION_IDLE);
+	}
+
 	if (failures) {
 		std::printf("test_fauna: %d failure(s)\n", failures);
 		return 1;

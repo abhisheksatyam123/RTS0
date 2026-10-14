@@ -10282,6 +10282,12 @@ void Simulation::motion_feedback(float dt, const MoveSteps &steps) {
 				continue;
 			}
 		}
+		// A hunter whose path ends short of the animal (on the shore of its island) gets no closer.
+		if (turn_ends && units_.action_state[i] == ACTION_ATTACK && units_.target_unit_id[i] != 0 && hunt_falls_short(i)) {
+			m = MotionTurn{.pressure = m.pressure};
+			give_up_hunt(i);
+			continue;
+		}
 		if (steps.want_x[i] != 0.0f || steps.want_z[i] != 0.0f) {
 			if (!m.stepped) {
 				m.from_x = steps.from_x[i];
@@ -10412,6 +10418,48 @@ bool Simulation::chase_falls_short(size_t i) const {
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
 	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
+}
+
+bool Simulation::hunt_falls_short(size_t i) const {
+	const uint32_t tid = units_.target_unit_id[i];
+	if (i >= unit_paths_.size() || lookup_unit(tid) >= 0) return false;
+	const auto fit = fauna_id_to_idx_.find(tid);
+	if (fit == fauna_id_to_idx_.end() || !fauna_.alive[fit->second]) return false;
+	const WaypointPath &wp = unit_paths_[i];
+	if (!wp.has_goal || wp.count <= 0) return false;
+	const float gx = wp.goal_x - units_.target_x[i], gz = wp.goal_z - units_.target_z[i];
+	if (gx * gx + gz * gz > 4.0f) return false; // not this hunt's path
+	const float ex = wp.xs[wp.count - 1], ez = wp.zs[wp.count - 1];
+	// MakeGoalReachable moved the goal: the path's end is out of reach of the animal's spot...
+	const float reach = attack_reach(i) + 2.0f;
+	const float sx = ex - wp.goal_x, sz = ez - wp.goal_z;
+	if (sx * sx + sz * sz <= reach * reach) return false;
+	// ... and the hunter has walked to it.
+	const float ux = units_.pos_x[i] - ex, uz = units_.pos_z[i] - ez;
+	return ux * ux + uz * uz <= 2.5f * 2.5f;
+}
+
+void Simulation::give_up_hunt(size_t i) {
+	const uint32_t uid = units_.id[i], tid = units_.target_unit_id[i];
+	units_.target_unit_id[i] = 0;
+	if (i < unit_paths_.size()) unit_paths_[i].clear();
+	units_.waypoint_cur[i] = units_.waypoint_count[i] = 0;
+	if (units_.order_kind[i] == ORDER_GATHER) {
+		finish_order(i, true);
+		return;
+	}
+	// Another animal of the kind nearby, never the one it couldn't reach ("previousTarget == ent").
+	if (units_.hunt_fauna[i] != 0) {
+		const uint32_t prey = find_nearby_prey(i, units_.pos_x[i], units_.pos_z[i], NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE,
+				units_.hunt_fauna[i], tid);
+		if (prey != 0) {
+			order_hunt(&uid, 1, prey);
+			return;
+		}
+	}
+	units_.action_state[i] = ACTION_IDLE; // tick_unit_ai resumes an interrupted order
+	units_.has_order[i] = 0;
+	units_.vel_x[i] = units_.vel_z[i] = 0.0f;
 }
 
 // HandleObstructedMove's fixes for a unit obstructed on its way along a long path, more than
@@ -28236,14 +28284,14 @@ uint32_t Simulation::spawn_fauna(float x, float z, uint8_t ftype, uint8_t owner)
 // animal (RTS0 drops the carcass's template, so "the same template" is approximated by the
 // herd nearby). A ship (the fishing boat's Harpoon) goes only for sea animals, which are
 // fish (type.specific "fish", not "meat", so any whale will do); a land unit never does.
-uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna) const {
+uint32_t Simulation::find_nearby_prey(size_t i, float x, float z, float max_d2, uint8_t fauna, uint32_t exclude) const {
 	if (units_.attack_damage[i] <= 0.0f) return 0;
 	const bool ship = unit_is_ship(units_.unit_type[i]);
 	uint32_t best = 0;
 	float best_d2 = std::min(max_d2, NEARBY_SEARCH_RANGE * NEARBY_SEARCH_RANGE);
 	const bool fog = los_.cells() != 0;
 	for (size_t f = 0; f < fauna_.count; ++f) {
-		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0) continue;
+		if (!fauna_.alive[f] || fauna_.food_amount[f] <= 0 || fauna_.id[f] == exclude) continue;
 		const uint8_t b = fauna_.behavior[f];
 		if (b == FAUNA_CARCASS || b == FAUNA_CORRALLED || b == FAUNA_HERDED || b == FAUNA_MOVING) continue;
 		const auto &info = fauna_type_info(fauna_.fauna_type[f]);
