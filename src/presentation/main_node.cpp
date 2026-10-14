@@ -360,6 +360,7 @@ Dictionary RtsoMain::debug_selection_state() {
 		const rtso::TechClasses tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
 		u["civilian"] = (bool)(tc & rtso::TC_CIVILIAN);
+		u["target_resource"] = (int64_t)uview.target_resource_id[i];
 		if (cam) {
 			const Vector3 wp(uview.pos_x[i], sim->get_terrain_height(uview.pos_x[i], uview.pos_z[i]), uview.pos_z[i]);
 			u["behind"] = cam->is_position_behind(wp);
@@ -369,6 +370,23 @@ Dictionary RtsoMain::debug_selection_state() {
 	}
 	d["units"] = units;
 	d["viewport"] = get_viewport()->get_visible_rect().size;
+	// The resource nearest the first selected unit, and where it is on screen.
+	if (cam && !selected_ids.is_empty()) {
+		float ux = 0, uz = 0;
+		for (size_t i = 0; i < uview.count; ++i)
+			if (uview.id[i] == (uint32_t)selected_ids[0]) { ux = uview.pos_x[i]; uz = uview.pos_z[i]; }
+		auto rv = sim->resources();
+		float best = 1e30f;
+		for (size_t r = 0; r < rv.count; ++r) {
+			if (!rv.alive[r]) continue;
+			const float dd = (rv.x[r] - ux) * (rv.x[r] - ux) + (rv.z[r] - uz) * (rv.z[r] - uz);
+			if (dd < best) {
+				best = dd;
+				d["nearest_resource"] = (int64_t)rv.id[r];
+				d["nearest_resource_screen"] = cam->unproject_position(Vector3(rv.x[r], sim->get_terrain_height(rv.x[r], rv.z[r]), rv.z[r]));
+			}
+		}
+	}
 	return d;
 }
 
@@ -854,11 +872,11 @@ bool RtsoMain::try_focus_fire(const Vector3 &at) {
 	return true;
 }
 
-bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
+bool RtsoMain::over_own_rally_structure(const Vector3 &at, bool need_rally) const {
 	if (!sim || selected_building_id == 0 || !selected_ids.is_empty()) return false;
 	for (const auto &b : sim->buildings()) {
 		if (b.id != selected_building_id) continue;
-		if (b.team != local_player() || !b.has_rally_point) return false;
+		if (b.team != local_player() || (need_rally && !b.has_rally_point)) return false;
 		// Inside the turned footprint (u axis = (ux, uz), half extents hu, hv).
 		const float dx = at.x - b.x, dz = at.z - b.z;
 		const float u = dx * b.ux + dz * b.uz, v = -dx * b.uz + dz * b.ux;
@@ -866,6 +884,34 @@ bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
 		return std::fabs(u) <= hu && std::fabs(v) <= hv;
 	}
 	return false;
+}
+
+bool RtsoMain::selected_building_trains_units() const {
+	if (!sim || selected_building_id == 0) return false;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		const uint8_t civ = rtso::building_trains_native(b.type) ? b.civ : sim->player_civ(b.team);
+		for (uint16_t i : rtso::civ_roster_ids(civ))
+			if (rtso::civ_unit_template(i).trainers & rtso::bld_bit(b.type)) return true;
+		return false;
+	}
+	return false;
+}
+
+// Test hook: the selected structure, where it is on screen and its rally point.
+Dictionary RtsoMain::debug_selected_building() const {
+	Dictionary d;
+	if (!sim) return d;
+	for (const auto &b : sim->buildings()) {
+		if (b.id != selected_building_id) continue;
+		d["id"] = (int64_t)b.id;
+		d["has_rally"] = b.has_rally_point;
+		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
+		d["autoqueue"] = b.autoqueue;
+		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
+		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
+	}
+	return d;
 }
 
 static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";

@@ -617,7 +617,7 @@ private:
 	void cycle_idle_worker();
 	enum IdleKind { IDLE_WORKER, IDLE_WARRIOR, IDLE_ANY, IDLE_BUILDER };
 	void find_idle_unit(IdleKind kind);
-	bool over_own_rally_structure(const Vector3 &at) const;
+	bool over_own_rally_structure(const Vector3 &at, bool need_rally = true) const;
 	// 0 A.D. "focus-fire": the selected arrow-shooting structure aims at the enemy under `at`.
 	bool try_focus_fire(const Vector3 &at);
 	void detect_attacks(const std::vector<rtso::Simulation::AttackedEvent> &attacks);
@@ -708,6 +708,8 @@ private:
 	bool close_open_dialogs(); // session.js closeOpenDialogs; true when one was open
 	void _on_civ_icon_gui_input(const Ref<InputEvent> &event); // CivIcon.onPress
 	void _on_flare_button_pressed(); // MiniMapFlareButton.onPress
+	bool selected_building_trains_units() const; // its Trainer has entities (session.autorallypoint)
+	Dictionary debug_selected_building() const;
 	Dictionary debug_minimap_panel() const;
 	void _on_pause_overlay_pressed();
 	// 0 A.D. NetworkStatusOverlay: "Waiting for players to connect:" with the

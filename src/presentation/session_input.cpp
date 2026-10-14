@@ -159,6 +159,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			_toggle_session_dialog("BarterDialog");
 			return;
 		}
+		// gui/session/hotkeys/training.xml: turnAutoQueueOn / turnAutoQueueOff.
+		if (fired("session.queueunit.autoqueueon")) { _on_autoqueue_pressed(1); return; }
+		if (fired("session.queueunit.autoqueueoff")) { _on_autoqueue_pressed(0); return; }
 		if (fired("session.flareactivate")) { _on_flare_button_pressed(); return; } // MiniMap.xml flareButton hotkey
 		if (fired("structree")) {
 			if (Node *tree = get_node_or_null(NodePath("TechTreeDialog"))) tree->call("toggle");
@@ -669,8 +672,12 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			Vector3 click_pos = get_ground_click_pos(mouse_pos);
 
 			// Right-clicking the selected structure itself drops its rally point
-			// (unit_actions.js "unset-rallypoint", lockstep command 14 param 1).
-			if (over_own_rally_structure(click_pos)) {
+			// (unit_actions.js "unset-rallypoint", lockstep command 14 param 1), unless
+			// session.autorallypoint (Ctrl) sets it on a structure that trains units, so
+			// what it trains goes inside ("set-rallypoint" on itself, Trainer autoGarrison).
+			const bool auto_rally = over_own_rally_structure(click_pos, false) && rtso::hotkeys::held("session.autorallypoint") &&
+					selected_building_trains_units();
+			if (over_own_rally_structure(click_pos) && !auto_rally) {
 				if (turn_cmds())
 					post_lockstep(14, nullptr, 0, 0, 0, selected_building_id, 1);
 				else
@@ -688,8 +695,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 					float dz = rview.z[r] - click_pos.z;
 					if (dx * dx + dz * dz < 2.0f * 2.0f) { target_res = rview.id[r]; break; }
 				}
+				if (auto_rally) target_bld = selected_building_id;
 				for (const auto &b : sim->buildings()) {
-					if (b.id == selected_building_id) continue;
+					if (target_bld || b.id == selected_building_id) continue;
 					float dx = b.x - click_pos.x;
 					float dz = b.z - click_pos.z;
 					if (dx * dx + dz * dz < 3.0f * 3.0f) { target_bld = b.id; break; }
@@ -730,6 +738,24 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				one_id = sel_ptr[0];
 				sel_ptr = &one_id;
 				sel_n = 1;
+			}
+
+			// 5. Default: Move Order (a player's walk ignores enemies until it arrives)
+			auto walk_there = [&]() {
+				range_overlays_.add_target_marker(click_pos.x, click_pos.z);
+				if (turn_cmds())
+					post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
+				else {
+					sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
+					sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z);
+				}
+				play_civ_voice("move");
+			};
+			// unit_actions.js "move" hotkeyActionCheck: session.move walks there whatever is
+			// under the cursor (an enemy, a resource, a structure).
+			if (rtso::hotkeys::held("session.move")) {
+				walk_there();
+				return;
 			}
 
 			// Owned livestock alone (0 A.D. livestock are units): a right-click walks it, or
@@ -1176,15 +1202,7 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 				}
 			}
 
-			// 5. Default: Move Order (a player's walk ignores enemies until it arrives)
-			range_overlays_.add_target_marker(click_pos.x, click_pos.z);
-			if (turn_cmds())
-				post_lockstep(1, sel_ptr, sel_n, click_pos.x, click_pos.z, 0, qbit);
-			else {
-				sim->order_walk(sel_ptr, sel_n, click_pos.x, click_pos.z, queue_shift, true);
-				sim->order_fauna_walk(local_player(), sel_ptr, sel_n, click_pos.x, click_pos.z);
-			}
-			play_civ_voice("move");
+			walk_there();
 		}
 	}
 

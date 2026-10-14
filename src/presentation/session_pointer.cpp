@@ -56,7 +56,8 @@ void RtsoMain::update_cursor() {
 		if (flare_armed_ || rtso::hotkeys::held("session.flare")) {
 			want = "action-flare";
 		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
-			if (over_own_rally_structure(get_ground_click_pos(mouse))) {
+			if (over_own_rally_structure(get_ground_click_pos(mouse)) &&
+					!(rtso::hotkeys::held("session.autorallypoint") && selected_building_trains_units())) {
 				want = "action-unset-rally";
 			} else {
 				want = "cursor-rally";
