@@ -18092,7 +18092,10 @@ void Simulation::petra_manage_fields() {
 	};
 	struct BaseFood {
 		std::vector<std::pair<float, float>> drops;
-		const Building *farmstead = nullptr, *tc = nullptr;
+		// Where its fields are laid: its first farmstead, else its first civic centre. Kept as a
+		// position, not the structure, as a foundation placed below grows buildings_.
+		float by_x = 0.0f, by_z = 0.0f;
+		bool by = false, by_farmstead = false;
 		float count = 0.0f;
 	};
 	std::vector<BaseFood> bases(anchors.size());
@@ -18117,8 +18120,8 @@ void Simulation::petra_manage_fields() {
 			if (k <= 0 || k > (int)bases.size()) continue; // outside our territory: no base's
 			BaseFood &bf = bases[k - 1];
 			bf.drops.push_back({b.x, b.z});
-			if (b.type == BLD_FARMSTEAD && !bf.farmstead) bf.farmstead = &b;
-			if (is_civic_centre(b.type) && !bf.tc) bf.tc = &b;
+			const bool fs = b.type == BLD_FARMSTEAD;
+			if (fs ? !bf.by_farmstead : !bf.by) { bf.by_x = b.x; bf.by_z = b.z; bf.by = true; bf.by_farmstead = fs; }
 		}
 	}
 	bool any_drops = false;
@@ -18161,9 +18164,8 @@ void Simulation::petra_manage_fields() {
 	}
 	if (can_build(BLD_FIELD)) {
 		for (const BaseFood &bf : bases) {
-			const Building *by = bf.farmstead ? bf.farmstead : bf.tc;
-			if (!by) continue;
-			const float at[2] = {by->x, by->z}; // favoredBase: the base doing the check
+			if (!bf.by) continue;
+			const float at[2] = {bf.by_x, bf.by_z}; // favoredBase: the base doing the check
 			bool want = false;
 			if (fields == 0) {
 				want = bf.count < 600.0f;
@@ -18179,9 +18181,8 @@ void Simulation::petra_manage_fields() {
 	if (corrals == 0) {
 		if (!can_build(BLD_CORRAL)) return;
 		for (const BaseFood &bf : bases) {
-			const Building *by = bf.farmstead ? bf.farmstead : bf.tc;
-			if (!by || !(bf.count < 900.0f || save_space)) continue;
-			const float at[2] = {by->x, by->z};
+			if (!bf.by || !(bf.count < 900.0f || save_space)) continue;
+			const float at[2] = {bf.by_x, bf.by_z};
 			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) break;
 		}
 		return;
