@@ -72,6 +72,11 @@
 //     With (-Y, X), 427 of 3000 test paths crossed building faces.
 // 13. ADDITION: ShortPathRequest::heuristic_weight (0 keeps the vendor 4/3 or 5/3). Tests use 1.0 for exact A*.
 //     Also: reached is true when the start is already on the goal shape, with an empty path.
+// 14. ADDITION: ShortPathRequest::terrain_clearance. 0 A.D. expands impassable terrain by each class's
+//     Clearance in whole 1 m navcells before the search (CCmpPathfinder ExpandImpassableCells), so its
+//     terrain edges already keep a unit that far off. RTS0's navcells are 8 m, so the terrain vertices
+//     and edges move out by this many world units instead: each edge along its normal into the passable
+//     side, grown by as much at both ends, and each vertex diagonally off its corner.
 
 #include "simulation/nav/geometry.h"
 
@@ -141,6 +146,8 @@ struct ShortPathRequest {
 	// ADDITION: A* heuristic weight. 0 keeps the vendor choice (5/3 or 4/3, vendor 743-748), which
 	// trades optimality for speed. 1.0 gives exact A* over the visibility graph (used by the tests).
 	float heuristic_weight = 0.0f;
+	// ADDITION (deviation 14): how far terrain edges keep the unit off impassable navcells, in world units.
+	float terrain_clearance = 0.0f;
 };
 
 namespace vp {
@@ -287,7 +294,8 @@ struct TerrainEdgeScratch {
 // high: bit bi of a row is navcell i0 - 1 + bi of `passBox`'s row. Pushes the same vertices and
 // edges in the same order, testing a whole row or column of navcells at once.
 inline void add_terrain_edges_bits(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
-		int i0, int j0, int i1, int j1, const uint8_t* passBox, int bw, int bh, float cell, Vec2 origin) {
+		int i0, int j0, int i1, int j1, const uint8_t* passBox, int bw, int bh, float cell, Vec2 origin,
+		float e) {
 	uint64_t rows[64], cols[64] = {}; // rows[bj] bit bi, cols[bi] bit bj: pass(i0 - 1 + bi, j0 - 1 + bj)
 	for (int bj = 0; bj < bh; ++bj) {
 		const uint8_t* r = passBox + static_cast<size_t>(bj) * bw;
@@ -301,7 +309,7 @@ inline void add_terrain_edges_bits(std::vector<Edge>& edges, std::vector<Vertex>
 	const uint64_t innerI = ((uint64_t{1} << (i1 - i0 + 1)) - 1) << 1; // navcells i0..i1
 	const uint64_t innerJ = ((uint64_t{1} << (j1 - j0 + 1)) - 1) << 1; // navcells j0..j1
 	auto world = [&](float x, float y) { return origin + Vec2(x * cell, y * cell); };
-	const float d = EDGE_EXPAND_DELTA_CELLS;
+	const float d = EDGE_EXPAND_DELTA_CELLS + e;
 
 	// Vertices at the convex corners of impassable navcells (vendor 293-340). In a row mask,
 	// m >> 1 holds navcell i + 1 at bit i, and m << 1 navcell i - 1.
@@ -355,13 +363,13 @@ inline void add_terrain_edges_bits(std::vector<Edge>& edges, std::vector<Vertex>
 	// Edges along passability boundaries, one run per row or column (vendor 342-458).
 	for (int j = j0; j < j1; ++j) {
 		const uint64_t cur = rows[j - j0 + 1], up = rows[j - j0 + 2];
-		runs(cur & ~up & innerI, i0 - 1, [&](int ia, int ib) { edges.push_back(Edge{world(ia, j + 1), world(ib, j + 1)}); });
-		runs(up & ~cur & innerI, i0 - 1, [&](int ia, int ib) { edges.push_back(Edge{world(ib, j + 1), world(ia, j + 1)}); });
+		runs(cur & ~up & innerI, i0 - 1, [&](int ia, int ib) { edges.push_back(Edge{world(ia - e, j + 1 - e), world(ib + e, j + 1 - e)}); });
+		runs(up & ~cur & innerI, i0 - 1, [&](int ia, int ib) { edges.push_back(Edge{world(ib + e, j + 1 + e), world(ia - e, j + 1 + e)}); });
 	}
 	for (int i = i0; i < i1; ++i) {
 		const uint64_t cur = cols[i - i0 + 1], right = cols[i - i0 + 2];
-		runs(right & ~cur & innerJ, j0 - 1, [&](int ja, int jb) { edges.push_back(Edge{world(i + 1, ja), world(i + 1, jb)}); });
-		runs(cur & ~right & innerJ, j0 - 1, [&](int ja, int jb) { edges.push_back(Edge{world(i + 1, jb), world(i + 1, ja)}); });
+		runs(right & ~cur & innerJ, j0 - 1, [&](int ja, int jb) { edges.push_back(Edge{world(i + 1 + e, ja - e), world(i + 1 + e, jb + e)}); });
+		runs(cur & ~right & innerJ, j0 - 1, [&](int ja, int jb) { edges.push_back(Edge{world(i + 1 - e, jb + e), world(i + 1 - e, ja - e)}); });
 	}
 }
 
@@ -371,11 +379,12 @@ inline void add_terrain_edges_bits(std::vector<Edge>& edges, std::vector<Vertex>
 // (i + k, j) is passable and to 0 when it is not or lies outside the grid (DEVIATION 3). The box
 // and a one-navcell ring are read once into ts (the loops below would read most navcells five
 // times), a box with no impassable navcell is done there, and rows or columns with nothing to
-// add are skipped. The edges and vertices are the same as the vendor's loops give.
+// add are skipped. The edges and vertices are the same as the vendor's loops give. With e > 0
+// they move e navcells out (deviation 14).
 template <class PassRowFn>
 void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 		int i0, int j0, int i1, int j1, PassRowFn& pass_row, int W, int H, float cell,
-		Vec2 origin, TerrainEdgeScratch& ts) {
+		Vec2 origin, TerrainEdgeScratch& ts, float e = 0.0f) {
 	// Vendor 288-291: clamp so the outermost ring (always impassable) is never sampled.
 	i0 = std::min(std::max(i0, 1), W - 2);
 	j0 = std::min(std::max(j0, 1), H - 2);
@@ -401,7 +410,7 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 		allPassable = !std::memchr(row(j), 0, rowLen);
 	if (allPassable) return;
 	if (bw <= 64 && bh <= 64) {
-		add_terrain_edges_bits(edges, vertexes, i0, j0, i1, j1, passBox, bw, bh, cell, origin);
+		add_terrain_edges_bits(edges, vertexes, i0, j0, i1, j1, passBox, bw, bh, cell, origin, e);
 		return;
 	}
 
@@ -417,7 +426,7 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 	auto col = [&](int i) { return ts.passT.data() + static_cast<size_t>(i - i0 + 1) * bh + 1; };
 
 	auto world = [&](float x, float y) { return origin + Vec2(x * cell, y * cell); };
-	const float d = EDGE_EXPAND_DELTA_CELLS;
+	const float d = EDGE_EXPAND_DELTA_CELLS + e;
 
 	// Vertices at the convex corners of impassable navcells (vendor 293-340).
 	for (int j = j0; j <= j1; ++j) {
@@ -477,7 +486,7 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 				if (segR[n] == ib) {
 					++ib;
 				} else {
-					edges.push_back(Edge{world(ia, j + 1), world(ib, j + 1)});
+					edges.push_back(Edge{world(ia - e, j + 1 - e), world(ib + e, j + 1 - e)});
 					ia = segR[n];
 					ib = ia + 1;
 				}
@@ -491,7 +500,7 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 				if (segL[n] == ib) {
 					++ib;
 				} else {
-					edges.push_back(Edge{world(ib, j + 1), world(ia, j + 1)});
+					edges.push_back(Edge{world(ib + e, j + 1 + e), world(ia - e, j + 1 + e)});
 					ia = segL[n];
 					ib = ia + 1;
 				}
@@ -519,7 +528,7 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 				if (segU[n] == jb) {
 					++jb;
 				} else {
-					edges.push_back(Edge{world(i + 1, ja), world(i + 1, jb)});
+					edges.push_back(Edge{world(i + 1 + e, ja - e), world(i + 1 + e, jb + e)});
 					ja = segU[n];
 					jb = ja + 1;
 				}
@@ -533,7 +542,7 @@ void add_terrain_edges(std::vector<Edge>& edges, std::vector<Vertex>& vertexes,
 				if (segD[n] == jb) {
 					++jb;
 				} else {
-					edges.push_back(Edge{world(i + 1, jb), world(i + 1, ja)});
+					edges.push_back(Edge{world(i + 1 - e, jb + e), world(i + 1 - e, ja - e)});
 					ja = segD[n];
 					jb = ja + 1;
 				}
@@ -779,12 +788,14 @@ bool compute_short_path(const ShortPathRequest& req,
 			i = static_cast<int>(std::min(std::max(fi, 0.0f), static_cast<float>(grid_w - 1)));
 			j = static_cast<int>(std::min(std::max(fj, 0.0f), static_cast<float>(grid_h - 1)));
 		};
+		// Navcells whose edges, moved out by the terrain clearance, reach into the box count too.
+		const float tc = std::max(req.terrain_clearance, 0.0f);
 		int i0, j0, i1, j1;
-		nearest_navcell(rangeXMin, rangeZMin, i0, j0);
-		nearest_navcell(rangeXMax, rangeZMax, i1, j1);
+		nearest_navcell(rangeXMin - tc, rangeZMin - tc, i0, j0);
+		nearest_navcell(rangeXMax + tc, rangeZMax + tc, i1, j1);
 		// add_terrain_edges reads navcells 0 .. grid_w - 1 and 0 .. grid_h - 1 only.
 		add_terrain_edges(edges, vertexes, i0, j0, i1, j1, terrain_pass_row, grid_w, grid_h, cell_size,
-				grid_origin, scratch.terrain);
+				grid_origin, scratch.terrain, tc / cell_size);
 	}
 
 	// Close vertices inside an edge square: they are trivially unreachable (vendor 710-728).

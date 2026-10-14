@@ -108,6 +108,27 @@ func run() -> void:
 	check(ms.campaign_run == "", "the match settings no longer point at the run")
 	summary.queue_free()
 
+	print("4b. Saved Games (CampaignMenu.loadSavegame)")
+	DirAccess.make_dir_recursive_absolute("user://saves")
+	var v: int = RtsoMain.get_save_version()
+	for n in [["zz_e2e_camp_in", made.filename], ["zz_e2e_camp_out", ""]]:
+		FileAccess.open("user://saves/%s.rts0sav" % n[0], FileAccess.WRITE).store_string("x")
+		FileAccess.open("user://saves/%s.json" % n[0], FileAccess.WRITE).store_string(JSON.stringify({
+			"save_version": v, "timestamp": 1893510000, "map_id": "introductory_tutorial", "map_name": "Tutorial",
+			"settings": {"map_id": "introductory_tutorial", "campaign_run": n[1]}, "players": []}))
+	var sg_button: Button = page.find_child("SavedGamesButton", true, false)
+	check(sg_button != null and sg_button.visible and sg_button.text == "Saved Games", "the run's menu has Saved Games")
+	var sg = page.load_savegame()
+	await frames(2)
+	var listed: Array = sg.saves.map(func(x): return x.id).filter(func(i): return i.begins_with("zz_e2e_camp"))
+	check(listed == ["zz_e2e_camp_in"], "it lists only this run's saves: " + str(listed))
+	sg.close()
+	await frames(1)
+	check(ms.campaign_run == "", "closing it leaves the match settings as they were")
+	for n in ["zz_e2e_camp_in", "zz_e2e_camp_out"]:
+		for ext in [".rts0sav", ".json"]:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path("user://saves/" + n + ext))
+
 	print("5. Load Campaign")
 	page.back_to_main_menu()
 	await frames(4)
@@ -117,7 +138,9 @@ func run() -> void:
 	page = current_scene
 	check(page.mode == "load" and level_texts(page) == ["My run - Tutorial"], "the run is listed: " + str(level_texts(page)))
 	page.select(0)
-	page.delete_selected()
+	page.delete_pressed()
+	check(page.confirm != null and page.confirm.message.contains("Are you sure you want to delete run My run"), "Delete asks first (LoadModal messageBox)")
+	page.confirm.find_child("Button2", true, false).pressed.emit() # Yes
 	await frames(2)
 	check(not FileAccess.file_exists(made.path()) and CampaignRun.current_filename() == "", "Delete removes it and the current run")
 	check(page.empty_text.visible, "No saved campaigns.")
