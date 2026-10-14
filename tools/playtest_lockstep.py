@@ -454,10 +454,13 @@ def run_rejoin_case(binary: str, seed: int, speed: float, loss: float, port: int
     after = [t for t in sorted(b) if t > t0]
     bad = next((t for t in after if h.get(t) != b[t]), None)
     ok = (rcs == [0, 0, 0, 0] and t0 >= leave and rep.get("join", {}).get("player") == "1" and len(h) == turns
-          and after == list(range(t0 + 1, turns + 1)) and bad is None and intruder_seat == "255")
+          and after == list(range(t0 + 1, turns + 1)) and bad is None and intruder_seat == "255"
+          and "in the lockstep from turn" in (outs[2] or ""))
     if ok:
+        joined = re.search(r"in the lockstep from turn (\d+) \(at turn (\d+)\)", outs[2] or "")
         print(f"[net] PASS rejoin: bob came back into player 2 at turn {t0}, then turns {t0 + 1}-{turns} "
-              f"matched the host (final hash {h[turns]}); mallory, who asked first, could only watch")
+              f"matched the host (final hash {h[turns]}); the match ran on while he loaded, and the lockstep "
+              f"took him at turn {joined.group(1)}; mallory, who asked first, could only watch")
     else:
         for o in outs:
             for line in (o or "").splitlines():

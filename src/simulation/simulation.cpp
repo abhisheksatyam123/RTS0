@@ -486,6 +486,7 @@ void Simulation::reset() {
 	petra_ev_captures_.clear();
 	petra_ev_decay_.clear();
 	spies_.clear();
+	trigger_dialogs_.clear();
 	for (CheatMods &cm : cheat_mods_) cm = CheatMods{};
 	std::fill(std::begin(player_pop_cap_), std::end(player_pop_cap_), 0);
 	std::fill(std::begin(unit_pop_bonus_), std::end(unit_pop_bonus_), 0);
@@ -535,6 +536,8 @@ void Simulation::reset() {
 	game_over_ = false;
 	victory_ = false;
 	participant_mask_ = defeated_mask_ = winner_mask_ = 0;
+	relic_countdown_players_ = 0;
+	relic_changed_hands_ = false;
 	for (float &w : wonder_hold_) w = 0.0f;
 	relics_.clear();
 	treasures_.clear();
@@ -1909,6 +1912,13 @@ const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() 
 	return mine_obstacles_;
 }
 
+float Simulation::resource_block_half(size_t r) const {
+	const uint8_t t = resources_.type[r];
+	if (resources_.subtype[r] == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD))
+		return flora_obstruction_m(resources_.flora[r], t == RES_FOOD) * 0.125f; // metres to a half extent in world units
+	return 0.375f;
+}
+
 bool Simulation::mine_footprint(size_t r, nav::Footprint &f) const {
 	const uint8_t type = resources_.type[r], sub = resources_.subtype[r];
 	if ((type != RES_GOLD && type != RES_STONE) || (sub != RES_SUB_NONE && sub != RES_SUB_RUINS)) return false;
@@ -1965,11 +1975,12 @@ void Simulation::ensure_resource_block_cells() const {
 				}
 			continue;
 		}
-		// Other Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
-		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
-		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
-		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
-		const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + 0.375f + map_half_) / GRID));
+		// Trees and fruit block their template's square (resource_block_half).
+		const float h = resource_block_half(r);
+		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - h + map_half_) / GRID));
+		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + h + map_half_) / GRID));
+		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - h + map_half_) / GRID));
+		const int gz1 = std::min(w - 1, (int)std::floor((resources_.z[r] + h + map_half_) / GRID));
 		for (int z = gz0; z <= gz1; ++z)
 			for (int x = gx0; x <= gx1; ++x) resource_block_cells_[(size_t)z * w + x] = 1;
 	}
@@ -2138,10 +2149,9 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
 			nav::Footprint o;
 			if (!mine_footprint(r, o)) {
-				// Other Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
 				o.x = resources_.x[r];
 				o.z = resources_.z[r];
-				o.hu = o.hv = 0.375f;
+				o.hu = o.hv = resource_block_half(r);
 			}
 			const float e = nav::footprint_extent(o);
 			if (o.x + e < x0 || o.x - e > x1 || o.z + e < z0 || o.z - e > z1) continue;
@@ -8346,6 +8356,8 @@ void Simulation::tick(float dt) {
 
 	tick_spies(dt);
 	refresh_unit_pop_bonus(); // Population.js: units that appeared, died or changed hands this tick
+	relic_countdown_players_ = has_victory(VK_RELIC) ? relic_winners() : 0;
+	relic_changed_hands_ = false;
 
 	// Fog of War (Paced at 4 Hz to avoid unnecessary main thread recalculations)
 	fow_timer_ += dt;
@@ -12730,6 +12742,24 @@ void Simulation::set_player_won(uint8_t pid) {
 	end_match(side_of(pid), SessionNotice::END_GAME_MODE);
 }
 
+uint8_t Simulation::relic_winners() const {
+	if (relics_.empty()) return 0;
+	const uint8_t active = (uint8_t)(participant_mask_ & ~defeated_mask_);
+	uint8_t owners = 0;
+	for (const Relic &r : relics_) {
+		if (!r.claimed || r.owner_team >= MAX_PLAYERS) return 0; // playerRelicsCount[0]
+		owners |= (uint8_t)(1u << r.owner_team);
+	}
+	owners &= active;
+	if (!owners) return 0;
+	// Allied victory: the active players mutually allied to every owner; otherwise the
+	// first owner alone (side_of is just the player under Last Man Standing).
+	uint8_t winners = active;
+	for (uint8_t o = 0; o < MAX_PLAYERS; ++o)
+		if ((owners >> o) & 1) winners &= side_of(o);
+	return (winners & owners) == owners ? winners : 0;
+}
+
 void Simulation::check_victory_conditions(float dt) {
 	if (game_over_ || victory_) return;
 	// 0 A.D. "Endless": no victory conditions, nobody is ever defeated.
@@ -12786,32 +12816,19 @@ void Simulation::check_victory_conditions(float dt) {
 		}
 	}
 	if (has_victory(VK_RELIC)) {
-		// Capture the Relic: one side (a player and its mutual allies, or one player under
-		// Last Man Standing, side_of) holds every relic for relic_duration_.
-		if (!relics_.empty()) {
-			bool all_claimed = true;
-			int owner = -1;
-			uint8_t side = 0;
-			for (const auto &r : relics_) {
-				if (!r.claimed || r.owner_team >= MAX_PLAYERS) {
-					all_claimed = false;
-					break;
-				}
-				if (owner < 0) {
-					owner = (int)r.owner_team;
-					side = side_of((uint8_t)owner);
-				} else if (!((side >> r.owner_team) & 1)) {
-					all_claimed = false;
-				}
-			}
-			if (all_claimed && owner >= 0 && owner < MAX_TEAMS) {
-				relic_victory_timer_ += dt;
-				if (relic_victory_timer_ >= relic_duration_) {
-					end_match(side, SessionNotice::END_RELIC);
-					return;
-				}
-			} else {
-				relic_victory_timer_ = 0.0f;
+		// Capture the Relic (CaptureTheRelic.js): every relic held by mutually allied players
+		// (one player under Last Man Standing) for relic_duration_ wins for them and every
+		// player allied to them all. A relic changing hands restarts the countdown
+		// (CheckCaptureTheRelicVictory), and so does a change of who it would make win
+		// (CheckCaptureTheRelicCountdown on OnDiplomacyChanged / OnPlayerDefeated).
+		const uint8_t winners = relic_winners();
+		if (!winners || winners != relic_countdown_players_ || relic_changed_hands_) relic_victory_timer_ = 0.0f;
+		relic_changed_hands_ = false;
+		if (winners) {
+			relic_victory_timer_ += dt;
+			if (relic_victory_timer_ >= relic_duration_) {
+				end_match(winners, SessionNotice::END_RELIC);
+				return;
 			}
 		}
 	}
@@ -13476,6 +13493,7 @@ Simulation::UnitDetails Simulation::unit_details(size_t i) const {
 	unit_resistance(i, d.resistance);
 	d.walk = unit_walk_speed(i) / kSpeedScale;
 	d.run = d.walk * unit_run_multiplier(i);
+	d.acceleration = unit_motion(tmpl, ut).acceleration / kSpeedScale;
 	const uint8_t gcls = unit_gather_class(ut, tmpl);
 	if (gcls != GATHER_NONE && units_.team[i] < MAX_PLAYERS && ut < UNIT_TYPE_COUNT) {
 		const UnitTechMods m = unit_tech_mods(units_.team[i], ut, tmpl);
@@ -13588,24 +13606,41 @@ void Simulation::tick_gates(float dt) {
 	gate_timer_ += dt;
 	if (gate_timer_ < 0.2f) return;
 	gate_timer_ = 0.0f;
-	constexpr float PASS_RANGE = 4.0f;
+	// Gate.js: <PassRange>2</PassRange> (stone and palisade gates), measured between the gate's
+	// and the unit's obstructions, so from the footprint edge plus the unit's clearance. 0.28's
+	// UnitMotion only steers round a closed gate once it bumps into it; RTS0's short paths plan
+	// round it from further off (building_steering.h), so the gate opens from 6 m (1.5 units),
+	// not 2 m, or a unit would walk round a short palisade before its gate opened.
+	constexpr float PASS_RANGE = 1.5f;
 	bool nav_changed = false;
 	for (auto &b : buildings_) {
 		if (!is_gate_type(b.type) || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const bool blocked_paths = blocks_pathfinding(b);
 		bool ally_near = false, unit_inside = false;
-		const float reach_u = b.hu + PASS_RANGE, reach_v = b.hv + PASS_RANGE;
-		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i]) continue;
-			const nav::Vec2 l = nav::footprint_local(b, units_.pos_x[i], units_.pos_z[i]);
+		// Gate.js GetAllies: the owner's own allies, one way (Diplomacy.GetAllies), itself included.
+		auto opens_for = [&](uint8_t p) {
+			return b.team < MAX_PLAYERS && p < MAX_PLAYERS &&
+			       (p == b.team || players_[p].team == players_[b.team].team || diplomacy_[b.team][p] == DIPLO_ALLY);
+		};
+		auto check = [&](float x, float z, float clearance, uint8_t owner, bool can_open) {
+			const nav::Vec2 l = nav::footprint_local(b, x, z);
 			const float dx = std::fabs(l.x), dz = std::fabs(l.y);
-			if (dx > reach_u || dz > reach_v) continue;
-			const float clearance = unit_clearance_at(i);
+			if (dx > b.hu + clearance + PASS_RANGE || dz > b.hv + clearance + PASS_RANGE) return;
 			if (dx < b.hu + clearance && dz < b.hv + clearance) unit_inside = true;
-			if (!ally_near && b.team < MAX_PLAYERS && units_.team[i] < MAX_PLAYERS && is_ally(b.team, units_.team[i])
-			    && units_.action_state[i] != ACTION_DYING)
-				ally_near = true;
-			if (ally_near && unit_inside) break;
+			if (!ally_near && can_open && opens_for(owner)) ally_near = true;
+		};
+		for (size_t i = 0; i < units_.count && !(ally_near && unit_inside); ++i) {
+			if (!units_.alive[i]) continue;
+			// A unit on a turret point is immobile with its obstruction off (Turretable.js): the gate
+			// ignores it (Gate.js OnRangeUpdate skips immobile units).
+			if (!turret_height_.empty() && turret_height_.count(units_.id[i])) continue;
+			check(units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i), units_.team[i], units_.action_state[i] != ACTION_DYING);
+		}
+		// Animals have UnitAI too: owned livestock opens its owner's gates, any animal in the way keeps one open.
+		for (size_t f = 0; f < fauna_.count && !(ally_near && unit_inside); ++f) {
+			if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CARCASS || fauna_.behavior[f] == FAUNA_CORRALLED)
+				continue;
+			check(fauna_.pos_x[f], fauna_.pos_z[f], CLEARANCE_DEFAULT, fauna_owner_[f], true);
 		}
 		const bool should_open = ally_near && !b.gate_locked;
 		if (b.gate_open && !should_open && !unit_inside) b.gate_open = false;
@@ -20213,6 +20248,17 @@ void Simulation::petra_research_trade_bonus() {
 	}
 }
 
+// researchManager.js update's random pick leaves out techs only for healers, outposts or
+// walls, and with no ally Config.unusedNoAllyTechs: Player/sharedLos (Cartography),
+// Market/InternationalBonus and Player/sharedDropsites (Diaspora).
+bool Simulation::petra_skips_random_tech(uint8_t t, bool has_ally) const {
+	if (petra_tech_affects_only(t, TC_HEALER) || petra_tech_affects_only(t, TC_OUTPOST) || petra_tech_affects_only(t, TC_WALL))
+		return true;
+	const TechInfo &ti = tech_info(t);
+	return !has_ally && (t == TECH_UNLOCK_SHARED_LOS || t == TECH_UNLOCK_SHARED_DROPSITES ||
+	                     (ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL));
+}
+
 void Simulation::petra_manage_research(float dt) {
 	auto start_tech = [&](uint8_t tech_id) { return petra_start_research(tech_id); };
 	auto have_building = [&](uint8_t btype) {
@@ -20428,13 +20474,8 @@ void Simulation::petra_manage_research(float dt) {
 	bool has_ally = false;
 	for (uint8_t p = 0; p < MAX_PLAYERS && !has_ally; ++p)
 		has_ally = p != petra_pid_ && player_in_match(p) && is_ally(petra_pid_, p);
-	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) {
-		if (petra_tech_affects_only(t, TC_HEALER) || petra_tech_affects_only(t, TC_OUTPOST) || petra_tech_affects_only(t, TC_WALL))
-			return true;
-		const TechInfo &ti = tech_info(t);
-		return !has_ally && (t == TECH_UNLOCK_SHARED_LOS ||
-		                     (ti.effect_count == 1 && tech_effects_table()[ti.effect_begin].stat == TSTAT_TRADE_INTERNATIONAL));
-	}), techs.end());
+	techs.erase(std::remove_if(techs.begin(), techs.end(), [&](uint8_t t) { return petra_skips_random_tech(t, has_ally); }),
+	            techs.end());
 	if (techs.empty()) return;
 	// pickRandom, kept while the pick waits for resources: the draw is a hash of
 	// what Petra has researched, so it is the same until a research completes.
@@ -25820,6 +25861,8 @@ bool Simulation::load_state(const char *filepath) {
 	}
 	rebuild_all_tech_mods();
 	refresh_unit_pop_bonus(); // as the saving game counted it at the end of its last tick
+	relic_countdown_players_ = has_victory(VK_RELIC) ? relic_winners() : 0;
+	relic_changed_hands_ = false;
 	rebuild_nav_grid(); // the loaded structures (and locked gates) block paths, not the old ones
 	if (version >= 26) trigger_event(TRIGGER_ON_DESERIALIZED); // Trigger.js OnGlobalDeserialized
 	petra_decay_events_.clear(); // rebuilding the loaded territory is no change of it
@@ -28323,6 +28366,7 @@ void Simulation::tick_relics() {
 		}
 		rel.x = units_.pos_x[r];
 		rel.z = units_.pos_z[r];
+		if (units_.team[r] != (rel.claimed ? rel.owner_team : GAIA_PLAYER)) relic_changed_hands_ = true;
 		rel.claimed = units_.team[r] != GAIA_PLAYER;
 		rel.owner_team = rel.claimed ? units_.team[r] : 255;
 	}
@@ -28688,6 +28732,7 @@ bool Simulation::register_trigger_script(const std::string &name) {
 		{"danubius_triggers", TRIGGER_ACTION_DANUBIUS_INIT, TUTORIAL_NONE},
 		{"jebel_barkal_triggers", TRIGGER_ACTION_JEBEL_BARKAL_INIT, TUTORIAL_NONE},
 		{"gallic_fields_3p", TRIGGER_ACTION_GALLIC_FIELDS, TUTORIAL_NONE},
+		{"triggers_demo", TRIGGER_ACTION_TRIGGERS_DEMO_INIT, TUTORIAL_NONE},
 		// maps/tutorials/*.js, each run by maps/scripts/Tutorial.js
 		{"introductory_tutorial", TRIGGER_ACTION_TUTORIAL, TUTORIAL_INTRODUCTORY},
 		{"starting_economy_walkthrough", TRIGGER_ACTION_TUTORIAL, TUTORIAL_ECONOMY},
@@ -28932,6 +28977,44 @@ void Simulation::run_trigger_action(uint16_t action, float arg, const TriggerEve
 				triggers_.vars[2] = (int32_t)data.collection->size();
 			}
 			break;
+		case TRIGGER_ACTION_TRIGGERS_DEMO_INIT: {
+			// scenarios/triggers_demo.js: every listener logs its event; OnAttackDetected is
+			// registered too, but 0.28's Trigger.js never raises it (AttackDetection posts
+			// MT_AttackDetected to the player entity only), so RTS0 has no such event.
+			std::fprintf(stderr, "[triggers] loading the triggers file\n");
+			for (uint8_t e : {TRIGGER_ON_STRUCTURE_BUILT, TRIGGER_ON_CONSTRUCTION_STARTED, TRIGGER_ON_TRAINING_FINISHED,
+			                  TRIGGER_ON_TRAINING_QUEUED, TRIGGER_ON_RESEARCH_FINISHED, TRIGGER_ON_RESEARCH_QUEUED,
+			                  TRIGGER_ON_OWNERSHIP_CHANGED, TRIGGER_ON_PLAYER_COMMAND})
+				triggers_.register_trigger(e, TRIGGER_ACTION_TRIGGERS_DEMO_LOG, true);
+			triggers_.vars[3] = 0; // numberOfTimerTrigger (maxNumberOfTimerTrigger 3)
+			triggers_.vars[4] = triggers_.register_trigger(TRIGGER_ON_INTERVAL, TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL, true, 5000, 10000);
+			// OnRange round the A points: player 1's units (UnitAI) within 40 m.
+			triggers_.register_range_trigger(TRIGGER_ACTION_TRIGGERS_DEMO_RANGE, 'A', 0.0f, 40.0f / 4.0f, 1u << 0, true, true);
+			break;
+		}
+		case TRIGGER_ACTION_TRIGGERS_DEMO_LOG: {
+			static const char *const kNames[TRIGGER_EVENT_COUNT] = {"OnInitGame", "OnInterval", "OnRange", "OnStructureBuilt",
+				"OnConstructionStarted", "OnTrainingQueued", "OnTrainingFinished", "OnResearchQueued", "OnResearchFinished",
+				"OnOwnershipChanged", "OnPlayerDefeated", "OnPlayerWon", "OnDiplomacyChanged", "OnTreasureCollected",
+				"OnPlayerCommand", "OnDeserialized"};
+			std::fprintf(stderr, "[triggers] The %s event happened with the following data: entity %u, other %u, player %u, from %u, to %u, value %u, count %u\n",
+			             data.event < TRIGGER_EVENT_COUNT ? kNames[data.event] : "?", data.entity, data.other, data.player,
+			             data.from, data.to, data.value, data.count);
+			break;
+		}
+		case TRIGGER_ACTION_TRIGGERS_DEMO_INTERVAL: {
+			std::fprintf(stderr, "[triggers] The OnInterval event happened\n");
+			if (++triggers_.vars[3] >= 3) triggers_.disable_trigger((uint16_t)triggers_.vars[4]);
+			TriggerDialog d;
+			d.players = 0xFF; // players 1-8
+			d.caption = "Testing the yes-no dialog. Do you want to say sure or rather not?";
+			d.button1 = "Sure";
+			d.tooltip1 = "Say sure";
+			d.button2 = "Rather not";
+			d.tooltip2 = "Say rather not";
+			trigger_dialogs_.push_back(d);
+			break;
+		}
 		case TRIGGER_ACTION_DEATH_CANYON_INIT:
 			// DisableBuilding: the two Invasion Forces (0 A.D. players 2 and 4) get a
 			// "no_building" modifier emptying Builder/Entities, so their units build nothing.

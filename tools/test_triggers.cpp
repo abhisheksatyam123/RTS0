@@ -605,6 +605,32 @@ static void check_tutorials() {
 	if (failures == before) std::printf("tutorials: Ready, gather, training and rally goals advance; state survives a save: ok\n");
 }
 
+static void check_triggers_demo() {
+	// scenarios/triggers_demo.js: listeners on eight events, the yes-no dialog at 10, 15 and
+	// 20 s and never again, and OnRange round the A point.
+	const int before = failures;
+	static Simulation s;
+	s.reset();
+	s.set_sim_seed(SEED);
+	s.spawn_initial();
+	s.set_waves_enabled(false);
+	s.set_victory_condition(VICTORY_ENDLESS);
+	s.add_trigger_point('A', 0.0f, 0.0f, 0);
+	CHECK(s.register_trigger_script("triggers_demo"), "triggers_demo not registered");
+	run_to(s, 1.0f);
+	CHECK(s.trigger_state().triggers.size() == 11, "init, eight listeners, the interval and the range: %zu",
+	      s.trigger_state().triggers.size());
+	CHECK(s.trigger_state().range_queries.size() == 1, "one range query for the one A point");
+	CHECK(s.take_trigger_dialogs().empty(), "no dialog before 10 s");
+	run_to(s, 10.5f);
+	const auto first = s.take_trigger_dialogs();
+	CHECK(first.size() == 1 && first[0].players == 0xFF && first[0].button1 == "Sure" && first[0].button2 == "Rather not",
+	      "the yes-no dialog at 10 s for every player");
+	run_to(s, 30.0f);
+	CHECK(s.take_trigger_dialogs().size() == 2, "two more at 15 and 20 s, then the interval is disabled");
+	if (failures == before) std::printf("triggers_demo: listeners, three yes-no dialogs, OnRange: ok\n");
+}
+
 static void check_gallic_fields() {
 	// skirmishes/gallic_fields_3p.js: a Roman champion at each B or C point after a minute,
 	// attack-walking to its owner's A point; each wave waits 1-3 times longer and grows as much.
@@ -1073,6 +1099,7 @@ int main() {
 	check_polar_sea();
 	check_treasure_islands();
 	check_gallic_fields();
+	check_triggers_demo();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_on_range();

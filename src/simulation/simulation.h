@@ -518,6 +518,9 @@ public:
 	// temperate_large_02 22 x 14 m (48), template_gaia_ruins 7 x 7 m. Mines block movement,
 	// pathfinding and foundations (template_gaia). False for any other supply.
 	bool mine_footprint(size_t r, nav::Footprint &f) const;
+	// Half the width of any other supply's square foundation obstruction, in world units: a
+	// tree's or fruit's template Obstruction/Static (flora_obstruction_m), else 1.5 m.
+	float resource_block_half(size_t r) const;
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
@@ -887,7 +890,7 @@ public:
 		float min_range = 0.0f, max_range = 0.0f;
 		bool ranged = false;
 		float resistance[3] = {}; // hack, pierce, crush levels
-		float walk = 0.0f, run = 0.0f;
+		float walk = 0.0f, run = 0.0f, acceleration = 0.0f; // m/s, m/s^2
 		float gather[7] = {};     // grain, fruit, meat, fish, wood, stone, metal a second
 		int32_t carry_max = 0;    // what it can carry of the resource it holds
 		float heal_hp = 0.0f, heal_range = 0.0f, heal_interval = 0.0f; // 0 hp: no Heal
@@ -927,6 +930,11 @@ public:
 	void set_victory_conditions(uint8_t mask) { victory_condition_ = (VictoryCondition)victory_code(mask); }
 	bool has_victory(uint8_t kind) const { return (victory_mask(victory_condition_) & kind) != 0; }
 	float relic_victory_timer() const { return relic_victory_timer_; }
+	// CaptureTheRelic.js relicsVictoryCountdownPlayers: who the running countdown would make win.
+	uint8_t relic_countdown_players() const { return relic_countdown_players_; }
+	// CheckCaptureTheRelicCountdown's winningPlayers from the current relic owners and
+	// diplomacy, or 0 while Gaia holds a relic, nobody holds one or the owners are not allies.
+	uint8_t relic_winners() const;
 	// Legacy wave-defense mode: enemy waves every 35s, survive wave 5 to win. Off by default.
 	bool waves_enabled() const { return waves_enabled_; }
 	void set_waves_enabled(bool on) { waves_enabled_ = on; }
@@ -1064,6 +1072,18 @@ public:
 	// How often each event was called since the start or the last load: for tests and
 	// debugging only, never saved or hashed.
 	uint32_t trigger_event_calls(uint8_t event) const { return event < TRIGGER_EVENT_COUNT ? trigger_event_calls_[event] : 0; }
+	// GuiInterface PushNotification {"type": "dialog"}: a dialog a trigger script asks the
+	// GUI to show (triggers_demo's yes-no). Handed to the GUI once, never saved, as 0 A.D.'s
+	// notifications live in the GUI.
+	struct TriggerDialog {
+		uint8_t players = 0xFF; // bit p: player p + 1 sees it
+		std::string caption, button1, tooltip1, button2, tooltip2;
+	};
+	std::vector<TriggerDialog> take_trigger_dialogs() {
+		std::vector<TriggerDialog> out;
+		out.swap(trigger_dialogs_);
+		return out;
+	}
 	void mark_players_won(uint8_t mask);
 	void note_diplomacy_changed(uint8_t player, uint8_t other, uint8_t stance);
 	// A map's TriggerScripts by name ("polar_sea_triggers", "treasure_islands"): registers
@@ -2363,6 +2383,10 @@ private:
 	int32_t player_pop_cap_[MAX_PLAYERS] = {}; // scenario PopulationLimit per player; 0 = pop_cap()
 	float ceasefire_seconds_ = 0.0f;
 	float relic_victory_timer_ = 0.0f;
+	// Derived, not saved: relic_winners() as the end of the last tick saw it (a load rebuilds
+	// it), and whether a relic changed hands this tick (tick_relics, read by the victory check).
+	uint8_t relic_countdown_players_ = 0;
+	bool relic_changed_hands_ = false;
 	std::vector<BattleAlert> pending_alerts_;
 	float last_alert_time_[6] = {};
 	std::unordered_map<uint32_t, size_t> unit_id_to_idx_;
@@ -2483,6 +2507,7 @@ private:
 
 	// Row a = player a's stances; set in reset() (self ally, everyone else enemy).
 	uint32_t trigger_event_calls_[TRIGGER_EVENT_COUNT] = {}; // trigger_event_calls
+	std::vector<TriggerDialog> trigger_dialogs_; // take_trigger_dialogs
 	uint8_t diplomacy_[MAX_PLAYERS][MAX_PLAYERS] = {};
 	uint8_t biome_ = BIOME_AEGEAN;
 	uint8_t map_preset_ = MAP_AEGEAN_ARCHIPELAGO;
@@ -2762,6 +2787,7 @@ private:
 	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
+	bool petra_skips_random_tech(uint8_t tech_id, bool has_ally) const;
 	// researchManager.js: the techs Petra could research now at a structure it owns
 	// (gamestate.js findAvailableTech, phases left out), and one research start.
 	void petra_available_techs(std::vector<uint8_t> &out) const;

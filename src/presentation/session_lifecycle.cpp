@@ -4,6 +4,7 @@
 
 #include "main_node.h"
 #include "l10n.h"
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <unordered_set>
@@ -600,6 +601,9 @@ void RtsoMain::_ready() {
 	diplo_dialog_.build(this, ui_layer, this, &chat_window_);
 	objectives_dialog_.build(ui_layer, this, "toggle_objectives");
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
+	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
+	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
+	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -983,9 +987,11 @@ void RtsoMain::_process(double delta) {
 							(allies ? " will win in " : "will win in ") + left + ".");
 				}
 			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
+				// StartCaptureTheRelicCountdown: named after the first relic's owner, "and their
+				// allies" when more than one player would win.
 				const uint8_t owner = sim->relics()[0].owner_team;
-				if (owner < rtso::MAX_PLAYERS) {
-					const uint8_t side = (uint8_t)(allies_of(owner) | (1u << owner));
+				const uint8_t side = sim->relic_countdown_players();
+				if (owner < rtso::MAX_PLAYERS && side) {
 					const bool team = (side & (side - 1)) != 0;
 					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
 					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
@@ -1029,10 +1035,14 @@ void RtsoMain::_process(double delta) {
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
+	show_trigger_dialogs(sim->take_trigger_dialogs());
 	update_cursor();
 	chat_window_.tick_overlay();
 	if (objectives_dialog_.is_open()) objectives_dialog_.set_player_state(match_settings_player_state());
 	tutorial_panel_.refresh(sim);
+	panel_entities_.refresh(*sim, view_player(), (float)Time::get_singleton()->get_ticks_msec() / 1000.0f);
+	research_progress_.refresh(*sim, view_player());
+	control_groups_.refresh(*sim, local_player(), selected_groups);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
