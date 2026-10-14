@@ -159,9 +159,14 @@ struct ScopedUs {
 	}
 };
 constexpr int kUnitGridRes = 64; // 64x64 grid cells (2.0m per cell over 128m map)
-// 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction. Stand on the AABB edge, never inside.
-constexpr float kBuildStandOff = 0.80f;
+// 0 A.D. Builder.GetRange: max ≈ 2 + unit obstruction.
 constexpr float kBuildReach = 2.20f;
+// An attacker's stand point beside a structure (it stops once within reach on its way there).
+constexpr float kBuildStandOff = 0.80f;
+// A builder's or a garrisoning unit's stand point lies this far outside its building clearance:
+// as close as it can stand, so the walk always gets within the task's range (0 A.D. UnitMotion
+// moves to the range itself, which reaches past the unit's clearance), and the walk ends there.
+constexpr float kStandMargin = 0.05f;
 
 // The save version that added UnitAI orders (tick_state_io section 4).
 static constexpr uint32_t SAVE_VERSION_UNIT_ORDERS = 20;
@@ -211,9 +216,9 @@ static constexpr uint32_t SAVE_VERSION_PLAYER_POP_CAP = 68;
 // Each structure's focus-fire targets (BuildingAI focusTargets).
 static constexpr uint32_t SAVE_VERSION_FOCUS_FIRE = 68;
 
-// Stand on the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
+// Stand `off` outside the nearest AABB edge so pathing never aims through the footprint (half sizes hx, hz).
 static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t uid,
-		float from_x, float from_z, float *ox, float *oz) {
+		float from_x, float from_z, float off, float *ox, float *oz) {
 	float minx = bx - hx, maxx = bx + hx;
 	float minz = bz - hz, maxz = bz + hz;
 	float spread = ((int)(uid % 5) - 2) * 0.55f;
@@ -221,28 +226,28 @@ static void stand_outside_rect(float bx, float bz, float hx, float hz, uint32_t 
 	if (!inside) {
 		if (std::abs(from_x - std::clamp(from_x, minx, maxx)) >=
 				std::abs(from_z - std::clamp(from_z, minz, maxz))) {
-			*ox = (from_x < bx) ? (minx - kBuildStandOff) : (maxx + kBuildStandOff);
+			*ox = (from_x < bx) ? (minx - off) : (maxx + off);
 			*oz = std::clamp(from_z + spread, minz, maxz);
 		} else {
 			*ox = std::clamp(from_x + spread, minx, maxx);
-			*oz = (from_z < bz) ? (minz - kBuildStandOff) : (maxz + kBuildStandOff);
+			*oz = (from_z < bz) ? (minz - off) : (maxz + off);
 		}
 		return;
 	}
 	float dl = from_x - minx, dr = maxx - from_x, db = from_z - minz, dt = maxz - from_z;
 	float m = std::min({dl, dr, db, dt});
 	if (m == dl) {
-		*ox = minx - kBuildStandOff;
+		*ox = minx - off;
 		*oz = std::clamp(from_z + spread, minz, maxz);
 	} else if (m == dr) {
-		*ox = maxx + kBuildStandOff;
+		*ox = maxx + off;
 		*oz = std::clamp(from_z + spread, minz, maxz);
 	} else if (m == db) {
 		*ox = std::clamp(from_x + spread, minx, maxx);
-		*oz = minz - kBuildStandOff;
+		*oz = minz - off;
 	} else {
 		*ox = std::clamp(from_x + spread, minx, maxx);
-		*oz = maxz + kBuildStandOff;
+		*oz = maxz + off;
 	}
 }
 
@@ -273,11 +278,12 @@ static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, f
 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
 // stand points and reach as an unturned one.
-static void stand_outside(const Simulation::Building &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz) {
-	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.hu, b.hv, uid, from_x, from_z, ox, oz);
+static void stand_outside(const Simulation::Building &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz,
+		float off = kBuildStandOff) {
+	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.hu, b.hv, uid, from_x, from_z, off, ox, oz);
 	const nav::Vec2 l = nav::footprint_local(b, from_x, from_z);
 	float lu, lv;
-	stand_outside_rect(0.0f, 0.0f, b.hu, b.hv, uid, l.x, l.y, &lu, &lv);
+	stand_outside_rect(0.0f, 0.0f, b.hu, b.hv, uid, l.x, l.y, off, &lu, &lv);
 	const nav::Vec2 w = nav::footprint_world(b, lu, lv);
 	*ox = w.x;
 	*oz = w.y;
@@ -4720,7 +4726,7 @@ void Simulation::order_build_or_repair(const uint32_t *unit_ids_in, size_t count
 
 		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
-				&units_.target_x[uidx], &units_.target_z[uidx]);
+				&units_.target_x[uidx], &units_.target_z[uidx], unit_clearance_at((size_t)uidx) + kStandMargin);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_BUILD;
 		units_.target_building_id[uidx] = building_id;
@@ -6282,9 +6288,14 @@ void Simulation::order_garrison(const uint32_t *unit_ids_in, size_t count_in, ui
 			if (structure_has_enough_health(b)) garrison_now((size_t)uidx, b);
 			continue;
 		}
+		// MoveToTargetRange: towards the side of the structure the unit comes from, as close as it
+		// can stand (a walk to its centre would end on whichever side the centre is pushed out to).
+		float sx, sz;
+		stand_outside(b, unit_ids[i], units_.pos_x[uidx], units_.pos_z[uidx], &sx, &sz,
+				unit_clearance_at((size_t)uidx) + kStandMargin);
 		const bool was = applying_queued_;
 		applying_queued_ = true; // keep the unit's queue: this is the garrison order, not a walk
-		cmd_move(&unit_ids[i], 1, b.x, b.z);
+		cmd_move(&unit_ids[i], 1, sx, sz);
 		applying_queued_ = was;
 		set_order((size_t)uidx, ORDER_GARRISON, ORDER_FLAG_FORCE, building_id, b.x, b.z);
 	}
@@ -8397,7 +8408,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				const Building &bb = buildings_[bit->second];
 				if (!bb.wrecked && bb.hp > 0.0f) {
 					stand_outside(bb, units_.id[i],
-							px[i], pz[i], &tx[i], &tz[i]);
+							px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
 					has[i] = 1;
 				}
 			}
@@ -8587,6 +8598,14 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
 			}
+		} else if ((units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) ||
+				(units_.action_state[i] == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON)) {
+			// UnitMotion MoveToTargetRange for a builder (REPAIR.APPROACHING) and a unit on its way
+			// into a structure (GARRISON.APPROACHING): the walk ends once the structure is within the
+			// task's range, and until then goes right up to its stand point, as close as the unit can
+			// stand, so it gets within any range past its clearance.
+			at_building = walk_in_reach(i, px[i], pz[i]);
+			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
 		}
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
@@ -13846,6 +13865,7 @@ void Simulation::next_after_construction(size_t k, const Building &b, bool food,
 		const uint32_t f = find_nearby_foundation(b.x, b.z, b.team);
 		if (f != 0) { order_build_or_repair(&uid, 1, f, false, false); return; }
 		set_order(k, ORDER_NONE, 0, 0, units_.pos_x[k], units_.pos_z[k]);
+		units_.has_order[k] = 0; // FinishOrder: it stays where it built from, in range
 	}
 }
 
