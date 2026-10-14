@@ -1762,11 +1762,13 @@ void RtsoMain::_on_minimap_order(Vector2 world_pos) {
 	const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
 	const size_t sel_n = selected_ids.size();
 	range_overlays_.add_marker(world_pos.x, world_pos.y, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
-	if (rtso::hotkeys::held("session.attackmove")) {
+	const bool units_only = rtso::hotkeys::held("session.attackmoveUnit"); // targetClasses Unit
+	if (rtso::hotkeys::held("session.attackmove") || units_only) {
 		if (turn_cmds())
-			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
+			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0,
+					(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
 		else
-			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, false, true);
+			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, true);
 		play_civ_voice("attack");
 		return;
 	}
@@ -2091,7 +2093,8 @@ void RtsoMain::update_cursor() {
 			const uint8_t me = local_player();
 			auto near2 = [&](float x, float z, float r) { return (x - at.x) * (x - at.x) + (z - at.z) * (z - at.z) <= r * r; };
 			if (attack_move_mode || call_to_arms_mode || rtso::hotkeys::held("session.attackmove") ||
-					rtso::hotkeys::held("session.calltoarms")) want = "action-attack-move";
+					rtso::hotkeys::held("session.attackmoveUnit") || rtso::hotkeys::held("session.calltoarms"))
+				want = "action-attack-move";
 			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
 			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
 			else if (garrison_mode) want = "action-garrison";
