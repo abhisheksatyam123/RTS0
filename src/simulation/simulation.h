@@ -2243,6 +2243,8 @@ private:
 	// The match ends with these players as the winners; everyone else has lost.
 	void end_match(uint8_t winners, uint8_t reason = SessionNotice::END_LAST_ALIVE);
 	void spawn_regicide_heroes();
+	// Footprint.PickSpawnPoint round a point: the nearest passable spot no unit stands on.
+	void free_spot_near(float px, float pz, uint8_t utype, float &x, float &z) const;
 
 	struct FaunaStorage {
 		static constexpr size_t MAX_FAUNA = 1024; // dead animals are compacted out each tick

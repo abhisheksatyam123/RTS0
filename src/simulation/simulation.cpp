@@ -12662,24 +12662,105 @@ bool Simulation::regicide_hero_lost(int t) const {
 }
 
 void Simulation::spawn_regicide_heroes() {
-	// Regicide.js: every player gets a hero next to their first Town Center at match start,
-	// or next to their first unit if they start without one (nomad-style starts).
-	bool done[8] = {};
-	std::vector<std::pair<uint8_t, std::pair<float, float>>> spots;
-	for (const auto &b : buildings_) {
-		if (!is_civic_centre(b.type) || b.team >= 8 || done[b.team]) continue;
-		done[b.team] = true;
-		spots.push_back({b.team, {b.x, b.z}});
+	// Regicide.js InitRegicideGame / SpawnRegicideHero: each player gets one of its civ's
+	// heroes, picked at random (shuffleArray over the civ's Hero templates), at the first
+	// spawn point that takes it. Spawn points are the player's entities, civic centres
+	// first, then other structures, then ships, then the rest (getSpawnPreference). A unit
+	// steps out beside a structure (SpawnUnits, Footprint.PickSpawnPoint) and boards a ship
+	// it spawns at (UnitAI.Garrison). Without Regicide Garrison a ship start puts the hero
+	// on land beside the Gaia entity nearest the ship (GetLandSpawnPoints).
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		std::vector<uint16_t> heroes;
+		for (uint16_t t : civ_roster_ids(civ_of(p))) {
+			const CivUnitTemplate &u = civ_unit_template(t);
+			if ((u.flags & ROSTER_HERO) && !std::strstr(u.id, "/rts0_")) heroes.push_back(t);
+		}
+		struct Spot { int pref; uint32_t id; bool building; size_t bi; };
+		std::vector<Spot> spots;
+		for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+			const Building &b = buildings_[bi];
+			if (b.team == p && b.hp > 0.0f) spots.push_back({is_civic_centre(b.type) ? 3 : 2, b.id, true, bi});
+		}
+		for (size_t u = 0; u < units_.count; ++u)
+			if (units_.team[u] == p && units_.alive[u])
+				spots.push_back({unit_is_ship(units_.unit_type[u]) ? 1 : 0, units_.id[u], false, 0});
+		if (spots.empty()) continue;
+		std::stable_sort(spots.begin(), spots.end(), [](const Spot &a, const Spot &b) {
+			return a.pref != b.pref ? a.pref > b.pref : a.id < b.id;
+		});
+		if (heroes.empty()) heroes.push_back(CIV_UNIT_TEMPLATE_NONE); // the class hero
+		for (int k = (int)heroes.size() - 1; k > 0; --k) std::swap(heroes[k], heroes[sim_rng_.range_int(0, k)]);
+		std::vector<std::pair<float, float>> land;
+		if (!regicide_garrison() && spots[0].pref == 1) {
+			const int32_t ship = lookup_unit(spots[0].id);
+			const float sx = units_.pos_x[ship], sz = units_.pos_z[ship];
+			land = relic_spawn_points();
+			std::stable_sort(land.begin(), land.end(), [&](const auto &a, const auto &b) {
+				return (a.first - sx) * (a.first - sx) + (a.second - sz) * (a.second - sz) <
+						(b.first - sx) * (b.first - sx) + (b.second - sz) * (b.second - sz);
+			});
+		}
+		for (uint16_t tmpl : heroes) {
+			const UnitType utype = tmpl == CIV_UNIT_TEMPLATE_NONE ? UNIT_HERO : (UnitType)civ_unit_template(tmpl).unit_type;
+			if (!land.empty()) {
+				float x, z;
+				free_spot_near(land[0].first, land[0].second, utype, x, z);
+				regicide_hero_[p] = spawn_unit(x, z, p, utype, 0.0f, tmpl);
+				break;
+			}
+			for (const Spot &s : spots) {
+				float x = 0.0f, z = 0.0f;
+				uint32_t ship = 0;
+				if (s.building) {
+					if (!pick_spawn_point(buildings_[s.bi], utype, 0, x, z)) continue;
+				} else {
+					const int32_t u = lookup_unit(s.id);
+					if (u < 0) continue;
+					if (s.pref == 1) {
+						// GarrisonHolder.IsFull: a full ship takes no hero.
+						if (occupied_slots(transport_passengers_[s.id]) >= get_transport_capacity(s.id)) continue;
+						ship = s.id;
+						x = units_.pos_x[u];
+						z = units_.pos_z[u];
+					} else {
+						free_spot_near(units_.pos_x[u], units_.pos_z[u], utype, x, z);
+					}
+				}
+				regicide_hero_[p] = spawn_unit(x, z, p, utype, 0.0f, tmpl);
+				if (ship) order_board_transport(&regicide_hero_[p], 1, ship);
+				break;
+			}
+			if (regicide_hero_[p]) break;
+		}
 	}
-	for (size_t u = 0; u < units_.count; ++u) {
-		uint8_t t = units_.team[u];
-		if (t >= 8 || done[t] || !units_.alive[u]) continue;
-		done[t] = true;
-		spots.push_back({t, {units_.pos_x[u], units_.pos_z[u]}});
-	}
-	for (const auto &s : spots) {
-		regicide_hero_[s.first] = spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
-	}
+}
+
+void Simulation::free_spot_near(float px, float pz, uint8_t utype, float &x, float &z) const {
+	// Footprint.PickSpawnPoint round an entity: the nearest passable spot nobody stands on.
+	x = px;
+	z = pz;
+	if (nav_grid_.res <= 0) return;
+	const float rr = unit_collision_radius(utype);
+	auto occupied = [&](float sx, float sz) {
+		for (size_t u = 0; u < units_.count; ++u) {
+			if (!units_.alive[u]) continue;
+			const float d = rr + unit_collision_radius(units_.unit_type[u]);
+			const float dx = units_.pos_x[u] - sx, dz = units_.pos_z[u] - sz;
+			if (dx * dx + dz * dz < d * d) return true;
+		}
+		return false;
+	};
+	for (float r = 1.0f; r <= 8.0f; r += 0.5f)
+		for (int t = 0; t < 12; ++t) {
+			const float a = 6.28318530718f * (float)t / 12.0f;
+			const float sx = px + cosf(a) * r, sz = pz + sinf(a) * r;
+			if (std::fabs(sx) > map_half_ - 2.0f || std::fabs(sz) > map_half_ - 2.0f) continue;
+			auto [cx, cy] = nav_grid_.world_to_cell(sx, sz);
+			if (!nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY) || occupied(sx, sz)) continue;
+			x = sx;
+			z = sz;
+			return;
+		}
 }
 
 void Simulation::tick_waves(float dt) {
