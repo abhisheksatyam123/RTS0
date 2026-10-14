@@ -15,6 +15,7 @@
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/script.hpp>
 #include "user_config.h"
+#include "obstruction_snap.h"
 #include "display_colors.h"
 #include <godot_cpp/classes/audio_stream.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
@@ -45,262 +46,6 @@ static bool building_trains_class(uint8_t civ, uint8_t utype, uint8_t btype) {
 	return false;
 }
 
-void RtsoMain::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("enter_build_mode", "enable", "btype"), &RtsoMain::enter_build_mode, DEFVAL(rtso::BLD_HOUSE));
-	ClassDB::bind_method(D_METHOD("clear_selection"), &RtsoMain::clear_selection);
-	ClassDB::bind_method(D_METHOD("_on_minimap_clicked", "world_pos"), &RtsoMain::_on_minimap_clicked);
-	ClassDB::bind_method(D_METHOD("_on_flare_requested", "world_pos"), &RtsoMain::_on_flare_requested);
-	ClassDB::bind_method(D_METHOD("_on_minimap_order", "world_pos"), &RtsoMain::_on_minimap_order);
-	ClassDB::bind_method(D_METHOD("_on_idle_worker_clicked"), &RtsoMain::_on_idle_worker_clicked);
-	ClassDB::bind_method(D_METHOD("_on_speed_button_pressed"), &RtsoMain::_on_speed_button_pressed);
-	ClassDB::bind_method(D_METHOD("_on_speed_selected", "id"), &RtsoMain::_on_speed_selected);
-	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
-	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
-	ClassDB::bind_method(D_METHOD("get_overlay_times"), &RtsoMain::get_overlay_times);
-	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
-	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
-	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
-	ClassDB::bind_method(D_METHOD("quickload"), &RtsoMain::quickload);
-	ClassDB::bind_method(D_METHOD("_on_replay_speed_selected", "index"), &RtsoMain::_on_replay_speed_selected);
-	ClassDB::bind_method(D_METHOD("is_game_paused"), &RtsoMain::is_game_paused);
-	ClassDB::bind_method(D_METHOD("_on_menu_button_pressed"), &RtsoMain::_on_menu_button_pressed);
-	ClassDB::bind_method(D_METHOD("get_audio_state"), &RtsoMain::get_audio_state);
-	ClassDB::bind_method(D_METHOD("get_trade_dialog_state"), &RtsoMain::get_trade_dialog_state);
-	ClassDB::bind_method(D_METHOD("_on_trading_goods_requested", "shares"), &RtsoMain::_on_trading_goods_requested);
-	ClassDB::bind_method(D_METHOD("_on_ungarrison_pressed"), &RtsoMain::_on_ungarrison_pressed);
-	ClassDB::bind_method(D_METHOD("_on_remove_guard_pressed"), &RtsoMain::_on_remove_guard_pressed);
-	ClassDB::bind_method(D_METHOD("_on_call_to_arms_pressed"), &RtsoMain::_on_call_to_arms_pressed);
-	ClassDB::bind_method(D_METHOD("_on_entity_command", "name"), &RtsoMain::_on_entity_command);
-	ClassDB::bind_method(D_METHOD("_on_pause_overlay_pressed"), &RtsoMain::_on_pause_overlay_pressed);
-	ClassDB::bind_method(D_METHOD("_on_disconnected_exit_pressed"), &RtsoMain::_on_disconnected_exit_pressed);
-	ClassDB::bind_method(D_METHOD("_on_delete_confirmed"), &RtsoMain::_on_delete_confirmed);
-	ClassDB::bind_method(D_METHOD("_on_template_info_pressed"), &RtsoMain::_on_template_info_pressed);
-	ClassDB::bind_method(D_METHOD("_on_template_details_input", "event", "kind", "id", "civ"), &RtsoMain::_on_template_details_input);
-	ClassDB::bind_method(D_METHOD("select_first_own", "building"), &RtsoMain::select_first_own);
-	ClassDB::bind_method(D_METHOD("_on_selection_group_clicked", "key"), &RtsoMain::_on_selection_group_clicked);
-	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
-	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
-	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
-	ClassDB::bind_method(D_METHOD("_on_control_group_gui_input", "event", "button"), &RtsoMain::_on_control_group_gui_input);
-	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
-	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
-	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
-	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
-	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
-	ClassDB::bind_method(D_METHOD("_on_roster_gui_input", "event"), &RtsoMain::_on_roster_gui_input);
-	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
-	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
-	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "choice"), &RtsoMain::_on_upgrade_pressed);
-	ClassDB::bind_method(D_METHOD("_on_gate_lock_pressed", "lock"), &RtsoMain::_on_gate_lock_pressed);
-	ClassDB::bind_method(D_METHOD("_on_dropsite_sharing_pressed", "shared"), &RtsoMain::_on_dropsite_sharing_pressed);
-	ClassDB::bind_method(D_METHOD("_on_pack_pressed", "pack"), &RtsoMain::_on_pack_pressed);
-	ClassDB::bind_method(D_METHOD("_on_unit_upgrade_pressed", "to"), &RtsoMain::_on_unit_upgrade_pressed);
-	ClassDB::bind_method(D_METHOD("_on_alert_pressed", "end"), &RtsoMain::_on_alert_pressed);
-	ClassDB::bind_method(D_METHOD("_on_autoqueue_pressed", "on"), &RtsoMain::_on_autoqueue_pressed);
-	ClassDB::bind_method(D_METHOD("save_game", "path", "description"), &RtsoMain::save_game, DEFVAL("user://saves/quicksave.rts0sav"), DEFVAL(""));
-	ClassDB::bind_method(D_METHOD("save_game_as", "name", "description"), &RtsoMain::save_game_as);
-	ClassDB::bind_method(D_METHOD("get_match_statistics"), &RtsoMain::statistics_summary);
-	ClassDB::bind_method(D_METHOD("toggle_summary"), &RtsoMain::toggle_summary);
-	ClassDB::bind_method(D_METHOD("close_open_dialogs"), &RtsoMain::close_open_dialogs);
-	ClassDB::bind_method(D_METHOD("get_summary_gui", "in_game"), &RtsoMain::summary_gui);
-	ClassDB::bind_method(D_METHOD("get_replay_status"), &RtsoMain::get_replay_status);
-	ClassDB::bind_method(D_METHOD("set_replay_view", "player"), &RtsoMain::set_replay_view);
-	ClassDB::bind_method(D_METHOD("_on_replay_view_selected", "index"), &RtsoMain::_on_replay_view_selected);
-	ClassDB::bind_method(D_METHOD("_on_observer_view_selected", "index"), &RtsoMain::_on_observer_view_selected);
-	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_save_version"), &RtsoMain::get_save_version);
-	ClassDB::bind_static_method("RtsoMain", D_METHOD("get_replay_format"), &RtsoMain::get_replay_format);
-	ClassDB::bind_method(D_METHOD("is_replay_playback"), &RtsoMain::is_replay_playback);
-	ClassDB::bind_method(D_METHOD("load_game", "path"), &RtsoMain::load_game, DEFVAL("user://saves/quicksave.rts0sav"));
-	ClassDB::bind_method(D_METHOD("get_fow_grid"), &RtsoMain::get_fow_grid);
-	ClassDB::bind_method(D_METHOD("order_guard_units", "target_id"), &RtsoMain::order_guard_units);
-	ClassDB::bind_method(D_METHOD("spawn_large_battle", "total_units"), &RtsoMain::spawn_large_battle, DEFVAL(1000));
-	ClassDB::bind_method(D_METHOD("_on_map_selected", "index"), &RtsoMain::_on_map_selected);
-	ClassDB::bind_method(D_METHOD("load_map", "map_id"), &RtsoMain::load_map);
-	ClassDB::bind_method(D_METHOD("get_available_maps"), &RtsoMain::get_available_maps);
-	ClassDB::bind_method(D_METHOD("_on_civ_selected", "index"), &RtsoMain::_on_civ_selected);
-	ClassDB::bind_method(D_METHOD("_on_ai_diff_selected", "index"), &RtsoMain::_on_ai_diff_selected);
-	ClassDB::bind_method(D_METHOD("_on_ai_behavior_selected", "index"), &RtsoMain::_on_ai_behavior_selected);
-	ClassDB::bind_method(D_METHOD("_on_victory_selected", "index"), &RtsoMain::_on_victory_selected);
-	ClassDB::bind_method(D_METHOD("_on_barter_requested", "sell_type", "buy_type", "amount"), &RtsoMain::_on_barter_requested);
-	ClassDB::bind_method(D_METHOD("set_civ", "civ_idx"), &RtsoMain::set_civ);
-	ClassDB::bind_method(D_METHOD("get_civ_info", "civ_idx"), &RtsoMain::get_civ_info);
-	ClassDB::bind_method(D_METHOD("get_tech_tree"), &RtsoMain::get_tech_tree);
-	ClassDB::bind_method(D_METHOD("get_match_summary"), &RtsoMain::get_match_summary);
-
-	ClassDB::bind_method(D_METHOD("_on_queue_slot_gui_input", "event", "slot_idx"), &RtsoMain::_on_queue_slot_gui_input);
-	ClassDB::bind_method(D_METHOD("_on_queue_slot_cancel", "slot_idx"), &RtsoMain::_on_queue_slot_cancel);
-	ClassDB::bind_method(D_METHOD("toggle_chat"), &RtsoMain::toggle_chat);
-	ClassDB::bind_method(D_METHOD("_on_chat_send_pressed"), &RtsoMain::_on_chat_send_pressed);
-	ClassDB::bind_method(D_METHOD("_on_chat_text_submitted", "text"), &RtsoMain::_on_chat_text_submitted);
-	ClassDB::bind_method(D_METHOD("_on_chat_channel_btn_pressed", "channel_idx"), &RtsoMain::_on_chat_channel_btn_pressed);
-	ClassDB::bind_method(D_METHOD("toggle_diplomacy"), &RtsoMain::toggle_diplomacy);
-	ClassDB::bind_method(D_METHOD("toggle_diplomacy_colors"), &RtsoMain::toggle_diplomacy_colors);
-	ClassDB::bind_method(D_METHOD("toggle_objectives"), &RtsoMain::toggle_objectives);
-	ClassDB::bind_method(D_METHOD("get_match_settings_info"), &RtsoMain::get_match_settings_info);
-	ClassDB::bind_method(D_METHOD("_on_tutorial_ready_pressed"), &RtsoMain::_on_tutorial_ready_pressed);
-	ClassDB::bind_method(D_METHOD("resign"), &RtsoMain::resign);
-	ClassDB::bind_method(D_METHOD("_toggle_session_dialog", "name"), &RtsoMain::_toggle_session_dialog);
-	ClassDB::bind_method(D_METHOD("get_target_marker_count"), &RtsoMain::get_target_marker_count);
-	ClassDB::bind_method(D_METHOD("get_work_sound_count"), &RtsoMain::get_work_sound_count);
-	ClassDB::bind_method(D_METHOD("debug_gather_nearest"), &RtsoMain::debug_gather_nearest);
-	ClassDB::bind_method(D_METHOD("debug_trade_route_clicks"), &RtsoMain::debug_trade_route_clicks);
-	ClassDB::bind_method(D_METHOD("debug_guard_step", "step"), &RtsoMain::debug_guard_step);
-	ClassDB::bind_method(D_METHOD("debug_train_buttons", "btype"), &RtsoMain::debug_train_buttons);
-	ClassDB::bind_method(D_METHOD("debug_command_button", "prefix"), &RtsoMain::debug_command_button);
-	ClassDB::bind_method(D_METHOD("debug_selection_grid", "select_all"), &RtsoMain::debug_selection_grid);
-	ClassDB::bind_method(D_METHOD("debug_inspector", "what"), &RtsoMain::debug_inspector);
-	ClassDB::bind_method(D_METHOD("debug_civic_centre_roof"), &RtsoMain::debug_civic_centre_roof);
-	ClassDB::bind_method(D_METHOD("debug_selection_state"), &RtsoMain::debug_selection_state);
-	ClassDB::bind_method(D_METHOD("debug_command_row"), &RtsoMain::debug_command_row);
-	ClassDB::bind_method(D_METHOD("debug_spawn_units", "template_id", "count"), &RtsoMain::debug_spawn_units);
-	ClassDB::bind_method(D_METHOD("debug_research_any"), &RtsoMain::debug_research_any);
-	ClassDB::bind_method(D_METHOD("_on_top_counter_gui_input", "event"), &RtsoMain::_on_top_counter_gui_input);
-	ClassDB::bind_method(D_METHOD("debug_delete_units", "ids"), &RtsoMain::debug_delete_units);
-	ClassDB::bind_method(D_METHOD("debug_dialogs"), &RtsoMain::debug_dialogs);
-	ClassDB::bind_method(D_METHOD("debug_unset_rally_step", "step"), &RtsoMain::debug_unset_rally_step);
-	ClassDB::bind_method(D_METHOD("_on_diplo_stance_changed", "stance", "player_idx"), &RtsoMain::_on_diplo_stance_changed);
-	ClassDB::bind_method(D_METHOD("_on_diplo_tribute_pressed", "player_idx", "res_type"), &RtsoMain::_on_diplo_tribute_pressed);
-	ClassDB::bind_method(D_METHOD("_on_diplo_spy_pressed", "player_idx"), &RtsoMain::_on_diplo_spy_pressed);
-	ClassDB::bind_method(D_METHOD("_on_diplo_attack_request_pressed", "player_idx"), &RtsoMain::_on_diplo_attack_request_pressed);
-	ClassDB::bind_method(D_METHOD("set_use_english_voice_orders", "enable"), &RtsoMain::set_use_english_voice_orders);
-	ClassDB::bind_method(D_METHOD("is_use_english_voice_orders"), &RtsoMain::is_use_english_voice_orders);
-	ClassDB::bind_method(D_METHOD("_on_lobby_button_pressed"), &RtsoMain::_on_lobby_button_pressed);
-	ClassDB::bind_method(D_METHOD("has_lobby_client"), &RtsoMain::has_lobby_client);
-	ClassDB::bind_method(D_METHOD("_on_voice_button_pressed"), &RtsoMain::_on_voice_button_pressed);
-	ClassDB::bind_method(D_METHOD("_on_lobby_host_pressed"), &RtsoMain::_on_lobby_host_pressed);
-	ClassDB::bind_method(D_METHOD("_on_lobby_join_pressed"), &RtsoMain::_on_lobby_join_pressed);
-	ClassDB::bind_method(D_METHOD("_on_lobby_start_pressed"), &RtsoMain::_on_lobby_start_pressed);
-	ClassDB::bind_method(D_METHOD("is_net_pregame"), &RtsoMain::is_net_pregame);
-	ClassDB::bind_method(D_METHOD("get_net_setup_state"), &RtsoMain::get_net_setup_state);
-	ClassDB::bind_method(D_METHOD("push_net_setup"), &RtsoMain::push_net_setup);
-	ClassDB::bind_method(D_METHOD("assign_net_client", "client", "slot"), &RtsoMain::assign_net_client);
-	ClassDB::bind_method(D_METHOD("request_net_player_setting", "key", "value"), &RtsoMain::request_net_player_setting);
-	ClassDB::bind_method(D_METHOD("set_net_ready", "status"), &RtsoMain::set_net_ready);
-	ClassDB::bind_method(D_METHOD("leave_net_game"), &RtsoMain::leave_net_game);
-	ClassDB::bind_method(D_METHOD("_on_lobby_seat_selected", "index", "client"), &RtsoMain::_on_lobby_seat_selected);
-	ClassDB::bind_method(D_METHOD("apply_net_game_start"), &RtsoMain::apply_net_game_start);
-	ClassDB::bind_method(D_METHOD("load_map_seeded", "map_id", "seed"), &RtsoMain::load_map_seeded);
-	// 0 A.D. GUI onGameLoadProgress(progression, description): the loading page
-	// (scenes/menu/loading.gd) listens while the match is set up.
-	ADD_SIGNAL(MethodInfo("net_setup_changed"));
-	ADD_SIGNAL(MethodInfo("net_setup_refused", PropertyInfo(Variant::STRING, "reason")));
-	ADD_SIGNAL(MethodInfo("load_progress", PropertyInfo(Variant::INT, "percent"), PropertyInfo(Variant::STRING, "description")));
-	ClassDB::bind_method(D_METHOD("_on_lobby_refresh_pressed"), &RtsoMain::_on_lobby_refresh_pressed);
-	ClassDB::bind_method(D_METHOD("_on_lobby_observe_toggled", "on"), &RtsoMain::_on_lobby_observe_toggled);
-	ClassDB::bind_method(D_METHOD("_start_menu_net"), &RtsoMain::_start_menu_net);
-	ClassDB::bind_method(D_METHOD("get_lobby_state"), &RtsoMain::get_lobby_state);
-	ClassDB::bind_method(D_METHOD("get_net_nat_state"), &RtsoMain::get_net_nat_state);
-	ClassDB::bind_method(D_METHOD("net_query_stun", "server", "port"), &RtsoMain::net_query_stun);
-	ClassDB::bind_method(D_METHOD("net_hole_punch", "ip", "port"), &RtsoMain::net_hole_punch);
-	ClassDB::bind_method(D_METHOD("net_retarget_host", "ip", "port"), &RtsoMain::net_retarget_host);
-	ClassDB::bind_method(D_METHOD("get_turn_hash", "turn"), &RtsoMain::get_turn_hash);
-
-	const StringName cls = get_class_static();
-	auto bind_enum = [&](const char *enum_name, const char *name, int64_t value) {
-		ClassDB::bind_integer_constant(cls, enum_name, name, value);
-	};
-	bind_enum("UnitType", "VILLAGER", rtso::UNIT_VILLAGER);
-	bind_enum("UnitType", "SWORDSMAN", rtso::UNIT_SWORDSMAN);
-	bind_enum("UnitType", "ARCHER", rtso::UNIT_ARCHER);
-	bind_enum("UnitType", "SPEARMAN", rtso::UNIT_SPEARMAN);
-	bind_enum("UnitType", "CAVALRY", rtso::UNIT_CAVALRY);
-	bind_enum("UnitType", "TRADER", rtso::UNIT_TRADER);
-	bind_enum("UnitType", "CATAPULT", rtso::UNIT_CATAPULT);
-	bind_enum("UnitType", "HERO", rtso::UNIT_HERO);
-	bind_enum("UnitType", "TRIREME", rtso::UNIT_TRIREME);
-	bind_enum("UnitType", "ELEPHANT", rtso::UNIT_ELEPHANT);
-	bind_enum("UnitType", "SIEGE_RAM", rtso::UNIT_SIEGE_RAM);
-	bind_enum("UnitType", "HEALER", rtso::UNIT_HEALER);
-	bind_enum("UnitType", "CHARIOT", rtso::UNIT_CHARIOT);
-	bind_enum("UnitType", "WAR_DOG", rtso::UNIT_WAR_DOG);
-	bind_enum("UnitType", "BOLT_SHOOTER", rtso::UNIT_BOLT_SHOOTER);
-	bind_enum("UnitType", "FISHING_BOAT", rtso::UNIT_FISHING_BOAT);
-	bind_enum("UnitType", "MERCHANT_SHIP", rtso::UNIT_MERCHANT_SHIP);
-	bind_enum("UnitType", "FEMALE_CITIZEN", rtso::UNIT_FEMALE_CITIZEN);
-	bind_enum("UnitType", "CARNYX", rtso::UNIT_CARNYX);
-	bind_enum("UnitType", "WORKER_ELEPHANT", rtso::UNIT_WORKER_ELEPHANT);
-	bind_enum("UnitType", "ARCHER_MAIDEN", rtso::UNIT_ARCHER_MAIDEN);
-	bind_enum("UnitType", "CAMEL", rtso::UNIT_CAMEL);
-	bind_enum("UnitType", "SCYTHED_CHARIOT", rtso::UNIT_SCYTHED_CHARIOT);
-	bind_enum("UnitType", "MINISTER", rtso::UNIT_MINISTER);
-	bind_enum("UnitType", "CATAFALQUE", rtso::UNIT_CATAFALQUE);
-	bind_enum("UnitType", "WAGON", rtso::UNIT_WAGON);
-	bind_enum("UnitType", "NONE", rtso::UNIT_TYPE_NONE);
-
-	bind_enum("BuildingType", "TOWN_CENTER", rtso::BLD_TOWN_CENTER);
-	bind_enum("BuildingType", "HOUSE", rtso::BLD_HOUSE);
-	bind_enum("BuildingType", "BARRACKS", rtso::BLD_BARRACKS);
-	bind_enum("BuildingType", "STOREHOUSE", rtso::BLD_STOREHOUSE);
-	bind_enum("BuildingType", "TOWER", rtso::BLD_TOWER);
-	bind_enum("BuildingType", "FARMSTEAD", rtso::BLD_FARMSTEAD);
-	bind_enum("BuildingType", "MARKET", rtso::BLD_MARKET);
-	bind_enum("BuildingType", "FORTRESS", rtso::BLD_FORTRESS);
-	bind_enum("BuildingType", "GATE", rtso::BLD_GATE);
-	bind_enum("BuildingType", "PALISADE_GATE", rtso::BLD_PALISADE_GATE);
-	bind_enum("BuildingType", "SIEGE_WALL", rtso::BLD_SIEGE_WALL);
-	bind_enum("BuildingType", "SIEGE_WALL_GATE", rtso::BLD_SIEGE_WALL_GATE);
-	bind_enum("BuildingType", "TEMPLE", rtso::BLD_TEMPLE);
-	bind_enum("BuildingType", "WONDER", rtso::BLD_WONDER);
-	bind_enum("BuildingType", "DOCK", rtso::BLD_DOCK);
-	bind_enum("BuildingType", "WALL_SEGMENT", rtso::BLD_WALL_SEGMENT);
-	bind_enum("BuildingType", "CORRAL", rtso::BLD_CORRAL);
-	bind_enum("BuildingType", "FIELD", rtso::BLD_FIELD);
-	bind_enum("BuildingType", "STABLE", rtso::BLD_STABLE);
-	bind_enum("BuildingType", "RANGE", rtso::BLD_RANGE);
-	bind_enum("BuildingType", "FORGE", rtso::BLD_FORGE);
-	bind_enum("BuildingType", "ARSENAL", rtso::BLD_ARSENAL);
-	bind_enum("BuildingType", "SENTRY_TOWER", rtso::BLD_SENTRY_TOWER);
-	bind_enum("BuildingType", "OUTPOST", rtso::BLD_OUTPOST);
-	bind_enum("BuildingType", "PALISADE", rtso::BLD_PALISADE);
-	bind_enum("BuildingType", "WALL_TOWER", rtso::BLD_WALL_TOWER);
-	bind_enum("BuildingType", "ELEPHANT_STABLE", rtso::BLD_ELEPHANT_STABLE);
-	bind_enum("BuildingType", "THEATER", rtso::BLD_THEATER);
-	bind_enum("BuildingType", "EMBASSY", rtso::BLD_EMBASSY);
-	bind_enum("BuildingType", "GYMNASIUM", rtso::BLD_GYMNASIUM);
-	bind_enum("BuildingType", "PRYTANEION", rtso::BLD_PRYTANEION);
-	bind_enum("BuildingType", "GEROUSIA", rtso::BLD_GEROUSIA);
-	bind_enum("BuildingType", "SYSSITON", rtso::BLD_SYSSITON);
-	bind_enum("BuildingType", "TACHARA", rtso::BLD_TACHARA);
-	bind_enum("BuildingType", "ARMY_CAMP", rtso::BLD_ARMY_CAMP);
-	bind_enum("BuildingType", "AMPHITHEATER", rtso::BLD_AMPHITHEATER);
-	bind_enum("BuildingType", "LIBRARY", rtso::BLD_LIBRARY);
-	bind_enum("BuildingType", "KENNEL", rtso::BLD_KENNEL);
-	bind_enum("BuildingType", "ASSEMBLY", rtso::BLD_ASSEMBLY);
-	bind_enum("BuildingType", "MONUMENT", rtso::BLD_MONUMENT);
-	bind_enum("BuildingType", "PALACE", rtso::BLD_PALACE);
-	bind_enum("BuildingType", "PILLAR", rtso::BLD_PILLAR);
-	bind_enum("BuildingType", "PYRAMID_LARGE", rtso::BLD_PYRAMID_LARGE);
-	bind_enum("BuildingType", "PYRAMID_SMALL", rtso::BLD_PYRAMID_SMALL);
-	bind_enum("BuildingType", "MERCENARY_CAMP", rtso::BLD_MERCENARY_CAMP);
-	bind_enum("BuildingType", "LIGHTHOUSE", rtso::BLD_LIGHTHOUSE);
-	bind_enum("BuildingType", "MILITARY_COLONY", rtso::BLD_MILITARY_COLONY);
-	bind_enum("BuildingType", "ACADEMY", rtso::BLD_ACADEMY);
-	bind_enum("BuildingType", "MINISTRY", rtso::BLD_MINISTRY);
-	bind_enum("BuildingType", "CAMP_BLEMMYE", rtso::BLD_CAMP_BLEMMYE);
-	bind_enum("BuildingType", "CAMP_NOBA", rtso::BLD_CAMP_NOBA);
-	bind_enum("BuildingType", "TEMPLE_AMUN", rtso::BLD_TEMPLE_AMUN);
-	bind_enum("BuildingType", "TEMPLE_VESTA", rtso::BLD_TEMPLE_VESTA);
-	bind_enum("BuildingType", "TEMPLE_MARS", rtso::BLD_TEMPLE_MARS);
-	bind_enum("BuildingType", "ICE_HOUSE", rtso::BLD_ICE_HOUSE);
-	bind_enum("BuildingType", "SUPER_DOCK", rtso::BLD_SUPER_DOCK);
-
-	bind_enum("Civilization", "ATHENIANS", rtso::CIV_ATHENIANS);
-	bind_enum("Civilization", "SPARTANS", rtso::CIV_SPARTANS);
-	bind_enum("Civilization", "PERSIANS", rtso::CIV_PERSIANS);
-	bind_enum("Civilization", "ROMANS", rtso::CIV_ROMANS);
-	bind_enum("Civilization", "CARTHAGINIANS", rtso::CIV_CARTHAGINIANS);
-	bind_enum("Civilization", "MACEDONIANS", rtso::CIV_MACEDONIANS);
-	bind_enum("Civilization", "BRITONS", rtso::CIV_BRITONS);
-	bind_enum("Civilization", "GAULS", rtso::CIV_GAULS);
-	bind_enum("Civilization", "IBERIANS", rtso::CIV_IBERIANS);
-	bind_enum("Civilization", "MAURYANS", rtso::CIV_MAURYANS);
-	bind_enum("Civilization", "KUSHITES", rtso::CIV_KUSHITES);
-	bind_enum("Civilization", "PTOLEMIES", rtso::CIV_PTOLEMIES);
-	bind_enum("Civilization", "SELEUCIDS", rtso::CIV_SELEUCIDS);
-	bind_enum("Civilization", "HAN", rtso::CIV_HAN);
-	bind_enum("Civilization", "GERMANS", rtso::CIV_GERMANS);
-}
-
 RtsoMain::RtsoMain() {
 	sim = new rtso::Simulation();
 }
@@ -326,14 +71,6 @@ void RtsoMain::_notification(int p_what) {
 			rtso::hide_node_popups(this);
 		}
 	}
-}
-
-static Ref<Texture2D> load_tex(const String &path) {
-	if (ResourceLoader::get_singleton()->exists(path)) {
-		Ref<Texture2D> tex = ResourceLoader::get_singleton()->load(path);
-		if (tex.is_valid()) return tex;
-	}
-	return Ref<Texture2D>();
 }
 
 void RtsoMain::play_voice(const char *path) {
@@ -456,72 +193,6 @@ void RtsoMain::debug_gather_nearest() {
 	else
 		sim->order_gather(idle.data(), idle.size(), best, false);
 	if (cam_rig) cam_rig->set_target_pos(Vector3(x, 0.0f, z));
-}
-
-bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execute, bool queued, String *tooltip) {
-	if (!sim || selected_ids.is_empty() || b.wrecked || b.build_progress < 1.0f) return false;
-	const uint8_t me = local_player();
-	auto uv = sim->units();
-	std::vector<uint32_t> traders;
-	uint8_t kind = rtso::UNIT_TRADER;
-	for (int s = 0; s < selected_ids.size(); ++s) {
-		const uint32_t id = (uint32_t)(int64_t)selected_ids[s];
-		for (size_t i = 0; i < uv.count; ++i) {
-			if (uv.id[i] != id) continue;
-			// getActionInfo: a market or dock for Organic traders, a dock for ships, not an enemy's.
-			if (uv.alive[i] && uv.team[i] == me && rtso::unit_is_trader(uv.unit_type[i]) &&
-					sim->can_trade_at(me, b, uv.unit_type[i])) {
-				traders.push_back(id);
-				kind = uv.unit_type[i];
-			}
-			break;
-		}
-	}
-	if (traders.empty()) return false;
-	std::sort(traders.begin(), traders.end());
-
-	const rtso::Simulation::Building *origin = nullptr;
-	if (trade_origin_market_ && trade_origin_traders_ == traders)
-		for (const auto &o : sim->buildings())
-			if (o.id == trade_origin_market_ && !o.wrecked && sim->can_trade_at(me, o, kind)) origin = &o;
-
-	auto gain_text = [&](const rtso::Simulation::Building &from, const rtso::Simulation::Building &to) {
-		const auto g = sim->calculate_trade_gain(from, to, me, kind);
-		String t = String::num_int64(g.trader);
-		if (g.market1 || g.market2) t += " (+" + String::num_int64(g.market1 + g.market2) + " to the markets' owners)";
-		return t;
-	};
-
-	if (!origin || origin->id == b.id) {
-		// "set first" / "is first" (Trader.js SetTargetMarket with no first market yet).
-		if (tooltip) *tooltip = origin ? String("Origin trade market.") : String("Right-click to set as origin trade market");
-		if (execute) {
-			trade_origin_market_ = b.id;
-			trade_origin_traders_ = traders;
-			chat_window_.append_line("Origin trade market set. Right-click another market to start trading.");
-			play_civ_voice("trade");
-		}
-		return true;
-	}
-	const auto g = sim->calculate_trade_gain(*origin, b, me, kind);
-	if (g.trader == 0) {
-		if (tooltip) *tooltip = "This market is too close to the origin market.";
-		if (execute) chat_window_.append_line("This market is too close to the origin market.");
-		return true;
-	}
-	if (tooltip) *tooltip = "Right-click to set as destination trade market.\nGain: " + gain_text(*origin, b);
-	if (execute) {
-		if (turn_cmds())
-			post_lockstep((uint8_t)rtso::NetCommandType::NET_CMD_SETUP_TRADE_ROUTE, traders.data(), traders.size(),
-					(float)b.id, 0, origin->id, queued ? rtso::NET_PARAM_QUEUED : 0);
-		else
-			sim->order_trade(traders.data(), traders.size(), origin->id, b.id, queued);
-		chat_window_.append_line("Trade route set. Gain: " + gain_text(*origin, b));
-		play_civ_voice("trade");
-		trade_origin_market_ = 0;
-		trade_origin_traders_.clear();
-	}
-	return true;
 }
 
 // Test hook (single player): two markets and two traders by the local Town
@@ -1070,47 +741,6 @@ void RtsoMain::trigger_flare(float x, float z) {
 	play_alarm("res://assets/audio/interface/alarm/alarmally_1.ogg");
 }
 
-// MiniMap.js onWorldClick, right button: determineAction with no entity under the
-// cursor, so a structure sets its rally point and units walk there (attack-walk
-// with session.attackmove), queued with session.queue.
-void RtsoMain::_on_minimap_order(Vector2 world_pos) {
-	if (!sim) return;
-	if (rtso::hotkeys::held("session.flare")) {
-		trigger_flare(world_pos.x, world_pos.y);
-		return;
-	}
-	const bool queued = rtso::hotkeys::held("session.queue");
-	const uint8_t qbit = queued ? rtso::NET_PARAM_QUEUED : 0;
-	if (selected_building_id != 0) {
-		if (turn_cmds()) {
-			uint32_t extra[2] = {0, 0};
-			post_lockstep(14, extra, 2, world_pos.x, world_pos.y, selected_building_id, qbit);
-		} else {
-			sim->cmd_set_rally_point(local_player(), selected_building_id, world_pos.x, world_pos.y, 0, 0, queued);
-		}
-		return;
-	}
-	if (selected_ids.is_empty()) return;
-	const uint32_t *sel_ptr = (const uint32_t *)selected_ids.ptr();
-	const size_t sel_n = selected_ids.size();
-	range_overlays_.add_marker(world_pos.x, world_pos.y, Color(1, 1, 1, 0.9f), RtsoRangeOverlays::kMoveMarkerTime);
-	const bool units_only = rtso::hotkeys::held("session.attackmoveUnit"); // targetClasses Unit
-	if (rtso::hotkeys::held("session.attackmove") || units_only) {
-		if (turn_cmds())
-			post_lockstep(10, sel_ptr, sel_n, world_pos.x, world_pos.y, 0,
-					(uint8_t)(qbit | (units_only ? rtso::NET_PARAM_UNITS_ONLY : 0)));
-		else
-			sim->order_attack_move(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, units_only, true);
-		play_civ_voice("attack");
-		return;
-	}
-	if (turn_cmds())
-		post_lockstep(1, sel_ptr, sel_n, world_pos.x, world_pos.y, 0, qbit);
-	else
-		sim->order_walk(sel_ptr, sel_n, world_pos.x, world_pos.y, queued, true);
-	play_civ_voice("move");
-}
-
 void RtsoMain::_on_idle_worker_clicked() {
 	cycle_idle_worker();
 }
@@ -1423,148 +1053,6 @@ bool RtsoMain::over_own_rally_structure(const Vector3 &at) const {
 		return std::fabs(u) <= hu && std::fabs(v) <= hv;
 	}
 	return false;
-}
-
-void RtsoMain::update_cursor() {
-	Viewport *vp = get_viewport();
-	if (!sim || !vp) return;
-	const char *want = "";
-	String tip; // the action's tooltip, shown beside the cursor (0 A.D. cursor tooltips)
-	Vector2 hot(1, 1);
-	const Vector2 mouse = vp->get_mouse_position();
-	const bool over_ui = vp->gui_get_hovered_control() != nullptr;
-	if (!over_ui && !build_mode) {
-		if (rtso::hotkeys::held("session.flare")) {
-			want = "action-flare";
-		} else if (selected_building_id != 0 && selected_ids.is_empty()) {
-			if (over_own_rally_structure(get_ground_click_pos(mouse))) {
-				want = "action-unset-rally";
-			} else {
-				want = "cursor-rally";
-				hot = Vector2(5, 31);
-			}
-		} else if (!selected_ids.is_empty()) {
-			const Vector3 at = get_ground_click_pos(mouse);
-			const uint8_t me = local_player();
-			auto near2 = [&](float x, float z, float r) { return (x - at.x) * (x - at.x) + (z - at.z) * (z - at.z) <= r * r; };
-			if (attack_move_mode || call_to_arms_mode || rtso::hotkeys::held("session.attackmove") ||
-					rtso::hotkeys::held("session.attackmoveUnit") || rtso::hotkeys::held("session.calltoarms"))
-				want = "action-attack-move";
-			else if (patrol_mode || rtso::hotkeys::held("session.patrol")) want = "action-patrol";
-			else if (guard_mode || rtso::hotkeys::held("session.guard")) want = "action-guard";
-			else if (garrison_mode) want = "action-garrison";
-			else if (repair_mode) want = "action-repair";
-			if (!*want) {
-				auto uv = sim->units();
-				bool healer = false, builder = false;
-				for (int s = 0; s < selected_ids.size() && !(healer && builder); ++s)
-					for (size_t i = 0; i < uv.count; ++i)
-						if (uv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
-							const uint16_t tm = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-							healer = healer || rtso::unit_is_healer(tm, uv.unit_type[i]);
-							builder = builder || (rtso::unit_can_build(uv.unit_type[i], tm) && !sim->nonbuilder(uv.id[i]));
-							break;
-						}
-				for (size_t i = 0; i < uv.count && !*want; ++i) {
-					if (!uv.alive[i] || !near2(uv.pos_x[i], uv.pos_z[i], 2.2f)) continue;
-					if (sim->is_hostile(me, uv.team[i])) want = "action-attack";
-					// unit_actions "repair": a builder over a damaged own or allied siege engine or ship.
-					else if (builder && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])) &&
-							sim->is_repairable_unit(uv.id[i]))
-						want = "action-repair";
-					// 0 A.D. unit_actions "heal": a healer over a wounded own or allied unit.
-					else if (healer && uv.hp[i] < uv.max_hp[i] && (uv.team[i] == me || sim->is_ally(me, uv.team[i])))
-						want = "action-heal";
-				}
-			}
-			if (!*want) {
-				// unit_actions "collect-treasure": only for a selection with a TreasureCollector
-				// (not dogs, siege engines or catafalques).
-				bool collector = false;
-				auto cuv = sim->units();
-				for (int s = 0; s < selected_ids.size() && !collector; ++s)
-					for (size_t i = 0; i < cuv.count; ++i)
-						if (cuv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
-							collector = sim->treasure_reach(i) >= 0.0f;
-							break;
-						}
-				for (const auto &t : sim->treasures())
-					if (collector && near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
-			}
-			if (!*want) {
-				auto fv = sim->fauna();
-				for (size_t f = 0; f < fv.count && !*want; ++f) {
-					// A penned animal is garrisoned in its corral: nothing to do with it.
-					if (!fv.alive[f] || fv.behavior[f] == rtso::FAUNA_CORRALLED || !near2(fv.pos_x[f], fv.pos_z[f], 2.5f)) continue;
-					// Slaughter for livestock as for game (0 A.D.); Alt herds your own to a corral.
-					const bool herd = rtso::fauna_type_info(fv.fauna_type[f]).is_domestic() && fv.owner[f] == local_player() &&
-					                  Input::get_singleton()->is_key_pressed(KEY_ALT);
-					want = herd ? "action-herd" : "action-gather-meat";
-				}
-			}
-			if (!*want) {
-				if (const uint32_t sid = scenery_at(at.x, at.z); sid != 0) {
-					const int32_t k = sim->scenery_index(sid);
-					const bool ctrl = rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove");
-					want = k >= 0 && sim->scenery_capturable(sim->scenery()[k]) && !ctrl ? "action-capture" : "action-attack";
-				}
-			}
-			if (!*want) {
-				auto rv = sim->resources();
-				for (size_t r = 0; r < rv.count && !*want; ++r) {
-					if (!rv.alive[r] || rv.amount[r] <= 0 || !near2(rv.x[r], rv.z[r], 2.2f)) continue;
-					switch (rv.type[r]) {
-						case rtso::RES_WOOD: want = "action-gather-tree"; break;
-						case rtso::RES_GOLD: want = "action-gather-ore"; break;
-						case rtso::RES_STONE: want = "action-gather-rock"; break;
-						default:
-							want = rv.subtype[r] == rtso::RES_SUB_MEAT ? "action-gather-meat"
-									: rv.subtype[r] == rtso::RES_SUB_GRAIN ? "action-gather-grain"
-									: rv.subtype[r] == rtso::RES_SUB_FISH ? "action-gather-fish" : "action-gather-fruit";
-					}
-				}
-			}
-			if (!*want) {
-				for (const auto &b : sim->buildings()) {
-					if (b.wrecked || !near2(b.x, b.z, b.half_size + 1.2f)) continue;
-					if (trade_route_click(b, false, false, &tip)) {
-						want = "action-setup-trade-route";
-						break;
-					}
-					// 0 A.D. "capture" is the default on enemy structures; session.attack
-					// (or attack-move's Ctrl) attacks instead.
-					if (b.team == rtso::GAIA_PLAYER && b.type == rtso::BLD_FIELD && sim->field_resource_id(b.id))
-						want = "action-gather-grain";
-					else if (b.team != me && sim->is_hostile(me, b.team))
-						want = (rtso::hotkeys::held("session.attack") || rtso::hotkeys::held("session.attackmove") ||
-										  b.max_capture_points <= 0.0f)
-								? "action-attack" : "action-capture";
-					else if (b.team != me && !sim->is_ally(me, b.team)) want = ""; // neutral
-					else if (b.build_progress < 1.0f || (b.type == rtso::BLD_FIELD && b.team == me)) want = "action-build";
-					else if (b.hp < b.max_hp) want = "action-repair"; // own or allied (unit_actions "repair")
-					// unit_actions "garrison": an own or allied holder whose List takes a selected unit.
-					else if (selection_can_garrison(b.id)) want = "action-garrison";
-					break;
-				}
-			}
-		}
-	}
-	if (cursor_tip_) {
-		cursor_tip_->set_visible(!tip.is_empty());
-		if (!tip.is_empty()) {
-			if (cursor_tip_->get_text() != tip) cursor_tip_->set_text(tip);
-			cursor_tip_->set_position(mouse + Vector2(24, 20));
-		}
-	}
-	if (cursor_name_ == want) return;
-	cursor_name_ = want;
-	Input *in = Input::get_singleton();
-	if (!*want) {
-		in->set_custom_mouse_cursor(Ref<Resource>());
-		return;
-	}
-	Ref<Texture2D> tex = load_tex(String("res://assets/textures/cursors/") + want + ".png");
-	in->set_custom_mouse_cursor(tex, Input::CURSOR_ARROW, hot);
 }
 
 static const char *const kQuicksavePath = "user://saves/quicksave.rts0sav";
@@ -2556,88 +2044,6 @@ void RtsoMain::sync_observer_view_picker() {
 	if (observer_mode_label_) observer_mode_label_->set_visible(observer_view_ == rtso::OBSERVER_VIEW);
 }
 
-Vector3 RtsoMain::get_ground_click_pos(Vector2 mouse_pos) const {
-	if (!cam_rig || !cam_rig->get_camera()) return Vector3();
-	Camera3D *cam = cam_rig->get_camera();
-	Vector3 ray_origin = cam->project_ray_origin(mouse_pos);
-	Vector3 ray_dir = cam->project_ray_normal(mouse_pos);
-	if (std::abs(ray_dir.y) < 0.0001f) return Vector3();
-	const float t_plane = -ray_origin.y / ray_dir.y;
-	// The ground the player sees is the heightmap, not y = 0 (0 A.D.'s
-	// GetTerrainCursorPosition): walk the ray down until it passes under the
-	// terrain, then bisect that step. Without a heightmap, or when the ray
-	// never meets it, the y = 0 plane stands in.
-	if (sim && ray_dir.y < 0.0f && !sim->terrain_heights().empty()) {
-		constexpr float STEP = 0.5f;
-		const float t_end = std::max(t_plane, 0.0f) + 400.0f;
-		float prev = 0.0f;
-		for (float t = 0.0f; t <= t_end; t += STEP) {
-			const Vector3 p = ray_origin + ray_dir * t;
-			if (p.y > sim->get_terrain_height(p.x, p.z)) {
-				prev = t;
-				continue;
-			}
-			float lo = prev, hi = t;
-			for (int i = 0; i < 12; ++i) {
-				const float mid = 0.5f * (lo + hi);
-				const Vector3 m = ray_origin + ray_dir * mid;
-				(m.y > sim->get_terrain_height(m.x, m.z) ? lo : hi) = mid;
-			}
-			const Vector3 hit = ray_origin + ray_dir * hi;
-			return Vector3(hit.x, sim->get_terrain_height(hit.x, hit.z), hit.z);
-		}
-	}
-	return ray_origin + ray_dir * t_plane;
-}
-
-// The local player's structure whose box the mouse ray enters first: its
-// turned footprint (hu, hv) from the ground up to a height that grows with its
-// size, so a click on a roof selects it and not the ground behind it.
-uint32_t RtsoMain::building_under_mouse(Vector2 mouse_pos, float *hit_t) const {
-	if (!sim || !cam_rig || !cam_rig->get_camera()) return 0;
-	Camera3D *cam = cam_rig->get_camera();
-	const Vector3 o = cam->project_ray_origin(mouse_pos);
-	const Vector3 d = cam->project_ray_normal(mouse_pos);
-	uint32_t best = 0;
-	float best_t = 1e30f;
-	for (const auto &b : sim->buildings()) {
-		if (b.team != local_player()) continue;
-		const float hu = (b.hu > 0.0f ? b.hu : b.half_size) + 0.3f;
-		const float hv = (b.hv > 0.0f ? b.hv : b.half_size) + 0.3f;
-		const float base = sim->get_terrain_height(b.x, b.z);
-		// The model's own height (ModelLibrary bounds), else one from its size.
-		float height = std::clamp(std::max(hu, hv) * 1.2f, 1.5f, 8.0f);
-		const auto model = rtso::ModelLibrary::get("buildings", String(rtso::civ_building_model(sim->team_civ(b.team), b.type)));
-		if (model.valid && model.aabb.size.y > 0.1f)
-			height = model.y_offset + model.aabb.size.y * (model.scale > 0.05f ? model.scale : 1.0f);
-		const float top = base + height;
-		// The ray in the structure's frame: u along (ux, uz), v across it.
-		const float px = o.x - b.x, pz = o.z - b.z;
-		const float po[3] = {px * b.ux + pz * b.uz, o.y, -px * b.uz + pz * b.ux};
-		const float pd[3] = {d.x * b.ux + d.z * b.uz, d.y, -d.x * b.uz + d.z * b.ux};
-		const float lo[3] = {-hu, base - 0.5f, -hv}, hi[3] = {hu, top, hv};
-		float t0 = 0.0f, t1 = 1e30f;
-		bool hit = true;
-		for (int a = 0; a < 3 && hit; ++a) {
-			if (std::fabs(pd[a]) < 1e-6f) {
-				hit = po[a] >= lo[a] && po[a] <= hi[a];
-				continue;
-			}
-			float ta = (lo[a] - po[a]) / pd[a], tb = (hi[a] - po[a]) / pd[a];
-			if (ta > tb) std::swap(ta, tb);
-			t0 = std::max(t0, ta);
-			t1 = std::min(t1, tb);
-			hit = t0 <= t1;
-		}
-		if (hit && t0 < best_t) {
-			best_t = t0;
-			best = b.id;
-		}
-	}
-	if (hit_t) *hit_t = best_t;
-	return best;
-}
-
 std::pair<int, int> RtsoMain::mouse_cell(Vector2 mouse_pos) const {
 	Vector3 pos = get_ground_click_pos(mouse_pos);
 	int cx = (int)std::floor(pos.x / rtso::Simulation::GRID);
@@ -2852,6 +2258,43 @@ float RtsoMain::placement_angle_at(uint8_t btype, float x, float z) const {
 		if (!std::isnan(a)) return a;
 	}
 	return placement_angle;
+}
+
+void RtsoMain::snap_placement_to_edges(uint8_t btype, int &cell_x, int &cell_y) {
+	if (!sim || btype == rtso::BLD_DOCK) return;
+	// isSnapToEdgesEnabled: the hotkey turns it on, or off when the option is "enabled".
+	if (rtso::hotkeys::held("session.snaptoedges") == (rtso::user_config::get("gui.session.snaptoedges") == "enabled")) return;
+	const float GRID = rtso::Simulation::GRID;
+	const int fp = rtso::building_type_info(btype).footprint;
+	const float half = fp * GRID * 0.5f;
+	const float x = cell_x * GRID + half, z = cell_y * GRID + half;
+	// The structures the player has seen (GetEntitiesWithStaticObstructionOnScreen draws mirages too).
+	std::vector<rtso::snap::Rect> rects;
+	const float reach = rtso::snap::kDistanceThreshold + 2.0f * half + 4.0f * GRID;
+	for (const auto &b : sim->buildings()) {
+		if (b.wrecked || std::fabs(b.x - x) > reach || std::fabs(b.z - z) > reach) continue;
+		if (!sim->los_explored(local_player(), b.x, b.z)) continue;
+		rects.push_back({b.x, b.z, b.half_size, b.half_d, b.rot});
+	}
+	const std::vector<rtso::snap::Edge> edges = rtso::snap::edges_near(rects, x, z);
+	rtso::snap::Result r;
+	if (!rtso::snap::snap_position(edges, half, rtso::building_half_depth(btype, half), x, z, placement_angle, r)) return;
+	placement_angle = r.angle;
+	// RTS0 places on GRID cells: the cell nearest the flush centre that can be built, else the nearest.
+	const float fx = r.x / GRID - fp * 0.5f, fz = r.z / GRID - fp * 0.5f;
+	int best_x = (int)std::lround(fx), best_y = (int)std::lround(fz);
+	float best_d = 1e30f;
+	for (int cx = (int)std::floor(fx); cx <= (int)std::floor(fx) + 1; ++cx)
+		for (int cy = (int)std::floor(fz); cy <= (int)std::floor(fz) + 1; ++cy) {
+			const float d = (cx - fx) * (cx - fx) + (cy - fz) * (cy - fz);
+			if (d >= best_d) continue;
+			if (sim->check_placement(local_player(), cx, cy, btype, r.angle) != rtso::Simulation::PLACE_OK) continue;
+			best_d = d;
+			best_x = cx;
+			best_y = cy;
+		}
+	cell_x = best_x;
+	cell_y = best_y;
 }
 
 void RtsoMain::try_train_unit(rtso::UnitType utype) {
@@ -3118,6 +2561,17 @@ Dictionary RtsoMain::get_lobby_state() const {
 	d["seat"] = (int)seat_player();
 	d["oos"] = turn_mgr_.has_out_of_sync();
 	d["oos_turn"] = (int64_t)turn_mgr_.oos_turn();
+	// OutOfSyncNetwork's message: who, whether ours matches the host's, and the files.
+	Array oos_players;
+	for (const auto &n : turn_mgr_.oos_players()) oos_players.push_back(String::utf8(n.c_str()));
+	d["oos_players"] = oos_players;
+	d["oos_identical"] = turn_mgr_.oos_matches_host();
+	d["oos_dump"] = String::utf8(turn_mgr_.oos_dump_path().c_str());
+	d["oos_replay"] = replay_dir_.is_empty() ? String()
+			: ProjectSettings::get_singleton()->globalize_path(replay_dir_ + String("commands.rts0rec"));
+	bool ai = false;
+	for (uint8_t p = 0; sim && p < rtso::MAX_PLAYERS; ++p) ai = ai || (sim->player(p).active && sim->player(p).is_ai);
+	d["oos_ai"] = ai;
 	d["disconnected"] = net_disconnected_;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
@@ -3680,6 +3134,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for Start (NMT_GAME_START) before any lockstep turn
+	net_oos_shown_turn_ = 0;
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();
@@ -3815,6 +3270,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	apply_net_options();
 	turn_mgr_.clear_game_started();
 	net_game_started_ = false; // wait for host's NMT_GAME_START before lockstep turns
+	net_oos_shown_turn_ = 0;
 	net_setup_ = rtso::NetSetupState();
 	net_setup_key_.clear();
 	net_setup_sent_.clear();

@@ -2777,7 +2777,9 @@ static void test_defense_armies() {
 	std::vector<uint32_t> east, west;
 	for (int k = 0; k < 3; ++k) east.push_back(s->spawn_unit(cx + 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
 	for (int k = 0; k < 3; ++k) west.push_back(s->spawn_unit(cx - 9.0f, cz - 8.0f + (float)k, 0, UNIT_SWORDSMAN, 1.0e4f));
-	run_ai_turns(*s, 3); // checkEnemyUnits looks in our land one turn in (players + 1)
+	// checkEnemyUnits looks in our land one turn in (players + 1): the armies form within three
+	// turns, and are counted the turn they do, before the fight moves either group.
+	for (int t = 0; t < 3 && s->petra_defense_armies().empty(); ++t) run_ai_turns(*s, 1);
 	const auto &armies = s->petra_defense_armies();
 	size_t with_defenders = 0;
 	for (const auto &a : armies) with_defenders += !a.defender_ids.empty();
