@@ -66,6 +66,25 @@ func run() -> void:
 			trains += b["units"].size()
 		check(trains > 10, "%s: structures train %d units" % [civs[i]["name"], trains])
 	check(empty_history.is_empty(), "every civ has its 0 A.D. history " + str(empty_history))
+	# 0.28 structree: the civ header, a production row per phase under each box, the
+	# Trainer Units section and EntityBox tooltips.
+	civinfo._on_civ_selected(0) # Athenians: their warships train marines
+	check(tree._civ_name.text == civs[0]["name"] and tree._history.text != "", "the tree shows the civ's name and history")
+	check(tree._trainer_section.visible and tree._trainers.get_child_count() >= 2, "Athenian warships are Trainer Units")
+	var village_box: Control = null
+	for row in tree._rows.get_children():
+		if row is HFlowContainer and village_box == null and row.get_child_count() > 0:
+			village_box = row.get_child(0)
+	var bars := 0
+	for c in village_box.get_child(0).get_children():
+		if c is PanelContainer:
+			bars += 1
+	check(bars == 3, "a village structure has a production row for each phase (%d)" % bars)
+	var tip_btn = village_box.get_child(0).get_child(1)
+	var tip: String = tip_btn._tooltip_text()
+	check(tip.contains("Cost:") and tip.contains("Health:"), "a structure's tooltip has its cost and stats")
+	civinfo._on_civ_selected(1) # Spartans: no trainer units
+	check(not tree._trainer_section.visible, "the Trainer Units section hides when a civ has none")
 
 	print("2. Template Viewer")
 	var bad := []

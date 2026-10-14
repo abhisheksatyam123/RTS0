@@ -329,7 +329,7 @@ inline constexpr PromotionXpTech PROMOTION_XP_TECHS[] = {
 	{TECH_ART_OF_WAR, 0.8f, false, 0x0ull, 0x0ull, 0},
 	{TECH_HOPLITE_TRADITION, 0.5f, false, 0x2100ull, 0x10000ull, 0},
 	{TECH_ROMAN_REFORMS, 1.0f, true, 0x40000000ull, 0x0ull, 0},
-	{TECH_ROMAN_REFORMS, 1.0f, true, 0x40ull, 0x0ull, 0},
+	{TECH_ROMAN_REFORMS, 1.0f, true, 0x40ull, TechClasses{0x0ull, 0x4ull}, 0},
 	{TECH_SILVERSHIELDS, 1.0f, true, 0x8100ull, 0x0ull, 0},
 	{TECH_NONE, 1.25f, false, 0x840ull, 0x0ull, 0},
 	{TECH_NONE, 1.0f, true, 0x1000000000000000ull, 0x0ull, 1},
