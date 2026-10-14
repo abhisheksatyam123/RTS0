@@ -1185,6 +1185,8 @@ void RtsoMain::play_civ_voice(const char *action) {
 void RtsoMain::debug_gather_nearest() {
 	if (!sim || net_lockstep()) return;
 	std::vector<uint32_t> idle = sim->get_idle_workers(local_player());
+	if (idle.empty()) // no idle worker: the selection gathers (e2e_formation_options)
+		for (int i = 0; i < selected_ids.size(); ++i) idle.push_back((uint32_t)(int64_t)selected_ids[i]);
 	if (idle.empty()) return;
 	auto uv = sim->units();
 	float x = 0.0f, z = 0.0f;
@@ -1483,6 +1485,7 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["tmpl"] = (int64_t)uview.tmpl[i];
 		u["rank"] = (int64_t)uview.rank[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
+		u["formation"] = (int64_t)sim->formation_of_unit(uview.id[i]);
 		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
 		const rtso::TechClasses tc = uview.tmpl[i] < rtso::CIV_UNIT_TEMPLATE_COUNT ? rtso::civ_unit_template(uview.tmpl[i]).tech_classes
 				: rtso::unit_tech_classes(uview.unit_type[i]);
