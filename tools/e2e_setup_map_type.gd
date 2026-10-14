@@ -92,7 +92,7 @@ func run() -> void:
 	check(filter_titles(page) == ["Default", "Naval Maps", "Trigger Maps", "All Maps"], "a skirmish's filters: " + str(filter_titles(page)))
 	check(not ids(page).has("cycladic_archipelago"), "Default hides naval maps")
 	set_filter(page, "Naval Maps")
-	check(ids(page).has("cycladic_archipelago") and ids(page).has("nile_river") and ids(page).size() == 3, "Naval Maps: " + str(ids(page)))
+	check(ids(page).has("cycladic_archipelago") and ids(page).has("nile_river") and ids(page).has("yangtze") and ids(page).size() == 4, "Naval Maps: " + str(ids(page)))
 	set_filter(page, "Default")
 
 	print("3. Random maps")

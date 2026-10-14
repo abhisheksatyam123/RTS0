@@ -64,12 +64,16 @@ def build(public):
         skirm.setdefault(stem, []).append((n, p))
     maps = {}
     for f in sorted(glob.glob(os.path.join(ROOT, "data/maps/*.json"))):
-        mid = os.path.basename(f)[:-5]
+        key = mid = os.path.basename(f)[:-5]
         if mid in TUTORIALS:
             continue
         rts0 = json.load(open(f, encoding="utf-8"))
         n = player_count(rts0.get("name", "")) or len(rts0.get("players", []))
         entry = None
+        sized = re.match(r"(.*?)_(\d+)p(?:v\d+p)?$", mid)
+        if mid not in skirm and sized and sized.group(1) in skirm:
+            # <stem>_<N>p: one size of a skirmish 0.28 ships in several (Tarim Basin).
+            mid, n = sized.group(1), int(sized.group(2))
         # A "(N players)" name is the skirmish of that size; scenarios have bare names.
         if mid in skirm and (mid not in scen or player_count(rts0.get("name", ""))):
             cands = sorted(skirm[mid], key=lambda c: (c[0] != n, c[0] or 0))
@@ -94,10 +98,13 @@ def build(public):
         else:
             print("no 0.28 map for %s" % mid, file=sys.stderr)
             continue
-        maps[mid] = entry
+        maps[key] = entry
     random, placements, biomes = {}, {}, {}
     for p in sorted(glob.glob(os.path.join(public, "maps/random/*.json"))):
-        s = json.load(open(p, encoding="utf-8")).get("settings", {})
+        doc = json.load(open(p, encoding="utf-8"))
+        if not isinstance(doc, dict):  # a heightmap image's <name>.png.json, not a map script
+            continue
+        s = doc.get("settings", {})
         name = os.path.basename(p)[:-5]
         random[name] = s.get("Keywords", [])
         if s.get("PlayerPlacements"):

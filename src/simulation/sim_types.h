@@ -2090,6 +2090,7 @@ inline bool relic_modifier_applies(const RelicAuraModifier &m, TechClasses class
 #include "civ_attack_data.h"
 #include "splash_data.h"
 #include "preference_data.h"
+#include "unit_motion_data.h"
 #include "formation.h"
 
 inline constexpr uint16_t CIV_UNIT_TEMPLATE_NONE = 0xFFFF;
@@ -2615,6 +2616,14 @@ static_assert(COMBAT_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT,
 		"rosters changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_attack.py");
 static_assert(COMBAT_BUILDING_ROWS == BLD_TYPE_COUNT, "building types changed: re-run tools/extract_0ad_attack.py");
+// 0 A.D. UnitMotion Acceleration and InstantTurnAngle and Position TurnRate of a unit's template
+// (unit_motion_data.h, from tools/extract_0ad_motion.py).
+static_assert(MOTION_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_motion.py");
+static_assert(MOTION_CLASS_ROWS == UNIT_TYPE_COUNT, "unit types changed: re-run tools/extract_0ad_motion.py");
+inline const UnitMotionProfile &unit_motion(uint16_t tmpl, uint8_t type) {
+	if (tmpl < CIV_UNIT_TEMPLATE_COUNT) return motion_template_table()[tmpl];
+	return motion_class_table()[type < UNIT_TYPE_COUNT ? type : UNIT_VILLAGER];
+}
 // 0 A.D. Attack/<type>/Splash of a unit's primary attack (splash_data.h, from
 // tools/extract_0ad_splash.py): a splash_profiles() row, 0 for none.
 static_assert(SPLASH_TEMPLATE_COUNT == CIV_UNIT_TEMPLATE_COUNT, "rosters changed: re-run tools/extract_0ad_splash.py");
