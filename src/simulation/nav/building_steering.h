@@ -97,15 +97,55 @@ inline bool segment_near_steep(const NavGrid& nav, Vec2 a, Vec2 b, float radius)
 	return false;
 }
 
-// segment_near_steep for the line from `pos` towards `aim` within BUILDING_STEER_RANGE, a hair
+// How steep ground meets the line from `pos` towards `aim` within BUILDING_STEER_RANGE, a hair
 // inside the clearance, so a unit stopped at a cliff's margin by land_step_barred, or a short-path
-// waypoint at an expanded corner, doesn't count as on it.
+// waypoint at an expanded corner, doesn't count as on it: not at all, only in the margin round an
+// aim that lies within it (a tree or a mine up a slope), which the line enters and doesn't leave,
+// or across the way.
+enum TerrainLine { TERRAIN_LINE_CLEAR, TERRAIN_LINE_AIM_MARGIN, TERRAIN_LINE_BLOCKED };
+inline TerrainLine terrain_line(const NavGrid& nav, Vec2 pos, Vec2 aim, float radius)
+{
+	const float r = radius - TERRAIN_EDGE_SLACK;
+	const Vec2 to = aim - pos;
+	const float len = to.length();
+	if (len > BUILDING_STEER_RANGE)
+		return segment_near_steep(nav, pos, pos + to * (BUILDING_STEER_RANGE / len), r) ? TERRAIN_LINE_BLOCKED : TERRAIN_LINE_CLEAR;
+	if (!segment_near_steep(nav, pos, aim, r)) return TERRAIN_LINE_CLEAR;
+	if (!nav.near_steep_tile(aim.x, aim.y, r)) return TERRAIN_LINE_BLOCKED;
+	// Back from the aim, on segment_near_steep's samples, to where the line enters its margin.
+	const float step = 0.5f * nav.map_half / static_cast<float>(nav.steep_tile_res());
+	const int n = std::max(1, static_cast<int>(std::ceil(len / step)));
+	int k = n - 1;
+	while (k >= 1) {
+		const Vec2 p = pos + to * (static_cast<float>(k) / static_cast<float>(n));
+		if (!nav.near_steep_tile(p.x, p.y, r)) break;
+		--k;
+	}
+	if (k < 1) return TERRAIN_LINE_AIM_MARGIN;
+	return segment_near_steep(nav, pos, pos + to * (static_cast<float>(k) / static_cast<float>(n)), r)
+			? TERRAIN_LINE_BLOCKED : TERRAIN_LINE_AIM_MARGIN;
+}
+
 inline bool line_blocked_by_terrain(const NavGrid& nav, Vec2 pos, Vec2 aim, float radius)
+{
+	return terrain_line(nav, pos, aim, radius) == TERRAIN_LINE_BLOCKED;
+}
+
+// A unit whose line to `aim` meets steep ground only in the aim's own margin walks straight at it:
+// a short path search would find no corner nearer the aim than the way in, and the unit would
+// search again at every step. Within a quarter tile of the margin, where land_step_barred stops it,
+// it notes the search that finds no way from there (no_terrain_path_key's note, which
+// motion_feedback ends the walk on soon); otherwise its memo is cleared.
+inline void note_aim_margin(const NavGrid& nav, Vec2 pos, Vec2 aim, float radius, uint32_t note, ShortPathMemo& memo)
 {
 	const Vec2 to = aim - pos;
 	const float len = to.length();
-	const Vec2 end = len > BUILDING_STEER_RANGE ? pos + to * (BUILDING_STEER_RANGE / len) : aim;
-	return segment_near_steep(nav, pos, end, radius - TERRAIN_EDGE_SLACK);
+	const float step = 0.5f * nav.map_half / static_cast<float>(nav.steep_tile_res());
+	const Vec2 p = len > step ? pos + to * (step / len) : aim;
+	if (nav.near_steep_tile(p.x, p.y, radius - TERRAIN_EDGE_SLACK))
+		memo = ShortPathMemo{pos.x, pos.y, aim.x, aim.y, note};
+	else
+		memo.key = 0;
 }
 
 // Calls fn(rows, cell, origin, w, h) with the short path's terrain grid: rows(i, j, n, out) fills
@@ -397,7 +437,7 @@ inline bool no_way_noted(const ShortPathMemo& memo, Vec2 pos, Vec2 aim, uint32_t
 }
 
 // steer_around_buildings once the line to `aim` is known to be blocked by a building, or by steep
-// ground (`by_terrain`).
+// ground; `by_terrain` when steep ground meets the line, whose failed search gets the terrain note.
 template <class Buildings>
 bool steer_round_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
@@ -437,12 +477,15 @@ bool steer_around_buildings(Vec2 pos, Vec2 aim, float radius,
 		const Buildings& buildings, uint32_t ignore_building_id,
 		const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out)
 {
-	const bool by_terrain = detail::line_blocked_by_terrain(nav, pos, aim, radius);
-	if (!by_terrain && !line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id)) {
-		memo.key = 0;
+	const detail::TerrainLine tl = detail::terrain_line(nav, pos, aim, radius);
+	if (tl != detail::TERRAIN_LINE_BLOCKED &&
+	    !line_blocked_by_buildings(pos, aim, BUILDING_STEER_RANGE, radius, buildings, ignore_building_id)) {
+		if (tl == detail::TERRAIN_LINE_AIM_MARGIN) detail::note_aim_margin(nav, pos, aim, radius, no_terrain_path_key(key), memo);
+		else memo.key = 0;
 		return false;
 	}
-	return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, by_terrain, key, memo, out);
+	return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav,
+			tl != detail::TERRAIN_LINE_CLEAR, key, memo, out);
 }
 
 // steer_around_buildings with a second, short list of small obstacles near the unit (trees,
@@ -460,25 +503,23 @@ bool steer_around_obstacles(Vec2 pos, Vec2 aim, float radius,
 		uint32_t ignore_building_id, const NavGrid& nav, uint32_t key, ShortPathMemo& memo, Vec2& out,
 		ShortPathSearchMemo* search = nullptr)
 {
-	const bool by_terrain = detail::line_blocked_by_terrain(nav, pos, aim, radius);
-	by_buildings = by_buildings || by_terrain; // a line steep ground blocks is searched as one a building blocks
-	if (!by_buildings && !small_maybe) {
-		memo.key = 0;
+	const detail::TerrainLine tl = detail::terrain_line(nav, pos, aim, radius);
+	// A search that finds no way where steep ground meets the line is noted as such.
+	const bool by_terrain = tl != detail::TERRAIN_LINE_CLEAR;
+	by_buildings = by_buildings || tl == detail::TERRAIN_LINE_BLOCKED; // a line steep ground blocks is searched as one a building blocks
+	auto straight = [&] {
+		if (tl == detail::TERRAIN_LINE_AIM_MARGIN) detail::note_aim_margin(nav, pos, aim, radius, no_terrain_path_key(key), memo);
+		else memo.key = 0;
 		return false;
-	}
+	};
+	if (!by_buildings && !small_maybe) return straight();
 	fetch(small);
 	if (small.empty()) {
-		if (!by_buildings) {
-			memo.key = 0;
-			return false;
-		}
+		if (!by_buildings) return straight();
 		return detail::steer_round_buildings(pos, aim, radius, buildings, ignore_building_id, nav, by_terrain, key, memo, out,
 				search);
 	}
-	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id)) {
-		memo.key = 0;
-		return false;
-	}
+	if (!by_buildings && !line_blocked_by_buildings(pos, aim, small_range, radius, small, ignore_building_id)) return straight();
 	const ConcatRange<T> both{buildings, small};
 	const Vec2 aim_moved = aim - Vec2(memo.aim_x, memo.aim_z);
 	const bool same_aim = aim_moved.lengthSq() <= SHORT_PATH_AIM_SLACK * SHORT_PATH_AIM_SLACK;
