@@ -619,6 +619,26 @@ int Simulation::order_pop(const ProductionOrder &o, uint8_t player) const {
 	return o.count * unit_pop_cost(tmpl, o.unit_type);
 }
 
+bool Simulation::training_blocked(uint8_t player) const {
+	if (player >= MAX_PLAYERS) return false;
+	bool have_room = false;
+	int room = 0; // pop_max - pop_current, worked out for the first waiting batch
+	auto waits = [&](const ProductionOrder &o) {
+		if (o.started || o.is_tech() || o.unit_type == UNIT_TYPE_NONE) return false;
+		if (!have_room) {
+			room = pop_max(player) - pop_current(player);
+			have_room = true;
+		}
+		return order_pop(o, player) > room; // the same test tick_production makes
+	};
+	for (const auto &b : buildings_)
+		if (b.team == player && b.build_progress >= 1.0f && !b.queue.empty() && b.type != BLD_CORRAL && waits(b.queue.front()))
+			return true;
+	for (const auto &kv : unit_queues_)
+		if (kv.second.player == player && !kv.second.orders.empty() && waits(kv.second.orders.front())) return true;
+	return false;
+}
+
 int Simulation::pop_current(uint8_t player) const {
 	// Player.js popUsed: each unit's Cost/Population.
 	int count = 0;
