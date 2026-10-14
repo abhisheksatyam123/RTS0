@@ -69,6 +69,7 @@
 #include "inspector_view.h"
 #include "objectives_dialog.h"
 #include "tutorial_panel.h"
+#include "cinema_view.h"
 #include "panel_entities_view.h"
 #include "research_progress_view.h"
 #include "debug_overlays.h"
@@ -208,6 +209,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	RtsoDiplomacyDialog diplo_dialog_;
 	rtso::RtsoObjectivesDialog objectives_dialog_;
 	rtso::RtsoTutorialPanel tutorial_panel_;
+	rtso::RtsoCinemaView cinema_view_;
 	rtso::RtsoPanelEntities panel_entities_; // heroes and relics under the top panel
 	rtso::RtsoResearchProgress research_progress_; // technologies being researched, on the right
 	rtso::RtsoDevOverlay dev_overlay_; // Alt+D developer overlay
@@ -377,6 +379,8 @@ public:
 	void perform_group(int grp, GroupAction action);
 	void select_group(int key, bool drop);
 	void _on_garrison_group_clicked(int key);
+	void _on_barter_sell_selected(int resource);
+	Array debug_barter_panel();
 	uint32_t selected_garrison_holder() const;
 	Array debug_garrison_icons() const;
 	void _on_stance_selected(int stance);
@@ -571,6 +575,7 @@ public:
 	void debug_select_entity(int64_t id);
 	void debug_select_units(const PackedInt32Array &ids);
 	int64_t debug_civic_centre_id(int player) const;
+	int64_t debug_spawn_building(int type, float dx, float dz);
 	Dictionary debug_research_any();
 	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);

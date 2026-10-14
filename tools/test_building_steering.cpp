@@ -71,6 +71,10 @@
 //     7 m treasure (half-buried barrels) collects it from beside it.
 // 22. A circular map's edge: no unit walks, is pushed or spawns past the impassable edge 12 m
 //     inside the circle (0.28 MAP_EDGE_TILES) less its class clearance, and no foundation reaches past it.
+// 24. Repair in a house cluster: Petra packs houses corner to corner, so the side of a damaged house
+//     a woman comes from can be shut by a neighbour touching it there. She repairs it from the
+//     nearest open spot she can reach (0 A.D. MoveToTargetRange's goal is the whole range round
+//     the house) instead of pushing at the shut one for good.
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -1276,6 +1280,41 @@ static void forest_cells() {
 	check(rest, "felling a lane opened the rest of a thick wood");
 }
 
+// 24. Repair in a house cluster (soak: Petra women stood 60 s or more at a neighbour's corner). The
+// two clusters are Petra's from soak matches, round the damaged house at the origin; each woman
+// comes from where one stood, and five of them cover every stand point spread (unit id % 5).
+static void repair_in_house_cluster() {
+	struct Case { const char *what; std::vector<std::pair<float, float>> nb; float from[2]; };
+	const Case cases[2] = {
+		{"a diagonal row touching its corner", {{2, 2}, {4, 4}, {6, 4}, {6, 6}, {8, 6}, {8, 8}}, {3.23f, 1.25f}},
+		{"a corner shut by two neighbours", {{0, -2}, {-2, -2}, {-2, -4}, {-4, -4}, {-6, -6}, {-8, -8}}, {1.0f, -3.23f}},
+	};
+	for (const Case &c : cases) {
+		int repaired = 0;
+		for (int k = 0; k < 5; ++k) {
+			Simulation s;
+			setup(s);
+			const uint32_t house = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 1.0f);
+			for (const auto &n : c.nb) s.spawn_building_world(n.first, n.second, BLD_HOUSE, 0, 1.0f);
+			s.tick(DT);
+			float max_hp = 0.0f;
+			for (auto &b : s.buildings_) if (b.id == house) { max_hp = b.max_hp; b.hp = max_hp - 20.0f; }
+			for (int d = 0; d < k; ++d) s.spawn_unit(-40.0f, -40.0f + 2.0f * (float)d, 0, UNIT_FEMALE_CITIZEN);
+			const uint32_t woman = s.spawn_unit(c.from[0], c.from[1], 0, UNIT_FEMALE_CITIZEN);
+			s.order_build_or_repair(&woman, 1, house);
+			float hp = 0.0f;
+			for (int t = 0; t < 400; ++t) {
+				s.tick(DT);
+				for (const auto &b : s.buildings()) if (b.id == house) hp = b.hp;
+				if (hp >= max_hp) break;
+			}
+			if (hp >= max_hp) ++repaired;
+		}
+		std::printf("  repair, %s: %d of 5 women repaired the house within 20 s\n", c.what, repaired);
+		check(repaired == 5, "a woman never repaired a house whose near side a neighbour shuts");
+	}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -1301,6 +1340,7 @@ int main() {
 	trees();
 	circular_map_edge();
 	forest_cells();
+	repair_in_house_cluster();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;

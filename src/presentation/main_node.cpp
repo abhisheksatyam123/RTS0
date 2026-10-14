@@ -476,6 +476,16 @@ void RtsoMain::debug_select_entity(int64_t id) {
 	selected_ids.push_back((int32_t)id);
 }
 
+// Test hook: a finished structure of ours `dx`, `dz` from our Civic Center.
+int64_t RtsoMain::debug_spawn_building(int type, float dx, float dz) {
+	if (!sim) return 0;
+	const uint8_t me = local_player();
+	for (const auto &b : sim->buildings())
+		if (b.team == me && rtso::is_civic_centre(b.type))
+			return sim->spawn_building_world(b.x + dx, b.z + dz, (uint8_t)type, me, 1.0f);
+	return 0;
+}
+
 int64_t RtsoMain::debug_civic_centre_id(int player) const {
 	if (!sim) return 0;
 	for (const auto &b : sim->buildings())
@@ -1791,6 +1801,42 @@ void RtsoMain::_on_pack_pressed(int pack) {
 				selected_ids.size(), 0, 0, 0, pack ? 1 : 0);
 	else
 		sim->order_pack((const uint32_t *)selected_ids.ptr(), selected_ids.size(), pack != 0);
+}
+
+// BarterButton sell press: BarterButtonManager.setSelectedResource.
+void RtsoMain::_on_barter_sell_selected(int resource) {
+	command_panel_.set_barter_sell(resource);
+	update_command_panel();
+}
+
+// The selection's Barter panel, for tests: per resource, its sell and buy buttons.
+Array RtsoMain::debug_barter_panel() {
+	Array out;
+	update_command_panel();
+	Control *host = command_panel_.barter_host();
+	if (!host || !host->is_visible() || host->get_child_count() == 0) return out;
+	Node *panel = host->get_child(host->get_child_count() - 1);
+	for (int i = 0; i < panel->get_child_count(); ++i) {
+		Node *col = panel->get_child(i);
+		Dictionary d;
+		d["name"] = String(col->get_name()).trim_prefix("barter_");
+		for (const char *which : {"sell", "buy"}) {
+			Button *b = Object::cast_to<Button>(col->find_child(which, false, false));
+			if (!b) continue;
+			Dictionary e;
+			e["id"] = (int64_t)b->get_instance_id();
+			e["tip"] = b->get_tooltip_text();
+			Label *cap = Object::cast_to<Label>(b->find_child("caption", false, false));
+			e["caption"] = cap ? cap->get_text() : String();
+			e["selected"] = b->find_child("corners", false, false) != nullptr;
+			bool red = false;
+			for (int k = 0; k < b->get_child_count(); ++k) red = red || Object::cast_to<ColorRect>(b->get_child(k)) != nullptr;
+			e["red"] = red;
+			d[which] = e;
+		}
+		out.push_back(d);
+	}
+	return out;
 }
 
 void RtsoMain::_on_barter_requested(int sell_type, int buy_type, int amount) {

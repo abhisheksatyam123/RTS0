@@ -794,6 +794,59 @@ static void check_unit_motion() {
 	if (failures == before) std::printf("unit_motion_integration_test: 651 units at 3 s, the palisade gone at 7 s: ok\n");
 }
 
+static void check_cinema_demo() {
+	// scenarios/cinema_demo.js: a notice at 1 s, the "test" path queued and played at 6 s
+	// (CCmpCinemaManager): the map is revealed while it plays, OnCinemaPathEnded and
+	// OnCinemaQueueEnded fire when its time is up, and a save mid-path keeps the queue.
+	const int before = failures;
+	static Simulation s, b;
+	auto setup = [](Simulation &sim) {
+		sim.reset();
+		sim.set_sim_seed(SEED);
+		sim.spawn_initial();
+		sim.set_waves_enabled(false);
+		sim.set_victory_condition(VICTORY_ENDLESS);
+		CinemaPath p;
+		std::strcpy(p.info.name, "test");
+		p.info.look_at_target = 1;
+		p.nodes = {{0, 10, 0, 0}, {10, 8, 5, 2}, {20, 6, 0, 3}};
+		p.targets = {{5, 0, 5, 0}, {15, 0, 5, 4}};
+		sim.add_cinema_path(p);
+		sim.add_cinema_path(p); // a second path of the same name is ignored
+	};
+	setup(s);
+	CHECK(s.cinema().paths.size() == 1 && s.cinema().paths[0].duration_ms() == 5000, "one 5 s path");
+	CHECK(s.register_trigger_script("cinema_demo"), "cinema_demo not registered");
+	run_to(s, 1.1f);
+	CHECK(s.trigger_state().notifications.size() == 1 && !s.cinema_playing(), "the notice at 1 s");
+	run_to(s, 6.1f);
+	CHECK(s.cinema_playing() && s.reveal_map() && s.cinema().queue.size() == 1, "the path plays at 6 s, map revealed");
+	run_to(s, 8.0f);
+	const char *path = "/tmp/rts0_test_triggers_cinema.sav";
+	CHECK(s.save_state(path), "save");
+	setup(b);
+	CHECK(b.load_state(path), "load");
+	CHECK(b.cinema_playing() && b.cinema().path_elapsed_ms == s.cinema().path_elapsed_ms && b.trigger_hash() == s.trigger_hash(),
+	      "cinema state differs after loading");
+	const uint32_t ended = s.trigger_event_calls(TRIGGER_ON_CINEMA_PATH_ENDED);
+	run_to(s, 11.2f);
+	CHECK(!s.cinema_playing() && !s.reveal_map() && s.cinema().queue.empty(), "the path ended after 5 s, map hidden again");
+	CHECK(s.trigger_event_calls(TRIGGER_ON_CINEMA_PATH_ENDED) == ended + 1 && s.trigger_event_calls(TRIGGER_ON_CINEMA_QUEUE_ENDED) == 1,
+	      "OnCinemaPathEnded and OnCinemaQueueEnded once each");
+	// The camera: at the first node at the start, the last at the end, looking along the target spline.
+	const CinemaPath &cp = s.cinema().paths[0];
+	cinema::Spline ps(cp.nodes), ts(cp.targets);
+	float eye[3], look[3];
+	CHECK(cinema::camera_at(cp, ps, ts, 0.0f, eye, look) && std::fabs(eye[0]) < 1e-4f && std::fabs(eye[1] - 10) < 1e-4f &&
+	      std::fabs(look[0] - 5) < 1e-4f, "camera at the first node");
+	CHECK(cinema::camera_at(cp, ps, ts, 5.0f, eye, look) && std::fabs(eye[0] - 20) < 1e-3f && std::fabs(look[0] - 15) < 1e-3f,
+	      "camera at the last node");
+	CHECK(cinema::camera_at(cp, ps, ts, 2.0f, eye, look) && std::fabs(eye[0] - 10) < 1e-3f && std::fabs(eye[2] - 5) < 1e-3f,
+	      "camera at the middle node after its 2 s");
+	CHECK(!cinema::camera_at(cp, ps, ts, 5.1f, eye, look), "nothing past the end");
+	if (failures == before) std::printf("cinema_demo: notice at 1 s, a 5 s path from 6 s with the map revealed, saved mid-path: ok\n");
+}
+
 static void check_gallic_fields() {
 	// skirmishes/gallic_fields_3p.js: a Roman champion at each B or C point after a minute,
 	// attack-walking to its owner's A point; each wave waits 1-3 times longer and grows as much.
@@ -1268,6 +1321,7 @@ int main() {
 	check_unit_dancing();
 	check_unit_pushing();
 	check_unit_motion();
+	check_cinema_demo();
 	check_save_load(tm, MAP_POLAR_SEA, 305.0f, 330.0f, Simulation::WATER_LEVEL_RISING, 25, "Polar Sea during a wolf wave");
 	check_interval();
 	check_on_range();
