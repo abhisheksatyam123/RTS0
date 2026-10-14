@@ -163,6 +163,15 @@ int main() {
 	s.set_player_civ(0);
 	s.set_player_resources(0, 0, 0, 0, 0);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN, tc) == Simulation::TECH_ERR_COST);
+	// The price shown and checked is the one paid: Democracy makes Town Phase 350f/350w, 15 s.
+	{
+		float paid[RES_COUNT], time = 0.0f;
+		s.tech_price(0, TECH_PHASE_TOWN, BLD_TOWN_CENTER, paid, time);
+		CHECK(paid[RES_FOOD] == 350.0f && paid[RES_WOOD] == 350.0f && paid[RES_GOLD] == 0.0f && paid[RES_STONE] == 0.0f);
+		CHECK(std::fabs(time - tech_info(TECH_PHASE_TOWN).research_time * 0.5f) < 0.01f);
+		s.set_player_resources(0, 350, 350, 0, 0);
+		CHECK(s.research_check(0, TECH_PHASE_TOWN, tc) == Simulation::TECH_OK);
+	}
 	s.set_player_resources(0, 5000, 5000, 5000, 5000);
 
 	// Town Phase: 500f/500w, less the Athenian Democracy team bonus on civic centre
@@ -174,6 +183,18 @@ int main() {
 	CHECK(s.is_tech_researched(TECH_PHASE_TOWN));
 	CHECK(s.player_phase() == 2);
 	CHECK(s.research_check(0, TECH_PHASE_TOWN) == Simulation::TECH_ERR_RESEARCHED);
+	// 0.28 "supersedes" is a requirement: Wheelbarrow waits for Baskets, Iron Weapons for Bronze Weapons.
+	CHECK(tech_supersedes(TECH_GATHER_CAPACITY_WHEELBARROW) == TECH_GATHER_CAPACITY_BASKET);
+	CHECK(tech_supersedes(TECH_SOLDIER_ATTACK_MELEE_02) == TECH_WEAPONS_1 && tech_supersedes(TECH_WEAPONS_1) == TECH_NONE);
+	CHECK(s.research_check(0, TECH_GATHER_CAPACITY_WHEELBARROW) == Simulation::TECH_ERR_PREREQUISITE);
+	CHECK(s.research_check(0, TECH_SOLDIER_ATTACK_MELEE_02) == Simulation::TECH_ERR_PREREQUISITE);
+	s.player(0).techs.set(TECH_GATHER_CAPACITY_BASKET);
+	CHECK(s.research_check(0, TECH_GATHER_CAPACITY_WHEELBARROW) == Simulation::TECH_OK);
+	// 0.28 Identity classes: civ structures count toward the phases too.
+	CHECK(building_phase_class(BLD_SYSSITON) == 1 && building_phase_class(BLD_MINISTRY) == 1 && building_phase_class(BLD_KENNEL) == 1);
+	CHECK(building_phase_class(BLD_GYMNASIUM) == 2 && building_phase_class(BLD_SUPER_DOCK) == 2 && building_phase_class(BLD_ARMY_CAMP) == 2);
+	CHECK(building_phase_class(BLD_ARSENAL, CIV_MACEDONIANS) == 2 && building_phase_class(BLD_ARSENAL, CIV_ROMANS) == 0);
+	CHECK(building_phase_class(BLD_ELEPHANT_STABLE, CIV_MAURYANS) == 2 && building_phase_class(BLD_ELEPHANT_STABLE, CIV_PERSIANS) == 0);
 	// City Phase needs three Town structures.
 	CHECK(s.research_check(0, TECH_PHASE_CITY, tc) == Simulation::TECH_ERR_STRUCTURES);
 

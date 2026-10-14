@@ -4,6 +4,7 @@
 #include "tree_slot_gatherers.h"
 #include "simulation.h"
 #include "heightmap_images.h"
+#include "start_entities_data.h"
 #include <cmath>
 #include <algorithm>
 #include <bit>
@@ -3476,6 +3477,41 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 	for (auto &sp : spawns) sp.base_height = 30.0f * k;
 }
 
+// rmgen-common player.js placeStartingEntities: the civ's StartEntities units (civs/*.json)
+// round a civic centre at (cx, cz), entry j (the civic centre is entry 0) as a row of its
+// Count, 2 tiles apart, 6 tiles out at BUILDING_ORIENTATION - PI * (1 - j / 2).
+// `infantry_only` keeps only the templates naming "infantry" (survivalofthefittest.js).
+// A unit whose spot is under water is pulled in towards the civic centre until it is dry.
+static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8_t team, float cx, float cz,
+                                 bool infantry_only = false) {
+	constexpr float kDist = 6.0f, kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;
+	const uint8_t civ = sim.team_civ(team);
+	const float dry_h = sim.water_height() + 0.6f;
+	const StartEntity *table = start_entity_table();
+	int j = 0;
+	for (int e = 0; e < START_ENTITY_COUNT; ++e) {
+		const StartEntity &se = table[e];
+		if (se.civ != civ || (infantry_only && !std::strstr(se.tmpl, "infantry"))) continue;
+		++j;
+		uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t t : civ_roster_ids(civ))
+			if (std::strcmp(civ_unit_template(t).id, se.tmpl) == 0) { tmpl = t; break; }
+		if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue; // a template RTS0 has no roster row for yet
+		const float angle = kOrientation - 3.14159265f * (1.0f - (float)j / 2.0f);
+		const float ca = std::cos(angle), sa = std::sin(angle);
+		for (int num = 0; num < se.count; ++num) {
+			// location + Vector2D(dist, 0).rotate(-angle) + Vector2D(offset, 0).rotate(angle)
+			const float off = kSpace * (-(float)num + (float)(se.count - 1) / 2.0f);
+			float x = cx + kDist * ca + off * ca, z = cz + kDist * sa - off * sa;
+			for (float t = 1.0f; t > 0.0f && hm.sample_world(x, z) < dry_h; t -= 0.1f) {
+				x = cx + (x - cx) * 0.9f;
+				z = cz + (z - cz) * 0.9f;
+			}
+			sim.spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+		}
+	}
+}
+
 void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	const float k = kSurvivalHeight;
 	const float half = hm.map_half, size = 2.0f * half;
@@ -3487,11 +3523,7 @@ void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid 
 		const float a = std::atan2(sp.z, sp.x);
 		// getStartingEntities filtered to the civic centre and the infantry.
 		sim.spawn_building_world(sp.x, sp.z, BLD_TOWN_CENTER, team, 1.0f);
-		const float fx = sp.forward_dir_x, fz = sp.forward_dir_z, rx = -fz, rz = fx;
-		sim.spawn_unit(sp.x + fx * 6.0f + rx * 2.0f, sp.z + fz * 6.0f + rz * 2.0f, team, UNIT_SPEARMAN);
-		sim.spawn_unit(sp.x + fx * 6.0f - rx * 2.0f, sp.z + fz * 6.0f - rz * 2.0f, team, UNIT_SPEARMAN);
-		sim.spawn_unit(sp.x + fx * 5.0f + rx * 4.5f, sp.z + fz * 5.0f + rz * 4.5f, team, UNIT_ARCHER);
-		sim.spawn_unit(sp.x + fx * 5.0f - rx * 4.5f, sp.z + fz * 5.0f - rz * 4.5f, team, UNIT_ARCHER);
+		place_start_entities(sim, hm, team, sp.x, sp.z, true);
 		// The treasure seeker: findLocationInDirectionBasedOnHeight(player, centre, -3, 3.5, 3),
 		// the first spot towards the centre down at the low land, then 3 tiles on.
 		float wx = sp.x, wz = sp.z;
@@ -4005,28 +4037,8 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 1. Town Center
 		sim.spawn_building_world(px, pz, BLD_TOWN_CENTER, team, 1.0f);
 
-		// 2. Starting Barracks & Houses (Fortress: the walls and their buildings)
-		if (!fortress) {
-			sim.spawn_building_world(px + fx * 8.5f, pz + fz * 8.5f, BLD_BARRACKS, team, 1.0f);
-			sim.spawn_building_world(px - fx * 6.5f + rx * 6.0f, pz - fz * 6.5f + rz * 6.0f, BLD_HOUSE, team, 1.0f);
-			sim.spawn_building_world(px - fx * 6.5f - rx * 6.0f, pz - fz * 6.5f - rz * 6.0f, BLD_HOUSE, team, 1.0f);
-		}
-
-		// 3. Starting Citizen-Soldiers & Villagers
-		// 6 Villagers in a ring around TC
-		for (int v = 0; v < 6; ++v) {
-			float a = (6.2831853f * v) / 6.0f;
-			float vx = px + std::cos(a) * 4.5f;
-			float vz = pz + std::sin(a) * 4.5f;
-			sim.spawn_unit(vx, vz, team, UNIT_VILLAGER, 100.0f);
-		}
-
-		// Military Escort
-		sim.spawn_unit(px + fx * 6.0f + rx * 2.0f, pz + fz * 6.0f + rz * 2.0f, team, UNIT_SWORDSMAN, 160.0f);
-		sim.spawn_unit(px + fx * 6.0f - rx * 2.0f, pz + fz * 6.0f - rz * 2.0f, team, UNIT_SWORDSMAN, 160.0f);
-		sim.spawn_unit(px + fx * 5.0f + rx * 4.5f, pz + fz * 5.0f + rz * 4.5f, team, UNIT_ARCHER, 90.0f);
-		sim.spawn_unit(px + fx * 5.0f - rx * 4.5f, pz + fz * 5.0f - rz * 4.5f, team, UNIT_ARCHER, 90.0f);
-		sim.spawn_unit(px + fx * 9.5f, pz + fz * 9.5f, team, UNIT_CAVALRY, 180.0f);
+		// 2. The civ's StartEntities units (placeCivDefaultStartingEntities).
+		place_start_entities(sim, hm, team, px, pz);
 
 		// fortress.js gives no starting mines, trees or berries, only
 		// treasures (which RTS0 has no entity for yet).
@@ -4403,6 +4415,9 @@ void RmsGenerator::distribute_wildlife(Simulation &sim, const HeightmapGrid &hm,
 	}
 }
 
+// The landscape synth_unknown picked for this generation (unknown.js g_StartingTreasures).
+thread_local int g_unknown_landscape = -1;
+
 // Gaia treasures and ruins, where 0 A.D.'s random map scripts place them (maps/random/*.js);
 // most scripts place none. Capture the Relic's relics come from the victory condition
 // (Simulation::apply_relic_count), not the map.
@@ -4444,7 +4459,85 @@ void RmsGenerator::distribute_relics(Simulation &sim, const HeightmapGrid &hm, f
 			}
 	};
 
+	// rmgen scaleByMapSize.
+	const float size_frac = std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f);
+	auto scale = [&](float a, float b) { return (int)std::lround(a + (b - a) * size_frac); };
+	auto wet = [&](float x, float z) {
+		return std::abs(x) < half - 3.0f && std::abs(z) < half - 3.0f && hm.sample_world(x, z) < water_h - 0.5f;
+	};
+	// Every sample within r of (x, z) passes `pred` (stayClasses / avoidClasses on a tile class).
+	auto all_within = [&](float x, float z, float r, auto pred) {
+		for (int k = 0; k < 8; ++k) {
+			const float a = 0.7853982f * (float)k;
+			if (!pred(x + std::cos(a) * r, z + std::sin(a) * r)) return false;
+		}
+		return pred(x, z);
+	};
+	auto any_within = [&](float x, float z, float r, auto pred) {
+		for (int k = 0; k < 8; ++k) {
+			const float a = 0.7853982f * (float)k;
+			if (pred(x + std::cos(a) * r, z + std::sin(a) * r)) return true;
+		}
+		return false;
+	};
+	// Shipwrecks: `groups` groups of lo-hi treasures within `spread`, each where `ok` holds,
+	// 8 apart (avoidClasses(clFood, 8)).
+	std::vector<std::pair<float, float>> wrecks;
+	auto scatter_water = [&](uint8_t type, int groups, int lo, int hi, float spread, auto ok) {
+		for (int g = 0, tries = 0; g < groups && tries < groups * 100; ++tries) {
+			const float x = rng.range_float(-half * 0.95f, half * 0.95f), z = rng.range_float(-half * 0.95f, half * 0.95f);
+			if (!ok(x, z)) continue;
+			bool clear = true;
+			for (const auto &w : wrecks) clear = clear && std::hypot(w.first - x, w.second - z) >= 8.0f;
+			if (!clear) continue;
+			for (int k = 0, n = rng.range_int(lo, hi); k < n; ++k) {
+				const float a = rng.range_float(0.0f, 6.2831853f), r = rng.range_float(0.0f, spread);
+				const float tx = x + std::cos(a) * r, tz = z + std::sin(a) * r;
+				if (wet(tx, tz)) sim.spawn_treasure(tx, tz, type);
+			}
+			wrecks.push_back({x, z});
+			++g;
+		}
+	};
+
 	switch (config.map_type) {
+		case MAP_BAHRAIN: // bahrain.js: 1 to players wood, then food treasures, 25 from bases, and 0-1 wrecks
+			for (uint8_t t : {TREASURE_WOOD, TREASURE_FOOD_BIN})
+				scatter(t, rng.range_int(1, std::max(1, np)), 1, 1, 25.0f);
+			scatter_water(TREASURE_SHIPWRECK_SAIL_BOAT_CUT, rng.range_int(0, 1), 1, 1, 1.0f,
+					[&](float x, float z) { return all_within(x, z, 2.0f, wet); });
+			break;
+		case MAP_CYCLADIC_ARCHIPELAGO: // cycladic_archipelago.js: shipwrecks and debris in the sea
+			scatter_water(TREASURE_SHIPWRECK, scale(6, 16), 1, 1, 3.0f, [&](float x, float z) { return all_within(x, z, 1.0f, wet); });
+			scatter_water(TREASURE_SHIPWRECK_DEBRIS, scale(10, 20), 1, 2, 4.0f, [&](float x, float z) { return all_within(x, z, 1.0f, wet); });
+			break;
+		case MAP_ISLAND_STRONGHOLD: // island_stronghold.js: shipwrecks and debris 4 off the land
+			scatter_water(TREASURE_SHIPWRECK, scale(12, 16), 1, 1, 1.0f, [&](float x, float z) { return all_within(x, z, 4.0f, wet); });
+			scatter_water(TREASURE_SHIPWRECK_DEBRIS, scale(10, 20), 1, 1, 1.0f, [&](float x, float z) { return all_within(x, z, 4.0f, wet); });
+			break;
+		case MAP_ARCHIPELAGO_0AD: // archipelago.js and islands.js: 14 wood treasures in each base
+		case MAP_ISLANDS:
+			base_ring(TREASURE_WOOD, 14);
+			break;
+		case MAP_UNKNOWN: // unknown.js: 14 in each base on its Archipelago landscape only
+			if (g_unknown_landscape == 0) base_ring(TREASURE_WOOD, 14);
+			break;
+		case MAP_ARCTIC_SUMMER: // arctic_summer.js: 10 wood treasures in each base
+			base_ring(TREASURE_WOOD, 10);
+			break;
+		case MAP_SAHARAN_OASES: { // saharan_oases.js: 3 x scaleByMapSize(5, 20) food bins, then wood, by the oases' shores
+			auto shore = [&](float x, float z) { return dry(x, z) && any_within(x, z, 5.0f, wet); };
+			for (uint8_t t : {TREASURE_FOOD_BIN, TREASURE_WOOD}) {
+				const int n = 3 * scale(5, 20);
+				for (int g = 0, tries = 0; g < n && tries < n * 50; ++tries) {
+					const float x = rng.range_float(-half * 0.9f, half * 0.9f), z = rng.range_float(-half * 0.9f, half * 0.9f);
+					if (!shore(x, z)) continue;
+					cluster(x, z, t, 1, 2.0f);
+					++g;
+				}
+			}
+			break;
+		}
 		case MAP_THE_NILE: { // the_nile.js: 3 x scaleByMapSize(5, 20) food bins, then as many wood treasures
 			const int n = (int)std::lround(3.0f * (5.0f + 15.0f * std::clamp((2.0f * half - 128.0f) / 384.0f, 0.0f, 1.0f)));
 			scatter(TREASURE_FOOD_BIN, n, 1, 1, 20.0f);
@@ -9737,6 +9830,7 @@ void RmsGenerator::synth_unknown(HeightmapGrid &hm, RmsRng &rng, float &water_h,
 	else if (landscape_choice >= UNKNOWN_LANDSCAPE_FIRST && landscape_choice < UNKNOWN_LANDSCAPE_FIRST + UNKNOWN_LANDSCAPE_COUNT)
 		landscape = landscape_choice - UNKNOWN_LANDSCAPE_FIRST;
 	else landscape = rng.range_int(0, 12);
+	g_unknown_landscape = landscape; // distribute_relics: only Archipelago places starting treasures
 	switch (landscape) {
 		case 0: { // Archipelago
 			circle(0.35f * size, rng.range_float(0.0f, kTau));
@@ -11308,7 +11402,7 @@ bool RmsGenerator::generate(Simulation &sim, const Config &config) {
 
 // The map script's own terrains and plants, unless game setup chose the biome.
 static const ScriptTerrains *own_terrains(const Simulation &sim, uint8_t type) {
-	return sim.biome_override() < 0 ? script_terrains(map_type_info(type).id) : nullptr;
+	return sim.map_biome_pick(type) < 0 ? script_terrains(map_type_info(type).id) : nullptr;
 }
 
 void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
@@ -12013,7 +12107,7 @@ void RmsGenerator::top_up_resources(Simulation &sim, const HeightmapGrid &hm, fl
 	// herd one of the script's species by share; a generic-biome script's animals are
 	// the biome's (main hunt twice as often as the secondary), as when the game setup
 	// picks another biome.
-	const bool own_kinds = rc->hunt_kinds[0].name && sim.biome_override() < 0;
+	const bool own_kinds = rc->hunt_kinds[0].name && sim.map_biome_pick(config.map_type) < 0;
 	int hunt_left = target(rc->hunt) - have_hunt;
 	for (int herd = 0; hunt_left > 0; ++herd) {
 		uint8_t ftype = FAUNA_COUNT;

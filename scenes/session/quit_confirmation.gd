@@ -2,7 +2,7 @@ extends CanvasLayer
 # The session's quit questions, ports of 0 A.D. gui/session/message_box
 # (GPL-2.0-or-later): SessionMessageBox, QuitConfirmation, QuitConfirmationMenu
 # (the menu's Exit), QuitConfirmationDefeat (the player has won or lost) and
-# QuitConfirmationReplay (the replay has finished), with session.js endGame:
+# QuitConfirmationReplay (the replay has finished) and OutOfSyncReplay, with session.js endGame:
 # "Quit and View Summary" leaves the match for the summary page, "Quit" for the
 # main menu (the replay menu after a replay), "Stay" goes back to the game.
 #
@@ -17,6 +17,8 @@ const BUTTONS := ["Stay", "Quit and View Summary", "Quit"]
 const CAPTION_HOST := "Are you sure you want to quit? Leaving will disconnect all other players."
 const CAPTION_CLIENT := "Are you sure you want to quit?"
 const CAPTION_REPLAY := "The replay has finished. What do you want to do?"
+const TITLE_OOS := "Out of Sync"
+const CAPTIONS_OOS := ["Out-Of-Sync error on turn %d.", "The current game state is different from the original game state."]
 const TITLE_VICTORY := "VICTORIOUS!"
 const TITLE_DEFEATED := "DEFEATED!"
 const STATE_MESSAGES := {"won": "You have won!", "defeated": "You have been defeated!"} # messages.js g_PlayerStateMessages
@@ -74,6 +76,12 @@ static func defeat(m: Node, won: bool, ask_exit: bool) -> Node:
 ## QuitConfirmationReplay: the replay reached its last turn.
 static func replay_finished(m: Node) -> Node:
 	return _quit(m, TITLE, CAPTION_REPLAY)
+
+## OutOfSyncReplay: the replay's state differs from the recorded game's. The box
+## pauses the replay until it is answered.
+static func out_of_sync_replay(m: Node) -> Node:
+	var turn := int(m.get_replay_status().get("out_of_sync_turn", 0))
+	return _open(m, TITLE_OOS, "\n".join(CAPTIONS_OOS) % turn, [])
 
 ## session.js endGame: leave the match, for the summary page or the menu the
 ## match came from: the campaign's menu in a campaign, else the lobby while

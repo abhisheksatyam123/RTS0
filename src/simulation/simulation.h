@@ -11,6 +11,7 @@
 #include "cell_set.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "map_biomes_data.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
 #include "tutorial_data.h"
@@ -377,7 +378,7 @@ public:
 	// Capturable.js CanCapture / Attack.js Capture: may unit i capture relic unit r?
 	bool can_capture_relic(size_t i, int32_t r) const;
 	bool unit_can_target_building(size_t i, uint8_t building_type) const {
-		return combat_can_target(unit_combat_at(i), building_combat(building_type));
+		return structure_has_health(building_type) && combat_can_target(unit_combat_at(i), building_combat(building_type));
 	}
 	uint16_t unit_template(uint32_t unit_id) const;
 	// 0 A.D. Promotion.js GetRequiredXp for unit index i after the owner's technologies,
@@ -490,11 +491,18 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
 	}
+	// ResourceSupply/Max a regrowing supply (fruit) returns to, 0 when RTS0 keeps none.
+	int32_t resource_supply_max(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_amount[it->second];
+	}
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
 	uint32_t spawn_building_world(float wx, float wz, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
+	// The civ of a structure's own template (Identity/Civ): a map's Gaia shrine or trading post.
+	void set_building_civ(uint32_t building_id, uint8_t civ);
 	// CaptureTheRelic.js: a Gaia catafalque of a civ picked from its id; returns the unit id.
 	uint32_t spawn_relic(float x, float z, int civ_pick = -1); // civ_pick: which catafalque (-1: from the id)
 	std::vector<std::pair<float, float>> relic_spawn_points() const; // TriggerHelper.GetLandSpawnPoints
@@ -848,6 +856,23 @@ public:
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
 	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
+	// GetEntityState for the selection details (selection_details.js, tooltips.js): unit i's
+	// live numbers in 0 A.D.'s own units (metres, metres a second), technologies, rank and
+	// auras applied.
+	struct UnitDetails {
+		float damage[4] = {};     // hack, pierce, crush, fire
+		float capture = 0.0f;     // Attack/Capture
+		float interval = 0.0f;    // seconds between attacks
+		float min_range = 0.0f, max_range = 0.0f;
+		bool ranged = false;
+		float resistance[3] = {}; // hack, pierce, crush levels
+		float walk = 0.0f, run = 0.0f;
+		float gather[7] = {};     // grain, fruit, meat, fish, wood, stone, metal a second
+		int32_t carry_max = 0;    // what it can carry of the resource it holds
+		float heal_hp = 0.0f, heal_range = 0.0f, heal_interval = 0.0f; // 0 hp: no Heal
+		LootInfo loot{};
+	};
+	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -921,6 +946,11 @@ public:
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
+	// The Game Setup biome a random map takes: the override when the map's 0.28 SupportedBiomes
+	// list it (map_biomes_data.h), else -1 and the map keeps its own biome.
+	int map_biome_pick(int type) const {
+		return biome_override_ >= 0 && (map_supported_biomes(type) >> biome_override_ & 1u) ? biome_override_ : -1;
+	}
 	// 0 A.D. Team Placement (TEAM_PLACEMENT_*) for the random maps that offer it
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
@@ -1387,6 +1417,9 @@ public:
 		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// What researching `tech_id` costs this player at a researcher of `bld_type` (BLD_TYPE_COUNT:
+	// a unit): Researcher/TechCostMultiplier, team bonuses and the Library of Alexandria, as paid.
+	void tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
 	float healer_range(uint8_t player_id) const;
 	float healer_rate(uint8_t player_id) const; // hit points per second
@@ -1659,12 +1692,15 @@ public:
 	struct Treasure {
 		uint32_t id;
 		float x, z;
-		float collect_progress;   // seconds spent collecting by collector_id
+		float collect_progress;   // the longest collector timer (collector_id), each kept in its pack_elapsed
 		uint32_t collector_id;
 		uint8_t type;             // TreasureType (gaia_data.h)
 		uint8_t pad[3];
 	};
 	uint32_t spawn_treasure(float x, float z, uint8_t type);
+	// A treasure's facing (radians), fixed by its id; the world view draws it so and its
+	// Obstruction/Static rectangle blocks foundations along it.
+	static float treasure_angle(uint32_t id) { return (float)(id % 12) * 0.52f; }
 	void order_collect_treasure(const uint32_t *unit_ids, size_t count, uint32_t treasure_id, bool queued = false);
 	// TreasureCollector MaxDistance of unit i in world units (+ the treasure's footprint), or a
 	// negative value when its template has no TreasureCollector (dogs, siege, catafalques).
@@ -2054,6 +2090,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void tick_ship_pickups();
+	void tick_ship_pickup(size_t ship);
+	bool transport_walkers_none() const;
+	bool ship_reachable_by(size_t ship, size_t walker) const;
+	bool petra_steers_ship(uint32_t ship_id) const;
 	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
 	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
@@ -2717,6 +2758,7 @@ private:
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
+	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
@@ -2758,12 +2800,14 @@ private:
 	uint8_t petra_gather_kind(size_t r) const;
 	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
 	struct PetraHuntScan {
-		std::vector<std::pair<float, float>> food_drops;
+		struct FoodDrop { float x, z; uint16_t land[4]; }; // the lands it borders (getLandAccess)
+		std::vector<FoodDrop> food_drops;
 		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
 		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
 		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
 	};
 	PetraHuntScan petra_hunt_scan() const;
+	bool petra_food_drop_near(const PetraHuntScan &scan, uint16_t land, float x, float z, float d2) const;
 	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
@@ -2827,6 +2871,8 @@ private:
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false,
 	                          uint8_t plan = PETRA_ORDER_NONE);
 	uint32_t petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t max_queue) const;
+	bool petra_relic_targeted(uint32_t relic_id) const;
+	bool petra_unit_target_ok(int32_t t) const;
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
 	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
 	bool petra_emergency_rally(const Building &b) const {
@@ -2995,7 +3041,7 @@ private:
 	uint32_t nearest_dropsite(size_t i) const;
 	bool attack_target_hidden(size_t i, size_t t) const;
 	void deposit_carry(size_t i);
-	void finish_order(size_t i);
+	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;

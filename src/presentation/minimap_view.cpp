@@ -264,6 +264,12 @@ void RtsoMiniMapView::_draw() {
 			}
 			draw_rect(Rect2(pos - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
 		}
+		// template_gaia_treasure Minimap: a white (250, 250, 250) dot.
+		for (const auto &t : mirages_.treasures()) {
+			Color col(0.98f, 0.98f, 0.98f, 0.95f);
+			if (mirages_.los_at(t.x, t.z) != rtso::Simulation::FOW_VISIBLE) col.a *= 0.55f;
+			draw_rect(Rect2(map_to_mini(t.x, t.z) - Vector2(1.5f, 1.5f), Vector2(3.0f, 3.0f)), col, true);
+		}
 	}
 
 	// 3. Draw Buildings: own and allied live, others as last seen

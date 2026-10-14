@@ -11772,6 +11772,18 @@
       "type": "horse_persian",
       "x": 91.7,
       "z": -63.55
+    },
+    {
+      "type": "sheep",
+      "x": 37.85,
+      "z": 23.17,
+      "player": 1
+    },
+    {
+      "type": "sheep",
+      "x": -1.72,
+      "z": -43.57,
+      "player": 2
     }
   ],
   "structures": [

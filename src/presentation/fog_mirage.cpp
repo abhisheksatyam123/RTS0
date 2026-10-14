@@ -16,8 +16,10 @@ namespace rtso {
 void FogMirages::reset() {
 	building_memory_.clear();
 	resource_memory_.clear();
+	treasure_memory_.clear();
 	out_buildings_.clear();
 	out_resources_.clear();
+	out_treasures_.clear();
 	have_key_ = false;
 	stamp_ = 0;
 }
@@ -71,6 +73,7 @@ void FogMirages::begin(const uint8_t *los, int res, float map_half) {
 	if (++stamp_ == 0) stamp_ = 1;
 	out_buildings_.clear();
 	out_resources_.clear();
+	out_treasures_.clear();
 }
 
 void FogMirages::add_building(const FoggedBuilding &live, bool allied) {
@@ -132,6 +135,19 @@ void FogMirages::add_resource(const FoggedResource &live) {
 	out_resources_.push_back(m);
 }
 
+void FogMirages::add_treasure(const FoggedTreasure &live) {
+	FoggedTreasure t = live;
+	t.miraged = false;
+	const uint8_t st = los_at(t.x, t.z);
+	if (st == Simulation::FOW_UNEXPLORED) return;
+	// Treasures sit still and their Fogging only activates when taken, so an explored
+	// treasure shows as it stands; remember it so its taking in the fog doesn't leak.
+	TreasureMemory &m = treasure_memory_[t.id];
+	m.seen = t;
+	m.stamp = stamp_;
+	out_treasures_.push_back(t);
+}
+
 void FogMirages::end() {
 	// Entities that no longer exist: their mirages stay in the fog until the
 	// viewer sees the spot again (Mirage.OnVisibilityChanged → DestroyEntity).
@@ -165,6 +181,21 @@ void FogMirages::end() {
 		}
 		++it;
 	}
+	for (auto it = treasure_memory_.begin(); it != treasure_memory_.end();) {
+		if (it->second.stamp == stamp_) { ++it; continue; }
+		const FoggedTreasure &t = it->second.seen;
+		const uint8_t st = los_at(t.x, t.z);
+		if (st == Simulation::FOW_VISIBLE) {
+			it = treasure_memory_.erase(it);
+			continue;
+		}
+		if (st == Simulation::FOW_EXPLORED) {
+			FoggedTreasure m = t;
+			m.miraged = true;
+			out_treasures_.push_back(m);
+		}
+		++it;
+	}
 	// Remembered copies of supplies still standing in sight are redundant with the
 	// live entity, but keeping them is what lets a later fogged frame show them.
 }
@@ -173,10 +204,11 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 	const auto stats = sim.stats();
 	const size_t nb = sim.buildings().size();
 	const size_t nr = sim.resource_count();
+	const size_t nt = sim.treasures().size();
 	const float half = sim.map_half();
 	const int res = sim.fow_res();
 	if (have_key_ && key_viewer_ == viewer && key_ticks_ == (uint64_t)stats.ticks &&
-			key_buildings_ == nb && key_resources_ == nr && key_half_ == half && key_res_ == res)
+			key_buildings_ == nb && key_resources_ == nr && key_treasures_ == nt && key_half_ == half && key_res_ == res)
 		return;
 	// A new viewer or a new map starts with no memories (0 A.D. keeps one
 	// Fogging state per player; RTS0 only presents one at a time).
@@ -184,12 +216,14 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 			(uint64_t)stats.ticks < key_ticks_) {
 		building_memory_.clear();
 		resource_memory_.clear();
+		treasure_memory_.clear();
 	}
 	have_key_ = true;
 	key_viewer_ = viewer;
 	key_ticks_ = (uint64_t)stats.ticks;
 	key_buildings_ = nb;
 	key_resources_ = nr;
+	key_treasures_ = nt;
 	key_half_ = half;
 	key_res_ = res;
 
@@ -225,6 +259,14 @@ void FogMirages::update(const Simulation &sim, uint8_t viewer) {
 		r.subtype = rv.subtype ? rv.subtype[i] : 0;
 		r.flora = rv.flora ? rv.flora[i] : 0;
 		add_resource(r);
+	}
+	for (const auto &tr : sim.treasures()) {
+		FoggedTreasure t;
+		t.id = tr.id;
+		t.x = tr.x;
+		t.z = tr.z;
+		t.type = tr.type;
+		add_treasure(t);
 	}
 	end();
 }

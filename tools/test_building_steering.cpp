@@ -53,6 +53,10 @@
 //     "large" class (3 m clearance) like siege and elephants, by their template's classes. A
 //     swordsman walks straight through a 1.2-unit (4.8 m) gap between houses; an elephant hero
 //     and a scythed chariot can't fit and walk round the houses instead.
+// 18. Walk to a structure's range: a unit sent into a town centre heads for the side it comes
+//     from, aiming just outside its clearance, and gets in; builders stop as soon as the foundation
+//     is within build range and stay there once it is finished (0 A.D. UnitMotion MoveToTargetRange
+//     ends in range, and its goal reaches past the unit's clearance, so any range is reached).
 //  For every scenario the unit bodies must never overlap a footprint that blocks movement by more
 //  than MAX_PENETRATION (separation() alone allows deep overlap when a unit walks head-on into a wall).
 //  Exit: 0 = PASS, 1 = FAIL. Prints the measurements either way.
@@ -806,6 +810,91 @@ static void large_units_through_gap() {
 	}
 }
 
+// 18. Walk to a structure's range.
+static void walk_to_structure_range() {
+	const float from[4][2] = {{-14.0f, 1.0f}, {14.0f, -1.0f}, {1.0f, -14.0f}, {-1.0f, 14.0f}};
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t tc = s.spawn_building_world(0.0f, 0.0f, BLD_TOWN_CENTER, 0, 1.0f);
+		const float half = s.buildings().back().half_size;
+		uint32_t ids[4];
+		float aim_off[4], last_x[4], last_z[4];
+		bool in[4] = {};
+		for (int k = 0; k < 4; ++k) {
+			ids[k] = s.spawn_unit(from[k][0], from[k][1], 0, UNIT_FEMALE_CITIZEN);
+			s.order_garrison(&ids[k], 1, tc);
+			const int i = index_of(s, ids[k]);
+			// How far outside its clearance the walk aims, on the side it comes from.
+			const float ax = s.units_.target_x[i], az = s.units_.target_z[i];
+			const float side = k < 2 ? ax * from[k][0] : az * from[k][1];
+			const float gap = (k < 2 ? std::fabs(ax) : std::fabs(az)) - half;
+			aim_off[k] = side > 0.0f ? gap - unit_building_clearance(s.units_.tmpl[i], s.units_.unit_type[i]) : -1.0f;
+			last_x[k] = from[k][0];
+			last_z[k] = from[k][1];
+		}
+		for (int t = 0; t < 600; ++t) {
+			s.tick(DT);
+			for (int k = 0; k < 4; ++k) {
+				const int i = index_of(s, ids[k]);
+				if (i >= 0 && s.units().alive[i]) last_x[k] = s.units().pos_x[i], last_z[k] = s.units().pos_z[i];
+				else in[k] = true;
+			}
+		}
+		int ok = 0;
+		for (int k = 0; k < 4; ++k) {
+			// Last seen beyond the town centre's face on the side it came from.
+			const bool near_side = k < 2 ? last_x[k] * std::copysign(1.0f, from[k][0]) > half
+					: last_z[k] * std::copysign(1.0f, from[k][1]) > half;
+			std::printf("  garrison from (%.0f, %.0f): aims %.2f past its clearance, %s, last seen at (%.2f, %.2f)\n",
+					from[k][0], from[k][1], aim_off[k], in[k] ? "got in" : "never got in", last_x[k], last_z[k]);
+			if (in[k] && near_side && aim_off[k] >= 0.0f && aim_off[k] < 0.1f) ++ok;
+		}
+		check(ok == 4, "a unit sent into the town centre didn't aim at its own side, just outside its clearance, and get in");
+	}
+	{
+		Simulation s;
+		setup(s);
+		const uint32_t f = s.spawn_building_world(0.0f, 0.0f, BLD_HOUSE, 0, 0.0f);
+		uint32_t ids[4];
+		float sx[4], sz[4];
+		bool started[4] = {};
+		float moved = 0.0f;
+		for (int k = 0; k < 4; ++k) {
+			ids[k] = s.spawn_unit(from[k][0], from[k][1], 0, UNIT_FEMALE_CITIZEN);
+			s.order_build_or_repair(&ids[k], 1, f);
+		}
+		auto progress = [&]() {
+			for (const auto &b : s.buildings())
+				if (b.id == f) return b.build_progress;
+			return -1.0f;
+		};
+		int done = -1;
+		for (int t = 0; t < 1600 && (done < 0 || t < done + 40); ++t) {
+			s.tick(DT);
+			if (done < 0 && progress() >= 1.0f) done = t;
+			for (int k = 0; k < 4; ++k) {
+				const int i = index_of(s, ids[k]);
+				if (i < 0) continue;
+				const float x = s.units().pos_x[i], z = s.units().pos_z[i];
+				if (!started[k] && s.units().action_state[i] == ACTION_BUILD && progress() > 0.0f &&
+						s.walk_in_reach((size_t)i, x, z)) {
+					started[k] = true;
+					sx[k] = x;
+					sz[k] = z;
+				} else if (started[k]) {
+					moved = std::max(moved, std::hypot(x - sx[k], z - sz[k]));
+				}
+			}
+		}
+		const int all = started[0] + started[1] + started[2] + started[3];
+		std::printf("  build from four sides: %d of 4 builders worked from where they came in range, finished after %d ticks, "
+				"moved %.3f at most from there (even after the house was done)\n", all, done, moved);
+		check(all == 4 && done >= 0, "a builder never came within build range");
+		check(moved < 0.05f, "a builder walked on past build range or after the house was done");
+	}
+}
+
 int main() {
 	std::printf("RTS0 building steering test (src/simulation/nav/building_steering.h)\n");
 	guard_behind_wall();
@@ -825,6 +914,7 @@ int main() {
 	cliffs();
 	chases();
 	large_units_through_gap();
+	walk_to_structure_range();
 	if (g_failures) {
 		std::printf("FAIL (%d)\n", g_failures);
 		return 1;
