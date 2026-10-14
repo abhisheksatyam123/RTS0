@@ -3132,9 +3132,10 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		}
 	}
 
-	// Treasures sit still, so an explored one stays drawn (darker) in the fog.
+	// Treasures sit still, so an explored one stays drawn (darker) in the fog, and one
+	// taken out of sight stays there as a mirage until the spot is seen again.
 	{
-		const auto &tv = sim->treasures();
+		const auto &tv = mirages_.treasures();
 		auto e_chest = rtso::ModelLibrary::get("vegetation", "treasure_chest");
 		int nt = 0;
 		for (const auto &t : tv) if (los_brightness(t.x, t.z) > 0.0f) ++nt;

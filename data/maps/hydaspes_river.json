@@ -39685,6 +39685,198 @@
       "type": "deer",
       "x": -164.41,
       "z": -56.87
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -41.96,
+      "z": 29.12,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -45.09,
+      "z": 30.08,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -44.01,
+      "z": 31.01,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -43.9,
+      "z": 29.57,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -45.99,
+      "z": 31.44,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -41.16,
+      "z": 29.85,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -43.21,
+      "z": 30.15,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -44.91,
+      "z": 31.75,
+      "player": 1
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 48.02,
+      "z": 65.89,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 49.72,
+      "z": 67.07,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 52.0,
+      "z": 65.77,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 49.65,
+      "z": 64.72,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 48.53,
+      "z": 64.13,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 49.73,
+      "z": 65.8,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 51.84,
+      "z": 63.32,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 50.52,
+      "z": 64.26,
+      "player": 2
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -110.08,
+      "z": -81.59,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -109.3,
+      "z": -80.7,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -108.41,
+      "z": -79.35,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -109.04,
+      "z": -82.57,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -108.66,
+      "z": -81.33,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -110.31,
+      "z": -83.6,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -109.22,
+      "z": -78.63,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": -110.72,
+      "z": -82.55,
+      "player": 3
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 62.31,
+      "z": -93.51,
+      "player": 4
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 63.18,
+      "z": -93.98,
+      "player": 4
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 62.38,
+      "z": -91.17,
+      "player": 4
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 64.66,
+      "z": -92.46,
+      "player": 4
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 60.73,
+      "z": -92.33,
+      "player": 4
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 61.19,
+      "z": -94.1,
+      "player": 4
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 62.39,
+      "z": -92.43,
+      "player": 4
+    },
+    {
+      "type": "cattle_zebu",
+      "x": 64.5,
+      "z": -94.92,
+      "player": 4
     }
   ],
   "structures": [

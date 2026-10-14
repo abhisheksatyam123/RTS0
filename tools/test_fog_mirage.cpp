@@ -173,6 +173,37 @@ static void test_resource_mirages() {
 	CHECK(!find_r(m, 10), "exhausted resource vanishes once seen again");
 }
 
+// Treasure.Reward activates Fogging: a treasure taken out of sight stays in the fog.
+static void test_treasure_mirages() {
+	FogMirages m;
+	Grid4 g;
+	g.fill(Simulation::FOW_UNEXPLORED);
+	g.set(1, 1, Simulation::FOW_VISIBLE);
+	g.set(2, 2, Simulation::FOW_EXPLORED);
+	auto tr = [](uint32_t id, int cx, int cz) {
+		rtso::FoggedTreasure t;
+		t.id = id;
+		t.x = centre(cx);
+		t.z = centre(cz);
+		return t;
+	};
+	m.begin(g.c, 4, 8.0f);
+	m.add_treasure(tr(20, 1, 1));
+	m.add_treasure(tr(21, 2, 2));
+	m.add_treasure(tr(22, 3, 3));
+	m.end();
+	CHECK(m.treasures().size() == 2, "treasures in sight and explored fog show, unexplored ones don't");
+	// Both are taken; 20 in sight, 21 in the fog.
+	m.begin(g.c, 4, 8.0f);
+	m.end();
+	CHECK(m.treasures().size() == 1 && m.treasures()[0].id == 21 && m.treasures()[0].miraged,
+		"a treasure taken in the fog stays as a mirage, one taken in sight is gone");
+	g.set(2, 2, Simulation::FOW_VISIBLE);
+	m.begin(g.c, 4, 8.0f);
+	m.end();
+	CHECK(m.treasures().empty(), "the treasure mirage clears once the spot is seen");
+}
+
 static void test_los_bitmap() {
 	// 16x16: all visible except an unexplored 4x4 corner and an explored band.
 	const int R = 16;
@@ -309,6 +340,7 @@ static void test_giant_cost() {
 int main() {
 	test_building_mirages();
 	test_resource_mirages();
+	test_treasure_mirages();
 	test_los_bitmap();
 	test_real_sim();
 	test_giant_cost();

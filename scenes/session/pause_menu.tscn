@@ -18,6 +18,7 @@ shadow_color = Color(0, 0, 0, 0.7)
 shadow_size = 8
 
 [node name="PauseMenu" type="CanvasLayer"]
+layer = 5
 visible = false
 script = ExtResource("1")
 
@@ -36,11 +37,12 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme = ExtResource("2_theme")
 visible = false
 
 [node name="Panel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(340, 270)
+custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
@@ -48,30 +50,20 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Title" type="Label" parent="CenterContainer/Panel/VBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.75, 0.31, 1)
-theme_override_font_sizes/font_size = 18
-text = "GAME PAUSED"
-horizontal_alignment = 1
-
-[node name="HSeparator" type="HSeparator" parent="CenterContainer/Panel/VBox"]
-layout_mode = 2
-
-[node name="BtnResume" type="Button" parent="CenterContainer/Panel/VBox"]
+[node name="BtnManual" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-text = "Resume Game (ESC)"
+text = "Manual"
+
+[node name="BtnChat" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "Chat"
 
 [node name="BtnSave" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-text = "Save Game"
-
-[node name="BtnLoad" type="Button" parent="CenterContainer/Panel/VBox"]
-custom_minimum_size = Vector2(0, 32)
-layout_mode = 2
-text = "Load Game"
+text = "Save"
 
 [node name="BtnSummary" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
@@ -79,15 +71,26 @@ layout_mode = 2
 tooltip_text = "Press Ctrl+Tab to open the summary screen."
 text = "Summary"
 
+[node name="BtnLobby" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "Lobby"
+
 [node name="BtnOptions" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 text = "Options"
 
-[node name="BtnLobby" type="Button" parent="CenterContainer/Panel/VBox"]
+[node name="BtnHotkeys" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-text = "Lobby / Match Settings"
+text = "Hotkeys"
+
+[node name="BtnPause" type="Button" parent="CenterContainer/Panel/VBox"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+tooltip_text = "Press Pause to pause or resume the game."
+text = "Pause"
 
 [node name="BtnResign" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
@@ -97,13 +100,15 @@ text = "Resign"
 [node name="BtnExit" type="Button" parent="CenterContainer/Panel/VBox"]
 custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
-text = "Exit to Main Menu"
+text = "Exit"
 
-[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnResume" to="." method="_on_resume_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnChat" to="." method="_on_chat_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnSave" to="." method="_on_save_pressed"]
-[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnLoad" to="." method="_on_load_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnSummary" to="." method="_on_summary_pressed"]
-[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnOptions" to="." method="_on_options_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnLobby" to="." method="_on_lobby_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnOptions" to="." method="_on_options_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnPause" to="." method="_on_pause_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnResign" to="." method="_on_resign_pressed"]
 [connection signal="pressed" from="CenterContainer/Panel/VBox/BtnExit" to="." method="_on_exit_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnManual" to="." method="_on_manual_pressed"]
+[connection signal="pressed" from="CenterContainer/Panel/VBox/BtnHotkeys" to="." method="_on_hotkeys_pressed"]

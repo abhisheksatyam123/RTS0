@@ -10,6 +10,11 @@ const DEFAULT_CATEGORY := "other"
 const HOLD_TO_REGISTER := 2.0 # HotkeyPicker: hold a combination 2 s to register it
 const SLOTS := 4
 
+## Opened over a match from the session menu (MenuButtons Hotkeys,
+## Engine.OpenChildPage): Close returns to the game instead of the options page.
+signal closed
+var overlay := false
+
 var cfg := RtsoHotkeyConfig.new()
 var meta_hotkeys := {} # name -> {name, desc, order, categories}
 var categories := {} # key -> {name, desc, hotkeys: []}
@@ -399,4 +404,21 @@ func _on_reset_all() -> void:
 func _on_close() -> void:
 	if dirty:
 		cfg.reload() # drop unsaved edits from the live table
+	if overlay:
+		closed.emit()
+		queue_free()
+		return
 	MatchSettings.go("res://scenes/menu/options.tscn")
+
+## The page over the running scene, on its own layer, working while the game is paused.
+static func open_overlay(parent: Node) -> Control:
+	var layer := CanvasLayer.new()
+	layer.layer = 30
+	layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	parent.add_child(layer)
+	var page: Control = load("res://scenes/menu/hotkeys.tscn").instantiate()
+	page.overlay = true
+	page.process_mode = Node.PROCESS_MODE_ALWAYS
+	layer.add_child(page)
+	page.closed.connect(layer.queue_free)
+	return page

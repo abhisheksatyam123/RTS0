@@ -11,6 +11,7 @@
 #include "cell_set.h"
 #include "petra_ai.h"
 #include "sim_types.h"
+#include "map_biomes_data.h"
 #include "statistics_tracker.h"
 #include "triggers.h"
 #include "tutorial_data.h"
@@ -917,6 +918,11 @@ public:
 	// Game Setup biome for random maps: BIOME_* or -1 for the map's own.
 	void set_biome_override(int b) { biome_override_ = (b >= 0 && b < BIOME_COUNT) ? b : -1; }
 	int biome_override() const { return biome_override_; }
+	// The Game Setup biome a random map takes: the override when the map's 0.28 SupportedBiomes
+	// list it (map_biomes_data.h), else -1 and the map keeps its own biome.
+	int map_biome_pick(int type) const {
+		return biome_override_ >= 0 && (map_supported_biomes(type) >> biome_override_ & 1u) ? biome_override_ : -1;
+	}
 	// 0 A.D. Team Placement (TEAM_PLACEMENT_*) for the random maps that offer it
 	// (map_has_team_placement); setup-time only, like the biome.
 	void set_team_placement(int t) { team_placement_ = (uint8_t)((t >= 0 && t < TEAM_PLACEMENT_COUNT) ? t : TEAM_PLACEMENT_RANDOM); }
@@ -1383,6 +1389,9 @@ public:
 		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// What researching `tech_id` costs this player at a researcher of `bld_type` (BLD_TYPE_COUNT:
+	// a unit): Researcher/TechCostMultiplier, team bonuses and the Library of Alexandria, as paid.
+	void tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
 	float healer_range(uint8_t player_id) const;
 	float healer_rate(uint8_t player_id) const; // hit points per second
@@ -1655,7 +1664,7 @@ public:
 	struct Treasure {
 		uint32_t id;
 		float x, z;
-		float collect_progress;   // seconds spent collecting by collector_id
+		float collect_progress;   // the longest collector timer (collector_id), each kept in its pack_elapsed
 		uint32_t collector_id;
 		uint8_t type;             // TreasureType (gaia_data.h)
 		uint8_t pad[3];
@@ -2050,6 +2059,11 @@ private:
 	std::map<uint32_t, UnitQueue> unit_queues_;
 	// Unloads land siege below SIEGE_EJECT_HEALTH or dead (GarrisonHolder EjectHealth / OnDestroy).
 	void tick_siege_garrisons();
+	void tick_ship_pickups();
+	void tick_ship_pickup(size_t ship);
+	bool transport_walkers_none() const;
+	bool ship_reachable_by(size_t ship, size_t walker) const;
+	bool petra_steers_ship(uint32_t ship_id) const;
 	void eject_foreign_passengers(size_t transport); // GarrisonHolder OnDiplomacyChanged
 	void kill_passengers_of(size_t holder); // EjectOrKill on a holder killed out of the world
 	int garrison_size(size_t unit) const;                        // Garrisonable.TotalSize
@@ -2713,6 +2727,7 @@ private:
 	bool petra_is_critical_ent(size_t unit_idx) const;
 	bool petra_guards_critical_ent(size_t unit_idx) const;
 	bool petra_is_critical_wonder(uint32_t building_id) const;
+	bool petra_is_critical_relic(size_t unit_idx) const;
 	float petra_unit_strength(size_t i) const; // getMaxStrength
 	bool petra_army_position(const PetraDefenseArmy &army, float &x, float &z) const; // foePosition
 	bool petra_army_capturing(const PetraDefenseArmy &army) const; // getType() == "capturing"
@@ -2754,12 +2769,14 @@ private:
 	uint8_t petra_gather_kind(size_t r) const;
 	// worker.js startHunting: food dropsites and each supply's gatherers, gathered once per pass.
 	struct PetraHuntScan {
-		std::vector<std::pair<float, float>> food_drops;
+		struct FoodDrop { float x, z; uint16_t land[4]; }; // the lands it borders (getLandAccess)
+		std::vector<FoodDrop> food_drops;
 		std::unordered_map<uint32_t, int> on_animal;  // live animal id -> units hunting it
 		std::unordered_map<uint32_t, int> on_carcass; // meat resource id -> units gathering it
 		std::vector<uint32_t> treasures_taken;        // treasures one of ours is already on its way to
 	};
 	PetraHuntScan petra_hunt_scan() const;
+	bool petra_food_drop_near(const PetraHuntScan &scan, uint16_t land, float x, float z, float d2) const;
 	uint32_t petra_find_hunt(size_t u, float px, float pz, const PetraHuntScan &scan, bool &live) const;
 	bool petra_start_hunting(size_t u, PetraHuntScan &scan);
 	bool petra_gather_treasure(size_t u, PetraHuntScan &scan, bool water = false); // entityExtend.js gatherTreasure
@@ -2989,7 +3006,7 @@ private:
 	uint32_t nearest_dropsite(size_t i) const;
 	bool attack_target_hidden(size_t i, size_t t) const;
 	void deposit_carry(size_t i);
-	void finish_order(size_t i);
+	void finish_order(size_t i, bool find_new_target = false);
 	void resume_order(size_t i);
 	void respond_to_attack(size_t i);
 	bool entity_xz(uint32_t id, float &x, float &z) const;

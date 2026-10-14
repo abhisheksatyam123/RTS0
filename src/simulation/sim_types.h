@@ -486,6 +486,9 @@ enum BuildingType : uint8_t {
 #include "territory_data.h"
 static_assert(TERRITORY_INFLUENCE_ROWS == BLD_TYPE_COUNT,
 	"a new BuildingType needs its TerritoryInfluence row: run tools/extract_0ad_territory.py");
+#include "vision_data.h"
+static_assert(STRUCTURE_VISION_ROWS == BLD_TYPE_COUNT,
+	"a new BuildingType needs its Vision row: run tools/extract_0ad_vision.py");
 
 // The structure whose Researcher list an upgraded form keeps (the Tachara's tribute
 // forms research the Tachara's technologies, the apartment the house's, the Han
@@ -997,16 +1000,9 @@ inline bool unit_is_siege_engine(uint8_t type) {
 // body (unit_collision_radius) and 0 A.D.'s crowd lengths scale by PUSH_SCALE, which puts two
 // villagers left alone 1.4 units apart as before.
 inline constexpr float PUSH_SCALE = 5.0f / 6.0f; // RTS0 units per 0 A.D. metre in a crowd
+inline constexpr float PUSH_CLEARANCE_PER_RADIUS = 0.8f * PUSH_SCALE / 0.5f;
 inline float unit_push_clearance(uint8_t type) {
-	return unit_collision_radius(type) * (0.8f * PUSH_SCALE / 0.5f);
-}
-
-// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines, elephants (war
-// and worker: template_unit_elephant, template_unit_support_elephant) and the supply wagon.
-// A heavy unit pushes harder and is harder to push.
-inline float unit_push_weight(uint8_t type) {
-	return unit_is_siege_engine(type) || type == UNIT_ELEPHANT || type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON
-		? 50.0f : 10.0f;
+	return unit_collision_radius(type) * PUSH_CLEARANCE_PER_RADIUS;
 }
 
 // 0 A.D. ResourceDropsite on a unit: the Mauryan worker elephant (template_unit_support_elephant)
@@ -1927,7 +1923,8 @@ enum TeamBonusStat : uint8_t {
 	TEAM_BONUS_TECH_COST = 5,          // per resource, techs researched at the buildings in the mask
 	TEAM_BONUS_TECH_TIME = 6,
 	TEAM_BONUS_FOOD_TRICKLE = 7,       // food per second, added
-	TEAM_BONUS_TRADE_INTERNATIONAL = 8 // Market/InternationalBonus of allies' markets (calculate_trade_gain)
+	TEAM_BONUS_TRADE_INTERNATIONAL = 8, // Market/InternationalBonus of allies' markets (calculate_trade_gain)
+	TEAM_BONUS_UNIT_COST_ADD = 9       // per resource, added after the multipliers (Stolen Arms -5 metal)
 };
 
 struct CivTeamBonus {
@@ -1936,7 +1933,7 @@ struct CivTeamBonus {
 	int8_t res; // ResourceType for cost stats, -1 otherwise
 	bool allies_only; // 0 A.D. ExclusiveMutualAlly: not the owner itself
 	BldMask buildings; // bld_bit() mask
-	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE
+	float value; // multiplier, or amount added for TEAM_BONUS_FOOD_TRICKLE and TEAM_BONUS_UNIT_COST_ADD
 	const char *id;
 	const char *name;
 	const char *description;
@@ -2083,7 +2080,7 @@ inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t st
 		const CivTeamBonus &b = t[i];
 		if (b.stat != stat || b.res != res) continue;
 		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
-		if (stat == TEAM_BONUS_UNIT_COST || stat == TEAM_BONUS_UNIT_TRAIN_TIME) {
+		if (stat == TEAM_BONUS_UNIT_COST || stat == TEAM_BONUS_UNIT_TRAIN_TIME || stat == TEAM_BONUS_UNIT_COST_ADD) {
 			if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
 		} else if (stat != TEAM_BONUS_FOOD_TRICKLE && stat != TEAM_BONUS_TRADE_INTERNATIONAL) {
 			if (!(b.buildings & bld_bit(building))) continue;
@@ -2091,6 +2088,20 @@ inline float civ_team_bonus_mult(uint8_t own_civ, uint16_t ally_civs, uint8_t st
 		m *= b.value;
 	}
 	return m;
+}
+
+// Sum of the team bonus amounts added to a unit's cost of one resource (TEAM_BONUS_UNIT_COST_ADD).
+inline float civ_team_bonus_cost_add(uint8_t own_civ, uint16_t ally_civs, int8_t res, uint16_t tmpl) {
+	float add = 0.0f;
+	const CivTeamBonus *t = civ_team_bonus_table();
+	for (uint16_t i = 0; i < CIV_TEAM_BONUS_COUNT; ++i) {
+		const CivTeamBonus &b = t[i];
+		if (b.stat != TEAM_BONUS_UNIT_COST_ADD || b.res != res) continue;
+		if (!(ally_civs & civ_bit(b.civ)) && (b.allies_only || b.civ != own_civ)) continue;
+		if (tmpl >= CIV_UNIT_TEMPLATE_COUNT || !((b.units[tmpl >> 6] >> (tmpl & 63)) & 1u)) continue;
+		add += b.value;
+	}
+	return add;
 }
 
 // Sum of the team bonus food trickle (food per second) a player gets.
@@ -2165,6 +2176,22 @@ inline bool unit_is_large(uint16_t tmpl, uint8_t type) {
 	if (type == UNIT_CATAFALQUE || type == UNIT_WAGON) return true;
 	const TechClasses c = tmpl < CIV_UNIT_TEMPLATE_COUNT ? civ_unit_template(tmpl).tech_classes : unit_tech_classes(type);
 	return (c & (TC_SIEGE | TC_ELEPHANT | TC_CHARIOT)) != 0;
+}
+
+// UnitMotion Weight: 10 in template_unit.xml, five times that for siege engines, every elephant
+// (template_unit_elephant and the champion, hero and support elephants) and the supply wagon,
+// three times for chariots (mixins/chariot: the champion and hero chariots) and ten times for
+// catafalques (template_unit_catafalque). A heavy unit pushes harder and is harder to push.
+// Every roster row with the Siege, Elephant or Chariot class has one of these unit types, or is a
+// hero, whose row's classes say what it rides (test_unit_pushing checks every row); pushing reads
+// this for every unit every tick, so the rest never touch the roster table.
+inline uint16_t unit_push_weight(uint16_t tmpl, uint8_t type) {
+	if (type == UNIT_CATAFALQUE) return 100;
+	if (unit_is_siege_engine(type) || type == UNIT_ELEPHANT || type == UNIT_WORKER_ELEPHANT || type == UNIT_WAGON) return 50;
+	if (type == UNIT_CHARIOT || type == UNIT_SCYTHED_CHARIOT) return 30;
+	if (type != UNIT_HERO || tmpl >= CIV_UNIT_TEMPLATE_COUNT) return 10;
+	const TechClasses c = civ_unit_template(tmpl).tech_classes;
+	return (c & TC_ELEPHANT) != 0 ? 50 : (c & TC_CHARIOT) != 0 ? 30 : 10;
 }
 
 // How close a unit's centre comes to a building: its passability class Clearance. Ships keep
