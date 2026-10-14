@@ -2420,8 +2420,18 @@ void RtsoMain::update_cursor() {
 				}
 			}
 			if (!*want) {
+				// unit_actions "collect-treasure": only for a selection with a TreasureCollector
+				// (not dogs, siege engines or catafalques).
+				bool collector = false;
+				auto cuv = sim->units();
+				for (int s = 0; s < selected_ids.size() && !collector; ++s)
+					for (size_t i = 0; i < cuv.count; ++i)
+						if (cuv.id[i] == (uint32_t)(int64_t)selected_ids[s]) {
+							collector = sim->treasure_reach(i) >= 0.0f;
+							break;
+						}
 				for (const auto &t : sim->treasures())
-					if (near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
+					if (collector && near2(t.x, t.z, 2.0f)) { want = "action-collect-treasure"; break; }
 			}
 			if (!*want) {
 				auto fv = sim->fauna();
@@ -4567,6 +4577,13 @@ void RtsoMain::update_command_panel() {
 			for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 				const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
 				if (!rtso::building_researches_tech(found_b->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
+				// Researcher.js GetTechnologiesList: a chain shows one slot, its next step; a technology
+				// whose superseded one is offered here waits until that one is researched or in progress.
+				if (const uint8_t sup = rtso::tech_supersedes((uint8_t)t); sup != rtso::TECH_NONE
+						&& rtso::building_researches_tech(found_b->type, sup, pciv) && rtso::tech_available_to_civ(sup, pciv)) {
+					const rtso::Simulation::ResearchCheck sc = sim->research_check(local_player(), sup, 0);
+					if (sc != rtso::Simulation::TECH_ERR_RESEARCHED && sc != rtso::Simulation::TECH_ERR_IN_PROGRESS) continue;
+				}
 				rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 				if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 				    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
@@ -4600,7 +4617,9 @@ void RtsoMain::update_command_panel() {
 					case rtso::Simulation::TECH_ERR_PHASE:
 						why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
 					case rtso::Simulation::TECH_ERR_PREREQUISITE: {
-						tip += "\n" + requires_text(String::utf8(rtso::tech_info(ti.prerequisite).name));
+						const uint8_t sup = rtso::tech_supersedes((uint8_t)t);
+						const bool need_prev = sup != rtso::TECH_NONE && !sim->player(local_player()).has_tech(sup);
+						tip += "\n" + requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
 						btn->set_disabled(true);
 						break;
 					}
