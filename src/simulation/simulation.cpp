@@ -11113,6 +11113,37 @@ void Simulation::tick_gather(float dt) {
 	if (update_forest_cells() || mine_gone) rebuild_nav_grid();
 }
 
+// Repairable.js GetRepairRate: MaxHitpoints / (RepairTimeRatio x BuildTime), RepairTimeRatio 2.0,
+// or 4.5 on stone walls, gates and wall towers (template_structure_defensive_wall.xml).
+float Simulation::structure_repair_rate(const Building &b) const {
+	const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER ||
+			b.type == BLD_SIEGE_WALL || b.type == BLD_SIEGE_WALL_GATE; // rome/siege_wall_* too
+	const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
+	return b.max_hp / (ratio * structure_build_time(b));
+}
+
+bool Simulation::structure_build_work(const Building &b, BuildWork &out) const {
+	out = BuildWork();
+	if (b.wrecked || b.hp <= 0.0f || b.max_hp <= 0.0f) return false;
+	out.repair = b.build_progress >= 1.0f;
+	if (out.repair && b.hp >= b.max_hp) return false;
+	// The builders tick_construction and tick_repair count: building it, outside and in range.
+	float total_rate = 0.0f;
+	for (size_t i = 0; i < units_.count; ++i) {
+		if (!units_.alive[i] || units_.action_state[i] != ACTION_BUILD || units_.target_building_id[i] != b.id) continue;
+		if (!outside_and_in_build_range(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i))) continue;
+		++out.builders;
+		total_rate += builder_rate(i);
+	}
+	// Foundation: (1 - progress) x BuildTime; Repairable: the missing hitpoints at GetRepairRate.
+	const float hp_rate = out.repair ? structure_repair_rate(b) : b.max_hp / structure_build_time(b);
+	const float left = (b.max_hp - b.hp) / hp_rate; // seconds of work at rate 1
+	const float rate = total_rate * foundation_build_multiplier(out.builders);
+	out.remaining = rate > 0.0f ? left / rate : 0.0f;
+	out.remaining_new = left / ((total_rate + 1.0f) * foundation_build_multiplier(out.builders + 1));
+	return true;
+}
+
 // Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
 // each do n^0.7 / n of their rate (BuildTimeModifier / buildTimePenalty 0.7).
 float Simulation::foundation_build_multiplier(int builders) {
@@ -11390,10 +11421,7 @@ void Simulation::tick_repair(float dt) {
 			// Repairable.js Repair: work x buildMultiplier (n^0.7 / n) x GetRepairRate,
 			// GetRepairRate = MaxHitpoints / (RepairTimeRatio x BuildTime): 2.0, or 4.5 on
 			// stone walls, gates and wall towers (template_structure_defensive_wall.xml).
-			const bool stone_wall = b.type == BLD_WALL_SEGMENT || b.type == BLD_GATE || b.type == BLD_WALL_TOWER ||
-					b.type == BLD_SIEGE_WALL || b.type == BLD_SIEGE_WALL_GATE; // rome/siege_wall_* too
-			const float ratio = stone_wall ? WALL_REPAIR_TIME_RATIO : REPAIR_TIME_RATIO;
-			const float repair_rate = b.max_hp / (ratio * structure_build_time(b));
+			const float repair_rate = structure_repair_rate(b);
 			const float work = foundation_build_multiplier(repairers_per_bld[b.id]) * builder_rate(i);
 			enter_repairing(i); // REPAIRING enter: no longer forced, autoharvest instead
 			b.hp = std::min(b.max_hp, b.hp + work * repair_rate * dt);

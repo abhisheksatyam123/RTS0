@@ -936,6 +936,15 @@ public:
 		float trickle[RES_COUNT] = {}; // ResourceTrickle Rates per TRICKLE_STRUCTURE_INTERVAL
 	};
 	StructureDetails structure_details(const Building &b) const;
+	// Foundation.js / Repairable.js GetBuildTime for the details panel: the builders at work on a
+	// foundation (or repairers on a damaged structure), the seconds left at their pace and with
+	// one more builder (totalBuilderRate + 1). False when it is neither building nor damaged.
+	struct BuildWork {
+		bool repair = false;
+		int builders = 0;
+		float remaining = 0.0f, remaining_new = 0.0f;
+	};
+	bool structure_build_work(const Building &b, BuildWork &out) const;
 	// The statuses on an entity, as selection_details.js lists entState.statusEffects: each
 	// stacked copy with its Damage, Interval and the Duration still to run (seconds). Returns
 	// how many there are; at most `max` are written to `out`.
@@ -2309,6 +2318,7 @@ private:
 	static constexpr float WALL_REPAIR_TIME_RATIO = 4.5f; // template_structure_defensive_wall.xml
 	static constexpr float UNIT_REPAIR_TIME_RATIO = 4.0f; // template_unit_siege.xml, template_unit_ship.xml
 	static float foundation_build_multiplier(int builders);
+	float structure_repair_rate(const Building &b) const;
 	float builder_rate(size_t unit_idx) const;
 	float structure_build_time(const Building &b) const;
 	void tick_production(float dt);
