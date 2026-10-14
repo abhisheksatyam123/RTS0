@@ -9362,6 +9362,12 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			// any range past its clearance.
 			at_building = walk_in_reach(i, px[i], pz[i]);
 			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
+		} else if (units_.action_state[i] == ACTION_GATHER && units_.target_resource_id[i] != 0 &&
+				nav_grid_.near_steep_tile(tx[i], tz[i], unit_clearance_at(i))) {
+			// A tree or a bush within a cliff's margin, where no walker stands: a gatherer in reach
+			// of it works from where it is, as MoveToTargetRange ends in range, instead of pressing
+			// on at the margin and searching for a way in at every step.
+			at_building = walk_in_reach(i, px[i], pz[i]);
 		}
 		if (at_building) {
 			d2 = 0.0f; // in reach: stop here
