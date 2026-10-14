@@ -91,6 +91,8 @@ const Default kDefaults[] = {
 	{"gui.session.batchtrainingsize", "5"},
 	{"gui.session.formationwalkonly", "true"},
 	{"gui.session.selectformationasone", "true"},
+	{"gui.session.rankabovestatusbar", "true"},
+	{"gui.session.experiencestatusbar", "true"},
 	{"gui.session.flarelifetime", "6"},
 	{"gui.session.woundedunithotkeythreshold", "33"},
 	{"gui.session.attackrange", "true"},
