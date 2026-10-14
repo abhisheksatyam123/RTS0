@@ -465,10 +465,12 @@ public:
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
 	bool chat_network_command(const String &text) override;
+	bool chat_reaches(uint8_t from, uint8_t to, const std::string &tag) const;
 	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
 	bool chat_local_observer() override;
 	std::vector<std::pair<int, String>> chat_private_targets() override;
 	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
+	uint8_t chat_player_of_client(uint32_t client) const;
 	void notify_setup_joins(uint8_t before, uint8_t after);
 	// gui.session.formationwalkonly: this order takes its units out of their formations.
 	bool order_disbands_formation(uint8_t cmd_type) const;

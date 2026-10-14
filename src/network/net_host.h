@@ -192,6 +192,13 @@ public:
 	void onPeerConnected(std::function<void(uint32_t)> cb);
 	void onPeerDisconnected(std::function<void(uint32_t)> cb);
 	void onChat(std::function<void(const ChatMsg&)> cb);
+	// Host: 0 A.D. NetServer OnChat sends an addressed line (ally, enemy,
+	// observer, private, flare) only to its addressees. The router answers
+	// whether `message` from client `from` goes to client `to`; unset, every
+	// line goes to everyone and receivers filter (chat_routing.h).
+	void setChatRouter(std::function<bool(uint32_t from, uint32_t to, const std::string &message)> router) {
+		chat_router_ = std::move(router);
+	}
 	// Fired for a late-join request this host may answer. Returns true when the
 	// owner answered it, filling turn_out / hash_out with the state it can prove a
 	// joiner can rebuild; returns false to have NetHost reply ERR_JOINED_LATE.
@@ -290,6 +297,7 @@ private:
 	std::function<void(uint32_t)> peer_connected_cb_;
 	std::function<void(uint32_t)> peer_disconnected_cb_;
 	std::function<void(const ChatMsg&)> chat_cb_;
+	std::function<bool(uint32_t, uint32_t, const std::string &)> chat_router_;
 	std::function<bool(uint32_t, uint32_t, uint32_t &, uint32_t &)> join_sync_request_cb_;
 
 	void check_stun(uint64_t now_ms);

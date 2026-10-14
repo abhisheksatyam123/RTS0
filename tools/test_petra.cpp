@@ -3708,6 +3708,28 @@ static void test_building_plan_028() {
 // storehouse and a house.
 // queues.dropsites keeps a storehouse plan until it is funded: a check that decides on one it
 // can't pay for keeps the decision (and freezes the counts) instead of counting afresh.
+// terrain-analysis.js landPassMap: Canyon's cliffs split land as water does, and structures don't.
+static void test_land_access() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(7);
+	s->reset();
+	s->generate_random_map(MAP_CANYON, 7, 2, 64.0f);
+	const Simulation::Building *tc = nullptr;
+	for (const auto &b : s->buildings_)
+		if (b.team == 1 && b.type == BLD_TOWN_CENTER) tc = &b;
+	CHECK(tc != nullptr, "a civic centre for player 1");
+	if (!tc) return;
+	const uint16_t home = s->petra_access_at(tc->x, tc->z);
+	int on = 0, off = 0;
+	for (size_t r = 0; r < s->resources_.count; ++r)
+		if (s->resources_.alive[r] && s->resources_.type[r] == RES_WOOD)
+			(s->petra_access_at(s->resources_.x[r], s->resources_.z[r]) == home ? on : off)++;
+	CHECK(home != 0 && on > 0 && off > on / 2, "Canyon's trees above the cliffs are on other land");
+	// The civic centre's own cell is a structure's, yet on the same land as the ground beside it.
+	const float side = tc->x + tc->half_size + 2.0f;
+	CHECK(s->petra_access_at(side, tc->z) == home, "a structure doesn't split land");
+}
+
 static void test_pending_dropsite() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -4254,6 +4276,7 @@ int main(int argc, char **argv) {
 	RUN(test_personality_draw);
 	RUN(test_chat_text);
 	RUN(test_pending_dropsite);
+	RUN(test_land_access);
 	std::printf(g_failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", g_failures);
 	return g_failures ? 1 : 0;
 }

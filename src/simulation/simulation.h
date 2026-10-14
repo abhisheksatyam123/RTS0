@@ -2878,6 +2878,18 @@ private:
 	mutable uint64_t petra_topo_cache_key_ = 0;
 	mutable bool petra_topo_cache_valid_ = false;
 	uint16_t petra_land_at(float x, float z) const;
+	// terrain-analysis.js landPassMap (accessibility.js getAccessValue): the land at (x, z) by
+	// terrain alone, deep water, steep slopes and a circular map's edge splitting it and structures
+	// not, unlike petra_land_at's regions. 0 off land. Derived from the nav grid, not saved.
+	uint16_t petra_access_at(float x, float z) const;
+	struct PetraAccess {
+		std::vector<uint8_t> pass;  // nav cell is land by terrain
+		std::vector<uint16_t> land; // its land id from 1, 0 none
+		int res = 0;
+		uint32_t stamp = 0;
+	};
+	mutable PetraAccess petra_access_;
+	uint32_t nav_terrain_stamp_ = 1; // bumped whenever the nav grid's terrain may have changed
 	// This AI's topology classified from its home land (headquarters.js navalMap, landRegions).
 	const PetraNavalTopo &petra_classified_topo(uint16_t &home) const;
 	mutable PetraNavalTopo petra_class_topo_; // per AI turn, derived: not saved
@@ -3097,14 +3109,12 @@ private:
 	uint32_t petra_place_building(uint8_t btype, float near_x, float near_z, int min_r, int max_r, uint8_t queue);
 	// queueplanBuilding.js findPosition (basesMap, influences, findBestTile).
 	struct PetraBasesMap {
-		struct Anchor { float x, z; uint16_t land; uint32_t id; }; // id: the civic centre or colony
+		struct Anchor { float x, z; uint16_t land; uint32_t id; }; // land: petra_access_at; id: the civic centre or colony
 		std::vector<Anchor> anchors;
 		std::vector<uint8_t> base; // territory tiles x0..x1, z0..z1: base number from 1, 0 none
 		int w = 0, x0 = 0, z0 = 0, x1 = -1, z1 = -1;
 		bool naval = false;
 		int at(float x, float z, float half) const;
-		// Off naval maps all land is one: RTS0's land regions, unlike 0 A.D.'s, are cut by structures.
-		uint16_t land(uint16_t l) const { return naval || !l ? l : 1; }
 	};
 	void petra_bases_map(PetraBasesMap &m) const;
 	// `bmap` and `base` (from 1) limit the search to that base's territory.
