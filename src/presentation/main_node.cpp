@@ -4773,7 +4773,8 @@ void RtsoMain::update_roster_list(const rtso::Simulation::Building *b) {
 		roster_list->set_visible(roster_list->get_item_count() > 0);
 		return;
 	}
-	for (uint16_t i : rtso::civ_roster_ids(civ)) {
+	// A shrine trains its own civ's Elite Healer (units/{native}/support_healer_e).
+	for (uint16_t i : rtso::civ_roster_ids(b->type == rtso::BLD_SHRINE ? b->civ : civ)) {
 		const rtso::CivUnitTemplate &u = rtso::civ_unit_template(i);
 		if (!(u.trainers & rtso::bld_bit(b->type))) continue;
 		// RTS0-only rows (<civ>/rts0_villager) back class training for the AI and old saves;
@@ -6545,9 +6546,12 @@ bool RtsoMain::load_map_seeded(String map_id, uint32_t seed) {
 			gaia_structure_ids[i] = spawn_map_wall(*sim, b, rtso::GAIA_PLAYER);
 			continue;
 		}
-		const uint8_t btype = map_building_type(b.get("type", ""));
+		// structures/shrine_* and trading_post_*: their own types, keeping the template's civ.
+		const rtso::GaiaStructureTemplate gt = rtso::gaia_structure_template(String(b.get("template", "")).utf8().get_data());
+		const uint8_t btype = gt.type < rtso::BLD_TYPE_COUNT ? gt.type : map_building_type(b.get("type", ""));
 		if (btype >= rtso::BLD_TYPE_COUNT) continue;
 		gaia_structure_ids[i] = sim->spawn_building_world((float)b.get("x", 0.0), (float)b.get("z", 0.0), btype, rtso::GAIA_PLAYER, 1.0f);
+		if (gt.type < rtso::BLD_TYPE_COUNT) sim->set_building_civ(gaia_structure_ids[i], gt.civ);
 	}
 	// Gaia scenery (fences, columns, obelisks): oriented obstructions.
 	Array scenery_arr = d.get("scenery", Array());
