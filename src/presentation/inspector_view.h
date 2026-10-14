@@ -332,6 +332,8 @@ public:
 	}
 
 	// False when the inspected entity is gone or out of sight.
+	godot::GridContainer *garrison_grid_view() const { return garrison_grid_.grid(); }
+
 	bool fill_inspected_details() {
 		rtso::Simulation *sim = host_->ui_sim();
 		if (!sim || kind_ == INSPECT_NONE) return false;
@@ -591,16 +593,9 @@ public:
 							String::num_int64(rtso::CORRAL_GARRISON_MAX);
 				extra_->set_text(extra);
 
-				// Garrison panel: one icon per unit type inside, click to unload one,
-				// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
-				// structure only our own units inside (Commands.js unload / unload-all-by-owner).
+				// Garrison panel; U unloads all we may (Commands.js unload / unload-all-by-owner).
 				const std::vector<uint32_t> mine = sim->unloadable_by(host_->local_player(), found_b->id);
-				if (!mine.empty()) {
-					auto uview = sim->units();
-					garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
-							"Click to unload one, Shift+click to unload all of this type.");
-					show_garrison_grid = true;
-				}
+				show_garrison_grid = fill_garrison_grid(*sim, found_b->id);
 				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
 				ungarrison_btn_->set_visible(!mine.empty() || (penned > 0 && owner == host_->local_player()));
 				panel_->set_visible(true);
@@ -713,7 +708,8 @@ public:
 				const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
 				extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
 				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-				ungarrison_btn_->set_visible(p_count > 0);
+				ungarrison_btn_->set_visible(!sim->unloadable_by(host_->local_player(), (uint32_t)selected_ids[0]).empty());
+				show_garrison_grid = fill_garrison_grid(*sim, (uint32_t)selected_ids[0]);
 			} else {
 				ungarrison_btn_->set_visible(false);
 			}
@@ -895,6 +891,37 @@ private:
 	godot::Button *ungarrison_btn_ = nullptr;
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
+
+	// g_SelectionPanels.Garrison for a structure, ship, ram or siege tower: up to 12 icons,
+	// one per template and owner, on the owner's colour. A click unloads one (Shift: all of
+	// that type) when we own the holder or the units; others' units show disabled and grey
+	// (not grey for an observer). False when nothing is inside.
+	bool fill_garrison_grid(const rtso::Simulation &sim, uint32_t holder) {
+		using namespace godot;
+		uint8_t holder_owner = 0xFF;
+		const std::vector<uint32_t> inside = sim.holder_contents(holder, &holder_owner);
+		if (inside.empty()) return false;
+		auto uview = sim.units();
+		std::vector<RtsoSelectionGrid::Group> groups = RtsoSelectionGrid::group_units(uview, inside.data(), inside.size(), true);
+		if (groups.size() > 12) groups.resize(12);
+		const uint8_t me = host_->local_player();
+		const bool observer = me >= rtso::MAX_PLAYERS;
+		for (auto &g : groups) {
+			g.enabled = !observer && (me == holder_owner || me == g.player);
+			g.grey = !observer;
+			const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
+			g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
+			const auto &info = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(g.tmpl, g.unit_type) : rtso::unit_type_info(g.unit_type);
+			const char *specific = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(g.tmpl).specific_name : nullptr;
+			const String names = rtso::entity_names(String::utf8(info.name), String::utf8(specific ? specific : ""));
+			g.tip = (g.enabled ? rtso::sprintf0(rtso::tr0("Unload %(name)s"), {{"name", names}}) + String("\n") +
+							rtso::tr0("Single-click to unload 1. Shift-click to unload all of this type.")
+						: names) + String("\n") +
+					rtso::sprintf0(rtso::tr0("Player: %(playername)s"), {{"playername", host_->player_display_name(g.player)}});
+		}
+		garrison_grid_.update(groups, "");
+		return true;
+	}
 };
 
 #endif // RTSO_INSPECTOR_VIEW_H

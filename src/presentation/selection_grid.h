@@ -12,8 +12,11 @@
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
+#include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/string.hpp>
@@ -35,6 +38,13 @@ public:
 		uint16_t tmpl = 0;
 		int count = 0;
 		float hp = 0, max_hp = 0;
+		// The garrison panel's extras: the units' owner (its colour behind the icon when
+		// `bg` is opaque), whether a click may unload them (else disabled, its icon grey
+		// unless `grey` is off) and the tooltip, which replaces the default one.
+		uint8_t player = 0xFF;
+		bool enabled = true, grey = true;
+		Color bg = Color(0, 0, 0, 0);
+		String tip;
 	};
 
 	// Template row when the unit has one, else 0x10000 | unit type.
@@ -42,19 +52,27 @@ public:
 		return tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? (int)tmpl : (0x10000 | unit_type);
 	}
 
-	// Groups `ids` (live units of the unit view) by template, in first-seen order.
-	static std::vector<Group> group_units(const rtso::Simulation::UnitView &uv, const uint32_t *ids, size_t n) {
+	// The garrison panel's groups (EntityGroups): template and owner.
+	static int owner_key(uint8_t unit_type, uint16_t tmpl, uint8_t player) {
+		return group_key(unit_type, tmpl) | ((int)player << 17);
+	}
+
+	// Groups `ids` (live units of the unit view) by template, or template and owner, in
+	// first-seen order.
+	static std::vector<Group> group_units(const rtso::Simulation::UnitView &uv, const uint32_t *ids, size_t n, bool by_owner = false) {
 		std::vector<Group> groups;
 		for (size_t s = 0; s < n; ++s) {
 			for (size_t i = 0; i < uv.count; ++i) {
-				if (uv.id[i] != ids[s] || !uv.alive[i]) continue;
+				if (uv.id[i] != ids[s]) continue;
+				// Garrisoned units and passengers are out of the world (alive 0) but living.
+				if (by_owner ? uv.hp[i] <= 0.0f : !uv.alive[i]) break;
 				const uint16_t tmpl = uv.tmpl ? uv.tmpl[i] : rtso::CIV_UNIT_TEMPLATE_NONE;
-				const int key = group_key(uv.unit_type[i], tmpl);
+				const int key = by_owner ? owner_key(uv.unit_type[i], tmpl, uv.team[i]) : group_key(uv.unit_type[i], tmpl);
 				Group *g = nullptr;
 				for (auto &e : groups)
 					if (e.key == key) g = &e;
 				if (!g) {
-					groups.push_back({key, uv.unit_type[i], tmpl, 0, 0, 0});
+					groups.push_back({key, uv.unit_type[i], tmpl, 0, 0, 0, uv.team[i]});
 					g = &groups.back();
 				}
 				++g->count;
@@ -91,6 +109,7 @@ public:
 	void set_right_click(const char *method) { right_method_ = method; }
 
 	static String tooltip(const Group &g, const String &tip_suffix) {
+		if (!g.tip.is_empty()) return g.tip;
 		return group_name(g) + " (" + String::num_int64(g.count) + ")\nHealth: " +
 				String::num(g.hp, 0) + " / " + String::num(g.max_hp, 0) + "\n" + tip_suffix;
 	}
@@ -110,7 +129,8 @@ public:
 		// Button replaced between its press and its release.
 		uint64_t sig = groups.size();
 		for (const auto &g : groups)
-			sig = sig * 1000003ull + (uint64_t)g.key * 131ull + (uint64_t)g.count * 7ull;
+			sig = sig * 1000003ull + (uint64_t)g.key * 131ull + (uint64_t)g.count * 7ull + (g.enabled ? 3ull : 0ull) +
+					(uint64_t)g.bg.to_rgba32();
 		if (sig == sig_ && grid_->get_child_count() == (int)groups.size()) {
 			for (size_t i = 0; i < groups.size(); ++i) {
 				Button *b = Object::cast_to<Button>(grid_->get_child((int)i));
@@ -137,8 +157,34 @@ public:
 			b->set_expand_icon(true);
 			b->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 			Ref<Texture2D> tex = rtso::portraits::unit(g.tmpl, g.unit_type);
-			if (tex.is_valid()) b->set_button_icon(tex);
-			else b->set_text(group_name(g).substr(0, 3));
+			if (tex.is_valid() && g.enabled) {
+				b->set_button_icon(tex);
+			} else if (tex.is_valid()) {
+				// A disabled button keeps its look; only the portrait goes grey ("grayscale:").
+				TextureRect *icon = memnew(TextureRect);
+				icon->set_name("garrisonIcon");
+				icon->set_texture(tex);
+				icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+				icon->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+				icon->set_position(Vector2(3, 3));
+				icon->set_size(Vector2(icon_ - 6, icon_ - 6));
+				icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+				if (g.grey) icon->set_material(grayscale());
+				b->add_child(icon);
+			} else {
+				b->set_text(group_name(g).substr(0, 3));
+			}
+			b->set_disabled(!g.enabled);
+			if (g.bg.a > 0.0f) {
+				// guiSelection "color:<player colour> 160", and sprite_disabled = sprite.
+				for (const char *state : {"normal", "hover", "pressed", "disabled"}) {
+					Ref<StyleBoxFlat> sb;
+					sb.instantiate();
+					sb->set_bg_color(String(state) == "hover" ? g.bg.lightened(0.2f) : g.bg);
+					sb->set_corner_radius_all(2);
+					b->add_theme_stylebox_override(state, sb);
+				}
+			}
 			b->set_tooltip_text(tooltip(g, tip_suffix));
 			b->connect("pressed", Callable(owner_, method_).bind(g.key));
 			if (right_method_) b->connect("gui_input", Callable(owner_, right_method_).bind(g.key));
@@ -170,7 +216,20 @@ public:
 	}
 
 private:
+	Ref<ShaderMaterial> grayscale() {
+		if (grayscale_.is_null()) {
+			Ref<Shader> sh;
+			sh.instantiate();
+			sh->set_code("shader_type canvas_item;\nvoid fragment() {\n\tvec4 c = texture(TEXTURE, UV);\n"
+					"\tfloat g = dot(c.rgb, vec3(0.3, 0.59, 0.11));\n\tCOLOR = vec4(vec3(g), c.a) * COLOR;\n}\n");
+			grayscale_.instantiate();
+			grayscale_->set_shader(sh);
+		}
+		return grayscale_;
+	}
+
 	GridContainer *grid_ = nullptr;
+	Ref<ShaderMaterial> grayscale_; // a member, not a static: it goes before the engine shuts down
 	Object *owner_ = nullptr;
 	const char *method_ = "";
 	const char *right_method_ = nullptr; // called with (event, key) on a right-click
