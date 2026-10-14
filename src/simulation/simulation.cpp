@@ -24,6 +24,7 @@
 #include <fstream>
 #include <memory>
 #include <type_traits>
+#include <array>
 #include <queue>
 #include <iostream>
 
@@ -286,7 +287,8 @@ static bool outside_and_in_build_range(float bx, float bz, float hx, float hz, f
 
 // The two above in a building's own frame, so a turned footprint (nav/footprint.h) gets the same
 // stand points and reach as an unturned one.
-static void stand_outside(const Simulation::Building &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz,
+template <class B>
+static void stand_outside(const B &b, uint32_t uid, float from_x, float from_z, float *ox, float *oz,
 		float off = kBuildStandOff) {
 	if (nav::footprint_aligned(b)) return stand_outside_rect(b.x, b.z, b.hu, b.hv, uid, from_x, from_z, off, ox, oz);
 	const nav::Vec2 l = nav::footprint_local(b, from_x, from_z);
@@ -1031,6 +1033,8 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 	resources_.regrow_left[idx] = regrow_interval(type, subtype);
 	resources_.flora[idx] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
 	res_id_to_idx_[rid] = idx;
+	nav::Footprint m;
+	if (!bulk_spawn_ && amount > 0 && mine_footprint(idx, m)) rebuild_nav_grid(); // a mine blocks paths
 	return rid;
 }
 
@@ -1042,13 +1046,29 @@ void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
 	auto it = res_id_to_idx_.find(res_id);
 	if (it == res_id_to_idx_.end()) return;
-	resources_.amount[it->second] = amount;
-	if (resources_.max_amount[it->second] > 0) resources_.max_amount[it->second] = amount;
+	const size_t r = it->second;
+	const bool had = resources_.amount[r] > 0;
+	resources_.amount[r] = amount;
+	if (resources_.max_amount[r] > 0) resources_.max_amount[r] = amount;
+	nav::Footprint m;
+	if (had != (amount > 0) && mine_footprint(r, m)) {
+		resource_block_tick_ = UINT64_MAX; // the foundation cells it blocks
+		if (!bulk_spawn_ && resources_.alive[r]) rebuild_nav_grid();
+	}
 }
 
 void Simulation::set_resource_max_gatherers(uint32_t res_id, int max_gatherers) {
 	auto it = res_id_to_idx_.find(res_id);
-	if (it != res_id_to_idx_.end()) resources_.max_gatherers[it->second] = (uint8_t)std::clamp(max_gatherers, 1, 255);
+	if (it == res_id_to_idx_.end()) return;
+	const size_t r = it->second;
+	nav::Footprint was, now;
+	const bool mine = mine_footprint(r, was);
+	resources_.max_gatherers[r] = (uint8_t)std::clamp(max_gatherers, 1, 255);
+	// A mine's MaxGatherers names its template, and so its size (mine_footprint).
+	if (mine && mine_footprint(r, now) && (now.hu != was.hu || now.hv != was.hv)) {
+		resource_block_tick_ = UINT64_MAX;
+		if (!bulk_spawn_ && resources_.alive[r] && resources_.amount[r] > 0) rebuild_nav_grid();
+	}
 }
 
 uint32_t Simulation::spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team, float progress, float rot) {
@@ -1356,6 +1376,25 @@ void Simulation::rebuild_nav_grid() {
 						nav_grid_.cells.at(cx, cy) = NAV_OBSTRUCTED;
 				}
 		}
+	}
+	// Gaia mines block pathfinding (template_gaia BlockPathfinding): the navcells their turned square
+	// (mine_footprint), grown by the default class clearance, covers whole. 0 A.D.'s navcells are 1 m,
+	// RTS0's 8 m, as wide as a small mine: a navcell a mine only partly covers stays open to long paths,
+	// and units steer round the mine itself (steer_obstacles_). Blocking every navcell a mine touches
+	// would close passages 0 A.D. leaves open, such as a causeway on Snowflake Searocks.
+	for (size_t r = 0; r < resources_.count; ++r) {
+		nav::Footprint m;
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
+		const float grow = CLEARANCE_DEFAULT + 1e-4f, e = nav::footprint_extent(m) + grow;
+		auto in = [&](float x, float z) { return nav::footprint_contains(m, x, z, grow); };
+		const auto [x0, y0] = nav_grid_.world_to_cell(m.x - e, m.z - e);
+		const auto [x1, y1] = nav_grid_.world_to_cell(m.x + e, m.z + e);
+		for (int y = y0; y <= y1; ++y)
+			for (int x = x0; x <= x1; ++x) {
+				const float wx = nav_origin.x + (float)x * nav_cell, wz = nav_origin.y + (float)y * nav_cell;
+				if (in(wx, wz) && in(wx + nav_cell, wz) && in(wx, wz + nav_cell) && in(wx + nav_cell, wz + nav_cell))
+					nav_grid_.cells.at(x, y) = NAV_OBSTRUCTED;
+			}
 	}
 	// Precise dirty bits: diff new cells vs snapshot (covers placements,
 	// completions AND demolitions). Falls back to full remesh only when the
@@ -1829,6 +1868,52 @@ uint8_t distance_class_of(uint8_t type) {
 }
 } // namespace
 
+// The mines, which block movement (template_gaia BlockMovement), for the steering and separation lists.
+void Simulation::append_mine_obstacles(std::vector<SteerObstacle> &out) const {
+	for (size_t r = 0; r < resources_.count; ++r) {
+		nav::Footprint m;
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 ||
+				(resources_.type[r] != RES_GOLD && resources_.type[r] != RES_STONE) || !mine_footprint(r, m)) continue;
+		out.push_back(steer_obstacle(resources_.id[r], m.x, m.z, m.ux, m.uz, m.hu, m.hv, MINE_OBSTACLE));
+	}
+}
+
+const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() {
+	if (mine_obstacles_tick_ != ticks_) {
+		mine_obstacles_.clear();
+		append_mine_obstacles(mine_obstacles_);
+		mine_obstacles_tick_ = ticks_;
+	}
+	return mine_obstacles_;
+}
+
+bool Simulation::mine_footprint(size_t r, nav::Footprint &f) const {
+	const uint8_t type = resources_.type[r], sub = resources_.subtype[r];
+	if ((type != RES_GOLD && type != RES_STONE) || (sub != RES_SUB_NONE && sub != RES_SUB_RUINS)) return false;
+	// MaxGatherers tells the templates apart: 12 (4 for a _cut quarry) small, 24 large, and 48 only
+	// temperate_large_02 (RmsGenerator::set_mine_gatherers).
+	const uint8_t g = resources_.max_gatherers[r];
+	const bool ruins = sub == RES_SUB_RUINS;
+	const float w = ruins ? 7.0f : g >= 48 ? 22.0f : g >= 24 ? 13.0f : 7.0f;
+	const float d = !ruins && g >= 48 ? 14.0f : w;
+	// mine_angle takes 12 values: their footprint_axis once each.
+	struct Axis { float ux, uz; bool swapped; };
+	static const std::array<Axis, 12> axes = [] {
+		std::array<Axis, 12> a{};
+		for (uint32_t k = 0; k < 12; ++k) nav::footprint_axis(mine_angle(k), a[k].ux, a[k].uz, a[k].swapped);
+		return a;
+	}();
+	const Axis &ax = axes[resources_.id[r] % 12];
+	f.ux = ax.ux;
+	f.uz = ax.uz;
+	const bool swapped = ax.swapped;
+	f.x = resources_.x[r];
+	f.z = resources_.z[r];
+	f.hu = (swapped ? d : w) * 0.125f; // metres to half extents in world units
+	f.hv = (swapped ? w : d) * 0.125f;
+	return true;
+}
+
 void Simulation::ensure_resource_block_cells() const {
 	const int w = std::max(1, (int)std::ceil(2.0f * map_half_ / GRID));
 	if (resource_block_tick_ == ticks_ && resource_block_count_ == resources_.count && resource_block_w_ == w) return;
@@ -1840,7 +1925,25 @@ void Simulation::ensure_resource_block_cells() const {
 		if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 		const uint8_t sub = resources_.subtype[r];
 		if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
-		// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
+		nav::Footprint m;
+		if (mine_footprint(r, m)) {
+			// A mine blocks each cell its turned square overlaps.
+			const float e = nav::footprint_extent(m);
+			const int gx0 = std::max(0, (int)std::floor((m.x - e + map_half_) / GRID));
+			const int gx1 = std::min(w - 1, (int)std::floor((m.x + e + map_half_) / GRID));
+			const int gz0 = std::max(0, (int)std::floor((m.z - e + map_half_) / GRID));
+			const int gz1 = std::min(w - 1, (int)std::floor((m.z + e + map_half_) / GRID));
+			nav::Footprint cell;
+			cell.hu = cell.hv = 0.5f * GRID;
+			for (int z = gz0; z <= gz1; ++z)
+				for (int x = gx0; x <= gx1; ++x) {
+					cell.x = (x + 0.5f) * GRID - map_half_;
+					cell.z = (z + 0.5f) * GRID - map_half_;
+					if (nav::footprints_overlap(cell, m)) resource_block_cells_[(size_t)z * w + x] = 1;
+				}
+			continue;
+		}
+		// Other Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
 		const int gx0 = std::max(0, (int)std::floor((resources_.x[r] - 0.375f + map_half_) / GRID));
 		const int gx1 = std::min(w - 1, (int)std::floor((resources_.x[r] + 0.375f + map_half_) / GRID));
 		const int gz0 = std::max(0, (int)std::floor((resources_.z[r] - 0.375f + map_half_) / GRID));
@@ -2011,16 +2114,15 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 			if (!resources_.alive[r] || resources_.amount[r] <= 0) continue;
 			const uint8_t sub = resources_.subtype[r];
 			if (sub == RES_SUB_GRAIN || sub == RES_SUB_MEAT) continue;
-			// Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
-			if (resources_.x[r] + 0.375f < x0 || resources_.x[r] - 0.375f > x1 || resources_.z[r] + 0.375f < z0 ||
-					resources_.z[r] - 0.375f > z1)
-				continue;
 			nav::Footprint o;
-			o.x = resources_.x[r];
-			o.z = resources_.z[r];
-			o.ux = 1.0f;
-			o.uz = 0.0f;
-			o.hu = o.hv = 0.375f;
+			if (!mine_footprint(r, o)) {
+				// Other Gaia resource obstructions are about 1.5 m (3/8 tile) across their centre.
+				o.x = resources_.x[r];
+				o.z = resources_.z[r];
+				o.hu = o.hv = 0.375f;
+			}
+			const float e = nav::footprint_extent(o);
+			if (o.x + e < x0 || o.x - e > x1 || o.z + e < z0 || o.z - e > z1) continue;
 			if (nav::footprints_overlap(piece, o)) return PLACE_OBSTRUCTED;
 		}
 	} else {
@@ -6689,11 +6791,18 @@ uint32_t Simulation::spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t 
 }
 
 void Simulation::clear_resources_near(float x, float z, float r) {
+	bool mine = false;
 	for (size_t i = 0; i < resources_.count; ++i) {
 		if (!resources_.alive[i] || resources_.subtype[i] == RES_SUB_FISH) continue;
 		if (std::hypot(resources_.x[i] - x, resources_.z[i] - z) > r) continue;
+		nav::Footprint m;
+		mine = mine_footprint(i, m) || mine;
 		resources_.alive[i] = 0;
 		resources_.amount[i] = 0;
+	}
+	if (mine) {
+		resource_block_tick_ = UINT64_MAX;
+		if (!bulk_spawn_) rebuild_nav_grid();
 	}
 }
 
@@ -8133,6 +8242,8 @@ void Simulation::tick(float dt) {
 	Arena &arena = frame_arena_.current();
 	arena.reset();
 
+	if (ticks_ == 0) explore_territories();
+
 	// Master simulation tick pipeline in fixed, deterministic order:
 	// 0. Map triggers (0 A.D. Timer.js runs its timers at the start of a turn)
 	tick_triggers(dt);
@@ -8425,15 +8536,17 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		has[ti] = 1;
 	}
 
-	// Building steering only ever tests standing buildings that block movement.
+	// Building steering only ever tests standing buildings that block movement, and mines.
 	steer_obstacles_.clear();
 	closed_gates_.clear();
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b)) {
-			steer_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
+			steer_obstacles_.push_back(steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type));
 			if (is_gate_type(b.type) && b.build_progress >= 1.0f)
-				closed_gates_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
+				closed_gates_.push_back(steer_obstacles_.back());
 		}
+	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
+	steer_obstacles_.insert(steer_obstacles_.end(), mines.begin(), mines.end());
 	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
 	// is only reused among the same buildings and water level.
 	{
@@ -8523,6 +8636,15 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					has[i] = 1;
 				}
 			}
+		}
+
+		// A mine's gatherer walks to the near side of the mine's square, as a builder to its
+		// foundation's: 0 A.D. UnitMotion moves to the range round the target's obstruction, and
+		// heading for the mine's centre would take it into the gatherers already working there.
+		if (units_.action_state[i] == ACTION_GATHER) {
+			nav::Footprint m;
+			if (gather_mine_footprint(i, m))
+				stand_outside(m, units_.id[i], px[i], pz[i], &tx[i], &tz[i], unit_clearance_at(i) + kStandMargin);
 		}
 
 		if (!has[i]) {
@@ -8710,11 +8832,13 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
 			}
 		} else if ((units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] != 0) ||
-				(units_.action_state[i] == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON)) {
-			// UnitMotion MoveToTargetRange for a builder (REPAIR.APPROACHING) and a unit on its way
-			// into a structure (GARRISON.APPROACHING): the walk ends once the structure is within the
-			// task's range, and until then goes right up to its stand point, as close as the unit can
-			// stand, so it gets within any range past its clearance.
+				(units_.action_state[i] == ACTION_MOVE && units_.order_kind[i] == ORDER_GARRISON) ||
+				gathering_mine(i)) {
+			// UnitMotion MoveToTargetRange for a builder (REPAIR.APPROACHING), a unit on its way
+			// into a structure (GARRISON.APPROACHING) and a gatherer on its way to a mine
+			// (GATHER.APPROACHING): the walk ends once the target is within the task's range, and until
+			// then goes right up to its stand point, as close as the unit can stand, so it gets within
+			// any range past its clearance.
 			at_building = walk_in_reach(i, px[i], pz[i]);
 			if (!at_building) stop_dist = ARRIVE_DIST * 0.25f;
 		}
@@ -8900,8 +9024,9 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 
 // 0 A.D. CCmpUnitMotion::PerformMove checks every step with CheckMovement. Its obstruction filter
 // (ControlGroupMovementObstructionFilter) lets a pushing unit walk through units that are moving and
-// through its own formation, but not through units standing still: pushing never mixes moving and
-// idle units (CCmpUnitMotionManager::Push), so idle units hold their ground. A step into one stops
+// through its own control group (its formation; in RTS0 also its mine's workers, control_group), but
+// not through units standing still: pushing never mixes moving and idle units
+// (CCmpUnitMotionManager::Push), so idle units hold their ground. A step into one stops
 // the walker (an obstructed move), and HandleObstructedMove asks for a short path round the
 // obstructions, idle units included, from the next turn on; RTS0 searches it on the unit's own tick
 // of each 200 ms turn and keeps its next waypoint (ShortPathMemo, idle_path_key) until the unit gets
@@ -8937,6 +9062,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	if (!any_idle || !any_walker) return;
 	UnitGrid grid;
 	if (!grid.build(arena, n, px, pz, idle, map_half_)) return;
+	uint32_t *crew = arena.alloc_array<uint32_t>(n); // control_group: a unit's own group never obstructs it
+	if (!crew) return;
+	for (size_t i = 0; i < n; ++i) crew[i] = control_group(i);
 
 	constexpr float RANGE_MIN = 12.0f / 4.0f, RANGE_STEP = 4.0f / 4.0f, RANGE_MAX = 56.0f / 4.0f; // map lengths: 4 m a unit
 	constexpr float RANGE_CORNER = 32.0f / 4.0f; // a search on from a corner
@@ -8971,6 +9099,18 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 			if (rit == res_id_to_idx_.end()) return false;
 			const size_t k = rit->second;
+			nav::Footprint m;
+			if (mine_footprint(k, m)) {
+				// gather_in_reach's band round the mine's square.
+				g.type = nav::ShortPathGoal::SQUARE;
+				g.center = nav::Vec2(m.x, m.z);
+				g.u = nav::footprint_u(m);
+				g.v = nav::footprint_v(m);
+				const float reach = (unit_push_clearance(units_.unit_type[i]) + MINE_GATHER_REACH) * 0.9f;
+				g.hw = m.hu + reach;
+				g.hh = m.hv + reach;
+				return true;
+			}
 			return circle(resources_.x[k], resources_.z[k], resources_.subtype[k] == RES_SUB_FISH ? FISH_GATHER_REACH : 2.5f);
 		}
 		if (st == ACTION_ATTACK && units_.target_unit_id[i] != 0) { // tick_combat
@@ -9016,10 +9156,9 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 		if (npx[i] == x0 && npz[i] == z0) return;
 		const float ci = unit_push_clearance(units_.unit_type[i]);
 		const uint32_t ignore = units_.target_unit_id[i];
-		const uint32_t group = i < formation_group_.size() ? formation_group_[i] : 0u;
+		const uint32_t group = crew[i];
 		auto obstructs = [&](int32_t j) {
-			return (size_t)j != i && idle[j] && units_.id[j] != ignore &&
-			       !(group && (size_t)j < formation_group_.size() && formation_group_[j] == group);
+			return (size_t)j != i && idle[j] && units_.id[j] != ignore && !(group && crew[j] == group);
 		};
 		auto step_blocked = [&](float ex, float ez) {
 			const float reach = std::hypot(ex - x0, ez - z0) + ci + c_max;
@@ -9152,16 +9291,54 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 	});
 }
 
+// 0 A.D. gives the members of a formation one control group: they walk through each other
+// (ControlGroupMovementObstructionFilter) and push only where their clearances overlap, idle members
+// included (CCmpUnitMotionManager::Push). RTS0 gives one to the workers of a mine as well, from the
+// walk to it until the walk back from the dropsite. 0.28's band round a 13 m mine, 2 m wide, holds its
+// 24 gatherers in one row; at RTS0's crowd scale (PUSH_SCALE, over three times the map's) they stand
+// two deep on the side facing the dropsite, and those coming and going would otherwise search a short
+// path round the others every turn, and often find none.
+uint32_t Simulation::control_group(size_t i) const {
+	if (i < formation_group_.size() && formation_group_[i]) return formation_group_[i];
+	const uint8_t st = units_.action_state[i];
+	if ((st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) || units_.target_resource_id[i] == 0) return 0;
+	const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+	if (rit == res_id_to_idx_.end()) return 0;
+	const uint8_t type = resources_.type[rit->second], sub = resources_.subtype[rit->second];
+	if ((type != RES_GOLD && type != RES_STONE) || (sub != RES_SUB_NONE && sub != RES_SUB_RUINS)) return 0; // mine_footprint's mines
+	return 0x80000000u | units_.target_resource_id[i];
+}
+
+bool Simulation::gather_mine_footprint(size_t i, nav::Footprint &m) const {
+	if (units_.action_state[i] != ACTION_GATHER || units_.target_resource_id[i] == 0) return false;
+	const auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
+	return rit != res_id_to_idx_.end() && mine_footprint(rit->second, m);
+}
+
+bool Simulation::gathering_mine(size_t i) const {
+	nav::Footprint m;
+	return gather_mine_footprint(i, m);
+}
+
+bool Simulation::gather_in_reach(size_t i, size_t r, float x, float z) const {
+	nav::Footprint m;
+	if (mine_footprint(r, m)) {
+		const nav::Vec2 gap = nav::footprint_gap(m, x, z);
+		const float reach = unit_push_clearance(units_.unit_type[i]) + MINE_GATHER_REACH;
+		return gap.x * gap.x + gap.y * gap.y <= reach * reach;
+	}
+	const float reach = resources_.subtype[r] == RES_SUB_FISH ? FISH_GATHER_REACH : 2.5f;
+	const float dx = x - resources_.x[r], dz = z - resources_.z[r];
+	return dx * dx + dz * dz < reach * reach;
+}
+
 bool Simulation::walk_in_reach(size_t i, float x, float z) const {
 	const uint8_t st = units_.action_state[i];
 	if (st == ACTION_GATHER && units_.target_resource_id[i] != 0) {
 		// tick_gather's reach.
 		auto rit = res_id_to_idx_.find(units_.target_resource_id[i]);
 		if (rit == res_id_to_idx_.end()) return false;
-		const size_t r = rit->second;
-		const float reach = resources_.subtype[r] == RES_SUB_FISH ? FISH_GATHER_REACH : 2.5f;
-		const float dx = x - resources_.x[r], dz = z - resources_.z[r];
-		return dx * dx + dz * dz < reach * reach;
+		return gather_in_reach(i, rit->second, x, z);
 	}
 	if (st == ACTION_ATTACK && units_.target_unit_id[i] != 0) {
 		// tick_combat's range, on the flat.
@@ -9231,12 +9408,14 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 	// and Push adds to it.
 	const uint64_t per_turn = (uint64_t)std::max(1L, std::lround(PUSH_TURN / dt));
 	const bool turn_ends = (ticks_ + 1) % per_turn == 0;
-	// The standing buildings that block movement now, for the building pass below and for
-	// tick_fauna's steps (fauna_can_step), so it is built every tick, with or without units.
+	// The standing buildings and the mines that block movement now, for the building pass below and
+	// for tick_fauna's steps (fauna_can_step), so it is built every tick, with or without units.
 	sep_obstacles_.clear();
 	for (const Building &b : buildings_)
 		if (!b.wrecked && blocks_movement_now(b))
-			sep_obstacles_.push_back(SteerObstacle{b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type, false});
+			sep_obstacles_.push_back(steer_obstacle(b.id, b.x, b.z, b.ux, b.uz, b.hu, b.hv, b.type));
+	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
+	sep_obstacles_.insert(sep_obstacles_.end(), mines.begin(), mines.end());
 	sep_grid_.build(sep_obstacles_, map_half_);
 	if (n < 2) {
 		if (n == 1 && turn_ends) units_.motion[0].pressure = (uint8_t)((PUSH_PRESSURE_DECAY * units_.motion[0].pressure) >> 16);
@@ -9290,7 +9469,7 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		u.r = unit_collision_radius(type);
 		u.w = unit_push_weight(units_.tmpl[i], type);
 		u.id = units_.id[i];
-		u.group = i < formation_group_.size() ? formation_group_[i] : 0u;
+		u.group = control_group(i);
 		u.moving = have_steps && (steps.moving[i] & WALK_MOVING);
 		u.slot = st == ACTION_IDLE || st == ACTION_MOVE || st == ACTION_ATTACK_MOVE;
 		c_max = std::max(c_max, u.r * PUSH_CLEARANCE_PER_RADIUS);
@@ -9322,10 +9501,10 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 			if ((size_t)j == i) return;
 			const PushUnit &b = pu[j];
 			const bool mj = b.moving;
-			// Members of one formation (0 A.D.'s control group) push each other only where their
-			// clearances overlap, whether they move or not. Two that stand or walk in their slots
-			// don't push at all: RTS0 lays slots out by body width, closer than clearances, where
-			// 0 A.D.'s footprints keep them wider.
+			// Members of one control group (a formation, or a mine's workers: control_group) push
+			// each other only where their clearances overlap, whether they move or not. Two that
+			// stand or walk in their slots don't push at all: RTS0 lays slots out by body width,
+			// closer than clearances, where 0 A.D.'s footprints keep them wider.
 			const bool same_group = my_group && b.group == my_group;
 			if (same_group && a.slot && b.slot) return;
 			if (!mi && !mj) {
@@ -10035,10 +10214,7 @@ void Simulation::tick_gather(float dt) {
 				// already removed this farmer: the diminishing returns count the others only.
 				field_efficiency = field_gather_efficiency(std::min(fg.total, FIELD_MAX_GATHERERS) - 1);
 			}
-			float dx = units_.pos_x[i] - resources_.x[ridx];
-			float dz = units_.pos_z[i] - resources_.z[ridx];
-			const float reach = fish ? FISH_GATHER_REACH : 2.5f;
-			if (dx * dx + dz * dz < reach * reach) {
+			if (gather_in_reach(i, ridx, units_.pos_x[i], units_.pos_z[i])) {
 				if (!fish && field_efficiency <= 0.0f) {
 					// MaxGatherers: the first units working it take its slots; the rest look for
 					// another supply of the same kind nearby (UnitAI FINDINGNEWTARGET) or give up.
@@ -10164,8 +10340,11 @@ void Simulation::tick_gather(float dt) {
 		}
 	}
 
+	bool mine_gone = false;
 	for (size_t r = 0; r < resources_.count; ) {
 		if (resources_.amount[r] <= 0) {
+			nav::Footprint m;
+			mine_gone = mine_footprint(r, m) || mine_gone;
 			res_id_to_idx_.erase(resources_.id[r]);
 			resources_.remove_at(r);
 			res_id_to_idx_.clear();
@@ -10174,6 +10353,7 @@ void Simulation::tick_gather(float dt) {
 			++r;
 		}
 	}
+	if (mine_gone) rebuild_nav_grid(); // a worked-out mine no longer blocks paths
 }
 
 // Foundation.js / Repairable.js CalculateBuildMultiplier: n builders at work
@@ -26629,6 +26809,29 @@ void Simulation::update_spy_los() {
 		los_.update(los_spy_src_[k], want);
 	}
 	los_spy_src_.resize(spies_.size());
+}
+
+// InitGame.js calls CCmpRangeManager::ExploreTerritories before the first turn: every
+// player starts with the land inside its territory explored, and so does the fog the
+// local viewer draws. The territory grid and the LOS grid share one cell layout.
+void Simulation::explore_territories() {
+	if (los_.res() != grid_res_) reset_los();
+	const size_t n = (size_t)grid_res_ * (size_t)grid_res_;
+	if ((size_t)territory_grid_.w * (size_t)territory_grid_.h != n || los_.cells() != n) return;
+	const uint8_t viewer = fow_viewer_;
+	std::vector<uint8_t> *view = nullptr;
+	if (viewer != 0 && viewer < MAX_PLAYERS) {
+		view = &player_fow_[viewer];
+		if (view->size() != fow_grid_.size()) view->assign(fow_grid_.size(), FOW_UNEXPLORED);
+	}
+	for (size_t c = 0; c < n; ++c) {
+		const uint8_t v = territory_grid_.data[c];
+		if (v == 0 || v > MAX_PLAYERS) continue;
+		const uint8_t p = (uint8_t)(v - 1);
+		los_.set_explored((int)c, (uint8_t)(1u << p));
+		std::vector<uint8_t> *fog = p == 0 ? &fow_grid_ : p == viewer ? view : nullptr;
+		if (fog && c < fog->size() && (*fog)[c] == FOW_UNEXPLORED) (*fog)[c] = FOW_EXPLORED;
+	}
 }
 
 bool Simulation::shares_los(uint8_t viewer, uint8_t owner) const {
