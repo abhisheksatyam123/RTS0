@@ -1852,7 +1852,7 @@ struct BuildRestriction {
 	uint8_t placement, territory, distance_class;
 	float min_distance; // world units (one tile, 4 m)
 };
-BuildRestriction build_restriction(uint8_t type) {
+BuildRestriction build_restriction(uint8_t type, uint8_t civ) {
 	// brit/crannog: a civil centre (200 m from a CivilCentre) laid on the shore, own ally neutral.
 	if (type == BLD_CRANNOG) return {PLACE_SHORE_TYPE, TERR_OWN | TERR_ALLY | TERR_NEUTRAL, DIST_CIVIL_CENTRE, 200.0f / 4.0f};
 	switch (building_research_base(type)) {
@@ -1876,7 +1876,7 @@ BuildRestriction build_restriction(uint8_t type) {
 	case BLD_ARMY_CAMP: return {PLACE_LAND, TERR_NEUTRAL | TERR_ENEMY, DIST_ARMY_CAMP, 80.0f / 4.0f};
 	case BLD_MERCENARY_CAMP: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_MERCENARY_CAMP, 100.0f / 4.0f};
 	case BLD_CAMP_NOBA: case BLD_CAMP_BLEMMYE: return {PLACE_LAND, TERR_OWN | TERR_NEUTRAL, DIST_NONE, 0.0f};
-	case BLD_MONUMENT: return {PLACE_LAND, TERR_OWN, DIST_MONUMENT, 150.0f / 4.0f};
+	case BLD_MONUMENT: return {PLACE_LAND, TERR_OWN, DIST_MONUMENT, (civ == CIV_GERMANS ? 100.0f : 150.0f) / 4.0f}; // germ/totem 100 m
 	case BLD_PILLAR: return {PLACE_LAND, TERR_OWN, DIST_PILLAR, 75.0f / 4.0f};
 	default: return {PLACE_LAND, TERR_OWN, DIST_NONE, 0.0f};
 	}
@@ -1998,7 +1998,7 @@ uint64_t Simulation::petra_placement_signature(uint8_t btype, int start_cx, int 
 	uint64_t h = 1469598103934665603ull; // FNV-1a over 64-bit words
 	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
 	auto fbits = [](float f) { uint32_t u; std::memcpy(&u, &f, sizeof u); return (uint64_t)u; };
-	const BuildRestriction rule = build_restriction(btype);
+	const BuildRestriction rule = build_restriction(btype, civ_of(petra_pid_));
 	const int foot = building_type_info(btype).footprint;
 	// can_place reads cells [c - 1, c + foot] for each candidate c.
 	const int ax0 = start_cx - max_r - 1, ax1 = start_cx + max_r + foot;
@@ -2095,7 +2095,7 @@ Simulation::PlacementResult Simulation::check_placement_cells(uint8_t player, ui
 		const std::vector<std::pair<int, int>> &cells, float x0, float z0, float x1, float z1, float cxw, float czw,
 		const Building *rect, const std::vector<std::pair<int, int>> *ignore_cells, const std::vector<uint32_t> *ignore_ids) const {
 	if (player >= MAX_PLAYERS || b_type >= BLD_TYPE_COUNT) return PLACE_OBSTRUCTED;
-	BuildRestriction rule = build_restriction(b_type);
+	BuildRestriction rule = build_restriction(b_type, civ_of(player));
 	// Athenian Long Walls: Wall BuildRestrictions/Territory "own neutral" (stone walls, their
 	// gates and towers; palisades are own neutral already).
 	if (players_[player].has_tech(TECH_LONG_WALLS) && rule.placement == PLACE_LAND_SHORE) rule.territory |= TERR_NEUTRAL;
@@ -2562,7 +2562,7 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 	const WallSetInfo &ws = wallset_info(kind);
 	const Civilization civ = civ_of(player);
 	for (uint8_t t : {ws.segment, ws.tower})
-		if (!civ_can_build(civ, t) || building_required_phase(t) > players_[player].phase ||
+		if (!civ_can_build(civ, t) || building_required_phase(t, civ) > players_[player].phase ||
 				triggers_.building_disabled(player, t)) return 0;
 	rebuild_territory();
 	uint32_t start_tower = 0, end_tower = 0;
@@ -2610,7 +2610,7 @@ uint32_t Simulation::cmd_build(uint8_t player, int cell_x, int cell_y, uint8_t b
 	if (triggers_.building_disabled(player, b_type)) return 0;   // the map script's SetDisabledTemplates
 	rebuild_territory(); // territory from every finished root so far (a no-op when nothing changed)
 	if (check_placement(player, cell_x, cell_y, b_type, unpack_angle(pack_angle(angle))) != PLACE_OK) return 0;
-	if (building_required_phase(b_type) > players_[player].phase) return 0;
+	if (building_required_phase(b_type, players_[player].civ) > players_[player].phase) return 0;
 	if (!entity_limit_allows_building(player, b_type)) return 0; // EntityLimits.js AllowedToBuild
 
 	if (!pay_for_structure(player, b_type)) return 0;
@@ -6774,7 +6774,7 @@ void Simulation::leave_turret(size_t i, const Building &b) {
 	units_.pos_x[i] = std::clamp(b.x + dx * r, -map_half_ + 1.0f, map_half_ - 1.0f);
 	units_.pos_z[i] = std::clamp(b.z + dz * r, -map_half_ + 1.0f, map_half_ - 1.0f);
 	auto it = turret_prev_stance_.find(units_.id[i]);
-	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i]);
+	units_.stance[i] = it != turret_prev_stance_.end() ? it->second : unit_default_stance(units_.unit_type[i], units_.tmpl[i]);
 	if (it != turret_prev_stance_.end()) turret_prev_stance_.erase(it);
 	turret_height_.erase(units_.id[i]);
 }
@@ -12130,23 +12130,21 @@ float Simulation::unit_capture_attack_at(size_t i) const {
 	return c;
 }
 
-// Identity class Healer: support healers and the hero healers (template_unit_hero_healer:
-// Hippocrates, Chanakya) that heal with Range 20 and Health 6 instead of 12 and 5.
+// Identity class Healer: support healers, the champion healer (the Seeress) and the hero
+// healers (Hippocrates, Chanakya); unit_heal_range_base/unit_heal_hp_base give each template's Heal.
 bool Simulation::unit_heals(size_t i) const {
 	return unit_is_healer(units_.tmpl[i], units_.unit_type[i]);
 }
 
-static bool hero_healer(uint8_t type) { return type == UNIT_HERO; }
-
 float Simulation::healer_range_of(size_t h) const {
 	float range = healer_range(units_.team[h]);
-	if (hero_healer(units_.unit_type[h])) range += (HERO_HEAL_RANGE - 12.0f) * COMBAT_DISTANCE_SCALE;
+	range += (unit_heal_range_base(units_.tmpl[h], units_.unit_type[h]) - 12.0f) * COMBAT_DISTANCE_SCALE;
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) range += rank_bonus(r).heal_range_add * COMBAT_DISTANCE_SCALE;
 	return range;
 }
 
 float Simulation::heal_amount_of(size_t h) const {
-	float hp = hero_healer(units_.unit_type[h]) ? HERO_HEAL_HP : HEAL_HP;
+	float hp = unit_heal_hp_base(units_.tmpl[h], units_.unit_type[h]);
 	for (uint8_t r = 2; r <= std::min<uint8_t>(units_.rank[h], 3); ++r) hp += rank_bonus(r).heal_add;
 	// Heal/Health auras (Hippocrates' Hippocratic Oath: allied healers +1).
 	if (aura_mgr_.has(AURA_HEAL_AMOUNT))
@@ -12179,7 +12177,9 @@ void Simulation::promote_unit(size_t i, uint16_t target_tmpl, uint8_t target_ran
 		units_.attack_range[i] = info.attack_range;
 		units_.attack_damage[i] = info.attack_damage;
 		units_.attack_cooldown[i] = info.attack_cooldown;
-		units_.carry_capacity[i] = info.carry_capacity;
+		// ResourceGatherer/Capacities of the new gatherer class, as at spawn (tech carry is read in carry_cap).
+		const int32_t cap = gather_class_capacity(unit_gather_class(type, target_tmpl));
+		units_.carry_capacity[i] = cap ? cap : info.carry_capacity;
 		apply_tech_mods_to_unit(i);
 		apply_rank_bonus(i, 1, target_rank);
 	} else {
@@ -13623,10 +13623,7 @@ void Simulation::tick_death_damage(float dt) {
 // A structure's Resistance levels: its template's, plus armour auras that name Structure
 // (Maximus' Shield of Rome: his player's structures +1 everywhere).
 void Simulation::structure_resistance(const Building &b, float out[3]) const {
-	const CombatProfile &bc = building_combat(b.type);
-	out[0] = bc.hack_armor;
-	out[1] = bc.pierce_armor;
-	out[2] = bc.crush_armor;
+	structure_armour(b.type, b.civ, out);
 	const float aura = aura_mgr_.query_modifier(b.x, b.z, b.team, AURA_ARMOR, CIV_UNIT_TEMPLATE_NONE, nullptr, true);
 	for (int k = 0; k < 3; ++k) out[k] += aura;
 }
@@ -17822,26 +17819,59 @@ void Simulation::petra_manage_hunters(PetraHuntScan &scan) {
 			petra_scout_unit_id_ = 0;
 		}
 		if (petra_start_hunting(i, scan)) continue;
-		// Nothing around: try another base.
+		// Nothing around: try another base (worker.js update, SUBROLE_HUNTER). Like 0.28, the hunt
+		// is still looked for on the hunter's own land; a base on another land is reached by ship.
 		for (const auto &base : petra_bases_) {
 			bool live = false;
 			if (petra_find_hunt(i, base.x, base.z, scan, live) == 0) continue;
-			order_walk(&units_.id[i], 1, base.x, base.z, false);
+			const uint16_t from = petra_land_at(units_.pos_x[i], units_.pos_z[i]), to = petra_land_at(base.x, base.z);
+			uint16_t home = 0;
+			if (from == to || !from || !to || !petra_classified_topo(home).naval_map) order_walk(&units_.id[i], 1, base.x, base.z, false);
+			else petra_require_worker_transport(i, from, to, base.x, base.z);
 			break;
 		}
 	}
 }
 
-// baseManager.js checkResourceLevels, food branch. The food Petra counts is the fruit and grain
-// on its land near its food dropsites (nearby: within 90 m, 22.5 units; medium, in the village
-// phase, within 180 m), animals and fields left out. With no field yet it lays one once that
-// food is under 600; after that it keeps provisionFields foundations going (2, 1 below Medium,
-// one fewer past 300 food or 5 fields). A civ that can't build fields lays a corral when the
-// food is under 900 (needCorral); manageCorral then lays another corral while it has fewer
-// than its phase number and over 30 population per corral, and breeds an animal of a kind
-// while it owns no more of that kind than it has corrals.
+// baseManager.js checkResourceLevels, food branch, run for each base in turn. The food a base
+// counts is the fruit and grain near its own food dropsites (nearby: within 90 m, 22.5 units;
+// medium, in the village phase, within 180 m), animals and fields left out. With no field yet
+// a base lays one once its food is under 600; after that a base keeps provisionFields
+// foundations going (2, 1 below Medium, one fewer past 300 of its food or 5 fields), the
+// field and foundation counts being the AI's. The field goes to the base doing the check
+// (favoredBase). A civ that can't build fields lays a corral when a base's food is under 900
+// (needCorral); manageCorral then lays another corral while it has fewer than its phase
+// number and over 30 population per corral, and breeds an animal of a kind while it owns no
+// more of that kind than it has corrals.
 void Simulation::petra_manage_fields() {
-	std::vector<std::pair<float, float>> drops;
+	// Each base: its food dropsites (civic centre or colony, farmsteads) and the structure its
+	// fields are laid by, its farmstead else its civic centre. A dropsite belongs to the nearest
+	// civic centre or colony on its land, as basesMap gives its tile.
+	struct Anchor { float x, z; uint16_t land; };
+	std::vector<Anchor> anchors;
+	uint16_t home = 0;
+	const bool naval = petra_classified_topo(home).naval_map;
+	auto land_of = [&](float x, float z) -> uint16_t { const uint16_t l = petra_land_at(x, z); return naval || !l ? l : 1; };
+	for (const Building &b : buildings_)
+		if (b.team == petra_pid_ && b.hp > 0.0f && !b.wrecked && (is_civic_centre(b.type) || b.type == BLD_MILITARY_COLONY))
+			anchors.push_back({b.x, b.z, land_of(b.x, b.z)});
+	auto base_of = [&](float x, float z) {
+		const uint16_t land = land_of(x, z);
+		int k = 0;
+		float best = 1e30f;
+		for (size_t a = 0; a < anchors.size(); ++a) {
+			if (anchors[a].land != land) continue;
+			const float d = (anchors[a].x - x) * (anchors[a].x - x) + (anchors[a].z - z) * (anchors[a].z - z);
+			if (d < best) { best = d; k = (int)a + 1; }
+		}
+		return territory_owner_at(x, z) == (int)petra_pid_ ? k : 0;
+	};
+	struct BaseFood {
+		std::vector<std::pair<float, float>> drops;
+		const Building *farmstead = nullptr, *tc = nullptr;
+		float count = 0.0f;
+	};
+	std::vector<BaseFood> bases(anchors.size());
 	const Building *farmstead = nullptr, *tc = nullptr;
 	int fields = 0, field_foundations = 0, corrals = 0, civic_centres = 0;
 	bool market = false;
@@ -17857,15 +17887,21 @@ void Simulation::petra_manage_fields() {
 		if (b.type == BLD_CORRAL) ++corrals;
 		if (b.build_progress < 1.0f) continue;
 		if (is_civic_centre(b.type) || b.type == BLD_FARMSTEAD) {
-			drops.push_back({b.x, b.z});
 			if (b.type == BLD_FARMSTEAD && !farmstead) farmstead = &b;
 			if (is_civic_centre(b.type) && !tc) tc = &b;
+			const int k = base_of(b.x, b.z);
+			if (k <= 0 || k > (int)bases.size()) continue; // outside our territory: no base's
+			BaseFood &bf = bases[k - 1];
+			bf.drops.push_back({b.x, b.z});
+			if (b.type == BLD_FARMSTEAD && !bf.farmstead) bf.farmstead = &b;
+			if (is_civic_centre(b.type) && !bf.tc) bf.tc = &b;
 		}
 	}
-	if (drops.empty()) return;
+	bool any_drops = false;
+	for (const BaseFood &bf : bases) any_drops |= !bf.drops.empty();
+	if (!any_drops) return;
 
 	const float reach = petra_ps().phase < 2 ? 45.0f : 22.5f;
-	float count = 0.0f;
 	for (size_t r = 0; r < resources_.count; ++r) {
 		if (!resources_.alive[r] || resources_.type[r] != RES_FOOD || resources_.amount[r] <= 0) continue;
 		const uint8_t sub = resources_.subtype[r];
@@ -17874,17 +17910,18 @@ void Simulation::petra_manage_fields() {
 		// field: a farmstead pushed toward a close neighbour would otherwise count its berries.
 		const int terr = territory_owner_at(resources_.x[r], resources_.z[r]);
 		if (terr >= 0 && terr < MAX_PLAYERS && !is_ally(petra_pid_, (uint8_t)terr)) continue;
-		for (const auto &d : drops) {
-			const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
-			if (dx * dx + dz * dz < reach * reach) { count += (float)resources_.amount[r]; break; }
-		}
+		for (BaseFood &bf : bases)
+			for (const auto &d : bf.drops) {
+				const float dx = resources_.x[r] - d.first, dz = resources_.z[r] - d.second;
+				if (dx * dx + dz * dz < reach * reach) { bf.count += (float)resources_.amount[r]; break; }
+			}
 	}
 
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
 		return civ_can_build(civ, t) && !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
-	const Building *anchor = farmstead ? farmstead : tc;
+	const Building *anchor = farmstead ? farmstead : tc; // manageCorral's
 	// configFirstBase: a starting land under 25000 m² saves space (one field at most, one field
 	// foundation fewer, and a corral), one under 60000 m² takes two fields at most; a second
 	// civic centre (handleNewBase) or a finished market (checkEvents) lifts both.
@@ -17899,26 +17936,29 @@ void Simulation::petra_manage_fields() {
 		max_fields = save_space ? 1 : m2 < 60000.0f ? 2 : 0;
 	}
 	if (can_build(BLD_FIELD)) {
-		if (fields == 0) {
-			if (count < 600.0f && anchor) {
-				const float at[2] = {anchor->x, anchor->z}; // favoredBase: the base doing the check
-				petra_place_generic(BLD_FIELD, PETRA_Q_FIELD, nullptr, at);
+		for (const BaseFood &bf : bases) {
+			const Building *by = bf.farmstead ? bf.farmstead : bf.tc;
+			if (!by) continue;
+			const float at[2] = {by->x, by->z}; // favoredBase: the base doing the check
+			bool want = false;
+			if (fields == 0) {
+				want = bf.count < 600.0f;
+			} else if (!max_fields || fields < max_fields) {
+				int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
+				if (petra_attack_mgr_.save_resources || save_space || bf.count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
+				want = field_foundations < goal;
 			}
-		} else if (!max_fields || fields < max_fields) {
-			int goal = petra_config_.difficulty < PETRA_MEDIUM ? 1 : 2; // config.js provisionFields
-			if (petra_attack_mgr_.save_resources || save_space || count > 300.0f || fields > 5) goal = std::max(goal - 1, 1);
-			if (field_foundations < goal && anchor) {
-				const float at[2] = {anchor->x, anchor->z};
-				petra_place_generic(BLD_FIELD, PETRA_Q_FIELD, nullptr, at);
-			}
+			if (want && petra_place_generic(BLD_FIELD, PETRA_Q_FIELD, nullptr, at)) { ++fields; ++field_foundations; }
 		}
 		if (!save_space) return; // needCorral: only a small starting land wants a corral as well
 	}
 	if (corrals == 0) {
-		if ((count < 900.0f || save_space) && anchor && can_build(BLD_CORRAL))
-		{
-			const float at[2] = {anchor->x, anchor->z};
-			petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at);
+		if (!can_build(BLD_CORRAL)) return;
+		for (const BaseFood &bf : bases) {
+			const Building *by = bf.farmstead ? bf.farmstead : bf.tc;
+			if (!by || !(bf.count < 900.0f || save_space)) continue;
+			const float at[2] = {by->x, by->z};
+			if (petra_place_generic(BLD_CORRAL, PETRA_Q_CORRAL, nullptr, at)) break;
 		}
 		return;
 	}
@@ -19512,7 +19552,7 @@ void Simulation::petra_build_advanced() {
 		if (count(t) > 0 || !petra_limit_allows_building(t)) continue;
 		// Petra seeks sites in its own territory only, where Rome's army camp (neutral or
 		// enemy land) is refused, so it goes on to the next structure.
-		if (!(build_restriction(t).territory & TERR_OWN)) continue;
+		if (!(build_restriction(t, civ_of(petra_pid_)).territory & TERR_OWN)) continue;
 		build(t);
 		return;
 	}
@@ -19881,7 +19921,7 @@ bool Simulation::petra_build_new_base(int res) {
 			return false;
 	const uint8_t civ = petra_ps().civ;
 	auto can_build = [&](uint8_t t) {
-		return civ_can_build(civ, t) && building_required_phase(t) <= petra_ps().phase &&
+		return civ_can_build(civ, t) && building_required_phase(t, civ) <= petra_ps().phase &&
 		       !triggers_.building_disabled(petra_pid_, t) && petra_limit_allows_building(t);
 	};
 	bool own_cc = false;
@@ -23294,7 +23334,7 @@ uint32_t Simulation::petra_place_building(uint8_t btype, float near_x, float nea
 	// queueplanBuilding.js: a plan with no room is set unbuildable for a while
 	// (buildManager.setUnbuildable). Here a search that found no spot is not
 	// repeated until something it read changes, so the outcome is unchanged.
-	const bool remember = btype < BLD_TYPE_COUNT && build_restriction(btype).placement == PLACE_LAND;
+	const bool remember = btype < BLD_TYPE_COUNT && build_restriction(btype, 0xFF).placement == PLACE_LAND;
 	const uint64_t sig = remember ? petra_placement_signature(btype, start_cx, start_cz, max_r) : 0;
 	PetraPlaceMiss key{sig, start_cx, start_cz, (int16_t)min_r, (int16_t)max_r, petra_pid_, btype};
 	auto same_search = [&key](const PetraPlaceMiss &m) {
