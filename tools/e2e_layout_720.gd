@@ -17,6 +17,8 @@ func _initialize() -> void:
 	run.call_deferred()
 
 func find_button(n: Node, text: String) -> Button:
+	if n.name == "PauseMenu":
+		return null # the session menu keeps a disabled Lobby, as 0.28's MenuButtons
 	if n is Button and n.text == text:
 		return n
 	for c in n.get_children():
