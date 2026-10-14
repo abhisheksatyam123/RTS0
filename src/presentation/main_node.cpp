@@ -55,6 +55,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_speed_selected", "id"), &RtsoMain::_on_speed_selected);
 	ClassDB::bind_method(D_METHOD("set_game_speed", "speed"), &RtsoMain::set_game_speed);
 	ClassDB::bind_method(D_METHOD("get_game_speed"), &RtsoMain::get_game_speed);
+	ClassDB::bind_method(D_METHOD("get_overlay_times"), &RtsoMain::get_overlay_times);
 	ClassDB::bind_method(D_METHOD("toggle_pause"), &RtsoMain::toggle_pause);
 	ClassDB::bind_method(D_METHOD("can_pause"), &RtsoMain::can_pause);
 	ClassDB::bind_method(D_METHOD("quicksave"), &RtsoMain::quicksave);
@@ -81,6 +82,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);
 	ClassDB::bind_method(D_METHOD("_on_train_pressed", "utype"), &RtsoMain::_on_train_pressed);
 	ClassDB::bind_method(D_METHOD("_on_roster_item_clicked", "index", "at", "mouse_button"), &RtsoMain::_on_roster_item_clicked);
+	ClassDB::bind_method(D_METHOD("_on_roster_gui_input", "event"), &RtsoMain::_on_roster_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_build_btn_pressed", "btype"), &RtsoMain::_on_build_btn_pressed);
 	ClassDB::bind_method(D_METHOD("_on_tech_pressed", "tech_id"), &RtsoMain::_on_tech_pressed);
 	ClassDB::bind_method(D_METHOD("_on_upgrade_pressed", "choice"), &RtsoMain::_on_upgrade_pressed);
@@ -1485,6 +1487,15 @@ Dictionary RtsoMain::debug_selection_grid(bool select_all) {
 // Test hook: the selection, the selected structure's rally point, and every own
 // unit with its template, rank, idleness, whether it is a Civilian,
 // world position and screen position.
+// The top-right counters (user_settings.gd): match time, sim speed, ceasefire left.
+Dictionary RtsoMain::get_overlay_times() const {
+	Dictionary d;
+	d["elapsed"] = match_elapsed_time;
+	d["speed"] = game_speed;
+	d["ceasefire"] = sim ? sim->ceasefire_remaining() : 0.0f;
+	return d;
+}
+
 Dictionary RtsoMain::debug_selection_state() {
 	Dictionary d;
 	if (!sim) return d;
@@ -2792,6 +2803,20 @@ void RtsoMain::_on_train_pressed(int utype) {
 	try_train_unit((rtso::UnitType)utype);
 }
 
+// input.js OnTrainMouseWheel: Shift+wheel over the trainable units changes the batch
+// size by 1 / gui.session.scrollbatchratio per notch.
+void RtsoMain::_on_roster_gui_input(const Ref<InputEvent> &event) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed() || !rtso::hotkeys::held("session.batchtrain")) return;
+	const int dir = mb->get_button_index() == MOUSE_BUTTON_WHEEL_UP ? 1 : mb->get_button_index() == MOUSE_BUTTON_WHEEL_DOWN ? -1 : 0;
+	if (!dir) return;
+	const double ratio = rtso::user_config::get_number("gui.session.scrollbatchratio");
+	user_opts_.batch_scroll += dir / (float)(ratio > 0.0 ? ratio : 1.0);
+	if (!(user_opts_.batch_scroll >= 1.0f)) user_opts_.batch_scroll = 1.0f;
+	user_opts_.batch_size = std::max(1, (int)std::lround(user_opts_.batch_scroll));
+	if (command_panel_.roster_list()) command_panel_.roster_list()->accept_event();
+}
+
 void RtsoMain::_on_roster_item_clicked(int index, Vector2 at, int mouse_button) {
 	(void)at;
 	if (!command_panel_.roster_list() || index < 0 || index >= command_panel_.roster_list()->get_item_count()) return;
@@ -3136,7 +3161,13 @@ void RtsoMain::refresh_user_options() {
 	namespace uc = rtso::user_config;
 	if (user_opts_.generation == uc::generation()) return;
 	user_opts_.generation = uc::generation();
-	user_opts_.batch_size = std::clamp((int)uc::get_number("gui.session.batchtrainingsize"), 1, 20);
+	// input.js updateDefaultBatchSize: only a new default resets a scrolled batch.
+	const int batch_default = std::clamp((int)uc::get_number("gui.session.batchtrainingsize"), 1, 20);
+	if (batch_default != user_opts_.batch_default) {
+		user_opts_.batch_default = batch_default;
+		user_opts_.batch_scroll = (float)batch_default;
+		user_opts_.batch_size = batch_default;
+	}
 	user_opts_.wounded_fraction = (float)std::clamp(uc::get_number("gui.session.woundedunithotkeythreshold"), 0.0, 100.0) / 100.0f;
 	user_opts_.flare_time = (float)std::clamp(uc::get_number("gui.session.flarelifetime"), 0.0, 60.0);
 	user_opts_.drag_delta = (float)std::clamp(uc::get_number("gui.session.dragdelta"), 1.0, 200.0);

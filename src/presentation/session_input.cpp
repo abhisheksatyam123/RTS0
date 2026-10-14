@@ -109,8 +109,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		// Control groups (0 A.D. input.js:852-873 and performGroup, input.js:1606):
 		// N selects group N, Ctrl+N saves the selection as group N, Shift+N adds
 		// group N to the selection (performGroup "add"), and pressing N twice within
-		// 500 ms centres the camera on the group. Groups are disjoint
-		// (gui.session.disjointcontrolgroups).
+		// 500 ms centres the camera on the group. With gui.session.disjointcontrolgroups
+		// ("Single", the default) a unit saved to one group leaves the others
+		// (EntityGroupsContainer.addEntities); "Multiple" keeps it in them.
 		for (int g = 1; g <= 10; ++g) {
 			const int grp = g % 10;
 			const std::string n = std::to_string(g);
@@ -120,8 +121,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 			if (!sel && !save && !add) continue;
 			if (save) {
 				selected_groups[grp].clear();
+				const bool disjoint = rtso::user_config::get_bool("gui.session.disjointcontrolgroups");
 				for (int s = 0; s < selected_ids.size(); ++s) {
-					for (int o = 0; o < 10; ++o) {
+					for (int o = 0; o < 10 && disjoint; ++o) {
 						if (o == grp) continue;
 						const int64_t at = selected_groups[o].find(selected_ids[s]);
 						if (at >= 0) selected_groups[o].remove_at(at);
@@ -320,6 +322,9 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		if (fired("session.toggleattackrange")) { toggle_overlay("gui.session.attackrange"); return; }
 		if (fired("session.toggleaurasrange")) { toggle_overlay("gui.session.aurasrange"); return; }
 		if (fired("session.togglehealrange")) { toggle_overlay("gui.session.healrange"); return; }
+		// OverlayCounterElapsedTime / RemainingCeasefire Hotkey: the top-right counters.
+		if (fired("timeelapsedcounter.toggle")) { toggle_overlay("gui.session.timeelapsedcounter"); return; }
+		if (fired("ceasefirecounter.toggle")) { toggle_overlay("gui.session.ceasefirecounter"); return; }
 
 		if (fired("fps.toggle")) {
 			if (debug_overlay) debug_overlay->set_visible(!debug_overlay->is_visible());

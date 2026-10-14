@@ -7,6 +7,8 @@
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <cstring>
+#include <godot_cpp/classes/resource_loader.hpp>
+#include "user_config.h"
 
 using namespace godot;
 
@@ -311,6 +313,37 @@ void RtsoMiniMapView::_draw() {
 	// 5. Normal shroud pass — drawn over the entities so they are masked too
 	// (skipped in terrain-only mode, which drew it as a terrain layer above).
 	if (shroud_mode == SHROUD_ON) draw_shroud();
+
+	// 5b. Minimap icons (gui.session.minimap.icons.enabled; <Minimap><Icon size="16">):
+	// civic centres, wonders, shrines and trading posts, stone and metal mines and
+	// catafalques, at the entity as the viewer knows it.
+	if (rtso::user_config::get_bool("gui.session.minimap.icons.enabled")) {
+		const float icon = 16.0f * (float)rtso::user_config::get_number("gui.session.minimap.icons.sizescale");
+		const float opacity = (float)rtso::user_config::get_number("gui.session.minimap.icons.opacity");
+		auto draw_icon = [&](int which, float x, float z) {
+			if (icon_tex_[which].is_null()) {
+				static const char *kIcons[ICON_COUNT] = {"civil_centre", "wonder", "other", "stone", "metal", "relic"};
+				icon_tex_[which] = ResourceLoader::get_singleton()->load(
+						String("res://assets/textures/ui/archive/icons/minimap/") + kIcons[which] + ".png");
+				if (icon_tex_[which].is_null()) return;
+			}
+			draw_texture_rect(icon_tex_[which], Rect2(map_to_mini(x, z) - Vector2(icon, icon) * 0.5f, Vector2(icon, icon)),
+					false, Color(1, 1, 1, opacity));
+		};
+		if (show_resources)
+			for (const auto &r : mirages_.resources())
+				if (r.type == rtso::RES_STONE || r.type == rtso::RES_GOLD)
+					draw_icon(r.type == rtso::RES_STONE ? ICON_STONE : ICON_METAL, r.x, r.z);
+		for (const auto &b : mirages_.buildings()) {
+			if (rtso::is_civic_centre(b.type)) draw_icon(ICON_CIVIL_CENTRE, b.x, b.z);
+			else if (b.type == rtso::BLD_WONDER) draw_icon(ICON_WONDER, b.x, b.z);
+			else if (b.type == rtso::BLD_SHRINE || b.type == rtso::BLD_TRADING_POST) draw_icon(ICON_OTHER, b.x, b.z);
+		}
+		for (size_t i = 0; i < units.count; ++i)
+			if (units.alive[i] && units.unit_type[i] == rtso::UNIT_CATAFALQUE &&
+					rtso::los_sees_unit(*sim, local_player, units.pos_x[i], units.pos_z[i], units.team[i]))
+				draw_icon(ICON_RELIC, units.pos_x[i], units.pos_z[i]);
+	}
 
 	// 6. Draw Tactical Map Pings
 	for (const auto &p : pings) {
