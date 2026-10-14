@@ -3704,6 +3704,7 @@ void RtsoMain::_on_lobby_start_pressed() {
 	{
 		// The joiners wait while the host loads the map (0.28 page_loading).
 		rtso::NetHost::KeepAlive keep(net_host_);
+		show_net_loading_page(setup.map_id);
 		apply_game_setup(setup);
 	}
 	turn_mgr_.set_game_start_applied_sim(sim);
@@ -3736,6 +3737,17 @@ void RtsoMain::start_net_speed(uint16_t speed) {
 	if (speed_btn) speed_btn->set_text(speed_text(game_speed));
 }
 
+// 0.28 switches every peer to page_loading at "start": the loading page goes
+// over the match while it loads the map, following load_progress.
+void RtsoMain::show_net_loading_page(const std::string &map_id) {
+	Ref<PackedScene> scene = ResourceLoader::get_singleton()->load("res://scenes/menu/loading.tscn");
+	if (scene.is_null() || !is_inside_tree()) return;
+	Node *page = scene->instantiate();
+	page->set("overlay_for", this);
+	page->set("overlay_map", String::utf8(map_id.c_str()));
+	get_tree()->get_root()->add_child(page);
+}
+
 void RtsoMain::apply_net_game_start() {
 	if (!sim) return;
 	turn_mgr_.set_game_start_applied_sim(sim);
@@ -3760,6 +3772,7 @@ void RtsoMain::apply_net_game_start() {
 	{
 		// The host waits while this joiner loads the map.
 		rtso::NetHost::KeepAlive keep(net_host_);
+		show_net_loading_page(setup.map_id);
 		apply_game_setup(setup); // after seating, so it selects the local player's units
 	}
 	turn_mgr_.set_game_start_applied_sim(sim);
