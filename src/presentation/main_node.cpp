@@ -281,13 +281,16 @@ Dictionary RtsoMain::debug_civic_centre_roof() {
 // Test hook: with select_all, selects every unit the local player owns; reports
 // the selection size and the selection panel's group icons (global rects).
 // "unit": the first own unit selected; "multi": all own units; "building": the first own
-// structure; "resource" / "fauna": the first tree or mine / animal, inspected as a click would.
+// structure; "resource" / "fauna": the first tree or mine / animal, inspected as a click would;
+// a number: that unit.
 Dictionary RtsoMain::debug_inspector(const String &what) {
 	if (!sim) return Dictionary();
 	clear_selection();
 	inspector_.clear();
 	auto uview = sim->units();
-	if (what == "unit" || what == "multi") {
+	if (what.is_valid_int()) {
+		selected_ids.push_back((int32_t)what.to_int());
+	} else if (what == "unit" || what == "multi") {
 		for (size_t i = 0; i < uview.count; ++i)
 			if (uview.alive[i] && uview.team[i] == local_player() && (what == "multi" || uview.unit_type[i] != rtso::UNIT_FEMALE_CITIZEN)) {
 				selected_ids.push_back((int32_t)uview.id[i]);
@@ -363,6 +366,8 @@ Dictionary RtsoMain::debug_selection_state() {
 		u["id"] = (int64_t)uview.id[i];
 		u["tmpl"] = (int64_t)uview.tmpl[i];
 		u["rank"] = (int64_t)uview.rank[i];
+		u["has_rank"] = sim->unit_has_rank(i);
+		u["xp"] = (int64_t)uview.xp[i];
 		u["pos"] = Vector2(uview.pos_x[i], uview.pos_z[i]);
 		u["formation"] = (int64_t)sim->formation_of_unit(uview.id[i]);
 		u["idle"] = uview.action_state[i] == rtso::ACTION_IDLE;
@@ -524,6 +529,12 @@ void RtsoMain::debug_delete_units(const PackedInt32Array &ids) {
 	std::vector<uint32_t> v;
 	for (int i = 0; i < ids.size(); ++i) v.push_back((uint32_t)ids[i]);
 	sim->cmd_delete(local_player(), v.data(), v.size());
+}
+
+// Test hook: the units gain experience as from combat.
+void RtsoMain::debug_add_xp(const PackedInt32Array &ids, float xp) {
+	if (!sim) return;
+	for (int i = 0; i < ids.size(); ++i) sim->debug_add_xp((uint32_t)ids[i], xp);
 }
 
 // Test hook: which session dialogs are open, the pause overlay's state, and

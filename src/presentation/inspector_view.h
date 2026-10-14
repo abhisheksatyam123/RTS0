@@ -13,6 +13,7 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/panel.hpp>
 #include <godot_cpp/classes/progress_bar.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/style_box_flat.hpp>
 #include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
@@ -87,6 +88,14 @@ public:
 		portrait_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
 		portrait_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_COVERED);
 		panel_->add_child(portrait_);
+		// selection_details.xml rankIcon: the rank over the portrait's top-left corner.
+		rank_icon_ = memnew(TextureRect);
+		rank_icon_->set_position(Vector2(4, 4));
+		rank_icon_->set_size(Vector2(24, 24));
+		rank_icon_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		rank_icon_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+		rank_icon_->set_visible(false);
+		panel_->add_child(rank_icon_);
 
 		title_ = memnew(Label);
 		title_->set_position(Vector2(102, 6));
@@ -252,6 +261,8 @@ public:
 		d["title_tooltip"] = title_->get_tooltip_text();
 		d["portrait_tooltip"] = portrait_->get_tooltip_text();
 		d["portrait"] = portrait_->get_texture().is_valid() ? portrait_->get_texture()->get_path() : godot::String();
+		d["rank_icon"] = rank_icon_->is_visible() && rank_icon_->get_texture().is_valid() ? rank_icon_->get_texture()->get_path() : godot::String();
+		d["rank_tooltip"] = rank_icon_->is_visible() ? rank_icon_->get_tooltip_text() : godot::String();
 		d["health"] = hp_label_->get_text();
 		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
 		d["stats"] = stats_->get_text();
@@ -367,7 +378,6 @@ public:
 			const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
 			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
-			static const char *kRank[] = {"", "", "Advanced ", "Elite "};
 			title_->set_text(rank_prefix(uv.rank[u]) + String::utf8(uinfo.name));
 			set_owner(*sim, uv.team[u]);
 			health(uv.hp[u], uv.max_hp[u]);
@@ -757,6 +767,7 @@ public:
 private:
 	void clear_tooltips() {
 		for (godot::Control *c : std::initializer_list<godot::Control *>{portrait_, title_, stats_, extra_, aura_label_}) c->set_tooltip_text("");
+		rank_icon_->set_visible(false);
 	}
 	// The rank glyph's "%(rank)s Rank" reads as a prefix of the name here: "Advanced", "Elite".
 	static String rank_prefix(uint8_t rank) {
@@ -799,6 +810,14 @@ private:
 			}
 		portrait_->set_tooltip_text(join_lines({name, auras}));
 		aura_label_->set_tooltip_text(auras);
+		if (sim.unit_has_rank(u)) {
+			static const char *kIcon[] = {"Basic", "Advanced", "Elite"};
+			const uint8_t rank = std::min<uint8_t>(std::max<uint8_t>(uv.rank[u], 1), 3);
+			rank_icon_->set_texture(godot::ResourceLoader::get_singleton()->load(
+					String("res://assets/textures/ui/archive/icons/ranks/") + kIcon[rank - 1] + ".png"));
+			rank_icon_->set_tooltip_text(rank_tooltip(rank));
+			rank_icon_->set_visible(true);
+		}
 	}
 	// displaySingle's detailed tooltip for a structure: its arrows (getAttackTooltip with
 	// BuildingAI), resistance and garrison limit (getGarrisonTooltip).
@@ -838,6 +857,7 @@ private:
 	uint32_t id_ = 0; // what kind_ inspects
 	godot::Panel *panel_ = nullptr;
 	godot::TextureRect *portrait_ = nullptr;
+	godot::TextureRect *rank_icon_ = nullptr;
 	godot::Label *title_ = nullptr;
 	godot::Label *class_ = nullptr;
 	godot::ColorRect *owner_bg_ = nullptr;

@@ -51,6 +51,19 @@ inline String experience(int64_t current, float required) {
 	return sprintf0(tr0("%(experience)s %(current)s"), {{"experience", tr0("Experience:")}, {"current", num(current)}});
 }
 
+// selection_details.js rankIcon tooltip: "%(rank)s Rank", then the rank technology's
+// tooltip (unit_advanced.json, unit_elite.json; Basic has none).
+inline String rank_tooltip(uint8_t rank) {
+	if (rank < 1) return String();
+	static const char *kRank[] = {"Basic", "Advanced", "Elite"};
+	String tip = sprintf0(tr0("%(rank)s Rank"), {{"rank", tr0(kRank[std::min<int>(rank, 3) - 1])}});
+	if (rank == 2)
+		tip += String("\n") + tr0(String::utf8("Advanced and Elite units +20% training time, +25% health, +0.7 capture attack strength, +20% loot, and −30% gather speed; Healers +5 healing strength and +3 healing range; Melee units +10% attack damage; Ranged units −20% spread."));
+	else if (rank >= 3)
+		tip += String("\n") + tr0(String::utf8("Elite units +20% training time, +25% health, +0.8 capture attack strength, +20% loot, and −30% gather speed; Healers +5 healing strength and +3 healing range; Melee units +10% attack damage; Ranged units −20% spread."));
+	return tip;
+}
+
 // "%(amount)s / %(max)s": resource supply, carried resources, gatherers.
 inline String amount_of(int64_t amount, int64_t max) {
 	return sprintf0(tr0("%(amount)s / %(max)s"), {{"amount", num(amount)}, {"max", num(max)}});

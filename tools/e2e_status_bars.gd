@@ -1,9 +1,11 @@
 extends SceneTree
 # 0.28's status-bar options (gui/options/options.json, Display; StatusBars.js):
-#   1. gui.session.rankabovestatusbar: a selected Advanced or Elite unit shows its
-#      rank icon above its bars (AddRankIcon); off hides it;
-#   2. gui.session.experiencestatusbar: a selected unit that can still promote shows
-#      an experience bar under its health bar (AddExperienceBar); off hides it.
+#   1. gui.session.rankabovestatusbar: a selected unit with a rank (Basic citizen
+#      soldiers too, not champions without one) shows its rank icon above its bars
+#      (AddRankIcon); off hides it;
+#   2. gui.session.experiencestatusbar: a selected unit that can still promote and has
+#      some experience shows an experience bar under its health bar (AddExperienceBar;
+#      none at 0 XP); off hides it.
 #
 #   godot --headless --path . --fixed-fps 20 -s tools/e2e_status_bars.gd
 # Exit code 0 = pass.
@@ -52,25 +54,33 @@ func run() -> void:
 	await frames(10)
 	var sel: Array = main.debug_selection_state()["selected"]
 	var ranked := 0
-	var basic_soldiers := 0
+	var basic_soldiers: Array = []
+	var unranked := 0
 	for u in main.debug_selection_state()["units"]:
 		if sel.has(u["id"]):
-			if int(u["rank"]) >= 2:
+			if u["has_rank"]:
 				ranked += 1
-			elif not u["civilian"]:
-				basic_soldiers += 1
-	print("  %d selected, %d ranked, %d basic soldiers" % [sel.size(), ranked, basic_soldiers])
+				if int(u["rank"]) == 1 and not u["civilian"]:
+					basic_soldiers.append(u["id"])
+			else:
+				unranked += 1
+	print("  %d selected, %d ranked, %d basic soldiers, %d without a rank" % [sel.size(), ranked, basic_soldiers.size(), unranked])
 
 	print("1. Rank icon")
 	var icons := rank_icons()
-	check(icons.size() == ranked and ranked >= 1, "%d rank icons for %d ranked units" % [icons.size(), ranked])
-	check(icons.size() > 0 and icons[0].texture.resource_path.ends_with("Elite.png"), "the champion shows Elite")
+	check(icons.size() == ranked and ranked >= 2, "%d rank icons for %d ranked units" % [icons.size(), ranked])
+	check(unranked > 0, "the women have no rank, so no icon")
+	check(icons.any(func(c): return c.texture.resource_path.ends_with("Elite.png")), "the champion shows Elite")
+	check(icons.any(func(c): return c.texture.resource_path.ends_with("Basic.png")), "a Basic soldier shows Basic")
 	cfg.set_value("gui.session.rankabovestatusbar", "false")
 	await frames(3)
 	check(rank_icons().is_empty(), "off: no rank icons")
 
 	print("2. Experience bar")
-	check(xp_bars() >= basic_soldiers and basic_soldiers > 0, "%d experience bars, %d basic soldiers" % [xp_bars(), basic_soldiers])
+	check(xp_bars() == 0 and basic_soldiers.size() > 1, "no experience bars at 0 XP")
+	main.debug_add_xp(PackedInt32Array([basic_soldiers[0]]), 10.0)
+	await frames(3)
+	check(xp_bars() == 1, "%d experience bar once one soldier gains 10 XP" % xp_bars())
 	cfg.set_value("gui.session.experiencestatusbar", "false")
 	await frames(3)
 	check(xp_bars() == 0, "off: no experience bars")

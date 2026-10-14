@@ -2940,7 +2940,7 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		// StatusBars.js: the experience bar under the health bar and the rank icon on top,
 		// per gui.session.experiencestatusbar and gui.session.rankabovestatusbar.
 		const float need_xp = show_hp && status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
-		const bool show_xp = need_xp > 0.0f;
+		const bool show_xp = need_xp > 0.0f && uview.xp[i] > 0; // AddExperienceBar: none at 0 XP
 		v.xp_bg->set_visible(show_xp);
 		v.xp_fg->set_visible(show_xp);
 		if (show_xp) {
@@ -2951,20 +2951,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			xb.scale(Vector3(std::max(xp_ratio, 0.001f), 1.0f, 1.0f));
 			v.xp_fg->set_transform(Transform3D(xb, xp_pos + Vector3((xp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f)));
 		}
-		const uint8_t rank = show_hp && status_rank_icon ? uview.rank[i] : 0;
-		if (rank >= 2) {
+		// AddRankIcon: Basic too, for units whose template has a rank (Identity GetRank).
+		const uint8_t rank = show_hp && status_rank_icon && sim->unit_has_rank(i) ? std::max<uint8_t>(uview.rank[i], 1) : 0;
+		if (rank >= 1) {
 			if (v.rank_shown != rank) {
 				v.rank_shown = rank;
 				v.rank_icon->set_texture(ResourceLoader::get_singleton()->load(rank >= 3 ?
-						"res://assets/textures/ui/archive/icons/ranks/Elite.png" :
-						"res://assets/textures/ui/archive/icons/ranks/Advanced.png"));
+						"res://assets/textures/ui/archive/icons/ranks/Elite.png" : rank == 2 ?
+						"res://assets/textures/ui/archive/icons/ranks/Advanced.png" :
+						"res://assets/textures/ui/archive/icons/ranks/Basic.png"));
 				const Ref<Texture2D> tex = v.rank_icon->get_texture();
 				// Half a bar wide (StatusBars AddRankIcon: BarWidth / 2).
 				if (tex.is_valid() && tex->get_width() > 0) v.rank_icon->set_pixel_size(0.45f / tex->get_width());
 			}
 			v.rank_icon->set_position(Vector3(x, v.hp_bg->get_transform().origin.y + 0.3f, z));
 		}
-		v.rank_icon->set_visible(rank >= 2);
+		v.rank_icon->set_visible(rank >= 1);
 	}
 
 	for (size_t s = 0; s < unit_pool.size(); ++s) {

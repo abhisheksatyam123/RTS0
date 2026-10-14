@@ -12537,6 +12537,15 @@ float Simulation::promotion_train_time_mult(uint16_t tmpl) {
 	return m;
 }
 
+bool Simulation::unit_has_rank(size_t i) const {
+	if (i >= units_.count) return false;
+	if (units_.rank[i] >= 2) return true;
+	// A Basic unit promotes to Advanced; a champion or wagon promoting into another
+	// template at rank 1 (Olympian, wagon house) has no Rank of its own.
+	const PromotionLink *l = promotion_link(units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
+	return l && l->target_rank >= 2;
+}
+
 float Simulation::promotion_required_xp(size_t i) const {
 	if (i >= units_.count) return -1.0f;
 	const PromotionLink *l = promotion_link(units_.tmpl[i], units_.unit_type[i], units_.rank[i]);
