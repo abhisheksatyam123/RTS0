@@ -194,13 +194,13 @@ int main() {
 		CHECK(!nav_blocked_at(s, 1.0f, 21.0f));
 	}
 
-	// 9. PassRange 2 m (x0.28) from the gate's edge to the unit's: a unit 1.5 units off stays out
-	// of it, one just outside the gate opens it.
+	// 9. The pass range runs from the gate's edge to the unit's (6 m, tick_gates): a unit 2.5 units
+	// off stays out of it, one just outside the gate opens it (it was 16 m from the edge).
 	{
 		uint32_t gate = wall_with_gate(s);
 		const auto *g = find_bld(s, gate);
 		const float edge = g->x - g->hu;
-		uint32_t u = s.spawn_unit(edge - 1.5f, 1.0f, 0, UNIT_SPEARMAN);
+		uint32_t u = s.spawn_unit(edge - 2.5f, 1.0f, 0, UNIT_SPEARMAN);
 		run(s, 1.0f);
 		CHECK(!find_bld(s, gate)->gate_open);
 		s.units_.remove_at((size_t)s.lookup_unit(u));

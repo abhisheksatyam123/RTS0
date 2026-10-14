@@ -13298,8 +13298,11 @@ void Simulation::tick_gates(float dt) {
 	if (gate_timer_ < 0.2f) return;
 	gate_timer_ = 0.0f;
 	// Gate.js: <PassRange>2</PassRange> (stone and palisade gates), measured between the gate's
-	// and the unit's obstructions, so from the footprint edge plus the unit's clearance.
-	constexpr float PASS_RANGE = 2.0f * COMBAT_DISTANCE_SCALE;
+	// and the unit's obstructions, so from the footprint edge plus the unit's clearance. 0.28's
+	// UnitMotion only steers round a closed gate once it bumps into it; RTS0's short paths plan
+	// round it from further off (building_steering.h), so the gate opens from 6 m (1.5 units),
+	// not 2 m, or a unit would walk round a short palisade before its gate opened.
+	constexpr float PASS_RANGE = 1.5f;
 	bool nav_changed = false;
 	for (auto &b : buildings_) {
 		if (!is_gate_type(b.type) || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
