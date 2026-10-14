@@ -1314,6 +1314,7 @@ public:
 		float x, z;     // centre
 		float rot;      // Position angle: a segment's length lies along its u axis
 		float half_w;   // half its length (a segment) or its half size (a tower)
+		uint8_t civ = CIV_COUNT; // the template civ whose WallSet it is from (CIV_COUNT: the generic one)
 	};
 	// The pieces of a `kind` (WallSetKind) wall from (sx, sz) to (ex, ez), in order along it: a
 	// tower at each end, none where that end snaps onto one of `player`'s towers of that WallSet

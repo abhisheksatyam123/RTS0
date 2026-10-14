@@ -2408,9 +2408,10 @@ std::vector<std::pair<int, int>> Simulation::building_cells(const Building &b) c
 }
 
 uint32_t Simulation::wall_snap_tower(uint8_t player, float x, float z, uint8_t kind) const {
-	// gui/session/input.js snaps a wall's end onto a tower within the tower's own size.
-	const WallSetInfo &ws = wallset_info(kind);
-	const float radius = std::max(1.5f, ws.tower_half);
+	// GuiInterface.js SetWallPlacementPreview snaps a wall's end onto a tower within half the
+	// tower's WallPiece length ("determined through trial and error").
+	const WallSetInfo &ws = wallset_info(kind, civ_of(player));
+	const float radius = 0.5f * ws.tower_length;
 	float best = radius * radius;
 	uint32_t id = 0;
 	for (const Building &b : buildings_) {
@@ -2455,7 +2456,8 @@ bool wall_segments_rec(const WallSetInfo &ws, float d, float dist_so_far, std::v
 std::vector<Simulation::WallPiece> Simulation::wall_placement(uint8_t player, float sx, float sz, float ex, float ez,
 		uint32_t *start_tower, uint32_t *end_tower, uint8_t kind) const {
 	std::vector<WallPiece> out;
-	const WallSetInfo &ws = wallset_info(kind);
+	const uint8_t civ = player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_COUNT;
+	const WallSetInfo &ws = wallset_info(kind, civ);
 	const uint32_t st = wall_snap_tower(player, sx, sz, kind), et = wall_snap_tower(player, ex, ez, kind);
 	if (start_tower) *start_tower = st;
 	if (end_tower) *end_tower = et;
@@ -2471,8 +2473,8 @@ std::vector<Simulation::WallPiece> Simulation::wall_placement(uint8_t player, fl
 	}
 	const float dx = ex - sx, dz = ez - sz;
 	const float len = std::sqrt(dx * dx + dz * dz);
-	// Room for the two end towers side by side at least; a wall over half the map is a misclick.
-	if (!(len > ws.tower_length) || len > map_half_) return out;
+	// Room for the two end towers side by side at least (helpers/Walls.js has no upper bound).
+	if (!(len > ws.tower_length)) return out;
 	std::vector<int> segments;
 	float r = 0.0f;
 	if (!wall_segments_rec(ws, len, 0.0f, segments, r)) return out;
@@ -2480,19 +2482,19 @@ std::vector<Simulation::WallPiece> Simulation::wall_placement(uint8_t player, fl
 	const float nx = dx / len, nz = dz / len;
 	const float angle = -std::atan2(dz, dx); // Walls.js: the wall runs along u
 	const float tower_half = ws.tower_half;
-	if (!st) out.push_back({ws.tower, sx, sz, angle, tower_half});
+	if (!st) out.push_back({ws.tower, sx, sz, angle, tower_half, civ});
 	float progress = 0.0f;
 	for (size_t i = 0; i < segments.size(); ++i) {
 		const float l = ws.lengths[segments[i]];
 		const float c = progress + spacing + 0.5f * l;
-		out.push_back({ws.segment, sx + c * nx, sz + c * nz, angle, 0.5f * l});
+		out.push_back({ws.segment, sx + c * nx, sz + c * nz, angle, 0.5f * l, civ});
 		if (i + 1 < segments.size()) {
 			const float tc = progress + l + 2.0f * spacing;
-			out.push_back({ws.tower, sx + tc * nx, sz + tc * nz, angle, tower_half});
+			out.push_back({ws.tower, sx + tc * nx, sz + tc * nz, angle, tower_half, civ});
 		}
 		progress += l + 2.0f * spacing;
 	}
-	if (!et) out.push_back({ws.tower, ex, ez, angle, tower_half});
+	if (!et) out.push_back({ws.tower, ex, ez, angle, tower_half, civ});
 	return out;
 }
 
@@ -2509,7 +2511,8 @@ Simulation::Building wall_piece_footprint(const Simulation::WallPiece &p) {
 	b.cell_y = (int)std::floor((p.z - half) / Simulation::GRID);
 	const float half_w = is_wallset_piece(p.type, p.half_w) ? p.half_w : half;
 	b.rot = p.rot;
-	b.set_extents(half_w, building_half_depth(p.type, half_w));
+	b.civ = p.civ;
+	b.set_extents(half_w, building_half_depth(p.type, half_w, p.civ));
 	return b;
 }
 } // namespace
@@ -2552,9 +2555,9 @@ uint32_t Simulation::spawn_wall_piece(const WallPiece &p, uint8_t team, float pr
 	Building &b = buildings_[building_id_to_idx_[bid]];
 	const Building fp = wall_piece_footprint(p);
 	b.rot = fp.rot;
-	b.set_extents(fp.half_size, fp.half_d);
+	b.set_extents(fp.half_size, building_half_depth(b.type, fp.half_size, b.civ)); // as a load sets it
 	b.garrison_cap = structure_garrison_cap(b); // its length's turret points
-	if (const float health = wallset_piece_value(b.type, b.half_size, 0); health > 0.0f) {
+	if (const float health = wallset_piece_value(b.type, b.half_size, 0, b.civ); health > 0.0f) {
 		// wall_long/medium/short (palisades_*) Health by length, after the same civ and technology bonuses.
 		b.max_hp *= health / building_type_info(b.type).max_hp;
 		b.hp = progress <= 0.0f ? 1.0f : b.max_hp * progress;
@@ -2575,7 +2578,7 @@ bool Simulation::pay_for_structure(uint8_t player, uint8_t b_type, float cost_ov
 // foundation, so the cost is today's (techs researched since placing count).
 void Simulation::refund_foundation(const Building &b) {
 	if (b.wrecked || b.build_progress >= 1.0f || b.team >= MAX_PLAYERS) return;
-	const float piece = wallset_piece_value(b.type, b.half_size, 1);
+	const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ);
 	float c[RES_COUNT];
 	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
 	const float left = 1.0f - std::max(0.0f, b.build_progress);
@@ -2611,8 +2614,8 @@ void Simulation::structure_cost(uint8_t player, uint8_t b_type, float cost_overr
 size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, float ez, const uint32_t *builders,
 		size_t builder_n, bool queued, uint8_t kind) {
 	if (player >= MAX_PLAYERS || kind >= WALLSET_COUNT) return 0;
-	const WallSetInfo &ws = wallset_info(kind);
 	const Civilization civ = civ_of(player);
+	const WallSetInfo &ws = wallset_info(kind, civ);
 	for (uint8_t t : {ws.segment, ws.tower})
 		if (!civ_can_build(civ, t) || building_required_phase(t, civ) > players_[player].phase ||
 				triggers_.building_disabled(player, t)) return 0;
@@ -2631,8 +2634,16 @@ size_t Simulation::cmd_build_wall(uint8_t player, float sx, float sz, float ex, 
 		if (check_wall_piece(player, p, ignore.data(), ignore.size()) != PLACE_OK) break;
 		if (!entity_limit_allows_building(player, p.type)) break;
 		const bool segment = !(p.type == ws.tower && p.half_w == ws.tower_half);
-		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1))) break;
+		if (!pay_for_structure(player, p.type, wallset_piece_value(p.type, p.half_w, 1, p.civ))) break;
 		const uint32_t bid = spawn_wall_piece(p, player, 0.0f);
+		if (!triggers_.triggers.empty()) { // each piece is a foundation entity (TryConstructWall), as in cmd_build
+			TriggerEventData ev;
+			ev.entity = bid;
+			ev.player = player;
+			ev.to = player;
+			ev.count = p.type;
+			trigger_event(TRIGGER_ON_OWNERSHIP_CHANGED, ev);
+		}
 		if (segment) {
 			group.push_back(bid);
 		} else {
@@ -3455,7 +3466,7 @@ Simulation::UpgradeCheck Simulation::upgrade_check(uint8_t player_id, uint32_t b
 	if (up.to >= BLD_TYPE_COUNT || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) return UPGRADE_ERR_NONE;
 	// Of the WallSet segments only wall_long has an Upgrade (to the gate).
 	if (b.type == BLD_WALL_SEGMENT && is_wallset_piece(b.type, b.half_size) &&
-			b.half_size < 0.5f * WALL_SEGMENT_LENGTHS[0] - 0.01f)
+			wallset_segment_index(b.type, b.half_size, b.civ) != 0)
 		return UPGRADE_ERR_NONE;
 	// ... and of the palisades only palisades_long (to the palisade gate); not a palisade tower,
 	// nor the one-cell palisade maps and older saves place.
@@ -6672,8 +6683,8 @@ const TurretPointSet *Simulation::turret_points_of(const Building &b) const {
 		// A WallSet piece holds its own template's points: wall_long's or wall_medium's by length,
 		// wall_gate's for a gate; wall_short has none (and no garrison either).
 		static constexpr TurretPointSet NONE{};
-		const int k = b.type == BLD_GATE ? 2 : b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[0] - 0.01f ? 0
-				: b.half_size >= 0.5f * WALL_SEGMENT_LENGTHS[1] - 0.01f ? 1 : -1;
+		const int seg = wallset_segment_index(b.type, b.half_size, b.civ);
+		const int k = b.type == BLD_GATE ? 2 : seg == 0 ? 0 : seg == 1 ? 1 : -1;
 		return k < 0 ? &NONE : &TURRET_POINTS_WALLSET[c][k];
 	}
 	const TurretPointSet &set = TURRET_POINTS[c][kind];
@@ -6915,7 +6926,8 @@ void Simulation::spawn_gaia_gate(float x, float z, float rot, uint8_t kind) {
 uint32_t Simulation::spawn_map_wall_piece(uint8_t player, uint8_t kind, uint8_t piece, float x, float z, float angle,
 		float length) {
 	const WallSetInfo &ws = wallset_info(kind < WALLSET_COUNT ? kind : (uint8_t)WALLSET_STONE);
-	WallPiece p{ws.segment, x, z, angle, 0.5f * length};
+	WallPiece p{ws.segment, x, z, angle, 0.5f * length,
+			player < MAX_PLAYERS ? (uint8_t)civ_of(player) : (uint8_t)CIV_GAIA};
 	if (piece == MAP_WALL_TOWER) {
 		p.type = ws.tower;
 		p.half_w = ws.tower_half;
@@ -8085,7 +8097,7 @@ uint32_t Simulation::stat_unit_value(size_t idx) const {
 }
 uint32_t Simulation::stat_building_value(const Building &b) const {
 	float c[RES_COUNT];
-	const float piece = wallset_piece_value(b.type, b.half_size, 1); // a wall piece's own length
+	const float piece = wallset_piece_value(b.type, b.half_size, 1, b.civ); // a wall piece's own length
 	structure_cost(b.team, b.type, piece > 0.0f ? piece : -1.0f, c);
 	return stat_cost_value(c);
 }
@@ -10750,7 +10762,7 @@ float Simulation::structure_build_time_for(uint8_t player, uint8_t type) const {
 float Simulation::structure_build_time(const Building &b) const {
 	const uint8_t type = b.type < BLD_TYPE_COUNT ? b.type : 0;
 	// A WallSet piece takes its own BuildTime (wall_long/medium/short, palisades_*).
-	const float piece = wallset_piece_value(type, b.half_size, 2);
+	const float piece = wallset_piece_value(type, b.half_size, 2, b.civ);
 	const float base = piece > 0.0f ? piece : civ_building_type_info(civ_of(b.team), type).build_time;
 	float t = base * tech_mods(b.team).bld_build_time[type] * ai_time_mult(b.team);
 	t *= civ_bonus_mult(civ_of(b.team), CIV_BONUS_BUILDING_BUILD_TIME, b.type);
@@ -13895,6 +13907,7 @@ void Simulation::tick_gates(float dt) {
 		bool ally_near = false, unit_inside = false;
 		// Gate.js GetAllies: the owner's own allies, one way (Diplomacy.GetAllies), itself included.
 		auto opens_for = [&](uint8_t p) {
+			if (b.team == GAIA_PLAYER) return p == GAIA_PLAYER; // Gaia is its own only ally
 			return b.team < MAX_PLAYERS && p < MAX_PLAYERS &&
 			       (p == b.team || players_[p].team == players_[b.team].team || diplomacy_[b.team][p] == DIPLO_ALLY);
 		};
@@ -26053,6 +26066,7 @@ bool Simulation::load_state(const char *filepath) {
 			in.read((char *)&bld.wonder_owner, sizeof(bld.wonder_owner));
 			in.read((char *)&bld.wonder_allies, sizeof(bld.wonder_allies));
 		}
+		bld.set_extents(bld.half_size, building_half_depth(bld.type, bld.half_size, bld.civ)); // its civ's wall depth
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;

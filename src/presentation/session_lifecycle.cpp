@@ -1161,7 +1161,7 @@ void RtsoMain::_process(double delta) {
 			std::vector<rtso::Simulation::WallPiece> pieces;
 			uint32_t start_tower = 0, end_tower = 0;
 			const uint8_t wall_kind = rtso::wallset_kind_of((uint8_t)current_build_type);
-			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind);
+			const rtso::WallSetInfo &wall_set = rtso::wallset_info(wall_kind, sim ? sim->player_civ(local_player()) : (uint8_t)rtso::CIV_COUNT);
 			if (sim)
 				pieces = sim->wall_placement(local_player(), wall_drag_start_pos.x, wall_drag_start_pos.z,
 						drag_curr_pos.x, drag_curr_pos.z, &start_tower, &end_tower, wall_kind);
