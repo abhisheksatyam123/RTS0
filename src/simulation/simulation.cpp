@@ -2808,21 +2808,13 @@ bool Simulation::cmd_research_from_unit(uint8_t player, uint32_t unit_id, uint8_
 	auto qit = unit_queues_.find(unit_id);
 	if (qit != unit_queues_.end() && qit->second.orders.size() >= PRODUCTION_QUEUE_MAX) return false;
 	if (research_check(player, tech, 0) != TECH_OK) return false;
-	const TechInfo &tinfo = tech_info(tech);
-	const uint8_t civ = civ_of(player);
-	const uint16_t allies = ally_civ_mask(player);
-	auto team = [&](uint8_t stat, int8_t r) { return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT); };
 	ProductionOrder order;
 	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech;
 	order.timer = 0.0f;
-	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
-	order.paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
-	order.paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
-	order.paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	tech_price(player, tech, BLD_TYPE_COUNT, order.paid.data(), order.duration);
 	if (!players_[player].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]))
 		return false;
-	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1) * ai_time_mult(player);
 	UnitQueue &q = unit_queues_[unit_id];
 	q.player = player;
 	q.orders.push_back(order);
@@ -3165,11 +3157,41 @@ Simulation::ResearchCheck Simulation::research_check(uint8_t player_id, uint8_t 
 			return TECH_ERR_BUILDING;
 		if (!building_researches_tech(b.type, tech_id, player_civ(player_id))) return TECH_ERR_BUILDING;
 	}
-	const float *tc = tech_mods(player_id).bld_tech_cost[tinfo.researcher]; // Researcher/TechCostMultiplier
-	if (!ps.can_afford(tinfo.food_cost * tc[RES_FOOD], tinfo.wood_cost * tc[RES_WOOD], tinfo.gold_cost * tc[RES_GOLD],
-			tinfo.stone_cost * tc[RES_STONE]))
-		return TECH_ERR_COST;
+	uint8_t at = tinfo.researcher;
+	if (building_id != 0) at = buildings_[building_id_to_idx_.find(building_id)->second].type;
+	float paid[RES_COUNT], time;
+	tech_price(player_id, tech_id, at, paid, time);
+	if (!ps.can_afford(paid[RES_FOOD], paid[RES_WOOD], paid[RES_GOLD], paid[RES_STONE])) return TECH_ERR_COST;
 	return TECH_OK;
+}
+
+void Simulation::tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const {
+	const TechInfo &tinfo = tech_info(tech_id);
+	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
+	const uint8_t civ = civ_of(player_id);
+	const uint16_t allies = ally_civ_mask(player_id);
+	const bool unit = bld_type >= BLD_TYPE_COUNT;
+	float library = 1.0f;
+	// structures/library.json (Library of Alexandria): while the player has a finished
+	// library, its technologies cost 15% less and take 15% less time (not stackable).
+	if (!unit)
+		for (const Building &o : buildings_)
+			if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
+				library *= 0.85f;
+				break;
+			}
+	const float *tc = unit ? nullptr : tech_mods(player_id).bld_tech_cost[bld_type]; // Researcher/TechCostMultiplier
+	auto team = [&](uint8_t stat, int8_t r) {
+		if (unit) return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, BLD_TYPE_COUNT);
+		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, bld_type) * library
+			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
+	};
+	paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
+	paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
+	paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
+	paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	time = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
+		* (unit ? 1.0f : tech_mods(player_id).bld_research_time[bld_type]) * ai_time_mult(player_id);
 }
 
 bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t tech_id) {
@@ -3178,35 +3200,13 @@ bool Simulation::cmd_research(uint8_t player_id, uint32_t building_id, uint8_t t
 	Building &b = buildings_[bit->second];
 	if (research_check(player_id, tech_id, building_id) != TECH_OK) return false;
 
-	const TechInfo &tinfo = tech_info(tech_id);
-	// Team bonuses on techs researched here (e.g. Athenian Democracy at the civic centre).
-	const uint8_t civ = civ_of(player_id);
-	const uint16_t allies = ally_civ_mask(player_id);
-	float library = 1.0f;
-	// structures/library.json (Library of Alexandria): while the player has a finished
-	// library, its technologies cost 15% less and take 15% less time (not stackable).
-	for (const Building &o : buildings_)
-		if (o.team == player_id && o.type == BLD_LIBRARY && o.build_progress >= 1.0f && !o.wrecked) {
-			library *= 0.85f;
-			break;
-		}
-	const float *tc = tech_mods(player_id).bld_tech_cost[b.type]; // Researcher/TechCostMultiplier
-	auto team = [&](uint8_t stat, int8_t r) {
-		return civ_team_bonus_mult(civ, allies, stat, r, CIV_UNIT_TEMPLATE_NONE, b.type) * library
-			* (stat == TEAM_BONUS_TECH_COST && r >= 0 ? tc[r] : 1.0f);
-	};
 	// Researcher.js QueueTechnology: paid now, researched when it reaches the queue's front.
 	ProductionOrder order;
 	order.unit_type = UNIT_TYPE_TECH;
 	order.tech = tech_id;
 	order.timer = 0.0f;
-	order.paid[RES_FOOD] = std::round(tinfo.food_cost * team(TEAM_BONUS_TECH_COST, RES_FOOD));
-	order.paid[RES_WOOD] = std::round(tinfo.wood_cost * team(TEAM_BONUS_TECH_COST, RES_WOOD));
-	order.paid[RES_GOLD] = std::round(tinfo.gold_cost * team(TEAM_BONUS_TECH_COST, RES_GOLD));
-	order.paid[RES_STONE] = std::round(tinfo.stone_cost * team(TEAM_BONUS_TECH_COST, RES_STONE));
+	tech_price(player_id, tech_id, b.type, order.paid.data(), order.duration);
 	players_[player_id].pay(order.paid[RES_FOOD], order.paid[RES_WOOD], order.paid[RES_GOLD], order.paid[RES_STONE]);
-	order.duration = tinfo.research_time * team(TEAM_BONUS_TECH_TIME, -1)
-		* tech_mods(player_id).bld_research_time[b.type] * ai_time_mult(player_id);
 	b.queue.push_back(order);
 	note_phase(SessionNotice::PHASE_STARTED, player_id, tech_id);
 	if (!triggers_.triggers.empty()) { // ProductionQueue.js AddItem: OnResearchQueued
