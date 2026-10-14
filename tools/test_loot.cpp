@@ -376,8 +376,12 @@ static void test_status_death() {
 	setup(s);
 	uint32_t fem = s.spawn_unit(30.0f, 30.0f, 1, UNIT_FEMALE_CITIZEN, 1.0f);
 	int v = idx_of(s, fem);
-	s.units_.status_effects[v] |= EFFECT_POISON;
-	s.units_.poison_timer[v] = 5.0f;
+	CombatProfile poison{};
+	poison.status = 1;
+	poison.status_damage = 20.0f;
+	poison.status_interval = 0.5f;
+	poison.status_time = 5.0f;
+	s.apply_status((size_t)v, poison);
 	Res a0 = res_of(s, 0);
 	for (int k = 0; k < 10 && s.units_.alive[v]; ++k) s.tick(DT);
 	Res b0 = res_of(s, 0);

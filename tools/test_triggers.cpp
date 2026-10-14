@@ -427,8 +427,12 @@ static void check_survival() {
 	{
 		const int32_t u = s.lookup_unit(seeker[0]);
 		const float hp = s.units_.hp[u];
-		s.units_.status_effects[u] |= EFFECT_POISON;
-		s.units_.poison_timer[u] = 5.0f;
+		CombatProfile poison{};
+		poison.status = 1;
+		poison.status_damage = 20.0f;
+		poison.status_interval = 0.5f;
+		poison.status_time = 5.0f;
+		s.apply_status((size_t)u, poison);
 		for (int t = 0; t < 20; ++t) s.tick(Simulation::FIXED_STEP);
 		CHECK(s.units_.hp[u] == hp, "invulnerable seeker lost %.1f hp to poison", hp - s.units_.hp[u]);
 	}

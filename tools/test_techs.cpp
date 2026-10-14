@@ -800,7 +800,7 @@ int main() {
 		CHECK(d[0] == 0.0f && d[1] == 0.0f && d[2] == 0.0f && std::fabs(d[3] - 15.0f) < 1e-3f);
 		const float vs_ship = n.unit_attack_damage(fire, foe), vs_soldier = n.unit_attack_damage(fire, hop);
 		CHECK(std::fabs(vs_ship - 45.0f) < 1e-3f && std::fabs(vs_soldier - 15.0f) < 1e-3f);
-		CHECK(n.unit_combat_at(fire).status == 2 && std::fabs(n.unit_combat_at(fire).status_dps - 1.0f) < 1e-4f);
+		CHECK(n.unit_combat_at(fire).status == 2 && n.unit_combat_at(fire).status_damage == 2.0f && n.unit_combat_at(fire).status_interval == 2.0f);
 		n.complete_research(0, TECH_WARSHIP_FIRESHIP_ATTACK);
 		n.unit_tech_damage(lit, d);
 		CHECK(std::fabs(d[3] - 18.75f) < 1e-3f && std::fabs(n.units_.attack_damage[lit] - 18.75f) < 1e-3f);
