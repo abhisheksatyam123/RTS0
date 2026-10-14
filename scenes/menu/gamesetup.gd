@@ -17,6 +17,8 @@ const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
 const MapBrowser = preload("res://scenes/menu/map_browser.gd")
 const L10n = preload("res://scenes/menu/l10n.gd")
 const MAP_BROWSER_HOTKEY := "gamesetup.mapbrowser.open"
+# Loaded at run time: game_description.gd preloads this page.
+var GameDescription = load("res://scenes/session/game_description.gd")
 const AIConfig = preload("res://scenes/menu/ai_config.gd")
 # The slot grid: name, kind, civ, team, AI gear, colour.
 const SLOT_COLUMNS := 6
@@ -322,11 +324,13 @@ var _want_map_id := ""         # the map to select on the next refresh_map_list
 var _was_scenario := false     # the slots hold a scenario's locked teams
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
 var _map_browser: Control = null
+var _desc_tick := 0.0
 var _ai_buttons: Array = []
 var _hotkeys := RtsoHotkeyConfig.new()
 var _rebuilding_slots := false
 
 func _ready() -> void:
+	_build_description()
 	_load_maps()
 	_build_map_type()
 	_build_map_filter()
@@ -337,6 +341,7 @@ func _ready() -> void:
 	refresh_slots()
 	_update_preview()
 	_init_net()
+	_render_reset_buttons()
 
 # ---------------------------------------------------------------- maps ---
 
@@ -780,6 +785,7 @@ func _civ_pos(id: int) -> int:
 ## ceasefire, Last Man Standing, map exploration, treasures and spies are the
 ## map's, shown disabled. Only random maps let you pick the player count.
 func _apply_map_locks() -> void:
+	_render_reset_buttons()
 	var m := _selected_map()
 	var scen := _is_scenario()
 	var s: Dictionary = m.get("settings", {}) if scen else {}
@@ -916,12 +922,13 @@ static func map_preview(map_id: String) -> Texture2D:
 func _update_preview() -> void:
 	_update_map_options()
 	var m := _selected_map()
-	var lbl := $VBox/HBox/Right/Preview/Label as Label
+	var lbl := get_node_or_null("VBox/HBox/Right/Preview/Info/Label") as Label
 	var img := $VBox/HBox/Right/Preview/Image as TextureRect
+	var info := get_node_or_null("VBox/HBox/Right/Preview/Info") as Control
 	if img:
 		img.texture = null if m.is_empty() else map_preview(str(m["id"]))
 		img.visible = img.texture != null
-		if lbl: lbl.offset_left = 192.0 if img.visible else 12.0
+		if info: info.offset_left = 192.0 if img.visible else 12.0
 	var crest := $VBox/HBox/Right/CivPreview/Crest as TextureRect
 	var civ_lbl := $VBox/HBox/Right/CivPreview/CivLabel as Label
 	if m.is_empty():
@@ -929,17 +936,100 @@ func _update_preview() -> void:
 		return
 	var seed_txt := "Random seed" if int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value) == 0 else "Seed %d" % int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
 	if lbl:
-		lbl.text = "%s\n[%s • %s • %dm • %d players]\n\n%s\n\n%s" % [
-			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt, m["desc"]]
+		lbl.text = "%s • %s • %s • %dm • %d players • %s" % [
+			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt]
 		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
-			lbl.text += "\n\nNo Human slot: you watch the AIs play with the map revealed."
+			lbl.text += "\nNo Human slot: you watch the AIs play with the map revealed."
+	_update_description()
 	# Civ preview follows slot 0 (the human player).
 	var civ := _civ_pos(_slot_civ(0))
 	if crest and civ >= 0:
 		var tex: Texture2D = load(CIVS[civ]["emblem"])
 		if tex: crest.texture = tex
 	if civ_lbl and civ >= 0:
-		civ_lbl.text = "%s\n\n%s" % [CIVS[civ]["name"], CIVS[civ]["blurb"]]
+		civ_lbl.text = "%s\n%s" % [CIVS[civ]["name"], CIVS[civ]["blurb"]]
+
+## 0.28 Panels/GameDescription.js: getGameDescription of the settings as they
+## stand, a line per setting, under the Map Preview's name and description.
+func _update_description() -> void:
+	var box := get_node_or_null("VBox/HBox/Right/Preview/Info/GameDescription") as RichTextLabel
+	if box == null or _rebuilding_slots:
+		return
+	var text := ""
+	var m := _selected_map()
+	if not m.is_empty():
+		text = GameDescription.describe(description_info())
+	if text != box.text:
+		box.text = text
+
+## The settings as the in-game Match Settings dialog reads them
+## (RtsoMain.get_match_settings_info keys).
+func description_info() -> Dictionary:
+	var st := _collect_setup()
+	var m: Dictionary = st.get("map", {})
+	var pop := int(st["pop_cap"])
+	if bool(st["team_pop"]) and pop > 0:
+		pop = -(pop + GameDescription.TEAM_POP_FLAG)
+	return {"map_id": str(m.get("id", "")), "map_name": str(m.get("name", "")),
+		"victory_mask": victory_mask(int(st["victory"])), "relic_min": st["relic_min"], "relic_count": st["relic_count"],
+		"regicide_garrison": st["regicide_garrison"], "wonder_min": st["wonder_min"], "lock_teams": st["lock_teams"],
+		"last_man_standing": st["lms"], "ceasefire_min": st["ceasefire"], "map_size": st["map_size"],
+		"team_placement": st["team_placement"], "trigger_difficulty": st["trigger_difficulty"], "nomad": st["nomad"],
+		"start_res": st["res"], "pop_cap": pop, "disable_treasures": st["disable_treasures"],
+		"explore_map": st["explore"], "reveal_map": st["reveal"], "ally_view": st["ally_view"],
+		"cheats": $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed if _mp_role != "none" else true}
+
+## The description scrolls in the Map Preview panel, beside the preview under
+## the map's name line; the panel takes the page's spare height.
+func _build_description() -> void:
+	var preview := $VBox/HBox/Right/Preview
+	var lbl := $VBox/HBox/Right/Preview/Label as Label
+	var info := VBoxContainer.new()
+	info.name = "Info"
+	info.set_anchors_preset(Control.PRESET_FULL_RECT)
+	info.offset_left = lbl.offset_left
+	info.offset_top = 6
+	info.offset_right = -6
+	info.offset_bottom = -6
+	preview.add_child(info)
+	lbl.reparent(info)
+	lbl.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var box := RichTextLabel.new()
+	box.name = "GameDescription"
+	box.bbcode_enabled = true
+	box.scroll_active = true
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_theme_font_size_override("normal_font_size", 13)
+	info.add_child(box)
+	var row := $VBox/HBox/Right/SlotsBox/SlotCountRow
+	for b in [["ResetCivs", "Reset Civs", "Reset any civilizations that have been selected to the default (random).", _on_reset_civs],
+			["ResetTeams", "Reset Teams", "Reset all teams to the default.", _on_reset_teams]]:
+		var btn := Button.new()
+		btn.name = b[0]
+		btn.text = tr(b[1])
+		btn.tooltip_text = tr(b[2])
+		btn.pressed.connect(b[3])
+		row.add_child(btn)
+
+## 0.28 Buttons/ResetCivsButton.js: every player's civ back to Random.
+func _on_reset_civs() -> void:
+	for r in _slot_rows:
+		r["civ"] = RANDOM_CIV
+	refresh_slots()
+	_update_preview()
+
+## 0.28 Buttons/ResetTeamsButton.js: every player back to no team.
+func _on_reset_teams() -> void:
+	for r in _slot_rows:
+		r["team"] = 0
+	refresh_slots()
+
+## The reset buttons are the controller's, and a scenario sets the civs and teams.
+func _render_reset_buttons() -> void:
+	for n in ["ResetCivs", "ResetTeams"]:
+		var b := get_node_or_null("VBox/HBox/Right/SlotsBox/SlotCountRow/" + n) as Button
+		if b:
+			b.visible = not _is_scenario() and _mp_role != "client"
 
 # ---------------------------------------------------------------- slots ---
 
@@ -1821,6 +1911,11 @@ func _on_ready_pressed() -> void:
 	_update_net_controls()
 
 func _process(delta: float) -> void:
+	# GameDescription.updateGameDescription: the summary follows every setting.
+	_desc_tick += delta
+	if _desc_tick >= 0.3:
+		_desc_tick = 0.0
+		_update_description()
 	if _mp_role == "none":
 		return
 	_net_tick += delta
