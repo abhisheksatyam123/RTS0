@@ -55,7 +55,7 @@ var submenu_data = {
 			{"label": "Structure Tree", "tooltip": "Every structure by phase, with the units it trains and the technologies it researches.", "action": "open_tech_tree"},
 			{"label": "Civilization Overview", "tooltip": "Civilization bonuses, specific technologies, structures and heroes, and history.", "action": "open_encyclopedia"},
 			{"label": "Catafalque Overview", "tooltip": "Compare the bonuses of catafalques featured in 0 A.D.", "action": "open_catafalque"},
-			{"label": "Map Overview", "tooltip": "Preview maps, biomes, and strategic chokepoints.", "action": "open_setup"}
+			{"label": "Map Overview", "tooltip": "View the different maps featured in 0 A.D.", "action": "open_map_browser"}
 		]
 	},
 	"single": {
@@ -254,6 +254,11 @@ func _execute_action(action: String) -> void:
 			var start = load("res://scenes/menu/scenario_start.gd")
 			if ms and start.configure(ms, start.INTRODUCTORY_TUTORIAL):
 				ms.go("res://scenes/main.tscn")
+		"open_map_browser":
+			# MainMenuItems.js Map Overview: page_mapbrowser, Skirmish maps, Default filter, to look only.
+			_close_submenu()
+			var setup = load("res://scenes/menu/gamesetup.gd")
+			load("res://scenes/menu/map_browser.gd").open_overlay(self, setup.load_all_maps(), "skirmish", "default", "", false)
 		"open_catafalque":
 			_close_submenu()
 			load("res://scenes/reference/catafalque_page.gd").open(self)

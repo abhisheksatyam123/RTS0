@@ -14,6 +14,9 @@ extends Control
 ##   teams 0/1 via diplomacy defaults. Slot cap is 8 like 0 A.D.
 
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
+const MapBrowser = preload("res://scenes/menu/map_browser.gd")
+const L10n = preload("res://scenes/menu/l10n.gd")
+const MAP_BROWSER_HOTKEY := "gamesetup.mapbrowser.open"
 
 const CIVS := [
 	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
@@ -315,6 +318,8 @@ var _filter_names: Array = []  # the filters the map type has maps for, in dropd
 var _want_map_id := ""         # the map to select on the next refresh_map_list
 var _was_scenario := false     # the slots hold a scenario's locked teams
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
+var _map_browser: Control = null
+var _hotkeys := RtsoHotkeyConfig.new()
 var _rebuilding_slots := false
 
 func _ready() -> void:
@@ -332,7 +337,12 @@ func _ready() -> void:
 # ---------------------------------------------------------------- maps ---
 
 func _load_maps() -> void:
-	_maps.clear()
+	_maps = load_all_maps()
+
+## Every map Game Setup and the Map Browser list: data/maps scenarios and
+## skirmishes (typed by map_types.json), then the random maps.
+static func load_all_maps() -> Array:
+	var maps: Array = []
 	var dir := DirAccess.open("res://data/maps")
 	if dir != null:
 		dir.list_dir_begin()
@@ -347,13 +357,13 @@ func _load_maps() -> void:
 			file_name = dir.get_next()
 		scenario_ids.sort()
 		for sid in scenario_ids:
-			_maps.append(_read_scenario(sid))
-	if _maps.is_empty():
+			maps.append(_read_scenario(sid))
+	if maps.is_empty():
 		for p in ["acropolis_bay", "corinthian_isthmus", "atlas_valleys", "bactria", "battle_for_the_tiber"]:
-			_maps.append(_read_scenario(p))
+			maps.append(_read_scenario(p))
 	var types := _map_types_data()
 	var known: Dictionary = types.get("maps", {})
-	for m in _maps:
+	for m in maps:
 		var t: Dictionary = known.get(m["id"], {})
 		m["type"] = str(t.get("type", "skirmish"))
 		m["kind"] = "Scenario" if m["type"] == "scenario" else "Skirmish"
@@ -364,11 +374,12 @@ func _load_maps() -> void:
 	var biomes: Dictionary = types.get("random_biomes", {})
 	for r in RMS_MAPS:
 		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
-		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
+		maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
 			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
 			"players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6],
 			"biomes": [] if r[0] in OWN_RMS_MAPS else biome_values(biomes.get(rms_script(r[0]), []))})
+	return maps
 
 ## The BIOMES entries a random map's 0.28 SupportedBiomes allows, in BIOMES order.
 static func biome_values(ids: Array) -> Array:
@@ -475,7 +486,7 @@ static func matches_class_list(classes: Array, match: Array) -> bool:
 			return true
 	return false
 
-func _read_scenario(map_id: String) -> Dictionary:
+static func _read_scenario(map_id: String) -> Dictionary:
 	var d := {"id": map_id, "name": map_id, "kind": "Scenario",
 		"players": 2, "size": 256, "biome": "mediterranean", "desc": ""}
 	var path := "res://data/maps/" + map_id + ".json"
@@ -590,14 +601,30 @@ func _build_map_filter() -> void:
 	f.item_selected.connect(_on_map_filter_selected)
 	_rebuild_map_filter()
 
+## MapFilters.getAvailableMapFilters: the MAP_FILTERS entries with maps of the type.
+static func available_filters(maps: Array, map_type: String) -> Array:
+	return MAP_FILTERS.filter(func(flt): return maps.any(func(m): return m["type"] == map_type and matches_class_list(m["keywords"], flt[3])))
+
+## MapFilters.getFilteredMaps: the maps of the type the filter matches, by name,
+## after the Random entry for random maps.
+static func filtered_maps(maps: Array, map_type: String, filter_name: String) -> Array:
+	var classes: Array = MAP_FILTERS[0][3]
+	for flt in MAP_FILTERS:
+		if flt[0] == filter_name:
+			classes = flt[3]
+	var out := maps.filter(func(m): return m["type"] == map_type and matches_class_list(m["keywords"], classes))
+	out.sort_custom(func(a, b): return str(a["name"]).naturalnocasecmp_to(str(b["name"])) < 0)
+	if map_type == "random":
+		out.push_front(RANDOM_MAP)
+	return out
+
 func _rebuild_map_filter() -> void:
 	var f: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapFilterSlot.get_child(0)
 	f.clear()
 	_filter_names.clear()
-	for flt in MAP_FILTERS:
-		if _maps.any(func(m): return m["type"] == _map_type and matches_class_list(m["keywords"], flt[3])):
-			_filter_names.append(flt[0])
-			f.add_item(flt[1])
+	for flt in available_filters(_maps, _map_type):
+		_filter_names.append(flt[0])
+		f.add_item(flt[1])
 	if not _filter_names.has(_map_filter_name):
 		_map_filter_name = _filter_names[0] if not _filter_names.is_empty() else "default"
 	var shown := not _filter_names.is_empty()
@@ -644,6 +671,50 @@ func _build_map_list() -> void:
 	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
+	# 0.28 Single/Buttons/MapBrowser.js "Browse Maps" and Panels/MapPreview.js: both open the Map Browser.
+	var browse := Button.new()
+	browse.name = "BrowseMaps"
+	browse.text = tr("Browse Maps")
+	var keys: Array = _hotkeys.get_hotkey_map().get(MAP_BROWSER_HOTKEY, [])
+	browse.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to view the list of available maps."),
+		{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+	browse.pressed.connect(_open_map_browser)
+	list.get_parent().add_child(browse)
+	list.get_parent().move_child(browse, list.get_index() + 1)
+	var preview := $VBox/HBox/Right/Preview as Control
+	preview.tooltip_text = tr("Click to view the list of available maps.")
+	preview.mouse_filter = Control.MOUSE_FILTER_STOP
+	preview.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			_open_map_browser())
+
+## MapBrowserPage.openPage: on the current type, filter and map; only the
+## controller picks (a client looks).
+func _open_map_browser() -> void:
+	if _map_browser != null and is_instance_valid(_map_browser):
+		return
+	_map_browser = MapBrowser.open_overlay(self, _maps, _map_type, _map_filter_name, str(_selected_map().get("id", "")), _mp_role != "client")
+	_map_browser.map_chosen.connect(_on_map_browsed)
+
+## MapBrowserPage.onSubmitMapSelection: the type, then the filter, then the map.
+func _on_map_browsed(map_id: String, map_type: String, map_filter: String) -> void:
+	if not map_type.is_empty():
+		_map_type = map_type
+		_update_map_type_tooltip()
+	if not map_filter.is_empty():
+		_map_filter_name = map_filter
+	_rebuild_map_filter()
+	if not map_id.is_empty():
+		_want_map_id = map_id
+	refresh_map_list()
+	_clamp_slots_to_map()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	if MAP_BROWSER_HOTKEY in _hotkeys.fired(event):
+		get_viewport().set_input_as_handled()
+		_open_map_browser()
 
 ## MapFilters.getFilteredMaps: the maps of the type the filter matches, by
 ## name, after the Random entry for random maps; keeps the selected map if listed.
@@ -652,14 +723,7 @@ func refresh_map_list() -> void:
 	_want_map_id = ""
 	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
-	_filtered.clear()
-	var match: Array = MAP_FILTERS[_filter_index(_map_filter_name)][3]
-	for m in _maps:
-		if m["type"] == _map_type and matches_class_list(m["keywords"], match):
-			_filtered.append(m)
-	_filtered.sort_custom(func(a, b): return str(a["name"]).naturalnocasecmp_to(str(b["name"])) < 0)
-	if _map_type == "random":
-		_filtered.push_front(RANDOM_MAP)
+	_filtered = filtered_maps(_maps, _map_type, _map_filter_name)
 	_sel_map = 0
 	for i in range(_filtered.size()):
 		list.add_item(str(_filtered[i]["name"]))
