@@ -142,7 +142,11 @@ RTS0_ONLY = ("UNIT_VILLAGER",)
 # closest one RTS0 has; the 0 A.D. name stays in the data for later remaps.
 # Gaia structures whose Trainer lists "units/{civ}/..." for their captor:
 # template stem -> structure kind (TRAINER_BUILDING key).
-GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp"}
+GAIA_TRAINERS = {"merc_camp_egyptian": "mercenary_camp", "trading_post_desert": "trading_post"}
+# Gaia shrines (mixins/shrine.xml) train "units/{native}/support_healer_e": the Elite Healer
+# of the shrine's own civ (Identity/Civ), whoever holds it.
+GAIA_NATIVE_TRAINERS = ("shrine_celtic", "shrine_chinese", "shrine_egyptian", "shrine_greek_01",
+                        "shrine_greek_02", "shrine_italian", "shrine_kushite", "shrine_persian")
 
 TRAINER_BUILDING = {
     "civil_centre": "BLD_TOWN_CENTER", "military_colony": "BLD_TOWN_CENTER",
@@ -168,6 +172,7 @@ TRAINER_BUILDING = {
     "apartment": "BLD_HOUSE", "apartment_block": "BLD_HOUSE",
     "house_a": "BLD_HOUSE", "house_b": "BLD_HOUSE",
     "warehouse": "BLD_HOUSE", "inn": "BLD_HOUSE", "tavern": "BLD_HOUSE",
+    "shrine": "BLD_SHRINE", "trading_post": "BLD_TRADING_POST",
     "kennel": "BLD_BARRACKS", "amphitheater_pompeii": "BLD_BARRACKS",
     "camp_blemmye": "BLD_BARRACKS", "camp_noba": "BLD_BARRACKS",
     "practice_range": "BLD_RANGE",
@@ -237,6 +242,10 @@ UNIQUE_BUILDINGS = [
     # drawn with the Roman army camp until they have their own models.
     ("BLD_WAGON_ENCAMPMENT", ["encampment"], "army_camp", "army_camp"),
     ("BLD_WAGON_ENCAMPMENT_FORTIFIED", ["encampment_fortified"], "army_camp", "army_camp"),
+    # Gaia structures maps place (GAIA_UNIQUE): nobody builds them; captured, never destroyed.
+    # The type's row is read from the first template; each placed one keeps its template's civ.
+    ("BLD_SHRINE", ["shrine_greek_01"], "temple", "temple"),
+    ("BLD_TRADING_POST", ["trading_post_desert"], "market", "market"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -252,6 +261,9 @@ UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BL
 # Generic structures (structures/<stem>.xml) in UNIQUE_BUILDINGS -> the generic BuildingType
 # whose civs have them too.
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
+# Gaia structures in UNIQUE_BUILDINGS (structures/<stem>.xml, mixins/shrine.xml and
+# mixins/trading_post.xml): no civ builds them.
+GAIA_UNIQUE = {"BLD_SHRINE", "BLD_TRADING_POST"}
 # Generic structures a civ structure's Upgrade can start from (structures/cart/house,
 # structures/han/civil_centre, structures/han/defense_tower).
 UPGRADE_FROM_GENERIC = {"house": "BLD_HOUSE", "civil_centre": "BLD_TOWN_CENTER", "defense_tower": "BLD_TOWER"}
@@ -1164,6 +1176,8 @@ def collect(sim_root):
         structs = [("structures/%s/%s" % (civ, fn[:-4]), structure_kind(fn[:-4]))
                    for fn in sorted(os.listdir(sdir)) if fn.endswith(".xml")]
         structs += [("structures/" + stem, kind) for stem, kind in sorted(GAIA_TRAINERS.items())]
+        structs += [("structures/" + stem, "shrine") for stem in GAIA_NATIVE_TRAINERS
+                    if loader.load("structures/" + stem).value("Identity/Civ") == civ]
         for path, kind in structs:
             s = loader.load(path)
             ents = s.tokens("Trainer/Entities")
@@ -1641,6 +1655,9 @@ def unique_building_rows(sim_root, generic_masks=None):
             mask = (generic_masks or {}).get(GENERIC_UNIQUE[enum], 0)
             civs = [c for c in CIVS if mask >> CIV_INDEX[c] & 1]
             t, src = loader.load(name), name
+        if enum in GAIA_UNIQUE:
+            civs, src = [], "structures/%s" % stems[0]
+            t = loader.load(src)
         if t is None:
             raise SystemExit("no 0 A.D. template for %s" % enum)
         fp = t.get("Footprint/Square")

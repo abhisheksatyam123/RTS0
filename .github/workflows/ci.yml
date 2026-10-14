@@ -158,6 +158,11 @@ jobs:
           g++ -std=c++20 -O2 -Isrc tools/test_wagon_trains.cpp src/simulation/simulation.cpp \
             src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_wagon_trains
           /tmp/test_wagon_trains
+      - name: Gaia shrine and trading post tests (0.28 map structures, capture-only)
+        run: |
+          g++ -std=c++20 -O2 -Isrc tools/test_gaia_shrines.cpp src/simulation/simulation.cpp \
+            src/simulation/rms_generator.cpp src/core/job_system.cpp -lpthread -o /tmp/test_gaia_shrines
+          /tmp/test_gaia_shrines
       - name: Statistics tests (0 A.D. StatisticsTracker for every player)
         run: |
           g++ -std=c++20 -O2 -Isrc tools/test_statistics.cpp src/simulation/simulation.cpp \
