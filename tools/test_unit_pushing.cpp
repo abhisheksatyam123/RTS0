@@ -291,10 +291,24 @@ int main() {
 		const float catafalque = unit_push_weight(tmpl("athen/catafalque"), UNIT_CATAFALQUE);
 		const float spearman = unit_push_weight(tmpl("athen/infantry_spearman_b"), UNIT_SPEARMAN);
 		std::printf("  weights: chariot %.0f, hero chariot %.0f, hero elephant %.0f, catafalque %.0f, spearman %.0f, ram %.0f\n",
-		            chariot, hero_chariot, hero_elephant, catafalque, spearman, unit_push_weight(CIV_UNIT_TEMPLATE_NONE, UNIT_SIEGE_RAM));
+		            chariot, hero_chariot, hero_elephant, catafalque, spearman, (float)unit_push_weight(CIV_UNIT_TEMPLATE_NONE, UNIT_SIEGE_RAM));
 		CHECK(chariot == 30.0f && hero_chariot == 30.0f, "chariots weigh 30 (mixins/chariot)");
 		CHECK(hero_elephant == 50.0f && unit_push_weight(CIV_UNIT_TEMPLATE_NONE, UNIT_SIEGE_RAM) == 50.0f, "elephants and siege 50");
 		CHECK(catafalque == 100.0f && spearman == 10.0f, "catafalques 100, foot soldiers 10");
+		// unit_push_weight reads the roster's classes only for heroes: every row's weight must
+		// match the rule its classes give.
+		int wrong = 0;
+		for (uint16_t t = 0; t < CIV_UNIT_TEMPLATE_COUNT; ++t) {
+			const CivUnitTemplate &row = civ_unit_template(t);
+			const TechClasses c = row.tech_classes;
+			const int want = row.unit_type == UNIT_CATAFALQUE ? 100
+					: (c & (TC_SIEGE | TC_ELEPHANT)) != 0 || row.unit_type == UNIT_WAGON ? 50 : (c & TC_CHARIOT) != 0 ? 30 : 10;
+			if (unit_push_weight(t, row.unit_type) != want) {
+				std::printf("  %s: weight %d, its classes say %d\n", row.id, unit_push_weight(t, row.unit_type), want);
+				++wrong;
+			}
+		}
+		CHECK(wrong == 0, "every roster row weighs what its classes say");
 	}
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);
 	return failures ? 1 : 0;
