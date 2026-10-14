@@ -5888,7 +5888,7 @@ static bool is_civilian_class(uint16_t tmpl, uint8_t type) {
 // merchant ships add Support Cavalry Relic, warships Support Soldier Hero Relic (+ Siege).
 bool Simulation::ship_garrison_allowed(size_t ship, size_t unit) const {
 	const uint8_t unit_type = units_.unit_type[unit];
-	const TechClasses c = unit_tech_classes(unit_type);
+	const TechClasses c = unit_classes_at(unit); // the template's own classes (a cavalry hero is no Infantry)
 	if (is_civilian_class(units_.tmpl[unit], unit_type)) return true;
 	TechClasses allowed = TC_INFANTRY | TC_HEALER | TC_DOG;
 	const bool relic = unit_type == UNIT_CATAFALQUE;
@@ -6143,7 +6143,7 @@ bool Simulation::can_board(size_t transport_idx, size_t unit_idx) const {
 	if (unit_is_ship(units_.unit_type[transport_idx]))
 		return !unit_is_ship(units_.unit_type[unit_idx]) && ship_garrison_allowed(transport_idx, unit_idx);
 	if (is_transport(units_.id[unit_idx])) return false;
-	if (siege_garrison_capacity(transport_idx) > 0 && !siege_garrison_allowed(units_.unit_type[unit_idx])) return false;
+	if (siege_garrison_capacity(transport_idx) > 0 && !(unit_classes_at(unit_idx) & (TC_INFANTRY | TC_CIVILIAN))) return false;
 	// GarrisonHolder.Garrison: a siege engine below its EjectHealth takes nobody in.
 	if (units_.hp[transport_idx] <= std::floor(units_.max_hp[transport_idx] * SIEGE_EJECT_HEALTH)) return false;
 	return true;
