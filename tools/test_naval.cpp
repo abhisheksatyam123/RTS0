@@ -813,6 +813,9 @@ static void test_petra_concurrent_transports() {
 			              b.queue.end());
 	bool both = false, shared = false;
 	std::vector<uint32_t> landed;
+	// The most villagers on the south land at once: once the civic centre stands, Petra may ship a
+	// builder home again for a resource the new base lacks.
+	int villagers_south = 0;
 	for (int k = 0; k < 120; ++k) {
 		run(s, 1.0f);
 		const PetraTransportPlan *a = plan_of(PETRA_TRANSPORT_ATTACK), *b = plan_of(PETRA_TRANSPORT_BUILDERS);
@@ -827,12 +830,13 @@ static void test_petra_concurrent_transports() {
 			if (i >= 0 && s.units().alive[i] && s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south &&
 			    std::find(landed.begin(), landed.end(), uid) == landed.end()) landed.push_back(uid);
 		}
+		int now_south = 0;
+		for (size_t i = 0; i < s.units().count; ++i)
+			if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
+			    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++now_south;
+		villagers_south = std::max(villagers_south, now_south);
 	}
-	int villagers_south = 0;
-	for (size_t i = 0; i < s.units().count; ++i)
-		if (s.units().alive[i] && s.units().team[i] == 1 && s.units().unit_type[i] == UNIT_VILLAGER &&
-		    s.petra_land_at(s.units().pos_x[i], s.units().pos_z[i]) == south) ++villagers_south;
-	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, %d villagers on the south land\n",
+	std::printf("Petra concurrent transports: both under way at once %s, %zu of 6 spearmen landed, at most %d villagers on the south land at once\n",
 	            both ? "yes" : "no", landed.size(), villagers_south);
 	CHECK(both && !shared);
 	CHECK(landed.size() >= 4 && villagers_south >= 1);
