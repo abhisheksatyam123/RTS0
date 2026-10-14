@@ -24001,6 +24001,7 @@ void Simulation::petra_manage_defense(float dt) {
 	// checkEnemyUnits: an enemy fighter not yet in an army that isDangerous starts or joins one.
 	for (size_t i = 0; i < units_.count; ++i) {
 		if (!units_.alive[i] || !petra_foe(units_.team[i]) || army_of_foe(units_.id[i]) >= 0) continue;
+		if (unit_is_ship(units_.unit_type[i])) continue; // "TODO what to do for ships ?": Ships and Traders are skipped
 		if (petra_is_support_unit(units_.unit_type[i]) || (unit_tech_classes(units_.unit_type[i]) & TC_HEALER) ||
 		    (units_.attack_damage[i] <= 0.0f && unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f)) continue;
 		const int terr = territory_owner_at(units_.pos_x[i], units_.pos_z[i]); // -1 neutral
@@ -24027,14 +24028,20 @@ void Simulation::petra_manage_defense(float dt) {
 		if (dangerous) make_into_army(units_.id[i]);
 	}
 
-	// isDangerous: whoever stands by a structure of the targetList.
+	// isDangerous: in neutral or allied land (checkEnemyUnits skips ships and traders), a
+	// builder of a structure of the targetList, or a fighter within dist2Min of one (6000 m²,
+	// a ranged unit its range + 30 m); support units only while they build.
 	for (const auto &b : buildings_) {
 		if (!defense_target(b)) continue;
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!units_.alive[i] || !petra_foe(units_.team[i])) continue;
-			float dx = units_.pos_x[i] - b.x;
-			float dz = units_.pos_z[i] - b.z;
-			if (dx * dx + dz * dz <= 18.0f * 18.0f) make_into_army(units_.id[i]);
+			if (!units_.alive[i] || !petra_foe(units_.team[i]) || unit_is_ship(units_.unit_type[i])) continue;
+			const int owner = territory_owner_at(units_.pos_x[i], units_.pos_z[i]);
+			if (owner >= 0 && (owner >= MAX_PLAYERS || !is_ally(petra_pid_, (uint8_t)owner))) continue;
+			const bool building = units_.action_state[i] == ACTION_BUILD && units_.target_building_id[i] == b.id;
+			if (!building && (petra_is_support_unit(units_.unit_type[i]) || (units_.attack_damage[i] <= 0.0f &&
+			    unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) <= 0.0f))) continue;
+			const float dx = units_.pos_x[i] - b.x, dz = units_.pos_z[i] - b.z;
+			if (building || dx * dx + dz * dz < danger_reach2(i)) make_into_army(units_.id[i]);
 		}
 	}
 	// checkEnemyUnits on our own turn: with no army about, the first structure of ours not
