@@ -10121,7 +10121,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -64.92,
       "z": 72.54,
       "amount": 200
@@ -10163,19 +10163,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -127.26,
       "z": 166.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -129.97,
       "z": 166.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -129.89,
       "z": 166.68,
       "amount": 200
@@ -10313,19 +10313,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -6.09,
       "z": 138.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.32,
       "z": 138.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -6.29,
       "z": 142.78,
       "amount": 200
@@ -10343,7 +10343,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -5.23,
       "z": 139.29,
       "amount": 400
@@ -10517,19 +10517,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -68.33,
       "z": 72.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -61.57,
       "z": 80.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -68.67,
       "z": 72.2,
       "amount": 200
@@ -10559,19 +10559,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -19.75,
       "z": 85.74,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -17.39,
       "z": 85.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -20.11,
       "z": 84.72,
       "amount": 200
@@ -10619,7 +10619,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -45.45,
       "z": 167.83,
       "amount": 400
@@ -10679,7 +10679,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -167.12,
       "z": -1.84,
       "amount": 200
@@ -10709,7 +10709,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -147.14,
       "z": 31.15,
       "amount": 200
@@ -10751,19 +10751,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -130.68,
       "z": 2.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -128.35,
       "z": 1.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -131.28,
       "z": 1.05,
       "amount": 200
@@ -10781,19 +10781,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -87.45,
       "z": 1.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -87.98,
       "z": 0.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -89.19,
       "z": 3.7,
       "amount": 200
@@ -10835,7 +10835,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -150.42,
       "z": 127.81,
       "amount": 200
@@ -10871,13 +10871,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -160.19,
       "z": 21.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -160.25,
       "z": 22.43,
       "amount": 200
@@ -10907,13 +10907,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -0.96,
       "z": 108.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 0.1,
       "z": 107.73,
       "amount": 200
@@ -10943,7 +10943,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -27.75,
       "z": 118.68,
       "amount": 200
@@ -10985,13 +10985,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -72.84,
       "z": 35.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -76.88,
       "z": 33.01,
       "amount": 200
@@ -11027,7 +11027,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -136.85,
       "z": 10.82,
       "amount": 200
@@ -11057,19 +11057,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -6.92,
       "z": 101.22,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -9.95,
       "z": 100.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -7.67,
       "z": 100.2,
       "amount": 200
@@ -11105,13 +11105,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 111.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 112.63,
       "amount": 200
@@ -11279,13 +11279,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -103.82,
       "z": 161.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -103.89,
       "z": 163.85,
       "amount": 200
@@ -11393,13 +11393,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -168.85,
       "z": 181.51,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -172.47,
       "z": 180.11,
       "amount": 400
@@ -11435,7 +11435,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -116.4,
       "z": -1.85,
       "amount": 200
@@ -11459,13 +11459,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -67.12,
       "z": 84.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -66.78,
       "z": 84.75,
       "amount": 200
@@ -11537,25 +11537,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 0.34,
       "z": 143.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 0.89,
       "z": 141.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -2.89,
       "z": 143.04,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -0.35,
       "z": 142.96,
       "amount": 400
@@ -11627,13 +11627,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -40.48,
       "z": 77.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -40.47,
       "z": 78.28,
       "amount": 200
@@ -11753,13 +11753,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -19.7,
       "z": 144.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -19.13,
       "z": 145.05,
       "amount": 200
@@ -11789,7 +11789,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 72.59,
       "amount": 200
@@ -11861,13 +11861,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -17.48,
       "z": 127.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -16.67,
       "z": 127.04,
       "amount": 200
@@ -11915,13 +11915,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -18.2,
       "z": 156.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -18.72,
       "z": 157.0,
       "amount": 200
@@ -11939,7 +11939,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -18.43,
       "z": 155.0,
       "amount": 400
@@ -11987,7 +11987,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -33.78,
       "z": 181.13,
       "amount": 400
@@ -12023,19 +12023,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -9.26,
       "z": 126.66,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -12.48,
       "z": 126.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -12.68,
       "z": 127.18,
       "amount": 200
@@ -12065,19 +12065,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.71,
       "z": 179.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -9.3,
       "z": 179.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.95,
       "z": 180.89,
       "amount": 200
@@ -12119,19 +12119,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -178.87,
       "z": 97.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -176.1,
       "z": 98.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -178.58,
       "z": 94.5,
       "amount": 200
@@ -12149,7 +12149,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -177.71,
       "z": 97.72,
       "amount": 400
@@ -12185,13 +12185,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -142.61,
       "z": 142.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -142.63,
       "z": 142.01,
       "amount": 200
@@ -12221,7 +12221,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -144.39,
       "z": -35.71,
       "amount": 200
@@ -12263,13 +12263,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -18.74,
       "z": 57.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.16,
       "z": 59.25,
       "amount": 200
@@ -12305,7 +12305,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.25,
       "z": 184.32,
       "amount": 200
@@ -12431,7 +12431,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -160.24,
       "z": 118.74,
       "amount": 200
@@ -12449,7 +12449,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -163.09,
       "z": 116.39,
       "amount": 400
@@ -12473,19 +12473,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -150.3,
       "z": 125.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -151.24,
       "z": 126.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -148.56,
       "z": 127.14,
       "amount": 200
@@ -12533,13 +12533,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -7.71,
       "z": 99.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.14,
       "z": 100.03,
       "amount": 200
@@ -12563,7 +12563,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -122.01,
       "z": 9.0,
       "amount": 200
@@ -12647,7 +12647,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -35.56,
       "z": 175.6,
       "amount": 400
@@ -12683,19 +12683,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -67.63,
       "z": 51.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -66.98,
       "z": 50.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -65.6,
       "z": 52.87,
       "amount": 200
@@ -12707,13 +12707,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -56.41,
       "z": 26.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -56.02,
       "z": 26.87,
       "amount": 200
@@ -12755,7 +12755,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -26.53,
       "z": 93.12,
       "amount": 200
@@ -12797,19 +12797,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.04,
       "z": 7.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 7.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 9.73,
       "amount": 200
@@ -12857,19 +12857,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -146.5,
       "z": 173.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -143.25,
       "z": 175.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -145.29,
       "z": 176.17,
       "amount": 200
@@ -12881,7 +12881,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -145.19,
       "z": 172.8,
       "amount": 400
@@ -12923,7 +12923,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -34.54,
       "z": 150.43,
       "amount": 400
@@ -12983,7 +12983,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.47,
       "z": -29.38,
       "amount": 200
@@ -13037,7 +13037,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -29.67,
       "z": 81.02,
       "amount": 200
@@ -13049,7 +13049,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -86.8,
       "z": 6.45,
       "amount": 200
@@ -13115,19 +13115,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -69.94,
       "z": 40.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -69.8,
       "z": 42.1,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -70.54,
       "z": 40.98,
       "amount": 200
@@ -13157,7 +13157,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -110.19,
       "z": 18.67,
       "amount": 200
@@ -13205,7 +13205,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -76.51,
       "z": 33.71,
       "amount": 200
@@ -13229,19 +13229,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -135.84,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -132.44,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -137.08,
       "z": 184.32,
       "amount": 200
@@ -13253,7 +13253,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -133.72,
       "z": 184.32,
       "amount": 400
@@ -13325,7 +13325,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -173.38,
       "z": 110.68,
       "amount": 200
@@ -13361,19 +13361,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -151.56,
       "z": 120.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -153.61,
       "z": 120.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -151.28,
       "z": 120.57,
       "amount": 200
@@ -13469,19 +13469,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -161.53,
       "z": 4.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -159.4,
       "z": 1.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -160.27,
       "z": 1.41,
       "amount": 200
@@ -13523,19 +13523,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -69.12,
       "z": 36.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -69.44,
       "z": 37.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -67.57,
       "z": 36.26,
       "amount": 200
@@ -13625,13 +13625,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -165.19,
       "z": 8.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -166.04,
       "z": 9.48,
       "amount": 200
@@ -13667,13 +13667,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 112.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 112.32,
       "amount": 200
@@ -13691,7 +13691,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -184.32,
       "z": 112.23,
       "amount": 400
@@ -13733,7 +13733,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.2,
       "z": 154.9,
       "amount": 200
@@ -13751,7 +13751,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -23.45,
       "z": 154.03,
       "amount": 400
@@ -13781,7 +13781,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -145.83,
       "z": 4.6,
       "amount": 200
@@ -13865,13 +13865,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -158.25,
       "z": -28.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -158.29,
       "z": -26.67,
       "amount": 200
@@ -13883,7 +13883,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -85.53,
       "z": 4.42,
       "amount": 200
@@ -13919,7 +13919,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -175.02,
       "z": 76.46,
       "amount": 200
@@ -13967,19 +13967,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -80.94,
       "z": 27.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -82.68,
       "z": 30.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -81.1,
       "z": 25.95,
       "amount": 200
@@ -14021,19 +14021,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -159.87,
       "z": -7.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -156.77,
       "z": -7.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -157.23,
       "z": -10.84,
       "amount": 200
@@ -14087,13 +14087,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 184.32,
       "amount": 200
@@ -14129,7 +14129,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -45.42,
       "z": 184.32,
       "amount": 200
@@ -14231,13 +14231,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -181.12,
       "z": 148.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -183.86,
       "z": 146.83,
       "amount": 200
@@ -14273,13 +14273,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -131.03,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -131.52,
       "z": 184.32,
       "amount": 200
@@ -14315,13 +14315,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.91,
       "z": 116.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -17.38,
       "z": 117.1,
       "amount": 200
@@ -14369,7 +14369,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -54.08,
       "z": 164.48,
       "amount": 400
@@ -14411,19 +14411,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -155.82,
       "z": -21.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -157.03,
       "z": -20.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -152.86,
       "z": -20.43,
       "amount": 200
@@ -14447,13 +14447,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.43,
       "z": 103.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.03,
       "z": 103.26,
       "amount": 200
@@ -14495,7 +14495,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -147.77,
       "z": -24.81,
       "amount": 200
@@ -14543,7 +14543,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -0.53,
       "z": 162.94,
       "amount": 200
@@ -14609,19 +14609,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -16.52,
       "z": 93.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -18.97,
       "z": 95.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -17.5,
       "z": 92.28,
       "amount": 200
@@ -14663,7 +14663,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -143.48,
       "z": -19.86,
       "amount": 200
@@ -14705,13 +14705,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -55.43,
       "z": 78.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -52.1,
       "z": 79.85,
       "amount": 200
@@ -14771,7 +14771,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -49.65,
       "z": 166.8,
       "amount": 400
@@ -14831,7 +14831,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -102.85,
       "z": 17.85,
       "amount": 200
@@ -14855,19 +14855,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -31.69,
       "z": 60.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.76,
       "z": 64.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.97,
       "z": 61.41,
       "amount": 200
@@ -14909,7 +14909,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -31.18,
       "z": 120.75,
       "amount": 200
@@ -14999,13 +14999,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -125.94,
       "z": 31.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -127.92,
       "z": 30.7,
       "amount": 200
@@ -15041,13 +15041,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -78.21,
       "z": 30.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -73.97,
       "z": 27.96,
       "amount": 200
@@ -15095,19 +15095,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -178.22,
       "z": 138.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -181.97,
       "z": 140.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -181.01,
       "z": 141.43,
       "amount": 200
@@ -15137,19 +15137,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -130.45,
       "z": 15.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -133.65,
       "z": 17.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -131.55,
       "z": 16.66,
       "amount": 200
@@ -15173,13 +15173,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -26.26,
       "z": 134.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -27.5,
       "z": 135.2,
       "amount": 200
@@ -15215,7 +15215,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -136.79,
       "z": 7.56,
       "amount": 200
@@ -15257,13 +15257,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -155.34,
       "z": 114.78,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -157.55,
       "z": 113.14,
       "amount": 200
@@ -15347,13 +15347,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -102.47,
       "z": 25.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -102.81,
       "z": 27.1,
       "amount": 200
@@ -15389,7 +15389,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -107.84,
       "z": 37.63,
       "amount": 200
@@ -15443,19 +15443,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -156.39,
       "z": 184.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -154.81,
       "z": 181.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -152.53,
       "z": 182.55,
       "amount": 200
@@ -15467,7 +15467,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -154.57,
       "z": 183.17,
       "amount": 400
@@ -15539,13 +15539,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -5.36,
       "z": 104.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.05,
       "z": 103.55,
       "amount": 200
@@ -15587,13 +15587,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -119.4,
       "z": 5.91,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -122.05,
       "z": 4.23,
       "amount": 200
@@ -15671,7 +15671,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 68.93,
       "amount": 200
@@ -15689,7 +15689,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -184.32,
       "z": 65.58,
       "amount": 400
@@ -15731,19 +15731,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 70.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 68.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 70.2,
       "amount": 200
@@ -15785,13 +15785,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -134.6,
       "z": 166.9,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -134.26,
       "z": 166.99,
       "amount": 400
@@ -15827,7 +15827,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -178.68,
       "z": 13.41,
       "amount": 200
@@ -15863,7 +15863,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -49.65,
       "z": 70.88,
       "amount": 200
@@ -15899,19 +15899,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.99,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -170.42,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -166.45,
       "z": 184.32,
       "amount": 400
@@ -15983,7 +15983,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -119.88,
       "z": 26.41,
       "amount": 200
@@ -16013,7 +16013,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -30.34,
       "z": 150.88,
       "amount": 400
@@ -16055,13 +16055,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -166.78,
       "z": 156.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -165.08,
       "z": 159.66,
       "amount": 200
@@ -16139,31 +16139,31 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -110.23,
       "z": 158.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -110.79,
       "z": 160.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -61.05,
       "z": 21.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -57.09,
       "z": 20.78,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -56.35,
       "z": 22.35,
       "amount": 200
@@ -16229,13 +16229,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 150.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 149.21,
       "amount": 200
@@ -16253,7 +16253,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -184.32,
       "z": 149.36,
       "amount": 400
@@ -16319,13 +16319,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -112.19,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -110.31,
       "z": 184.32,
       "amount": 200
@@ -16337,7 +16337,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -111.64,
       "z": 184.32,
       "amount": 400
@@ -16367,13 +16367,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -179.59,
       "z": 68.98,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -180.57,
       "z": 67.13,
       "amount": 200
@@ -16391,7 +16391,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -182.08,
       "z": 69.51,
       "amount": 400
@@ -16505,7 +16505,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -105.02,
       "z": 20.56,
       "amount": 200
@@ -16535,19 +16535,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.55,
       "z": 20.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.52,
       "z": 19.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.84,
       "z": 16.58,
       "amount": 200
@@ -16583,13 +16583,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -105.3,
       "z": 13.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -105.23,
       "z": 11.91,
       "amount": 200
@@ -16625,13 +16625,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -114.92,
       "z": 175.13,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -116.66,
       "z": 174.32,
       "amount": 400
@@ -16817,7 +16817,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -23.19,
       "z": 179.85,
       "amount": 400
@@ -16841,7 +16841,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -123.04,
       "z": 184.32,
       "amount": 200
@@ -16871,13 +16871,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -23.22,
       "z": 90.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -21.67,
       "z": 91.94,
       "amount": 200
@@ -16931,13 +16931,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.66,
       "z": 148.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -171.68,
       "z": 149.06,
       "amount": 200
@@ -16991,7 +16991,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -63.25,
       "z": 84.78,
       "amount": 200
@@ -17039,19 +17039,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -121.96,
       "z": 155.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -121.97,
       "z": 157.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -120.49,
       "z": 152.68,
       "amount": 200
@@ -17069,7 +17069,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -118.68,
       "z": 155.39,
       "amount": 400
@@ -17099,13 +17099,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -120.83,
       "z": 27.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -121.59,
       "z": 26.18,
       "amount": 200
@@ -17195,13 +17195,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -11.14,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -8.37,
       "z": 182.47,
       "amount": 200
@@ -17249,19 +17249,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -164.3,
       "z": 9.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -165.08,
       "z": 7.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -167.91,
       "z": 9.46,
       "amount": 200
@@ -17303,19 +17303,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -168.19,
       "z": -12.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -171.27,
       "z": -13.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -171.52,
       "z": -14.59,
       "amount": 200
@@ -17381,19 +17381,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.99,
       "z": 68.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -39.53,
       "z": 69.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -39.35,
       "z": 68.8,
       "amount": 200
@@ -17423,7 +17423,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -118.33,
       "z": -10.15,
       "amount": 200
@@ -17477,7 +17477,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -173.74,
       "z": -15.94,
       "amount": 200
@@ -17519,13 +17519,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -84.53,
       "z": 39.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -87.05,
       "z": 38.66,
       "amount": 200
@@ -17597,7 +17597,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -106.08,
       "z": 17.05,
       "amount": 200
@@ -17627,19 +17627,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -182.7,
       "z": 10.81,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 8.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 12.96,
       "amount": 200
@@ -17651,19 +17651,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -75.27,
       "z": 11.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -78.87,
       "z": 10.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -79.0,
       "z": 10.67,
       "amount": 200
@@ -17747,7 +17747,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -133.31,
       "z": -26.26,
       "amount": 200
@@ -17783,13 +17783,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -170.56,
       "z": -35.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.14,
       "z": -36.77,
       "amount": 200
@@ -17825,7 +17825,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 45.49,
       "amount": 200
@@ -17837,7 +17837,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -184.32,
       "z": 46.26,
       "amount": 400
@@ -17861,13 +17861,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -126.78,
       "z": 15.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -125.59,
       "z": 13.6,
       "amount": 200
@@ -17933,25 +17933,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -103.76,
       "z": 181.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -102.48,
       "z": 183.22,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -99.37,
       "z": 184.01,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -101.93,
       "z": 183.76,
       "amount": 400
@@ -17981,19 +17981,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -45.43,
       "z": 72.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -44.68,
       "z": 73.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -46.5,
       "z": 72.52,
       "amount": 200
@@ -18011,19 +18011,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -54.78,
       "z": 39.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -49.66,
       "z": 38.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -49.93,
       "z": 38.31,
       "amount": 200
@@ -18065,13 +18065,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -77.15,
       "z": 39.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -78.08,
       "z": 38.98,
       "amount": 200
@@ -18167,19 +18167,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -116.09,
       "z": -14.05,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -115.26,
       "z": -11.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -114.66,
       "z": -10.84,
       "amount": 200
@@ -18221,19 +18221,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -8.03,
       "z": 163.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -11.23,
       "z": 163.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -12.48,
       "z": 163.01,
       "amount": 200
@@ -18275,13 +18275,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -1.51,
       "z": 183.95,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -3.97,
       "z": 184.32,
       "amount": 400
@@ -18389,7 +18389,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -100.75,
       "z": 169.65,
       "amount": 200
@@ -18431,19 +18431,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -156.25,
       "z": 163.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -153.8,
       "z": 164.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -154.36,
       "z": 163.58,
       "amount": 200
@@ -18473,19 +18473,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -39.34,
       "z": 31.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -40.12,
       "z": 28.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -38.78,
       "z": 29.03,
       "amount": 200
@@ -18533,19 +18533,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.88,
       "z": 60.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.16,
       "z": 61.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -26.14,
       "z": 62.13,
       "amount": 200
@@ -18581,19 +18581,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -8.62,
       "z": 138.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.55,
       "z": 142.09,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -8.5,
       "z": 139.9,
       "amount": 400
@@ -18617,7 +18617,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -163.95,
       "z": -4.28,
       "amount": 200
@@ -18653,7 +18653,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -19.25,
       "z": 174.56,
       "amount": 400
@@ -18695,19 +18695,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -79.67,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -81.98,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -81.59,
       "z": 184.32,
       "amount": 200
@@ -18761,13 +18761,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 45.81,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 43.27,
       "amount": 200
@@ -18779,7 +18779,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -184.32,
       "z": 43.04,
       "amount": 400
@@ -18815,13 +18815,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -108.5,
       "z": 11.41,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -110.54,
       "z": 10.72,
       "amount": 200
@@ -18887,7 +18887,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -18.58,
       "z": 159.67,
       "amount": 200
@@ -18935,19 +18935,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -162.23,
       "z": 153.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -163.57,
       "z": 157.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -162.92,
       "z": 154.5,
       "amount": 200
@@ -18965,7 +18965,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -162.3,
       "z": 153.96,
       "amount": 400
@@ -19007,7 +19007,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -161.11,
       "z": 180.13,
       "amount": 200
@@ -19085,13 +19085,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -117.01,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -121.5,
       "z": 184.32,
       "amount": 200
@@ -19103,7 +19103,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -118.26,
       "z": 184.32,
       "amount": 400
@@ -19169,13 +19169,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -152.14,
       "z": 159.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -155.5,
       "z": 159.15,
       "amount": 200
@@ -19211,7 +19211,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -115.29,
       "z": -4.08,
       "amount": 200
@@ -19253,13 +19253,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -105.82,
       "z": 12.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -105.37,
       "z": 8.66,
       "amount": 200
@@ -19361,19 +19361,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -168.91,
       "z": 100.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -169.55,
       "z": 101.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -168.28,
       "z": 99.18,
       "amount": 200
@@ -19403,7 +19403,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.63,
       "z": 89.04,
       "amount": 200
@@ -19451,13 +19451,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -158.99,
       "z": 179.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -155.34,
       "z": 177.63,
       "amount": 200
@@ -19469,7 +19469,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -156.02,
       "z": 178.78,
       "amount": 400
@@ -19505,7 +19505,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -76.66,
       "z": 25.56,
       "amount": 200
@@ -19541,19 +19541,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -49.19,
       "z": 30.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -51.07,
       "z": 33.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -49.45,
       "z": 33.13,
       "amount": 200
@@ -19595,7 +19595,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -182.62,
       "z": -13.81,
       "amount": 200
@@ -19631,19 +19631,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -67.68,
       "z": 71.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -68.49,
       "z": 68.62,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -68.47,
       "z": 68.75,
       "amount": 200
@@ -19739,19 +19739,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -2.15,
       "z": 137.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -2.55,
       "z": 135.22,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -2.78,
       "z": 134.49,
       "amount": 200
@@ -19769,7 +19769,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -1.24,
       "z": 136.97,
       "amount": 400
@@ -19793,7 +19793,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -180.11,
       "z": 73.98,
       "amount": 200
@@ -19811,7 +19811,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -182.94,
       "z": 75.45,
       "amount": 400
@@ -19841,7 +19841,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -5.04,
       "z": 135.03,
       "amount": 200
@@ -19853,7 +19853,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -4.86,
       "z": 135.86,
       "amount": 400
@@ -19895,13 +19895,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -154.22,
       "z": 6.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -152.44,
       "z": 5.47,
       "amount": 200
@@ -19913,13 +19913,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -68.3,
       "z": 11.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -69.42,
       "z": 11.74,
       "amount": 200
@@ -19961,19 +19961,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -16.42,
       "z": 104.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.33,
       "z": 108.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -17.65,
       "z": 103.99,
       "amount": 200
@@ -20015,7 +20015,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -47.98,
       "z": 49.59,
       "amount": 200
@@ -20063,13 +20063,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -55.77,
       "z": 74.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -54.92,
       "z": 74.87,
       "amount": 200
@@ -20135,19 +20135,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -129.42,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -133.35,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -129.36,
       "z": 184.32,
       "amount": 200
@@ -20195,13 +20195,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -172.06,
       "z": -16.11,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -171.51,
       "z": -16.51,
       "amount": 200
@@ -20267,19 +20267,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -129.78,
       "z": -3.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -126.86,
       "z": -2.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -131.02,
       "z": -3.6,
       "amount": 200
@@ -20315,7 +20315,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -134.31,
       "z": 0.72,
       "amount": 200
@@ -20351,7 +20351,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -7.5,
       "z": 161.16,
       "amount": 200
@@ -20363,7 +20363,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -6.86,
       "z": 157.8,
       "amount": 400
@@ -20405,13 +20405,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 182.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 181.54,
       "amount": 200
@@ -20423,7 +20423,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -184.32,
       "z": 179.69,
       "amount": 400
@@ -20507,7 +20507,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.75,
       "z": 54.25,
       "amount": 200
@@ -20579,7 +20579,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -5.05,
       "z": 171.52,
       "amount": 200
@@ -20591,7 +20591,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -4.99,
       "z": 168.88,
       "amount": 400
@@ -20621,19 +20621,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -152.94,
       "z": 11.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -156.17,
       "z": 8.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -156.43,
       "z": 12.14,
       "amount": 200
@@ -20681,7 +20681,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -78.25,
       "z": 31.14,
       "amount": 200
@@ -20729,13 +20729,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -19.11,
       "z": 131.05,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -16.41,
       "z": 129.81,
       "amount": 200
@@ -20831,19 +20831,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -41.64,
       "z": 163.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -39.97,
       "z": 161.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -40.86,
       "z": 162.23,
       "amount": 200
@@ -20933,7 +20933,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.59,
       "z": 94.0,
       "amount": 200
@@ -20993,13 +20993,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -176.23,
       "z": 7.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -173.63,
       "z": 9.42,
       "amount": 200
@@ -21041,13 +21041,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -13.12,
       "z": 156.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -12.42,
       "z": 156.17,
       "amount": 200
@@ -21059,7 +21059,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -10.12,
       "z": 153.11,
       "amount": 400
@@ -21113,19 +21113,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -120.71,
       "z": -5.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -118.81,
       "z": -6.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -119.07,
       "z": -6.24,
       "amount": 200
@@ -21179,7 +21179,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -117.06,
       "z": -6.38,
       "amount": 200
@@ -21233,7 +21233,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -164.08,
       "z": 103.41,
       "amount": 200
@@ -21275,7 +21275,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -158.76,
       "z": 177.15,
       "amount": 200
@@ -21287,7 +21287,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -156.97,
       "z": 174.07,
       "amount": 400
@@ -21323,7 +21323,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -128.95,
       "z": 33.94,
       "amount": 200
@@ -21353,7 +21353,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -46.75,
       "z": 46.35,
       "amount": 200
@@ -21389,13 +21389,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -170.49,
       "z": 9.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -174.17,
       "z": 11.82,
       "amount": 200
@@ -21437,7 +21437,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -161.59,
       "z": 169.7,
       "amount": 200
@@ -21449,19 +21449,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -62.81,
       "z": 24.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -60.23,
       "z": 22.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -61.11,
       "z": 25.61,
       "amount": 200
@@ -21515,13 +21515,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -112.1,
       "z": 168.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -108.79,
       "z": 169.66,
       "amount": 200
@@ -21551,19 +21551,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.03,
       "z": 125.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -182.49,
       "z": 126.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -183.26,
       "z": 123.67,
       "amount": 200
@@ -21599,13 +21599,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -117.34,
       "z": 1.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -120.47,
       "z": -2.57,
       "amount": 200
@@ -21641,7 +21641,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -67.15,
       "z": 76.06,
       "amount": 200
@@ -21677,19 +21677,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -62.79,
       "z": 183.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -61.36,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -60.57,
       "z": 182.85,
       "amount": 400
@@ -21731,7 +21731,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -126.16,
       "z": 31.62,
       "amount": 200
@@ -21779,13 +21779,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 125.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -182.95,
       "z": 123.28,
       "amount": 200
@@ -21827,19 +21827,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.71,
       "z": 184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.62,
       "z": 181.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.3,
       "z": 182.7,
       "amount": 200
@@ -21881,19 +21881,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -87.47,
       "z": 39.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -96.23,
       "z": 23.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -87.09,
       "z": 39.04,
       "amount": 200
@@ -21941,13 +21941,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -148.48,
       "z": 0.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -151.7,
       "z": 0.33,
       "amount": 200
@@ -22013,19 +22013,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -158.34,
       "z": -1.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -42.54,
       "z": 42.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -43.33,
       "z": 39.94,
       "amount": 200
@@ -22067,19 +22067,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 102.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 103.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 100.6,
       "amount": 200
@@ -22169,13 +22169,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -61.17,
       "z": 181.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -59.18,
       "z": 182.65,
       "amount": 200
@@ -22277,13 +22277,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -132.61,
       "z": 146.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -134.79,
       "z": 144.51,
       "amount": 200
@@ -22421,13 +22421,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -47.46,
       "z": 39.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -49.4,
       "z": 41.47,
       "amount": 200
@@ -22499,19 +22499,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -68.88,
       "z": 32.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -72.04,
       "z": 30.78,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -68.8,
       "z": 32.21,
       "amount": 200
@@ -22535,13 +22535,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -20.75,
       "z": 152.14,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -20.91,
       "z": 153.9,
       "amount": 400
@@ -22577,13 +22577,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -143.42,
       "z": -10.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -144.0,
       "z": -10.46,
       "amount": 200
@@ -22625,13 +22625,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -5.11,
       "z": 178.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.56,
       "z": 176.82,
       "amount": 200
@@ -22685,19 +22685,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.61,
       "z": 66.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -18.73,
       "z": 66.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -20.47,
       "z": 65.81,
       "amount": 200
@@ -22739,19 +22739,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -118.85,
       "z": 157.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -122.61,
       "z": 159.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -121.01,
       "z": 156.26,
       "amount": 200
@@ -22787,19 +22787,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -157.44,
       "z": 110.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -158.92,
       "z": 110.71,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -159.43,
       "z": 109.06,
       "amount": 400
@@ -22835,13 +22835,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -161.63,
       "z": -8.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -162.39,
       "z": -10.65,
       "amount": 200
@@ -22895,7 +22895,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.36,
       "z": 111.0,
       "amount": 200
@@ -22937,13 +22937,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -152.13,
       "z": -15.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -146.88,
       "z": -17.25,
       "amount": 200
@@ -22979,7 +22979,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -183.3,
       "z": 6.08,
       "amount": 200
@@ -23009,7 +23009,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -85.15,
       "z": 48.59,
       "amount": 200
@@ -23087,13 +23087,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -171.89,
       "z": 166.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -173.4,
       "z": 162.3,
       "amount": 200
@@ -23111,7 +23111,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -172.0,
       "z": 165.84,
       "amount": 400
@@ -23171,13 +23171,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -154.02,
       "z": 4.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -155.56,
       "z": 0.91,
       "amount": 200
@@ -23213,7 +23213,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -114.45,
       "z": 42.96,
       "amount": 200
@@ -23261,7 +23261,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -58.05,
       "z": 42.06,
       "amount": 200
@@ -23291,19 +23291,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 84.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 85.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 85.86,
       "amount": 200
@@ -23339,13 +23339,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -147.98,
       "z": 141.1,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -146.74,
       "z": 138.2,
       "amount": 400
@@ -23405,19 +23405,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.75,
       "z": 118.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.98,
       "z": 119.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -13.83,
       "z": 122.36,
       "amount": 200
@@ -23441,7 +23441,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -117.47,
       "z": -10.78,
       "amount": 200
@@ -23501,19 +23501,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.28,
       "z": 55.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -32.16,
       "z": 54.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.06,
       "z": 56.79,
       "amount": 200
@@ -23561,13 +23561,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 19.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -184.32,
       "z": 22.03,
       "amount": 200
@@ -23579,7 +23579,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -184.32,
       "z": 18.23,
       "amount": 400
@@ -23609,19 +23609,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -133.26,
       "z": -17.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -132.7,
       "z": -18.48,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -133.51,
       "z": -18.37,
       "amount": 200
@@ -23657,7 +23657,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -170.09,
       "z": 17.93,
       "amount": 200
@@ -23711,19 +23711,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 7.15,
       "z": 167.1,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 8.47,
       "z": 165.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 4.11,
       "z": 166.17,
       "amount": 200
@@ -23771,7 +23771,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -20.29,
       "z": 76.69,
       "amount": 200
@@ -23861,13 +23861,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.97,
       "z": 167.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 17.56,
       "z": 166.74,
       "amount": 200
@@ -23885,7 +23885,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 18.1,
       "z": 168.06,
       "amount": 400
@@ -23927,13 +23927,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -160.26,
       "z": 10.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -157.87,
       "z": 12.59,
       "amount": 200
@@ -23993,7 +23993,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -76.24,
       "z": 39.17,
       "amount": 200
@@ -24071,13 +24071,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -50.43,
       "z": 58.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -47.99,
       "z": 59.7,
       "amount": 200
@@ -24179,7 +24179,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -156.48,
       "z": -19.03,
       "amount": 200
@@ -24221,7 +24221,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -114.06,
       "z": 44.04,
       "amount": 200
@@ -24251,7 +24251,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 13.44,
       "z": -90.0,
       "amount": 200
@@ -24293,13 +24293,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.72,
       "z": -141.59,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 144.97,
       "z": -143.37,
       "amount": 200
@@ -24341,19 +24341,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 164.68,
       "z": 20.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 165.28,
       "z": 19.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 163.85,
       "z": 21.55,
       "amount": 200
@@ -24425,7 +24425,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 162.65,
       "z": 20.59,
       "amount": 200
@@ -24461,19 +24461,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 163.96,
       "z": -121.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 164.97,
       "z": -125.45,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 165.98,
       "z": -122.23,
       "amount": 400
@@ -24515,19 +24515,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.83,
       "z": -153.05,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.98,
       "z": -156.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.68,
       "z": -152.46,
       "amount": 200
@@ -24635,13 +24635,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 123.78,
       "z": -159.06,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 123.05,
       "z": -160.34,
       "amount": 400
@@ -24677,19 +24677,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 102.01,
       "z": 12.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 100.6,
       "z": 12.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 99.9,
       "z": 14.46,
       "amount": 200
@@ -24773,7 +24773,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 167.8,
       "z": -34.36,
       "amount": 400
@@ -24803,19 +24803,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 32.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 28.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.65,
       "z": 28.05,
       "amount": 200
@@ -24857,7 +24857,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 171.68,
       "z": -57.91,
       "amount": 400
@@ -24911,25 +24911,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.47,
       "z": -176.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 170.78,
       "z": -173.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 173.14,
       "z": -175.5,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 171.69,
       "z": -173.58,
       "amount": 400
@@ -24971,7 +24971,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 143.1,
       "z": -183.83,
       "amount": 200
@@ -25019,13 +25019,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 176.5,
       "z": -146.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 176.23,
       "z": -148.12,
       "amount": 200
@@ -25169,7 +25169,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 160.97,
       "z": -184.32,
       "amount": 200
@@ -25181,7 +25181,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 160.56,
       "z": -184.32,
       "amount": 400
@@ -25205,7 +25205,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 74.02,
       "z": -42.49,
       "amount": 200
@@ -25235,13 +25235,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 171.29,
       "z": -10.9,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 171.35,
       "z": -10.59,
       "amount": 200
@@ -25289,13 +25289,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 178.78,
       "z": 19.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 179.29,
       "z": 16.73,
       "amount": 200
@@ -25307,7 +25307,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 181.83,
       "z": 18.11,
       "amount": 400
@@ -25385,13 +25385,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -48.84,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -45.13,
       "amount": 200
@@ -25403,7 +25403,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -48.01,
       "amount": 400
@@ -25439,7 +25439,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 134.78,
       "z": -15.35,
       "amount": 200
@@ -25451,19 +25451,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 50.05,
       "z": -18.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 49.07,
       "z": -18.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 48.25,
       "z": -18.02,
       "amount": 200
@@ -25505,7 +25505,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.65,
       "z": 41.08,
       "amount": 200
@@ -25589,7 +25589,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 0.4,
       "z": -166.48,
       "amount": 200
@@ -25601,13 +25601,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 12.29,
       "z": -84.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 9.25,
       "z": -80.9,
       "amount": 200
@@ -25649,19 +25649,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 77.79,
       "z": -24.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 77.93,
       "z": -25.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 74.46,
       "z": -22.73,
       "amount": 200
@@ -25697,13 +25697,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.11,
       "z": 32.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.67,
       "z": 31.14,
       "amount": 200
@@ -25805,19 +25805,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 92.01,
       "z": -12.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 95.78,
       "z": -13.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 96.0,
       "z": -10.43,
       "amount": 200
@@ -25859,7 +25859,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 15.6,
       "z": -99.65,
       "amount": 200
@@ -25901,31 +25901,31 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -128.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -128.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 28.08,
       "z": -55.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 38.3,
       "z": -50.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 36.12,
       "z": -49.02,
       "amount": 200
@@ -25937,7 +25937,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 29.75,
       "z": -57.0,
       "amount": 400
@@ -25967,7 +25967,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 112.64,
       "z": 10.8,
       "amount": 200
@@ -26039,13 +26039,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.65,
       "z": -143.57,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 147.22,
       "z": -142.76,
       "amount": 400
@@ -26087,7 +26087,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.51,
       "z": 26.35,
       "amount": 200
@@ -26117,19 +26117,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 80.33,
       "z": -31.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 79.35,
       "z": -28.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 77.99,
       "z": -27.42,
       "amount": 200
@@ -26171,7 +26171,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.37,
       "z": -24.64,
       "amount": 200
@@ -26207,7 +26207,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 131.01,
       "z": 6.38,
       "amount": 200
@@ -26249,19 +26249,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 160.81,
       "z": 10.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 159.72,
       "z": 13.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 158.28,
       "z": 8.06,
       "amount": 200
@@ -26303,19 +26303,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -184.32,
       "amount": 200
@@ -26345,19 +26345,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 109.71,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 112.34,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 108.52,
       "z": -184.32,
       "amount": 400
@@ -26381,19 +26381,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 112.91,
       "z": 15.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 116.01,
       "z": 15.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 113.96,
       "z": 17.43,
       "amount": 200
@@ -26477,7 +26477,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 98.45,
       "z": -178.2,
       "amount": 200
@@ -26495,7 +26495,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 98.47,
       "z": -179.75,
       "amount": 400
@@ -26537,13 +26537,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 141.06,
       "z": -130.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 140.45,
       "z": -131.2,
       "amount": 200
@@ -26561,7 +26561,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 141.16,
       "z": -132.21,
       "amount": 400
@@ -26627,13 +26627,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.81,
       "z": -86.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 33.82,
       "z": -98.69,
       "amount": 200
@@ -26699,7 +26699,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 69.54,
       "z": 0.23,
       "amount": 200
@@ -26753,13 +26753,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 167.18,
       "z": -108.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 167.85,
       "z": -111.44,
       "amount": 200
@@ -26777,7 +26777,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 168.65,
       "z": -107.7,
       "amount": 400
@@ -26915,13 +26915,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 178.27,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.0,
       "z": -184.32,
       "amount": 200
@@ -26933,7 +26933,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 175.05,
       "z": -184.32,
       "amount": 400
@@ -26969,19 +26969,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 36.33,
       "z": -42.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.24,
       "z": -42.59,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.07,
       "z": -45.02,
       "amount": 200
@@ -26999,7 +26999,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 35.56,
       "z": -43.94,
       "amount": 400
@@ -27029,7 +27029,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 125.54,
       "z": -144.81,
       "amount": 200
@@ -27041,7 +27041,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 122.95,
       "z": -146.04,
       "amount": 400
@@ -27083,13 +27083,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.03,
       "z": -147.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 176.99,
       "z": -149.84,
       "amount": 200
@@ -27221,19 +27221,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 81.23,
       "z": -3.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 82.12,
       "z": -3.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 78.04,
       "z": -3.03,
       "amount": 200
@@ -27263,13 +27263,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 8.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 8.08,
       "amount": 200
@@ -27299,25 +27299,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 179.5,
       "z": -109.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.62,
       "z": -106.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.09,
       "z": -106.53,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 179.31,
       "z": -109.2,
       "amount": 400
@@ -27389,7 +27389,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 92.84,
       "z": -184.32,
       "amount": 200
@@ -27425,13 +27425,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.07,
       "z": -8.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 151.42,
       "z": -7.07,
       "amount": 200
@@ -27485,13 +27485,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 56.72,
       "z": -70.62,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 56.69,
       "z": -67.59,
       "amount": 200
@@ -27539,19 +27539,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 179.93,
       "z": -103.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 179.95,
       "z": -101.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.57,
       "z": -103.83,
       "amount": 200
@@ -27569,7 +27569,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 180.96,
       "z": -101.41,
       "amount": 400
@@ -27605,7 +27605,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 151.96,
       "z": -127.52,
       "amount": 200
@@ -27641,7 +27641,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 70.15,
       "z": -41.69,
       "amount": 200
@@ -27701,7 +27701,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 127.55,
       "z": -166.41,
       "amount": 200
@@ -27749,13 +27749,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 90.83,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 94.32,
       "z": -184.32,
       "amount": 200
@@ -27779,19 +27779,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -166.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -167.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -167.37,
       "amount": 200
@@ -27833,13 +27833,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 144.79,
       "z": -14.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.53,
       "z": -13.77,
       "amount": 200
@@ -27887,7 +27887,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 126.36,
       "z": -1.26,
       "amount": 200
@@ -27905,19 +27905,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 45.44,
       "z": -29.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 48.41,
       "z": -31.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 48.63,
       "z": -28.94,
       "amount": 200
@@ -27947,13 +27947,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.97,
       "z": -161.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.52,
       "z": -161.02,
       "amount": 200
@@ -27995,13 +27995,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.33,
       "z": -161.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -160.16,
       "amount": 200
@@ -28043,13 +28043,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 86.83,
       "z": -172.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 85.17,
       "z": -172.69,
       "amount": 200
@@ -28085,7 +28085,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 18.23,
       "z": -118.13,
       "amount": 200
@@ -28127,13 +28127,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 75.32,
       "z": -25.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 74.73,
       "z": -21.07,
       "amount": 200
@@ -28175,19 +28175,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 33.84,
       "z": -64.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.56,
       "z": -64.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.07,
       "z": -62.69,
       "amount": 200
@@ -28199,7 +28199,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 33.39,
       "z": -63.61,
       "amount": 400
@@ -28253,19 +28253,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 95.33,
       "z": -18.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 95.12,
       "z": -15.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 95.76,
       "z": -15.59,
       "amount": 200
@@ -28319,7 +28319,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.83,
       "z": -75.83,
       "amount": 200
@@ -28355,19 +28355,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 70.05,
       "z": -183.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 66.7,
       "z": -181.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 67.67,
       "z": -182.66,
       "amount": 200
@@ -28385,7 +28385,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 68.15,
       "z": -183.05,
       "amount": 400
@@ -28511,13 +28511,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 93.07,
       "z": 5.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 93.65,
       "z": 3.77,
       "amount": 200
@@ -28553,13 +28553,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 75.89,
       "z": -27.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 78.33,
       "z": -27.31,
       "amount": 200
@@ -28607,13 +28607,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 117.45,
       "z": -177.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 116.12,
       "z": -179.39,
       "amount": 200
@@ -28733,7 +28733,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 163.26,
       "z": -102.06,
       "amount": 200
@@ -28745,7 +28745,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 159.93,
       "z": -102.99,
       "amount": 400
@@ -28769,7 +28769,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.34,
       "z": 4.62,
       "amount": 200
@@ -28823,7 +28823,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.45,
       "z": -70.28,
       "amount": 200
@@ -28871,13 +28871,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 93.05,
       "z": -27.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 94.69,
       "z": -26.43,
       "amount": 200
@@ -28925,7 +28925,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 139.99,
       "z": -136.54,
       "amount": 200
@@ -28973,7 +28973,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 159.93,
       "z": -24.2,
       "amount": 200
@@ -29009,19 +29009,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 124.1,
       "z": -173.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 125.66,
       "z": -173.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 124.46,
       "z": -175.87,
       "amount": 200
@@ -29033,7 +29033,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 124.34,
       "z": -174.31,
       "amount": 400
@@ -29057,7 +29057,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 157.18,
       "z": -45.58,
       "amount": 400
@@ -29093,7 +29093,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.96,
       "z": -142.52,
       "amount": 200
@@ -29123,13 +29123,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 138.69,
       "z": -21.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 138.36,
       "z": -20.35,
       "amount": 200
@@ -29159,13 +29159,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 166.77,
       "z": -173.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 168.27,
       "z": -174.02,
       "amount": 200
@@ -29183,19 +29183,19 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 169.78,
       "z": -172.6,
       "amount": 400
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.2,
       "z": -50.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.78,
       "z": -59.3,
       "amount": 200
@@ -29207,7 +29207,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 37.53,
       "z": -50.49,
       "amount": 400
@@ -29231,19 +29231,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 101.11,
       "z": -23.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 101.96,
       "z": -18.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 99.42,
       "z": -20.52,
       "amount": 200
@@ -29279,19 +29279,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 171.34,
       "z": -93.62,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 171.28,
       "z": -99.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.67,
       "z": -96.54,
       "amount": 200
@@ -29315,19 +29315,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 68.17,
       "z": -68.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 68.24,
       "z": -66.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 66.29,
       "z": -68.36,
       "amount": 200
@@ -29387,7 +29387,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 62.74,
       "z": -17.95,
       "amount": 200
@@ -29447,19 +29447,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.02,
       "z": -157.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.17,
       "z": -157.21,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -156.29,
       "amount": 400
@@ -29537,19 +29537,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 73.41,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 71.12,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 74.01,
       "z": -184.32,
       "amount": 200
@@ -29609,19 +29609,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 152.94,
       "z": -164.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 151.17,
       "z": -163.66,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 150.4,
       "z": -164.02,
       "amount": 200
@@ -29639,7 +29639,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 149.72,
       "z": -163.77,
       "amount": 400
@@ -29663,13 +29663,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 117.48,
       "z": -163.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 117.16,
       "z": -161.9,
       "amount": 200
@@ -29705,19 +29705,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 8.89,
       "z": -109.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 10.08,
       "z": -107.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 10.21,
       "z": -109.7,
       "amount": 200
@@ -29765,19 +29765,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 80.87,
       "z": -20.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 85.75,
       "z": -20.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 83.93,
       "z": -19.23,
       "amount": 200
@@ -29801,19 +29801,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 153.43,
       "z": 21.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 151.78,
       "z": 22.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 153.29,
       "z": 21.89,
       "amount": 200
@@ -29849,7 +29849,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 28.07,
       "z": -127.56,
       "amount": 200
@@ -29909,19 +29909,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 146.19,
       "z": -8.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.0,
       "z": -7.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.22,
       "z": -7.85,
       "amount": 200
@@ -29957,13 +29957,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 149.58,
       "z": -123.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 152.51,
       "z": -123.34,
       "amount": 200
@@ -29981,7 +29981,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 152.54,
       "z": -122.8,
       "amount": 400
@@ -30065,7 +30065,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 170.51,
       "z": -48.95,
       "amount": 400
@@ -30089,7 +30089,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 2.6,
       "z": -177.27,
       "amount": 200
@@ -30119,13 +30119,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -184.32,
       "amount": 400
@@ -30161,7 +30161,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.59,
       "z": -85.89,
       "amount": 200
@@ -30239,19 +30239,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 19.09,
       "z": -87.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.1,
       "z": -88.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.61,
       "z": -85.39,
       "amount": 200
@@ -30293,7 +30293,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.17,
       "z": -71.13,
       "amount": 200
@@ -30341,13 +30341,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 152.41,
       "z": -149.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 149.43,
       "z": -146.71,
       "amount": 200
@@ -30359,7 +30359,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 150.41,
       "z": -150.85,
       "amount": 400
@@ -30401,19 +30401,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 123.87,
       "z": -14.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 120.43,
       "z": -14.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.49,
       "z": -15.01,
       "amount": 200
@@ -30461,13 +30461,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 146.16,
       "z": 7.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.25,
       "z": 7.98,
       "amount": 200
@@ -30515,7 +30515,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 132.91,
       "z": -175.95,
       "amount": 200
@@ -30527,7 +30527,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 133.52,
       "z": -172.78,
       "amount": 400
@@ -30569,7 +30569,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -19.96,
       "amount": 200
@@ -30605,7 +30605,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 18.24,
       "z": -124.64,
       "amount": 200
@@ -30629,19 +30629,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 63.86,
       "z": -75.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 120.86,
       "z": 40.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 120.65,
       "z": 38.79,
       "amount": 200
@@ -30677,19 +30677,19 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 174.55,
       "z": -74.98,
       "amount": 400
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 45.3,
       "z": -31.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 49.73,
       "z": -30.57,
       "amount": 200
@@ -30737,7 +30737,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 72.12,
       "z": -40.59,
       "amount": 200
@@ -30779,19 +30779,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 153.48,
       "z": -19.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 153.06,
       "z": -18.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 154.18,
       "z": -19.48,
       "amount": 200
@@ -30839,19 +30839,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 70.99,
       "z": -58.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 73.43,
       "z": -58.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 72.91,
       "z": -58.05,
       "amount": 200
@@ -30923,7 +30923,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 70.25,
       "z": -10.63,
       "amount": 200
@@ -31019,13 +31019,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 60.9,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 60.62,
       "z": -184.32,
       "amount": 400
@@ -31061,7 +31061,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 161.79,
       "z": 15.99,
       "amount": 200
@@ -31097,13 +31097,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 171.67,
       "z": -136.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.58,
       "z": -139.23,
       "amount": 200
@@ -31145,13 +31145,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -0.07,
       "z": -144.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -1.91,
       "z": -143.52,
       "amount": 200
@@ -31265,25 +31265,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 154.04,
       "z": -168.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 155.44,
       "z": -166.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 154.0,
       "z": -168.24,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 154.35,
       "z": -168.51,
       "amount": 400
@@ -31349,19 +31349,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 135.59,
       "z": -1.78,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 137.19,
       "z": 0.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 136.2,
       "z": 0.99,
       "amount": 200
@@ -31391,19 +31391,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -82.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.25,
       "z": -83.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -80.66,
       "amount": 200
@@ -31421,7 +31421,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -79.86,
       "amount": 400
@@ -31451,7 +31451,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.78,
       "z": -61.21,
       "amount": 200
@@ -31529,7 +31529,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 160.83,
       "z": -44.84,
       "amount": 400
@@ -31667,7 +31667,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 177.9,
       "z": -33.34,
       "amount": 400
@@ -31709,13 +31709,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 141.8,
       "z": -179.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 138.68,
       "z": -179.39,
       "amount": 200
@@ -31727,7 +31727,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 139.45,
       "z": -179.46,
       "amount": 400
@@ -31763,7 +31763,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 6.14,
       "amount": 200
@@ -31805,19 +31805,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 79.37,
       "z": -4.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 80.63,
       "z": -3.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 76.31,
       "z": -5.64,
       "amount": 200
@@ -31871,19 +31871,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 101.55,
       "z": -9.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 99.63,
       "z": -8.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 99.87,
       "z": -7.33,
       "amount": 200
@@ -31913,7 +31913,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 148.02,
       "z": 3.09,
       "amount": 200
@@ -31973,13 +31973,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 171.97,
       "z": -175.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 173.63,
       "z": -172.1,
       "amount": 200
@@ -32009,19 +32009,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 116.64,
       "z": -12.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 117.95,
       "z": -7.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.62,
       "z": -9.84,
       "amount": 200
@@ -32075,19 +32075,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 103.93,
       "z": 14.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 104.48,
       "z": 19.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 103.88,
       "z": 15.16,
       "amount": 200
@@ -32141,19 +32141,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 69.1,
       "z": -177.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 70.81,
       "z": -180.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 70.31,
       "z": -181.24,
       "amount": 200
@@ -32195,19 +32195,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.43,
       "z": -128.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 179.38,
       "z": -131.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.37,
       "z": -130.57,
       "amount": 200
@@ -32231,25 +32231,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 138.61,
       "z": -184.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 137.64,
       "z": -184.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 137.62,
       "z": -182.81,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 140.17,
       "z": -184.1,
       "amount": 400
@@ -32279,13 +32279,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 117.82,
       "z": 22.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 118.39,
       "z": 22.53,
       "amount": 200
@@ -32333,13 +32333,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.0,
       "z": -21.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.77,
       "z": -18.73,
       "amount": 200
@@ -32369,19 +32369,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 159.75,
       "z": -179.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 160.45,
       "z": -181.44,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 161.79,
       "z": -181.28,
       "amount": 400
@@ -32423,7 +32423,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 178.97,
       "z": -48.9,
       "amount": 400
@@ -32453,7 +32453,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 17.79,
       "z": -85.5,
       "amount": 200
@@ -32513,19 +32513,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 32.6,
       "z": -125.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 32.61,
       "z": -127.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 1.89,
       "z": -120.28,
       "amount": 200
@@ -32567,19 +32567,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 92.82,
       "z": 4.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 96.3,
       "z": 5.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 95.98,
       "z": 6.21,
       "amount": 200
@@ -32627,19 +32627,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.38,
       "z": -129.94,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.46,
       "z": -127.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 173.36,
       "z": -128.25,
       "amount": 200
@@ -32693,25 +32693,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 148.04,
       "z": -153.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 151.46,
       "z": -152.81,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.76,
       "z": -154.54,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 150.38,
       "z": -153.95,
       "amount": 400
@@ -32747,13 +32747,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 30.96,
       "z": -99.41,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 32.76,
       "z": -101.23,
       "amount": 200
@@ -32783,7 +32783,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 68.65,
       "z": -184.32,
       "amount": 200
@@ -32819,19 +32819,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 74.81,
       "z": -2.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 75.5,
       "z": -1.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 50.9,
       "z": -17.95,
       "amount": 200
@@ -32879,19 +32879,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 111.66,
       "z": -20.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 110.81,
       "z": -20.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 111.49,
       "z": -22.26,
       "amount": 200
@@ -32945,13 +32945,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 134.54,
       "z": -31.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 133.27,
       "z": -32.93,
       "amount": 200
@@ -32993,25 +32993,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -166.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -163.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.9,
       "z": -163.16,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -165.87,
       "amount": 400
@@ -33035,19 +33035,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 173.08,
       "z": -21.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 174.73,
       "z": -21.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.06,
       "z": -19.22,
       "amount": 200
@@ -33065,7 +33065,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 176.26,
       "z": -21.66,
       "amount": 400
@@ -33101,19 +33101,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 132.43,
       "z": -19.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 130.09,
       "z": -15.35,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 133.67,
       "z": -19.08,
       "amount": 200
@@ -33179,7 +33179,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 129.68,
       "z": 4.1,
       "amount": 200
@@ -33245,19 +33245,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 83.56,
       "z": -24.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 82.74,
       "z": -27.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 81.22,
       "z": -25.32,
       "amount": 200
@@ -33299,19 +33299,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 110.32,
       "z": -1.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 109.33,
       "z": -0.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 112.14,
       "z": -2.56,
       "amount": 200
@@ -33437,13 +33437,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 155.1,
       "z": -176.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 156.27,
       "z": -172.13,
       "amount": 200
@@ -33455,7 +33455,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 155.48,
       "z": -175.87,
       "amount": 400
@@ -33563,19 +33563,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.39,
       "z": -138.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.52,
       "z": -139.48,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -6.33,
       "z": -140.53,
       "amount": 200
@@ -33617,7 +33617,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.55,
       "z": -104.64,
       "amount": 200
@@ -33629,7 +33629,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -100.91,
       "amount": 400
@@ -33665,13 +33665,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 149.12,
       "z": -11.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 150.76,
       "z": -11.3,
       "amount": 200
@@ -33821,13 +33821,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 111.94,
       "z": 15.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 111.57,
       "z": 13.76,
       "amount": 200
@@ -33887,7 +33887,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 60.68,
       "z": -25.83,
       "amount": 200
@@ -33899,7 +33899,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.65,
       "z": 45.69,
       "amount": 200
@@ -33977,7 +33977,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 58.16,
       "z": -181.66,
       "amount": 200
@@ -34097,7 +34097,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 163.56,
       "z": -112.02,
       "amount": 200
@@ -34175,7 +34175,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 123.4,
       "z": 3.3,
       "amount": 200
@@ -34301,7 +34301,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.77,
       "z": 0.13,
       "amount": 200
@@ -34373,7 +34373,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.31,
       "z": 30.33,
       "amount": 200
@@ -34433,7 +34433,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 175.24,
       "z": -161.05,
       "amount": 200
@@ -34475,19 +34475,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 113.33,
       "z": 19.35,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 113.18,
       "z": 19.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 117.16,
       "z": 20.93,
       "amount": 200
@@ -34535,19 +34535,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 128.65,
       "z": -18.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 123.72,
       "z": -16.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 128.13,
       "z": -16.07,
       "amount": 200
@@ -34619,13 +34619,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 165.49,
       "z": -132.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 164.39,
       "z": -137.39,
       "amount": 200
@@ -34643,7 +34643,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 164.28,
       "z": -135.95,
       "amount": 400
@@ -34667,19 +34667,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.45,
       "z": -132.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.46,
       "z": -131.46,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 181.01,
       "z": -133.78,
       "amount": 400
@@ -34721,13 +34721,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 78.6,
       "z": -175.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 80.35,
       "z": -175.17,
       "amount": 200
@@ -34751,25 +34751,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 145.13,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 144.81,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 146.3,
       "z": -184.25,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 148.33,
       "z": -184.32,
       "amount": 400
@@ -34805,7 +34805,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 48.24,
       "z": -64.27,
       "amount": 200
@@ -34871,13 +34871,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 122.22,
       "z": -5.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 123.75,
       "z": -3.32,
       "amount": 200
@@ -34937,13 +34937,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.67,
       "z": -125.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.71,
       "z": -129.11,
       "amount": 200
@@ -34973,7 +34973,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 83.35,
       "z": -20.33,
       "amount": 200
@@ -35009,7 +35009,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 84.78,
       "z": -15.43,
       "amount": 200
@@ -35045,7 +35045,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 15.49,
       "z": -152.27,
       "amount": 200
@@ -35099,7 +35099,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.35,
       "z": -137.49,
       "amount": 200
@@ -35117,7 +35117,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 178.52,
       "z": -137.29,
       "amount": 400
@@ -35147,19 +35147,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.61,
       "z": -17.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.3,
       "z": -19.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 147.89,
       "z": -19.61,
       "amount": 200
@@ -35213,25 +35213,25 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 178.4,
       "z": -42.61,
       "amount": 400
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.14,
       "z": -31.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 43.44,
       "z": -29.81,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 43.27,
       "z": -30.74,
       "amount": 200
@@ -35273,19 +35273,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 106.16,
       "z": -11.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 106.4,
       "z": -12.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 12.57,
       "z": -77.6,
       "amount": 200
@@ -35333,13 +35333,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 41.39,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 42.29,
       "z": -184.32,
       "amount": 200
@@ -35399,13 +35399,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 158.55,
       "z": 18.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 158.28,
       "z": 13.66,
       "amount": 200
@@ -35453,7 +35453,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 80.57,
       "z": -6.4,
       "amount": 200
@@ -35513,13 +35513,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -64.05,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -65.05,
       "amount": 200
@@ -35591,19 +35591,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 131.62,
       "z": -158.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 129.78,
       "z": -156.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 131.78,
       "z": -154.1,
       "amount": 200
@@ -35615,7 +35615,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 131.58,
       "z": -154.97,
       "amount": 400
@@ -35675,7 +35675,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 154.02,
       "z": -139.79,
       "amount": 200
@@ -35723,13 +35723,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 122.98,
       "z": -2.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 120.07,
       "z": -4.1,
       "amount": 200
@@ -35801,19 +35801,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 115.65,
       "z": 7.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 115.64,
       "z": 3.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 118.12,
       "z": 5.39,
       "amount": 200
@@ -35861,7 +35861,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -46.56,
       "amount": 200
@@ -35897,7 +35897,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 10.9,
       "z": -132.96,
       "amount": 200
@@ -35963,7 +35963,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 159.73,
       "z": -184.32,
       "amount": 200
@@ -35975,7 +35975,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.12,
       "z": 36.97,
       "amount": 200
@@ -36017,7 +36017,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 99.79,
       "z": -170.01,
       "amount": 200
@@ -36029,7 +36029,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 100.67,
       "z": -172.4,
       "amount": 400
@@ -36053,13 +36053,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.31,
       "z": -82.84,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 22.43,
       "z": -83.34,
       "amount": 200
@@ -36137,19 +36137,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 127.14,
       "z": -2.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 126.66,
       "z": -4.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 127.73,
       "z": -5.32,
       "amount": 200
@@ -36191,7 +36191,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 160.44,
       "z": -176.0,
       "amount": 200
@@ -36203,7 +36203,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 159.17,
       "z": -173.51,
       "amount": 400
@@ -36233,13 +36233,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.56,
       "z": -139.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -13.83,
       "z": -140.69,
       "amount": 200
@@ -36299,13 +36299,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.05,
       "z": -131.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.92,
       "z": -131.33,
       "amount": 200
@@ -36347,7 +36347,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 159.28,
       "z": 8.18,
       "amount": 200
@@ -36389,7 +36389,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.88,
       "z": -115.69,
       "amount": 200
@@ -36401,7 +36401,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 182.91,
       "z": -116.68,
       "amount": 400
@@ -36437,19 +36437,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.66,
       "z": -77.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.94,
       "z": -80.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.06,
       "z": -79.24,
       "amount": 200
@@ -36473,7 +36473,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 122.65,
       "z": 14.0,
       "amount": 200
@@ -36509,13 +36509,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 134.67,
       "z": -19.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 139.07,
       "z": -16.8,
       "amount": 200
@@ -36599,13 +36599,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 162.0,
       "z": 13.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 161.21,
       "z": 11.51,
       "amount": 200
@@ -36647,13 +36647,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.78,
       "z": -131.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.85,
       "z": -131.86,
       "amount": 200
@@ -36671,7 +36671,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -129.01,
       "amount": 400
@@ -36701,7 +36701,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 178.69,
       "z": -69.18,
       "amount": 200
@@ -36725,7 +36725,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 105.22,
       "z": -16.54,
       "amount": 200
@@ -36749,13 +36749,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 42.03,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.16,
       "z": -184.32,
       "amount": 200
@@ -36773,7 +36773,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 40.6,
       "z": -184.32,
       "amount": 400
@@ -36815,7 +36815,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 100.81,
       "z": -6.73,
       "amount": 200
@@ -36851,19 +36851,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 155.99,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 157.21,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 154.74,
       "z": -184.32,
       "amount": 200
@@ -36881,7 +36881,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 155.28,
       "z": -184.32,
       "amount": 400
@@ -36959,19 +36959,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.33,
       "z": -159.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 20.19,
       "z": -156.74,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.06,
       "z": -156.24,
       "amount": 200
@@ -37055,7 +37055,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 9.12,
       "z": -177.38,
       "amount": 200
@@ -37085,25 +37085,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -85.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.37,
       "z": -84.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.97,
       "z": -81.34,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -83.51,
       "amount": 400
@@ -37139,13 +37139,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 24.19,
       "z": -111.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 25.71,
       "z": -108.98,
       "amount": 200
@@ -37313,7 +37313,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 136.8,
       "z": -182.4,
       "amount": 200
@@ -37415,19 +37415,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.47,
       "z": 13.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 118.16,
       "z": 17.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 121.06,
       "z": 15.29,
       "amount": 200
@@ -37475,7 +37475,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 144.98,
       "z": -150.48,
       "amount": 200
@@ -37523,7 +37523,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 178.32,
       "z": -59.52,
       "amount": 400
@@ -37547,19 +37547,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 170.22,
       "z": 4.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 170.82,
       "z": 2.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 166.88,
       "z": 2.72,
       "amount": 200
@@ -37601,19 +37601,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.85,
       "z": -77.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 176.13,
       "z": -72.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 178.16,
       "z": -76.69,
       "amount": 200
@@ -37625,7 +37625,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 175.45,
       "z": -76.46,
       "amount": 400
@@ -37655,13 +37655,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.0,
       "z": -93.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.86,
       "z": -91.78,
       "amount": 200
@@ -37709,7 +37709,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.75,
       "z": -70.99,
       "amount": 200
@@ -37775,7 +37775,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 125.72,
       "z": -21.65,
       "amount": 200
@@ -37811,13 +37811,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 172.43,
       "z": -120.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 175.34,
       "z": -122.54,
       "amount": 200
@@ -37829,7 +37829,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 174.02,
       "z": -121.83,
       "amount": 400
@@ -37853,7 +37853,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 7.41,
       "z": -136.81,
       "amount": 200
@@ -37895,19 +37895,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -103.59,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.46,
       "z": -100.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.11,
       "z": -105.2,
       "amount": 200
@@ -37967,19 +37967,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 48.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 182.7,
       "z": 47.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 183.29,
       "z": 46.77,
       "amount": 200
@@ -38033,7 +38033,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -147.91,
       "amount": 200
@@ -38069,25 +38069,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 17.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 18.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": 19.04,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": 19.38,
       "amount": 400
@@ -38201,13 +38201,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.77,
       "z": -177.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 25.38,
       "z": -180.82,
       "amount": 200
@@ -38243,13 +38243,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -181.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -183.65,
       "amount": 200
@@ -38267,7 +38267,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -183.99,
       "amount": 400
@@ -38309,19 +38309,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 136.31,
       "z": 3.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 135.27,
       "z": 3.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 137.96,
       "z": 1.69,
       "amount": 200
@@ -38345,13 +38345,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 94.28,
       "z": -7.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 95.83,
       "z": -6.1,
       "amount": 200
@@ -38375,13 +38375,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.63,
       "z": -115.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.91,
       "z": -116.16,
       "amount": 200
@@ -38405,19 +38405,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 124.03,
       "z": -167.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 124.15,
       "z": -165.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 124.6,
       "z": -166.83,
       "amount": 200
@@ -38453,7 +38453,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 101.16,
       "z": 18.25,
       "amount": 200
@@ -38495,7 +38495,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -149.28,
       "amount": 200
@@ -38507,7 +38507,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 182.9,
       "z": -148.36,
       "amount": 400
@@ -38543,7 +38543,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 17.89,
       "z": -115.44,
       "amount": 200
@@ -38615,7 +38615,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 44.45,
       "z": -184.32,
       "amount": 200
@@ -38639,19 +38639,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.3,
       "z": -151.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 179.23,
       "z": -151.66,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.95,
       "z": -150.23,
       "amount": 200
@@ -38693,13 +38693,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 118.12,
       "z": -7.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 117.56,
       "z": -8.09,
       "amount": 200
@@ -38747,7 +38747,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 17.57,
       "z": -94.24,
       "amount": 200
@@ -38789,7 +38789,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 24.62,
       "z": -81.14,
       "amount": 200
@@ -38819,19 +38819,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.63,
       "z": -124.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 175.9,
       "z": -126.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.18,
       "z": -126.57,
       "amount": 200
@@ -38891,13 +38891,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 100.16,
       "z": -29.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 103.49,
       "z": -30.75,
       "amount": 200
@@ -38969,13 +38969,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 87.47,
       "z": -27.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 86.61,
       "z": -30.46,
       "amount": 200
@@ -39023,19 +39023,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 30.0,
       "z": -81.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 31.63,
       "z": -83.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 31.09,
       "z": -82.01,
       "amount": 200
@@ -39059,7 +39059,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 160.4,
       "z": -121.56,
       "amount": 200
@@ -39113,7 +39113,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -41.27,
       "amount": 400
@@ -39137,13 +39137,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -180.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -181.39,
       "amount": 200
@@ -39209,13 +39209,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.69,
       "z": -168.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 119.61,
       "z": -167.7,
       "amount": 200
@@ -39257,7 +39257,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 20.16,
       "z": -154.35,
       "amount": 200
@@ -39269,13 +39269,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 41.48,
       "z": -35.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.64,
       "z": -36.41,
       "amount": 200
@@ -39353,19 +39353,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.84,
       "z": -173.27,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.81,
       "z": -174.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.83,
       "z": -176.14,
       "amount": 200
@@ -39395,13 +39395,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 103.64,
       "z": -26.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 103.56,
       "z": -29.77,
       "amount": 200
@@ -39443,13 +39443,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 100.52,
       "z": 14.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 101.92,
       "z": 13.18,
       "amount": 200
@@ -39485,19 +39485,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.31,
       "z": -158.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 19.11,
       "z": -161.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 17.92,
       "z": -160.04,
       "amount": 200
@@ -39509,7 +39509,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 51.68,
       "z": -17.47,
       "amount": 200
@@ -39569,19 +39569,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 45.26,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 47.73,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 44.28,
       "z": -184.32,
       "amount": 200
@@ -39593,7 +39593,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 46.88,
       "z": -184.32,
       "amount": 400
@@ -39635,13 +39635,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 166.51,
       "z": -119.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 165.66,
       "z": -118.51,
       "amount": 200
@@ -39659,7 +39659,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 165.91,
       "z": -121.61,
       "amount": 400
@@ -39707,13 +39707,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 91.05,
       "z": -4.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 90.34,
       "z": -6.37,
       "amount": 200
@@ -39743,7 +39743,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 113.77,
       "z": -35.93,
       "amount": 200
@@ -39791,7 +39791,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 20.27,
       "z": -162.49,
       "amount": 200
@@ -39845,19 +39845,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 28.53,
       "z": -81.87,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 28.11,
       "z": -80.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 28.53,
       "z": -81.82,
       "amount": 200
@@ -39911,13 +39911,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 69.17,
       "z": -22.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 73.66,
       "z": -22.73,
       "amount": 200
@@ -39947,19 +39947,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -65.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 184.32,
       "z": -68.0,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 184.32,
       "z": -65.82,
       "amount": 400
@@ -40001,7 +40001,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 123.54,
       "z": -35.26,
       "amount": 200
@@ -40049,7 +40049,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 177.18,
       "z": -132.18,
       "amount": 200
@@ -40067,7 +40067,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 34.45,
       "z": -40.95,
       "amount": 200
@@ -40121,19 +40121,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.49,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.29,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 25.66,
       "z": -184.32,
       "amount": 400
@@ -40157,19 +40157,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.83,
       "z": -35.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 38.81,
       "z": -36.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.68,
       "z": -39.85,
       "amount": 200
@@ -40211,19 +40211,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 140.06,
       "z": -20.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 140.95,
       "z": -19.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 137.65,
       "z": -16.3,
       "amount": 200
@@ -40307,7 +40307,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 79.43,
       "z": -184.32,
       "amount": 200
@@ -40343,13 +40343,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.13,
       "z": -70.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 43.16,
       "z": -69.5,
       "amount": 200
@@ -40457,13 +40457,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 15.72,
       "z": -104.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 12.86,
       "z": -102.89,
       "amount": 200
@@ -40499,13 +40499,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 134.28,
       "z": -149.22,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 129.24,
       "z": -149.84,
       "amount": 200
@@ -40535,7 +40535,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 69.25,
       "z": -18.29,
       "amount": 200
@@ -40703,19 +40703,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 139.33,
       "z": -162.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 141.44,
       "z": -160.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 139.46,
       "z": -161.82,
       "amount": 200
@@ -40751,7 +40751,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 179.84,
       "z": -122.89,
       "amount": 200
@@ -40799,7 +40799,7 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 165.21,
       "z": -170.91,
       "amount": 200
@@ -40841,13 +40841,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.64,
       "z": -89.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.81,
       "z": -92.28,
       "amount": 200
@@ -40895,19 +40895,19 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 160.68,
       "z": -171.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 160.59,
       "z": -173.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 157.48,
       "z": -173.27,
       "amount": 200
@@ -40919,7 +40919,7 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 160.41,
       "z": -172.19,
       "amount": 400
@@ -40949,13 +40949,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 173.4,
       "z": -136.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 171.82,
       "z": -133.87,
       "amount": 400
@@ -40985,25 +40985,25 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 87.54,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 88.23,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 87.61,
       "z": -184.32,
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 89.29,
       "z": -184.32,
       "amount": 400
@@ -41033,13 +41033,13 @@
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 181.53,
       "z": -111.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 180.27,
       "z": -113.39,
       "amount": 200

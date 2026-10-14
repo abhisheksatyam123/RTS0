@@ -6659,3615 +6659,3615 @@
   ],
   "resources": [
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -98.56,
       "z": -31.06,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -52.41,
       "z": 36.85,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -67.28,
       "z": 16.71,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -81.27,
       "z": -34.95,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -83.55,
       "z": -35.5,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -92.73,
       "z": -30.39,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -93.7,
       "z": -38.9,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -98.27,
       "z": -33.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -97.12,
       "z": -38.75,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -91.86,
       "z": -38.38,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -84.6,
       "z": -40.73,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -90.1,
       "z": -31.71,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -95.11,
       "z": -32.06,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -70.16,
       "z": 18.83,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -51.64,
       "z": 32.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -83.07,
       "z": -38.22,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -93.94,
       "z": -28.48,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -55.89,
       "z": 42.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -79.12,
       "z": -31.43,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -82.87,
       "z": -39.4,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -80.69,
       "z": -38.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -96.42,
       "z": -35.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -96.23,
       "z": -36.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -94.71,
       "z": -39.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -85.5,
       "z": -37.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -92.5,
       "z": -33.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -93.86,
       "z": -35.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -92.75,
       "z": -37.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -66.78,
       "z": 19.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -80.7,
       "z": -6.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -83.88,
       "z": -37.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -86.63,
       "z": -39.62,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -90.85,
       "z": -32.11,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -50.81,
       "z": 38.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -45.71,
       "z": 42.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -49.8,
       "z": 35.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -66.39,
       "z": 18.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -90.63,
       "z": -37.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -91.35,
       "z": -34.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -82.55,
       "z": -37.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -79.52,
       "z": -34.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -83.47,
       "z": -39.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -94.23,
       "z": -32.89,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -50.99,
       "z": 33.12,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -80.78,
       "z": -32.71,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -90.91,
       "z": -30.8,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -80.14,
       "z": -32.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -38.6,
       "z": 21.82,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.1,
       "z": 14.03,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.74,
       "z": 3.94,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.34,
       "z": 1.02,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -38.88,
       "z": -5.39,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -38.94,
       "z": -15.36,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.3,
       "z": -17.24,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.54,
       "z": -18.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.77,
       "z": -22.52,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -41.63,
       "z": -27.71,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.71,
       "z": -29.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.22,
       "z": -31.59,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.19,
       "z": -34.44,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.55,
       "z": -36.86,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -41.64,
       "z": -39.61,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.48,
       "z": -44.35,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.43,
       "z": -44.72,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.2,
       "z": -46.9,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -41.45,
       "z": -50.74,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -38.64,
       "z": -54.3,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.38,
       "z": -55.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -38.78,
       "z": 6.66,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -40.35,
       "z": 9.78,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.76,
       "z": 17.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -37.49,
       "z": 21.4,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -35.57,
       "z": 23.81,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.7,
       "z": 27.57,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -31.88,
       "z": 40.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.62,
       "z": 42.49,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -35.01,
       "z": 45.87,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.52,
       "z": 49.13,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.67,
       "z": 54.68,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.32,
       "z": 57.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -35.15,
       "z": 60.94,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.86,
       "z": 62.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.31,
       "z": 64.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -29.18,
       "z": 66.36,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -14.09,
       "z": 72.03,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -7.2,
       "z": 71.95,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -5.0,
       "z": 70.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 0.92,
       "z": 70.06,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 3.12,
       "z": 69.99,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 3.9,
       "z": 66.95,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 6.19,
       "z": 65.18,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 10.51,
       "z": 64.28,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 14.27,
       "z": 64.22,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 16.59,
       "z": 64.61,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 26.03,
       "z": 59.28,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 24.66,
       "z": 55.63,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 24.84,
       "z": 54.96,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 25.27,
       "z": 52.71,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 26.15,
       "z": 49.13,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 27.54,
       "z": 46.83,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.02,
       "z": 43.01,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.35,
       "z": 42.07,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.23,
       "z": 37.82,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 29.98,
       "z": 36.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.77,
       "z": 34.8,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.61,
       "z": 32.73,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.19,
       "z": 31.11,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 29.94,
       "z": 29.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.89,
       "z": 20.02,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 31.78,
       "z": 16.47,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 32.12,
       "z": 14.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 31.98,
       "z": 13.89,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 31.38,
       "z": 11.57,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 31.79,
       "z": 9.12,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 32.29,
       "z": 6.88,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 32.6,
       "z": 4.43,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.0,
       "z": 2.99,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.47,
       "z": 1.86,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.62,
       "z": -0.03,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 34.89,
       "z": -2.03,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 35.86,
       "z": -4.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 37.44,
       "z": -7.59,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 38.9,
       "z": -9.33,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 40.02,
       "z": -11.4,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 40.43,
       "z": -14.2,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 40.83,
       "z": -16.73,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 41.26,
       "z": -17.87,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 41.89,
       "z": -18.99,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.15,
       "z": -14.68,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 44.02,
       "z": -18.75,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 43.47,
       "z": -23.0,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.82,
       "z": -25.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.31,
       "z": -28.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.29,
       "z": -30.0,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 40.93,
       "z": -33.15,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 40.61,
       "z": -36.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.42,
       "z": -42.66,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.97,
       "z": -45.16,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.29,
       "z": -46.86,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 41.55,
       "z": -48.08,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 40.84,
       "z": -49.72,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 42.05,
       "z": -40.3,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 39.38,
       "z": -51.78,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 39.4,
       "z": -55.16,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 38.45,
       "z": -58.24,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 37.76,
       "z": -60.77,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 37.04,
       "z": -62.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 35.93,
       "z": -64.67,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.99,
       "z": -66.96,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 28.54,
       "z": -104.53,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 28.2,
       "z": -106.35,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 31.63,
       "z": -107.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 31.31,
       "z": -105.1,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -14.38,
       "z": -113.49,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -20.9,
       "z": -110.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -23.37,
       "z": -109.71,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -29.63,
       "z": -85.05,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.14,
       "z": -84.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.44,
       "z": -79.89,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.98,
       "z": -78.41,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.88,
       "z": -64.59,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -37.34,
       "z": -62.15,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.9,
       "z": -66.71,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -35.86,
       "z": -61.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -39.6,
       "z": 19.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.27,
       "z": 25.41,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -31.61,
       "z": 28.02,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -31.33,
       "z": 31.12,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.71,
       "z": 59.78,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -2.87,
       "z": 70.16,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -10.32,
       "z": 70.05,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -8.25,
       "z": 68.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -1.58,
       "z": 69.13,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 11.9,
       "z": 62.96,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 22.05,
       "z": 52.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 23.89,
       "z": 49.94,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 26.84,
       "z": 40.18,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 28.84,
       "z": 40.13,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 29.2,
       "z": 26.58,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -7.04,
       "z": -113.85,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.8,
       "z": -51.05,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.73,
       "z": -26.78,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.8,
       "z": -19.34,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.3,
       "z": -0.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.53,
       "z": 12.96,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.66,
       "z": 31.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -2.03,
       "z": 61.31,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 4.51,
       "z": 63.39,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 22.2,
       "z": 32.42,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 28.57,
       "z": 15.85,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 27.83,
       "z": 4.94,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 29.14,
       "z": -2.38,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 37.35,
       "z": -25.2,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 36.92,
       "z": -38.47,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 38.47,
       "z": -46.31,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 39.31,
       "z": -49.05,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 35.64,
       "z": -60.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 26.46,
       "z": -95.38,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 19.81,
       "z": -99.68,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 27.32,
       "z": -99.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 18.93,
       "z": -109.12,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 12.34,
       "z": -113.88,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 6.21,
       "z": -113.54,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -5.64,
       "z": -109.73,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -12.42,
       "z": -108.37,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 9.15,
       "z": -107.57,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.74,
       "z": -63.36,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.08,
       "z": -57.6,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.67,
       "z": -55.16,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -36.69,
       "z": -38.48,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -31.09,
       "z": -30.18,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.47,
       "z": -17.07,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.18,
       "z": 0.94,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.62,
       "z": 12.71,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.84,
       "z": 22.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -23.31,
       "z": 28.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -28.89,
       "z": 43.46,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -28.08,
       "z": 47.53,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -21.34,
       "z": 46.45,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -19.22,
       "z": 49.15,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -6.89,
       "z": 55.31,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -2.62,
       "z": 47.91,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -0.53,
       "z": 50.9,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 0.92,
       "z": 49.87,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 3.48,
       "z": 49.55,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 4.62,
       "z": 50.06,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.32,
       "z": 65.45,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 22.51,
       "z": 39.22,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 18.87,
       "z": 45.03,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 10.15,
       "z": 48.94,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 6.41,
       "z": 53.28,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 6.95,
       "z": 57.5,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 24.72,
       "z": 30.45,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 34.61,
       "z": -56.34,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 30.31,
       "z": -92.26,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 34.21,
       "z": -51.94,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 33.88,
       "z": -60.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 36.08,
       "z": -57.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 36.59,
       "z": -55.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.92,
       "z": -50.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 36.56,
       "z": -43.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.37,
       "z": -47.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.32,
       "z": -43.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 33.69,
       "z": -42.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.84,
       "z": -43.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.29,
       "z": -41.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.0,
       "z": -33.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.52,
       "z": -30.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.42,
       "z": -33.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.04,
       "z": -34.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.81,
       "z": -35.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.84,
       "z": -26.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 38.23,
       "z": -26.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.79,
       "z": -28.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.49,
       "z": -23.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 38.18,
       "z": -22.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.32,
       "z": -21.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 38.18,
       "z": -17.9,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 38.73,
       "z": -14.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 36.41,
       "z": -12.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 34.87,
       "z": -11.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 33.76,
       "z": -5.83,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 32.17,
       "z": -4.66,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.25,
       "z": -8.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 35.79,
       "z": -9.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 30.46,
       "z": 1.59,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 28.4,
       "z": 0.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.65,
       "z": 1.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 29.26,
       "z": 8.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.85,
       "z": 11.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 24.79,
       "z": 12.78,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.58,
       "z": 16.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.6,
       "z": 18.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.04,
       "z": 27.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 25.34,
       "z": 20.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.17,
       "z": 26.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.33,
       "z": 32.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.22,
       "z": 36.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.08,
       "z": 42.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.11,
       "z": 45.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 24.2,
       "z": 37.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 24.43,
       "z": 34.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.9,
       "z": 35.98,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.73,
       "z": 39.27,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 19.33,
       "z": 38.1,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 18.53,
       "z": 41.59,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 20.7,
       "z": 43.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 20.27,
       "z": 49.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 13.23,
       "z": 58.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 10.26,
       "z": 56.1,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 9.99,
       "z": 49.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 7.32,
       "z": 48.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 4.53,
       "z": 53.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 4.12,
       "z": 56.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 0.37,
       "z": 62.22,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -1.13,
       "z": 60.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 0.2,
       "z": 54.88,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -1.31,
       "z": 54.22,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.44,
       "z": 57.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 3.5,
       "z": 55.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 2.65,
       "z": 57.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 7.84,
       "z": 57.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 7.33,
       "z": 62.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -5.98,
       "z": 54.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.76,
       "z": 51.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.36,
       "z": 53.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -18.17,
       "z": 52.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -17.23,
       "z": 51.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.35,
       "z": 52.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -12.8,
       "z": 54.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -11.27,
       "z": 50.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -21.56,
       "z": 52.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.32,
       "z": 49.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -13.33,
       "z": 47.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -28.38,
       "z": 57.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -31.4,
       "z": 54.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -28.88,
       "z": 53.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -26.05,
       "z": 58.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -28.82,
       "z": 54.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -30.53,
       "z": 46.1,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -25.38,
       "z": 44.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -24.36,
       "z": 43.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -24.76,
       "z": 40.05,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -25.47,
       "z": 31.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -22.32,
       "z": 39.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -19.21,
       "z": 43.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.69,
       "z": 47.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -28.15,
       "z": 25.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -29.16,
       "z": 23.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -30.39,
       "z": 19.53,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -31.61,
       "z": 17.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.81,
       "z": 15.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.19,
       "z": 15.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.86,
       "z": 15.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.13,
       "z": 17.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.1,
       "z": 18.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -30.83,
       "z": 22.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.23,
       "z": 7.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -38.33,
       "z": 1.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.84,
       "z": -2.04,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -36.86,
       "z": -5.51,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.33,
       "z": -3.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.63,
       "z": 0.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.62,
       "z": 4.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.87,
       "z": 11.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.88,
       "z": 7.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.59,
       "z": -3.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.85,
       "z": -13.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.59,
       "z": -21.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -32.46,
       "z": -24.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -31.06,
       "z": -29.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.43,
       "z": -30.9,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.31,
       "z": -32.18,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.99,
       "z": -34.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.24,
       "z": -35.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -38.73,
       "z": -33.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.23,
       "z": -29.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.78,
       "z": -23.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -36.11,
       "z": -20.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.16,
       "z": -26.4,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.01,
       "z": -32.13,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.5,
       "z": -39.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.23,
       "z": -46.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.58,
       "z": -48.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.2,
       "z": -49.25,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.26,
       "z": -42.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.13,
       "z": -42.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -35.05,
       "z": -48.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.35,
       "z": -51.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -31.35,
       "z": -57.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.81,
       "z": -80.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -36.73,
       "z": -84.5,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.89,
       "z": -87.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -38.12,
       "z": -86.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.52,
       "z": -62.2,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.56,
       "z": -54.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -38.07,
       "z": -52.34,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -34.78,
       "z": -66.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -32.18,
       "z": -77.91,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -24.54,
       "z": -104.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -16.24,
       "z": -108.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -24.08,
       "z": -98.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.93,
       "z": -105.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -13.03,
       "z": -104.98,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.08,
       "z": -107.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.92,
       "z": -108.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -14.32,
       "z": -111.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -9.09,
       "z": -111.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -9.0,
       "z": -109.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.7,
       "z": -105.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -6.83,
       "z": -106.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -6.3,
       "z": -107.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -13.14,
       "z": -109.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -10.7,
       "z": -113.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -5.94,
       "z": -110.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -3.25,
       "z": -114.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -2.15,
       "z": -109.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -2.79,
       "z": -108.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -2.38,
       "z": -107.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -1.5,
       "z": -107.48,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 7.8,
       "z": -113.46,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 6.86,
       "z": -107.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 7.56,
       "z": -107.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 16.25,
       "z": -103.43,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 15.72,
       "z": -105.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 16.31,
       "z": -108.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 14.47,
       "z": -113.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 14.49,
       "z": -112.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 10.63,
       "z": -108.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 13.7,
       "z": -103.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 24.39,
       "z": -108.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.43,
       "z": -105.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.84,
       "z": -103.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 24.73,
       "z": -103.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 25.08,
       "z": -106.11,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 25.81,
       "z": -109.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.43,
       "z": -109.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 30.37,
       "z": -102.71,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 31.8,
       "z": -100.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 30.95,
       "z": -93.95,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 28.59,
       "z": -99.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 26.64,
       "z": -99.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 25.63,
       "z": -98.99,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 23.61,
       "z": -96.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 21.5,
       "z": -99.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 19.54,
       "z": -102.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 17.49,
       "z": -103.66,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 11.55,
       "z": -106.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 10.96,
       "z": -106.62,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 15.09,
       "z": -109.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -4.42,
       "z": -107.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 9.28,
       "z": -112.14,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 40.55,
       "z": -45.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 37.06,
       "z": -19.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 38.77,
       "z": -12.21,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 39.99,
       "z": -20.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 34.48,
       "z": -16.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 27.16,
       "z": 7.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 29.68,
       "z": 12.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 29.53,
       "z": 16.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 15.86,
       "z": 41.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 17.2,
       "z": 45.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 18.1,
       "z": 48.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 9.63,
       "z": 46.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -3.46,
       "z": 52.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -30.6,
       "z": 42.39,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -33.47,
       "z": 44.57,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -28.25,
       "z": 39.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -26.92,
       "z": 48.17,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -30.8,
       "z": 52.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -23.72,
       "z": 55.07,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -24.79,
       "z": 49.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -15.76,
       "z": 43.85,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -38.14,
       "z": -17.77,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -37.21,
       "z": -16.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -38.17,
       "z": 9.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -32.75,
       "z": 24.11,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -28.83,
       "z": 28.05,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -26.06,
       "z": 27.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -29.03,
       "z": 19.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -27.8,
       "z": 21.89,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -26.5,
       "z": 24.24,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -26.28,
       "z": 27.05,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -18.33,
       "z": 41.32,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -17.19,
       "z": 42.52,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -15.26,
       "z": 43.68,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -14.21,
       "z": 44.11,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -12.48,
       "z": 44.52,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -2.02,
       "z": 50.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 2.27,
       "z": 49.21,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 3.26,
       "z": 49.37,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 5.29,
       "z": 47.73,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 6.99,
       "z": 47.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 16.89,
       "z": 40.67,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 19.06,
       "z": 38.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 20.68,
       "z": 36.58,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 20.85,
       "z": 35.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 21.51,
       "z": 33.69,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 22.03,
       "z": 31.63,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 22.4,
       "z": 30.46,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 19.07,
       "z": 36.38,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 22.56,
       "z": 28.23,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 24.04,
       "z": 25.58,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 23.42,
       "z": 18.12,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 24.7,
       "z": 15.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 25.34,
       "z": 12.34,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 26.61,
       "z": 9.81,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 26.59,
       "z": 8.41,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 26.72,
       "z": 6.75,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 28.35,
       "z": 4.55,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 27.07,
       "z": -0.81,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 28.33,
       "z": -4.06,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 29.6,
       "z": -6.45,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 31.97,
       "z": -8.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 34.34,
       "z": -12.01,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 34.82,
       "z": -13.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 36.88,
       "z": -26.15,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 35.57,
       "z": -29.28,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 34.29,
       "z": -31.58,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.8,
       "z": -34.52,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 35.84,
       "z": -36.42,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.59,
       "z": -38.22,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.6,
       "z": -40.98,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.43,
       "z": -48.27,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 33.99,
       "z": -45.23,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 27.15,
       "z": -92.26,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 24.72,
       "z": -94.0,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 22.15,
       "z": -96.38,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 20.4,
       "z": -97.54,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 18.53,
       "z": -98.44,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 16.24,
       "z": -99.52,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 11.27,
       "z": -103.58,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 9.57,
       "z": -104.28,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 8.06,
       "z": -104.56,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 6.48,
       "z": -105.48,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 5.17,
       "z": -106.34,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -38.61,
       "z": -83.69,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -35.69,
       "z": -84.18,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -35.23,
       "z": -86.39,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.94,
       "z": -87.0,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.34,
       "z": -81.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -16.52,
       "z": -101.85,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -13.81,
       "z": -103.74,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -11.82,
       "z": -104.92,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -10.59,
       "z": -105.68,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -9.68,
       "z": -106.64,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -7.46,
       "z": -107.64,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -5.39,
       "z": -108.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -3.08,
       "z": -108.68,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 9.85,
       "z": -113.35,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -37.56,
       "z": -83.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.46,
       "z": -58.67,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -31.44,
       "z": -55.54,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.05,
       "z": -53.55,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.41,
       "z": -50.23,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.11,
       "z": -45.93,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.82,
       "z": -43.04,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.54,
       "z": -40.47,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.74,
       "z": -36.81,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.1,
       "z": -33.9,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.5,
       "z": -26.57,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.7,
       "z": -25.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.97,
       "z": -20.21,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.88,
       "z": -15.3,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.97,
       "z": -13.07,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.08,
       "z": 4.52,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.38,
       "z": -2.23,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -33.16,
       "z": 10.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -32.71,
       "z": 13.3,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -31.67,
       "z": 15.09,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -21.32,
       "z": 40.79,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -6.87,
       "z": 52.17,
       "amount": 100,
@@ -10388,720 +10388,720 @@
       "amount": 5000
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -7.46,
       "z": -109.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -9.26,
       "z": -113.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 26.95,
       "z": -105.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 40.51,
       "z": -31.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 41.1,
       "z": -27.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 37.45,
       "z": -6.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 31.21,
       "z": 1.81,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 82.64,
       "z": -32.54,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 80.59,
       "z": -33.73,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 79.48,
       "z": -34.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 77.43,
       "z": -36.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 51.27,
       "z": 21.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 52.94,
       "z": 21.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 81.02,
       "z": -44.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 82.93,
       "z": -42.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 83.78,
       "z": -40.36,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 84.55,
       "z": -37.97,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 85.03,
       "z": -34.98,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 82.67,
       "z": -34.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 81.76,
       "z": -36.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 52.13,
       "z": 27.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 51.25,
       "z": 25.7,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 80.88,
       "z": -38.33,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 80.4,
       "z": -43.29,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 81.77,
       "z": -41.37,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 82.58,
       "z": -38.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 49.92,
       "z": 26.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 50.14,
       "z": 23.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 82.13,
       "z": -44.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 84.38,
       "z": -42.01,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 80.17,
       "z": -39.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 46.66,
       "z": 28.37,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 50.78,
       "z": 22.96,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 52.3,
       "z": 25.95,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 81.87,
       "z": -42.86,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 85.55,
       "z": -36.01,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 85.54,
       "z": -42.16,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 83.4,
       "z": -44.44,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 68.46,
       "z": -44.45,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 51.19,
       "z": 20.58,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 79.6,
       "z": -34.54,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 82.88,
       "z": -31.55,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 86.24,
       "z": -31.87,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 86.56,
       "z": -36.01,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 86.79,
       "z": -39.44,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 83.22,
       "z": -46.26,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 53.8,
       "z": 17.06,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 48.36,
       "z": 25.24,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 78.63,
       "z": -47.82,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 84.35,
       "z": -47.16,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 48.6,
       "z": 20.35,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 87.64,
       "z": -37.85,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 49.77,
       "z": 20.92,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 53.08,
       "z": 17.35,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 80.56,
       "z": -31.8,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 86.38,
       "z": -32.81,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 88.86,
       "z": -43.42,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 81.75,
       "z": -40.15,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 82.86,
       "z": -42.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 51.77,
       "z": 17.6,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 52.16,
       "z": 27.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 91.56,
       "z": -35.44,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 92.95,
       "z": -37.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 51.89,
       "z": 22.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -6.11,
       "z": 63.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -3.19,
       "z": 58.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -2.44,
       "z": 56.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 7.6,
       "z": 63.3,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 10.09,
       "z": 55.86,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 17.56,
       "z": 46.08,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 19.35,
       "z": 40.42,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 23.57,
       "z": 42.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 25.58,
       "z": 44.1,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 27.33,
       "z": 31.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -26.79,
       "z": 53.8,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -27.7,
       "z": 43.64,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -30.68,
       "z": 26.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -35.05,
       "z": 21.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -33.8,
       "z": 16.68,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -32.6,
       "z": 5.19,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -33.39,
       "z": -0.02,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -33.75,
       "z": -22.82,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -35.63,
       "z": -43.03,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -36.04,
       "z": -57.56,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -31.82,
       "z": -65.93,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -33.81,
       "z": -77.26,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 18.19,
       "z": -105.74,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 18.08,
       "z": -109.47,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 26.76,
       "z": -103.35,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 14.11,
       "z": -110.41,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 16.73,
       "z": -112.27,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 19.03,
       "z": -108.55,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 17.9,
       "z": -106.84,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 16.38,
       "z": -106.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": 14.79,
       "z": -107.76,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -26.2,
       "z": 50.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -30.17,
       "z": 49.63,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -31.36,
       "z": 46.61,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -30.8,
       "z": 62.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -26.37,
       "z": 44.31,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -23.84,
       "z": 46.45,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -30.87,
       "z": 51.06,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -30.85,
       "z": 52.74,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/date_palm",
       "x": -29.22,
       "z": 51.48,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -71.2,
       "z": -14.82,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -57.35,
       "z": -31.56,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -48.55,
       "z": -26.53,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -48.78,
       "z": 7.32,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": -65.89,
       "z": 6.74,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": 54.1,
       "z": -29.38,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": 66.96,
       "z": -28.86,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": 76.61,
       "z": -22.09,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": 75.2,
       "z": -6.18,
       "amount": 300,
       "max_gatherers": 12
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_patch",
       "x": 54.82,
       "z": 4.89,
       "amount": 300,
@@ -11618,757 +11618,757 @@
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -96.49,
       "z": -102.3,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -89.25,
       "z": -107.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -80.91,
       "z": -106.08,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -80.14,
       "z": -107.26,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -88.11,
       "z": -116.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -92.48,
       "z": -117.06,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -95.74,
       "z": -118.89,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -99.16,
       "z": -117.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -100.47,
       "z": -114.76,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -100.61,
       "z": -111.33,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -95.36,
       "z": -107.44,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -94.76,
       "z": -111.59,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -96.76,
       "z": -113.24,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -95.31,
       "z": -114.62,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -92.23,
       "z": -113.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -89.39,
       "z": -111.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -85.35,
       "z": -109.29,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -84.46,
       "z": -112.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -83.64,
       "z": -114.57,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -81.8,
       "z": -111.62,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -84.9,
       "z": -106.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -90.35,
       "z": -95.43,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -87.36,
       "z": -92.0,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -84.21,
       "z": -96.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -77.71,
       "z": -100.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -74.57,
       "z": -97.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -73.59,
       "z": -107.96,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -64.49,
       "z": -105.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -64.63,
       "z": -102.07,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -103.42,
       "z": -114.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -103.04,
       "z": -118.06,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -101.98,
       "z": -118.7,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -98.94,
       "z": -121.09,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -96.26,
       "z": -123.0,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -91.92,
       "z": -105.37,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -87.95,
       "z": -101.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -82.29,
       "z": -101.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -81.68,
       "z": -96.87,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -92.3,
       "z": -109.12,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -98.65,
       "z": -107.68,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -75.52,
       "z": -112.47,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -76.84,
       "z": -104.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -71.92,
       "z": -105.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -70.72,
       "z": -109.41,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -78.79,
       "z": -114.86,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -107.2,
       "z": -58.18,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -112.91,
       "z": -60.35,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -113.33,
       "z": -66.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -105.91,
       "z": -62.6,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -100.95,
       "z": -69.22,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -101.05,
       "z": -72.16,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -98.58,
       "z": -75.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -99.86,
       "z": -79.36,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -104.33,
       "z": -81.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -111.22,
       "z": -79.35,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -115.31,
       "z": -76.53,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -113.82,
       "z": -71.12,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -109.67,
       "z": -70.72,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -107.48,
       "z": -62.82,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -100.72,
       "z": -75.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -124.89,
       "z": -74.79,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -129.31,
       "z": -81.07,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -130.21,
       "z": -83.01,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -132.04,
       "z": -85.54,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -128.08,
       "z": -86.85,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -125.17,
       "z": -83.0,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -122.91,
       "z": -80.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -119.56,
       "z": -75.33,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -126.53,
       "z": -72.15,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -132.04,
       "z": -74.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -133.23,
       "z": -72.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -118.34,
       "z": 93.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -114.33,
       "z": 87.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -106.47,
       "z": 83.21,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -107.58,
       "z": 88.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -105.98,
       "z": 95.33,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -91.88,
       "z": 77.29,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -96.01,
       "z": 73.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -93.5,
       "z": 73.06,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -86.73,
       "z": 70.91,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -77.03,
       "z": 62.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -70.57,
       "z": 68.82,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -71.17,
       "z": 72.29,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -97.33,
       "z": 93.76,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -104.17,
       "z": 76.71,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -113.02,
       "z": 7.58,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -121.64,
       "z": 10.7,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -122.84,
       "z": 16.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -109.39,
       "z": 21.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -104.46,
       "z": 16.87,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -134.7,
       "z": 48.0,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -136.57,
       "z": 39.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -133.96,
       "z": 36.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -131.89,
       "z": 43.95,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -128.23,
       "z": 59.23,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -127.97,
       "z": 44.92,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -125.08,
       "z": 43.62,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -118.45,
       "z": 47.39,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -115.02,
       "z": 44.84,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -115.99,
       "z": 42.01,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -123.51,
       "z": 53.48,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -133.14,
       "z": 40.34,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -136.18,
       "z": 44.35,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -118.87,
       "z": 50.34,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -120.97,
       "z": 43.38,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -117.31,
       "z": 45.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -112.83,
       "z": 48.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -128.11,
       "z": 50.54,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -125.06,
       "z": 49.27,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -129.91,
       "z": 41.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -147.55,
       "z": -41.91,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -148.18,
       "z": -46.39,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -149.19,
       "z": -50.01,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -147.64,
       "z": -53.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -146.49,
       "z": -54.92,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -144.06,
       "z": -56.02,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -145.32,
       "z": -52.27,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -146.16,
       "z": -49.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -146.01,
       "z": -45.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -144.92,
       "z": -40.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -143.22,
       "z": -46.8,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -143.48,
       "z": -49.95,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -141.04,
       "z": -52.06,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -142.15,
       "z": -42.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -150.8,
       "z": -38.53,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -142.17,
       "z": -54.0,
       "amount": 200
@@ -12884,175 +12884,175 @@
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 137.05,
       "z": 49.15,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 131.9,
       "z": 45.92,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 125.0,
       "z": 42.27,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 130.31,
       "z": 35.9,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 139.02,
       "z": 40.02,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 140.98,
       "z": 38.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 135.12,
       "z": 34.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 129.76,
       "z": 31.99,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 128.9,
       "z": 39.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 136.3,
       "z": 43.43,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 140.36,
       "z": 49.72,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 127.22,
       "z": 47.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 125.31,
       "z": 49.63,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 122.51,
       "z": 57.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 128.83,
       "z": 52.71,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 129.4,
       "z": 56.62,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 134.74,
       "z": 66.87,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 132.66,
       "z": 71.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 127.03,
       "z": 66.84,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 123.95,
       "z": 64.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 131.51,
       "z": 60.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 132.53,
       "z": 68.02,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 129.56,
       "z": 64.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 126.29,
       "z": 63.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 142.92,
       "z": 53.28,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 145.37,
       "z": 52.63,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 147.22,
       "z": 45.52,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 141.99,
       "z": 42.68,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 124.56,
       "z": 34.77,
       "amount": 200
@@ -13328,403 +13328,403 @@
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 97.74,
       "z": -119.64,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 101.66,
       "z": -117.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 103.39,
       "z": -114.11,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 97.63,
       "z": -114.83,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 95.0,
       "z": -115.91,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 96.31,
       "z": -109.49,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 98.17,
       "z": -106.04,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 93.35,
       "z": -107.99,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 88.3,
       "z": -111.44,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 87.95,
       "z": -108.15,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 93.41,
       "z": -103.77,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 93.4,
       "z": -100.14,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 86.44,
       "z": -104.56,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 82.16,
       "z": -109.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 81.69,
       "z": -106.99,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 89.25,
       "z": -99.12,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 89.2,
       "z": -95.83,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 84.47,
       "z": -95.06,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 80.15,
       "z": -90.15,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 81.8,
       "z": -88.34,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 77.07,
       "z": -88.55,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 73.84,
       "z": -89.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 72.68,
       "z": -84.39,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 78.44,
       "z": -83.31,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 85.33,
       "z": -90.47,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 84.91,
       "z": -92.76,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 86.31,
       "z": -116.47,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 91.07,
       "z": -114.82,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 93.79,
       "z": -112.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 98.02,
       "z": -111.74,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 102.11,
       "z": -110.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 96.64,
       "z": -103.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 93.92,
       "z": -95.46,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 88.04,
       "z": -89.57,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 89.26,
       "z": -103.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 86.6,
       "z": -99.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 99.63,
       "z": -102.32,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 84.17,
       "z": -110.47,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 90.3,
       "z": -116.74,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 71.42,
       "z": -130.82,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 74.85,
       "z": -134.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 78.2,
       "z": -134.05,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 77.04,
       "z": -135.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 74.22,
       "z": -137.7,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 67.51,
       "z": -139.49,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 70.07,
       "z": -133.96,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 65.6,
       "z": -129.91,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 69.01,
       "z": -127.9,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 73.92,
       "z": -127.56,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 66.08,
       "z": -126.99,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 58.3,
       "z": -127.46,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 18.87,
       "z": -150.45,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 21.86,
       "z": -153.21,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 23.56,
       "z": -153.6,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 25.17,
       "z": -152.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 24.5,
       "z": -150.29,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -27.57,
       "z": -128.75,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -27.99,
       "z": -131.75,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -23.94,
       "z": -131.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -22.13,
       "z": -128.01,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -22.58,
       "z": -121.27,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -26.15,
       "z": -124.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -28.82,
       "z": -128.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -27.68,
       "z": -128.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -22.88,
       "z": -128.05,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -24.02,
       "z": -121.56,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -24.61,
       "z": -126.51,
       "amount": 200
@@ -14108,721 +14108,721 @@
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 19.63,
       "z": -105.53,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 21.33,
       "z": -105.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 24.45,
       "z": -101.53,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 23.91,
       "z": -99.77,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 25.0,
       "z": -104.86,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 52.54,
       "z": -54.98,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 105.89,
       "z": -76.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 115.69,
       "z": -77.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 127.14,
       "z": -75.61,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 136.42,
       "z": -66.23,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 137.97,
       "z": -54.23,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 142.05,
       "z": -46.2,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 146.49,
       "z": -42.82,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 131.33,
       "z": -64.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 132.47,
       "z": -56.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 138.19,
       "z": -48.99,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 141.87,
       "z": -43.39,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 144.97,
       "z": -40.38,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 148.6,
       "z": -38.15,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 150.17,
       "z": -37.19,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 149.45,
       "z": -39.2,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 147.51,
       "z": -44.71,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 144.81,
       "z": -47.34,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 140.14,
       "z": -51.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 139.74,
       "z": -54.05,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 138.2,
       "z": -59.0,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 138.73,
       "z": -60.23,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 133.43,
       "z": -58.96,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 136.27,
       "z": -54.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 149.47,
       "z": -41.6,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 132.92,
       "z": -52.62,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 137.09,
       "z": -45.09,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 140.1,
       "z": -41.65,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 143.82,
       "z": -38.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 139.45,
       "z": -65.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 137.25,
       "z": -70.37,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 77.11,
       "z": 77.41,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 73.45,
       "z": 76.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 72.12,
       "z": 72.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 72.17,
       "z": 68.37,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 70.75,
       "z": 65.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 70.23,
       "z": 64.62,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 71.56,
       "z": 68.83,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 77.14,
       "z": 71.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 78.52,
       "z": 73.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 76.49,
       "z": 81.34,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 76.09,
       "z": 83.39,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 77.26,
       "z": 84.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 87.25,
       "z": 76.04,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 85.27,
       "z": 76.05,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 85.42,
       "z": 73.3,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 88.99,
       "z": 74.29,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 90.6,
       "z": 73.44,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 89.84,
       "z": 70.28,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 87.96,
       "z": 70.14,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 87.08,
       "z": 71.98,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 88.87,
       "z": 76.71,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 92.08,
       "z": 81.08,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 92.12,
       "z": 83.57,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 92.49,
       "z": 92.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 90.7,
       "z": 88.22,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 88.07,
       "z": 86.74,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 86.44,
       "z": 84.95,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 89.31,
       "z": 82.98,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 98.17,
       "z": 90.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 104.47,
       "z": 98.14,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 82.31,
       "z": 71.49,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 78.22,
       "z": 70.05,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 76.8,
       "z": 64.87,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 68.14,
       "z": 58.26,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 63.13,
       "z": 55.24,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 62.95,
       "z": 51.41,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 62.27,
       "z": 48.53,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 67.79,
       "z": 49.45,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 74.92,
       "z": 49.02,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 80.49,
       "z": 55.62,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 80.04,
       "z": 60.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 55.03,
       "z": 51.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 53.56,
       "z": 48.06,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 56.96,
       "z": 38.32,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 51.58,
       "z": 47.49,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 55.7,
       "z": 45.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 57.73,
       "z": 49.02,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 59.22,
       "z": 52.84,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 87.09,
       "z": 31.43,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 90.29,
       "z": 24.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 104.24,
       "z": 21.36,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 102.16,
       "z": 45.04,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 116.48,
       "z": -24.85,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 113.13,
       "z": -38.37,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 126.74,
       "z": -41.71,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 120.52,
       "z": -56.48,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 100.98,
       "z": -63.03,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -58.3,
       "z": -46.49,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -50.57,
       "z": -73.2,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -109.65,
       "z": -35.18,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -54.39,
       "z": 30.17,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -95.52,
       "z": -7.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -81.54,
       "z": 12.19,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -67.13,
       "z": 38.35,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -89.51,
       "z": 34.28,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -95.06,
       "z": 21.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -97.73,
       "z": 58.72,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -128.92,
       "z": 77.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -148.74,
       "z": -11.17,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -132.87,
       "z": -53.02,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -136.23,
       "z": -63.52,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 19.27,
       "z": -125.55,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 24.09,
       "z": -129.74,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 13.21,
       "z": -141.82,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 17.44,
       "z": -141.99,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 23.51,
       "z": -141.83,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 8.67,
       "z": -108.89,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -4.67,
       "z": -108.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 32.4,
       "z": -133.29,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 35.8,
       "z": -136.71,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 37.32,
       "z": -146.52,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 38.04,
       "z": -150.72,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 42.68,
       "z": -151.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 47.96,
       "z": -76.86,
       "amount": 200
@@ -15368,439 +15368,439 @@
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -60.0,
       "z": 99.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -54.38,
       "z": 90.45,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -50.17,
       "z": 83.34,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -46.83,
       "z": 84.14,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -50.62,
       "z": 90.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -54.97,
       "z": 96.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -52.68,
       "z": 102.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -48.72,
       "z": 93.64,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -47.53,
       "z": 90.1,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -48.03,
       "z": 95.89,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -50.6,
       "z": 92.56,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -51.83,
       "z": 90.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -44.26,
       "z": 74.45,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -51.55,
       "z": 70.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -54.16,
       "z": 68.09,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -53.6,
       "z": 62.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -50.73,
       "z": 61.83,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -49.71,
       "z": 66.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -47.14,
       "z": 70.28,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -48.23,
       "z": 75.0,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -45.73,
       "z": 76.59,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -42.4,
       "z": 73.25,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -38.91,
       "z": 75.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -38.99,
       "z": 79.51,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -41.02,
       "z": 73.09,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -42.97,
       "z": 66.43,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -44.27,
       "z": 61.28,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -54.1,
       "z": 47.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -3.83,
       "z": 91.98,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -35.58,
       "z": 99.27,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -41.52,
       "z": 124.11,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 12.51,
       "z": 118.98,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 27.0,
       "z": 115.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 38.1,
       "z": 120.86,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 48.7,
       "z": 136.25,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 61.1,
       "z": 101.86,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 48.88,
       "z": 51.1,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 45.73,
       "z": 55.54,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 44.43,
       "z": 60.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 45.2,
       "z": 64.87,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 42.92,
       "z": 65.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 43.58,
       "z": 58.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 44.58,
       "z": 56.44,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 50.9,
       "z": 50.91,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 54.0,
       "z": 48.97,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 43.38,
       "z": 53.78,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 37.82,
       "z": 61.65,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 32.25,
       "z": 49.39,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 61.87,
       "z": 103.21,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 73.27,
       "z": 109.72,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 71.45,
       "z": 110.44,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 60.85,
       "z": 112.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 63.45,
       "z": 114.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 59.34,
       "z": 114.53,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 52.73,
       "z": 110.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 50.53,
       "z": 106.72,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 50.87,
       "z": 104.52,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 54.39,
       "z": 106.39,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 57.29,
       "z": 108.33,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 60.01,
       "z": 108.56,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 61.19,
       "z": 107.01,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 59.75,
       "z": 103.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 53.9,
       "z": 103.97,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 51.65,
       "z": 101.53,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 50.82,
       "z": 100.05,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 54.02,
       "z": 100.99,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 56.14,
       "z": 101.79,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 60.74,
       "z": 99.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 54.95,
       "z": 108.18,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 54.11,
       "z": 110.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 56.72,
       "z": 111.31,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 52.91,
       "z": 114.19,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 56.55,
       "z": 119.76,
       "amount": 200
@@ -16160,283 +16160,283 @@
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": -4.25,
       "z": 65.64,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 2.15,
       "z": 60.96,
       "amount": 200
     },
     {
-      "type": "tropic_palm",
+      "type": "tree/senegal_date_palm",
       "x": 8.52,
       "z": 60.77,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -95.68,
       "z": 36.63,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -95.6,
       "z": 34.05,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -94.89,
       "z": 31.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -93.87,
       "z": 26.2,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -93.42,
       "z": 23.21,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -92.29,
       "z": 25.66,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -93.61,
       "z": 28.87,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -93.01,
       "z": 32.17,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -92.01,
       "z": 32.7,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -91.14,
       "z": 28.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -92.08,
       "z": 27.2,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -85.43,
       "z": 26.35,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -92.06,
       "z": 28.5,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": -90.45,
       "z": 31.44,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 46.62,
       "z": 50.76,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 49.69,
       "z": 44.67,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 52.51,
       "z": 47.49,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 54.36,
       "z": 50.63,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 57.21,
       "z": 53.24,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 56.42,
       "z": 48.98,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 56.6,
       "z": 45.73,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 58.89,
       "z": 48.13,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 61.14,
       "z": 50.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 62.47,
       "z": 54.94,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 62.88,
       "z": 55.6,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 65.92,
       "z": 56.42,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 68.04,
       "z": 55.21,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 67.12,
       "z": 52.69,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 64.87,
       "z": 52.22,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 66.74,
       "z": 57.61,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 65.35,
       "z": 59.49,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 63.74,
       "z": 58.4,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 59.48,
       "z": 55.93,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 59.15,
       "z": 56.26,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 57.96,
       "z": 56.95,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 57.1,
       "z": 56.46,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 53.81,
       "z": 54.34,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 52.12,
       "z": 53.41,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 47.53,
       "z": 48.92,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 46.61,
       "z": 45.88,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 46.0,
       "z": 44.81,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 44.3,
       "z": 47.21,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 67.34,
       "z": 17.96,
       "amount": 200
     },
     {
-      "type": "aleppo_pine",
+      "type": "tree/pine_maritime",
       "x": 64.21,
       "z": 12.26,
       "amount": 200
