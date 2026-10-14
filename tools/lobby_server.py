@@ -14,9 +14,14 @@ behind a small JSON API:
   GET  /players                          -> {players: [{name, status}]}
   GET  /rooms                            -> {rooms: [...]}
   POST /rooms     {id, host_ip, host_port, players, max_players, map_id,
-                   name, host_name, map_name, victory, state, password}
+                   name, host_name, map_name, victory, state, password,
+                   map_type, map_size, start_time, player_names}
                   registers a game or updates the fields sent (0 A.D. registerGame /
-                  changeStateGame); without host_ip, the request's address is used
+                  changeStateGame); without host_ip, the request's address is used.
+                  map_type, map_size, start_time and player_names are optional:
+                  the details 0 A.D.'s lobby shows for a selected game (GameDetails.js).
+                  player_names is a list of {name, team, civ, ai, observer}, an AI
+                  also with ai_difficulty and ai_behavior
   POST /rooms/unregister {id}            removes it (unregisterGame)
   GET  /chat?since=N                     -> {messages: [{id, time, from, text}], last}
   POST /chat      {token, text}
@@ -73,6 +78,35 @@ def get_rating_adjustment(rating, opponent_rating, games_played, opponent_games_
     if result == -1:
         return round(min(0.0, rating_adjustment))
     return round(rating_adjustment)
+
+
+MAX_ROOM_PLAYERS = 24
+
+
+def _player_names(value):
+    """Sanitizes a room's optional player list: {name, team, civ, ai,
+    ai_difficulty, ai_behavior, observer} per entry, team -1 for none. Anything that isn't a list of
+    objects with a name is dropped, so an older or broken host just shows no
+    players."""
+    out = []
+    for p in value if isinstance(value, list) else []:
+        if not isinstance(p, dict) or not str(p.get("name") or "").strip():
+            continue
+        def num(key, default, lo, hi):
+            try:
+                return max(lo, min(int(p.get(key, default)), hi))
+            except (TypeError, ValueError):
+                return default
+        entry = {"name": str(p["name"]).strip()[:MAX_NAME], "team": num("team", -1, -1, 7),
+                 "civ": str(p.get("civ") or "")[:32], "ai": 1 if p.get("ai") else 0,
+                 "observer": 1 if p.get("observer") else 0}
+        if entry["ai"]:
+            entry["ai_difficulty"] = num("ai_difficulty", 3, 0, 5)
+            entry["ai_behavior"] = num("ai_behavior", 2, 0, 3)
+        out.append(entry)
+        if len(out) >= MAX_ROOM_PLAYERS:
+            break
+    return out
 
 
 def _split_list(value):
@@ -267,6 +301,11 @@ class Lobby:
             "victory": field("victory", "", str)[:32],
             "state": field("state", "init", str),
             "password": (1 if data["password"] else 0) if "password" in data else old.get("password", 0),
+            "map_type": field("map_type", "", str)[:32],
+            "map_size": field("map_size", "", str)[:32],
+            "start_time": field("start_time", 0, int),
+            "player_names": _player_names(data["player_names"]) if "player_names" in data
+            else old.get("player_names", []),
             "seen": self.clock(),
         }
         if room["state"] not in ROOM_STATES:
