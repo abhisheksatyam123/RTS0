@@ -88,7 +88,7 @@ public:
 	// scheduled for turn T + COMMAND_DELAY on every peer, and no peer runs turn
 	// N until it holds every player's batch for N (empty batches included).
 	// Turns 1..COMMAND_DELAY have no batches and run unconditionally.
-	static constexpr uint32_t COMMAND_DELAY = 2;
+	static constexpr uint32_t COMMAND_DELAY = 4;
 	// Client ids whose batch every turn waits on. Defaults on the first networked
 	// turn to {0} + connected peer ids (host) or {0, local id} (joiner).
 	void set_lockstep_peers(const std::vector<uint32_t> &ids) { lockstep_peers_ = ids; lockstep_peers_set_ = true; }
