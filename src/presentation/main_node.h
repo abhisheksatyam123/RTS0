@@ -547,6 +547,7 @@ public:
 	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
 	PackedInt32Array debug_spawn_units(const String &template_id, int count);
 	Dictionary debug_research_any();
+	Dictionary debug_structure_types();
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
