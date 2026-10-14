@@ -2911,8 +2911,9 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	// A shrine trains units/{native}/support_healer_e: its own civ's, whoever holds it.
-	if (t.civ != (b.type == BLD_SHRINE ? b.civ : ps.civ)) return false;
+	// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) train the
+	// structure's own civ's units, whoever holds it.
+	if (t.civ != (building_trains_native(b.type) ? b.civ : ps.civ)) return false;
 	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
@@ -6315,7 +6316,7 @@ int Simulation::siege_tower_arrows(size_t i) const {
 // added, then rounded) + round(garrisoned GarrisonArrowClasses units x
 // GarrisonArrowMultiplier), at most MaxArrowCount; a garrisoned Caros multiplies both.
 int Simulation::building_arrow_count(const Building &b) const {
-	const BuildingAIInfo &ai = building_ai_info(b.type);
+	const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
 	if (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER) return 0;
 	float def = (float)ai.default_arrows;
 	if (b.team < MAX_PLAYERS) {
@@ -10866,7 +10867,7 @@ bool Simulation::cmd_focus_fire(uint8_t player, const uint32_t *building_ids, si
 		auto bit = building_id_to_idx_.find(building_ids[k]);
 		if (bit == building_id_to_idx_.end()) continue;
 		Building &b = buildings_[bit->second];
-		const BuildingAIInfo &ai = building_ai_info(b.type);
+		const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
 		if (b.team != player || !ai.shoots() || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked) continue;
 		const float max_r = building_arrow_range(b);
 		const float tech_min = tech_mods(b.team).bld_min_range[b.type];
@@ -11008,10 +11009,15 @@ void Simulation::tick_combat(float dt) {
 	// Dangerous animals (UnitAI IsDangerousAnimal) are targets too; there are few.
 	std::vector<uint16_t> &wild = combat_wild_scratch_;
 	wild.clear();
-	for (size_t f = 0; f < fauna_.count; ++f)
-		if (fauna_.alive[f] && fauna_.hp[f] > 0.0f && fauna_.behavior[f] != FAUNA_CORRALLED &&
-				fauna_type_info(fauna_.fauna_type[f]).is_dangerous())
-			wild.push_back((uint16_t)f);
+	// A player's livestock draws its enemies' structure arrows (BuildingAI's enemy query
+	// takes every entity with Resistance; IsDangerousAnimal filters only Gaia's).
+	std::vector<uint16_t> &herd = combat_herd_scratch_;
+	herd.clear();
+	for (size_t f = 0; f < fauna_.count; ++f) {
+		if (!fauna_.alive[f] || fauna_.hp[f] <= 0.0f || fauna_.behavior[f] == FAUNA_CORRALLED) continue;
+		if (fauna_type_info(fauna_.fauna_type[f]).is_dangerous()) wild.push_back((uint16_t)f);
+		else if (fauna_owner_[f] < MAX_PLAYERS) herd.push_back((uint16_t)f);
+	}
 
 	// 1. Target Acquisition & Stance Evaluation (0 A.D. UnitAI.js)
 	// again: the unit just hit a target it looks past (look_again below); an attack-move or
@@ -11626,7 +11632,7 @@ void Simulation::tick_combat(float dt) {
 	// (SetupGaiaRangeQuery, OnRangeUpdate's IsDangerousAnimal filter). Gaia structures have
 	// no UnitAI, so they are not shot.
 	for (auto &b : buildings_) {
-		const BuildingAIInfo &ai = building_ai_info(b.type);
+		const BuildingAIInfo ai = civ_building_ai_info(b.civ, b.type);
 		if (!ai.shoots() || b.build_progress < 1.0f || b.hp <= 0.0f || b.wrecked || (b.team >= MAX_PLAYERS && b.team != GAIA_PLAYER)) continue;
 		if (b.arrow_timer_on) {
 			b.attack_timer -= dt;
@@ -11656,13 +11662,16 @@ void Simulation::tick_combat(float dt) {
 		const bool shoots_gaia = b.team != GAIA_PLAYER && is_hostile(b.team, GAIA_PLAYER);
 		auto fauna_target = [&](int32_t f) {
 			const float fx = fauna_.pos_x[f], fz = fauna_.pos_z[f];
-			return shoots_gaia && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
+			const uint8_t owner = fauna_owner_[f];
+			const bool foe = owner < MAX_PLAYERS ? b.team != GAIA_PLAYER && can_attack(b.team, owner) : shoots_gaia;
+			return foe && in_range(fx - b.x, fz - b.z, 0.0f, get_terrain_height(fx, fz));
 		};
 		if (!b.arrow_timer_on) {
 			// OnRangeUpdate -> StartTimer: the first round comes PrepareTime after an enemy enters.
 			bool any = false;
 			if (n) grid.visit_radius(b.x, b.z, max_r + b.half_size, [&](int32_t i) { any = any || unit_target(i); });
 			for (size_t k = 0; k < wild.size() && !any; ++k) any = fauna_target(wild[k]);
+			for (size_t k = 0; k < herd.size() && !any; ++k) any = fauna_target(herd[k]);
 			for (size_t o = 0; o < buildings_.size() && !any; ++o) any = building_target(buildings_[o]);
 			if (!any) continue;
 			b.arrow_timer_on = true;
@@ -11687,12 +11696,13 @@ void Simulation::tick_combat(float dt) {
 				arrow_targets.push_back({i, ARROW_UNIT, (uint8_t)(preferred ? 0 : 49), dx * dx + dz * dz});
 			});
 		}
-		for (const int32_t f : wild) {
-			if (!fauna_target(f)) continue;
-			in_reach = true;
-			const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
-			if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
-		}
+		for (const std::vector<uint16_t> *list : {&wild, &herd})
+			for (const int32_t f : *list) {
+				if (!fauna_target(f)) continue;
+				in_reach = true;
+				const float dx = fauna_.pos_x[f] - b.x, dz = fauna_.pos_z[f] - b.z;
+				if (seen(fauna_.pos_x[f], fauna_.pos_z[f])) arrow_targets.push_back({f, ARROW_FAUNA, 49, dx * dx + dz * dz});
+			}
 		// Structures have Resistance and Health too, so enemy buildings in range draw arrows.
 		for (size_t o = 0; o < buildings_.size(); ++o) {
 			if (!building_target(buildings_[o])) continue;
@@ -11768,7 +11778,7 @@ void Simulation::tick_combat(float dt) {
 			const float dmg = hack * powf(0.9f, armor[0]) + pierce * powf(0.9f, armor[1]) + crush * powf(0.9f, armor[2]);
 			const float dx = units_.pos_x[u] - b.x, dz = units_.pos_z[u] - b.z;
 			const float dist = sqrtf(dx * dx + dz * dz);
-			const float flight = dist / projectile_speed(0);
+			const float flight = dist / projectile_speed_of(b.id, 0); // Attack.js PredictTimeToTarget at its own Projectile/Speed
 			const float aim_x = units_.pos_x[u] + units_.vel_x[u] * flight;
 			const float aim_z = units_.pos_z[u] + units_.vel_z[u] * flight;
 			const float sigma = spread * dist / 100.0f;
@@ -23835,7 +23845,7 @@ void Simulation::petra_manage_defense(float dt) {
 			// evaluateStrength: 6 per default arrow of a foe structure (else 4), and a small
 			// 2 for one of ours that only needs its points back.
 			const Building &b = buildings_[building_id_to_idx_.at(armies[a].foe_ids[0])];
-			const int arrows = building_ai_info(b.type).default_arrows;
+			const int arrows = civ_building_ai_info(b.civ, b.type).default_arrows;
 			foe_strength = b.team == petra_pid_ ? 2.0f : arrows ? 6.0f * (float)arrows : 4.0f;
 			n.land = petra_land_at(b.x, b.z);
 		}
