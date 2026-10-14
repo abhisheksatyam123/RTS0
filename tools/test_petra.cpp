@@ -3424,6 +3424,42 @@ static void test_building_plan_028() {
 	const float d3 = std::hypot(((float)cx3 + 1.0f) * Simulation::GRID - hx, ((float)cz3 + 1.0f) * Simulation::GRID - hz);
 	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
 	CHECK(d3 < d, "requireHouses lets the house come closer");
+
+	// findGoodPosition's gap: none for houses, dropsites, fields and markets, 4 m for most
+	// structures, 8 m for fortresses, arsenals and elephant stables.
+	CHECK(Simulation::petra_clearance(BLD_HOUSE) == 0 && Simulation::petra_clearance(BLD_STOREHOUSE) == 0 &&
+	      Simulation::petra_clearance(BLD_FIELD) == 0 && Simulation::petra_clearance(BLD_MARKET) == 0 &&
+	      Simulation::petra_clearance(BLD_DOCK) == 0, "houses, dropsites, fields and markets keep no gap");
+	CHECK(Simulation::petra_clearance(BLD_BARRACKS) == 1 && Simulation::petra_clearance(BLD_TEMPLE) == 1,
+	      "most structures keep 4 m");
+	CHECK(Simulation::petra_clearance(BLD_FORTRESS) == 2 && Simulation::petra_clearance(BLD_ARSENAL) == 2 &&
+	      Simulation::petra_clearance(BLD_ELEPHANT_STABLE) == 2, "fortresses, arsenals and elephant stables keep 8 m");
+	// Right beside the barracks a house fits where a temple doesn't.
+	bool beside = false;
+	const int bcx = (int)std::floor(hx / Simulation::GRID), bcz = (int)std::floor(hz / Simulation::GRID);
+	for (int dz = -4; dz <= 4 && !beside; ++dz)
+		for (int dx = -4; dx <= 4 && !beside; ++dx)
+			beside = s->petra_ring_clear(bcx + dx, bcz + dz, 1, 0) && !s->petra_ring_clear(bcx + dx, bcz + dz, 1, 1);
+	CHECK(beside, "a house may stand right beside a barracks, a temple may not");
+
+	// checkResourceLevels counts GATHER.GATHERING units only: one walking out to its trees counts
+	// as neither used nor lost.
+	auto &dc = s->petra_dropsite_check_;
+	dc = PetraDropsiteCheck{};
+	for (size_t i = 0; i < s->units_.count; ++i)
+		if (s->units_.team[i] == 1 && s->units_.alive[i]) s->units_.action_state[i] = ACTION_IDLE;
+	for (auto &b : s->buildings_)
+		if (b.team == 1) b.build_progress = 1.0f; // a storehouse foundation would restart the counts
+	const uint32_t walker = s->spawn_unit(hx + 20.0f, hz, 1, UNIT_VILLAGER, 0.0f);
+	const int32_t wi = s->lookup_unit(walker);
+	s->units_.action_state[wi] = ACTION_GATHER;
+	s->units_.res_type_carried[wi] = RES_WOOD;
+	s->units_.gather_res[wi] = 0;
+	s->petra_check_resource_levels(1000);
+	CHECK(dc.used[0] == 0 && dc.lost[0] == 0, "a gatherer walking out isn't counted");
+	s->units_.gather_res[wi] = 1;
+	s->petra_check_resource_levels(1100); // an empty count looks again 10 turns on
+	CHECK(dc.used[0] == 1, "a gatherer at work is counted");
 }
 
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking

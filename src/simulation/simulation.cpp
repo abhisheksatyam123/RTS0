@@ -263,7 +263,7 @@ static float edge_distance(const Simulation::Building &b, float x, float z) {
 }
 
 // 0 A.D. ObstructionManager IsInTargetRange against a structure: the gap between the
-// unit's obstruction (a circle of its collision radius) and the structure's footprint,
+// unit's obstruction (its class clearance, unit_clearance_at) and the structure's footprint,
 // not the distance to its centre, so a long wall or a dock on the shore is reached from
 // any side at the same range.
 static float structure_gap(const Simulation::Building &b, float x, float z, float radius) {
@@ -4650,7 +4650,7 @@ void Simulation::attack_building_one_by_one(const uint32_t *unit_ids, size_t cou
 
 		stand_outside(b, units_.id[uidx],
 				units_.pos_x[uidx], units_.pos_z[uidx],
-				&units_.target_x[uidx], &units_.target_z[uidx]);
+				&units_.target_x[uidx], &units_.target_z[uidx], unit_clearance_at((size_t)uidx) + kStandMargin);
 		units_.has_order[uidx] = 1;
 		units_.action_state[uidx] = ACTION_ATTACK;
 		units_.target_building_id[uidx] = target_building_id;
@@ -8347,7 +8347,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		// A ship stops in the water beside the dock, a little further out.
 		const float reach = ttype == UNIT_MERCHANT_SHIP ? 4.0f : 2.0f;
 		if (dx * dx + dz * dz >= 2.5f * 2.5f &&
-				structure_gap(dest, px[ti], pz[ti], unit_collision_radius(ttype)) >= reach) continue;
+				structure_gap(dest, px[ti], pz[ti], unit_clearance_at((size_t)ti)) >= reach) continue;
 
 		// Arrived (Trader.js PerformTrade). The goods loaded at the other market pay what was
 		// worked out when they were loaded (GenerateResources): the trader's owner its gain and,
@@ -8658,7 +8658,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 						unit_capture_attack(units_.tmpl[i], units_.unit_type[i]) > 0.0f &&
 						units_.team[i] < MAX_PLAYERS && can_capture_building(units_.team[i], b);
 				const float reach = capture ? CAPTURE_RANGE : attack_reach(i);
-				const float eff_d = structure_gap(b, px[i], pz[i], unit_collision_radius(units_.unit_type[i]));
+				const float eff_d = structure_gap(b, px[i], pz[i], unit_clearance_at(i));
 				at_building = eff_d <= reach * 0.9f;
 				if (!at_building) stop_dist = ARRIVE_DIST * 0.5f;
 			}
@@ -8935,7 +8935,8 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			// capture ranges here.
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
 			return bit != building_id_to_idx_.end() &&
-			       square(buildings_[bit->second], 0.9f * std::min(units_.attack_range[i], CAPTURE_RANGE));
+			       square(buildings_[bit->second], 0.9f * std::min(units_.attack_range[i], CAPTURE_RANGE) +
+						unit_clearance_at(i) - r);
 		}
 		if (st == ACTION_BUILD && units_.target_building_id[i] != 0) { // tick_construction
 			const auto bit = building_id_to_idx_.find(units_.target_building_id[i]);
@@ -9633,7 +9634,7 @@ bool Simulation::chase_falls_short(size_t i) const {
 		return dx * dx + dz * dz > reach * reach;
 	}
 	const Building &b = buildings_[building_id_to_idx_.at(units_.target_building_id[i])];
-	return structure_gap(b, ex, ez, unit_collision_radius(units_.unit_type[i])) > reach;
+	return structure_gap(b, ex, ez, unit_clearance_at(i)) > reach;
 }
 
 // ShouldAbandonChase on the COMBAT timer: FinishOrder. A fight the unit picked itself ends and
@@ -10588,7 +10589,7 @@ void Simulation::tick_pack(float dt) {
 				const Building &b = buildings_[bit->second];
 				if (is_hostile(units_.team[i], b.team)) {
 					const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i],
-							unit_collision_radius(units_.unit_type[i]));
+							unit_clearance_at(i));
 					target_in_range = in_parabolic_range(eff_d * eff_d, att_y, get_terrain_height(b.x, b.z),
 							attack_reach(i));
 				}
@@ -11044,7 +11045,7 @@ void Simulation::tick_combat(float dt) {
 		const float dz = units_.pos_z[i] - b.z;
 		// 0 A.D. ObstructionManager IsInTargetRange: the gap between the two obstructions,
 		// so the attacker's own radius counts (melee units could not reach a wall otherwise).
-		const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i]));
+		const float eff_d = structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i));
 
 		float att_y = unit_height(i);
 		float bld_y = get_terrain_height(b.x, b.z);
@@ -11055,7 +11056,7 @@ void Simulation::tick_combat(float dt) {
 			// Move toward building if out of range
 			stand_outside(b, units_.id[i],
 					units_.pos_x[i], units_.pos_z[i],
-					&units_.target_x[i], &units_.target_z[i]);
+					&units_.target_x[i], &units_.target_z[i], unit_clearance_at(i) + kStandMargin);
 			units_.has_order[i] = 1;
 			units_.action_state[i] = ACTION_ATTACK;
 		}
@@ -11169,7 +11170,7 @@ void Simulation::tick_combat(float dt) {
 		};
 		auto building_ok = [&](const Building &ob) {
 			if (ob.wrecked || ob.hp <= 0.0f || ob.team == GAIA_PLAYER || !can_attack(team, ob.team)) return false;
-			const float gap = structure_gap(ob, sx, sz, unit_collision_radius(units_.unit_type[i]));
+			const float gap = structure_gap(ob, sx, sz, unit_clearance_at(i));
 			if (!in_parabolic_range(gap * gap, sy, get_terrain_height(ob.x, ob.z), range)) return false;
 			return !check_los || los_explored(team, ob.x, ob.z);
 		};
@@ -12671,24 +12672,105 @@ bool Simulation::regicide_hero_lost(int t) const {
 }
 
 void Simulation::spawn_regicide_heroes() {
-	// Regicide.js: every player gets a hero next to their first Town Center at match start,
-	// or next to their first unit if they start without one (nomad-style starts).
-	bool done[8] = {};
-	std::vector<std::pair<uint8_t, std::pair<float, float>>> spots;
-	for (const auto &b : buildings_) {
-		if (!is_civic_centre(b.type) || b.team >= 8 || done[b.team]) continue;
-		done[b.team] = true;
-		spots.push_back({b.team, {b.x, b.z}});
+	// Regicide.js InitRegicideGame / SpawnRegicideHero: each player gets one of its civ's
+	// heroes, picked at random (shuffleArray over the civ's Hero templates), at the first
+	// spawn point that takes it. Spawn points are the player's entities, civic centres
+	// first, then other structures, then ships, then the rest (getSpawnPreference). A unit
+	// steps out beside a structure (SpawnUnits, Footprint.PickSpawnPoint) and boards a ship
+	// it spawns at (UnitAI.Garrison). Without Regicide Garrison a ship start puts the hero
+	// on land beside the Gaia entity nearest the ship (GetLandSpawnPoints).
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
+		std::vector<uint16_t> heroes;
+		for (uint16_t t : civ_roster_ids(civ_of(p))) {
+			const CivUnitTemplate &u = civ_unit_template(t);
+			if ((u.flags & ROSTER_HERO) && !std::strstr(u.id, "/rts0_")) heroes.push_back(t);
+		}
+		struct Spot { int pref; uint32_t id; bool building; size_t bi; };
+		std::vector<Spot> spots;
+		for (size_t bi = 0; bi < buildings_.size(); ++bi) {
+			const Building &b = buildings_[bi];
+			if (b.team == p && b.hp > 0.0f) spots.push_back({is_civic_centre(b.type) ? 3 : 2, b.id, true, bi});
+		}
+		for (size_t u = 0; u < units_.count; ++u)
+			if (units_.team[u] == p && units_.alive[u])
+				spots.push_back({unit_is_ship(units_.unit_type[u]) ? 1 : 0, units_.id[u], false, 0});
+		if (spots.empty()) continue;
+		std::stable_sort(spots.begin(), spots.end(), [](const Spot &a, const Spot &b) {
+			return a.pref != b.pref ? a.pref > b.pref : a.id < b.id;
+		});
+		if (heroes.empty()) heroes.push_back(CIV_UNIT_TEMPLATE_NONE); // the class hero
+		for (int k = (int)heroes.size() - 1; k > 0; --k) std::swap(heroes[k], heroes[sim_rng_.range_int(0, k)]);
+		std::vector<std::pair<float, float>> land;
+		if (!regicide_garrison() && spots[0].pref == 1) {
+			const int32_t ship = lookup_unit(spots[0].id);
+			const float sx = units_.pos_x[ship], sz = units_.pos_z[ship];
+			land = relic_spawn_points();
+			std::stable_sort(land.begin(), land.end(), [&](const auto &a, const auto &b) {
+				return (a.first - sx) * (a.first - sx) + (a.second - sz) * (a.second - sz) <
+						(b.first - sx) * (b.first - sx) + (b.second - sz) * (b.second - sz);
+			});
+		}
+		for (uint16_t tmpl : heroes) {
+			const UnitType utype = tmpl == CIV_UNIT_TEMPLATE_NONE ? UNIT_HERO : (UnitType)civ_unit_template(tmpl).unit_type;
+			if (!land.empty()) {
+				float x, z;
+				free_spot_near(land[0].first, land[0].second, utype, x, z);
+				regicide_hero_[p] = spawn_unit(x, z, p, utype, 0.0f, tmpl);
+				break;
+			}
+			for (const Spot &s : spots) {
+				float x = 0.0f, z = 0.0f;
+				uint32_t ship = 0;
+				if (s.building) {
+					if (!pick_spawn_point(buildings_[s.bi], utype, 0, x, z)) continue;
+				} else {
+					const int32_t u = lookup_unit(s.id);
+					if (u < 0) continue;
+					if (s.pref == 1) {
+						// GarrisonHolder.IsFull: a full ship takes no hero.
+						if (occupied_slots(transport_passengers_[s.id]) >= get_transport_capacity(s.id)) continue;
+						ship = s.id;
+						x = units_.pos_x[u];
+						z = units_.pos_z[u];
+					} else {
+						free_spot_near(units_.pos_x[u], units_.pos_z[u], utype, x, z);
+					}
+				}
+				regicide_hero_[p] = spawn_unit(x, z, p, utype, 0.0f, tmpl);
+				if (ship) order_board_transport(&regicide_hero_[p], 1, ship);
+				break;
+			}
+			if (regicide_hero_[p]) break;
+		}
 	}
-	for (size_t u = 0; u < units_.count; ++u) {
-		uint8_t t = units_.team[u];
-		if (t >= 8 || done[t] || !units_.alive[u]) continue;
-		done[t] = true;
-		spots.push_back({t, {units_.pos_x[u], units_.pos_z[u]}});
-	}
-	for (const auto &s : spots) {
-		regicide_hero_[s.first] = spawn_unit(s.second.first + 4.0f, s.second.second + 4.0f, s.first, UNIT_HERO, 0.0f);
-	}
+}
+
+void Simulation::free_spot_near(float px, float pz, uint8_t utype, float &x, float &z) const {
+	// Footprint.PickSpawnPoint round an entity: the nearest passable spot nobody stands on.
+	x = px;
+	z = pz;
+	if (nav_grid_.res <= 0) return;
+	const float rr = unit_collision_radius(utype);
+	auto occupied = [&](float sx, float sz) {
+		for (size_t u = 0; u < units_.count; ++u) {
+			if (!units_.alive[u]) continue;
+			const float d = rr + unit_collision_radius(units_.unit_type[u]);
+			const float dx = units_.pos_x[u] - sx, dz = units_.pos_z[u] - sz;
+			if (dx * dx + dz * dz < d * d) return true;
+		}
+		return false;
+	};
+	for (float r = 1.0f; r <= 8.0f; r += 0.5f)
+		for (int t = 0; t < 12; ++t) {
+			const float a = 6.28318530718f * (float)t / 12.0f;
+			const float sx = px + cosf(a) * r, sz = pz + sinf(a) * r;
+			if (std::fabs(sx) > map_half_ - 2.0f || std::fabs(sz) > map_half_ - 2.0f) continue;
+			auto [cx, cy] = nav_grid_.world_to_cell(sx, sz);
+			if (!nav_grid_.is_passable_for(cx, cy, PASS_INFANTRY) || occupied(sx, sz)) continue;
+			x = sx;
+			z = sz;
+			return;
+		}
 }
 
 void Simulation::tick_waves(float dt) {
@@ -13796,7 +13878,7 @@ void Simulation::respond_to_attacker(size_t i, uint32_t attacker_id, float ax, f
 		if (!unit_can_target_building(i, sb->type)) return;
 	}
 	if (stance == STANCE_STAND_GROUND) {
-		const float gap = sb ? structure_gap(*sb, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i]))
+		const float gap = sb ? structure_gap(*sb, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i))
 				: sqrtf(d2);
 		if (gap > range) return;
 	}
@@ -14115,7 +14197,7 @@ void Simulation::tick_unit_ai(float dt) {
 			const Building &b = buildings_[bit->second];
 			const float reach = units_.unit_type[i] == UNIT_FISHING_BOAT ? 4.0f : 1.5f;
 			if (now == ACTION_IDLE ||
-					structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_collision_radius(units_.unit_type[i])) < reach) {
+					structure_gap(b, units_.pos_x[i], units_.pos_z[i], unit_clearance_at(i)) < reach) {
 				units_.action_state[i] = ACTION_RETURN_DROPSITE;
 				units_.target_resource_id[i] = 0;
 			}
@@ -14838,10 +14920,22 @@ void Simulation::note_kill(uint32_t killer_id, uint32_t victim_id) {
 // always walk around and reach foundations (0 A.D. placement uses obstruction
 // clearance for the same reason); tight packing left builders stranded.
 bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype) const {
-	if (!petra_ring_clear(cell_x, cell_y, footprint)) return false;
+	if (!petra_ring_clear(cell_x, cell_y, footprint, petra_clearance(btype))) return false;
 	return btype >= BLD_TYPE_COUNT || (!triggers_.building_disabled(petra_pid_, btype) &&
 	                                   check_placement(petra_pid_, cell_x, cell_y, btype) == PLACE_OK &&
 	                                   petra_limit_allows_building(btype)); // EntityLimits
+}
+
+// queueplanBuilding.js findGoodPosition's gap round a structure (obstructionRadius + 0, 4 or 8 m):
+// 0 for houses, dropsites, fields and markets, which ought to stand close to each other or a
+// resource; 2 (8 m) for fortresses, arsenals and elephant stables; 1 (4 m) for the rest.
+uint8_t Simulation::petra_clearance(uint8_t btype) {
+	if (btype >= BLD_TYPE_COUNT) return 1;
+	const uint8_t r = building_research_base(btype);
+	if (r == BLD_FORTRESS || r == BLD_ARSENAL || r == BLD_ELEPHANT_STABLE) return 2;
+	if (is_dropsite_type(btype) || (building_tech_classes(btype) & TC_HOUSE) || btype == BLD_FIELD || is_land_market(btype))
+		return 0;
+	return 1;
 }
 
 // The ground petra_can_place needs: its footprint's cells free and a ring of whole cells round it
@@ -14849,12 +14943,15 @@ bool Simulation::petra_can_place(int cell_x, int cell_y, int footprint, uint8_t 
 // a ring cell (PART) refuses the spot when it comes within half a cell, 4 m, of the footprint:
 // the gap queueplanBuilding.js findGoodPosition adds round most structures (obstructionRadius + 4).
 // On-grid buildings mark only FULL cells, so they keep the whole-cell ring.
-bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
+// Clearance 0 (houses, dropsites, fields, markets) needs only the footprint free; 2 (fortress,
+// arsenal, elephant stable) also keeps any building 8 m off.
+bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance) const {
 	ensure_occupied_cells();
 	const int limit = (int)(map_half_ / GRID) - (footprint + 2);
+	const int lo = clearance ? -1 : 0, hi = clearance ? footprint : footprint - 1;
 	bool part = false;
-	for (int dx = -1; dx <= footprint; ++dx)
-		for (int dy = -1; dy <= footprint; ++dy) {
+	for (int dx = lo; dx <= hi; ++dx)
+		for (int dy = lo; dy <= hi; ++dy) {
 			const int cx = cell_x + dx, cy = cell_y + dy;
 			if (std::abs(cx) > limit || std::abs(cy) > limit) return false;
 			const uint8_t m = occupied_cells_.mark(cx, cy);
@@ -14863,11 +14960,11 @@ bool Simulation::petra_ring_clear(int cell_x, int cell_y, int footprint) const {
 			if (!ring || m == CellSet::FULL) return false;
 			part = true;
 		}
-	if (!part) return true;
+	if (!part && clearance < 2) return true;
 	nav::Footprint grown;
 	grown.x = (cell_x + footprint * 0.5f) * GRID;
 	grown.z = (cell_y + footprint * 0.5f) * GRID;
-	grown.hu = grown.hv = (footprint + 1) * GRID * 0.5f;
+	grown.hu = grown.hv = (footprint + (clearance < 2 ? 1.0f : 2.0f)) * GRID * 0.5f;
 	return !footprint_hits_building(grown);
 }
 
@@ -18986,6 +19083,9 @@ void Simulation::petra_check_resource_levels(int32_t turn) {
 				if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
 				const uint8_t st = units_.action_state[i];
 				if (st != ACTION_GATHER && st != ACTION_RETURN_DROPSITE) continue;
+				// GATHER.GATHERING only: one walking out to its supply (gather_res not yet set
+				// by tick_gather) counts as neither.
+				if (st == ACTION_GATHER && units_.gather_res[i] == 0) continue;
 				const uint8_t rt = units_.res_type_carried[i];
 				for (int j = 0; j < 3; ++j)
 					if (rt == kTypes[j]) (st == ACTION_GATHER ? used[j] : lost[j])++;

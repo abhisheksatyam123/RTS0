@@ -2244,6 +2244,8 @@ private:
 	// The match ends with these players as the winners; everyone else has lost.
 	void end_match(uint8_t winners, uint8_t reason = SessionNotice::END_LAST_ALIVE);
 	void spawn_regicide_heroes();
+	// Footprint.PickSpawnPoint round a point: the nearest passable spot no unit stands on.
+	void free_spot_near(float px, float pz, uint8_t utype, float &x, float &z) const;
 
 	struct FaunaStorage {
 		static constexpr size_t MAX_FAUNA = 1024; // dead animals are compacted out each tick
@@ -2848,7 +2850,8 @@ private:
 	float petra_template_strength(const UnitTypeInfo &ui, float attack_mult = 1.0f) const;
 	float petra_plan_pop_scaling() const; // config.js popScaling as attackPlan.js uses it
 	bool petra_can_place(int cell_x, int cell_y, int footprint, uint8_t btype = BLD_TYPE_COUNT) const; // btype: also 0 A.D.'s placement rules
-	bool petra_ring_clear(int cell_x, int cell_y, int footprint) const;
+	bool petra_ring_clear(int cell_x, int cell_y, int footprint, uint8_t clearance = 1) const;
+	static uint8_t petra_clearance(uint8_t btype); // findGoodPosition's 0, 4 or 8 m gap, as 0, 1, 2
 	bool petra_limit_allows_building(uint8_t btype) const;
 	mutable uint64_t petra_limit_cache_key_ = 0; // derived per tick, never saved
 	mutable std::array<uint8_t, BLD_TYPE_COUNT> petra_limit_cache_{};
