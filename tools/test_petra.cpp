@@ -2021,6 +2021,86 @@ static void test_wonder_guards() {
 	CHECK(hurt, "and fight whoever attacks it");
 }
 
+// victoryManager.js criticalEnts: an owned relic is guarded like a hero
+// (4 + 5 * defensive); in regicide only the hero the game began with is
+// critical, so a hero trained later draws no guards; and buildWonder counts
+// live wonders, so a destroyed wonder's wreck is replaced by a new one.
+static void test_victory_critical_ents() {
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_RELIC);
+		run_for(*s, 1.0f);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		s->relics_.clear();
+		const uint32_t relic = s->spawn_relic(tx + 8.0f, tz - 8.0f);
+		const int32_t r = s->lookup_unit(relic);
+		if (r >= 0) s->units_.team[r] = 1;
+		std::vector<uint32_t> champs;
+		for (int i = 0; i < 3; ++i) champs.push_back(s->spawn_unit(tx + 10.0f + 3.0f * (float)i, tz + 10.0f, 1, UNIT_ELEPHANT));
+		run_for(*s, 4.0f);
+		int guarding = 0;
+		for (uint32_t id : champs) {
+			const int32_t c = s->lookup_unit(id);
+			if (c >= 0 && s->units_.order_kind[c] == ORDER_GUARD && s->units_.order_target[c] == relic) ++guarding;
+		}
+		std::printf("  relic guards: %d of 3 champions guard Petra's relic\n", guarding);
+		CHECK(r >= 0 && guarding == 3, "champions guard a relic Petra owns");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_REGICIDE);
+		run_for(*s, 1.0f);
+		const uint32_t hero = s->regicide_hero(1);
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		const uint32_t trained = s->spawn_unit(tx - 10.0f, tz - 10.0f, 1, UNIT_HERO);
+		for (int i = 0; i < 14; ++i) s->spawn_unit(tx + 10.0f + 2.0f * (float)(i % 7), tz + 10.0f + 2.0f * (float)(i / 7), 1, UNIT_ELEPHANT);
+		run_for(*s, 4.0f);
+		int on_hero = 0, on_trained = 0;
+		for (size_t i = 0; i < s->units_.count; ++i) {
+			if (!s->units_.alive[i] || s->units_.team[i] != 1 || s->units_.order_kind[i] != ORDER_GUARD) continue;
+			on_hero += s->units_.order_target[i] == hero;
+			on_trained += s->units_.order_target[i] == trained;
+		}
+		std::printf("  regicide: %d guard the regicide hero, %d a hero trained later\n", on_hero, on_trained);
+		CHECK(hero != 0 && on_hero >= 4, "the regicide hero is guarded");
+		CHECK(on_trained == 0, "a hero trained later is not a critical entity");
+	}
+	{
+		auto s = std::make_unique<Simulation>();
+		s->set_sim_seed(42);
+		s->reset();
+		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+		s->set_victory_condition(VICTORY_WONDER);
+		run_for(*s, 1.0f);
+		s->players_[1].phase = 3;
+		float tx = 0.0f, tz = 0.0f;
+		for (const auto &b : s->buildings())
+			if (b.team == 1 && b.type == BLD_TOWN_CENTER) { tx = b.x; tz = b.z; }
+		const uint32_t first = s->spawn_building_world(tx * 0.8f, tz * 0.8f, BLD_WONDER, 1, 1.0f);
+		s->cmd_delete(1, &first, 1);
+		bool rebuilt = false;
+		for (float t = 0.0f; t < 30.0f && !rebuilt; t += Simulation::FIXED_STEP) {
+			s->players_[1].add(5000.0f, 5000.0f, 5000.0f, 5000.0f);
+			fund_queues(*s);
+			s->tick(Simulation::FIXED_STEP);
+			for (const auto &b : s->buildings())
+				if (b.team == 1 && b.type == BLD_WONDER && b.id != first && !b.wrecked) rebuilt = true;
+		}
+		std::printf("  wonder destroyed: a new one placed %s\n", rebuilt ? "yes" : "no");
+		CHECK(rebuilt, "Petra starts a new wonder once its wonder is destroyed");
+	}
+}
+
 static void test_retreat_walk_forced() {
 	auto s = std::make_unique<Simulation>();
 	s->set_sim_seed(42);
@@ -3441,6 +3521,7 @@ int main() {
 	test_cancel_attacks_on_peace();
 	test_builders_per_foundation();
 	test_wonder_guards();
+	test_victory_critical_ents();
 	test_placement_miss_memory_exact();
 	test_defend_allies();
 	test_retake_civic_centre();

@@ -23118,7 +23118,8 @@ void Simulation::petra_manage_victory(float dt) {
 		uint32_t wonder_id = 0;
 		bool complete = false;
 		for (const auto &b : buildings_) {
-			if (b.team != petra_pid_ || b.type != BLD_WONDER) continue;
+			// buildWonder counts live wonders: a destroyed one's wreck is not ours to finish.
+			if (b.team != petra_pid_ || b.type != BLD_WONDER || b.wrecked || b.hp <= 0.0f) continue;
 			wonder_id = b.id;
 			complete = (b.build_progress >= 1.0f && b.hp > 0.0f);
 			break;
@@ -23144,11 +23145,10 @@ void Simulation::petra_manage_victory(float dt) {
 			}
 		}
 	}
-	// A finished wonder is a critical entity: manageCriticalEntGuards guards it.
-	if (has_victory(VK_WONDER)) petra_manage_critical_ent_guards();
+	// manageCriticalEntGuards: finished wonders, the regicide hero and our relics.
+	if (has_victory(VK_WONDER) || has_victory(VK_REGICIDE) || has_victory(VK_RELIC)) petra_manage_critical_ent_guards();
 
 	if (has_victory(VK_REGICIDE)) {
-		petra_manage_critical_ent_guards();
 		// A hero back above high health fights again.
 		for (size_t i = 0; i < units_.count; ++i) {
 			if (!petra_is_critical_ent(i) || units_.stance[i] == STANCE_AGGRESSIVE) continue;
@@ -23163,10 +23163,17 @@ void Simulation::petra_manage_victory(float dt) {
 	if (has_victory(VK_RELIC)) petra_capture_gaia_relics();
 }
 
-// victoryManager.js criticalEnts: in regicide, our heroes.
+// victoryManager.js criticalEnts: in regicide, the hero we had when the game
+// began (the one Regicide spawned); heroes trained later are not critical.
 bool Simulation::petra_is_critical_ent(size_t i) const {
 	return has_victory(VK_REGICIDE) && i < units_.count && units_.alive[i] &&
-		units_.team[i] == petra_pid_ && units_.unit_type[i] == UNIT_HERO;
+		units_.team[i] == petra_pid_ && regicide_hero_[petra_pid_] != 0 && units_.id[i] == regicide_hero_[petra_pid_];
+}
+
+// victoryManager.js criticalEnts: in Capture the Relic, the relics we own.
+bool Simulation::petra_is_critical_relic(size_t i) const {
+	return has_victory(VK_RELIC) && i < units_.count && units_.alive[i] && is_relic_unit((int32_t)i) &&
+		units_.team[i] == petra_pid_;
 }
 
 // victoryManager.js criticalEnts: in wonder victory, our finished wonders.
@@ -23178,11 +23185,12 @@ bool Simulation::petra_is_critical_wonder(uint32_t id) const {
 	return b.team == petra_pid_ && b.type == BLD_WONDER && b.build_progress >= 1.0f && !b.wrecked && b.hp > 0.0f;
 }
 
-// guardEnts: ours guarding a hero (a military guard, or a healer) or a wonder.
+// guardEnts: ours guarding a hero (a military guard, or a healer), a relic or a wonder.
 bool Simulation::petra_guards_critical_ent(size_t i) const {
 	if (!units_.alive[i] || units_.team[i] != petra_pid_ || units_.order_kind[i] != ORDER_GUARD) return false;
 	const int32_t t = lookup_unit(units_.order_target[i]);
-	return t >= 0 ? petra_is_critical_ent((size_t)t) : petra_is_critical_wonder(units_.order_target[i]);
+	return t >= 0 ? petra_is_critical_ent((size_t)t) || petra_is_critical_relic((size_t)t)
+	              : petra_is_critical_wonder(units_.order_target[i]);
 }
 
 // pickCriticalEntRetreatLocation: garrison, else turn passive (flee attacks)
@@ -23207,7 +23215,7 @@ void Simulation::petra_retreat_critical_ent(size_t i, bool emergency, std::vecto
 	if (best) order_walk(&uid, 1, best->x, best->z, false);
 }
 
-// manageCriticalEntGuards: 4 + 5 * defensive soldiers guard each hero and
+// manageCriticalEntGuards: 4 + 5 * defensive soldiers guard each hero and relic,
 // 10 + 5 * defensive each wonder,
 // champions first; citizen soldiers only while there are workers to spare.
 void Simulation::petra_manage_critical_ent_guards() {
@@ -23224,7 +23232,7 @@ void Simulation::petra_manage_critical_ent_guards() {
 		}
 	}
 	const int min_workers = 25, delta_workers = 3;
-	// criticalEnts: our heroes in regicide, our finished wonders in wonder victory.
+	// criticalEnts: our regicide hero, our relics, our finished wonders in wonder victory.
 	struct Critical { uint32_t id; size_t hero; uint16_t land; int want; };
 	std::vector<Critical> crit;
 	const int extra = (int)std::round(petra_config_.defensive * 5.0f);
@@ -23232,6 +23240,9 @@ void Simulation::petra_manage_critical_ent_guards() {
 		if (petra_is_critical_ent(h)) {
 			auto [hx, hz] = nav_grid_.world_to_cell(units_.pos_x[h], units_.pos_z[h]);
 			crit.push_back({units_.id[h], h, nav_grid_.global_region_at(hx, hz, PASS_INFANTRY), 4 + extra});
+		} else if (petra_is_critical_relic(h)) {
+			auto [rx, rz] = nav_grid_.world_to_cell(units_.pos_x[h], units_.pos_z[h]);
+			crit.push_back({units_.id[h], h, nav_grid_.global_region_at(rx, rz, PASS_INFANTRY), 4 + extra});
 		}
 	for (const auto &b : buildings_)
 		if (petra_is_critical_wonder(b.id)) crit.push_back({b.id, SIZE_MAX, petra_building_land(b), 10 + extra});
