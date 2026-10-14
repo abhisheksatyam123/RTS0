@@ -19932,15 +19932,18 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 		}
 		if (best >= 0) return (uint8_t)best;
 	}
-	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics. Gaia's
-	// relics (tryCaptureGaiaRelic) are left to petra_capture_gaia_relics.
+	// attackManager.js getRelicEnemyPlayer: the enemy holding the most relics, Gaia first
+	// (player 0) while tryCaptureGaiaRelic holds (GAIA_PLAYER; the caller then waits the lapse).
 	if (has_victory(VK_RELIC)) {
-		int held[MAX_PLAYERS] = {};
+		int held[MAX_PLAYERS] = {}, gaia = 0;
 		for (const auto &rel : relics_) {
 			const int32_t r = lookup_unit(rel.id);
-			if (is_relic_unit(r) && units_.team[r] < MAX_PLAYERS) ++held[units_.team[r]];
+			if (!is_relic_unit(r)) continue;
+			if (units_.team[r] < MAX_PLAYERS) ++held[units_.team[r]];
+			else if (units_.team[r] == GAIA_PLAYER) ++gaia;
 		}
 		int best = -1, most = 0;
+		if (petra_attack_mgr_.gaia_relic_lapse == 0 && gaia > 0) { most = gaia; best = GAIA_PLAYER; }
 		for (int p = 0; p < MAX_PLAYERS; ++p)
 			if (!veto[p] && held[p] > most) { most = held[p]; best = p; }
 		if (best >= 0) return (uint8_t)best;
@@ -19993,6 +19996,25 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 	return best >= 0 ? (uint8_t)best : 0xFF;
 }
 
+// A unit an attack plan may keep as its target: a foe's, or a relic Gaia holds in Capture
+// the Relic (an attack on player 0 goes for its relics).
+bool Simulation::petra_unit_target_ok(int32_t t) const {
+	if (t < 0 || !units_.alive[t]) return false;
+	return petra_foe(units_.team[t]) || (is_relic_unit(t) && units_.team[t] == GAIA_PLAYER && has_victory(VK_RELIC));
+}
+
+// victoryManager.js targetedGaiaRelics: a relic one of our plans has as its target, or one
+// our units are on their way to capture.
+bool Simulation::petra_relic_targeted(uint32_t relic_id) const {
+	if (petra_attack_plan_.target_building_id == relic_id || petra_raid_plan_.target_building_id == relic_id) return true;
+	for (const AttackPlan &p : petra_started_attacks_)
+		if (p.target_building_id == relic_id) return true;
+	for (size_t i = 0; i < units_.count; ++i)
+		if (units_.alive[i] && units_.team[i] == petra_pid_ && units_.order_kind[i] == ORDER_CAPTURE_RELIC && units_.order_target[i] == relic_id)
+			return true;
+	return false;
+}
+
 // attackPlan.js getNearestTarget for an Attack, HugeAttack or Rush going for `enemy`, from
 // (px, pz). A Rush, and an Attack first, take the nearest undefended structure
 // (rushTargetFinder); a HugeAttack, and an Attack with siege or held back long enough
@@ -20002,7 +20024,7 @@ uint8_t Simulation::petra_enemy_player(uint8_t kind) const {
 // (isValidTarget sameLand: same_land, else our base's land or across a sea) and
 // structures decaying with no arrows and no garrison.
 uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t enemy, float px, float pz, uint16_t same_land, float &out_tx, float &out_tz) const {
-	if (enemy >= MAX_PLAYERS) return 0;
+	if (enemy >= MAX_PLAYERS && !(enemy == GAIA_PLAYER && has_victory(VK_RELIC))) return 0;
 	uint16_t from[8];
 	petra_attack_from_lands(same_land, from);
 	const PetraNavalTopo *topo = nullptr;
@@ -20041,6 +20063,16 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 		if (best || kind == PETRA_ATTACK_RUSH || !forced) return best;
 	}
 	// defaultTargetFinder; a field is 100000 m2 (6250 tiles2) farther.
+	// Gaia's relics only, those no plan or relic expedition of ours goes for yet
+	// (victoryManager.js targetedGaiaRelics).
+	if (enemy == GAIA_PLAYER) {
+		for (const auto &rel : relics_) {
+			const int32_t r = lookup_unit(rel.id);
+			if (!is_relic_unit(r) || units_.team[r] != GAIA_PLAYER || petra_relic_targeted(rel.id)) continue;
+			if (reachable(units_.pos_x[r], units_.pos_z[r], 0.0f)) consider(rel.id, units_.pos_x[r], units_.pos_z[r], 0.0f);
+		}
+		return best;
+	}
 	auto field = [&](const Building &b) { return kind != PETRA_ATTACK_RUSH && b.type == BLD_FIELD ? 6250.0f : 0.0f; };
 	if (has_victory(VK_WONDER))
 		for (const auto &b : buildings_)
@@ -20049,6 +20081,12 @@ uint32_t Simulation::petra_nearest_target(uint8_t kind, bool forced, uint8_t ene
 		for (size_t i = 0; i < units_.count; ++i)
 			if (units_.alive[i] && units_.team[i] == enemy && units_.unit_type[i] == UNIT_HERO && reachable(units_.pos_x[i], units_.pos_z[i], 0.0f))
 				consider(units_.id[i], units_.pos_x[i], units_.pos_z[i], 0.0f);
+	if (has_victory(VK_RELIC))
+		for (const auto &rel : relics_) {
+			const int32_t r = lookup_unit(rel.id);
+			if (is_relic_unit(r) && units_.team[r] == enemy && reachable(units_.pos_x[r], units_.pos_z[r], 0.0f))
+				consider(rel.id, units_.pos_x[r], units_.pos_z[r], 0.0f);
+		}
 	if (best) return best;
 	auto conquest = [](uint8_t t) {
 		return t != BLD_WALL_SEGMENT && t != BLD_WALL_TOWER && t != BLD_PALISADE && t != BLD_GATE && t != BLD_FIELD;
@@ -20093,13 +20131,26 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	uint8_t enemy = 0xFF;
 	if (auto it = building_id_to_idx_.find(p.target_building_id); it != building_id_to_idx_.end() && petra_foe(buildings_[it->second].team))
 		enemy = buildings_[it->second].team;
-	else if (const int32_t t = lookup_unit(p.target_building_id); t >= 0 && units_.alive[t] && petra_foe(units_.team[t]))
+	else if (const int32_t t = lookup_unit(p.target_building_id); petra_unit_target_ok(t)) {
+		// getNearestTarget skips a Gaia relic already targeted, this plan's own included: it keeps it.
+		if (units_.team[t] == GAIA_PLAYER) { out_tx = units_.pos_x[t]; out_tz = units_.pos_z[t]; return p.target_building_id; }
 		enemy = units_.team[t];
+	}
 	if (enemy == 0xFF && p.target_player < MAX_PLAYERS && petra_foe(p.target_player) && !is_defeated(p.target_player)) enemy = p.target_player;
-	if (enemy == 0xFF) enemy = petra_enemy_player(kind);
+	// victoryManager.js resetCaptureGaiaRelic: once getEnemyPlayer picks Gaia for its relics,
+	// the next try waits 240 s, 30 s less per difficulty level above Medium.
+	auto pick_enemy = [&] {
+		const uint8_t e = petra_enemy_player(kind);
+		if (e == GAIA_PLAYER) {
+			const int wait = 240 - 30 * ((int)petra_config_.difficulty - (int)PETRA_MEDIUM);
+			const_cast<PetraAttackManager &>(petra_attack_mgr_).gaia_relic_lapse = (uint8_t)std::clamp((wait + 1) / 2, 1, 255);
+		}
+		return e;
+	};
+	if (enemy == 0xFF) enemy = pick_enemy();
 	uint32_t id = petra_nearest_target(kind, forced, enemy, px, pz, same_land, out_tx, out_tz);
 	if (!id) { // attackPlan.js updatePreparation: then the enemy getEnemyPlayer picks now
-		const uint8_t other = petra_enemy_player(kind);
+		const uint8_t other = pick_enemy();
 		if (other != enemy) id = petra_nearest_target(kind, forced, other, px, pz, same_land, out_tx, out_tz);
 	}
 	AttackPlan &w = const_cast<AttackPlan &>(p);
@@ -20621,7 +20672,7 @@ uint32_t Simulation::petra_plan_next_target(AttackPlan &plan, float &tx, float &
 		if (auto it = building_id_to_idx_.find(plan.target_building_id); it != building_id_to_idx_.end()) {
 			const Building &b = buildings_[it->second];
 			if (petra_foe(b.team) && b.hp > 0.0f && !b.wrecked) { tx = b.x; tz = b.z; return b.id; }
-		} else if (const int32_t u = lookup_unit(plan.target_building_id); u >= 0 && units_.alive[u] && petra_foe(units_.team[u])) {
+		} else if (const int32_t u = lookup_unit(plan.target_building_id); petra_unit_target_ok(u)) {
 			tx = units_.pos_x[u]; tz = units_.pos_z[u]; return plan.target_building_id;
 		}
 	}
@@ -20947,6 +20998,19 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			petra_strike_force_.state = PetraStrikeForce::ENGAGE;
 
 			petra_attack_units(plan);
+			// A relic target is captured, not hit (attackPlan.js update: ent.attack with
+			// allowCapture): the squad's free units that can capture it go for it.
+			if (const int32_t tr = lookup_unit(plan.target_building_id); is_relic_unit(tr) && units_.alive[tr] && units_.team[tr] != petra_pid_) {
+				std::vector<uint32_t> go;
+				for (uint32_t uid : squad) {
+					const int32_t k = lookup_unit(uid);
+					if (k < 0 || !units_.alive[k] || units_.action_state[k] == ACTION_GARRISONED || unit_is_ship(units_.unit_type[k])) continue;
+					if (units_.order_kind[k] == ORDER_CAPTURE_RELIC && units_.order_target[k] == plan.target_building_id) continue;
+					if (units_.target_unit_id[k] != 0 || units_.target_building_id[k] != 0 || !can_capture_relic((size_t)k, tr)) continue; // fighting
+					go.push_back(uid);
+				}
+				if (!go.empty()) order_capture_relic(go.data(), go.size(), plan.target_building_id);
+			}
 
 			bool target_alive = false;
 			for (const auto &b : buildings_) {
@@ -20959,7 +21023,7 @@ void Simulation::petra_update_attack_plan(AttackPlan &plan, float base_x, float 
 			// stays the target while it lives, or the plan re-targets (and re-paths) every tick.
 			if (!target_alive) {
 				const int32_t tu = lookup_unit(plan.target_building_id);
-				target_alive = tu >= 0 && units_.alive[tu] && petra_foe(units_.team[tu]);
+				target_alive = petra_unit_target_ok(tu);
 			}
 
 			petra_check_captures(squad, plan.target_x, plan.target_z);
@@ -24260,6 +24324,8 @@ void Simulation::tick_petra_ai_player(float dt) {
 	petra_manage_tactical_attacks(dt);
 	if ((int)(petra_timer_ / 2.5f) != (int)((petra_timer_ - dt) / 2.5f)) petra_assign_bombers();
 	if ((int)(petra_timer_ / 5.0f) != (int)((petra_timer_ - dt) / 5.0f)) petra_move_dropsites_to_gatherers();
+	if (petra_attack_mgr_.gaia_relic_lapse && (int)(petra_timer_ / 2.0f) != (int)((petra_timer_ - dt) / 2.0f))
+		--petra_attack_mgr_.gaia_relic_lapse;
 	petra_manage_raid(dt);
 
 	// 11b. Naval transportPlan.js land-sea-land
