@@ -1534,14 +1534,18 @@ static void test_nomad_first_base() {
 		if (s->units_.alive[i] && s->units_.team[i] == 0) idle_army.push_back(s->units_.id[i]);
 	s->order_set_stance(idle_army.data(), idle_army.size(), STANCE_PASSIVE);
 	run_for(*s, 150.0f);
-	int buildings = 0;
+	int buildings = 0, houses = 0;
 	for (const auto &b : s->buildings())
-		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) ++buildings;
+		if (b.team == 1 && !b.wrecked && b.build_progress >= 1.0f) {
+			++buildings;
+			houses += b.type == BLD_HOUSE;
+		}
 	std::printf("  nomad: Town Centers at start %d, built after 150 s %d, finished buildings %d, workers %d\n",
 	            at_start, town_centers(true), buildings, count_units(*s, 1, true));
 	CHECK(at_start == 0, "a Nomad start has no civic centre");
 	CHECK(town_centers(true) == 1, "Petra founds and builds its first Town Center");
-	CHECK(buildings >= 3, "and builds on from it");
+	// startingStrategy.js lays no opening houses: buildMoreHouses adds one once houseNeeded asks.
+	CHECK(buildings >= 2 && houses >= 1, "and builds on from it");
 }
 
 // EntityLimits (D's #159): a Mauryan Pillar only stands while Ashoka lives.
@@ -3377,6 +3381,51 @@ static void test_raid_keeps_hunters() {
 	CHECK((int)plan.squad.size() == std::min(4, riders - 2), "a raid leaves two riders home to hunt");
 }
 
+// startingStrategy.js buildFirstBase lays the first wood dropsite and no houses: houses wait for
+// buildMoreHouses' houseNeeded. queueplanBuilding.js findPosition keeps a house 60 m clear of
+// other structures (-40), and requireHouses drops every influence so a house fits anywhere.
+static void test_building_plan_028() {
+	auto s = std::make_unique<Simulation>();
+	s->set_sim_seed(42);
+	s->reset();
+	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
+	s->set_player_resources(1, 5000, 5000, 5000, 5000);
+	fund_queues(*s);
+	s->petra_pid_ = 1;
+	auto count = [&](uint8_t type) {
+		int n = 0;
+		for (const auto &b : s->buildings_) n += b.team == 1 && b.type == type && b.hp > 0.0f && !b.wrecked;
+		return n;
+	};
+	const int houses = count(BLD_HOUSE);
+	s->petra_opening_step_ = 0;
+	for (int k = 0; k < 10; ++k) s->petra_manage_opening(1.0f);
+	CHECK(s->petra_opening_step_ == 4, "the opening ends after the first wood dropsite");
+	CHECK(count(BLD_HOUSE) == houses, "the opening lays no houses");
+	CHECK(count(BLD_STOREHOUSE) >= 1, "the opening lays the first wood dropsite");
+
+	// A house next to a barracks loses 40 at its foundation: the spot a house picks with no
+	// barracks around, a barracks there pushes the next pick away.
+	int cx = 0, cz = 0;
+	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx, cz), "a house finds room");
+	const float hx = ((float)cx + 1.0f) * Simulation::GRID, hz = ((float)cz + 1.0f) * Simulation::GRID;
+	const uint32_t bar = s->spawn_building_world(hx, hz, BLD_BARRACKS, 1, 1.0f);
+	CHECK(bar != 0, "a barracks stands where the house would have gone");
+	int cx2 = 0, cz2 = 0;
+	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx2, cz2), "a house still finds room");
+	const float d = std::hypot(((float)cx2 + 1.0f) * Simulation::GRID - hx, ((float)cz2 + 1.0f) * Simulation::GRID - hz);
+	std::printf("  building plan: house %.1f m from the barracks\n", d);
+	CHECK(d > 12.0f, "a house keeps away from a barracks");
+	// requireHouses: with every influence dropped the house takes the first free tile of the base.
+	s->petra_require_houses_ = true;
+	int cx3 = 0, cz3 = 0;
+	CHECK(s->petra_find_position(BLD_HOUSE, nullptr, nullptr, false, cx3, cz3), "requireHouses still finds room");
+	s->petra_require_houses_ = false;
+	const float d3 = std::hypot(((float)cx3 + 1.0f) * Simulation::GRID - hx, ((float)cz3 + 1.0f) * Simulation::GRID - hz);
+	std::printf("  building plan: requireHouses house %.1f m from the barracks\n", d3);
+	CHECK(d3 < d, "requireHouses lets the house come closer");
+}
+
 // baseManager.js checkResourceLevels: a wood count with more than 15% of its gatherers walking
 // back lays a storehouse by a forest at least 15 tiles from our dropsites, and its foundation
 // restarts every count; headquarters.js buildFarmstead lays one farmstead once there is a
@@ -3862,6 +3911,7 @@ int main() {
 	test_defensive_location();
 	test_raid_keeps_hunters();
 	test_dropsites();
+	test_building_plan_028();
 	test_food_fields();
 	test_corral_by_owner();
 	test_missing_room_expansion();
