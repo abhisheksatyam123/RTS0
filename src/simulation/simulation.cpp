@@ -23306,11 +23306,17 @@ void Simulation::petra_manage_victory(float dt) {
 	if (has_victory(VK_WONDER) || has_victory(VK_REGICIDE) || has_victory(VK_RELIC)) petra_manage_critical_ent_guards();
 
 	if (has_victory(VK_REGICIDE)) {
-		// A hero back above high health fights again.
+		// A Soldier hero back above high health fights again; any other hero
+		// (a healer hero) stays passive, its stance from init().
 		for (size_t i = 0; i < units_.count; ++i) {
-			if (!petra_is_critical_ent(i) || units_.stance[i] == STANCE_AGGRESSIVE) continue;
-			if (units_.max_hp[i] > 0.0f && units_.hp[i] / units_.max_hp[i] <= petra_config_.garrison_hp_high) continue;
+			if (!petra_is_critical_ent(i)) continue;
 			const uint32_t uid = units_.id[i];
+			if (!(unit_classes_at(i) & TC_SOLDIER)) {
+				if (units_.stance[i] != STANCE_PASSIVE) order_set_stance(&uid, 1, STANCE_PASSIVE);
+				continue;
+			}
+			if (units_.stance[i] == STANCE_AGGRESSIVE) continue;
+			if (units_.max_hp[i] > 0.0f && units_.hp[i] / units_.max_hp[i] <= petra_config_.garrison_hp_high) continue;
 			order_set_stance(&uid, 1, STANCE_AGGRESSIVE);
 		}
 		petra_manage_critical_ent_healers();
@@ -23478,10 +23484,10 @@ void Simulation::petra_manage_critical_ent_healers() {
 }
 
 // victoryManager.js update / captureGaiaRelic: go for a Gaia relic in our
-// territory, or one our units can see outside enemy territory, one new
-// relic per update; send the nearest units that can capture it until they beat its regen.
+// territory (then no other new one this update), or any our units can see
+// outside enemy territory; send the nearest units that can capture it until they beat its regen.
 void Simulation::petra_capture_gaia_relics() {
-	bool started = false;
+	bool own_started = false; // a new relic in our territory ends the search for new ones
 	for (const auto &rel : relics_) {
 		const int32_t r = lookup_unit(rel.id);
 		if (!is_relic_unit(r)) continue;
@@ -23511,9 +23517,10 @@ void Simulation::petra_capture_gaia_relics() {
 				capture += unit_capture_attack_at(i);
 		if (capture > RELIC_CAPTURE_POINTS / 50.0f) continue; // enough on the way
 		if (capture <= -(float)RELIC_REGEN_RATE) { // not targeted yet
-			if (started) continue;
+			if (own_started) continue;
 			const int terr = territory_owner_at(rel.x, rel.z);
 			bool go = terr == (int)petra_pid_;
+			own_started = go;
 			if (!go && (terr < 0 || !is_hostile(petra_pid_, (uint8_t)terr))) {
 				for (size_t i = 0; i < units_.count && !go; ++i) {
 					if (!units_.alive[i] || units_.team[i] != petra_pid_) continue;
@@ -23523,8 +23530,8 @@ void Simulation::petra_capture_gaia_relics() {
 				}
 			}
 			if (!go) continue;
-			started = true;
 		}
+		const bool fresh = capture <= -(float)RELIC_REGEN_RATE;
 		auto [rx, rz] = nav_grid_.world_to_cell(rel.x, rel.z);
 		const uint16_t land = nav_grid_.global_region_at(rx, rz, PASS_INFANTRY);
 		std::vector<std::pair<float, uint32_t>> near;
@@ -23545,6 +23552,8 @@ void Simulation::petra_capture_gaia_relics() {
 			capture += unit_capture_attack_at((size_t)lookup_unit(near[k].second));
 			expedition.push_back(near[k].second);
 		}
+		// A new expedition too weak to out-capture a hundredth of the points stays home.
+		if (expedition.empty() || (fresh && capture < RELIC_CAPTURE_POINTS / 100.0f)) continue;
 		order_capture_relic(expedition.data(), expedition.size(), rel.id);
 	}
 }
@@ -23571,6 +23580,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	if (petra_diplo_timer_ < 8.0f) return;
 	petra_diplo_timer_ = 0.0f;
 	const uint8_t me = petra_pid_;
+
+	// checkEvents PlayerDefeated: a defeated player's requests, received and sent, are dropped.
+	for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+		if (p != me && is_defeated(p)) {
+			dip.received[p] = PetraReceivedRequest{};
+			petra_sent_diplo_.sent_type[p] = 0;
+		}
 
 	// checkEvents TributeExchanged: a tribute of the asked resource and amount
 	// from a player we are waiting on seals the requested stance.
@@ -23610,6 +23626,13 @@ void Simulation::petra_manage_diplomacy(float dt) {
 	// checkEvents DiplomacyChanged / init: another player's stance toward us
 	// changed. Allying with us or going neutral is a request we answer; RTS0
 	// also answers a declaration of war in kind, so our units fight back.
+	// init: a mutual ally (a teammate too) at the start counts as an accepted alliance.
+	if (!dip.seen_init)
+		for (uint8_t p = 0; p < MAX_PLAYERS; ++p)
+			if (p != me && is_ally(me, p) && (players_[p].active || ((participant_mask_ >> p) & 1))) {
+				dip.received[p] = PetraReceivedRequest{};
+				dip.received[p].status = PetraReceivedRequest::ACCEPTED;
+			}
 	for (uint8_t p = 0; p < MAX_PLAYERS; ++p) {
 		if (p == me || players_[p].team == players_[me].team) continue;
 		const uint8_t theirs = get_diplomacy(p, me);
@@ -23891,10 +23914,13 @@ void Simulation::petra_handle_diplomacy_request(uint8_t player, uint8_t type) {
 		petra_say(PETRA_CHAT_ANSWER_ACCEPT, player, player, type);
 		return;
 	}
-	// Accept for a tribute of the resource we are shortest of.
+	// Accept for a tribute of pickMostNeededResources()[0]: what our queues are
+	// furthest short of.
+	float demand[RES_COUNT];
+	petra_resource_demand(demand);
 	uint8_t need = RES_FOOD;
-	for (uint8_t r = 0; r < RES_COUNT; ++r)
-		if (petra_ps().res[r] < petra_ps().res[need]) need = r;
+	for (uint8_t r : {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD})
+		if (demand[r] - petra_ps().res[r] > demand[need] - petra_ps().res[need]) need = r;
 	int own_units = 0;
 	for (size_t i = 0; i < units_.count; ++i)
 		if (units_.alive[i] && units_.team[i] == me) ++own_units;
