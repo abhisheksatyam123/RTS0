@@ -51,3 +51,26 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[shader_globals]
+
+rtso_water_effects={
+"type": "float",
+"value": 1.0
+}
+rtso_water_fancy={
+"type": "float",
+"value": 1.0
+}
+rtso_water_reflection={
+"type": "float",
+"value": 1.0
+}
+rtso_water_refraction={
+"type": "float",
+"value": 1.0
+}
+rtso_water_realdepth={
+"type": "float",
+"value": 1.0
+}

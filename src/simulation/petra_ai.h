@@ -401,7 +401,9 @@ struct PetraAttackManager {
 	// buildManager.js unbuildables for "room": a bit per kind of structure (petra_room_bit) whose
 	// last search found no spot; cleared when one is placed or a new base widens the territory.
 	uint8_t missing_room = 0;
-	uint8_t pad[1] = {};
+	// victoryManager.js tryCaptureGaiaRelicLapseTime: 2 s steps left before an attack may go
+	// for Gaia's relics again (0: it may, tryCaptureGaiaRelic).
+	uint8_t gaia_relic_lapse = 0;
 	int32_t rush_size[3] = {};
 	int32_t target_size = 0;  // main plan's unitStat targetSize total
 	int32_t min_size = 0;     // and minSize total

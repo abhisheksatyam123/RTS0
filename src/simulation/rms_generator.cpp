@@ -4,6 +4,7 @@
 #include "tree_slot_gatherers.h"
 #include "simulation.h"
 #include "heightmap_images.h"
+#include "start_entities_data.h"
 #include <cmath>
 #include <algorithm>
 #include <bit>
@@ -3482,6 +3483,41 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 	for (auto &sp : spawns) sp.base_height = 30.0f * k;
 }
 
+// rmgen-common player.js placeStartingEntities: the civ's StartEntities units (civs/*.json)
+// round a civic centre at (cx, cz), entry j (the civic centre is entry 0) as a row of its
+// Count, 2 tiles apart, 6 tiles out at BUILDING_ORIENTATION - PI * (1 - j / 2).
+// `infantry_only` keeps only the templates naming "infantry" (survivalofthefittest.js).
+// A unit whose spot is under water is pulled in towards the civic centre until it is dry.
+static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8_t team, float cx, float cz,
+                                 bool infantry_only = false) {
+	constexpr float kDist = 6.0f, kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;
+	const uint8_t civ = sim.team_civ(team);
+	const float dry_h = sim.water_height() + 0.6f;
+	const StartEntity *table = start_entity_table();
+	int j = 0;
+	for (int e = 0; e < START_ENTITY_COUNT; ++e) {
+		const StartEntity &se = table[e];
+		if (se.civ != civ || (infantry_only && !std::strstr(se.tmpl, "infantry"))) continue;
+		++j;
+		uint16_t tmpl = CIV_UNIT_TEMPLATE_NONE;
+		for (uint16_t t : civ_roster_ids(civ))
+			if (std::strcmp(civ_unit_template(t).id, se.tmpl) == 0) { tmpl = t; break; }
+		if (tmpl == CIV_UNIT_TEMPLATE_NONE) continue; // a template RTS0 has no roster row for yet
+		const float angle = kOrientation - 3.14159265f * (1.0f - (float)j / 2.0f);
+		const float ca = std::cos(angle), sa = std::sin(angle);
+		for (int num = 0; num < se.count; ++num) {
+			// location + Vector2D(dist, 0).rotate(-angle) + Vector2D(offset, 0).rotate(angle)
+			const float off = kSpace * (-(float)num + (float)(se.count - 1) / 2.0f);
+			float x = cx + kDist * ca + off * ca, z = cz + kDist * sa - off * sa;
+			for (float t = 1.0f; t > 0.0f && hm.sample_world(x, z) < dry_h; t -= 0.1f) {
+				x = cx + (x - cx) * 0.9f;
+				z = cz + (z - cz) * 0.9f;
+			}
+			sim.spawn_unit(x, z, team, (UnitType)civ_unit_template(tmpl).unit_type, 0.0f, tmpl);
+		}
+	}
+}
+
 void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid &hm, const std::vector<PlayerSpawn> &spawns, RmsRng &rng, const Config &config) {
 	const float k = kSurvivalHeight;
 	const float half = hm.map_half, size = 2.0f * half;
@@ -3493,11 +3529,7 @@ void RmsGenerator::place_survival_entities(Simulation &sim, const HeightmapGrid 
 		const float a = std::atan2(sp.z, sp.x);
 		// getStartingEntities filtered to the civic centre and the infantry.
 		sim.spawn_building_world(sp.x, sp.z, BLD_TOWN_CENTER, team, 1.0f);
-		const float fx = sp.forward_dir_x, fz = sp.forward_dir_z, rx = -fz, rz = fx;
-		sim.spawn_unit(sp.x + fx * 6.0f + rx * 2.0f, sp.z + fz * 6.0f + rz * 2.0f, team, UNIT_SPEARMAN);
-		sim.spawn_unit(sp.x + fx * 6.0f - rx * 2.0f, sp.z + fz * 6.0f - rz * 2.0f, team, UNIT_SPEARMAN);
-		sim.spawn_unit(sp.x + fx * 5.0f + rx * 4.5f, sp.z + fz * 5.0f + rz * 4.5f, team, UNIT_ARCHER);
-		sim.spawn_unit(sp.x + fx * 5.0f - rx * 4.5f, sp.z + fz * 5.0f - rz * 4.5f, team, UNIT_ARCHER);
+		place_start_entities(sim, hm, team, sp.x, sp.z, true);
 		// The treasure seeker: findLocationInDirectionBasedOnHeight(player, centre, -3, 3.5, 3),
 		// the first spot towards the centre down at the low land, then 3 tiles on.
 		float wx = sp.x, wz = sp.z;
@@ -4011,28 +4043,8 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		// 1. Town Center
 		sim.spawn_building_world(px, pz, BLD_TOWN_CENTER, team, 1.0f);
 
-		// 2. Starting Barracks & Houses (Fortress: the walls and their buildings)
-		if (!fortress) {
-			sim.spawn_building_world(px + fx * 8.5f, pz + fz * 8.5f, BLD_BARRACKS, team, 1.0f);
-			sim.spawn_building_world(px - fx * 6.5f + rx * 6.0f, pz - fz * 6.5f + rz * 6.0f, BLD_HOUSE, team, 1.0f);
-			sim.spawn_building_world(px - fx * 6.5f - rx * 6.0f, pz - fz * 6.5f - rz * 6.0f, BLD_HOUSE, team, 1.0f);
-		}
-
-		// 3. Starting Citizen-Soldiers & Villagers
-		// 6 Villagers in a ring around TC
-		for (int v = 0; v < 6; ++v) {
-			float a = (6.2831853f * v) / 6.0f;
-			float vx = px + std::cos(a) * 4.5f;
-			float vz = pz + std::sin(a) * 4.5f;
-			sim.spawn_unit(vx, vz, team, UNIT_VILLAGER, 100.0f);
-		}
-
-		// Military Escort
-		sim.spawn_unit(px + fx * 6.0f + rx * 2.0f, pz + fz * 6.0f + rz * 2.0f, team, UNIT_SWORDSMAN, 160.0f);
-		sim.spawn_unit(px + fx * 6.0f - rx * 2.0f, pz + fz * 6.0f - rz * 2.0f, team, UNIT_SWORDSMAN, 160.0f);
-		sim.spawn_unit(px + fx * 5.0f + rx * 4.5f, pz + fz * 5.0f + rz * 4.5f, team, UNIT_ARCHER, 90.0f);
-		sim.spawn_unit(px + fx * 5.0f - rx * 4.5f, pz + fz * 5.0f - rz * 4.5f, team, UNIT_ARCHER, 90.0f);
-		sim.spawn_unit(px + fx * 9.5f, pz + fz * 9.5f, team, UNIT_CAVALRY, 180.0f);
+		// 2. The civ's StartEntities units (placeCivDefaultStartingEntities).
+		place_start_entities(sim, hm, team, px, pz);
 
 		// fortress.js gives no starting mines, trees or berries, only
 		// treasures (which RTS0 has no entity for yet).

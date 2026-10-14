@@ -605,6 +605,12 @@ inline constexpr UnitLimit UNIT_LIMITS[] = {
 	{LIMIT_NONE, 0}, // rome/champion_infantry_swordsman_first
 	{LIMIT_NONE, 0}, // germ/support_wagon
 	{LIMIT_NONE, 0}, // germ/support_wagon_house
+	{LIMIT_NONE, 0}, // pers/support_healer_e
+	{LIMIT_NONE, 0}, // rome/support_healer_e
+	{LIMIT_NONE, 0}, // mace/support_healer_e
+	{LIMIT_NONE, 0}, // gaul/support_healer_e
+	{LIMIT_NONE, 0}, // ptol/support_healer_e
+	{LIMIT_NONE, 0}, // han/support_healer_e
 };
 static_assert(sizeof(UNIT_LIMITS) / sizeof(UNIT_LIMITS[0]) == CIV_UNIT_TEMPLATE_COUNT,
 		"one UnitLimit per roster row: rerun tools/extract_0ad_entity_limits.py");
@@ -711,6 +717,8 @@ inline constexpr uint8_t BUILDING_LIMIT_CATEGORY[BLD_TYPE_COUNT] = {
 	LIMIT_NONE, // BLD_GREAT_HALL
 	LIMIT_NONE, // BLD_WAGON_ENCAMPMENT
 	LIMIT_NONE, // BLD_WAGON_ENCAMPMENT_FORTIFIED
+	LIMIT_NONE, // BLD_SHRINE
+	LIMIT_NONE, // BLD_TRADING_POST
 };
 
 } // namespace rtso

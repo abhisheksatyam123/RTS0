@@ -23,6 +23,12 @@ behind a small JSON API:
                   player_names is a list of {name, team, civ, ai, observer}, an AI
                   also with ai_difficulty and ai_behavior
   POST /rooms/unregister {id}            removes it (unregisterGame)
+  POST /rooms/punch {token, id, ip, port} a signed-in joiner's public game endpoint, from STUN (0 A.D.
+                                         SendStunEndpointToHost). Answers {local_ip, local_port},
+                                         the host's LAN address, when ip is the host's public
+                                         address (one network: 0 A.D. then joins at the LAN address)
+  GET  /rooms/punch?id=R&since=N         -> {endpoints: [{seq, ip, port}], last}: the host punches
+                                            a hole towards each (0 A.D. SendHolePunchingMessage)
   GET  /chat?since=N                     -> {messages: [{id, time, from, text}], last}
   POST /chat      {token, text}
   POST /report    {token, matchID, players, playerStates, ...}
@@ -32,6 +38,11 @@ behind a small JSON API:
   GET  /leaderboard                      -> {players: [{name, rating}]}, best first (boardlist)
   GET  /profile?name=N                   -> {name, rating, highestRating, rank, totalGamesPlayed,
                                              wins, losses}; 404 if N has no rated game (profile)
+
+A host also sends local_ip and local_port with its game; they are kept out of
+GET /rooms. With --stun-port the server also answers STUN Binding Requests
+(RFC 5389) on UDP, as 0 A.D.'s lobby.stun.server does, so a player learns the
+public address and port its NAT gives the game's socket.
 
 Players with a rated game carry their "rating" in GET /players. Ratings live as
 long as the server, or in the JSON file given with --ratings.
@@ -43,6 +54,8 @@ import argparse
 import json
 import os
 import secrets
+import socket
+import struct
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -54,6 +67,10 @@ MAX_NAME = 32
 MAX_TEXT = 500
 STATUSES = ("available", "away", "playing")
 ROOM_STATES = ("init", "running")
+PUNCH_KEEP = 16         # joiner endpoints kept per game
+PUNCH_TIMEOUT = 30.0    # seconds a joiner endpoint stays listed
+PRIVATE_ROOM_KEYS = ("seen", "punch", "next_punch", "local_ip", "local_port")
+STUN_MAGIC_COOKIE = 0x2112A442
 
 
 # lobby-bots xpartamupp/elo.py and leaderboard.py.
@@ -275,8 +292,39 @@ class Lobby:
                              "wins": r["wins"], "losses": r["losses"]}
         return 404, {"error": "player not found"}
 
+    def add_punch(self, data):
+        """A joiner's STUN endpoint for the host to punch towards (0 A.D.'s
+        Jingle session-initiate with one ICE-UDP server-reflexive candidate)."""
+        if not self.player(data.get("token")):
+            return 401, {"error": "not signed in"}
+        room = next((r for r in self.rooms if r["id"] == str(data.get("id"))), None)
+        if not room:
+            return 404, {"error": "no such game"}
+        ip = str(data.get("ip") or "")[:64]
+        port = int(data.get("port") or 0)
+        if not ip or not 0 < port < 65536:
+            return 400, {"error": "bad endpoint"}
+        now = self.clock()
+        room["punch"] = [e for e in room["punch"] if now - e["time"] <= PUNCH_TIMEOUT][-(PUNCH_KEEP - 1):]
+        room["punch"].append({"seq": room["next_punch"], "ip": ip, "port": port, "time": now})
+        room["next_punch"] += 1
+        # Behind the host's own public address: NAT loopback is not a given, so
+        # the joiner uses the LAN address (0 A.D. asks for it with isLocalIP).
+        if ip == room["host_ip"] and room["local_ip"] and room["local_port"]:
+            return 200, {"local_ip": room["local_ip"], "local_port": room["local_port"]}
+        return 200, {}
+
+    def punches(self, room_id, since):
+        room = next((r for r in self.rooms if r["id"] == str(room_id)), None)
+        if not room:
+            return 404, {"error": "no such game"}
+        now = self.clock()
+        eps = [{"seq": e["seq"], "ip": e["ip"], "port": e["port"]} for e in room["punch"]
+               if e["seq"] > since and now - e["time"] <= PUNCH_TIMEOUT]
+        return 200, {"endpoints": eps, "last": room["next_punch"] - 1}
+
     def room_list(self):
-        return 200, {"rooms": [{k: v for k, v in r.items() if k != "seen"} for r in self.rooms]}
+        return 200, {"rooms": [{k: v for k, v in r.items() if k not in PRIVATE_ROOM_KEYS} for r in self.rooms]}
 
     def register(self, data, peer_ip="127.0.0.1"):
         """Registers a game, or updates the fields a host sends again (a field
@@ -306,11 +354,15 @@ class Lobby:
             "start_time": field("start_time", 0, int),
             "player_names": _player_names(data["player_names"]) if "player_names" in data
             else old.get("player_names", []),
+            "local_ip": field("local_ip", "", str)[:64],
+            "local_port": field("local_port", 0, int),
+            "punch": old.get("punch", []),
+            "next_punch": old.get("next_punch", 1),
             "seen": self.clock(),
         }
         if room["state"] not in ROOM_STATES:
             room["state"] = "init"
-        public = {k: v for k, v in room.items() if k != "seen"}
+        public = {k: v for k, v in room.items() if k not in PRIVATE_ROOM_KEYS}
         if old:
             self.rooms[self.rooms.index(old)] = room
             return 200, public
@@ -380,6 +432,13 @@ class LobbyHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     since = 0
                 code, obj = LOBBY.chat_since(since)
+            elif path == "/rooms/punch":
+                q = parse_qs(url.query)
+                try:
+                    since = int(q.get("since", ["0"])[0])
+                except ValueError:
+                    since = 0
+                code, obj = LOBBY.punches(q.get("id", [""])[0], since)
             else:
                 code, obj = 404, {"error": "not found"}
         self._json(code, obj)
@@ -400,6 +459,8 @@ class LobbyHandler(BaseHTTPRequestHandler):
             try:
                 if path == "/rooms":
                     code, obj = LOBBY.register(data, self.client_address[0])
+                elif path == "/rooms/punch":
+                    code, obj = LOBBY.add_punch(data)
                 elif path == "/rooms/unregister":
                     code, obj = LOBBY.unregister(data.get("id"))
                 elif path == "/login":
@@ -419,6 +480,45 @@ class LobbyHandler(BaseHTTPRequestHandler):
         self._json(code, obj)
 
 
+def stun_answer(packet, addr):
+    """A Binding Success for a Binding Request (RFC 5389), naming the address
+    and port it came from in XOR-MAPPED-ADDRESS; None for anything else."""
+    if len(packet) < 20:
+        return None
+    kind, length, cookie = struct.unpack("!HHI", packet[:8])
+    if kind != 0x0001 or cookie != STUN_MAGIC_COOKIE or 20 + length > len(packet):
+        return None
+    try:
+        ip = struct.unpack("!I", socket.inet_aton(addr[0]))[0]
+    except OSError:
+        return None  # not IPv4
+    attr = struct.pack("!HHBBHI", 0x0020, 8, 0, 1, addr[1] ^ (STUN_MAGIC_COOKIE >> 16), ip ^ STUN_MAGIC_COOKIE)
+    return struct.pack("!HHI", 0x0101, len(attr), STUN_MAGIC_COOKIE) + packet[8:20] + attr
+
+
+def serve_stun(bind, port):
+    """Answers STUN Binding Requests on UDP from a daemon thread; returns the
+    socket (its port is getsockname()[1])."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind((bind, port))
+
+    def loop():
+        while True:
+            try:
+                packet, addr = sock.recvfrom(2048)
+            except OSError:
+                return  # closed
+            answer = stun_answer(packet, addr)
+            if answer:
+                try:
+                    sock.sendto(answer, addr)
+                except OSError:
+                    pass
+
+    threading.Thread(target=loop, daemon=True).start()
+    return sock
+
+
 def serve(bind, port, verbose=True):
     server = ThreadingHTTPServer((bind, port), LobbyHandler)
     server.verbose = verbose
@@ -433,9 +533,13 @@ def main():
                         help="seconds without a request before a player or game is dropped")
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--ratings", help="JSON file that keeps the ratings between runs")
+    parser.add_argument("--stun-port", type=int, default=3478,
+                        help="UDP port that answers STUN Binding Requests (0 A.D. lobby.stun.port); 0 = off")
     args = parser.parse_args()
     global LOBBY
     LOBBY = Lobby(timeout=args.timeout, ratings_path=args.ratings)
+    if args.stun_port:
+        serve_stun(args.bind, args.stun_port)
     serve(args.bind, args.port, not args.quiet).serve_forever()
 
 

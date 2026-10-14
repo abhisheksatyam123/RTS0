@@ -43,6 +43,9 @@ func _run() -> void:
 	var turns := int(args.get("turns", "150"))
 	var deadline := Time.get_ticks_msec() + int(args.get("timeout", "240")) * 1000
 	var ms = root.get_node("MatchSettings")
+	if args.has("stun"):
+		# The playtest's own STUN responder (tools/lobby_server.py serve_stun).
+		RtsoUserConfig.new().set_value("lobby.stun.port", args["stun"])
 	if role == "host":
 		# Two human slots: the joiner takes the second.
 		ms.slot_types = [0, 0]
@@ -60,6 +63,7 @@ func _run() -> void:
 	lobby._name.text = args.get("name", role)
 	lobby._on_sign_pressed()
 	var session = root.get_node("LobbySession")
+	session.publish_lan = args.get("lan", "1") != "0"
 	while not session.signed_in():
 		if Time.get_ticks_msec() > deadline:
 			return _fail("could not sign in: " + lobby._status.text)
