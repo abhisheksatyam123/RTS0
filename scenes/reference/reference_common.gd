@@ -41,7 +41,19 @@ static func tech_text(template_name: String) -> Dictionary:
 	return text().get("techs", {}).get(template_name, {})
 
 static func civ_history(civ: int) -> String:
-	return text().get("civs", {}).get(civ_code(civ), {}).get("history", "")
+	# 0.28's History keeps "\n" escapes, which its GUI turns into line breaks.
+	return text().get("civs", {}).get(civ_code(civ), {}).get("history", "").replace("\\n", "\n")
+
+## EntityBox caption: the specific name when names show specific first (the default
+## gui.session.howtoshownames), else the generic one; 0.28's names over RTS0's.
+static func caption_name(generic: String, extra: Dictionary) -> String:
+	var g: String = extra.get("generic_name", "")
+	var sp: String = extra.get("specific_name", "")
+	if g == "":
+		g = generic
+	if sp != "" and (name_mode == 0 or name_mode == 2):
+		return sp
+	return g
 
 static func phase_name(phase: int) -> String:
 	return PHASES[clampi(phase, 0, 3)]
@@ -59,6 +71,25 @@ static func entity_name(generic: String, specific: String) -> String:
 		2: return specific
 		3: return generic
 	return "%s (%s)" % [specific, generic]
+
+const ICON_ROOT := "res://assets/textures/ui/archive/portraits/"
+
+## The 0.28 Identity/Icon (or technology icon) of a reference entry, else its RTS0
+## portrait: kind "unit" ({id}), "structure" ({type}, for civ) or "tech" ({template}).
+static func icon_for(kind: String, entry: Dictionary, civ: int = 0) -> Texture2D:
+	var icon := ""
+	match kind:
+		"unit": icon = unit_text(entry.get("id", "")).get("icon", "")
+		"structure": icon = structure_text(int(entry.get("type", -1)), civ).get("icon", "")
+		"tech":
+			icon = tech_text(entry.get("template", "")).get("icon", "")
+			if icon != "":
+				icon = "technologies/" + icon
+	if icon != "":
+		var t := texture(ICON_ROOT + icon)
+		if t:
+			return t
+	return texture(entry.get("portrait", ""))
 
 static func texture(path: String) -> Texture2D:
 	if path == "":
@@ -88,10 +119,41 @@ static func rich_text() -> RichTextLabel:
 	rt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return rt
 
+## 0.28 CivSelectDropdown: civs sorted by name (sortNameIgnoreCase), item ids are civ ids.
 static func civ_select(parent_handler: Callable) -> Control:
 	var sel = RtsoSafeSelect.new()
 	sel.custom_minimum_size = Vector2(240, 30)
-	for c in ref().get_civs():
+	var civs: Array = ref().get_civs()
+	civs.sort_custom(func(a, b): return str(a["name"]).nocasecmp_to(str(b["name"])) < 0)
+	for c in civs:
 		sel.add_item(c["name"], int(c["id"]))
 	sel.item_selected.connect(parent_handler)
 	return sel
+
+## CivSelectDropdown.prototype.Caption, the heading left of the dropdown.
+static func civ_heading() -> Label:
+	var l := Label.new()
+	l.text = "Civilization:"
+	return l
+
+## Cost and time under the civ's own bonuses (0.28 TemplateParser applies the civ's
+## auto-researched techs and player auras): kind "unit" or "structure", or "tech"
+## researched at the structure type `researcher` (Researcher/TechCostMultiplier).
+static func civ_costed(d: Dictionary, kind: String, civ: int, researcher: int = -1) -> Dictionary:
+	var c: Dictionary = text().get("civs", {}).get(civ_code(civ), {})
+	var f = null
+	match kind:
+		"unit": f = c.get("cost_mult", {}).get(str(d.get("id", "")))
+		"structure": f = c.get("cost_mult", {}).get("s%d" % int(d.get("type", -1)))
+		"tech": f = c.get("tech_cost_mult", {}).get(str(researcher))
+	if f == null or typeof(d.get("cost")) != TYPE_DICTIONARY:
+		return d
+	var out := d.duplicate()
+	var cost: Dictionary = d["cost"].duplicate()
+	for i in 4:
+		var r: String = ["food", "wood", "stone", "metal"][i]
+		cost[r] = roundi(float(cost.get(r, 0)) * float(f[i]))
+	out["cost"] = cost
+	if d.has("time"):
+		out["time"] = float(d["time"]) * float(f[4])
+	return out

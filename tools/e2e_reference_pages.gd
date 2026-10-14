@@ -42,36 +42,99 @@ func run() -> void:
 	var tree = tabs.get_child(1)
 	var ref: RtsoReference = Common.ref()
 	var civs: Array = ref.get_civs()
-	check(civs.size() == 14, "14 civilizations")
+	check(civs.size() == 15, "15 civilizations (with the Germans)")
 	var empty_history := []
-	for c in civs.size():
-		civinfo._on_civ_selected(c) # as the dropdown does
-		check(tree.civ == c, "%s: the structure tree follows the overview's civ" % civs[c]["name"])
+	for i in civs.size():
+		var c := int(civs[i]["id"]) # the Germans are civ 15, after Gaia
+		civinfo._on_civ_selected(civinfo._select.get_item_index(c)) # as the dropdown does
+		check(tree.civ == c, "%s: the structure tree follows the overview's civ" % civs[i]["name"])
 		var txt: String = civinfo._gameplay.text
 		var info: Dictionary = ref.get_civ_info(c)
 		check(txt.contains("Civilization Bonus") and txt.contains("Team Bonus") and txt.contains("Hero"),
-			"%s: bonuses, team bonuses and heroes" % civs[c]["name"])
-		check(info["heroes"].size() >= 1, "%s: has heroes (%d)" % [civs[c]["name"], info["heroes"].size()])
+			"%s: bonuses, team bonuses and heroes" % civs[i]["name"])
+		check(info["heroes"].size() >= 1, "%s: has heroes (%d)" % [civs[i]["name"], info["heroes"].size()])
 		if Common.civ_history(c) == "":
-			empty_history.append(civs[c]["code"])
+			empty_history.append(civs[i]["code"])
 		var st: Array = ref.get_structure_tree(c)
 		var boxes := 0
 		for row in tree._rows.get_children():
 			if row is HFlowContainer:
 				boxes += row.get_child_count()
-		check(boxes == st.size() and boxes >= 20, "%s: a box for each of its %d structures" % [civs[c]["name"], st.size()])
+		var pieces := st.filter(func(b): return int(b["type"]) in tree.WALLSET_PIECES).size()
+		check(boxes == st.size() - pieces and boxes >= 20, "%s: a box for each of its %d structures, wallset pieces on their wallset" % [civs[i]["name"], st.size() - pieces])
 		var trains := 0
 		for b in st:
 			trains += b["units"].size()
-		check(trains > 10, "%s: structures train %d units" % [civs[c]["name"], trains])
+		check(trains > 10, "%s: structures train %d units" % [civs[i]["name"], trains])
 	check(empty_history.is_empty(), "every civ has its 0 A.D. history " + str(empty_history))
+	# ProductionRowManager: the wallset box draws its tower in the first row.
+	civinfo._on_civ_selected(civinfo._select.get_item_index(0))
+	var wall_tower := false
+	for row in tree._rows.get_children():
+		if row is HFlowContainer:
+			for box in row.get_children():
+				for n in box.find_children("*", "", true, false):
+					if n is Button and n.get("tip_kind") == "structure" and n.get("tip_id") == 22:
+						wall_tower = true
+	check(wall_tower, "the stone wall box shows the wall tower")
+	# TemplateParser under the civ's modifiers: Athenian Democracy prices Civic Centre
+	# techs x0.7 (time x0.5); Spartan heroes are free (Peloponnesian League).
+	var cc_tip: Button = null
+	for n in tree._rows.find_children("*", "Button", true, false):
+		if n.get("tip_kind") == "tech" and n.get("tip_researcher") == 0:
+			var raw: Dictionary = ref.get_tech(n.tip_id, 0)
+			if int(raw["cost"].get("food", 0)) > 0:
+				cc_tip = n
+				break
+	if cc_tip:
+		var raw: Dictionary = ref.get_tech(cc_tip.tip_id, 0)
+		check(cc_tip._tooltip_text().contains("Food %d" % roundi(int(raw["cost"]["food"]) * 0.7)),
+			"an Athenian Civic Center tech costs 30% less")
+	else:
+		check(false, "an Athenian Civic Center tech costs 30% less")
+	var spart := 1
+	var spart_hero: Dictionary = ref.get_civ_info(spart)["heroes"][0]
+	var hc: Dictionary = Common.civ_costed(ref.get_unit(int(spart_hero["tmpl"])), "unit", spart)["cost"]
+	check(int(hc["food"]) + int(hc["wood"]) + int(hc["metal"]) == 0, "Spartan heroes are free")
+	# 0.28 civinfo: civ bonuses from auto-researched civ techs and player auras besides
+	# {civ}.json, team bonuses from the player auras, (i) info hovers, and only the
+	# techs and structures 0.28 counts as civ specific.
+	check(Common.civ_code(civinfo._select.get_item_id(0)) == "athen" and Common.civ_code(civinfo._select.get_item_id(1)) == "brit", "civs sorted by name")
+	civinfo._on_civ_selected(civinfo._select.get_item_index(0))
+	var athen: String = civinfo._gameplay.text
+	check(athen.contains("Delian League") and athen.contains("Silver Owls") and athen.contains("Democracy"),
+		"Athenian bonuses: Delian League (tech), Silver Owls (civ json), Democracy (team)")
+	check(athen.contains("[hint=") and athen.contains("Ships −25% construction time."), "entries carry an info hover and the tooltip text")
+	var own: Array = Common.text()["civs"]["athen"]["specific_structures"]
+	check(athen.contains("Specific Structures"), "Athenians have specific structures")
+	check(athen.contains("Long Walls") and not athen.contains("Wicker Baskets"), "specific technologies only")
+	check(athen.contains("Gymnasium") and athen.count("[url=structure:") == own.size(), "specific structures only (%d)" % own.size())
+	# 0.28 structree: the civ header, a production row per phase under each box, the
+	# Trainer Units section and EntityBox tooltips.
+	civinfo._on_civ_selected(civinfo._select.get_item_index(0)) # Athenians: their warships train marines
+	check(tree._civ_name.text == civs[0]["name"] and tree._history.text != "", "the tree shows the civ's name and history")
+	check(tree._trainer_section.visible and tree._trainers.get_child_count() >= 2, "Athenian warships are Trainer Units")
+	var village_box: Control = null
+	for row in tree._rows.get_children():
+		if row is HFlowContainer and village_box == null and row.get_child_count() > 0:
+			village_box = row.get_child(0)
+	var bars := 0
+	for c in village_box.get_child(0).get_children():
+		if c is PanelContainer:
+			bars += 1
+	check(bars == 3, "a village structure has a production row for each phase (%d)" % bars)
+	var tip_btn = village_box.get_child(0).get_child(1)
+	var tip: String = tip_btn._tooltip_text()
+	check(tip.contains("Cost:") and tip.contains("Health:"), "a structure's tooltip has its cost and stats")
+	civinfo._on_civ_selected(civinfo._select.get_item_index(1)) # Spartans: no trainer units
+	check(not tree._trainer_section.visible, "the Trainer Units section hides when a civ has none")
 
 	print("2. Template Viewer")
 	var bad := []
 	var no_tooltip := 0
 	var units := 0
-	for c in civs.size():
-		for b in ref.get_structure_tree(c):
+	for civ in civs:
+		for b in ref.get_structure_tree(int(civ["id"])):
 			for u in b["units"]:
 				units += 1
 				var d: Dictionary = ref.get_unit(int(u["tmpl"]))
@@ -81,28 +144,41 @@ func run() -> void:
 					no_tooltip += 1
 	check(units > 300 and bad.is_empty(), "%d trainable units have stats %s" % [units, str(bad)])
 	print("  units without a 0 A.D. tooltip: ", no_tooltip)
-	var v = Viewer.open(page, "unit", int(ref.get_civ_info(0)["heroes"][0]["tmpl"]), 0)
+	# The first Athenian hero that fights (Hippocrates heals and has no attack, as in 0.28).
+	var hero := -1
+	for h in ref.get_civ_info(0)["heroes"]:
+		if hero < 0 and ref.get_unit(int(h["tmpl"])).has("attack"):
+			hero = int(h["tmpl"])
+	var v = Viewer.open(page, "unit", hero, 0)
 	await frames(2)
 	check(v._stats.text.contains("Health") and v._stats.text.contains("Attack") and v._stats.text.contains("Resistance"),
 		"a hero shows health, attack and resistance")
 	check(v._info.text.contains("Auras"), "a hero shows its auras")
-	check(v._info.text.contains("Trained at"), "a hero shows where it is trained")
+	check(v._info.text.contains("Trained by"), "a hero shows where it is trained")
 	# Follow a link, then go back.
 	var tc_name: String = ref.get_structure(0, 0)["name"]
 	v.show_template("unit", int(ref.get_structure_tree(0)[0]["units"][0]["tmpl"]), 0)
 	check(v._info.text.contains("[url=structure:"), "a unit links to the structures that train it")
-	check(v._info.text.contains("Builds:") or v._info.text.contains("Trained at"), "a citizen lists what it builds")
+	check(v._info.text.contains("Builds:") or v._info.text.contains("Trained by"), "a citizen lists what it builds")
 	v._on_meta("structure:0")
 	check(v.kind == "structure" and v._name.text.contains(tc_name) or v._name.text.contains("Civic"), "the link opens the civic centre")
 	check(v._info.text.contains("Trains:") and v._info.text.contains("Built by:"), "a civic centre lists what it trains and who builds it")
 	v._go_back()
 	check(v.kind == "unit", "Back returns to the unit")
+	# 0.28 tooltips.js lines: a citizen's speed and gather rates, a tower's arrows.
+	check(v._stats.text.contains("Walk,") and v._stats.text.contains("Gather Rates:"), "a citizen shows its speed and gather rates")
+	v.show_template("structure", 4, 0)
+	check(v._stats.text.contains("Bow[/b]:") and v._stats.text.contains("Projectile Limit") and v._stats.text.contains("Range:[/b] 10 to 60 (+"),
+		"a defense tower shows its bow, arrows and parabolic range")
+	v.show_template("structure", 0, 0)
+	check(v._stats.text.contains("Dropsite for:") and v._stats.text.contains("Rate:[/b] 6 arrows"), "a civic centre is a dropsite with an arrow rate")
 	var bad_bld := []
-	for c in civs.size():
+	for civ in civs:
+		var c := int(civ["id"])
 		for b in ref.get_structure_tree(c):
 			v.show_template("structure", int(b["type"]), c)
 			if not v._stats.text.contains("Health") or v._name.text == "":
-				bad_bld.append("%s/%s" % [civs[c]["code"], b["name"]])
+				bad_bld.append("%s/%s" % [civ["code"], b["name"]])
 	check(bad_bld.is_empty(), "every civ's structures show their stats " + str(bad_bld))
 	var techs := 0
 	var bad_tech := []

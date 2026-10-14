@@ -63,6 +63,9 @@ const SCHEMA := [
 		["dropdown", "gui.gamesetup.assignplayers", "Assign players", "Automatically assign joining clients to free player slots during the match setup.",
 			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
 	]],
+	["Networking / Lobby", [
+		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
+	]],
 	["Game Session", [
 		["slider", "gui.session.woundedunithotkeythreshold", "Wounded unit health", "The wounded unit hotkey considers the selected units as wounded if their health percentage falls below this number.", [0, 100]],
 		["number", "gui.session.batchtrainingsize", "Batch training size", "Number of units trained per batch by default.", [1, 20]],

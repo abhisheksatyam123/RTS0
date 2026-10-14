@@ -205,12 +205,12 @@ UNIQUE_BUILDINGS = [
     ("BLD_ICE_HOUSE", ["ice_house"], "ice_house", "ice_house"),
     ("BLD_SUPER_DOCK", ["super_dock"], "super_dock", "super_dock"),
     # Reached only by an Upgrade (UPGRADE_ONLY): the Tachara's four tribute forms and
-    # the Carthaginian apartment (drawn with the house until it has its own model).
+    # the Carthaginian apartment.
     ("BLD_TACHARA_FOOD", ["tachara_food"], "tachara", "tachara"),
     ("BLD_TACHARA_WOOD", ["tachara_wood"], "tachara", "tachara"),
     ("BLD_TACHARA_STONE", ["tachara_stone"], "tachara", "tachara"),
     ("BLD_TACHARA_METAL", ["tachara_metal"], "tachara", "tachara"),
-    ("BLD_APARTMENT", ["apartment"], "house", "house"),
+    ("BLD_APARTMENT", ["apartment"], "apartment", "house"),
     # The Han Imperial Court (a Civic Center upgrade) and Great Archery Tower (a defense
     # tower upgrade): RTS0 treats them as their base type wherever the role matters
     # (is_civic_centre, is_defense_tower).
@@ -220,9 +220,9 @@ UNIQUE_BUILDINGS = [
     # palisade until it has its own model). Generic: every civ that lays palisades has it.
     ("BLD_PALISADE_GATE", ["palisades_gate"], "palisade", "palisade"),
     # Carthage's Iberian and Italic embassies (BLD_EMBASSY is the Celtic one), each training
-    # its own mercenaries; drawn with the embassy until they have their own models.
-    ("BLD_EMBASSY_IBERIAN", ["embassy_iberian"], "embassy", "embassy"),
-    ("BLD_EMBASSY_ITALIC", ["embassy_italic"], "embassy", "embassy"),
+    # its own mercenaries.
+    ("BLD_EMBASSY_IBERIAN", ["embassy_iberian"], "embassy_iberian", "embassy"),
+    ("BLD_EMBASSY_ITALIC", ["embassy_italic"], "embassy_italic", "embassy"),
     # The Roman siege wall (rome/wallset_siege): its segments and towers are one type, read from
     # siege_wall_long (sim_types.h wallset_info has each piece's values); drawn with the stone
     # wall until it has its own model.
@@ -233,6 +233,10 @@ UNIQUE_BUILDINGS = [
     ("BLD_CRANNOG", ["crannog"], "crannog", "crannog"),
     # The Germans' Great Hall (Town phase): their champions and the ram train there.
     ("BLD_GREAT_HALL", ["great_hall"], "great_hall", "great_hall"),
+    # The Germans' Wagon Encampment and its fortified Upgrade (a Colony that claims no territory),
+    # drawn with the Roman army camp until they have their own models.
+    ("BLD_WAGON_ENCAMPMENT", ["encampment"], "army_camp", "army_camp"),
+    ("BLD_WAGON_ENCAMPMENT_FORTIFIED", ["encampment_fortified"], "army_camp", "army_camp"),
 ]
 # Unique WallSet pieces whose phase is their WallSet's (wallset_siege needs phase_city).
 WALLSET_PHASE = {"BLD_SIEGE_WALL": "wallset_siege", "BLD_SIEGE_WALL_GATE": "wallset_siege"}
@@ -243,7 +247,8 @@ ONE_CELL = {"BLD_SIEGE_WALL", "BLD_SIEGE_WALL_GATE"}
 SPECIFIC_NAME = {"BLD_EMBASSY_IBERIAN", "BLD_EMBASSY_ITALIC"}
 # Structures no Builder list names: only an Upgrade reaches them.
 UPGRADE_ONLY = {"BLD_TACHARA_FOOD", "BLD_TACHARA_WOOD", "BLD_TACHARA_STONE", "BLD_TACHARA_METAL", "BLD_APARTMENT",
-                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE"}
+                "BLD_IMPERIAL_COURT", "BLD_TOWER_GREAT", "BLD_PALISADE_GATE", "BLD_SIEGE_WALL_GATE",
+                "BLD_WAGON_ENCAMPMENT_FORTIFIED"}
 # Generic structures (structures/<stem>.xml) in UNIQUE_BUILDINGS -> the generic BuildingType
 # whose civs have them too.
 GENERIC_UNIQUE = {"BLD_PALISADE_GATE": "BLD_PALISADE"}
@@ -476,12 +481,13 @@ def primary_attack(t):
 def raw_stats(t):
     """0 A.D. numbers in RTS0_FIELDS order (where they exist)."""
     atk, ranged = primary_attack(t)
-    hack = pierce = crush = 0.0
+    hack = pierce = crush = fire = 0.0
     rng = rep = 0.0
     if atk is not None:
         hack = atk.num("Damage/Hack")
         pierce = atk.num("Damage/Pierce")
         crush = atk.num("Damage/Crush")
+        fire = atk.num("Damage/Fire")  # fire ships (civ_attack_data.h keeps it apart)
         rng = atk.num("MaxRange")
         rep = atk.num("RepeatTime") / 1000.0
     carry = 0.0
@@ -493,7 +499,7 @@ def raw_stats(t):
         "speed": t.num("UnitMotion/WalkSpeed"),
         "vision": t.num("Vision/Range"),
         "range": rng,
-        "damage": hack + pierce + crush,
+        "damage": hack + pierce + crush + fire,
         "cooldown": rep,
         "carry": carry,
         "hack_armor": t.num("Resistance/Entity/Damage/Hack"),
@@ -508,6 +514,7 @@ def raw_stats(t):
         "hack_dmg": hack,
         "pierce_dmg": pierce,
         "crush_dmg": crush,
+        "fire_dmg": fire,
         "ranged": ranged,
     }
 
@@ -567,6 +574,8 @@ def rts0_class(name, t, civ):
         return "UNIT_MINISTER"  # units/han/support_minister
     if "Relic" in c:
         return "UNIT_CATAFALQUE"  # template_unit_catafalque (Capture the Relic)
+    if "Wagon" in c:
+        return "UNIT_WAGON"  # template_unit_support_wagon (Germans)
     if "Hero" in c:
         return "UNIT_HERO"
     if "FemaleCitizen" in c or ("Civilian" in c and stem.startswith("support_civilian")):
@@ -644,14 +653,31 @@ _TECH_CLASSES = None
 TECH_CLASS_ALIASES = {"Support": "Civilian"}
 
 
+def _tech_class_table(path):
+    """TC_ name (without TC_) -> bit, from tech_data.h's TechClass enum and its
+    TechClasses constants from bit 64 up."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    table = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\tTC_([A-Z0-9]+) = 1ull << (\d+),", text, re.M)}
+    table.update({m.group(1): int(m.group(2)) for m in re.finditer(
+        r"^inline constexpr TechClasses TC_([A-Z0-9]+) = tc_bit\((\d+)\);", text, re.M)})
+    return table
+
+
+def tech_classes_literal(bits):
+    """A TechClasses initializer for a class mask: a plain 64-bit literal while
+    only bits 0..63 are set."""
+    if bits >> 64:
+        return "TechClasses{0x%xull, 0x%xull}" % (bits & ((1 << 64) - 1), bits >> 64)
+    return "0x%xull" % bits
+
+
 def tech_class_bits(classes):
     """0 A.D. classes as a sim_types.h TechClass mask (bits from tech_data.h)."""
     global _TECH_CLASSES
     if _TECH_CLASSES is None:
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "simulation", "tech_data.h")
-        with open(path, encoding="utf-8") as f:
-            _TECH_CLASSES = {m.group(1): int(m.group(2))
-                             for m in re.finditer(r"^\tTC_([A-Z0-9]+) = 1ull << (\d+),", f.read(), re.M)}
+        _TECH_CLASSES = _tech_class_table(path)
     bits = 0
     for c in list(classes) + [TECH_CLASS_ALIASES[c] for c in classes if c in TECH_CLASS_ALIASES]:
         if c.upper() in _TECH_CLASSES:
@@ -804,7 +830,7 @@ def apply_unit_bonuses(raw, classes, civ, bonuses):
             hit = True
         if hit:
             applied.append(b["id"])
-    raw["damage"] = raw["hack_dmg"] + raw["pierce_dmg"] + raw["crush_dmg"]
+    raw["damage"] = raw["hack_dmg"] + raw["pierce_dmg"] + raw["crush_dmg"] + raw["fire_dmg"]
     return applied
 
 
@@ -1200,7 +1226,7 @@ def collect(sim_root):
             raw = raw_stats(t)
             if name.endswith("_packed") and loader.exists(name[:-len("_packed")] + "_unpacked"):
                 unpacked = raw_stats(loader.load(name[:-len("_packed")] + "_unpacked"))
-                for k in ("range", "damage", "cooldown", "hack_dmg", "pierce_dmg", "crush_dmg", "ranged"):
+                for k in ("range", "damage", "cooldown", "hack_dmg", "pierce_dmg", "crush_dmg", "fire_dmg", "ranged"):
                     raw[k] = unpacked[k]
             c = classes_of(t)
             civ_bonus_ids = apply_unit_bonuses(raw, c, civ, bonuses)
@@ -1283,6 +1309,8 @@ def collect(sim_root):
                 "classes": sorted(c),
                 "stats": stats,
                 "upgrades": unit_upgrades(loader, name, civ),
+                # Population/Bonus (the Germans' wagon house); only rows that have one carry it.
+                **({"pop_bonus": int(t.num("Population/Bonus"))} if t.num("Population/Bonus") else {}),
             })
         # RTS0-only classes every civ (or a named civ) keeps.
         for cls in RTS0_ONLY:
@@ -1438,6 +1466,19 @@ def emit_header(rows, auras, civ_json, bonuses, team):
     w("\treturn kUpgrades;")
     w("}")
     w("")
+    w("// 0 A.D. Population/Bonus on units (Population.js: added to the owner's population")
+    w("// bonuses while the unit exists): row, bonus.")
+    bonus_rows = [(i, r["pop_bonus"]) for i, r in enumerate(rows) if r.get("pop_bonus")]
+    w("inline constexpr uint16_t CIV_UNIT_POP_BONUS_COUNT = %d;" % len(bonus_rows))
+    w("inline const CivUnitPopBonus *civ_unit_pop_bonus_table() {")
+    w("\tstatic const CivUnitPopBonus kBonuses[CIV_UNIT_POP_BONUS_COUNT + 1] = {")
+    for i, b in bonus_rows:
+        w("\t\t{%d, %d}, // %s" % (i, b, rows[i]["id"]))
+    w("\t\t{0xFFFF, 0},")
+    w("\t};")
+    w("\treturn kBonuses;")
+    w("}")
+    w("")
     w("inline const CivUnitTemplate *civ_unit_template_table() {")
     w("\tstatic const CivUnitTemplate kTable[CIV_UNIT_TEMPLATE_COUNT] = {")
     w("\t\t// id, name, specific name, civ, class, phase, flags, trainers,")
@@ -1452,12 +1493,12 @@ def emit_header(rows, auras, civ_json, bonuses, team):
         w("\t\t{%s, %s, %s, %s, %s, %d, %s, %s," % (
             cstr(r["id"]), cstr(r["name"]), cstr(r["specific_name"]),
             CIV_ENUM_OF[r["civ"]], r["class"], r["phase"], flags, trainers))
-        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, 0x%xull, %s}," % (
+        w("\t\t %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %d, %d, %s, %d, %d, %d, %d, %s, %s, %s}," % (
             f(s["hp"]), f(s["speed"]), f(s["range"]), f(s["damage"]), f(s["cooldown"]),
             f(s["hack_dmg"]), f(s["pierce_dmg"]), f(s["crush_dmg"]),
             f(s["hack_armor"]), f(s["pierce_armor"]), f(s["crush_armor"]),
             s["food"], s["wood"], s["gold"], s["stone"], s["pop"], f(s["train_time"]),
-            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_class_bits(r["classes"]),
+            s["carry"], a[0], a[1], a[2], r.get("unlock_tech", "TECH_NONE"), tech_classes_literal(tech_class_bits(r["classes"])),
             f(s["vision"])))
     w("\t};")
     w("\treturn kTable;")

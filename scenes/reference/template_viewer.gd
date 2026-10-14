@@ -17,6 +17,8 @@ var civ := 0
 var _history: Array = []
 
 var _icon: TextureRect
+var _rank: TextureRect
+const RANK_ICONS := "res://assets/textures/ui/archive/icons/ranks/%s.png"
 var _name: RichTextLabel
 var _stats: RichTextLabel
 var _info: RichTextLabel
@@ -55,6 +57,14 @@ func _init() -> void:
 	_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	top.add_child(_icon)
+	_rank = TextureRect.new()
+	_rank.custom_minimum_size = Vector2(24, 24)
+	_rank.size = Vector2(24, 24)
+	_rank.position = Vector2(72, 0)
+	_rank.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_rank.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_rank.visible = false
+	_icon.add_child(_rank)
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(right)
@@ -124,6 +134,8 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 		"unit": d = Common.ref().get_unit(id)
 		"structure": d = Common.ref().get_structure(id, civ)
 		"tech": d = Common.ref().get_tech(id, civ)
+	if kind != "tech":
+		d = Common.civ_costed(d, kind, civ)
 	_back.visible = not _history.is_empty()
 	if d.is_empty():
 		_name.text = "[b]Unknown template[/b]"
@@ -133,14 +145,18 @@ func show_template(p_kind: String, p_id: int, p_civ: int, reset_history: bool = 
 	if kind == "unit":
 		civ = int(d["civ"])
 	var extra := _text_for(d)
-	_icon.texture = Common.texture(d.get("portrait", ""))
+	_icon.texture = Common.icon_for(kind, d, civ)
 	var specific: String = extra.get("specific_name", d.get("specific_name", ""))
 	var generic: String = d["name"]
 	var title := "[font_size=22][b]%s[/b][/font_size]" % (specific if specific != "" and specific != generic else generic)
 	if specific != "" and specific != generic:
 		title += "\n[color=%s]%s[/color]" % [Common.DIM, generic]
 	_name.text = title
-	_stats.text = stats_text(d)
+	var vw: Dictionary = extra.get("viewer", {})
+	_stats.text = stats_text(d, vw)
+	# ViewerPage entityRankGlyph: session/icons/ranks/<Identity/Rank>.png on the portrait.
+	_rank.texture = Common.texture(RANK_ICONS % vw["rank"]) if vw.has("rank") else null
+	_rank.visible = _rank.texture != null
 	_info.text = info_text(d, extra)
 
 func _text_for(d: Dictionary) -> Dictionary:
@@ -166,63 +182,261 @@ static func cost_line(d: Dictionary) -> String:
 		parts.append("Population %d" % int(d["pop"]))
 	return "  ".join(parts)
 
-## gui/common/tooltips.js stat lines, in ReferencePage.StatsFunctions order.
-static func stats_text(d: Dictionary) -> String:
+const RES := ["food", "wood", "stone", "metal"]
+const DAMAGE_ORDER := ["Hack", "Pierce", "Crush", "Poison", "Fire"]
+const INDENT := "    "
+
+static func _h(t: String) -> String:
+	return "[b]%s[/b]" % t
+
+## resourceIcon(): the resource's icon, then the subtype's name for "food.fruit".
+static func _res_icon(code: String) -> String:
+	var parts := code.replace("_", ".").split(".")
+	var t := "[img=16x16]res://assets/textures/ui/icons/%s.png[/img]" % parts[0] if parts[0] in RES else parts[0].capitalize()
+	if parts.size() > 1:
+		t += " " + parts[1].capitalize()
+	return t
+
+## getSecondsString: "1 second", "1.5 seconds".
+static func _seconds(v) -> String:
+	var f := float(v)
+	return "%s %s" % [_trim(f), "second" if is_equal_approx(f, 1.0) else "seconds"]
+
+static func _trim(f: float) -> String:
+	return str(int(f)) if is_equal_approx(f, round(f)) else str(snappedf(f, 0.01))
+
+static func _damage(dmg: Dictionary) -> String:
+	var keys: Array = dmg.keys()
+	keys.sort_custom(func(x, y): return DAMAGE_ORDER.find(x) < DAMAGE_ORDER.find(y))
+	var out: PackedStringArray = []
+	for k in keys:
+		if float(dmg[k]) != 0.0:
+			out.append("%.1f %s" % [float(dmg[k]), k])
+	return ", ".join(out)
+
+## attackEffectsDetails: capture, damage, then the status effects it gives.
+static func _effects(a: Dictionary) -> String:
+	var out: PackedStringArray = []
+	if a.has("capture"):
+		out.append("%.1f Capture" % float(a["capture"]))
+	if a.has("damage"):
+		var dm := _damage(a["damage"])
+		if dm != "":
+			out.append(dm)
+	if a.has("status") and not a["status"].is_empty():
+		var names: PackedStringArray = []
+		for code in a["status"]:
+			names.append(a["status"][code]["name"])
+		out.append("gives " + ", ".join(names))
+	return ", ".join(out)
+
+## rangeDetails, with the parabolic range from Origin/Y as "(+N)".
+static func _range(a: Dictionary) -> String:
+	var mx := float(a.get("max_range", 0))
+	if mx <= 0.0:
+		return ""
+	var mn := int(round(float(a.get("min_range", 0))))
+	var mxr := int(round(mx))
+	var y := float(a.get("y_origin", 0))
+	var rel := int(round(sqrt(mx * (2.0 * y + mx)) - mx)) if y > 0.0 else 0
+	var t := "%s %s" % [_h("Range:"), ("%d to %d" % [mn, mxr]) if mn else str(mxr)]
+	if rel:
+		t += " (%s%d)" % ["+" if rel > 0 else "", rel]
+	return t + (" meters" if mn or rel or mxr != 1 else " meter")
+
+## attackRateDetails: "Interval: 1.5 seconds", "Rate: 3 arrows / 2 seconds" or
+## "Garrison to fire arrows" for a structure with no default arrows.
+static func _rate(interval: float, arrows) -> String:
+	if interval <= 0.0:
+		return ""
+	if arrows != null and int(arrows) == 0:
+		return "Garrison to fire arrows"
+	if arrows != null and int(arrows) > 1:
+		return "%s %d %s / %s" % [_h("Rate:"), int(arrows), "arrows", _seconds(interval)]
+	return "%s %s" % [_h("Interval:"), _seconds(interval)]
+
+## The template's attacks, with the numbers RTS0 plays (civ bonuses included, as the
+## 0.28 reference applies the civ's modifiers) laid over the template's.
+static func _attacks(d: Dictionary, vw: Dictionary) -> Array:
+	var list: Array = []
+	for a in vw.get("attacks", []):
+		list.append(a.duplicate(true))
+	var sim: Dictionary = d.get("attack", {})
+	if not sim.is_empty():
+		var hit := false
+		for a in list:
+			if a["type"] == sim["type"]:
+				hit = true
+				var dmg: Dictionary = a.get("damage", {})
+				dmg["Hack"] = sim["hack"]
+				dmg["Pierce"] = sim["pierce"]
+				dmg["Crush"] = sim["crush"]
+				a["damage"] = dmg
+				a["repeat_time"] = sim["interval"]
+				a["max_range"] = sim["range"]
+		if not hit:
+			list.append({"type": sim["type"], "name": sim["type"], "max_range": sim["range"], "repeat_time": sim["interval"],
+				"damage": {"Hack": sim["hack"], "Pierce": sim["pierce"], "Crush": sim["crush"]}})
+	if d.has("capture"):
+		for a in list:
+			if a["type"] == "Capture":
+				a["capture"] = d["capture"]
+	return list
+
+## getAttackTooltip.
+static func attack_text(d: Dictionary, vw: Dictionary) -> String:
+	var rows: PackedStringArray = []
+	var sim: Dictionary = d.get("attack", {})
+	for a in _attacks(d, vw):
+		var arrows = null
+		if d.get("kind", "") == "structure" and sim.has("arrows"):
+			arrows = int(sim["arrows"])
+		var parts: PackedStringArray = []
+		for p in [_effects(a), _range(a), _rate(float(a.get("repeat_time", 0)), arrows)]:
+			if p != "":
+				parts.append(p)
+		var line := "%s: %s" % [_h(a["name"]), ", ".join(parts)]
+		for code in a.get("status", {}):
+			var st: Dictionary = a["status"][code]
+			var sp: PackedStringArray = []
+			if st.has("damage"):
+				sp.append(_damage(st["damage"]))
+			if st.has("interval"):
+				sp.append("%s %s" % [_h("Interval:"), _seconds(st["interval"])])
+			if st.has("duration"):
+				sp.append("%s: %s" % [_h("Duration"), _seconds(st["duration"])])
+			if st.get("tooltip", "") != "":
+				sp.append(st["tooltip"])
+			var stack: String = {"Extend": " (extends)", "Replace": " (replaces)", "Stack": " (stacks)"}.get(st.get("stackability", ""), "")
+			line += "\n%s%s%s: %s%s" % [INDENT, INDENT, _h(st["name"]), ", ".join(sp), stack]
+		if a.has("splash"):
+			var spl: Dictionary = a["splash"]
+			line += "\n%s%s%s: %s" % [INDENT, INDENT, _h("%s Splash" % spl.get("shape", "")), _effects(spl)]
+			if bool(spl.get("friendly_fire", false)):
+				line += ", Friendly Fire: Yes"
+		rows.append(line)
+	if rows.is_empty():
+		return ""
+	return _h("Attack:") + "\n" + INDENT + ("\n" + INDENT).join(rows)
+
+static func _pct(level: float) -> String:
+	return "%d%%" % (100 - int(round(pow(0.9, level) * 100.0)))
+
+## getResistanceTooltip: damage, capture and status effects.
+static func resistance_text(d: Dictionary, vw: Dictionary) -> String:
+	var rows: PackedStringArray = []
+	if d.has("armour"):
+		var r: Dictionary = d["armour"]
+		var parts: PackedStringArray = []
+		for t in ["hack", "pierce", "crush"]:
+			parts.append("%.1f %s [font_size=11](%s)[/font_size]" % [float(r[t]), t.capitalize(), _pct(float(r[t]))])
+		rows.append("%s %s" % [_h("Damage:"), ", ".join(parts)])
+	if vw.has("capture_resistance"):
+		var c := float(vw["capture_resistance"])
+		rows.append("%s %.1f Capture [font_size=11](%s)[/font_size]" % [_h("Capture:"), c, _pct(c)])
+	if vw.has("status_resistance"):
+		var parts2: PackedStringArray = []
+		for code in vw["status_resistance"]:
+			var e: Dictionary = vw["status_resistance"][code]
+			var block := float(e["block"])
+			var dur := float(e["duration"])
+			if block >= 1.0:
+				parts2.append("Blocks " + code)
+			elif block <= 0.0:
+				parts2.append("%s Duration reduction: %d%%" % [code, int(round(100.0 - dur * 100.0))])
+			elif dur >= 1.0:
+				parts2.append("%s Blocks: %d%%" % [code, int(round(block * 100.0))])
+			else:
+				parts2.append("%s Blocks: %d%%, Duration reduction: %d%%" % [code, int(round(block * 100.0)), int(round(100.0 - dur * 100.0))])
+		rows.append("%s %s" % [_h("Status Effects:"), ", ".join(parts2)])
+	if rows.is_empty():
+		return ""
+	return _h("Resistance:") + "\n" + INDENT + ("\n" + INDENT).join(rows)
+
+## gui/common/tooltips.js lines in ViewerPage.StatsFunctions order: cost, then
+## ReferencePage.StatsFunctions (dropsite, health, attack, healer, resistance,
+## garrison, turrets, projectiles, speed, gather, supply, treasure, population
+## bonus, trickle, upkeep, loot).
+static func stats_text(d: Dictionary, vw: Dictionary = {}) -> String:
 	var lines: PackedStringArray = []
 	var cost := cost_line(d)
 	if cost != "":
-		lines.append("[b]Cost:[/b] " + cost)
-	lines.append("[b]Phase:[/b] " + Common.phase_name(int(d.get("phase", 1))))
+		lines.append(_h("Cost:") + " " + cost)
+	if vw.has("dropsite"):
+		var icons: PackedStringArray = []
+		for r in vw["dropsite"]:
+			icons.append(_res_icon(r))
+		lines.append(_h("Dropsite for:") + " " + "  ".join(icons))
 	if d.has("hp"):
-		lines.append("[b]Health:[/b] " + _num(d["hp"]))
-	if d.has("attack"):
-		var a: Dictionary = d["attack"]
-		var dmg: PackedStringArray = []
-		for t in ["hack", "pierce", "crush"]:
-			if float(a[t]) > 0:
-				dmg.append("%s %s" % [_num(a[t]), t.capitalize()])
-		var line := "[b]%s Attack:[/b] %s, interval %s s, range %s m" % [a["type"], ", ".join(dmg), _num(a["interval"]), _num(a["range"])]
-		if float(a.get("spread", 0)) > 0:
-			line += ", spread %s" % _num(a["spread"])
-		lines.append(line)
-		for b in a.get("bonuses", []):
-			lines.append("    Bonus: %s× vs %s" % [_num(b["multiplier"]), b["classes"]])
-		if String(a.get("restricted", "")) != "":
-			lines.append("    Cannot attack: " + a["restricted"])
-	if d.has("capture"):
-		lines.append("[b]Capture Attack:[/b] %s points per second" % _num(d["capture"]))
-	if d.has("heal"):
-		var h: Dictionary = d["heal"]
-		lines.append("[b]Heal:[/b] %s HP every %s s, range %s m" % [_num(h["hp"]), _num(h["interval"]), _num(h["range"])])
-	if d.has("armour"):
-		var r: Dictionary = d["armour"]
-		lines.append("[b]Resistance:[/b] Hack %s (%d%%), Pierce %s (%d%%), Crush %s (%d%%)" % [
-			_num(r["hack"]), int(round(r["hack_pct"])), _num(r["pierce"]), int(round(r["pierce_pct"])),
-			_num(r["crush"]), int(round(r["crush_pct"]))])
-	if int(d.get("garrison", 0)) > 0:
-		var g := "[b]Garrison Limit:[/b] %d" % int(d["garrison"])
-		if float(d.get("garrison_heal", 0)) > 0:
-			g += ", heals %s HP/s" % _num(d["garrison_heal"])
-		lines.append(g)
-	if d.has("walk_speed"):
-		lines.append("[b]Walk Speed:[/b] %s m/s" % _num(d["walk_speed"]))
-	if d.has("vision"):
-		lines.append("[b]Vision:[/b] %s m" % _num(d["vision"]))
-	if int(d.get("carry", 0)) > 0:
-		lines.append("[b]Carry Capacity:[/b] %d" % int(d["carry"]))
+		lines.append(_h("Health:") + " " + str(int(round(float(d["hp"])))))
+	var atk := attack_text(d, vw)
+	if atk != "":
+		lines.append(atk)
+	var heal: Dictionary = vw.get("heal", {})
+	if heal.is_empty() and d.has("heal"):
+		heal = {"health": d["heal"]["hp"], "range": d["heal"]["range"], "interval": d["heal"]["interval"]}
+	if not heal.is_empty():
+		lines.append("%s %s Health, %s %d meters, %s %s" % [_h("Heal:"), _trim(float(heal["health"])),
+			_h("Range:"), int(round(float(heal["range"]))), _h("Interval:"), _seconds(heal["interval"])])
+	var res := resistance_text(d, vw)
+	if res != "":
+		lines.append(res)
+	var capacity := int(d.get("garrison", vw.get("garrison", {}).get("capacity", 0)))
+	var buff := float(d.get("garrison_heal", vw.get("garrison", {}).get("buff_heal", 0)))
+	if d.has("garrison") or vw.has("garrison"):
+		lines.append("%s: %d" % [_h("Garrison Limit"), capacity])
+		if buff > 0.0:
+			lines.append("%s %d Health / second" % [_h("Heal:"), int(round(buff))])
+	if float(vw.get("garrison_size", 1)) > 1.0:
+		lines.append("%s: %s" % [_h("Garrison Size"), _trim(float(vw["garrison_size"]))])
+	if int(vw.get("turrets", 0)) > 0:
+		lines.append("%s: %d" % [_h("Turret Positions"), int(vw["turrets"])])
+	var sim_atk: Dictionary = d.get("attack", {})
+	if sim_atk.has("per_unit") and capacity > 0:
+		var limit := int(sim_atk["arrows"]) + int(round(float(sim_atk["per_unit"]) * capacity))
+		if int(sim_atk.get("max_arrows", 0)) > 0:
+			limit = mini(limit, int(sim_atk["max_arrows"]))
+		if limit > 0:
+			lines.append("%s: %d, %s: %d, %s: %s" % [_h("Projectile Limit"), limit, _h("Default"), int(sim_atk["arrows"]),
+				_h("Per Unit"), _trim(float(sim_atk["per_unit"]))])
+	if vw.has("speed"):
+		var sp: Dictionary = vw["speed"]
+		if float(sp["walk"]) > 0.0 or float(sp["run"]) > 0.0:
+			var walk := float(d.get("walk_speed", sp["walk"]))
+			var run := float(sp["run"]) * (walk / float(sp["walk"]) if float(sp["walk"]) > 0.0 else 1.0)
+			lines.append("%s %.1f Walk, %.1f Run, %.1f Acceleration" % [_h("Speed:"), walk, run, float(sp["acceleration"])])
+	if vw.has("gather") and not vw["gather"].is_empty():
+		var rates: PackedStringArray = []
+		for k in vw["gather"]:
+			rates.append("%s %.2f" % [_res_icon(k), float(vw["gather"][k])])
+		lines.append(_h("Gather Rates:") + " " + "  ".join(rates))
+	if vw.has("supply"):
+		var amt = vw["supply"]["amount"]
+		lines.append("%s %s %s" % [_h("Resource Supply:"), _res_icon(vw["supply"]["type"]), "∞" if str(amt) == "Infinity" else str(amt)])
+	if vw.has("treasure"):
+		var tr: PackedStringArray = []
+		for r in RES:
+			if vw["treasure"].has(r):
+				tr.append("%s %s" % [_res_icon(r), str(vw["treasure"][r])])
+		lines.append(_h("Reward:") + " " + "  ".join(tr))
 	if int(d.get("pop_bonus", 0)) > 0:
-		lines.append("[b]Population Bonus:[/b] %d" % int(d["pop_bonus"]))
-	if float(d.get("capture_points", 0)) > 0:
-		lines.append("[b]Capture Points:[/b] %s, regenerates %s per second" % [_num(d["capture_points"]), _num(d["capture_regen"])])
+		lines.append("%s %d" % [_h("Population Bonus:"), int(d["pop_bonus"])])
+	for key in ["trickle", "upkeep"]:
+		if vw.has(key):
+			var tk: PackedStringArray = []
+			for r in RES:
+				if vw[key]["rates"].has(r):
+					tk.append("%s %s" % [_res_icon(r), str(vw[key]["rates"][r])])
+			lines.append("%s %s / %s" % [_h("Resource Trickle:" if key == "trickle" else "Upkeep:"), "  ".join(tk), _seconds(vw[key]["interval"])])
 	if d.has("loot"):
 		var lp: PackedStringArray = []
-		if int(d.get("loot_xp", 0)) > 0:
-			lp.append("%d XP" % int(d["loot_xp"]))
-		for r2 in ["food", "wood", "stone", "metal"]:
+		for r2 in RES:
 			if int(d["loot"].get(r2, 0)) > 0:
-				lp.append("%s %d" % [r2.capitalize(), int(d["loot"][r2])])
+				lp.append("%s %d" % [_res_icon(r2), int(d["loot"][r2])])
+		if int(d.get("loot_xp", 0)) > 0:
+			lp.append("XP %d" % int(d["loot_xp"]))
 		if not lp.is_empty():
-			lines.append("[b]Loot:[/b] " + ", ".join(lp))
+			lines.append(_h("Loot:") + " " + "  ".join(lp))
 	return "\n".join(lines)
 
 static func _links(items: Array, link_kind: String, key: String) -> String:
@@ -250,22 +464,32 @@ func info_text(d: Dictionary, extra: Dictionary) -> String:
 	if not auras.is_empty():
 		var t := "[b]Auras:[/b]"
 		for a in auras:
-			t += "\n[color=#c9a0ff]%s[/color]: %s" % [a["name"], a["description"]]
+			t += "\n[color=#c9a0ff]%s:[/color] %s" % [a["name"], a["description"]]
+			var radius := float(a.get("radius", 0))
+			if radius > 0.0:
+				t += " Range: %s %s" % [_num(radius), "meter" if is_equal_approx(radius, 1.0) else "meters"]
 		blocks.append(t)
 	var classes: Array = extra.get("classes", [])
 	if not classes.is_empty():
 		blocks.append("[b]Classes:[/b] " + ", ".join(classes))
-	if d.has("roles") and not d["roles"].is_empty():
-		blocks.append("[b]Rank:[/b] " + ", ".join(d["roles"]))
 	match kind:
 		"unit":
+			var by: PackedStringArray = []
 			if not d["trained_at"].is_empty():
-				blocks.append("[b]Trained at:[/b] " + _links(d["trained_at"], "structure", "type"))
+				by.append(_links(d["trained_at"], "structure", "type"))
+			if not d.get("trained_by_units", []).is_empty():
+				by.append(_links(d["trained_by_units"], "unit", "tmpl"))
+			if not by.is_empty():
+				blocks.append("[b]Trained by:[/b] " + ", ".join(by))
 			if d.has("requires"):
 				blocks.append("[b]Requires:[/b] " + Common.link("tech", int(d["requires"]["id"]), d["requires"]["name"]))
 			var builds := _buildable(extra.get("builds", []))
 			if not builds.is_empty():
 				blocks.append("[b]Builds:[/b] " + _links(builds, "structure", "type"))
+			if not d.get("trains", []).is_empty():
+				blocks.append("[b]Trains:[/b] " + _links(d["trains"], "unit", "tmpl"))
+			if not d.get("researches", []).is_empty():
+				blocks.append("[b]Researches:[/b] " + _links(d["researches"], "tech", "id"))
 		"structure":
 			var by := _built_by()
 			if not by.is_empty():
@@ -274,13 +498,20 @@ func info_text(d: Dictionary, extra: Dictionary) -> String:
 				blocks.append("[b]Trains:[/b] " + _links(d["trains"], "unit", "tmpl"))
 			if not d["researches"].is_empty():
 				blocks.append("[b]Researches:[/b] " + _links(d["researches"], "tech", "id"))
-			for u in d["upgrades"]:
-				blocks.append("[b]Upgrades to:[/b] %s (%s, %s s) %s" % [
-					Common.link("structure", int(u["type"]), u["name"]), u["cost_text"], _num(u["time"]), u["tooltip"]])
+			if not d["upgrades"].is_empty():
+				blocks.append("[b]Upgradable to:[/b] " + _links(d["upgrades"], "structure", "type"))
 			if not bool(d.get("available", true)):
 				blocks.append("[color=#ff8080]The %s cannot build this structure.[/color]" % d["civ_name"])
 		"tech":
-			blocks.append("[b]Researched at:[/b] " + Common.link("structure", int(d["researched_at"]["type"]), d["researched_at"]["name"]))
+			var at: PackedStringArray = []
+			for r in d.get("researchers", []):
+				if r["kind"] == "unit":
+					at.append(Common.link("unit", int(r["tmpl"]), Common.entity_name(r["name"], r.get("specific_name", ""))))
+				else:
+					at.append(Common.link("structure", int(r["type"]), r["name"]))
+			if at.is_empty():
+				at.append(Common.link("structure", int(d["researched_at"]["type"]), d["researched_at"]["name"]))
+			blocks.append("[b]Researched at:[/b] " + ", ".join(at))
 			if d.has("requires"):
 				blocks.append("[b]Requires:[/b] " + Common.link("tech", int(d["requires"]["id"]), d["requires"]["name"]))
 			if not d["unlocks"].is_empty():

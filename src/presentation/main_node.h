@@ -31,6 +31,7 @@
 #include <godot_cpp/classes/time.hpp>
 #include <map>
 #include <set>
+#include "l10n.h"
 #include "safe_select.h"
 #include "top_panel.h"
 #include "production_queue.h"
@@ -200,6 +201,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// roster_list_key_ changes so hover and tooltips survive between frames.
 	ItemList *roster_list = nullptr;
 	uint64_t roster_list_key_ = ~0ull;
+	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 
 	RtsoProductionQueue production_queue_;
 
@@ -311,6 +313,7 @@ class RtsoMain : public Node3D, public RtsoChatHost, public RtsoDiplomacyHost, p
 	// findIdleUnit cycling (0 A.D. lastIdleUnit / lastIdleClasses, input.js:1645).
 	uint32_t last_idle_unit_ = 0;
 	int last_idle_kind_ = -1;
+	size_t idle_class_index_ = 0; // input.js currIdleClassIndex
 
 	double accumulator = 0.0;
 	rtso::AnimationController anim_ctrl;
@@ -453,6 +456,10 @@ public:
 	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
+	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
+	bool chat_local_observer() override;
+	std::vector<std::pair<int, String>> chat_private_targets() override;
+	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);
@@ -511,6 +518,8 @@ public:
 	Dictionary debug_civic_centre_roof();
 	Dictionary debug_selection_state();
 	Array debug_command_row();
+	void _on_top_counter_gui_input(const Ref<InputEvent> &event);
+	PackedInt32Array debug_spawn_units(const String &template_id, int count);
 	void debug_delete_units(const PackedInt32Array &ids);
 	Dictionary debug_dialogs();
 	uint32_t building_under_mouse(Vector2 mouse_pos, float *hit_t = nullptr) const;
@@ -598,6 +607,8 @@ private:
 	// 0 A.D. ChatMessageFormatSimulation tribute, barter, phase and diplomacy lines.
 	void show_session_notices(const std::vector<rtso::Simulation::SessionNotice> &notices);
 	String colored_player_name(uint8_t pid) const; // colorizePlayernameByID
+	String requires_text(const String &what) const;
+	String needed_text(const rtso::CostTip &cost) const;
 	void toggle_diplomacy_colors();
 	void update_cursor();
 	std::string cursor_name_;

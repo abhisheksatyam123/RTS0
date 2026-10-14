@@ -106,6 +106,11 @@ int main() {
 		CHECK(s.is_transport(tower) && s.get_transport_capacity(tower) == SIEGE_TOWER_GARRISON);
 		CHECK(s.is_transport(ram) && s.get_transport_capacity(ram) == SIEGE_RAM_GARRISON);
 		CHECK(!s.is_transport(bolt));
+		// Per-civ GarrisonHolder/Max: Kushite rams hold 12, the Germanic log ram nobody.
+		uint32_t kram = s.spawn_unit(24.0f, 0.0f, 0, UNIT_SIEGE_RAM, 0.0f, template_id("kush/siege_ram"));
+		uint32_t gram = s.spawn_unit(32.0f, 0.0f, 0, UNIT_SIEGE_RAM, 0.0f, template_id("germ/siege_ram"));
+		uint32_t gcov = s.spawn_unit(40.0f, 0.0f, 0, UNIT_SIEGE_RAM, 0.0f, template_id("germ/siege_ram_covered"));
+		CHECK(s.get_transport_capacity(kram) == 12 && !s.is_transport(gram) && s.get_transport_capacity(gcov) == 10);
 	}
 
 	// 2. Support and Infantry board; cavalry and siege don't; full is full.
@@ -347,6 +352,62 @@ int main() {
 		CHECK(out == 5);
 		CHECK(on_spot >= 1 && at_centre >= 1 && on_spot + at_centre == 5);
 		CHECK(outside == on_spot);
+	}
+
+
+	// GarrisonHolder.IsAllowedToBeGarrisoned: a mutual ally's infantry ride your siege tower;
+	// an ally unloads only its own, the owner everyone; allies turned enemies get off.
+	{
+		fresh(s);
+		uint32_t tower = s.spawn_unit(0.0f, 0.0f, 0, UNIT_BOLT_SHOOTER, 0.0f, st_t);
+		uint32_t mine = s.spawn_unit(1.0f, 0.5f, 0, UNIT_ARCHER);
+		std::vector<uint32_t> theirs;
+		for (int a = 0; a < 3; ++a) theirs.push_back(s.spawn_unit(0.5f + 0.3f * a, 1.0f, 1, UNIT_ARCHER));
+		s.order_board_transport(theirs.data(), theirs.size(), tower);
+		CHECK(s.get_transport_passenger_count(tower) == 0); // not allied: refused
+		s.set_mutual_ally(0, 1);
+		s.order_board_transport(theirs.data(), theirs.size(), tower);
+		s.order_board_transport(&mine, 1, tower);
+		CHECK(s.get_transport_passenger_count(tower) == 4);
+		s.cmd_unload(1, tower, nullptr, 0);
+		CHECK(s.get_transport_passenger_count(tower) == 1 && !alive(s, mine));
+		for (uint32_t u : theirs) CHECK(alive(s, u));
+		// Set down around the tower, they walk back to within its 2 m LoadingRange.
+		s.order_board_transport(theirs.data(), theirs.size(), tower);
+		run(s, 3.0f);
+		CHECK(s.get_transport_passenger_count(tower) == 4);
+		s.cmd_unload(0, tower, nullptr, 0);
+		CHECK(s.get_transport_passenger_count(tower) == 0);
+		s.order_board_transport(theirs.data(), theirs.size(), tower);
+		run(s, 3.0f);
+		CHECK(s.get_transport_passenger_count(tower) == 3);
+		s.set_diplomacy(0, 1, Simulation::DIPLO_ENEMY);
+		s.set_diplomacy(1, 0, Simulation::DIPLO_ENEMY);
+		run(s, 0.2f);
+		CHECK(s.get_transport_passenger_count(tower) == 0);
+		int out = 0;
+		for (uint32_t u : theirs) out += alive(s, u);
+		std::printf("allied passengers: an enemy now, %d of 3 got off alive\n", out);
+		CHECK(out == 3);
+	}
+
+
+	// Garrisonable.TotalSize: a ram carrying 10 takes 11 of a fortress's 20 slots.
+	{
+		fresh(s);
+		uint32_t fort = s.spawn_building_world(-20.0f, 20.0f, BLD_FORTRESS, 0, 1.0f);
+		uint32_t rams[2];
+		for (int r = 0; r < 2; ++r) {
+			rams[r] = s.spawn_unit(-20.0f + 4.0f * r, 30.0f, 0, UNIT_SIEGE_RAM);
+			std::vector<uint32_t> crew;
+			for (int k = 0; k < 10; ++k) crew.push_back(s.spawn_unit(-20.0f + 4.0f * r + 0.2f * k, 31.0f, 0, UNIT_SPEARMAN));
+			s.order_board_transport(crew.data(), crew.size(), rams[r]);
+			CHECK(s.get_transport_passenger_count(rams[r]) == 10);
+		}
+		CHECK(s.garrison_unit_now(rams[0], fort));
+		CHECK(!s.garrison_unit_now(rams[1], fort)); // 11 + 11 > 20
+		uint32_t spare = s.spawn_unit(-24.0f, 30.0f, 0, UNIT_SIEGE_RAM);
+		CHECK(s.garrison_unit_now(spare, fort)); // 11 + 1
 	}
 
 	std::printf(failures ? "RESULT: FAIL (%d)\n" : "RESULT: PASS\n", failures);

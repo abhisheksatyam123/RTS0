@@ -10,6 +10,7 @@ extends CanvasLayer
 ## every player's final counters plus a row of counters per 30 s. It is opened
 ## at the end of a game or replay, over the running game by the "summary"
 ## hotkey (Ctrl+Tab), and from the replay menu's Summary button.
+const L10n := preload("res://scenes/menu/l10n.gd")
 
 const Ref = preload("res://scenes/reference/reference_common.gd")
 
@@ -51,7 +52,7 @@ const DEFAULT_COLORS := [
 const AI_DIFFICULTIES := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 const AI_BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 ## gamesetup.gd MAP_SIZES names (0 A.D. map_sizes.json).
-const MAP_SIZE_NAMES := {128: "Tiny", 192: "Small", 256: "Medium", 320: "Normal", 384: "Large", 448: "Very Large", 512: "Giant"}
+const MAP_SIZE_NAMES := {128: "Tiny", 192: "Small", 256: "Normal", 320: "Medium", 384: "Large", 448: "Very Large", 512: "Giant"}
 const TAB_W := 118 # g_TabButtonWidth
 const TAB_GAP := 6 # g_TabButtonDist
 const BOX_H := 40 # g_PlayerBoxYSize
@@ -458,10 +459,10 @@ func score_panels() -> Array:
 	for r in RESOURCES:
 		res_h.append(H(r[0], r[1], 34, 110))
 		res_c.append(C(110, calc_resources, 12))
-		market_h.append(H(r[0], "%s exchanged" % r[1], 16, 120))
+		market_h.append(H(r[0], L10n.sprintf(L10n.t("%(resourceFirstWord)s exchanged"), {"resourceFirstWord": L10n.t(r[1])}), 16, 120))
 		market_c.append(C(120, calc_exchanged, 12))
 	res_h.append(H("tributes", "Tributes", 16, 110,
-		{"header": "Tributes \n(%s / %s)" % [colored_type("sent"), colored_type("received")]}))
+		{"header": L10n.sprintf(L10n.t("Tributes \n(%(sent)s / %(received)s)"), {"sent": colored_type("sent"), "received": colored_type("received")})}))
 	res_h.append(H("treasuresCollected", "Treasures collected", 16, 85))
 	res_h.append(H("loot", "Loot", 16, 85))
 	res_h.append(H("livestock", "Livestock bred", 16, 85))
@@ -476,17 +477,19 @@ func score_panels() -> Array:
 			C(120, calc_military_score, 12), C(120, calc_exploration_score, 12)],
 		"team_fn": calc_score_team},
 		{"label": "Structures", "headings": structures_h,
-		"titles": [{"caption": "Structure Statistics (%s / %s / %s / %s)" % [colored_type("constructed"),
-			colored_type("destroyed"), colored_type("captured"), colored_type("lost")], "y": 16, "w": 90 * 8}],
+		"titles": [{"caption": L10n.sprintf(L10n.t("Structure Statistics (%(constructed)s / %(destroyed)s / %(captured)s / %(lost)s)"),
+			{"constructed": colored_type("constructed"), "destroyed": colored_type("destroyed"), "captured": colored_type("captured"),
+			"lost": colored_type("lost")}), "y": 16, "w": 90 * 8}],
 		"counters": range(8).map(func(_i): return C(90, calc_buildings, 3)),
 		"team_fn": calc_sum_team},
 		{"label": "Units", "headings": units_h,
-		"titles": [{"caption": "Unit Statistics (%s / %s / %s)" % [colored_type("trained"), colored_type("killed"),
-			colored_type("lost")], "y": 16, "w": 90 * 9}],
+		"titles": [{"caption": L10n.sprintf(L10n.t("Unit Statistics (%(trained)s / %(killed)s / %(lost)s)"),
+			{"trained": colored_type("trained"), "killed": colored_type("killed"), "lost": colored_type("lost")}), "y": 16, "w": 90 * 9}],
 		"counters": range(9).map(func(_i): return C(90, calc_units, 3)),
 		"team_fn": calc_sum_team},
 		{"label": "Resources", "headings": res_h,
-		"titles": [{"caption": "Resource Statistics (%s / %s)" % [colored_type("gathered"), colored_type("used")],
+		"titles": [{"caption": L10n.sprintf(L10n.t("Resource Statistics (%(gathered)s / %(used)s)"),
+			{"gathered": colored_type("gathered"), "used": colored_type("used")}),
 			"y": 16, "w": 110 * RESOURCES.size() + 110}],
 		"counters": res_c, "team_fn": calc_sum_team},
 		{"label": "Market", "headings": market_h, "titles": [], "counters": market_c, "team_fn": calc_market_team},
@@ -499,7 +502,7 @@ func score_panels() -> Array:
 			H("vegetarianRatio", "Vegetarian ratio", 16, 110, {"format": "PERCENTAGE"}),
 			H("civilianization", "Civilianization", 16, 110, {"format": "PERCENTAGE"}),
 			H("bribes", "Bribes", 16, 110,
-				{"header": "Bribes\n(%s / %s)" % [colored_type("succeeded"), colored_type("failed")]})],
+				{"header": L10n.sprintf(L10n.t("Bribes\n(%(succeeded)s / %(failed)s)"), {"succeeded": colored_type("succeeded"), "failed": colored_type("failed")})})],
 		"titles": [],
 		"counters": [C(110, calc_kill_death, 12), _hidden(C(110, calc_population, 12)), C(110, calc_map_peak, 12),
 			C(110, calc_map_final, 12), C(110, calc_map_exploration, 12), C(110, calc_vegetarian, 12),
@@ -512,7 +515,8 @@ static func _bb(text: String, color: Color) -> String:
 
 static func colored_type(type: String) -> String:
 	var t: Dictionary = SUMMARY_TYPES[type]
-	return _bb(t["caption"], TYPE_COLORS[t["color"]]) if t.has("color") else t["caption"]
+	var caption := L10n.t(t["caption"])
+	return _bb(caption, TYPE_COLORS[t["color"]]) if t.has("color") else caption
 
 ## counters.js formatSummaryValue, as BBCode.
 static func format_value(v: Variant) -> String:
@@ -647,7 +651,7 @@ func _build() -> void:
 	_window.add_child(header)
 	for t in [[summary_text(), HORIZONTAL_ALIGNMENT_LEFT, "SummaryText"],
 			[map_caption(), HORIZONTAL_ALIGNMENT_CENTER, "MapName"],
-			["Game time elapsed: %s" % time_to_string(float(data.get("game_time", 0.0))), HORIZONTAL_ALIGNMENT_RIGHT, "TimeElapsed"]]:
+			[L10n.sprintf(L10n.t("Game time elapsed: %(time)s"), {"time": time_to_string(float(data.get("game_time", 0.0)))}), HORIZONTAL_ALIGNMENT_RIGHT, "TimeElapsed"]]:
 		var l := _label(t[0], 16)
 		l.name = t[2]
 		l.horizontal_alignment = t[1]
@@ -662,8 +666,9 @@ func _build() -> void:
 		b.text = labels[i]
 		b.toggle_mode = true
 		b.button_group = group
-		b.tooltip_text = "Focus the %s summary tab.\nScroll down or use %s to move a tab right.\nScroll up or use %s to move a tab left." % [
-			labels[i], _hotkey_text("tab.next"), _hotkey_text("tab.prev")]
+		b.tooltip_text = "\n".join([L10n.sprintf(L10n.t("Focus the %(name)s summary tab."), {"name": L10n.t(labels[i])}),
+			L10n.sprintf(L10n.t("Scroll down or use %(hotkey)s to move a tab right."), {"hotkey": _hotkey_text("tab.next")}),
+			L10n.sprintf(L10n.t("Scroll up or use %(hotkey)s to move a tab left."), {"hotkey": _hotkey_text("tab.prev")})])
 		b.pressed.connect(select_panel.bind(i))
 		b.gui_input.connect(_on_tab_wheel)
 		_place(b, _window, Vector2(17 + i * (TAB_W + TAB_GAP), 66), Vector2(TAB_W, 28))
@@ -799,7 +804,7 @@ func _update_panel(pd: Dictionary) -> void:
 			keys.erase(-1)
 		for t in keys:
 			var members: Array = teams[t]
-			var head := _label("Team %d" % (t + 1), 14, GOLD)
+			var head := _label(L10n.sprintf(L10n.t("Team %(team)s"), {"team": t + 1}), 14, GOLD)
 			head.name = "TeamHeading%d" % t
 			_place(head, _general, Vector2(15, y + 5), Vector2(200, 22))
 			for n in members.size():
