@@ -4826,5 +4826,6 @@
       "z": -57.97,
       "template": "samnite_swordsman"
     }
-  ]
+  ],
+  "circular": true
 }

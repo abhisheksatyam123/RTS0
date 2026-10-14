@@ -15930,5 +15930,6 @@
     ],
     "water_waviness": 4.0,
     "water_murkiness": 1.0
-  }
+  },
+  "circular": true
 }

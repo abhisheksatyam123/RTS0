@@ -4618,5 +4618,6 @@
       "z": -34.59,
       "template": "rome/champion_infantry_swordsman"
     }
-  ]
+  ],
+  "circular": true
 }

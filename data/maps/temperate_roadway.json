@@ -10636,5 +10636,6 @@
       "z": -39.66,
       "template": "units/default_cavalry"
     }
-  ]
+  ],
+  "circular": true
 }

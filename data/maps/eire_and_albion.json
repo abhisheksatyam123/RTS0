@@ -16736,5 +16736,6 @@
       "template": "rome/civil_centre"
     }
   ],
-  "units": []
+  "units": [],
+  "circular": true
 }

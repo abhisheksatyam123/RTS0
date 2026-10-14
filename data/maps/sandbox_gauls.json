@@ -23434,6 +23434,13 @@
       "player": 4,
       "x": 71.87,
       "z": 31.96
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": 2.05,
+      "z": 1.35,
+      "template": "gaul/tavern"
     }
   ],
   "units": [
@@ -24930,5 +24937,6 @@
     "saturation": 0.984375,
     "bloom": 0.120313,
     "post_effect": "hdr"
-  }
+  },
+  "circular": true
 }

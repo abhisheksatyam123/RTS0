@@ -40151,5 +40151,6 @@
         "gaul/cavalry_javelineer_b"
       ]
     }
-  ]
+  ],
+  "circular": true
 }

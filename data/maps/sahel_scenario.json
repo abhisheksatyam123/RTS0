@@ -12738,5 +12738,6 @@
       "z": -71.37,
       "template": "cart/cavalry_javelineer_b"
     }
-  ]
+  ],
+  "circular": true
 }

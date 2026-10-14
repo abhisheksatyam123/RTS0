@@ -6405,5 +6405,6 @@
       "z": -58.81,
       "template": "ptol/ship_siege"
     }
-  ]
+  ],
+  "circular": true
 }
