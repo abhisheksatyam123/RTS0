@@ -39,6 +39,7 @@
 #include "../simulation/simulation.h"
 #include "l10n.h"
 #include "research_progress_view.h"
+#include "template_portraits.h"
 
 #ifndef RTSO_UI_LOAD_TEXTURE
 #define RTSO_UI_LOAD_TEXTURE
@@ -271,7 +272,7 @@ public:
 				const auto &info = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, ut) : rtso::unit_type_info(ut);
 				const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
 				name = rtso::entity_names(String::utf8(info.name), String::utf8(specific ? specific : ""));
-				tex = rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(ut)) + ".png");
+				tex = rtso::portraits::unit(po.tmpl, po.unit_type);
 				slot.kind = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? "unit" : "";
 				slot.id = tmpl;
 			}
