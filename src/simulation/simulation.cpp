@@ -6739,7 +6739,7 @@ void Simulation::tick_siege_garrisons() {
 }
 
 // A ship's GarrisonHolder OnDestroy (EjectHealth 0): EjectClassesOnDestroy
-// (Civilian Infantry Healer Dog) swim to a free spot on dry ground within its
+// (Civilian Infantry Healer Dog; warships' Civilian Infantry Dog) swim to a free spot on dry ground within its
 // loading reach; everyone else, everyone out at sea and anyone with no free spot (EjectOrKill
 // kills what the unforced PerformEject leaves aboard) goes down with it.
 void Simulation::unload_sunk_ship(size_t ship) {
@@ -6747,12 +6747,18 @@ void Simulation::unload_sunk_ship(size_t ship) {
 	if (pit == transport_passengers_.end()) return;
 	float lx = 0.0f, lz = 0.0f;
 	const bool shore = ship_unload_point(ship, lx, lz);
-	const TechClasses ejected = TC_INFANTRY | TC_HEALER | TC_DOG; // and Civilian (is_civilian_class)
+	// template_unit_ship_warship_{arrow,ram} leave Healer out (Civilian Infantry Dog).
+	bool warship = units_.unit_type[ship] == UNIT_TRIREME;
+	if (warship && units_.tmpl[ship] < CIV_UNIT_TEMPLATE_COUNT) {
+		const std::string_view id = civ_unit_template(units_.tmpl[ship]).id;
+		warship = id.ends_with("/ship_arrow") || id.ends_with("/ship_ram");
+	}
+	const TechClasses ejected = warship ? TC_INFANTRY | TC_DOG : TC_INFANTRY | TC_HEALER | TC_DOG; // and Civilian
 	std::vector<SpawnSpot> taken;
 	for (uint32_t puid : pit->second) {
 		const int32_t p = lookup_unit(puid);
 		if (p < 0) continue;
-		if (shore && ((unit_tech_classes(units_.unit_type[p]) & ejected) || is_civilian_class(units_.tmpl[p], units_.unit_type[p])) &&
+		if (shore && ((unit_classes_at((size_t)p) & ejected) || is_civilian_class(units_.tmpl[p], units_.unit_type[p])) &&
 				ship_unload_point(ship, lx, lz, (size_t)p, &taken)) {
 			units_.pos_x[p] = lx;
 			units_.pos_z[p] = lz;
