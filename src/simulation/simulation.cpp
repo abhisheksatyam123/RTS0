@@ -20136,6 +20136,7 @@ uint32_t Simulation::find_petra_attack_target(float &out_tx, float &out_tz, uint
 	// the next try waits 240 s, 30 s less per difficulty level above Medium.
 	auto pick_enemy = [&] {
 		const uint8_t e = petra_enemy_player(kind);
+		petra_note_enemy(e);
 		if (e == GAIA_PLAYER) {
 			const int wait = 240 - 30 * ((int)petra_config_.difficulty - (int)PETRA_MEDIUM);
 			const_cast<PetraAttackManager &>(petra_attack_mgr_).gaia_relic_lapse = (uint8_t)std::clamp((wait + 1) / 2, 1, 255);
@@ -20254,7 +20255,8 @@ void Simulation::petra_plan_sizes(uint8_t kind) {
 uint32_t Simulation::find_petra_rush_target(float &out_tx, float &out_tz, uint8_t prefer) const {
 	float bx = 36.0f, bz = 36.0f;
 	if (const auto *base = get_primary_petra_base()) { bx = base->x; bz = base->z; }
-	const uint8_t enemy = prefer < MAX_PLAYERS && petra_foe(prefer) && !is_defeated(prefer) ? prefer : petra_enemy_player(PETRA_ATTACK_RUSH);
+	uint8_t enemy = prefer;
+	if (!(prefer < MAX_PLAYERS && petra_foe(prefer) && !is_defeated(prefer))) petra_note_enemy(enemy = petra_enemy_player(PETRA_ATTACK_RUSH));
 	if (const uint32_t id = petra_nearest_target(PETRA_ATTACK_RUSH, false, enemy, bx, bz, 0, out_tx, out_tz)) return id;
 	for (int p = 0; p < MAX_PLAYERS; ++p) // rushTargetFinder(gameState): any enemy
 		if (p != enemy && petra_foe(p) && !is_defeated((uint8_t)p))
@@ -21215,8 +21217,16 @@ void Simulation::petra_attack_remove_unit(uint32_t uid) {
 	sf.erase(std::remove(sf.begin(), sf.end(), uid), sf.end());
 }
 
-// The owner of the newest started attack's target, else of the plan in preparation's.
+// attackManager.js getEnemyPlayer, for a new attack: the player it picked is remembered
+// as currentEnemyPlayer (Gaia, for its relics, clears it) until the next pick.
+void Simulation::petra_note_enemy(uint8_t enemy) const {
+	const_cast<PetraSentDiplomacy &>(petra_sent_diplo_).current_enemy = enemy < MAX_PLAYERS ? (uint8_t)(enemy + 1) : 0;
+}
+
+// attackManager.js currentEnemyPlayer; before any pick, the owner of the newest started
+// attack's target, else of the plan in preparation's.
 uint8_t Simulation::petra_attack_enemy() const {
+	if (petra_sent_diplo_.current_enemy) return (uint8_t)(petra_sent_diplo_.current_enemy - 1);
 	auto owner = [&](const AttackPlan &p) -> uint8_t {
 		auto it = building_id_to_idx_.find(p.target_building_id);
 		return it != building_id_to_idx_.end() ? buildings_[it->second].team : 0xFF;
