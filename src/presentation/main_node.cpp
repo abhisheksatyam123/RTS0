@@ -478,7 +478,14 @@ void RtsoMain::_ready() {
 		}
 		// Channel-tag parse + RichTextLabel append live in the chat leaf
 		// widget (chat_window.h append_incoming()); no-op until built.
-		chat_window_.append_incoming(String::utf8(cm.sender_guid.c_str()), msg);
+		const String sender = String::utf8(cm.sender_guid.c_str());
+		// 0.28 sound.notify.nick: a chime when someone else's message names you.
+		if (chat_window_.append_incoming(sender, msg) && rtso::user_config::get_bool("sound.notify.nick")) {
+			const String me = chat_user("peer-" + String::num_int64(turn_mgr_.local_client_id()));
+			if (!me.is_empty() && sender != "peer-" + String::num_int64(turn_mgr_.local_client_id()) &&
+					msg.to_lower().contains(me.to_lower()))
+				play_alarm("res://assets/audio/interface/ui/chat_alert.ogg");
+		}
 	});
 
 	// Stash the GameSetup first: load_map_seeded needs view + cam_rig, which
@@ -6965,8 +6972,16 @@ void RtsoMain::host_net_setup_tick(bool force) {
 		++n.seq;
 		net_host_.sendGameSetup(rtso::format_net_setup(n));
 	}
+	notify_setup_joins(net_setup_.clients, n.clients);
 	net_setup_ = n;
 	if (force || changed) emit_signal("net_setup_changed");
+}
+
+// 0.28 sound.notify.gamesetup.join (off by default): a chime when a client joins
+// the game setup; `before` 0 is our first look at it, not a join.
+void RtsoMain::notify_setup_joins(uint8_t before, uint8_t after) {
+	if (before && (after & ~before) && rtso::user_config::get_bool("sound.notify.gamesetup.join"))
+		play_alarm("res://assets/audio/interface/ui/gamesetup_join.ogg");
 }
 
 // Host: a client asks to change its own slot ("civ=3", "team=2", "color=5"),
@@ -7073,6 +7088,7 @@ void RtsoMain::client_net_setup_tick() {
 		}
 	}
 	if (!have) return;
+	notify_setup_joins(net_setup_.clients, best.clients);
 	net_setup_ = std::move(best);
 	// 0.28 ReadyController: a change to the settings takes our ready back.
 	if (net_ready_ == 1 && net_ready_version_ != net_setup_.settings_version) net_ready_ = 0;

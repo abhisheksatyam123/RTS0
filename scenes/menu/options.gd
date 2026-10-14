@@ -13,6 +13,7 @@ extends Control
 const SCHEMA := [
 	["General", [
 		["string", "playername.singleplayer", "Player name (single-player)", "How you want to be addressed in single-player matches."],
+		["string", "playername.multiplayer", "Player name (multiplayer)", "How you want to be addressed in multiplayer matches (except lobby)."],
 		["dropdown", "locale", "Language", "Choose the language of the game.", "locales"],
 		["boolean", "pauseonfocusloss", "Background pause", "Pause single-player games when window loses focus."],
 		["boolean", "gui.splashscreen.enable", "Enable welcome screen", "If you disable it, the welcome screen will still appear once, each time a new version is available. You can always launch it from the main menu."],
@@ -65,6 +66,8 @@ const SCHEMA := [
 		["slider", "sound.ambientgain", "Ambient volume", "In game ambient sound gain.", [0, 2]],
 		["slider", "sound.actiongain", "Action volume", "In game unit action sound gain.", [0, 2]],
 		["slider", "sound.uigain", "UI volume", "UI sound gain.", [0, 2]],
+		["boolean", "sound.notify.nick", "Nick notification", "Receive audio notification when someone types your nick."],
+		["boolean", "sound.notify.gamesetup.join", "New player notification in game setup", "Receive audio notification when a new client joins the game setup."],
 	]],
 	["Game Setup", [
 		["boolean", "persistmatchsettings", "Persist match settings", "Save and restore match settings for quick reuse when hosting another game."],
@@ -76,6 +79,7 @@ const SCHEMA := [
 			[["Everyone", "everyone"], ["Buddies", "buddies"], ["Disabled", "disabled"]]],
 	]],
 	["Networking / Lobby", [
+		["number", "lobby.history", "Chat backlog", "Number of backlogged messages to load when joining the lobby.", [0, 1000]],
 		["boolean", "lobby.columns.gamerating", "Game rating column", "Show the average rating of the participating players in a column of the gamelist."],
 	]],
 	["Chat & Notifications", [
