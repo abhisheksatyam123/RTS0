@@ -27,6 +27,8 @@
 
 #include <deque>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "popup_safe.h"
 #include "safe_select.h"
@@ -50,6 +52,14 @@ public:
 	virtual void chat_send_wire(const std::string &wire) = 0;
 	// 0 A.D. Cheats.executeCheat: true when `text` was a cheat code (it is not sent as chat).
 	virtual bool chat_try_cheat(const String &text) = 0;
+	// ChatAddressees.js isAddressee for the local player: tag is the wire tag ("[Allies]",
+	// "[Enemies]", "[Observers]", "[Player-N]") of a message from sender_guid.
+	virtual bool chat_is_addressee(const String &sender_guid, const String &tag) = 0;
+	// The local client is an observer (no seat): no Allies or Enemies, private messages only to observers.
+	virtual bool chat_local_observer() = 0;
+	// ChatAddressees.onUpdatePlayers: the other connected humans a private message can go to,
+	// as (player id + 1, coloured name); 0 for an observer.
+	virtual std::vector<std::pair<int, String>> chat_private_targets() = 0;
 };
 
 class RtsoChatWindow {
@@ -124,12 +134,7 @@ public:
 
 		channel_ = memnew(RtsoSafeSelect);
 		channel_->set_custom_minimum_size(Vector2(110, 22));
-		channel_->add_item("All", 0);
-		channel_->add_item("Allies", 1);
-		channel_->add_item("Enemies", 2);
-		for (int p = 1; p <= 8; ++p) {
-			channel_->add_item("Player-" + String::num_int64(p), 2 + p);
-		}
+		refill_addressees();
 		channel_->add_theme_font_size_override("font_size", 10);
 		chat_addressee_bar->add_child(channel_);
 
@@ -195,15 +200,45 @@ public:
 		if (!panel_) return;
 		bool vis = !panel_->is_visible();
 		panel_->set_visible(vis);
+		if (vis) refill_addressees();
 		if (vis && input_) {
 			input_->grab_focus();
 		}
 	}
 
+	// The quick buttons and hotkeys: 0 everyone, 1 allies, 2 enemies, 3 observers.
 	void select_channel(int channel_idx) {
-		if (channel_) {
-			channel_->select(channel_idx);
+		if (!channel_) return;
+		static const char *kTags[4] = {"", "[Allies]", "[Enemies]", "[Observers]"};
+		if (channel_idx >= 0 && channel_idx < 4) select_tag(kTags[channel_idx]);
+	}
+	// session.teamchat: Allies, or Observers for an observer (ChatWindow.js openChat).
+	void select_team() { select_tag(host_ && host_->chat_local_observer() ? "[Observers]" : "[Allies]"); }
+	// session.privatechat: the last private addressee (ChatInput.js), else everyone.
+	void select_last_private() { select_tag(last_private_); }
+
+	// ChatAddressees.onUpdatePlayers: Everyone, Allies and Enemies (not for observers),
+	// Observers, then each other connected human by name; the selection is kept.
+	void refill_addressees() {
+		if (!channel_) return;
+		const String keep = selected_tag();
+		channel_->clear();
+		tags_.clear();
+		auto add = [&](const String &label, const String &tag) {
+			channel_->add_item(label, (int)tags_.size());
+			tags_.push_back(tag);
+		};
+		add("Everyone", "");
+		const bool observer = host_ && host_->chat_local_observer();
+		if (!observer) {
+			add("Allies", "[Allies]");
+			add("Enemies", "[Enemies]");
 		}
+		add("Observers", "[Observers]");
+		if (host_)
+			for (const auto &t : host_->chat_private_targets())
+				add(t.second, "[Player-" + String::num_int64(t.first) + "]");
+		select_tag(keep);
 	}
 
 	// Send path: local echo + NMT_CHAT broadcast (channel travels as wire
@@ -217,19 +252,28 @@ public:
 			return;
 		}
 		if (!text.is_empty()) {
-			int ch = channel_ ? channel_->get_selected() : 0;
-			String wire_tag = "";
-			String context;
-			if (ch == 1) {
-				wire_tag = "[Allies] ";
-				context = "Ally";
-			} else if (ch == 2) {
-				wire_tag = "[Enemies] ";
-				context = "Enemy";
-			} else if (ch >= 3) {
-				wire_tag = "[Player-" + String::num_int64(ch - 2) + "] ";
-				context = "Private";
+			// ChatInput.js: a typed /allies, /enemies, /observers or /msg <name> picks the
+			// addressee of this message; otherwise the dropdown's.
+			String tag = selected_tag();
+			if (text.begins_with("/allies ")) { tag = "[Allies]"; text = text.substr(8).strip_edges(); }
+			else if (text.begins_with("/enemies ")) { tag = "[Enemies]"; text = text.substr(9).strip_edges(); }
+			else if (text.begins_with("/observers ")) { tag = "[Observers]"; text = text.substr(11).strip_edges(); }
+			else if (text.begins_with("/msg ") && host_) {
+				const String rest = text.substr(5);
+				for (const auto &t : host_->chat_private_targets()) {
+					const String name = plain(t.second);
+					if (rest.begins_with(name + String(" "))) {
+						tag = "[Player-" + String::num_int64(t.first) + "]";
+						text = rest.substr(name.length() + 1).strip_edges();
+						break;
+					}
+				}
 			}
+			if (text.is_empty()) return;
+			const String context = tag == "[Allies]" ? "Ally" : tag == "[Enemies]" ? "Enemy" : tag == "[Observers]" ? "Observer"
+					: tag.is_empty() ? "" : "Private";
+			if (context == "Private") last_private_ = tag;
+			const String wire_tag = tag.is_empty() ? String() : tag + " ";
 			const String line = format_line(context, host_->chat_user(""), text);
 			log_->append_text(stamp() + line + "\n");
 			post_overlay(stamp() + line);
@@ -251,24 +295,34 @@ public:
 	void append_incoming(const String &sender_guid, const String &raw_msg) {
 		if (!log_) return;
 		String msg = raw_msg;
-		// The wire tag is the addressee; 0.28 shows it as the context (ChatAddressees.js).
-		String context;
+		// The wire tag is the addressee; 0.28 shows it as the context (ChatAddressees.js)
+		// and shows the message only to its addressees (isAddressee).
+		String context, tag;
 		if (msg.begins_with("[Allies]")) {
 			context = "Ally";
+			tag = "[Allies]";
 			msg = msg.substr(8).strip_edges();
 		} else if (msg.begins_with("[Team]")) {
 			context = "Ally";
+			tag = "[Allies]";
 			msg = msg.substr(6).strip_edges();
 		} else if (msg.begins_with("[Enemies]")) {
 			context = "Enemy";
+			tag = "[Enemies]";
 			msg = msg.substr(9).strip_edges();
+		} else if (msg.begins_with("[Observers]")) {
+			context = "Observer";
+			tag = "[Observers]";
+			msg = msg.substr(11).strip_edges();
 		} else if (msg.begins_with("[Player-")) {
 			int close_b = msg.find("]");
 			if (close_b > 0) {
 				context = "Private";
+				tag = msg.substr(0, close_b + 1);
 				msg = msg.substr(close_b + 1).strip_edges();
 			}
 		}
+		if (!tag.is_empty() && host_ && !host_->chat_is_addressee(sender_guid, tag)) return;
 		const String line = stamp() + format_line(context, host_ ? host_->chat_user(sender_guid) : sender_guid, msg);
 		log_->append_text(line + String("\n"));
 		post_overlay(line);
@@ -313,6 +367,29 @@ private:
 		return ctx + (me ? "* " + user : "<" + user + ">") + " " + text;
 	}
 
+	String selected_tag() const {
+		const int i = channel_ ? channel_->get_selected() : -1;
+		return i >= 0 && i < (int)tags_.size() ? tags_[(size_t)i] : String();
+	}
+	void select_tag(const String &tag) {
+		if (!channel_) return;
+		for (size_t i = 0; i < tags_.size(); ++i)
+			if (tags_[i] == tag) { channel_->select((int)i); return; }
+		if (!tags_.empty()) channel_->select(0);
+	}
+	// A bbcode name without its colour tags.
+	static String plain(const String &bb) {
+		String out;
+		bool in_tag = false;
+		for (int i = 0; i < bb.length(); ++i) {
+			const char32_t c = bb[i];
+			if (c == '[') in_tag = true;
+			else if (c == ']') in_tag = false;
+			else if (!in_tag) out += String::chr(c);
+		}
+		return out;
+	}
+
 	String stamp() const {
 		if (!timestamps_) return String();
 		const Dictionary t = Time::get_singleton()->get_time_dict_from_system();
@@ -335,6 +412,8 @@ private:
 		overlay_->set_text(text);
 	}
 
+	std::vector<String> tags_;  // the wire tag of each addressee entry
+	String last_private_;       // session.privatechat reopens it
 	RichTextLabel *overlay_ = nullptr;
 	std::deque<std::pair<String, uint64_t>> overlay_lines_;
 	Panel *panel_ = nullptr;

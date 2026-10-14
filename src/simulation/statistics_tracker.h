@@ -103,9 +103,6 @@ struct StatisticsSample {
 
 // StatisticsTracker.prototype.updateTimeInterval (30000 ms).
 inline constexpr float STATISTICS_SAMPLE_INTERVAL = 30.0f;
-// Map-explored cells are this many metres wide: coarse enough to stay cheap,
-// fine enough for a percentage.
-inline constexpr float STATISTICS_EXPLORE_CELL = 8.0f;
 
 inline const char *stat_unit_class_name(uint8_t c) {
 	static const char *k[STAT_UNIT_SLOTS] = {"Infantry", "Worker", "Civilian", "Cavalry", "Champion",
@@ -150,21 +147,24 @@ inline uint32_t stat_unit_classes(uint8_t unit_type, uint16_t roster_flags) {
 	return m;
 }
 
-// The 0 A.D. class of a structure type (template_structure_*.xml), or
-// STAT_BLD_TOTAL when it is in none of buildingsClasses (walls, fields...).
-inline uint8_t stat_building_class(uint8_t type) {
+// The 0 A.D. buildingsClasses a structure type carries (template_structure_*.xml
+// Identity Classes), as a bit mask over StatBuildingClass: none for walls, towers,
+// temples, fields and most civ specials. A structure counts once under each class.
+inline uint32_t stat_building_classes(uint8_t type) {
+	auto bit = [](StatBuildingClass c) { return 1u << c; };
 	switch (building_research_base(type)) {
-	case BLD_HOUSE: case BLD_APARTMENT: return STAT_BLD_HOUSE;
-	case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_DOCK: case BLD_CORRAL: case BLD_FIELD:
-		return STAT_BLD_ECONOMIC;
-	case BLD_OUTPOST: return STAT_BLD_OUTPOST;
-	case BLD_BARRACKS: case BLD_TOWER: case BLD_STABLE: case BLD_RANGE: case BLD_ARSENAL: case BLD_SENTRY_TOWER:
-	case BLD_ELEPHANT_STABLE: case BLD_EMBASSY: case BLD_TEMPLE: case BLD_FORGE:
-		return STAT_BLD_MILITARY;
-	case BLD_FORTRESS: return STAT_BLD_FORTRESS;
-	case BLD_TOWN_CENTER: return STAT_BLD_CIV_CENTRE;
-	case BLD_WONDER: return STAT_BLD_WONDER;
-	default: return STAT_BLD_TOTAL;
+	case BLD_HOUSE: return bit(STAT_BLD_HOUSE);
+	case BLD_STOREHOUSE: case BLD_FARMSTEAD: case BLD_MARKET: case BLD_CORRAL: return bit(STAT_BLD_ECONOMIC);
+	case BLD_DOCK: return bit(STAT_BLD_ECONOMIC) | bit(STAT_BLD_MILITARY); // template_structure_military_dock
+	case BLD_OUTPOST: return bit(STAT_BLD_OUTPOST);
+	case BLD_BARRACKS: case BLD_STABLE: case BLD_RANGE: case BLD_ARSENAL: case BLD_ELEPHANT_STABLE:
+	case BLD_EMBASSY: case BLD_FORGE: case BLD_KENNEL: case BLD_MERCENARY_CAMP: case BLD_ACADEMY:
+	case BLD_CAMP_BLEMMYE: case BLD_CAMP_NOBA:
+		return bit(STAT_BLD_MILITARY);
+	case BLD_FORTRESS: return bit(STAT_BLD_FORTRESS) | bit(STAT_BLD_MILITARY);
+	case BLD_TOWN_CENTER: case BLD_MILITARY_COLONY: return bit(STAT_BLD_CIV_CENTRE);
+	case BLD_WONDER: return bit(STAT_BLD_WONDER);
+	default: return 0;
 	}
 }
 

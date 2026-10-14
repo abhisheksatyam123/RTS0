@@ -3114,7 +3114,7 @@ static void test_emergency_units() {
 	cc = &s->buildings_[s->building_id_to_idx_.at(cc_id)];
 	bool infantry = false, unstarted_other = false;
 	for (const auto &o : cc->queue) {
-		const uint64_t cls = unit_tech_classes(o.unit_type);
+		const TechClasses cls = unit_tech_classes(o.unit_type);
 		if ((cls & TC_INFANTRY) && (cls & TC_CITIZENSOLDIER)) infantry = true;
 		else if (!o.started && o.timer <= 0.0f) unstarted_other = true;
 	}

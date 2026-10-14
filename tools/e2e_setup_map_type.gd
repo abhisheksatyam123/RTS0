@@ -108,6 +108,28 @@ func run() -> void:
 	select_map(page, "random_mainland")
 	spin.value = 3
 	await frames(2)
+	# 0.28 MapSize: random maps only, Normal (256) by default; WonderDuration and the relic
+	# sliders only while their condition is checked.
+	var msz: RtsoSafeSelect = node(page, "MapSizeSlot").get_child(0)
+	check(node(page, "MapSizeSlot").visible and msz.text == "Normal (256 m)", "map size Normal (256 m): " + msz.text)
+	var vt: Control = node(page, "VictoryTimesRow")
+	page._set_victory_mask(1)
+	check(not vt.visible, "no wonder or relic settings under Conquest")
+	page._set_victory_mask(1 | 16)
+	check(vt.visible and vt.get_node("WonderTimeSlot").visible and not vt.get_node("RelicCountSlot").visible, "Wonder shows its duration only")
+	page._set_victory_mask(32)
+	check(vt.visible and not vt.get_node("WonderTimeSlot").visible and vt.get_node("RelicCountSlot").visible and vt.get_node("RelicTimeSlot").visible, "Capture the Relic shows its count and duration")
+	page._set_victory_mask(1)
+	var civs: RtsoSafeSelect = slot_selects(page)[2]["civ"]
+	check(civs.get_selected() == 0 and civs.text == "Random", "a new slot is Random, listed first: " + civs.text)
+	var civ_names := []
+	for i in range(1, civs.get_item_count()):
+		civs.select(i)
+		civ_names.append(civs.text)
+	civs.select(0)
+	var sorted_names := civ_names.duplicate()
+	sorted_names.sort_custom(func(x, y): return x.naturalnocasecmp_to(y) < 0)
+	check(civ_names == sorted_names, "then the civs by name")
 
 	print("4. Scenario locks")
 	page._on_map_type_selected(2)
@@ -116,6 +138,7 @@ func run() -> void:
 	check(select_map(page, "laconia"), "Laconia")
 	await frames(2)
 	check(int(spin.value) == 2 and not spin.editable, "two players, fixed")
+	check(not node(page, "MapSizeSlot").visible, "no map size on a scenario")
 	var rows := slot_selects(page)
 	check(rows.size() == 2 and rows[0]["civ"].text == "Spartans" and rows[1]["civ"].text == "Macedonians", "the map's civs")
 	check(rows.size() == 2 and rows[0]["civ"].disabled and rows[1]["civ"].disabled, "locked")
@@ -126,7 +149,7 @@ func run() -> void:
 	var cf: RtsoSafeSelect = node(page, "CeasefireSlot").get_child(0)
 	check(res.disabled and res.text == "Per Player", "starting resources Per Player: " + res.text)
 	check(pop.disabled and cf.disabled and cf.text == "No ceasefire", "population and ceasefire locked")
-	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/DisableSpies"]:
+	for path in ["LastManStanding", "StartRow/LockTeams", "StartRow/DisableTreasures", "MapVisRow/RevealMap", "MapVisRow/ExploreMap", "MapVisRow/AlliedView", "MapVisRow/DisableSpies"]:
 		check(node(page, path).disabled, path + " locked")
 	check(select_map(page, "sahel_scenario"), "the Sahel scenario")
 	await frames(2)

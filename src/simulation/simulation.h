@@ -420,7 +420,13 @@ public:
 	// "barter" and "phase"): presentation only like AttackedEvent, never saved,
 	// hashed or read by the simulation, at most kMaxSessionNotices between reads.
 	struct SessionNotice {
-		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5 };
+		enum Kind : uint8_t { TRIBUTE = 0, BARTER = 1, PHASE_STARTED = 2, PHASE_ABORTED = 3, PHASE_COMPLETED = 4, DIPLOMACY = 5,
+			DEFEATED = 6,   // player is out; tech: the EndReason
+			WON = 7,        // other: the winners' mask; tech: the EndReason
+			LOST = 8 };     // other: the players a win defeated (wonder, relic, scenario); tech: the EndReason
+		// The reason in 0 A.D.'s playerstate chat line ("... has been defeated (lost hero).").
+		enum EndReason : uint8_t { END_CONQUEST = 0, END_UNITS, END_STRUCTURES, END_CIVIC_CENTRES, END_HERO, END_RESIGNED,
+			END_OBJECTIVE, END_LAST_ALIVE, END_WONDER, END_RELIC, END_GAME_MODE };
 		uint8_t kind;
 		uint8_t player; // who tributed, bartered, advances or changed its stance
 		uint8_t other;  // TRIBUTE: the recipient; BARTER: the resource sold; DIPLOMACY: the target
@@ -747,7 +753,7 @@ public:
 	// (IsOwnedByMutualAllyOfEntity) and the unit matches the holder's List (a TurretHolder:
 	// Turretable). Room is not checked.
 	bool structure_accepts_garrison(const Building &b, size_t unit_idx) const;
-	bool structure_accepts_classes(const Building &b, uint64_t classes) const;
+	bool structure_accepts_classes(const Building &b, TechClasses classes) const;
 	bool can_garrison_in(uint32_t unit_id, uint32_t building_id) const;
 	// GarrisonHolder.HasEnoughHealth: above EjectHealth of max health, so it may hold a garrison.
 	bool structure_has_enough_health(const Building &b) const;
@@ -948,6 +954,9 @@ public:
 	// 0 A.D. DisableSpies: Espionage can't be researched, so nobody can bribe.
 	void set_disable_spies(bool on) { set_setup_flag(SETUP_DISABLE_SPIES, on); }
 	bool spies_disabled() const { return setup_flags_ & SETUP_DISABLE_SPIES; }
+	// 0 A.D. AllyView (InitGame.js): every player starts with Diplomacy's SharedLosTech researched.
+	void set_ally_view(bool on) { set_setup_flag(SETUP_ALLY_VIEW, on); }
+	bool ally_view() const { return setup_flags_ & SETUP_ALLY_VIEW; }
 	uint32_t regicide_hero(uint8_t pid) const { return pid < MAX_PLAYERS ? regicide_hero_[pid] : 0; }
 	// False for a Regicide hero while RegicideGarrison is off: it can't enter structures,
 	// siege engines or ships.
@@ -1331,6 +1340,9 @@ public:
 	int pop_max(uint8_t player = 0) const;
 	// Houses and other population bonuses (plus the hive master cheat), before the population limit.
 	int pop_max_uncapped(uint8_t player) const;
+	// Recounts unit_pop_bonus_ (the units' Population/Bonus per player): at the end of every
+	// tick and after a load or reset, so a unit's bonus counts from the tick after it appears.
+	void refresh_unit_pop_bonus();
 	// The population limit after Player/MaxPopulation modifiers; 0 when unlimited.
 	int pop_limit(uint8_t player) const;
 	// Ownership checks for player commands (0 A.D. Commands.js FilterEntityList).
@@ -1756,6 +1768,8 @@ public:
 	uint32_t spawn_ruins(float x, float z, uint8_t ruins_type);
 
 	float wonder_time_remaining() const { return std::max(0.0f, wonder_duration_ - wonder_victory_timer_); }
+	// Seconds player p has held a finished wonder (0 when it holds none), for WonderVictory.js's countdowns.
+	float wonder_hold(uint8_t p) const { return p < MAX_PLAYERS ? wonder_hold_[p] : 0.0f; }
 	bool is_wonder_active() const { return has_active_wonder_; }
 	const std::vector<Relic> &relics() const { return relics_; }
 
@@ -1858,7 +1872,7 @@ private:
 		// The unit's damage total after technologies over its template's (attack_damage's scale);
 		// each damage type is its own value, x atk_mul + atk_add (Attack/<type>/Damage/<kind>).
 		float attack[UNIT_TYPE_COUNT];
-		float atk_mul[UNIT_TYPE_COUNT][3], atk_add[UNIT_TYPE_COUNT][3]; // hack, pierce, crush
+		float atk_mul[UNIT_TYPE_COUNT][4], atk_add[UNIT_TYPE_COUNT][4]; // hack, pierce, crush, fire
 		float health[UNIT_TYPE_COUNT];
 		float speed[UNIT_TYPE_COUNT];
 		float range[UNIT_TYPE_COUNT];
@@ -1883,6 +1897,7 @@ private:
 		float bld_research_time[BLD_TYPE_COUNT];
 		float bld_batch_time_add[BLD_TYPE_COUNT]; // added to Trainer/BatchTimeModifier (Conscription)
 		float bld_pop_bonus[BLD_TYPE_COUNT];
+		float bld_pop_bonus_add[BLD_TYPE_COUNT]; // added after the multiplier (Wagon Trains: Colony +10)
 		float bld_arrow_mul[BLD_TYPE_COUNT];
 		float bld_arrow_add[BLD_TYPE_COUNT];
 		float bld_garrison_heal[BLD_TYPE_COUNT]; // added hp per second for garrisoned units
@@ -1908,7 +1923,7 @@ private:
 		struct Template {
 			float gather[GK_COUNT];
 			float attack, health, speed, range, train_time;
-			float atk_mul[3], atk_add[3];
+			float atk_mul[4], atk_add[4]; // hack, pierce, crush, fire
 			float range_mul, vision, vision_add, spread, capture, required_xp;
 			float armor[3];
 			float cost[RES_COUNT];
@@ -1999,8 +2014,8 @@ private:
 	void attack_done(size_t i, bool in_range, float repeat);
 	bool range_check_due(size_t i, float dt) const; // Attack.js RepeatRangeCheck fell in this tick
 	float unit_attack_damage(size_t i, size_t t); // Attack ApplyStatus (Poisoned, Burning)
-	void unit_attack_effects(size_t i, float out[3]) const;
-	void unit_tech_damage(size_t i, float out[3]) const;
+	void unit_attack_effects(size_t i, float out[4]) const; // hack, pierce, crush, fire
+	void unit_tech_damage(size_t i, float out[4]) const;
 	static float status_dps(uint8_t kind);
 	void tick_projectiles(float dt);
 	void tick_construction(float dt);
@@ -2047,8 +2062,6 @@ private:
 	void credit_trade(uint8_t player, uint8_t res, int amount);
 	void tick_trickle(float dt);
 	void eject_corral_animals(const Building &b);
-	// Han ministers garrisoned in `b` (their garrison auras: han_minister_garrison*.json).
-	int garrisoned_ministers(const Building &b) const;
 	void tick_death_damage(float dt);
 	// 0 A.D. helpers/Attack.js CauseDamageOverArea for an Attack Splash landing at (ox, oz).
 	void cause_damage_over_area(uint8_t splash, uint32_t attacker_id, uint8_t attacker_team,
@@ -2150,7 +2163,9 @@ private:
 	void stat_unit_captured(size_t idx, uint8_t from); // unit idx now belongs to its captor
 	void stat_gathered(uint8_t player, uint8_t res, int amount, bool vegetarian);
 	void tick_statistics();
-	void update_statistics_explored();
+	uint8_t stat_team_mask(uint8_t player) const;
+	float explored_percent(uint8_t players) const;
+	std::array<uint8_t, MAX_PLAYERS> territory_percentages() const;
 	void bind_unit_index(uint32_t id, size_t idx);
 	int32_t lookup_unit(uint32_t id) const;
 	// 0 A.D. Loot.js / Looter.js / Promotion.js (see simulation.cpp).
@@ -2174,7 +2189,7 @@ private:
 	void collect_building_loot(uint32_t looter_id, uint8_t looter_player, const Building &b);
 	void check_victory_conditions(float dt);
 	// The match ends with these players as the winners; everyone else has lost.
-	void end_match(uint8_t winners);
+	void end_match(uint8_t winners, uint8_t reason = SessionNotice::END_LAST_ALIVE);
 	void spawn_regicide_heroes();
 
 	struct FaunaStorage {
@@ -2370,9 +2385,10 @@ private:
 	void spawn_nomad_treasures();
 	// Game Setup switches kept in the byte v32 saves as RegicideGarrison (old saves read as bit 0).
 	static constexpr uint8_t SETUP_REGICIDE_GARRISON = 1, SETUP_LOCK_TEAMS = 2, SETUP_CHEATS = 4, SETUP_DISABLE_SPIES = 8,
-		SETUP_FLAGS_ALL = 15;
+		SETUP_ALLY_VIEW = 16, SETUP_FLAGS_ALL = 31;
 	std::vector<Spy> spies_; // VisionSharing spies, oldest first
 	CheatMods cheat_mods_[MAX_PLAYERS] = {};
+	int32_t unit_pop_bonus_[MAX_PLAYERS] = {}; // Population/Bonus of each player's units (refresh_unit_pop_bonus)
 	std::vector<uint8_t> spy_mask_; // tick_fow scratch: per unit index, the players its spies see for
 	void tick_spies(float dt);
 	void cheat_convert(uint8_t to, const uint32_t *ids, size_t count);
@@ -2407,7 +2423,7 @@ private:
 	};
 	void balanced_template_composition(const std::vector<TemplateBalance> &groups, int total, std::vector<std::pair<uint16_t, int>> &counts);
 	// maps/random/danubius_triggers.js
-	uint64_t unit_classes_at(size_t i) const; // the unit's 0 A.D. classes (its roster template's, else its class's)
+	TechClasses unit_classes_at(size_t i) const; // the unit's 0 A.D. classes (its roster template's, else its class's)
 	uint32_t danubius_spawn(uint16_t key, float x, float z);
 	bool danubius_is_left(float x, float z) const;
 	void danubius_active_riversides(bool &left, bool &right) const;
@@ -2464,7 +2480,8 @@ private:
 	std::array<PlayerStatistics, MAX_PLAYERS> stats_{};
 	std::vector<StatisticsSample> stat_samples_;
 	static constexpr size_t MAX_STATISTICS_SAMPLES = 4096; // 34 hours of 30 s rows
-	// Cells each player has seen, STATISTICS_EXPLORE_CELL wide (1 = explored).
+	// Saves before map exploration was read from the LOS grid (los_) kept their own
+	// explored cells here; still in the save layout, no longer filled.
 	int32_t stats_explore_res_ = 0;
 	std::array<std::vector<uint8_t>, MAX_PLAYERS> stats_explored_;
 
@@ -2884,10 +2901,10 @@ private:
 		std::array<uint32_t, MAX_PLAYERS> neighbours;
 		uint32_t neutral; // bordering neutral tiles (Gaia's share of the decay)
 	};
-	Grid<uint16_t> territory_region_;
-	std::vector<TerritoryRegion> territory_regions_;
-	bool territory_regions_dirty_ = true;
-	void ensure_territory_regions();
+	mutable Grid<uint16_t> territory_region_;
+	mutable std::vector<TerritoryRegion> territory_regions_;
+	mutable bool territory_regions_dirty_ = true;
+	void ensure_territory_regions() const;
 	// !IsTerritoryBlinking: the tile at (x, z) is neutral or in a region holding one of its owner's roots.
 	bool territory_connected_at(float x, float z) const;
 	// TerritoryDecay.IsConnected + GetConnectedNeighbours for a structure: false when it does not

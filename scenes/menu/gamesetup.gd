@@ -205,9 +205,10 @@ const RANDOM_MAP := {"id": RANDOM_MAP_ID, "name": "Random", "kind": "Random", "t
 # 0 A.D. starting_resources.json amounts, index == START_RES.
 const START_RES_AMOUNTS := [100, 300, 500, 1000, 3000, 50000]
 
-# 0 A.D. map sizes (width in meters) for random maps.
-const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Medium (256 m)"],
-	[320, "Normal (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
+# 0.28 settings/map_sizes.json (width in meters) for random maps; Normal is the default.
+const DEFAULT_MAP_SIZE := 2
+const MAP_SIZES := [[128, "Tiny (128 m)"], [192, "Small (192 m)"], [256, "Normal (256 m)"],
+	[320, "Medium (320 m)"], [384, "Large (384 m)"], [448, "Very Large (448 m)"], [512, "Giant (512 m)"]]
 
 # Index == rtso::VictoryCondition id (sim_types.h).
 const VICTORIES := ["Conquest — destroy all enemies", "Wonder — hold a Wonder", "Relic — claim and hold all relics", "Endless — no victory, sandbox",
@@ -543,9 +544,12 @@ func _apply_map_locks() -> void:
 	var s: Dictionary = m.get("settings", {}) if scen else {}
 	_slot_count_node().editable = m.is_empty() or str(m.get("type", "")) == "random"
 	var left := $VBox/HBox/LeftScroll/Left
+	# 0.28 MapSize.available: random maps only.
+	left.get_node("MapSizeLabel").visible = _slot_count_node().editable
+	left.get_node("MapSizeSlot").visible = _slot_count_node().editable
 	var checks := {"LastManStanding": "LastManStanding", "StartRow/LockTeams": "LockTeams",
 		"StartRow/DisableTreasures": "DisableTreasures", "MapVisRow/RevealMap": "RevealMap",
-		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/DisableSpies": "DisableSpies"}
+		"MapVisRow/ExploreMap": "ExploreMap", "MapVisRow/AlliedView": "AllyView", "MapVisRow/DisableSpies": "DisableSpies"}
 	for path in checks:
 		var cb: BaseButton = left.get_node(path)
 		cb.disabled = scen
@@ -709,7 +713,7 @@ func _ensure_slot_rows(n: int) -> void:
 		var i := _slot_rows.size()
 		_slot_rows.append({
 			"kind": 1 if i > 0 else 0,
-			"civ": int(CIVS[i % CIVS.size()]["id"]),
+			"civ": RANDOM_CIV, # 0.28 PlayerCiv._resize: new players start as Random
 			"team": 0, # 0 A.D.: no team until you pick one
 			# 0 A.D. gui.gamesetup.aidifficulty / aibehavior from the options page.
 			"diff": clampi(int(UserSettings.cfg.get_number("gui.gamesetup.aidifficulty")), 0, 5),
@@ -769,13 +773,15 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	civ_slot.custom_minimum_size = Vector2(130, 28)
 	grid.add_child(civ_slot)
 	var civ := _make_option(civ_slot)
-	for c in CIVS:
+	# 0.28 PlayerCiv.getItems: Random first, then the civs by name.
+	civ.add_item("Random")
+	for ci in _civ_order():
+		var c: Dictionary = CIVS[ci]
 		var emblem: Texture2D = load(c["emblem"])
 		if emblem: civ.add_icon_item(emblem, c["name"])
 		else: civ.add_item(c["name"])
-	civ.add_item("Random")
 	var civ_pos := _civ_pos(int(row["civ"]))
-	civ.select(civ_pos if civ_pos >= 0 else CIVS.size())
+	civ.select(_civ_order().find(civ_pos) + 1 if civ_pos >= 0 else 0)
 	civ.disabled = _map_civ(_map_player(i)) >= 0
 	civ.item_selected.connect(_on_slot_civ.bind(i))
 	# team
@@ -831,8 +837,18 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 func _on_slot_civ(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
 		return
-	_slot_rows[slot]["civ"] = int(CIVS[idx]["id"]) if idx < CIVS.size() else RANDOM_CIV
+	var order := _civ_order()
+	_slot_rows[slot]["civ"] = int(CIVS[order[idx - 1]]["id"]) if idx >= 1 and idx <= order.size() else RANDOM_CIV
 	_update_preview()
+
+var _civ_order_cache: Array = []
+
+## CIVS indices sorted by name, the order of the civ dropdowns after "Random".
+func _civ_order() -> Array:
+	if _civ_order_cache.size() != CIVS.size():
+		_civ_order_cache = range(CIVS.size())
+		_civ_order_cache.sort_custom(func(a, b): return str(CIVS[a]["name"]).naturalnocasecmp_to(str(CIVS[b]["name"])) < 0)
+	return _civ_order_cache
 
 func _on_slot_team(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -890,7 +906,7 @@ func _build_options() -> void:
 	var msz := _make_option($VBox/HBox/LeftScroll/Left/MapSizeSlot)
 	for s in MAP_SIZES:
 		msz.add_item(s[1], s[0])
-	msz.select(0)
+	msz.select(DEFAULT_MAP_SIZE)
 	var pop := _make_option($VBox/HBox/LeftScroll/Left/PopCapSlot)
 	for p in POP_CAPS:
 		pop.add_item(p[1])
@@ -989,6 +1005,24 @@ func _set_victory_mask(mask: int) -> void:
 			disabled |= int(VICTORY_EXCLUDES[bit])
 	for bit in _victory_checks:
 		_victory_checks[bit].disabled = (disabled & int(bit)) != 0
+	_refresh_victory_times(mask)
+
+## 0.28 WonderDuration / RelicCount / RelicDuration: shown only while their condition
+## is checked, and fixed (disabled) on a scenario.
+func _refresh_victory_times(mask: int) -> void:
+	var row := $VBox/HBox/LeftScroll/Left/VictoryTimesRow
+	var wonder := (mask & 16) != 0
+	var relic := (mask & 32) != 0
+	row.visible = wonder or relic
+	for n in ["WonderLabel", "WonderTimeSlot"]:
+		row.get_node(n).visible = wonder
+	for n in ["RelicLabel", "RelicCountSlot", "RelicTimeSlot"]:
+		row.get_node(n).visible = relic
+	var scen := _is_scenario()
+	for n in ["WonderTimeSlot", "RelicCountSlot", "RelicTimeSlot"]:
+		var slot: Node = row.get_node(n)
+		if slot.get_child_count() > 0:
+			(slot.get_child(0) as RtsoSafeSelect).disabled = scen
 
 func _on_victory_toggled(on: bool, bit: int) -> void:
 	var mask := _victory_mask()
@@ -999,7 +1033,7 @@ func _on_victory_toggled(on: bool, bit: int) -> void:
 ## The MatchSettings fields game setup restores, also the keys of the persisted file.
 const PERSISTED_KEYS := ["map_id", "seed", "victory", "waves_enabled", "last_man_standing", "nomad",
 	"regicide_garrison", "lock_teams", "disable_spies", "disable_treasures", "pop_cap",
-	"ceasefire_min", "reveal_map", "explore_map", "wonder_min", "relic_min", "relic_count", "water_level",
+	"ceasefire_min", "reveal_map", "explore_map", "ally_view", "wonder_min", "relic_min", "relic_count", "water_level",
 	"sea_level_rise_min", "team_placement", "landscape", "trigger_difficulty", "map_daytime", "map_size", "start_res", "biome", "game_speed",
 	"slot_types", "slot_civs", "slot_teams", "slot_diffs", "slot_behs", "slot_colors"]
 ## 0 A.D. PersistentMatchSettings.PersistedSettingsFileSingleplayer.
@@ -1040,6 +1074,7 @@ func page_state() -> Dictionary:
 		"regicide_garrison": $VBox/HBox/LeftScroll/Left/StartRow/RegicideGarrison.button_pressed,
 		"lock_teams": st["lock_teams"], "disable_spies": st["disable_spies"], "disable_treasures": st["disable_treasures"],
 		"pop_cap": st["pop_cap"], "ceasefire_min": st["ceasefire"], "reveal_map": st["reveal"], "explore_map": st["explore"],
+		"ally_view": bool(st.get("ally_view", false)),
 		"wonder_min": st["wonder_min"], "relic_min": st["relic_min"], "relic_count": st["relic_count"],
 		"water_level": st["water_level"], "sea_level_rise_min": st["sea_level_rise_min"],
 		"team_placement": st["team_placement"], "landscape": st["landscape"],
@@ -1084,6 +1119,7 @@ func _apply_settings(ms: Dictionary) -> void:
 	cf.select(maxi(CEASEFIRES.find(int(ms.get("ceasefire_min"))), 0))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed = bool(ms.get("reveal_map"))
 	$VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed = bool(ms.get("explore_map"))
+	$VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed = bool(ms.get("ally_view"))
 	var wt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/WonderTimeSlot.get_child(0)
 	var rt: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicTimeSlot.get_child(0)
 	var rc: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/VictoryTimesRow/RelicCountSlot.get_child(0)
@@ -1220,6 +1256,7 @@ func _collect_setup() -> Dictionary:
 		"ceasefire": int(CEASEFIRES[maxi(cf.get_selected(), 0)]),
 		"reveal": $VBox/HBox/LeftScroll/Left/MapVisRow/RevealMap.button_pressed,
 		"explore": $VBox/HBox/LeftScroll/Left/MapVisRow/ExploreMap.button_pressed,
+		"ally_view": $VBox/HBox/LeftScroll/Left/MapVisRow/AlliedView.button_pressed,
 		"wonder_min": int(VICTORY_TIMES[maxi(wt.get_selected(), 0)]),
 		"relic_min": int(VICTORY_TIMES[maxi(rt.get_selected(), 0)]),
 		"relic_count": int(RELIC_COUNTS[maxi(rc.get_selected(), 0)]),
@@ -1316,6 +1353,7 @@ func _on_start_pressed() -> void:
 	ms.ceasefire_min = int(st["ceasefire"])
 	ms.reveal_map = bool(st["reveal"])
 	ms.explore_map = bool(st["explore"])
+	ms.ally_view = bool(st.get("ally_view", false))
 	ms.wonder_min = int(st["wonder_min"])
 	ms.relic_min = int(st["relic_min"])
 	ms.relic_count = int(st["relic_count"])
