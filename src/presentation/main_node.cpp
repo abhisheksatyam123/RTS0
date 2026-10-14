@@ -923,6 +923,8 @@ Dictionary RtsoMain::debug_selected_building() const {
 		d["has_rally"] = b.has_rally_point;
 		d["rally_self"] = b.has_rally_point && b.rally_target_bld_id == b.id;
 		d["autoqueue"] = b.autoqueue;
+		d["queue"] = (int64_t)b.queue.size();
+		d["food"] = sim->player(b.team < rtso::MAX_PLAYERS ? b.team : 0).res[rtso::RES_FOOD];
 		Camera3D *cam = cam_rig ? cam_rig->get_camera() : nullptr;
 		if (cam) d["screen"] = cam->unproject_position(Vector3(b.x, sim->get_terrain_height(b.x, b.z), b.z));
 	}
@@ -3578,6 +3580,12 @@ Dictionary RtsoMain::get_tech_tree() const {
 
 void RtsoMain::_on_queue_slot_gui_input(const Ref<InputEvent> &event, int slot_idx) {
 	command_panel_.production_queue().handle_gui_input(event, slot_idx, get_viewport());
+}
+
+// Tests: production queue slot i as the panel shows it.
+Dictionary RtsoMain::debug_queue_slot(int i) {
+	update_command_panel();
+	return command_panel_.production_queue().debug_slot(i);
 }
 
 void RtsoMain::_on_queue_slot_cancel(int slot_idx) {
