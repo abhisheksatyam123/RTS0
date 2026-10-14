@@ -4047,9 +4047,29 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 	// forward gold under water).
 	const MapType mt = config.map_type;
 	const float dry_h = sim.water_height() + 0.6f;
-	auto dry = [&](float px, float pz, float &cx, float &cz, float spread) {
+	// A tile land units can't stand on (0.28's passability: max minus min corner height
+	// over the tile above the class's MaxTerrainSlope), for the mines, which gatherers
+	// walk up to.
+	auto steep = [&](float x, float z) {
+		float lo = 1e9f, hi = -1e9f;
+		for (float dz : {-0.5f, 0.5f})
+			for (float dx : {-0.5f, 0.5f}) {
+				const float h = hm.sample_world(x + dx, z + dz);
+				lo = std::min(lo, h);
+				hi = std::max(hi, h);
+			}
+		return hi - lo > LAND_MAX_TERRAIN_SLOPE;
+	};
+	auto dry = [&](float px, float pz, float &cx, float &cz, float spread, bool flat = false) {
 		auto wet = [&](float x, float z) {
 			if (hm.sample_world(x, z) < dry_h) return true;
+			if (flat) {
+				if (steep(x, z)) return true;
+				for (int k = 0; k < 8; ++k) {
+					const float a = 0.7853982f * (float)k;
+					if (steep(x + std::cos(a) * spread, z + std::sin(a) * spread)) return true;
+				}
+			}
 			for (int k = 0; k < 8; ++k) {
 				const float a = 0.7853982f * (float)k;
 				if (hm.sample_world(x + std::cos(a) * spread, z + std::sin(a) * spread) < dry_h) return true;
@@ -4136,33 +4156,17 @@ void RmsGenerator::distribute_player_bases(Simulation &sim, const HeightmapGrid 
 		}
 
 		// 6-7. rmgen placePlayerBaseMines: one large metal mine and one large
-		// stone mine (template_gaia_ore_large / _rock_large, 5000 each).
+		// stone mine (template_gaia_ore_large / _rock_large, 5000 each), each on a tile
+		// land units can stand on. 0.28's bases have no other mines.
 		float gold_cx = px + fx * 3.5f - rx * 11.5f;
 		float gold_cz = pz + fz * 3.5f - rz * 11.5f;
-		dry(px, pz, gold_cx, gold_cz, 2.8f);
+		dry(px, pz, gold_cx, gold_cz, 2.8f, true);
 		sim.spawn_resource_world(gold_cx, gold_cz, RES_GOLD, LARGE_MINE_SUPPLY);
 
 		float stone_cx = px - fx * 8.5f - rx * 9.5f;
 		float stone_cz = pz - fz * 8.5f - rz * 9.5f;
-		dry(px, pz, stone_cx, stone_cz, 2.5f);
+		dry(px, pz, stone_cx, stone_cz, 2.5f, true);
 		sim.spawn_resource_world(stone_cx, stone_cz, RES_STONE, LARGE_MINE_SUPPLY);
-
-		// 8. Secondary Forward Gold Mine (Expansion): small metal rocks, 1000 each
-		float sec_gold_cx = px + fx * 22.0f + rx * 6.0f;
-		float sec_gold_cz = pz + fz * 22.0f + rz * 6.0f;
-		dry(px, pz, sec_gold_cx, sec_gold_cz, 2.8f);
-		for (int g = 0; g < 3; ++g) {
-			float ga = (6.2831853f * g) / 3.0f;
-			sim.spawn_resource_world(sec_gold_cx + std::cos(ga) * 1.8f, sec_gold_cz + std::sin(ga) * 1.8f, RES_GOLD, MINE_SUPPLY);
-		}
-
-		// 9. Secondary Stone Mine (Flank): small stone rocks, 1000 each
-		float sec_stone_cx = px + fx * 18.0f - rx * 16.0f;
-		float sec_stone_cz = pz + fz * 18.0f - rz * 16.0f;
-		dry(px, pz, sec_stone_cx, sec_stone_cz, 2.5f);
-		for (int s = 0; s < 2; ++s) {
-			sim.spawn_resource_world(sec_stone_cx + (s == 0 ? -1.3f : 1.3f), sec_stone_cz, RES_STONE, MINE_SUPPLY);
-		}
 
 		BiomeFauna bf = biome_fauna(config.biome, (int)config.seed);
 		// lower_nubia.js: StartingAnimal gaia/fauna_gazelle (no other base hunt; RTS0's starter hunt takes it too).
@@ -11540,6 +11544,77 @@ void RmsGenerator::plant_flora(Simulation &sim, uint32_t seed, uint8_t type) {
 		// (the Survival of the Fittest forests keep their own 800).
 		if (wood != 0 && rv.amount[r] == TREE_WOOD_SUPPLY) sim.set_resource_amount(rv.id[r], wood);
 		if (gatherers != 8) sim.set_resource_max_gatherers(rv.id[r], gatherers);
+	}
+}
+
+void RmsGenerator::keep_resources_passable(Simulation &sim) {
+	const auto &H = sim.terrain_heights();
+	const int hr = sim.terrain_res(), tr = hr - 1;
+	if (tr <= 0 || H.size() < (size_t)hr * (size_t)hr) return;
+	const float half = sim.map_half(), tile = 2.0f * half / (float)tr;
+	const float dry_h = sim.water_height() + 0.6f;
+	// 0.28's passability per terrain tile: highest corner minus lowest over the tile.
+	std::vector<uint8_t> steep((size_t)tr * (size_t)tr, 0);
+	for (int j = 0; j < tr; ++j)
+		for (int i = 0; i < tr; ++i) {
+			const float a = H[(size_t)j * hr + i], b = H[(size_t)j * hr + i + 1];
+			const float c = H[(size_t)(j + 1) * hr + i], d = H[(size_t)(j + 1) * hr + i + 1];
+			const float sl = (std::max(std::max(a, b), std::max(c, d)) - std::min(std::min(a, b), std::min(c, d))) / tile;
+			steep[(size_t)j * tr + i] = sl > LAND_MAX_TERRAIN_SLOPE;
+		}
+	auto tidx = [&](float v) { return std::clamp((int)std::floor((v + half) / tile), 0, tr - 1); };
+	auto steep_at = [&](float x, float z) { return steep[(size_t)tidx(z) * tr + tidx(x)] != 0; };
+	// A tile a gatherer can stand beside: within r of (x, z).
+	auto open_near = [&](float x, float z, float r) {
+		for (int j = tidx(z - r); j <= tidx(z + r); ++j)
+			for (int i = tidx(x - r); i <= tidx(x + r); ++i)
+				if (!steep[(size_t)j * tr + i]) return true;
+		return false;
+	};
+	const auto rv = sim.resources();
+	std::vector<std::pair<float, float>> taken;
+	taken.reserve(rv.count);
+	for (size_t r = 0; r < rv.count; ++r)
+		if (rv.alive[r]) taken.push_back({rv.x[r], rv.z[r]});
+	auto spot_ok = [&](float x, float z, float gap, size_t self) {
+		if (std::fabs(x) > half - 2.0f || std::fabs(z) > half - 2.0f) return false;
+		if (sim.circular_map() && x * x + z * z > (half - 4.0f) * (half - 4.0f)) return false;
+		if (sim.get_terrain_height(x, z) < dry_h) return false;
+		for (float dz : {-tile, 0.0f, tile})
+			for (float dx : {-tile, 0.0f, tile})
+				if (steep_at(x + dx, z + dz)) return false;
+		for (const auto &b : sim.buildings())
+			if (std::hypot(x - b.x, z - b.z) < 7.0f) return false;
+		for (size_t k = 0; k < taken.size(); ++k)
+			if (k != self && std::hypot(x - taken[k].first, z - taken[k].second) < gap) return false;
+		return true;
+	};
+	size_t live = 0;
+	for (size_t r = 0; r < rv.count; ++r) {
+		if (!rv.alive[r]) continue;
+		const size_t self = live++;
+		const uint8_t ty = rv.type[r];
+		const bool mine = ty == RES_GOLD || ty == RES_STONE;
+		const bool bush = ty == RES_FOOD && rv.subtype[r] == RES_SUB_NONE;
+		const bool tree = ty == RES_WOOD;
+		if (!mine && !bush && !tree) continue;
+		const float x = rv.x[r], z = rv.z[r];
+		if (tree ? open_near(x, z, 1.5f) : !steep_at(x, z)) continue;
+		// The nearest spot outwards in rings of half a tile, up to 6 units away.
+		const float gap = mine ? 3.0f : 1.0f;
+		bool moved = false;
+		for (float rad = 0.5f * tile; rad <= 6.0f && !moved; rad += 0.5f * tile) {
+			const int n = std::max(8, (int)(6.2831853f * rad / (0.5f * tile)));
+			for (int k = 0; k < n; ++k) {
+				const float a = 6.2831853f * (float)k / (float)n;
+				const float nx = x + std::cos(a) * rad, nz = z + std::sin(a) * rad;
+				if (!spot_ok(nx, nz, gap, self)) continue;
+				sim.set_resource_position(rv.id[r], nx, nz);
+				taken[self] = {nx, nz};
+				moved = true;
+				break;
+			}
+		}
 	}
 }
 

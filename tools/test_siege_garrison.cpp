@@ -246,7 +246,7 @@ int main() {
 		std::printf("catapult pack time: %.1f s, with Military Engineers %.1f s\n", before, after);
 		CHECK(std::fabs(after - before * 0.6f) < 1e-4f);
 		CHECK(s.pack_time_s((size_t)idx_of(s, foe_cat)) == before); // only the researcher's siege
-		// Unpacking now finishes in 6 s instead of 10.
+		// Unpacking now finishes in 3 s instead of 5.
 		const uint32_t cats[1] = {cat};
 		s.order_pack(cats, 1, false);
 		run(s, after - 0.5f);
