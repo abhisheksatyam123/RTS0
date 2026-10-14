@@ -2336,6 +2336,26 @@ static void test_restricted_attack_order() {
 	check(s.unit_order(dog).kind == ORDER_WALK, "and walks to the house");
 }
 
+static void test_walk_to_target_follows() {
+	std::printf("65. a walk-to-target order follows a target that walks off (0.28 WalkToTarget MoveToTargetRange)\n");
+	Simulation s;
+	setup(s);
+	uint32_t h = s.spawn_unit(-20, 0, 0, UNIT_HEALER);
+	uint32_t ram = s.spawn_unit(-20, 6, 0, UNIT_SIEGE_RAM);
+	const uint32_t e = post(s, 0, 0, UNIT_SPEARMAN, 5000.0f);
+	s.order_attack(&h, 1, e);
+	s.order_attack(&ram, 1, e);
+	s.cmd_move(&e, 1, 0, 30);
+	const float range = s.healer_range_of(s.lookup_unit(h));
+	run(s, 40.0f);
+	check(dist(s, e, 0, 30) < 2.0f, "the soldier walked off");
+	const float dh = std::hypot(x_of(s, h) - x_of(s, e), z_of(s, h) - z_of(s, e));
+	check(dh <= range + 0.5f, "the healer ends in heal range of where it went");
+	check(s.unit_order(h).kind != ORDER_WALK, "and its order is done");
+	const float dr = std::hypot(x_of(s, ram) - x_of(s, e), z_of(s, ram) - z_of(s, e));
+	check(dr < 4.0f, "the ram ends beside it");
+}
+
 static void test_range_check_between_hits() {
 	std::printf("64. a target that leaves reach between hits takes no hit (0.28 Attack.js RepeatRangeCheck)\n");
 	// Stepped at the game's FIXED_STEP: at DT the pushing between the two jumps far
@@ -2524,6 +2544,7 @@ int main(int argc, char **argv) {
 	test_attack_preference_switch();
 	test_healer_attack_order();
 	test_restricted_attack_order();
+	test_walk_to_target_follows();
 	test_scenery_capture();
 	test_arakamani_temples();
 	test_range_check_between_hits();

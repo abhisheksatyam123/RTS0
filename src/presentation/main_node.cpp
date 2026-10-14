@@ -643,19 +643,58 @@ bool RtsoMain::chat_try_cheat(const String &text) {
 }
 
 void RtsoMain::chat_send_wire(const std::string &wire) {
-	// 0 A.D. gui/session/chat/ChatCommands.js: the host removes a player by name.
-	for (const char *cmd : {"/kick ", "/ban "}) {
-		const std::string prefix = cmd;
-		if (wire.compare(0, prefix.size(), prefix) != 0) continue;
-		const std::string name = wire.substr(prefix.size());
-		const bool ban = prefix == "/ban ";
-		String msg;
-		if (!net_host_.isHost()) msg = "Only the host can kick or ban players";
-		else if (!net_host_.kickPeer(net_host_.peerByName(name), ban)) msg = "No player named " + String::utf8(name.c_str());
-		if (!msg.is_empty() && lobby_status) lobby_status->set_text(msg);
-		return;
-	}
 	net_host_.sendChat(wire);
+}
+
+// 0 A.D. gui/common/network.js g_NetworkCommands, run before the text would
+// be sent: /kick and /ban a player by name, /kickspecs and /banspecs every
+// observer, /list the connected users, /clear the chat history. Only the
+// host (the controller) kicks; a single-player game has nobody to kick.
+bool RtsoMain::chat_network_command(const String &text) {
+	if (!text.begins_with("/")) return false;
+	const int space = text.find(" ");
+	const String command = space < 0 ? text : text.substr(0, space);
+	const String argument = space < 0 ? String() : text.substr(space + 1).strip_edges();
+	auto system = [&](const String &line) { chat_window_.append_line(line + String("\n")); };
+	const bool networked = net_lockstep();
+	if (command == "/kick" || command == "/ban" || command == "/kickspecs" || command == "/banspecs") {
+		const bool ban = command == "/ban" || command == "/banspecs";
+		const bool specs = command.ends_with("specs");
+		if (networked && !net_host_.isHost()) {
+			system(tr("Only the host can kick clients!"));
+		} else if (!networked) {
+			system(specs ? tr("Offline game! No spectators to kick or ban.") : tr("Offline game! Can not kick or ban."));
+		} else if (specs) {
+			for (const auto &e : net_host_.playerAssignment())
+				if (e.player >= rtso::MAX_PLAYERS && e.client != 0 && e.status != rtso::PlayerAssignmentMsg::LEFT)
+					net_host_.kickPeer(net_host_.peerByName(e.name), ban);
+		} else {
+			net_host_.kickPeer(net_host_.peerByName(argument.utf8().get_data()), ban);
+		}
+		return true;
+	}
+	if (command == "/list") {
+		// getUsernameList: sorted by player slot, observers last, in their colours.
+		std::vector<std::pair<uint32_t, String>> users;
+		if (networked) {
+			for (const auto &e : net_host_.playerAssignment())
+				if (e.status != rtso::PlayerAssignmentMsg::LEFT)
+					users.emplace_back(e.player < rtso::MAX_PLAYERS ? e.player : 1000u + e.client,
+							chat_user(e.client == turn_mgr_.local_client_id() ? String() : "peer-" + String::num_int64(e.client)));
+		} else {
+			users.emplace_back(0u, chat_user(""));
+		}
+		std::stable_sort(users.begin(), users.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
+		String names;
+		for (const auto &u : users) names += (names.is_empty() ? String() : tr(", ")) + u.second;
+		system(sprintf0(tr("Users (%(num)s): %(users)s"), {{"num", String::num_int64((int64_t)users.size())}, {"users", names}}));
+		return true;
+	}
+	if (command == "/clear") {
+		chat_window_.clear();
+		return true;
+	}
+	return false;
 }
 
 void RtsoMain::_on_minimap_clicked(Vector2 world_pos) {
