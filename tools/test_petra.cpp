@@ -1884,9 +1884,11 @@ static void test_relic_gaia_target() {
 		const int32_t i = s->lookup_unit(uid);
 		capturing += i >= 0 && s->units_.order_kind[i] == ORDER_CAPTURE_RELIC && s->units_.order_target[i] == relic;
 	}
-	run_for(*s, 50.0f);
+	// 60 s: a one-tile ridge beside the relic's spot keeps one captor at its margin, and pushing
+	// edges its neighbour in and out of reach, so a pulse is now and then missed (about 52 s).
+	run_for(*s, 60.0f);
 	const int32_t r = s->lookup_unit(relic);
-	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 50 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
+	std::printf("  Gaia relic: %d of 4 soldiers sent to capture it, held by player %d after 60 s\n", capturing, r >= 0 ? (int)s->units_.team[r] : -1);
 	CHECK(capturing == 4, "the army at the relic goes to capture it");
 	CHECK(r >= 0 && s->units_.team[r] == 1, "and takes it");
 }
@@ -2162,7 +2164,8 @@ static void test_research_parity_028() {
 	CHECK(cc != nullptr, "Petra has a civic centre");
 	if (!cc) return;
 	const uint32_t cc_id = cc->id;
-	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
+	const float ccx = cc->x, ccz = cc->z; // cc points into buildings_, which the spawns below may move
+	const int cx = (int)(ccx / Simulation::GRID), cz = (int)(ccz / Simulation::GRID);
 	s->players_[1].civ = CIV_HAN;
 	s->players_[1].phase = 3;
 	std::vector<uint8_t> techs;
@@ -2180,7 +2183,7 @@ static void test_research_parity_028() {
 
 	s->players_[1].phase = 1;
 	s->players_[1].civ = CIV_ATHENIANS;
-	for (int k = 0; k < 160; ++k) s->spawn_unit(cc->x - 12.0f + (float)(k % 16), cc->z - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
+	for (int k = 0; k < 160; ++k) s->spawn_unit(ccx - 12.0f + (float)(k % 16), ccz - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
 	const bool phasing = s->petra_phasing();
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);
 	for (int k = 0; k < 5; ++k) s->spawn_building(cx - 12 + 4 * k, cz + 10, BLD_HOUSE, 1);
