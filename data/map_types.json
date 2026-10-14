@@ -412,6 +412,14 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"obedska_bog": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"obedska_bog_night": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"oceanside": {
 			"keywords": [],
 			"type": "skirmish"
@@ -539,6 +547,10 @@
 				]
 			},
 			"type": "scenario"
+		},
+		"sahyadri_buttes": {
+			"keywords": [],
+			"type": "skirmish"
 		},
 		"sandbox_athenians": {
 			"keywords": [
@@ -948,6 +960,10 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"scythia": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"sicilia": {
 			"keywords": [],
 			"type": "skirmish"
@@ -1019,6 +1035,22 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"tarim_basin_2p": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"tarim_basin_4p": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"team_oasis": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"temperate_roadway": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"the_massacre_of_delphi": {
 			"keywords": [],
 			"settings": {
@@ -1071,6 +1103,10 @@
 			},
 			"type": "scenario"
 		},
+		"thessalian_plains": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"treasure_islands": {
 			"keywords": [
 				"trigger",
@@ -1107,8 +1143,22 @@
 			"keywords": [],
 			"type": "skirmish"
 		},
+		"via_augusta": {
+			"keywords": [],
+			"type": "skirmish"
+		},
 		"watering_holes": {
 			"keywords": [],
+			"type": "skirmish"
+		},
+		"white_cliffs_of_dover": {
+			"keywords": [],
+			"type": "skirmish"
+		},
+		"yangtze": {
+			"keywords": [
+				"naval"
+			],
 			"type": "skirmish"
 		},
 		"zagros_mountains": {
