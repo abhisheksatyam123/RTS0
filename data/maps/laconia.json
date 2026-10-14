@@ -9732,6 +9732,48 @@
       "player": 1,
       "x": 4.07,
       "z": -76.28
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -23.4,
+      "z": -83.25,
+      "template": "spart/royal_stoa"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -13.69,
+      "z": -64.34,
+      "template": "hellenic_stoa"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 31.36,
+      "z": 58.0,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 30.32,
+      "z": 59.18,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 4.67,
+      "z": 55.65,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 2,
+      "x": 3.14,
+      "z": 56.2,
+      "template": "rome/tent"
     }
   ],
   "units": [

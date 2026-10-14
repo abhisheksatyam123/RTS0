@@ -10817,6 +10817,12 @@
     "Run": "sheep_run",
     "Walk": "sheep_walk"
    },
+   "sheep_gaia": {
+    "Death": "sheep_death",
+    "Idle": "sheep_idle",
+    "Run": "sheep_run",
+    "Walk": "sheep_walk"
+   },
    "siege_ballista": {
     "Attack": "rome_ballista_attack",
     "Death": "rome_ballista_idle",
@@ -11005,6 +11011,7 @@
    "ram": "",
    "scythed_chariot": "chariot",
    "sheep": "sheep",
+   "sheep_gaia": "sheep",
    "siege_ballista": "lithobolos",
    "siege_ballista_med": "lithobolos",
    "siege_lithobolos": "lithobolos",
@@ -38601,6 +38608,402 @@
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
+  "mine_metal_aegean_round": {
+   "file": "models/props/mine_metal_aegean_round.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    3.956,
+    2.179,
+    4.08
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_aegean_round.xml",
+    "mesh:gaia/stonemine_round_a.dae",
+    "skin:gaia/metal_round_col_aegean.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_aegean_small": {
+   "file": "models/props/mine_metal_aegean_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.149,
+    1.887,
+    2.019
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_aegean_small.xml",
+    "mesh:gaia/stonemine_round_a_small_01.dae",
+    "skin:gaia/metal_round_col_aegean.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_india_round": {
+   "file": "models/props/mine_metal_india_round.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    3.956,
+    2.179,
+    4.08
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_india_round.xml",
+    "mesh:gaia/stonemine_round_a.dae",
+    "skin:gaia/metal_round_col_india.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_india_small": {
+   "file": "models/props/mine_metal_india_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.149,
+    1.887,
+    2.019
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_india_small.xml",
+    "mesh:gaia/stonemine_round_a_small_01.dae",
+    "skin:gaia/metal_round_col_india.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_sahara_round": {
+   "file": "models/props/mine_metal_sahara_round.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    3.956,
+    2.179,
+    4.08
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_sahara_round.xml",
+    "mesh:gaia/stonemine_round_a.dae",
+    "skin:gaia/metal_round_col_sahara.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_sahara_small": {
+   "file": "models/props/mine_metal_sahara_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.149,
+    1.887,
+    2.019
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_sahara_small.xml",
+    "mesh:gaia/stonemine_round_a_small_01.dae",
+    "skin:gaia/metal_round_col_sahara.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_savanna_round": {
+   "file": "models/props/mine_metal_savanna_round.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    3.956,
+    2.179,
+    4.08
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_savanna_round.xml",
+    "mesh:gaia/stonemine_round_a.dae",
+    "skin:gaia/metal_round_col_savanna.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_savanna_small": {
+   "file": "models/props/mine_metal_savanna_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.149,
+    1.887,
+    2.019
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_savanna_small.xml",
+    "mesh:gaia/stonemine_round_a_small_01.dae",
+    "skin:gaia/metal_round_col_savanna.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_temperate_round": {
+   "file": "models/props/mine_metal_temperate_round.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    3.956,
+    2.179,
+    4.08
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_temperate_round.xml",
+    "mesh:gaia/stonemine_round_a.dae",
+    "skin:gaia/metal_round_col_temperate.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_temperate_small": {
+   "file": "models/props/mine_metal_temperate_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.149,
+    1.887,
+    2.019
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_temperate_small.xml",
+    "mesh:gaia/stonemine_round_a_small_01.dae",
+    "skin:gaia/metal_round_col_temperate.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metal_temperate_square": {
+   "file": "models/props/mine_metal_temperate_square.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    5.366,
+    1.796,
+    3.251
+   ],
+   "sources": [
+    "actor:art/actors/geology/metal_temperate_square.xml",
+    "mesh:gaia/stonemine_square_a.dae",
+    "skin:gaia/metal_square_col_temperate.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_metalmine_polar_round_snow": {
+   "file": "models/props/mine_metalmine_polar_round_snow.glb",
+   "origin": "actor-center",
+   "parts": 2,
+   "size_meters": [
+    3.956,
+    2.198,
+    4.08
+   ],
+   "sources": [
+    "actor:art/actors/geology/metalmine_polar_round_snow.xml",
+    "actor:art/actors/props/geology/mine_round_snow_01.xml",
+    "mesh:gaia/stonemine_round_01_snow.dae",
+    "mesh:gaia/stonemine_round_a.dae",
+    "skin:gaia/metal_round_col_aegean.png",
+    "skin:props/geology/snow_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_stonemine_aegean_large": {
+   "file": "models/props/mine_stonemine_aegean_large.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    4.737,
+    3.372,
+    4.961
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_aegean_large.xml",
+    "mesh:gaia/geo_stonemine_large.dae",
+    "skin:gaia/ao/geo_stonemine_large_ao.png",
+    "skin:gaia/stone_aegean_01.png"
+   ],
+   "upstream_material": "rock_norm_spec_ao.xml"
+  },
+  "mine_stonemine_aegean_small": {
+   "file": "models/props/mine_stonemine_aegean_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    1.398,
+    0.607,
+    1.934
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_aegean_small.xml",
+    "mesh:gaia/stonemine_granite_a.dae",
+    "skin:gaia/stone_aegean_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_stonemine_desert_quarry": {
+   "file": "models/props/mine_stonemine_desert_quarry.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    4.737,
+    3.372,
+    4.961
+   ],
+   "sources": [
+    "actor:art/actors/geology/decal_stone_desert_a.xml",
+    "actor:art/actors/geology/stonemine_desert_quarry.xml",
+    "mesh:gaia/geo_stonemine_large.dae",
+    "skin:gaia/ao/geo_stonemine_large_ao.png",
+    "skin:gaia/stone_sahara_01.png"
+   ],
+   "upstream_material": "no_trans_ao_parallax_spec.xml"
+  },
+  "mine_stonemine_desert_small": {
+   "file": "models/props/mine_stonemine_desert_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    1.398,
+    0.607,
+    1.934
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_desert_small.xml",
+    "mesh:gaia/stonemine_granite_a.dae",
+    "skin:gaia/stone_sahara_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_stonemine_granite": {
+   "file": "models/props/mine_stonemine_granite.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    1.652,
+    1.007,
+    1.607
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_granite.xml",
+    "mesh:gaia/temperate_stone_mine_a.dae",
+    "skin:gaia/stone_temperate_01.png"
+   ],
+   "upstream_material": "no_trans_norm_spec.xml"
+  },
+  "mine_stonemine_granite_large": {
+   "file": "models/props/mine_stonemine_granite_large.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.99,
+    3.278,
+    3.234
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_granite_large.xml",
+    "mesh:gaia/large_stone_a.dae",
+    "skin:gaia/ao/large_stone_rock_a_ao.png",
+    "skin:gaia/temperate_cliff_a.png"
+   ],
+   "upstream_material": "no_trans_ao_parallax_spec.xml"
+  },
+  "mine_stonemine_india_large": {
+   "file": "models/props/mine_stonemine_india_large.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    4.737,
+    3.372,
+    4.961
+   ],
+   "sources": [
+    "actor:art/actors/geology/decal_stone_tropic.xml",
+    "actor:art/actors/geology/stonemine_india_large.xml",
+    "mesh:gaia/geo_stonemine_large.dae",
+    "skin:gaia/ao/geo_stonemine_large_ao.png",
+    "skin:gaia/stone_india_01.png"
+   ],
+   "upstream_material": "rock_norm_spec_ao.xml"
+  },
+  "mine_stonemine_india_small": {
+   "file": "models/props/mine_stonemine_india_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    1.398,
+    0.607,
+    1.934
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_india_small.xml",
+    "mesh:gaia/stonemine_granite_a.dae",
+    "skin:gaia/stone_india_01.png"
+   ],
+   "upstream_material": "rock_norm_spec.xml"
+  },
+  "mine_stonemine_savanna_formations": {
+   "file": "models/props/mine_stonemine_savanna_formations.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    4.057,
+    3.378,
+    3.733
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_savanna_formations.xml",
+    "mesh:gaia/rock_stonemine_desert_bl01.dae",
+    "skin:gaia/ao/rock_stonemine_desert_bl01_ao.png",
+    "skin:gaia/stone_savanna_03.png"
+   ],
+   "upstream_material": "rock_norm_spec_ao.xml"
+  },
+  "mine_stonemine_savanna_small": {
+   "file": "models/props/mine_stonemine_savanna_small.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    2.057,
+    1.178,
+    1.976
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_savanna_small.xml",
+    "mesh:gaia/geo_medit_01.dae",
+    "skin:gaia/stone_savanna_03.png"
+   ],
+   "upstream_material": "rock_normstrong_spec.xml"
+  },
+  "mine_stonemine_temperate_quarry": {
+   "file": "models/props/mine_stonemine_temperate_quarry.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    4.737,
+    3.372,
+    4.961
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_temperate_quarry.xml",
+    "mesh:gaia/geo_stonemine_large.dae",
+    "skin:gaia/ao/geo_stonemine_large_ao.png",
+    "skin:gaia/stone_temperate_01.png"
+   ],
+   "upstream_material": "no_trans_ao_parallax_spec.xml"
+  },
+  "mine_stonemine_temperate_quarry_01": {
+   "file": "models/props/mine_stonemine_temperate_quarry_01.glb",
+   "origin": "actor-center",
+   "parts": 1,
+   "size_meters": [
+    5.961,
+    3.023,
+    3.388
+   ],
+   "sources": [
+    "actor:art/actors/geology/stonemine_temperate_quarry_01.xml",
+    "mesh:gaia/geo_rock_set_01_temperate_stonemine.dae",
+    "skin:gaia/ao/stonequarry_temperate_rock01_ao.png",
+    "skin:gaia/stonequarry_temperate.png"
+   ],
+   "upstream_material": "rock_norm_spec_ao.xml"
+  },
   "oak": {
    "file": "models/vegetation/oak.glb",
    "origin": "ground-center",
@@ -52917,6 +53320,32 @@
     "actor:art/actors/fauna/sheep1.xml",
     "mesh:skeletal/sheep.dae",
     "skin:skeletal/animal_sheep_a.dds"
+   ],
+   "upstream_material": "player_trans_norm_spec.xml"
+  },
+  "sheep_gaia": {
+   "animated": true,
+   "animations": [
+    "Idle",
+    "Walk",
+    "Run",
+    "Death",
+    "Attack"
+   ],
+   "bones": 23,
+   "file": "models/units/sheep_gaia.glb",
+   "origin": "ground-center",
+   "parts": 1,
+   "size_meters": [
+    0.478,
+    0.9,
+    1.342
+   ],
+   "skeleton": "sheep",
+   "sources": [
+    "actor:art/actors/fauna/sheep3.xml",
+    "mesh:skeletal/sheep.dae",
+    "skin:skeletal/animal_sheep_no_player_color_a.dds"
    ],
    "upstream_material": "player_trans_norm_spec.xml"
   },
