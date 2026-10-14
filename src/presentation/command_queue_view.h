@@ -7,6 +7,10 @@
 // Rebuilds its buttons from the selection each frame; the presses go to the owner.
 
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/color_rect.hpp>
+#include <godot_cpp/classes/shader.hpp>
+#include <godot_cpp/classes/shader_material.hpp>
+#include <godot_cpp/classes/texture_rect.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/h_box_container.hpp>
 #include <godot_cpp/classes/h_flow_container.hpp>
@@ -56,6 +60,14 @@ public:
 
 class RtsoCommandPanelView {
 public:
+	// 0 A.D. AutoFormation.js: gui.session.defaultformation names the formation walk and
+	// patrol orders put units into; the null formation (or anything unknown) turns it off.
+	static uint8_t default_formation() {
+		const std::string name = rtso::user_config::get("gui.session.defaultformation");
+		for (uint8_t f = 1; f < rtso::FORMATION_COUNT; ++f)
+			if (name == rtso::formation_template(f).path) return f;
+		return rtso::FORMATION_NONE;
+	}
 	static constexpr int ROSTER_ANIMAL = 0x10000; // roster_list metadata flag: a corral animal
 	static constexpr int ROSTER_TECH = 0x20000;   // roster_list metadata flag: a training unit's technology
 
@@ -253,6 +265,7 @@ public:
 				// Technologies researched here (0 A.D. ProductionQueue "technologies"):
 				// one button per tech whose researcher is this building type, greyed
 				// out with the reason research_check() gives.
+				std::vector<std::pair<uint8_t, Button *>> tech_buttons;
 				for (int t = 1; t < rtso::TECH_COUNT; ++t) {
 					const rtso::TechInfo &ti = rtso::tech_info((uint8_t)t);
 					if (!rtso::building_researches_tech(found_b->type, (uint8_t)t, pciv) || !rtso::tech_available_to_civ((uint8_t)t, pciv)) continue;
@@ -266,29 +279,25 @@ public:
 					rtso::Simulation::ResearchCheck rc = sim->research_check(local_player(), (uint8_t)t, found_b->id);
 					if (rc == rtso::Simulation::TECH_ERR_RESEARCHED || rc == rtso::Simulation::TECH_ERR_CIV
 					    || rc == rtso::Simulation::TECH_ERR_PAIRED || rc == rtso::Simulation::TECH_ERR_DISABLED) continue;
+					// 0.28 Research panel (g_SelectionPanels.Research): an icon button per technology.
 					Button *btn = memnew(Button);
-					String cost;
-					auto add_cost = [&](int v, const char *suffix) {
-						if (v <= 0) return;
-						if (!cost.is_empty()) cost += ",";
-						cost += String::num_int64(v) + suffix;
-					};
+					btn->set_meta("label", String::utf8(ti.name));
+					btn->set_custom_minimum_size(Vector2(38, 38));
+					btn->set_focus_mode(Control::FOCUS_NONE);
+					TextureRect *icon = memnew(TextureRect);
+					icon->set_name("unitResearchIcon");
+					icon->set_position(Vector2(3, 3));
+					icon->set_size(Vector2(32, 32));
+					icon->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+					icon->set_stretch_mode(TextureRect::STRETCH_SCALE);
+					icon->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+					icon->set_texture(rtso::RtsoResearchProgress::icon((uint8_t)t));
+					btn->add_child(icon);
 					// Researcher.js GetTechnologyData: the price after this researcher's TechCostMultiplier,
 					// team bonuses and the Library of Alexandria, as cmd_research charges it.
 					float paid[rtso::RES_COUNT], rtime = 0.0f;
 					sim->tech_price(local_player(), (uint8_t)t, found_b->type, paid, rtime);
-					add_cost((int)paid[rtso::RES_FOOD], "f");
-					add_cost((int)paid[rtso::RES_WOOD], "w");
-					add_cost((int)paid[rtso::RES_GOLD], "g");
-					add_cost((int)paid[rtso::RES_STONE], "s");
-					btn->set_text(String::utf8(ti.name) + (cost.is_empty() ? String() : " (" + cost + ")"));
-					if (t == rtso::TECH_PHASE_TOWN || t == rtso::TECH_PHASE_CITY) {
-						btn->set_button_icon(rtso::load_ui_texture(t == rtso::TECH_PHASE_TOWN
-								? "res://assets/textures/ui/phases/town.png" : "res://assets/textures/ui/phases/city.png"));
-						btn->set_icon_alignment(HORIZONTAL_ALIGNMENT_CENTER);
-						btn->add_theme_constant_override("icon_max_width", 20);
-					}
-					// 0.28 Research panel: names, tooltip, cost, right-click, requirements, needed resources.
+					// Names, tooltip, cost, right-click, requirements, needed resources.
 					String tip = String::utf8(ti.name);
 					if (ti.desc && *ti.desc) tip += "\n" + String::utf8(ti.desc);
 					const rtso::CostTip tech_cost{(int64_t)paid[rtso::RES_FOOD], (int64_t)paid[rtso::RES_WOOD], (int64_t)paid[rtso::RES_STONE],
@@ -298,30 +307,105 @@ public:
 					tip += "\n" + right_click_tooltip();
 					on_right_click_details(btn, "tech", t, pciv);
 					String why;
+					bool reqs_failed = false;
 					switch (rc) {
-						case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; break;
+						case rtso::Simulation::TECH_ERR_IN_PROGRESS: why = "Already being researched"; reqs_failed = true; break;
 						case rtso::Simulation::TECH_ERR_PHASE:
-							why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase"); break;
+							why = requires_text(ti.required_phase >= 3 ? "City Phase" : "Town Phase");
+							reqs_failed = true;
+							break;
 						case rtso::Simulation::TECH_ERR_PREREQUISITE: {
 							const uint8_t sup = rtso::tech_supersedes((uint8_t)t);
 							const bool need_prev = sup != rtso::TECH_NONE && !sim->player(local_player()).has_tech(sup);
-							tip += "\n" + requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
-							btn->set_disabled(true);
+							why = requires_text(String::utf8(rtso::tech_info(need_prev ? sup : ti.prerequisite).name));
+							reqs_failed = true;
 							break;
 						}
 						case rtso::Simulation::TECH_ERR_STRUCTURES:
 							why = t == rtso::TECH_PHASE_CITY ? "Requires 3 Town Phase structures"
-									: "Requires 5 Village Phase structures"; break;
+									: "Requires 5 Village Phase structures";
+							reqs_failed = true;
+							break;
 						case rtso::Simulation::TECH_ERR_COST: why = needed_text(tech_cost); break;
 						default: break;
 					}
-					if (!why.is_empty()) {
-						tip += "\n" + owner_->tr(why);
-						if (rc != rtso::Simulation::TECH_ERR_COST) btn->set_disabled(true);
+					if (!why.is_empty()) tip += "\n" + owner_->tr(why);
+					// Requirements not met: "color:0 0 0 127:grayscale:"; resources missing: the
+					// resources' alpha mask (red here); both disable the button.
+					if (reqs_failed) {
+						icon->set_material(grayscale_material());
+						icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+					} else if (rc == rtso::Simulation::TECH_ERR_COST) {
+						ColorRect *mask = memnew(ColorRect);
+						mask->set_position(Vector2(3, 3));
+						mask->set_size(Vector2(32, 32));
+						mask->set_color(Color(0.8f, 0.0f, 0.0f, 0.45f));
+						mask->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+						btn->add_child(mask);
+					}
+					btn->set_disabled(rc != rtso::Simulation::TECH_OK);
+					// "Cannot research while upgrading."
+					if (found_b->upgrade_to != rtso::BLD_TYPE_COUNT) {
+						btn->set_disabled(true);
+						icon->set_material(grayscale_material());
+						icon->set_self_modulate(Color(0.5f, 0.5f, 0.5f));
+						tip += "\n" + rtso::tr0("Cannot research while upgrading.");
 					}
 					btn->set_tooltip_text(tip);
 					btn->connect("pressed", Callable(owner_, "_on_tech_pressed").bind(t));
-					production_bar_->add_child(btn);
+					tech_buttons.push_back({(uint8_t)t, btn});
+				}
+				// Pairs (pair_*.json) side by side, top then bottom, with 0.28's pair connector;
+				// hovering one crosses out the other (tech_pair_would_be_unavailable).
+				for (size_t i = 0; i < tech_buttons.size(); ++i) {
+					Button *btn = tech_buttons[i].second;
+					if (!btn) continue;
+					const uint8_t partner = rtso::tech_pair_partner(tech_buttons[i].first);
+					size_t j = i + 1;
+					while (j < tech_buttons.size() && !(tech_buttons[j].second && tech_buttons[j].first == partner)) ++j;
+					if (partner == rtso::TECH_NONE || j >= tech_buttons.size()) {
+						production_bar_->add_child(btn);
+						continue;
+					}
+					Button *other = tech_buttons[j].second;
+					tech_buttons[j].second = nullptr;
+					Button *top = tech_pair_top(tech_buttons[i].first) ? btn : other;
+					Button *bottom = top == btn ? other : btn;
+					HBoxContainer *pair = memnew(HBoxContainer);
+					pair->set_name("unitResearchPair");
+					pair->add_theme_constant_override("separation", 1);
+					pair->add_child(top);
+					pair->add_child(bottom);
+					TextureRect *link = memnew(TextureRect);
+					link->set_name("unitResearchPairIcon");
+					link->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/horizontal_pair.png"));
+					link->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+					link->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+					link->set_custom_minimum_size(Vector2(16, 22));
+					link->set_v_size_flags(Control::SIZE_SHRINK_CENTER);
+					link->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+					pair->add_child(link);
+					pair->move_child(link, 1);
+					for (Button *b : {top, bottom}) {
+						TextureRect *cross = memnew(TextureRect);
+						cross->set_name("unitResearchUnchosenIcon");
+						cross->set_texture(rtso::load_ui_texture("res://assets/textures/ui/archive/icons/tech_pair_would_be_unavailable.png"));
+						cross->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+						cross->set_stretch_mode(TextureRect::STRETCH_SCALE);
+						cross->set_position(Vector2(3, 3));
+						cross->set_size(Vector2(32, 32));
+						cross->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+						cross->set_visible(false);
+						b->add_child(cross);
+					}
+					for (Button *b : {top, bottom}) {
+						Button *o = b == top ? bottom : top;
+						Node *cross = o->get_node_or_null(NodePath("unitResearchUnchosenIcon"));
+						if (!cross) continue;
+						b->connect("mouse_entered", Callable(cross, "set_visible").bind(true));
+						b->connect("mouse_exited", Callable(cross, "set_visible").bind(false));
+					}
+					production_bar_->add_child(pair);
 				}
 
 				// Gate lock (0 A.D. Gate.js): a locked gate stays shut for everyone.
@@ -474,18 +558,39 @@ public:
 						any_can_form = sim->unit_can_use_formation(sel_ids[i], f);
 				}
 				const uint32_t available = any_can_form ? sim->player_formation_mask(local_player()) : 0u;
+				const uint8_t default_f = default_formation();
 				for (uint8_t f = 0; f < rtso::FORMATION_COUNT; ++f) {
 					if (!((available >> f) & 1u)) continue;
+					// getItems: only the formations some selected unit can take.
+					bool someone_can = f == rtso::FORMATION_NONE;
+					for (size_t i = 0; i < sel_n && !someone_can; ++i) someone_can = sim->unit_can_use_formation(sel_ids[i], f);
+					if (!someone_can) continue;
 					const rtso::FormationTemplate &ft = rtso::formation_template(f);
 					const bool enabled = f == rtso::FORMATION_NONE || sim->can_move_into_formation(sel_ids, sel_n, f);
 					// The Formation panel's buttons are icons; the name is on the tooltip.
 					Button *fb = memnew(Button);
 					fb->set_custom_minimum_size(Vector2(26, 26));
 					fb->set_clip_text(true);
+					// setupButton: name, description, the default-formation line, then why not.
 					String tip = String::utf8(ft.name);
-					const char *why = enabled ? ft.tooltip : ft.disabled_tooltip;
-					if (why && *why) tip += String("\n") + String::utf8(why);
+					if (ft.tooltip && *ft.tooltip) tip += String("\n") + String::utf8(ft.tooltip);
+					const bool is_default = f == default_f;
+					if (f == rtso::FORMATION_NONE)
+						tip += is_default ? "\nDefault formation is disabled." : "\nRight-click to disable the default formation feature.";
+					else
+						tip += is_default ? "\nThis is the default formation, used for movement orders." : "\nRight-click to set this as the default formation.";
+					if (!enabled && ft.disabled_tooltip && *ft.disabled_tooltip)
+						tip += String("\n") + String::utf8(ft.disabled_tooltip);
 					fb->set_tooltip_text(tip);
+					if (is_default) { // countDisplay: the default formation is marked
+						Label *mark = memnew(Label);
+						mark->set_text(U"\u2605");
+						mark->add_theme_font_size_override("font_size", 9);
+						mark->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
+						mark->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+						mark->set_position(Vector2(16, -2));
+						fb->add_child(mark);
+					}
 					Ref<Texture2D> f_ico = rtso::load_ui_texture(String("res://assets/textures/ui/formations/") + kFormationIcons[f] + ".png");
 					if (f_ico.is_valid()) {
 						fb->set_button_icon(f_ico);
@@ -504,6 +609,7 @@ public:
 					}
 					fb->set_disabled(!enabled);
 					fb->connect("pressed", Callable(owner_, "_on_formation_selected").bind((int)f));
+					fb->connect("gui_input", Callable(owner_, "_on_formation_gui_input").bind((int)f));
 					actions_bar_->add_child(fb);
 				}
 
@@ -1056,10 +1162,38 @@ private:
 
 	// Everything that makes a command button look or act differently: its text,
 	// tooltip, enabled state, icon, size, overrides and what pressed calls.
+	// The pair_*.json "top" technology of its pair.
+	static bool tech_pair_top(uint8_t tech) {
+		return tech == rtso::TECH_GATHER_WICKER_BASKETS_MAUR || tech == rtso::TECH_TRADITIONAL_ARMY_SELE ||
+				tech == rtso::TECH_CIVIL_ENGINEERING_01 || tech == rtso::TECH_CIVIL_SERVICE_01 || tech == rtso::TECH_PHARAONIC_CULT;
+	}
+
+	// The "grayscale:" sprite modifier for a disabled icon (held by the view, not a
+	// static, so it goes before the engine shuts down).
+	godot::Ref<godot::ShaderMaterial> grayscale_material() {
+		using namespace godot;
+		if (grayscale_.is_null()) {
+			Ref<Shader> sh;
+			sh.instantiate();
+			sh->set_code("shader_type canvas_item;\nvoid fragment() {\n\tvec4 c = texture(TEXTURE, UV);\n"
+					"\tfloat g = dot(c.rgb, vec3(0.3, 0.59, 0.11));\n\tCOLOR = vec4(vec3(g), c.a) * COLOR;\n}\n");
+			grayscale_.instantiate();
+			grayscale_->set_shader(sh);
+		}
+		return grayscale_;
+	}
+
 	static godot::String button_signature(godot::Node *n) {
 		using namespace godot;
 		Button *b = Object::cast_to<Button>(n);
-		if (!b) return n ? n->get_class() : String();
+		if (!b) {
+			// A research pair: its buttons' signatures.
+			String s = n ? n->get_class() : String();
+			if (n)
+				for (int i = 0; i < n->get_child_count(); ++i)
+					if (Object::cast_to<Button>(n->get_child(i))) s += String("\x1e") + button_signature(n->get_child(i));
+			return s;
+		}
 		String s = b->get_text() + String("\x1f") + b->get_tooltip_text() + (b->is_disabled() ? "\x1fD" : "\x1fE");
 		Ref<Texture2D> ico = b->get_button_icon();
 		if (ico.is_valid()) s += String("\x1fi") + (ico->get_path().is_empty() ? String::num_int64(ico->get_instance_id()) : ico->get_path());
@@ -1258,6 +1392,7 @@ private:
 	uint32_t roster_list_gen_ = 0; // user_config::generation() it was built at
 	uint32_t trainer_unit_id_ = 0;
 	RtsoProductionQueue production_queue_;
+	godot::Ref<godot::ShaderMaterial> grayscale_;
 
 	uint8_t local_player() const { return host_->local_player(); }
 };
