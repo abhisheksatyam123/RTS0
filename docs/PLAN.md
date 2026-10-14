@@ -124,18 +124,19 @@ To preserve determinism and avoid regression in live multiplayer playtests:
    - Decouple remaining minimap event hooks (`flare_requested`, `shroud_cycle`, `minimap_clicked`) into clean signals in `minimap_view.h/.cpp`.
    - Verification: Minimap flare and FoW 3-state rendering pass visual audit.
 
-4. **Phase 4.4: Inspector Read-Only Widget Extraction**
+4. **Phase 4.4: Inspector Read-Only Widget Extraction** (landed, #555)
    - Extract `inspector_view.h/.cpp`.
    - Rationale: Read-only observer receiving selection IDs from `RtsoMain` and querying `Simulation` views (`units()`, `buildings()`, `resources()`). Never posts lockstep commands directly.
    - Verification: Unit stat bars, aura icons, and experience ranks render correctly.
 
-5. **Phase 4.5: Command & Production Queue Extraction**
+5. **Phase 4.5: Command & Production Queue Extraction** (landed: `command_queue_view.h` owns the panel, roster and queue; presses still call `RtsoMain` methods)
    - Extract `command_queue_view.h/.cpp`.
    - Rationale: Contains the highest interaction density (formations, stances, training queues, build modal hotkeys). Exposes command request signals (`train_requested`, `stance_requested`, `formation_requested`, `queue_canceled`) connected to `RtsoMain::post_lockstep`.
    - Verification: `playtest_lockstep.py` (3 seeds x 2000 turns) stays at 0 OOS.
 
 6. **Phase 4.6: RtsoMain Final Coordinator Slimming**
    - `RtsoMain` retains high-level orchestration, Godot scene hooks (`_ready`, `_process`, `_unhandled_input`), 3D spatial picking, and bridge between UI signals and network lockstep. Target size: ~900-1000 lines.
+   - Started: `_unhandled_input` (input.js and the session hotkeys) lives in `session_input.cpp`, still an `RtsoMain` method.
 
 ### Also open (unordered, after P1–P4)
 

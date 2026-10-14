@@ -524,6 +524,23 @@ Dictionary RtsoMain::get_replay_status() const {
 		for (int i = 0; i < replay_view_picker_->get_item_count(); ++i) views.push_back(replay_view_picker_->get_item_text(i));
 	d["view_items"] = views;
 	d["observer_mode"] = replay_observer_label_ && replay_observer_label_->is_visible();
+	// The session's own viewPlayer dropdown, for observers and players who have finished.
+	Dictionary picker;
+	picker["visible"] = observer_view_picker_ && observer_view_picker_->is_visible_in_tree();
+	Array items;
+	if (observer_view_picker_)
+		for (int i = 0; i < observer_view_picker_->get_item_count(); ++i) items.push_back(observer_view_picker_->get_item_text(i));
+	picker["items"] = items;
+	picker["view"] = observer_view_ < rtso::MAX_PLAYERS ? (int)observer_view_ : -1;
+	picker["gaia"] = observer_view_gaia_;
+	picker["observer_mode"] = observer_mode_label_ && observer_mode_label_->is_visible_in_tree();
+	d["observer_picker"] = picker;
+	// The game speed dropdown's titles as this client would see them now.
+	Array speed_items;
+	const Array speeds = speed_choices(fast_forward_allowed());
+	for (int i = 0; i < speeds.size(); ++i) speed_items.push_back(speed_title((float)speeds[i]));
+	d["speed_items"] = speed_items;
+	d["speed_button"] = speed_btn && speed_btn->is_visible();
 	// The player whose counters and time notifications show (local_player()); -1 for none.
 	d["hud_player"] = local_player() < rtso::MAX_PLAYERS ? (int)local_player() : -1;
 	d["start_time"] = (double)replay_meta_.get("start_time", 0.0);
@@ -574,6 +591,27 @@ void RtsoMain::tick_match_archive() {
 	replay_label_->set_text(text);
 }
 
+// The 0 A.D. viewPlayer dropdown's entries: Observer, Gaia, then each player
+// as "■ name", the square in the player's colour, tooltip "Choose player to view".
+OptionButton *RtsoMain::new_player_view_picker() const {
+	OptionButton *picker = memnew(OptionButton);
+	picker->set_tooltip_text("Choose player to view");
+	picker->add_item("Observer", 0);
+	auto add_player = [&](uint8_t pid, const String &name, int id) {
+		const uint32_t rgb = sim->player_color(pid);
+		Ref<Image> img = Image::create(12, 12, false, Image::FORMAT_RGB8);
+		img->fill(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
+		picker->add_icon_item(ImageTexture::create_from_image(img), name, id);
+	};
+	add_player(rtso::GAIA_PLAYER, "Gaia", kReplayViewGaiaId);
+	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+		if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
+		add_player(p, player_display_name(p), p + 1);
+	}
+	picker->set_focus_mode(Control::FOCUS_NONE);
+	return picker;
+}
+
 // 0 A.D. replay "Player view" (PlayerViewControl): Observer (everything revealed),
 // then every player, Gaia first, as "■ name" with the square in the player's colour;
 // "Observer Mode" shows while the view is Observer or Gaia. Presentation only, so the
@@ -582,21 +620,7 @@ void RtsoMain::build_replay_view_picker() {
 	if (replay_view_picker_ || !replay_label_) return;
 	HBoxContainer *row = memnew(HBoxContainer);
 	row->set_position(Vector2(16.0f, 92.0f));
-	replay_view_picker_ = memnew(OptionButton);
-	replay_view_picker_->set_tooltip_text("Choose player to view");
-	replay_view_picker_->add_item("Observer", 0);
-	auto add_player = [&](uint8_t pid, const String &name, int id) {
-		const uint32_t rgb = sim->player_color(pid);
-		Ref<Image> img = Image::create(12, 12, false, Image::FORMAT_RGB8);
-		img->fill(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f));
-		replay_view_picker_->add_icon_item(ImageTexture::create_from_image(img), name, id);
-	};
-	add_player(rtso::GAIA_PLAYER, "Gaia", kReplayViewGaiaId);
-	for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
-		if (!sim->player_in_match(p) && !((sim->participant_mask() >> p) & 1)) continue;
-		add_player(p, player_display_name(p), p + 1);
-	}
-	replay_view_picker_->set_focus_mode(Control::FOCUS_NONE);
+	replay_view_picker_ = new_player_view_picker();
 	replay_view_picker_->connect("item_selected", Callable(this, "_on_replay_view_selected"));
 	row->add_child(replay_view_picker_);
 	replay_observer_label_ = memnew(Label);
@@ -609,10 +633,11 @@ void RtsoMain::build_replay_view_picker() {
 	replay_speed_picker_ = memnew(OptionButton);
 	const Array speeds = speed_choices(true);
 	for (int i = 0; i < speeds.size(); ++i) {
-		replay_speed_picker_->add_item(speed_text((float)speeds[i]), i);
+		replay_speed_picker_->add_item(speed_title((float)speeds[i]), i);
 		replay_speed_picker_->set_item_metadata(i, speeds[i]);
 		if ((float)speeds[i] == game_speed) replay_speed_picker_->select(i);
 	}
+	replay_speed_picker_->set_tooltip_text("Choose game speed");
 	replay_speed_picker_->set_focus_mode(Control::FOCUS_NONE);
 	replay_speed_picker_->connect("item_selected", Callable(this, "_on_replay_speed_selected"));
 	row->add_child(replay_speed_picker_);
