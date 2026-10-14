@@ -145,7 +145,7 @@ static void test_roster_army() {
 		s->set_sim_seed(42);
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-		s->players_[1].civ = (Civilization)civ;
+		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS); // keep playing once the idle player is beaten
 		// Garrisoned fortresses (ten more arrows each, BuildingAI) outlast the infantry's first
 		// waves, so the siege (trained some ten minutes into the city phase at 0 A.D.'s gather
@@ -946,7 +946,7 @@ static void test_diplomacy_requests() {
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
 	s->set_player_active(0, true, false);
 	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
-	s->players_[3].civ = s->players_[1].civ; // the same civ never declines for good at once
+	s->set_team_civ(3, (uint8_t)s->players_[1].civ); // the same civ never declines for good at once
 	run_for(*s, 20.0f);
 	s->petra_send_diplomacy_request(); // as AI 1, which runs between ticks
 	int target = -1;
@@ -981,7 +981,7 @@ static void test_tribute_request_paid_later() {
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 7, 4, 128.0f);
 	s->set_player_active(0, true, false);
 	for (uint8_t p = 1; p < 4; ++p) s->set_player_active(p, true, true);
-	s->players_[3].civ = s->players_[1].civ;
+	s->set_team_civ(3, (uint8_t)s->players_[1].civ);
 	run_for(*s, 20.0f);
 	s->petra_send_diplomacy_request();
 	if (!s->petra_sent_diplo_.sent_type[3]) { CHECK(false, "AI 1 asks AI 3"); return; }
@@ -1344,7 +1344,7 @@ static void test_civ_structures() {
 		s->set_sim_seed(42);
 		s->reset();
 		s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-		s->players_[1].civ = (Civilization)civ;
+		s->set_team_civ(1, (uint8_t)civ);
 		s->set_victory_condition(VICTORY_ENDLESS);
 		bool camp = false, temple = false, champion = false;
 		// 40 minutes: at 0 A.D.'s gather rates the city phase comes around minute 15-16, and Petra adds
@@ -1602,7 +1602,7 @@ static void test_entity_limit_placement() {
 	s->set_sim_seed(42);
 	s->reset();
 	s->generate_random_map(MAP_RANDOM_CONTINENTAL, 42, 2, 64.0f);
-	s->players_[1].civ = CIV_MAURYANS;
+	s->set_team_civ(1, (uint8_t)CIV_MAURYANS);
 	run_for(*s, 1.0f);
 	float tx = 0.0f, tz = 0.0f;
 	for (const auto &b : s->buildings())
@@ -2083,7 +2083,7 @@ static void test_structure_cost_by_civ() {
 	auto s = std::make_unique<Simulation>();
 	s->reset();
 	s->petra_pid_ = 1;
-	s->players_[1].civ = CIV_BRITONS;
+	s->set_team_civ(1, (uint8_t)CIV_BRITONS);
 	s->set_player_resources(1, 1000, 1000, 1000, 1000);
 	fund_queues(*s);
 	float c[RES_COUNT];
@@ -2262,7 +2262,7 @@ static void test_research_parity_028() {
 	if (!cc) return;
 	const uint32_t cc_id = cc->id;
 	const int cx = (int)(cc->x / Simulation::GRID), cz = (int)(cc->z / Simulation::GRID);
-	s->players_[1].civ = CIV_HAN;
+	s->set_team_civ(1, (uint8_t)CIV_HAN);
 	s->players_[1].phase = 3;
 	std::vector<uint8_t> techs;
 	s->petra_available_techs(techs);
@@ -2278,7 +2278,7 @@ static void test_research_parity_028() {
 		"an AI researches in the player's time");
 
 	s->players_[1].phase = 1;
-	s->players_[1].civ = CIV_ATHENIANS;
+	s->set_team_civ(1, (uint8_t)CIV_ATHENIANS);
 	for (int k = 0; k < 160; ++k) s->spawn_unit(cc->x - 12.0f + (float)(k % 16), cc->z - 12.0f - (float)(k / 16), 1, UNIT_FEMALE_CITIZEN);
 	const bool phasing = s->petra_phasing();
 	s->set_player_resources(1, 5000, 5000, 5000, 5000);

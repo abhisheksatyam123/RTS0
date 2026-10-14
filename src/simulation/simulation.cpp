@@ -2961,7 +2961,8 @@ int Simulation::entity_limit_count(uint8_t player_id, uint8_t category) const {
 	if (category == LIMIT_NONE || category >= LIMIT_CATEGORY_COUNT) return 0;
 	int n = 0;
 	for (size_t i = 0; i < units_.count; ++i)
-		if (units_.alive[i] && units_.team[i] == player_id &&
+		// A garrisoned unit (in a structure, ship or siege engine) is still the player's entity.
+		if ((units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) && units_.team[i] == player_id &&
 		    unit_limit_category(units_.unit_type[i], units_.tmpl[i]) == category)
 			++n;
 	for (const auto &b : buildings_) {
@@ -3015,7 +3016,8 @@ int Simulation::entity_limit(uint8_t player_id, uint8_t category) const {
 		if (lifted && r.flags) {
 			bool owned = false;
 			for (size_t i = 0; i < units_.count && !owned; ++i)
-				owned = units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
+				owned = (units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) && units_.team[i] == player_id &&
+				        units_.tmpl[i] < CIV_UNIT_TEMPLATE_COUNT &&
 				        (civ_unit_template(units_.tmpl[i]).flags & r.flags) == r.flags;
 			lifted = owned;
 		}
@@ -3030,7 +3032,9 @@ int Simulation::entity_limit(uint8_t player_id, uint8_t category) const {
 					limit += c.value;
 		} else {
 			for (size_t i = 0; i < units_.count; ++i)
-				if (units_.alive[i] && units_.team[i] == player_id && units_.tmpl[i] == c.tmpl) limit += c.value;
+				if ((units_.alive[i] || units_.action_state[i] == ACTION_GARRISONED) && units_.team[i] == player_id &&
+				    units_.tmpl[i] == c.tmpl)
+					limit += c.value;
 		}
 	}
 	return limit;
@@ -3160,9 +3164,9 @@ bool Simulation::cmd_train_template_at(uint8_t player_id, uint32_t building_id, 
 
 	PlayerState &ps = players_[player_id];
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies) train the
-	// structure's own civ's units, whoever holds it.
-	if (t.civ != (building_trains_native(b.type) ? b.civ : ps.civ)) return false;
+	// units/{native}/... lists (shrines, Kushite camps, Carthaginian embassies, civic centres'
+	// civilians) train the structure's own civ's units, whoever holds it.
+	if (t.civ != building_train_civ(b.type, b.civ, ps.civ, t)) return false;
 	if (exclusive && !(t.trainers & bld_bit(b.type))) return false; // 0 A.D. Trainer list
 	if (t.phase > ps.phase) return false; // 0 A.D. Identity/Requirements: phase_town / phase_city
 
@@ -8770,7 +8774,7 @@ void Simulation::tick(float dt) {
 			if (!players_[p].has_tech(TECH_UNLOCK_SHARED_LOS)) complete_research(p, TECH_UNLOCK_SHARED_LOS);
 	if (ticks_ == 0 && !game_over_ && !victory_ && victory_conditions()) {
 		if (disable_treasures_) clear_treasures();
-		if (nomad_start_) spawn_nomad_treasures();
+		if (nomad_start_ && !disable_treasures_) spawn_nomad_treasures(); // Setup.js destroys them too
 		nomad_start_ = false;
 	}
 	tick_petra_ai(dt);
@@ -16966,6 +16970,9 @@ uint32_t Simulation::petra_best_trainer(uint16_t tmpl, uint8_t unit_type, size_t
 		    b.upgrade_to != BLD_TYPE_COUNT || b.queue.size() >= max_queue) continue;
 		if (petra_emergency_rally(b)) continue; // its queue is for the emergency units
 		if (tmpl < CIV_UNIT_TEMPLATE_COUNT && !(civ_unit_template(tmpl).trainers & bld_bit(b.type))) continue; // its Trainer list
+		// A captured civic centre trains its builder's civilians, not ours.
+		if (tmpl < CIV_UNIT_TEMPLATE_COUNT &&
+		    building_train_civ(b.type, b.civ, players_[petra_pid_].civ, civ_unit_template(tmpl)) != civ_unit_template(tmpl).civ) continue;
 		// The civ's support worker is the civic centre's support_civilian (a house's own
 		// support_civilian_house waits on a technology).
 		if (tmpl == CIV_UNIT_TEMPLATE_NONE && unit_type == UNIT_VILLAGER && !is_civic_centre(b.type)) continue;
@@ -16986,7 +16993,7 @@ bool Simulation::petra_train_template(uint8_t queue, uint32_t building_id, uint1
 	const uint8_t pid = petra_pid_;
 	if (b.team != pid || b.build_progress < 1.0f || b.queue.size() >= 8 || b.upgrade_to != BLD_TYPE_COUNT) return false;
 	const CivUnitTemplate &t = civ_unit_template(tmpl);
-	if (t.civ != players_[pid].civ || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
+	if (t.civ != building_train_civ(b.type, b.civ, players_[pid].civ, t) || t.phase > players_[pid].phase || triggers_.template_disabled(tmpl)) return false;
 	if ((!wait_for_pop && petra_pop_room() < count) || !can_train_at(pid, t.unit_type, b.type, tmpl)) return false;
 	if (count > 1 && !entity_limit_allows_unit(pid, t.unit_type, tmpl, count)) return false;
 	const UnitTypeInfo &uinfo = civ_template_unit_info(tmpl, t.unit_type);
