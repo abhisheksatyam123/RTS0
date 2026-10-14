@@ -1046,7 +1046,9 @@ uint32_t Simulation::spawn_resource_world(float wx, float wz, uint8_t type, int3
 
 void Simulation::set_resource_flora(uint32_t res_id, uint8_t flora) {
 	auto it = res_id_to_idx_.find(res_id);
-	if (it != res_id_to_idx_.end()) resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
+	if (it == res_id_to_idx_.end()) return;
+	resources_.flora[it->second] = flora < FLORA_COUNT ? flora : FLORA_DEFAULT;
+	gaia_obstacles_sig_ = 0; // its obstruction size (resource_block_half)
 }
 
 void Simulation::set_resource_amount(uint32_t res_id, int32_t amount) {
@@ -1898,21 +1900,71 @@ uint8_t distance_class_of(uint8_t type) {
 
 // The mines, which block movement (template_gaia BlockMovement), for the steering and separation lists.
 void Simulation::append_mine_obstacles(std::vector<SteerObstacle> &out) const {
-	for (size_t r = 0; r < resources_.count; ++r) {
+	// mine_candidates_: the supplies that are mines (their type and subtype never change).
+	for (const uint32_t r : mine_candidates_) {
 		nav::Footprint m;
-		if (!resources_.alive[r] || resources_.amount[r] <= 0 ||
-				(resources_.type[r] != RES_GOLD && resources_.type[r] != RES_STONE) || !mine_footprint(r, m)) continue;
+		if (!resources_.alive[r] || resources_.amount[r] <= 0 || !mine_footprint(r, m)) continue;
 		out.push_back(steer_obstacle(resources_.id[r], m.x, m.z, m.ux, m.uz, m.hu, m.hv, MINE_OBSTACLE));
 	}
 }
 
 const std::vector<Simulation::SteerObstacle> &Simulation::tick_mine_obstacles() {
 	if (mine_obstacles_tick_ != ticks_) {
+		ensure_gaia_obstacles();
 		mine_obstacles_.clear();
 		append_mine_obstacles(mine_obstacles_);
 		mine_obstacles_tick_ = ticks_;
 	}
 	return mine_obstacles_;
+}
+
+void Simulation::ensure_gaia_obstacles() {
+	// Supplies are only ever appended (spawn_resource_world) and keep their place, type and
+	// position: a depleted one stays in the list, which the lookups skip (gaia_obstacle_live). So
+	// the lists change only with the supply count, a new map or a load (both renumber them), and
+	// the treasures, few enough to name every one.
+	uint64_t h = 1469598103934665603ull;
+	auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
+	uint32_t mh;
+	std::memcpy(&mh, &map_half_, sizeof mh);
+	mix(mh);
+	mix(resources_.count);
+	if (resources_.count) mix(((uint64_t)resources_.id[0] << 32) | resources_.id[resources_.count - 1]);
+	for (const Treasure &t : treasures_) mix(t.id);
+	if (h == gaia_obstacles_sig_) return;
+	gaia_obstacles_sig_ = h;
+	gaia_obstacles_.clear();
+	gaia_res_idx_.clear();
+	mine_candidates_.clear();
+	for (size_t r = 0; r < resources_.count; ++r) {
+		const uint8_t t = resources_.type[r], sub = resources_.subtype[r];
+		if ((t == RES_GOLD || t == RES_STONE) && (sub == RES_SUB_NONE || sub == RES_SUB_RUINS)) {
+			mine_candidates_.push_back((uint32_t)r);
+		} else if (sub == RES_SUB_NONE && (t == RES_WOOD || t == RES_FOOD)) {
+			const float half = resource_block_half(r);
+			gaia_obstacles_.push_back(
+					steer_obstacle(resources_.id[r], resources_.x[r], resources_.z[r], 1.0f, 0.0f, half, half, GAIA_OBSTACLE));
+			gaia_res_idx_.push_back((uint32_t)r);
+		}
+	}
+	for (const Treasure &t : treasures_) {
+		const auto &ti = treasure_type_info(t.type);
+		const float hw = ti.width * 0.125f, hd = ti.depth * 0.125f; // metres to half-extents in world units
+		float ux, uz;
+		bool swapped;
+		nav::footprint_axis(treasure_angle(t.id), ux, uz, swapped);
+		gaia_obstacles_.push_back(steer_obstacle(t.id, t.x, t.z, ux, uz, swapped ? hd : hw, swapped ? hw : hd, GAIA_OBSTACLE));
+		gaia_res_idx_.push_back(UINT32_MAX);
+	}
+	gaia_grid_.build(gaia_obstacles_, map_half_);
+}
+
+void Simulation::gaia_obstacles_near(float x, float z, float reach, std::vector<SteerObstacle> &out) const {
+	gaia_grid_.for_each_in_box(x - reach, z - reach, x + reach, z + reach, [&](uint32_t k) {
+		const SteerObstacle &o = gaia_obstacles_[k];
+		if (std::fabs(o.x - x) <= reach + o.ext && std::fabs(o.z - z) <= reach + o.ext && gaia_obstacle_live(k))
+			out.push_back(o);
+	});
 }
 
 float Simulation::resource_block_half(size_t r) const {
@@ -8705,6 +8757,7 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 		}
 	const std::vector<SteerObstacle> &mines = tick_mine_obstacles();
 	steer_obstacles_.insert(steer_obstacles_.end(), mines.begin(), mines.end());
+	ensure_gaia_obstacles();
 	// Names this tick's obstacles for the short paths units keep (ShortPathMemo): a kept short path
 	// is only reused among the same buildings and water level.
 	{
@@ -8948,11 +9001,22 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 			const float adx = aim_x - px[i], adz = aim_z - pz[i];
 			if (adx * adx + adz * adz <= nav::BUILDING_STEER_RANGE * nav::BUILDING_STEER_RANGE) {
 				const float c = unit_clearance_at(i) + 0.05f;
+				bool moved = false;
 				for (const SteerObstacle &b : steer_obstacles_)
 					if (std::fabs(aim_x - b.x) < nav::footprint_extent(b) + c &&
 					    std::fabs(aim_z - b.z) < nav::footprint_extent(b) + c &&
-					    nav::footprint_push_out(b, c, aim_x, aim_z))
+					    nav::footprint_push_out(b, c, aim_x, aim_z)) {
+						moved = true;
 						break;
+					}
+				// Nor can it stand in a tree, a bush or a treasure.
+				if (!moved) {
+					thread_local std::vector<SteerObstacle> at_aim;
+					at_aim.clear();
+					gaia_obstacles_near(aim_x, aim_z, c, at_aim);
+					for (const SteerObstacle &b : at_aim)
+						if (nav::footprint_push_out(b, c, aim_x, aim_z)) break;
+				}
 			}
 		}
 
@@ -9066,9 +9130,15 @@ void Simulation::move_units(float dt, Arena &arena, MoveSteps &steps) {
 					mdx * mdx + mdz * mdz <= nav::SHORT_PATH_AIM_SLACK * nav::SHORT_PATH_AIM_SLACK;
 			if (round_units) steer = rtso::nav::Vec2(memo.x, memo.z);
 			const ShortPathMemo last = memo;
-			if (round_units || rtso::nav::steer_around_buildings(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
-					unit_clearance_at(i), steer_obstacles_, units_.target_building_id[i],
-					nav_grid_, short_path_key_, memo, steer)) {
+			// The trees, bushes and treasures near the unit count too (gaia_obstacles_near): the
+			// short path goes round those within GAIA_STEER_REACH (steer_around_obstacles), and
+			// further ones once it nears them.
+			thread_local std::vector<SteerObstacle> near_gaia;
+			near_gaia.clear();
+			if (!round_units) gaia_obstacles_near(px[i], pz[i], GAIA_STEER_REACH, near_gaia);
+			if (round_units || rtso::nav::steer_around_obstacles(rtso::nav::Vec2(px[i], pz[i]), rtso::nav::Vec2(aim_x, aim_z),
+					unit_clearance_at(i), steer_obstacles_, near_gaia, GAIA_STEER_REACH,
+					units_.target_building_id[i], nav_grid_, short_path_key_, memo, steer)) {
 				const float sdx = steer.x - px[i];
 				const float sdz = steer.y - pz[i];
 				if (sdx * sdx + sdz * sdz > 1e-6f) {
@@ -9445,8 +9515,11 @@ void Simulation::avoid_idle_units(float dt, Arena &arena, const uint8_t *walk, c
 			building = units_.target_building_id[i];
 		}
 		nav::Vec2 w, next;
+		thread_local std::vector<SteerObstacle> near_gaia; // and round the trees as move_units steers
+		near_gaia.clear();
+		gaia_obstacles_near(x0, z0, GAIA_STEER_REACH, near_gaia);
 		if (!nav::search_short_path_with_units(pos, aim, goal, unit_clearance_at(i), ci, range,
-				steer_obstacles_, building, squares, nav_grid_, w, next)) {
+				nav::ConcatRange<SteerObstacle>{steer_obstacles_, near_gaia}, building, squares, nav_grid_, w, next)) {
 			if (obstructed) memo = ShortPathMemo{x0, z0, aim.x, aim.y, stuck_key};
 			return;
 		}
@@ -9857,6 +9930,15 @@ void Simulation::separation(float dt, Arena &arena, const MoveSteps &steps) {
 		// order, so the pushes add up exactly as over the whole list.
 		if (!sep_grid_.for_each_near(pxi, pzi, b_skip, [&](uint32_t k) { return push_out(sep_obstacles_[k]); }))
 			for (const SteerObstacle &b : sep_obstacles_) push_out(b);
+		// 3. Trees, bushes and treasures push land units out the same way (gaia_obstacles_), all but the
+		// tree, bush or treasure the unit works at.
+		if (!gaia_grid_.empty() && !unit_is_ship(units_.unit_type[i])) {
+			const uint32_t own_res = units_.target_resource_id[i], own_unit = units_.target_unit_id[i];
+			gaia_grid_.for_each_in_box(pxi - b_skip, pzi - b_skip, pxi + b_skip, pzi + b_skip, [&](uint32_t k) {
+				const SteerObstacle &b = gaia_obstacles_[k];
+				if (b.id != own_res && b.id != own_unit && gaia_obstacle_live(k)) push_out(b);
+			});
+		}
 
 		bfx[i] = ax;
 		bfz[i] = az;
@@ -12968,21 +13050,37 @@ void Simulation::check_victory_conditions(float dt) {
 	}
 
 	if (has_victory(VK_WONDER)) {
-		// Wonder Victory (VictoryManager.js / Wonder.js): a finished wonder held 10 min wins
-		// for its owner's side (allied victory) or, under Last Man Standing, its owner alone.
+		// Wonder Victory (WonderVictory.js): each finished wonder runs its own countdown from
+		// when its owner got it; held wonder_duration_, it wins for the owner and its allies
+		// (allied victory) or the owner alone (Last Man Standing). Losing the wonder ends its
+		// countdown, and a change of the owner's mutual allies restarts it
+		// (WonderVictoryDiplomacyChanged).
+		for (int t = 0; t < MAX_TEAMS; ++t) wonder_hold_[t] = 0.0f;
 		float ours = 0.0f;
 		bool any_ours = false;
-		int holder = -1;
-		for (int t = 0; t < MAX_TEAMS; ++t) {
-			if (wonder[t] && !is_defeated((uint8_t)t)) wonder_hold_[t] += dt;
-			else wonder_hold_[t] = 0.0f;
-			if (wonder[t] && (side_of(0) >> t & 1)) { any_ours = true; ours = std::max(ours, wonder_hold_[t]); }
-			if (wonder_hold_[t] >= wonder_duration_ && (holder < 0 || wonder_hold_[t] > wonder_hold_[holder])) holder = t;
+		const Building *won = nullptr;
+		for (Building &b : buildings_) {
+			if (b.type != BLD_WONDER) continue;
+			if (b.team >= MAX_TEAMS || b.hp <= 0.0f || b.build_progress < 1.0f || is_defeated(b.team)) {
+				b.wonder_hold = 0.0f;
+				b.wonder_owner = 255;
+				continue;
+			}
+			const uint8_t allies = wonder_allies_of(b.team);
+			if (b.wonder_owner != b.team || b.wonder_allies != allies) {
+				b.wonder_hold = 0.0f;
+				b.wonder_owner = b.team;
+				b.wonder_allies = allies;
+			}
+			b.wonder_hold += dt;
+			wonder_hold_[b.team] = std::max(wonder_hold_[b.team], b.wonder_hold);
+			if (side_of(0) >> b.team & 1) { any_ours = true; ours = std::max(ours, b.wonder_hold); }
+			if (b.wonder_hold >= wonder_duration_ && (!won || b.wonder_hold > won->wonder_hold)) won = &b;
 		}
 		has_active_wonder_ = any_ours;
 		wonder_victory_timer_ = ours;
-		if (holder >= 0) {
-			end_match(side_of((uint8_t)holder), SessionNotice::END_WONDER);
+		if (won) {
+			end_match(side_of(won->team), SessionNotice::END_WONDER);
 			return;
 		}
 	}
@@ -25362,7 +25460,7 @@ bool Simulation::save_state(const char *filepath) const {
 	if (!out.is_open()) return false;
 
 	uint32_t magic = 0x52545330; // 'RTS0'
-	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate)
+	uint32_t version = SAVE_VERSION; // v6 per-player table; v7 adds each unit's and queued order's civ roster template; v8 a 256-bit researched-tech set per player; v9 the 8x8 diplomacy matrix; v10 per-player defeat and winners; v11 structure upgrades in progress and each building's structure fire; v12 0 A.D. barter price differences; v13 gate open/locked; v14 siege pack state (#40); v15 the rest of the per-tick state (save_tick_state); v16 tech ids from 55 up shifted by one for siege_pack_unpack; v17 each resource's food kind (fish); v18 Petra's attackManager.js state; v19 each projectile's source and each unit's partial xp (Loot.js); v20 UnitAI orders, order queues and work orders; v21 a Petra config per AI slot; v22 each player's trading goods shares; v23 formation controllers (save_tick_state); v24 the map extent (map_half_), so the fog grids load at their own size; v25 1024 animals with a held position (0 A.D. fauna); v26 map triggers and the water level (save_tick_state); v27 Petra's sent diplomacy requests and AI-to-AI request inboxes; v28 Gaia treasures and each ruin's gatherer cap; v29 Gaia scenery (fences, columns, obelisks); v30 every player's StatisticsTracker; v31 the terrain heightmap and each building's rotation; v32 Nomad, RegicideGarrison, Regicide heroes, player colours and Disable Treasures; v33 each resource's MaxGatherers (the v28/v29 ruins list folds into it); v34 each structure's BuildingAI round, arrows left and timer; v35 map script variables, disabled technologies and scripted attack orders (save_tick_state); v36 each unit's Health/Max aura multiplier; v37 formation attack, patrol and twin state; v38 the aura sources in force and each unit's kept short path and failed movements, without the snare, knockback, slow and bleed timers (save_tick_state); v39 each fruit bush's regrowth Max; v40 Petra's concurrent transport plans; v41 per-player line of sight (each LOS source and the explored cells, save_tick_state); v42 the heroes each player has trained (MatchLimit, save_tick_state) and each structure's Health/Max aura multiplier; v43 each formation controller's queued orders; v44 VisionSharing spies and the population and fast-actions cheats (save_tick_state); v45 unit upgrades in progress (Centurion, Immortal bow; save_tick_state); v46 drops Petra's own fog grid (Petra reads los_visible / los_explored); v47 each structure's rally resource kind and Shift-added rally positions, and each fleeing unit's flee source; v48 the production queue (batch counts, technologies, paid costs, started flags) and autoqueue; v49 the per-tile terrain textures and each tree's and fruit bush's FloraKind; v50 map scripts' disabled structures and templates, invulnerable units, watched entities and trigger point owners; v51 each building's dropsite_shared; v52 Petra's started attacks beside the one in preparation, and each plan's kind; v53 each relic's capture points per player (Capturable.js); v54 who applied each unit's poison and burning (StatusEffectsReceiver); v55 Petra's army soldiers (worker roles); v56 Petra's buildDefenses timers and queued defensive structure, and its checkResourceLevels counts; v57 each unit's gather rate fixed at the start of its gathering and each supply's regrowth timer (save_tick_state); v58 each patrolling unit's time at its waypoint; v59 each trader's goods amounts (Trader.js goods.amount); v60 each Petra attack plan's target player and forced and requested flags (attack requests); v61 each animal's owner (corral-trained livestock is its trainer's; save_tick_state); v62 each building's template civ (GarrisonHolder Max and List kept through captures); v63 map scripts' disabled structures as 128-bit masks per player, so ids from 64 up can be disabled; v64 units' production queues (Trainer on triremes and Cyrus II; save_tick_state); v65 StatisticsTracker's resource and population counts, livestock bred and bribes; v66 Petra's chat lines as kind, variant and the players named (chatHelper.js), and the allies told of a trade route; v67 Petra's 0.28 queueManager queues (21 accounts, priorities, paused and switched flags); v68 scenarios' per-player population limits (0.28 PlayerData PopulationLimit) and each structure's focus-fire targets (save_tick_state); v69 each scenery entity's owner and capture points per player (Capturable scenery); v70 each carcass's and each hunter's animal template (UnitAI hunts on only that species; save_tick_state); v71 StatisticsTracker's unitsCaptured counters and value; v72 map scripts' OnRange queries and the entities in range of each (TriggerPoint.js currentCollections); v73 Petra plays one turn every 1.6 s, so the Attacked, civic centre capture, decay and attack request events since each AI's last turn are kept (savedEvents); v74 what Petra queued each batch for (worker, attack or raid; queueplanTraining metadata); v75 the time each AI last found nothing of a resource to gather (lastFailedGather), and PetraConfig without its unused workers, traders and muster fields; v76 the storehouse a Petra dropsite check decided on but could not pay for yet (PetraDropsiteCheck.pending); v77 each unit's heading (Position rotation, which UnitMotion turns at the template's TurnRate); v78 each wonder's own countdown, owner and allies (WonderVictory.js)
 	out.write((const char *)&magic, sizeof(magic));
 	out.write((const char *)&version, sizeof(version));
 	// v24: the map extent first, so a load into a sim at another size (a fresh
@@ -25534,6 +25632,9 @@ bool Simulation::save_state(const char *filepath) const {
 		out.write((const char *)&b.autoqueue, sizeof(b.autoqueue));
 		out.write((const char *)&b.dropsite_shared, sizeof(b.dropsite_shared));
 		out.write((const char *)&b.civ, sizeof(b.civ));
+		out.write((const char *)&b.wonder_hold, sizeof(b.wonder_hold));
+		out.write((const char *)&b.wonder_owner, sizeof(b.wonder_owner));
+		out.write((const char *)&b.wonder_allies, sizeof(b.wonder_allies));
 
 		uint32_t q_sz = (uint32_t)b.queue.size();
 		out.write((const char *)&q_sz, sizeof(q_sz));
@@ -25948,6 +26049,11 @@ bool Simulation::load_state(const char *filepath) {
 			bld.civ = bld.team < MAX_PLAYERS ? (uint8_t)civ_of(bld.team) : (uint8_t)CIV_GAIA;
 			bld.garrison_cap = structure_garrison_cap(bld);
 		}
+		if (version >= SAVE_VERSION_WONDER_TIMERS) {
+			in.read((char *)&bld.wonder_hold, sizeof(bld.wonder_hold));
+			in.read((char *)&bld.wonder_owner, sizeof(bld.wonder_owner));
+			in.read((char *)&bld.wonder_allies, sizeof(bld.wonder_allies));
+		}
 		const auto &bi = building_type_info(bld.type);
 		bld.capture_regen_rate = bi.capture_regen_rate;
 		bld.capture_garrison_regen_rate = bi.capture_garrison_regen_rate;
@@ -26112,6 +26218,13 @@ bool Simulation::load_state(const char *filepath) {
 			turret_height_[b.garrisoned_units[k]] = pts->pt[pi].y;
 		}
 	}
+	if (version < SAVE_VERSION_WONDER_TIMERS) // older saves kept one countdown per player
+		for (Building &b : buildings_)
+			if (b.type == BLD_WONDER && b.team < MAX_PLAYERS && wonder_hold_[b.team] > 0.0f) {
+				b.wonder_hold = wonder_hold_[b.team];
+				b.wonder_owner = b.team;
+				b.wonder_allies = wonder_allies_of(b.team);
+			}
 	// Saves from before reset_production_queue ran on destruction kept a wreck's queue, which
 	// held its batch's population and its technologies for the rest of the match.
 	for (Building &b : buildings_)
@@ -27111,6 +27224,7 @@ void Simulation::save_tick_state(std::ofstream &out) const {
 bool Simulation::load_tick_state(std::ifstream &in, uint32_t version) {
 	TickLoadAr ar{in, version};
 	tick_state_io(ar, *this);
+	gaia_obstacles_sig_ = 0; // ensure_gaia_obstacles lists the loaded supplies afresh
 	return ar.ok && in.good();
 }
 
