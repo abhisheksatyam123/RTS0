@@ -16889,10 +16889,10 @@ bool Simulation::petra_line_in_enemy_territory(float x1, float z1, float x2, flo
 	return false;
 }
 
-// tradeManager.js checkRoutes. Our markets (foundations too) against our exclusive allies'
-// markets, or against each other when no ally has one. A land route joins two markets on
-// one land that doesn't cross enemy territory, a sea route two docks on one sea (RTS0's
-// land traders only trade at markets and merchant ships only at docks).
+// tradeManager.js checkRoutes. Our markets and docks (the Trade class, foundations too)
+// against our exclusive allies', or against each other when no ally has one. A land route
+// joins two of them on one land without crossing enemy territory (land traders trade at
+// docks too), a sea route two docks on one sea; a land route is priced for a land trader.
 void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	out = PetraTradeRoutes();
 	uint16_t home = 0;
@@ -16909,22 +16909,18 @@ void Simulation::petra_check_routes(PetraTradeRoutes &out) const {
 	const std::vector<const Building *> &others = only_ours ? own : ally;
 	const int minimal = petra_trade_minimal_gain();
 	for (const Building *m1 : own) {
-		const uint16_t land1 = m1->type == BLD_MARKET ? (topo.naval_map ? petra_building_land(*m1, &topo) : 1) : 0;
+		const uint16_t land1 = topo.naval_map ? petra_building_land(*m1, &topo) : 1;
 		const uint16_t sea1 = m1->type == BLD_DOCK ? dock_sea(*m1) : 0;
 		for (const Building *m2 : others) {
 			if (only_ours && m1->id >= m2->id) continue;
-			if (m1->type != m2->type) continue;
 			PetraTradeRoute r;
-			if (m1->type == BLD_MARKET) {
-				r.land = topo.naval_map ? petra_building_land(*m2, &topo) : 1;
-				if (!land1 || r.land != land1) continue;
-				if (petra_line_in_enemy_territory(m1->x, m1->z, m2->x, m2->z)) continue;
-			} else {
-				r.sea = dock_sea(*m2);
-				if (!sea1 || r.sea != sea1) continue;
-			}
-			r.gain = trader_gain_at(m1->x - m2->x, m1->z - m2->z, petra_pid_,
-			                        m1->type == BLD_DOCK ? UNIT_MERCHANT_SHIP : UNIT_TRADER);
+			const uint16_t land2 = topo.naval_map ? petra_building_land(*m2, &topo) : 1;
+			const uint16_t sea2 = m2->type == BLD_DOCK ? dock_sea(*m2) : 0;
+			r.land = land1 && land1 == land2 ? land1 : 0;
+			r.sea = sea1 && sea1 == sea2 ? sea1 : 0;
+			if (!r.land && !r.sea) continue;
+			if (r.land && petra_line_in_enemy_territory(m1->x, m1->z, m2->x, m2->z)) continue;
+			r.gain = trader_gain_at(m1->x - m2->x, m1->z - m2->z, petra_pid_, r.land ? UNIT_TRADER : UNIT_MERCHANT_SHIP);
 			if (r.gain < minimal) continue;
 			r.source = m1->id;
 			r.target = m2->id;
@@ -16954,13 +16950,14 @@ const Simulation::PetraTradeRoute *Simulation::petra_route_for(const PetraTradeR
 int Simulation::petra_find_market_location(float &out_x, float &out_z, int &out_gain) const {
 	out_gain = 0;
 	std::vector<const Building *> markets;
+	auto trade = [](const Building &b) { return (b.type == BLD_MARKET || b.type == BLD_DOCK) && b.hp > 0.0f && !b.wrecked; };
 	for (const Building &b : buildings_)
-		if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team < MAX_PLAYERS && b.team != petra_pid_ &&
-		    is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))
+		if (trade(b) && b.team < MAX_PLAYERS && b.team != petra_pid_ && is_ally(petra_pid_, b.team) &&
+		    !is_hostile(petra_pid_, b.team))
 			markets.push_back(&b);
 	if (markets.empty())
 		for (const Building &b : buildings_)
-			if (b.type == BLD_MARKET && b.hp > 0.0f && !b.wrecked && b.team == petra_pid_) markets.push_back(&b);
+			if (trade(b) && b.team == petra_pid_) markets.push_back(&b);
 	if (markets.empty() || territory_grid_.blank()) return 0; // the first market: anywhere
 
 	uint16_t home = 0;
@@ -17038,8 +17035,8 @@ void Simulation::petra_prospect_market(const PetraTradeRoutes &routes) {
 		return;
 	bool any = false;
 	for (const Building &b : buildings_) {
-		if (b.type != BLD_MARKET || b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
-		if (b.team == petra_pid_ && b.build_progress < 1.0f) return; // one market at a time
+		if ((b.type != BLD_MARKET && b.type != BLD_DOCK) || b.hp <= 0.0f || b.wrecked || b.team >= MAX_PLAYERS) continue;
+		if (b.type == BLD_MARKET && b.team == petra_pid_ && b.build_progress < 1.0f) return; // one market at a time
 		if (b.team == petra_pid_ || (is_ally(petra_pid_, b.team) && !is_hostile(petra_pid_, b.team))) any = true;
 	}
 	if (!any) return;
