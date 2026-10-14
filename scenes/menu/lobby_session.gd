@@ -279,7 +279,7 @@ static func game_details(room: Dictionary, ratings: Dictionary) -> String:
 # Observers send nothing. The match id is the same on both machines: the
 # lockstep seed, map and the two names.
 func _check_report() -> void:
-	if token == "":
+	if token == "" or not bool(get_node("/root/MatchSettings").rated): # Rated Game off: LobbyRatingReporter sends nothing
 		return
 	var main := _match_node()
 	if main == null:
