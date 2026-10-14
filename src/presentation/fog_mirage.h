@@ -37,6 +37,7 @@ struct FoggedBuilding {
 	float rot = 0.0f; // Simulation::Building::rot
 	float hp = 0.0f, max_hp = 0.0f;
 	float build_progress = 1.0f;
+	float capture_points = 0.0f, max_capture_points = 0.0f; // Capturable, mirrored like Health
 	uint8_t type = 0;
 	uint8_t team = 0;
 	uint8_t civ = 0;

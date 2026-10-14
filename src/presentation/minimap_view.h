@@ -41,8 +41,8 @@ class RtsoMiniMapView : public Control {
 	// (diplomacy/idle/flare buttons) and the enabled/disabled sprite swap of
 	// gui/session/minimap/MiniMapDiplomacyColorsButton.js:24-33.
 	enum ShroudMode {
-		SHROUD_ON = 0, // normal: 3-tier shroud masks terrain AND entities
-		SHROUD_TERRAIN = 1, // terrain-only: shroud over the terrain layer only
+		SHROUD_ON = 0, // normal: 3-tier shroud over terrain and territories, entities on top (CMiniMapTexture)
+		SHROUD_TERRAIN = 1, // the same drawing as SHROUD_ON since entities always go over the shroud
 		SHROUD_OFF = 2, // shroud off (observer / replay view)
 	};
 	int shroud_mode = SHROUD_ON;
