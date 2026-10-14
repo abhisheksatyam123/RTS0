@@ -401,6 +401,15 @@ static void test_regen() {
 	const float healed = s.units_.hp[idx(s, man)] - 50.0f;
 	check(std::fabs(healed - 5.0f) < 0.05f, "idle swordsman regains 0.5 hp/s with Battlefield Medicine");
 	check(s.units_.hp[idx(s, ram)] == 50.0f, "a ram (not organic) does not regenerate");
+	// Health.js keeps regenerating a garrisoned unit (idle inside), even where BuffHeal is 0.
+	uint32_t bk = s.spawn_building_world(-30.0f, 30.0f, BLD_BARRACKS, 0, 1.0f);
+	uint32_t in = s.spawn_unit(-30.0f, 36.0f, 0, UNIT_SWORDSMAN);
+	check(s.garrison_unit_now(in, bk), "swordsman garrisoned in the barracks");
+	s.units_.hp[idx(s, in)] = 50.0f;
+	for (int k = 0; k < 200; ++k) s.tick(DT);
+	const float inside = s.units_.hp[idx(s, in)] - 50.0f;
+	std::printf("      garrisoned swordsman regained %.2f hp in 10 s\n", inside);
+	check(std::fabs(inside - 5.0f) < 0.05f, "a garrisoned swordsman regains 0.5 hp/s too");
 }
 
 static void test_health_vision_auras() {

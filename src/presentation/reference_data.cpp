@@ -194,10 +194,13 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	d["heroes"] = heroes;
 	// civinfo StructuresSubsection ("CivSpecific Structure") and TechnologiesSubsection.
 	Array structures;
-	for (uint8_t b = rtso::CIV_BUILDING_FIRST; b < rtso::BLD_TYPE_COUNT; ++b) {
+	// Every structure the civ builds; "unique" marks RTS0's civ rows, the page keeps the
+	// ones 0.28 classes "CivSpecific Structure" (templates.json specific_structures).
+	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
 		if (!rtso::civ_can_build(c, b)) continue;
 		Dictionary sd;
 		sd["type"] = b;
+		sd["unique"] = b >= rtso::CIV_BUILDING_FIRST;
 		sd["name"] = String::utf8(rtso::building_type_info(b).name);
 		sd["portrait"] = building_portrait(b);
 		sd["phase"] = rtso::building_required_phase(b);
@@ -205,8 +208,12 @@ Dictionary RtsoReference::get_civ_info(int civ) const {
 	}
 	d["structures"] = structures;
 	Array techs;
-	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id)
-		if (rtso::tech_available_to_civ(id, c) && tech_civ_specific(id)) techs.push_back(tech_entry(id));
+	for (uint8_t id = 1; id < rtso::TECH_COUNT; ++id) {
+		if (!rtso::tech_available_to_civ(id, c)) continue;
+		Dictionary td = tech_entry(id);
+		td["civ_specific"] = tech_civ_specific(id); // when templates.json lacks the tech
+		techs.push_back(td);
+	}
 	d["techs"] = techs;
 	return d;
 }

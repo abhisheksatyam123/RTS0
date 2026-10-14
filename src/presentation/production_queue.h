@@ -186,6 +186,8 @@ public:
 		using namespace godot;
 		if (queue) {
 			for (int q = 0; q < kSlots; ++q) {
+				// Like 0.28's Queue panel, only queued items have a slot.
+				queue_slots_[q].panel->set_visible(q < (int)queue->size());
 				if (q < (int)queue->size()) {
 					const rtso::ProductionOrder &po = (*queue)[q];
 					// A technology shows its researcher's portrait; a batch shows its size.
@@ -195,8 +197,8 @@ public:
 							: rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).portrait_id;
 					queue_slots_[q].icon->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(portrait) + ".png"));
 					queue_slots_[q].icon->set_visible(true);
-					queue_slots_[q].panel->set_tooltip_text(po.is_tech() ? String(rtso::tech_info(po.tech).name)
-							: String(rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).name));
+					queue_slots_[q].panel->set_tooltip_text(po.is_tech() ? String::utf8(rtso::tech_info(po.tech).name)
+							: String::utf8(rtso::unit_type_info(po.unit_type < rtso::UNIT_TYPE_COUNT ? po.unit_type : 0).name));
 					queue_slots_[q].chip->set_text(po.is_tech() ? String("T") : (po.count > 1 ? "x" + String::num_int64(po.count) : String()));
 					queue_slots_[q].chip->set_visible(po.is_tech() || po.count > 1);
 
@@ -220,6 +222,7 @@ public:
 
 	void clear() {
 		for (int q = 0; q < kSlots; ++q) {
+			queue_slots_[q].panel->set_visible(false);
 			queue_slots_[q].icon->set_visible(false);
 			queue_slots_[q].progress->set_visible(false);
 			queue_slots_[q].chip->set_visible(false);

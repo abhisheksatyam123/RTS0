@@ -230,6 +230,123 @@ def tech_text(path):
     }
 
 
+def tech_reqs(civ, op, val):
+    """globalscripts/Technologies.js InterpretTechRequirements, kept to what decides
+    whether a civ can research at all: a list (maybe empty) when it can, else False."""
+    if op == "civ":
+        return [] if not civ or civ == val else False
+    if op == "notciv":
+        return False if civ == val else []
+    if op == "entity":
+        n = val.get("number") or val.get("numberOfTypes") or 0
+        return [{"entities": [val.get("class")]}] if n > 0 else []
+    if op == "tech":
+        return [{"techs": [val]}]
+    reqs = []
+    if op == "all":
+        permitted = None
+        for sub in val:
+            sop, sval = next(iter(sub.items()))
+            res = tech_reqs(civ, sop, sval)
+            if sop == "civ":
+                if res is not False:
+                    permitted = True
+                elif permitted is not True:
+                    permitted = False
+            elif sop == "notciv":
+                if res is False:
+                    return False
+            else:
+                if res is False:
+                    if sop == "any":
+                        return False
+                    null = tech_reqs(None, sop, sval)
+                    if not null:
+                        permitted = False
+                    continue
+                reqs += res
+        return False if permitted is False else reqs
+    if op == "any":
+        permitted = False
+        for sub in val:
+            sop, sval = next(iter(sub.items()))
+            res = tech_reqs(civ, sop, sval)
+            if sop == "civ":
+                if res is not False:
+                    return []
+            elif sop == "notciv":
+                if res is False:
+                    return False
+                permitted = True
+            else:
+                if res is False:
+                    if sop == "any":
+                        if not tech_reqs(None, sop, sval):
+                            continue
+                        return False
+                    continue
+                if sop in ("any", "all"):
+                    permitted = True
+                reqs += res
+        return False if not permitted and not reqs else reqs
+    return reqs
+
+
+def civ_specific(j, civ):
+    """0.28 Subsection.getTechnologyCaptions: researchable by this civ but not by "anyciv"."""
+    req = j.get("requirements")
+    if not req:
+        return False
+    op, val = next(iter(req.items()))
+    return tech_reqs(civ, op, val) is not False and tech_reqs("anyciv", op, val) is False
+
+
+def tech_name(j, civ):
+    n = j.get("specificName", j.get("genericName", ""))
+    if isinstance(n, dict):
+        n = n.get(civ, j.get("genericName", ""))
+    g = j.get("genericName", "")
+    return {"generic": g if isinstance(g, str) else "", "specific": n if n != g else ""}
+
+
+def civ_gameplay(loader, sim_root, civ, auto_techs, all_techs, structures):
+    """0.28 civinfo GameplaySection lists: the civ bonuses that are an auto-researched
+    civ tech or a player aura (BonusesSubsection), team bonuses, and which techs and
+    structures are civ specific (Subsection.getTechnologyCaptions, "CivSpecific Structure")."""
+    bonuses = []
+    for rel, j in auto_techs:
+        if civ_specific(j, civ):
+            n = tech_name(j, civ)
+            bonuses.append({"name": n["specific"] or n["generic"], "info": j.get("description", ""),
+                            "description": j.get("tooltip", "")})
+    team = []
+    for a in loader.load("special/players/" + civ).tokens("Auras"):
+        path = os.path.join(sim_root, "data", "auras", a + ".json")
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            j = json.load(f)
+        affected = j.get("affectedPlayers", ["Player"])
+        entry = {"name": j.get("auraName", ""), "description": j.get("auraDescription", "")}
+        (team if any(x in affected for x in ("MutualAlly", "ExclusiveMutualAlly")) else bonuses).append(entry)
+    techs = sorted(rel for rel, j in all_techs if civ_specific(j, civ))
+    specific = []
+    for i, d in structures.items():
+        t = loader.load(d["template"])
+        classes = set(t.tokens("Identity/Classes")) | set(t.tokens("Identity/VisibleClasses"))
+        if {"CivSpecific", "Structure"} <= classes:
+            specific.append(int(i))
+    # structree PhaseIdent.drawPhaseIcon: phase_X_<civ>, else phase_X_generic, else phase_X.
+    by_name = dict(all_techs)
+    phases = []
+    for ph in ("phase_village", "phase_town", "phase_city"):
+        j = by_name.get(ph + "_" + civ) or by_name.get(ph + "_generic") or by_name.get(ph, {})
+        n = tech_name(j, civ)
+        phases.append({"generic_name": n["generic"], "specific_name": n["specific"], "icon": j.get("icon", "")})
+    return {"bonuses": bonuses, "team_bonuses": team, "specific_techs": techs,
+            "specific_structures": sorted(specific), "phases": phases}
+
+
 def collect(zad, prev=None):
     sim_root = sim_root_of(zad)
     loader = TemplateLoader(sim_root)
@@ -269,12 +386,15 @@ def collect(zad, prev=None):
             rows[str(i)] = d
         structures[civ] = rows
     techs = {}
+    all_techs = []  # (name, json) for every 0.28 technology, in listFiles order
     tdir = os.path.join(sim_root, "data", "technologies")
     for root, _dirs, files in os.walk(tdir):
         for fn in sorted(files):
             if not fn.endswith(".json"):
                 continue
             rel = os.path.relpath(os.path.join(root, fn), tdir)[:-5].replace(os.sep, "/")
+            with open(os.path.join(root, fn), encoding="utf-8") as f:
+                all_techs.append((rel, json.load(f)))
             d = tech_text(os.path.join(root, fn))
             if d is not None:
                 techs[rel] = d
@@ -289,10 +409,13 @@ def collect(zad, prev=None):
                 d = tech_text(p)
                 if d is not None:
                     techs[tid] = d
+    all_techs.sort()
+    auto_techs = [(rel, j) for rel, j in all_techs if j.get("autoResearch")]
     civs = {}
     for civ in CIVS:
         p = loader.load("special/players/" + civ)
         civs[civ] = {"name": text_of(p, "Identity/GenericName"), "history": text_of(p, "Identity/History")}
+        civs[civ].update(civ_gameplay(loader, sim_root, civ, auto_techs, all_techs, structures[civ]))
     return {
         "generator": "tools/extract_0ad_reference.py",
         "license": "0 A.D. data, CC BY-SA 3.0, Wildfire Games",

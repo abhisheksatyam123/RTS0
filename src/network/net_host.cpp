@@ -929,14 +929,18 @@ void NetHost::dispatchMessage(uint32_t peerId, const NetMessage &msg) {
 
 // Reliable means delivered or the link is gone, as ENet's reliable packets
 // are: resend until the peer acks, backing off from 200 ms to 1 s, and give
-// up only once the peer has dropped or would have timed out (10 s). Giving
-// up sooner lost a turn batch or a rejoin chunk for good whenever a peer's
-// frames stalled for a couple of seconds, and the match or the rejoin froze.
+// up only once the peer has dropped or timed out (nothing heard for 10 s).
+// Giving up sooner lost a turn batch or a rejoin chunk for good whenever a
+// peer's frames stalled for a couple of seconds, and the match or the rejoin
+// froze; giving up 10 s after the first send did the same on a lossy link
+// whose peer was still talking (its heartbeats kept arriving).
 void NetHost::check_retransmissions(uint64_t now_ms) {
 	for (auto it = pending_acks_.begin(); it != pending_acks_.end(); ) {
 		const NetPeer *p = getPeer(it->peer_id);
 		// (A client's link to the host reads unconnected until the host acks it.)
-		const bool gone = !p || (isHost() && !p->connected) || now_ms - it->first_sent_ms > 10000;
+		const bool silent = !p || now_ms - p->last_seen_ms > 10000;
+		const bool gone = !p || (isHost() && !p->connected) ||
+				(now_ms - it->first_sent_ms > 10000 && silent);
 		const uint64_t wait = std::min<uint64_t>(200ull << std::min(it->retry_count, 3), 1000);
 		if (gone) {
 			stats_.dropped_packets++;
@@ -969,6 +973,14 @@ void NetHost::send_heartbeats(uint64_t now_ms) {
 
 void NetHost::check_peer_timeouts(uint64_t now_ms) {
 	for (auto &p : peers_) {
+		// enet_peer_disconnect_later: the refusal or kick notice goes out
+		// reliably first. Closing the link at the fixed 2 s dropped it whenever
+		// loss outlasted that, and the client waited without a reason.
+		if (p.connected && p.kick_disconnect_ms && now_ms >= p.kick_disconnect_ms &&
+				now_ms < p.kick_disconnect_ms + 8000 &&
+				std::any_of(pending_acks_.begin(), pending_acks_.end(),
+						[&](const auto &a) { return a.peer_id == p.id; }))
+			continue;
 		if (p.connected && p.kick_disconnect_ms && now_ms >= p.kick_disconnect_ms) {
 			for (int i = 0; i < kDisconnectSends; ++i)
 				send_wire_packet(p.address, p.port, p.id, NET_FLAG_DISCONNECT, 0, nullptr, 0, false);

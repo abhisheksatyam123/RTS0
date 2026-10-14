@@ -87,7 +87,7 @@ def play(args, lobby, leave):
     frozen = None
 
     # What the lobby showed while the match ran.
-    seen = {"running": False, "two": False, "playing": set()}
+    seen = {"running": False, "two": False, "playing": set(), "names": set(), "started_at": False}
     procs = (host, join)
     deadline = time.time() + args.timeout + 30
     while any(p.poll() is None for p in procs) and time.time() < deadline:
@@ -99,6 +99,10 @@ def play(args, lobby, leave):
             seen["running"] = True
         if room and room["players"] == 2:
             seen["two"] = True
+        if room:
+            # The game's details (GameDetails.js): who plays and when it started.
+            seen["names"] |= {p["name"] for p in room.get("player_names", []) if not p.get("ai")}
+            seen["started_at"] = seen["started_at"] or room.get("start_time", 0) > 0
         seen["playing"] |= {p["name"] for p in players if p["status"] == "playing"}
         if frozen is None and any("pressing Start" in l for l in lines["host"]):
             os.kill(join.pid, signal.SIGSTOP)
@@ -134,7 +138,8 @@ def play(args, lobby, leave):
     ok = (host.returncode == 0 and join.returncode == 0 and h and j
           and h.get("hash") == j.get("hash") and h.get("hash") not in (None, "00000000")
           and h.get("seat") == "0" and j.get("seat") == "1"
-          and seen["running"] and seen["two"] and seen["playing"] == {"alice", "bob"})
+          and seen["running"] and seen["two"] and seen["playing"] == {"alice", "bob"}
+          and seen["names"] == {"alice", "bob"} and seen["started_at"])
     def said(role, key):
         return next((l.split(f" {key}=", 1)[1] for l in gmp_lines(outs[role]) if f" {key}=" in l), "")
     waited = said("host", "waiting")
@@ -166,7 +171,7 @@ def play(args, lobby, leave):
     if ok:
         print(f"[gmp] PASS two Godot clients: lobby sign-in, host, join from the game list, Start; "
               f"turn {args.turns} hash {h['hash']} on both (seats 0 and 1); the lobby showed the game "
-              f"running with 2 players and alice and bob in a game")
+              f"running with 2 players, alice and bob in a game and in its details, and its start time")
         return True
     if not (h and j):
         for role in ("host", "join"):
