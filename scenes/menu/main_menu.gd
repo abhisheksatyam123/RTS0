@@ -1,5 +1,7 @@
 extends Control
 
+const L10n = preload("res://scenes/menu/l10n.gd")
+
 # 0 A.D. Main Menu Controller
 # Replicating 0 A.D.'s authentic pregame menus, parallax backdrops, stone panels, and audio.
 
@@ -45,15 +47,17 @@ var mouse_pos_norm: Vector2 = Vector2.ZERO
 
 var active_menu_id: String = ""
 
-# Canonical 0 A.D. submenus
+# 0 A.D. 0.28 gui/pregame/MainMenuItems.js submenus ("hotkey" items name the hotkey
+# that also opens them from the main menu, MainMenuItemHandler.setupHotkeys). RTS0
+# adds Skirmish Arena and Asset Viewer to Single-player.
 var submenu_data = {
 	"learn": {
 		"title": "LEARN TO PLAY",
 		"items": [
 			{"label": "Manual", "tooltip": "Open the 0 A.D. Game Manual.", "action": "open_manual"},
 			{"label": "Tutorial", "tooltip": "Start the introductory tutorial.", "action": "start_tutorial"},
-			{"label": "Structure Tree", "tooltip": "Every structure by phase, with the units it trains and the technologies it researches.", "action": "open_tech_tree"},
-			{"label": "Civilization Overview", "tooltip": "Civilization bonuses, specific technologies, structures and heroes, and history.", "action": "open_encyclopedia"},
+			{"label": "Structure Tree", "tooltip": "%(hotkey)s: View the structure tree of civilizations featured in 0 A.D.", "hotkey": "structree", "action": "open_tech_tree"},
+			{"label": "Civilization Overview", "tooltip": "%(hotkey)s: Learn about the civilizations featured in 0 A.D.", "hotkey": "civinfo", "action": "open_encyclopedia"},
 			{"label": "Catafalque Overview", "tooltip": "Compare the bonuses of catafalques featured in 0 A.D.", "action": "open_catafalque"},
 			{"label": "Map Overview", "tooltip": "View the different maps featured in 0 A.D.", "action": "open_map_browser"}
 		]
@@ -61,34 +65,51 @@ var submenu_data = {
 	"single": {
 		"title": "SINGLE-PLAYER",
 		"items": [
-			{"label": "Custom Matches", "tooltip": "Start a custom skirmish with RMS biomes, AI, or 0 A.D. maps.", "action": "open_setup"},
-			{"label": "Continue Campaign", "tooltip": "Relive history through historical military campaigns: go on with the current campaign.", "action": "continue_campaign", "needs_campaign": true},
-			{"label": "New Campaign", "tooltip": "Start a new campaign.", "action": "new_campaign"},
-			{"label": "Load Campaign", "tooltip": "Load a saved campaign game.", "action": "load_campaign"},
+			{"label": "Matches", "tooltip": "Start a new single-player game.", "action": "open_setup"},
+			{"label": "Load Game", "tooltip": "Load a saved game.", "action": "open_load"},
+			{"label": "Continue Campaign", "tooltip": "Relive history through historical military campaigns.", "action": "continue_campaign", "needs_campaign": true},
+			{"label": "New Campaign", "tooltip": "Relive history through historical military campaigns.", "action": "new_campaign"},
+			{"label": "Load Campaign", "tooltip": "Relive history through historical military campaigns.", "action": "load_campaign"},
+			{"label": "Replays", "tooltip": "Playback previous games.", "action": "open_replays_sp"},
 			{"label": "Skirmish Arena", "tooltip": "Direct launch into quick tactical combat match.", "action": "open_skirmish"},
-			{"label": "Load Game", "tooltip": "Continue a saved game.", "action": "open_load"},
-			{"label": "Replays", "tooltip": "Watch the replay of any match you played.", "action": "open_replays"},
 			{"label": "Asset Viewer", "tooltip": "Inspect 3D unit models, animations, and civic buildings.", "action": "open_asset_viewer"}
 		]
 	},
 	"multi": {
 		"title": "MULTIPLAYER",
 		"items": [
-			{"label": "Game Lobby", "tooltip": "Connect to local LAN or Internet multiplayer lobby.", "action": "open_lobby"},
-			{"label": "Direct Connect IP", "tooltip": "Join match directly using host IP address.", "action": "open_lobby"},
-			{"label": "Host Dedicated / Match", "tooltip": "Host an authoritative lockstep match.", "action": "open_lobby"}
+			{"label": "Game Lobby", "tooltip": "%(hotkey)s: Launch the multiplayer lobby to join and host publicly visible games and chat with other players.", "hotkey": "lobby", "action": "open_lobby"},
+			{"label": "Connect by IP", "tooltip": "Joining an existing multiplayer game at a given IP address.", "action": "open_lobby"},
+			{"label": "Host New Game", "tooltip": "Host a new multiplayer game. Other players can connect directly to you via your IP address.", "action": "open_lobby"},
+			{"label": "Replays", "tooltip": "Playback previous games.", "action": "open_replays_mp"}
 		]
 	},
 	"settings": {
 		"title": "SETTINGS",
 		"items": [
-			{"label": "Game Options", "tooltip": "Audio, graphics, display mode, camera speeds.", "action": "open_options"},
-			{"label": "Hotkeys & Controls", "tooltip": "Standard 0 A.D. hotkeys (WASD, MMB pan, H stop, Ctrl+RMB).", "action": "open_options"},
+			{"label": "Options", "tooltip": "Adjust game settings.", "action": "open_options"},
+			{"label": "Hotkeys", "tooltip": "Adjust hotkeys.", "action": "open_hotkeys"},
 			{"label": "Mod Selection", "tooltip": "Select and download mods for the game.", "action": "open_mods"},
 			{"label": "Welcome Screen", "tooltip": "Show the Welcome Screen again. Useful if you hid it by mistake.", "action": "open_splash"}
 		]
 	}
 }
+
+# MainMenuItems.js captions' tooltips for the main buttons.
+const MAIN_TOOLTIPS := {
+	"BtnLearn": "Learn how to play, start the tutorial, discover the technology trees, and the history behind the civilizations.",
+	"BtnContinue": "Relive history through historical military campaigns.",
+	"BtnSingle": "Start, load, or replay a single-player game.",
+	"BtnMulti": "Fight against one or more human players in a multiplayer game.",
+	"BtnSettings": "Change game options.",
+	"BtnEditor": "Inspect 3D unit models, animations, and civic buildings.",
+	"BtnCredits": "Show the 0 A.D. credits.",
+	"BtnExit": "Exit the game.",
+}
+# MainMenuItemHandler.setupHotkeys: the submenu items with a hotkey, by hotkey.
+const MENU_HOTKEYS := {"structree": "open_tech_tree", "civinfo": "open_encyclopedia", "lobby": "open_lobby"}
+
+var _hotkeys := RtsoHotkeyConfig.new()
 
 func _ready() -> void:
 	# Randomize starting civ background or default to hellenes
@@ -113,6 +134,12 @@ func _ready() -> void:
 	$MainPanel/Buttons/BtnEditor.pressed.connect(_on_editor_pressed)
 	$MainPanel/Buttons/BtnCredits.pressed.connect(_on_credits_pressed)
 	$MainPanel/Buttons/BtnExit.pressed.connect(_on_exit_pressed)
+	# 0.28's top-level Continue Campaign, enabled while a campaign run is current.
+	var cont: Button = $MainPanel/Buttons/BtnContinue
+	cont.pressed.connect(func(): _execute_action("continue_campaign"))
+	cont.disabled = CampaignRun.current_run() == null
+	for n in MAIN_TOOLTIPS:
+		get_node("MainPanel/Buttons/" + n).tooltip_text = tr(MAIN_TOOLTIPS[n])
 
 	$CivSwitcher.pressed.connect(_cycle_background)
 
@@ -213,7 +240,7 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 			continue
 		var btn = Button.new()
 		btn.text = item["label"]
-		btn.tooltip_text = item.get("tooltip", "")
+		btn.tooltip_text = _item_tooltip(item)
 		btn.custom_minimum_size = Vector2(220, 34)
 		btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var action = item["action"]
@@ -231,6 +258,23 @@ func _toggle_submenu(menu_id: String, anchor_button: Button) -> void:
 func _close_submenu() -> void:
 	active_menu_id = ""
 	submenu_panel.visible = false
+
+## colorizeHotkey: "%(hotkey)s" becomes the item's hotkey keys.
+func _item_tooltip(item: Dictionary) -> String:
+	var tip := tr(str(item.get("tooltip", "")))
+	if not item.has("hotkey"):
+		return tip
+	var keys: Array = _hotkeys.get_hotkey_map().get(item["hotkey"], [])
+	return L10n.sprintf(tip, {"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	for hk in _hotkeys.fired(event):
+		if MENU_HOTKEYS.has(hk):
+			get_viewport().set_input_as_handled()
+			_execute_action(MENU_HOTKEYS[hk])
+			return
 
 func _execute_action(action: String) -> void:
 	play_click()
@@ -279,6 +323,13 @@ func _execute_action(action: String) -> void:
 			load("res://scenes/menu/splashscreen.gd").open(self)
 		"open_asset_viewer":
 			_go_to_scene("res://scenes/tools/asset_viewer.tscn")
+		"open_replays_sp", "open_replays_mp":
+			# MainMenuItems.js Replays: the replay menu filtered to the submenu's kind of game.
+			load("res://scenes/menu/replay_browser.gd").selection_data = {"filters": {"singleplayer": "Single-player" if action == "open_replays_sp" else "Multiplayer"}}
+			_go_to_scene("res://scenes/menu/replay_browser.tscn")
+		"open_hotkeys":
+			_close_submenu()
+			load("res://scenes/menu/hotkeys.gd").open_overlay(self)
 		"continue_campaign", "new_campaign", "load_campaign":
 			load("res://scenes/menu/campaigns.gd").open_mode = {"continue_campaign": "menu", "new_campaign": "setup", "load_campaign": "load"}[action]
 			_go_to_scene("res://scenes/menu/campaigns.tscn")
@@ -293,9 +344,14 @@ func _on_credits_pressed() -> void:
 	_close_submenu()
 	load("res://scenes/reference/credits_page.gd").open(self)
 
+# MainMenuItems.js Exit: "Are you sure you want to quit 0 A.D.?" No / Yes.
 func _on_exit_pressed() -> void:
 	play_click()
-	get_tree().quit()
+	_close_submenu()
+	var box = load("res://scenes/common/msgbox.gd").open(self, 400, 200, tr("Are you sure you want to quit 0 A.D.?"), tr("Confirmation"), [tr("No"), tr("Yes")])
+	box.answered.connect(func(i):
+		if i == 1:
+			get_tree().quit())
 
 func play_click() -> void:
 	if click_sfx:

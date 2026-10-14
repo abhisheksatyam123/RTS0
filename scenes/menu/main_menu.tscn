@@ -144,6 +144,11 @@ custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 text = "Learn to Play"
 
+[node name="BtnContinue" type="Button" parent="MainPanel/Buttons"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+text = "Continue Campaign"
+
 [node name="BtnSingle" type="Button" parent="MainPanel/Buttons"]
 custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
