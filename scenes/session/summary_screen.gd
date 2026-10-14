@@ -52,7 +52,7 @@ const DEFAULT_COLORS := [
 const AI_DIFFICULTIES := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 const AI_BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 ## gamesetup.gd MAP_SIZES names (0 A.D. map_sizes.json).
-const MAP_SIZE_NAMES := {128: "Tiny", 192: "Small", 256: "Medium", 320: "Normal", 384: "Large", 448: "Very Large", 512: "Giant"}
+const MAP_SIZE_NAMES := {128: "Tiny", 192: "Small", 256: "Normal", 320: "Medium", 384: "Large", 448: "Very Large", 512: "Giant"}
 const TAB_W := 118 # g_TabButtonWidth
 const TAB_GAP := 6 # g_TabButtonDist
 const BOX_H := 40 # g_PlayerBoxYSize
@@ -280,8 +280,8 @@ func calc_economy_score(p: Dictionary, index: int, _t := "") -> int:
 
 func calc_military_score(p: Dictionary, index: int, _t := "") -> int:
 	var s := _stats(p, index)
-	return roundi((int(s.get("enemyUnitsKilledValue", 0)) + int(s.get("enemyBuildingsDestroyedValue", 0)) +
-		int(s.get("buildingsCapturedValue", 0))) / 10.0)
+	return roundi((int(s.get("enemyUnitsKilledValue", 0)) + int(s.get("unitsCapturedValue", 0)) +
+		int(s.get("enemyBuildingsDestroyedValue", 0)) + int(s.get("buildingsCapturedValue", 0))) / 10.0)
 
 func calc_exploration_score(p: Dictionary, index: int, _t := "") -> int:
 	return _percent_of(p, index, "percentMapExplored") * 10

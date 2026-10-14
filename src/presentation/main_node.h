@@ -456,6 +456,10 @@ public:
 	// NMT_CHAT, or a host's 0 A.D. chat command (/kick name, /ban name).
 	void chat_send_wire(const std::string &wire);
 	bool chat_try_cheat(const String &text);
+	bool chat_is_addressee(const String &sender_guid, const String &tag) override;
+	bool chat_local_observer() override;
+	std::vector<std::pair<int, String>> chat_private_targets() override;
+	uint8_t chat_player_of(const String &sender_guid); // the sender's seat, 0xFF for an observer
 	rtso::Simulation *ui_sim() override { return sim; }
 	uint32_t ui_selected_building_id() const override { return selected_building_id; }
 	void _on_barter_requested(int sell_type, int buy_type, int amount);

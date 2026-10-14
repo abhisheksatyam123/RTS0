@@ -454,6 +454,9 @@ void RtsoMain::_ready() {
 		// Tactical flare piggybacks NMT_CHAT (approximation of 0 A.D. minimap
 		// flare): "[Flare] x,z" -> local map ping, not chat text.
 		if (msg.begins_with("[Flare]")) {
+			// 0 A.D. sends a flare to the sender's mutual allies and the observers.
+			const String guid = String::utf8(cm.sender_guid.c_str());
+			if (!chat_local_observer() && !chat_is_addressee(guid, "[Allies]")) return;
 			String coords = msg.substr(7).strip_edges();
 			int32_t comma = coords.find(",");
 			if (comma > 0) {
@@ -1480,7 +1483,7 @@ bool RtsoMain::trade_route_click(const rtso::Simulation::Building &b, bool execu
 		const uint32_t id = (uint32_t)(int64_t)selected_ids[s];
 		for (size_t i = 0; i < uv.count; ++i) {
 			if (uv.id[i] != id) continue;
-			// getActionInfo: a land market for Organic traders, a dock for ships, not an enemy's.
+			// getActionInfo: a market or dock for Organic traders, a dock for ships, not an enemy's.
 			if (uv.alive[i] && uv.team[i] == me && rtso::unit_is_trader(uv.unit_type[i]) &&
 					sim->can_trade_at(me, b, uv.unit_type[i])) {
 				traders.push_back(id);
@@ -2284,6 +2287,31 @@ void RtsoMain::show_session_notices(const std::vector<rtso::Simulation::SessionN
 				line = sprintf0(tr(kObserver[w]), {{"player", colored_player_name(n.player)}, {"player2", colored_player_name(n.other)}});
 			else if (n.player == me) line = sprintf0(tr(kMine[w]), {{"player", colored_player_name(n.other)}});
 			else if (n.other == me) line = sprintf0(tr(kTheirs[w]), {{"player", colored_player_name(n.player)}});
+		} else if (n.kind == N::DEFEATED || n.kind == N::WON || n.kind == N::LOST) {
+			// ChatMessageFormatSimulation.playerstate, shown to everyone: the defeat reasons of
+			// Conquest*.js, Regicide.js, Commands.js "resign" and TriggerHelper.DefeatPlayer, and
+			// EndGameManager's, WonderVictory.js's and CaptureTheRelic.js's win lines.
+			static const char *kWhy[] = {"lost all critical units and structures", "lost all units", "lost all structures",
+					"lost all civic centers", "lost hero", "", "objective", "last players alive", "wonder victory",
+					"Capture the Relic", "game mode"};
+			const String why = n.tech < sizeof(kWhy) / sizeof(kWhy[0]) ? String(kWhy[n.tech]) : String("game mode");
+			if (n.kind == N::DEFEATED) {
+				line = sprintf0(tr(n.tech == N::END_RESIGNED ? String("%(player)s has resigned.")
+						: "%(player)s has been defeated (" + why + ")."), {{"player", colored_player_name(n.player)}});
+			} else {
+				std::vector<String> names;
+				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p)
+					if ((n.other >> p) & 1) names.push_back(colored_player_name(p));
+				if (names.empty()) continue;
+				// translatePlural of the sim's message; the enumeration comma is translated too.
+				String list;
+				for (size_t i = 0; i + 1 < names.size(); ++i) list += (i ? tr(", ") : String()) + names[i];
+				const bool one = names.size() == 1;
+				const String reason = n.kind == N::WON && n.tech == N::END_LAST_ALIVE && one ? String("last player alive") : why;
+				const String msg = (one ? String("%(lastPlayer)s ") : String("%(players)s and %(lastPlayer)s ")) +
+						(n.kind == N::WON ? (one ? "has won (" : "have won (") : (one ? "has been defeated (" : "have been defeated (")) + reason + ").";
+				line = sprintf0(tr(msg), {{"players", list}, {"lastPlayer", names.back()}});
+			}
 		}
 		if (!line.is_empty()) chat_window_.append_line(line + "\n");
 	}
@@ -3527,6 +3555,47 @@ void RtsoMain::_process(double delta) {
 				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
 			}
 			txt += line;
+		}
+		// WonderVictory.js and CaptureTheRelic.js time notifications, worded for the local
+		// player (the wonder's owner, its allies or everyone else).
+		{
+			const uint8_t me = local_player();
+			auto mutual = [&](uint8_t a, uint8_t b) {
+				return !sim->last_man_standing() && sim->is_ally(a, b) && sim->is_ally(b, a);
+			};
+			auto allies_of = [&](uint8_t p) {
+				uint8_t m = 0;
+				for (uint8_t q = 0; q < rtso::MAX_PLAYERS; ++q)
+					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
+				return m;
+			};
+			auto clock = [](float s) { const int t = (int)std::ceil(std::max(0.0f, s)); return vformat("%d:%02d", t / 60, t % 60); };
+			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
+			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
+				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
+					if (sim->wonder_hold(p) <= 0.0f || sim->is_defeated(p)) continue;
+					const String left = clock(sim->wonder_duration() - sim->wonder_hold(p));
+					const uint8_t allies = allies_of(p);
+					if (p == me) add(allies ? "You own a Wonder and you and your allies will win in " + left + "."
+							: "You own a Wonder and will win in " + left + ".");
+					else if (me < rtso::MAX_PLAYERS && ((allies >> me) & 1)) add(colored_player_name(p) + " owns a Wonder and you will win in " + left + ".");
+					else add(colored_player_name(p) + " owns a Wonder and " + (allies ? colored_player_name(p) + " and their allies" : String()) +
+							(allies ? " will win in " : "will win in ") + left + ".");
+				}
+			if (sim->has_victory(rtso::VK_RELIC) && !sim->is_game_over() && sim->relic_victory_timer() > 0.0f && !sim->relics().empty()) {
+				const uint8_t owner = sim->relics()[0].owner_team;
+				if (owner < rtso::MAX_PLAYERS) {
+					const uint8_t side = (uint8_t)(allies_of(owner) | (1u << owner));
+					const bool team = (side & (side - 1)) != 0;
+					const String left = clock(sim->relic_duration() - sim->relic_victory_timer());
+					if (me < rtso::MAX_PLAYERS && ((side >> me) & 1))
+						add(team ? "You and your allies have captured all relics and will win in " + left + "."
+								: "You have captured all relics and will win in " + left + ".");
+					else
+						add(colored_player_name(owner) + (team ? " and their allies have captured all relics and will win in "
+								: " has captured all relics and will win in ") + left + ".");
+				}
+			}
 		}
 		// CeasefireManager: "You can attack in %(time)s" for the last 10 s, then
 		// "You can attack now!" for 5 s.
@@ -5351,7 +5420,8 @@ void RtsoMain::_unhandled_input(const Ref<InputEvent> &event) {
 		}
 		if (fired("teamchat") || fired("privatechat")) {
 			if (!chat_window_.is_open()) toggle_chat();
-			chat_window_.select_channel(fired("teamchat") ? 1 : 0);
+			if (fired("teamchat")) chat_window_.select_team();
+			else chat_window_.select_last_private();
 			return;
 		}
 
@@ -8148,6 +8218,47 @@ String RtsoMain::chat_user(const String &sender_guid) {
 	char hex[8] = "b3b3b3";
 	if (sim && pl < rtso::MAX_PLAYERS) std::snprintf(hex, sizeof(hex), "%06x", (unsigned)(sim->player_color(pl) & 0xFFFFFF));
 	return "[color=#" + String(hex) + "]" + name.replace("[", "[lb]") + "[/color]";
+}
+
+uint8_t RtsoMain::chat_player_of(const String &sender_guid) {
+	if (!net_lockstep()) return local_player();
+	uint32_t client = turn_mgr_.local_client_id();
+	if (sender_guid.begins_with("peer-")) client = (uint32_t)sender_guid.substr(5).to_int();
+	for (const auto &e : net_host_.playerAssignment())
+		if (e.client == client) return e.player;
+	return turn_mgr_.player_for_client(client);
+}
+
+// ChatAddressees.js AddresseeTypes isAddressee, with the local player as the receiver.
+bool RtsoMain::chat_is_addressee(const String &sender_guid, const String &tag) {
+	const uint8_t from = chat_player_of(sender_guid), me = local_player();
+	const bool from_obs = from >= rtso::MAX_PLAYERS, me_obs = me >= rtso::MAX_PLAYERS;
+	if (tag == "[Observers]") return me_obs;
+	if (tag == "[Allies]")
+		return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ALLY &&
+				sim->get_diplomacy(me, from) == rtso::Simulation::DIPLO_ALLY;
+	if (tag == "[Enemies]") return !from_obs && !me_obs && sim && sim->get_diplomacy(from, me) == rtso::Simulation::DIPLO_ENEMY;
+	if (tag.begins_with("[Player-")) {
+		const int target = tag.substr(8, tag.length() - 9).to_int(); // player id + 1, 0 for an observer
+		return (me_obs ? target == 0 : target == (int)me + 1) && (!from_obs || me_obs);
+	}
+	return true;
+}
+
+bool RtsoMain::chat_local_observer() { return local_player() >= rtso::MAX_PLAYERS; }
+
+std::vector<std::pair<int, String>> RtsoMain::chat_private_targets() {
+	std::vector<std::pair<int, String>> out;
+	if (!net_lockstep()) return out;
+	const uint32_t mine = turn_mgr_.local_client_id();
+	const bool me_obs = chat_local_observer();
+	for (const auto &e : net_host_.playerAssignment()) {
+		if (e.client == mine) continue;
+		const bool obs = e.player >= rtso::MAX_PLAYERS;
+		if (me_obs && !obs) continue; // no private message from an observer to a player
+		out.push_back({obs ? 0 : (int)e.player + 1, chat_user("peer-" + String::num_int64(e.client))});
+	}
+	return out;
 }
 
 void RtsoMain::_on_chat_send_pressed() {

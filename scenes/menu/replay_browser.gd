@@ -32,7 +32,7 @@ const UNLIMITED_POP := 10000
 const DURATIONS := [[-1, -1], [-1, 15], [15, 30], [30, 45], [45, 60], [60, 90], [90, 120], [120, -1]]
 const SINGLEPLAYER := ["Any", "Single-player", "Multiplayer", "Campaigns"]
 ## 0 A.D. map_sizes.json names by RTS0 width in meters.
-const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Medium"], [320, "Normal"], [384, "Large"],
+const MAP_SIZES := [[128, "Tiny"], [192, "Small"], [256, "Normal"], [320, "Medium"], [384, "Large"],
 	[448, "Very Large"], [512, "Giant"]]
 
 ## Every replay found (replay_menu.js loadReplays, sanitized):

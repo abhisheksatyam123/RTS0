@@ -168,7 +168,7 @@ public:
 		top_hbox->add_child(clock_label_);
 
 		wave_label_ = memnew(Label);
-		// Takes what the bar has left and clips the rest ("Wonder Victory in ... |
+		// Takes what the bar has left and clips the rest ("Ceasefire 4:59 |
 		// Village Phase"), so the buttons after it stay on screen at 1280 wide.
 		wave_label_->set_custom_minimum_size(Vector2(100, 26));
 		wave_label_->set_clip_text(true);
@@ -262,13 +262,7 @@ public:
 		clock_label_->set_text(min_str + ":" + sec_str);
 
 		String phase_name = (sim->player_phase(me) == 1) ? "Village Phase" : ((sim->player_phase(me) == 2) ? "Town Phase" : "City Phase");
-		if (sim->is_wonder_active()) {
-			int wmins = (int)sim->wonder_time_remaining() / 60;
-			int wsecs = (int)sim->wonder_time_remaining() % 60;
-			String wmin_str = (wmins < 10 ? "0" : "") + String::num_int64(wmins);
-			String wsec_str = (wsecs < 10 ? "0" : "") + String::num_int64(wsecs);
-			wave_label_->set_text("Wonder Victory in " + wmin_str + ":" + wsec_str + " | " + phase_name);
-		} else if (sim->ceasefire_active()) {
+		if (sim->ceasefire_active()) {
 			int cs = (int)sim->ceasefire_remaining();
 			wave_label_->set_text("Ceasefire " + String::num_int64(cs / 60) + ":" + (cs % 60 < 10 ? "0" : "") +
 				String::num_int64(cs % 60) + " | " + phase_name);

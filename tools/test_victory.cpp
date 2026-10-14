@@ -168,6 +168,42 @@ int main() {
 		CHECK(sim->is_victory() == want_out);
 		delete sim;
 	}
+	// 7c. The playerstate chat lines (0 A.D. messages.js "defeat"/"won"): each defeat is
+	// reported once with its reason, then the winners.
+	{
+		using N = Simulation::SessionNotice;
+		Simulation *sim = fresh(VICTORY_CONQUEST);
+		run(*sim, 0.05f);
+		(void)sim->take_session_notices();
+		wipe(*sim, 1, true, true);
+		run(*sim, 1.0f);
+		auto ns = sim->take_session_notices();
+		bool out = false, won = false;
+		for (const auto &n : ns) {
+			out |= n.kind == N::DEFEATED && n.player == 1 && n.tech == N::END_CONQUEST;
+			won |= n.kind == N::WON && n.other == 1 && n.tech == N::END_LAST_ALIVE;
+		}
+		CHECK(out && won);
+		delete sim;
+		sim = fresh(VICTORY_REGICIDE);
+		run(*sim, 0.05f);
+		(void)sim->take_session_notices();
+		const int32_t h = sim->lookup_unit(sim->regicide_hero(1));
+		CHECK(h >= 0);
+		if (h >= 0) kill_unit(*sim, (size_t)h);
+		run(*sim, 1.0f);
+		ns = sim->take_session_notices();
+		CHECK(!ns.empty() && ns[0].kind == N::DEFEATED && ns[0].player == 1 && ns[0].tech == N::END_HERO);
+		delete sim;
+		sim = fresh(VICTORY_CONQUEST);
+		sim->set_player_active(2, true, false);
+		run(*sim, 0.05f);
+		(void)sim->take_session_notices();
+		CHECK(sim->cmd_resign(1));
+		ns = sim->take_session_notices();
+		CHECK(ns.size() == 1 && ns[0].kind == N::DEFEATED && ns[0].player == 1 && ns[0].tech == N::END_RESIGNED);
+		delete sim;
+	}
 	// 8. Endless: nobody is ever defeated.
 	{
 		Simulation *sim = fresh(VICTORY_ENDLESS);

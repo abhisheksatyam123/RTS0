@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "../simulation/sim_types.h"
+#include "../simulation/unit_trainer_data.h"
 
 #include <cmath>
 
@@ -329,6 +330,24 @@ Dictionary RtsoReference::get_unit(int tmpl) const {
 		trained_at.push_back(bd);
 	}
 	d["trained_at"] = trained_at;
+	// Trainer/Entities and Researcher/Technologies on units (TemplateLoader.deriveProduction):
+	// the units that train this one, and what this one trains and researches.
+	Array trained_by_units, unit_trains, unit_researches;
+	for (const auto &row : rtso::UNIT_TRAINER_ROWS) {
+		if (std::strcmp(row.trainee, u.id) == 0) {
+			const uint16_t tr = rtso::civ_unit_template_by_id(row.trainer);
+			if (tr < rtso::CIV_UNIT_TEMPLATE_COUNT) trained_by_units.push_back(unit_entry(tr));
+		}
+		if (std::strcmp(row.trainer, u.id) == 0) {
+			const uint16_t te = rtso::civ_unit_template_by_id(row.trainee);
+			if (te < rtso::CIV_UNIT_TEMPLATE_COUNT) unit_trains.push_back(unit_entry(te));
+		}
+	}
+	for (const auto &row : rtso::UNIT_RESEARCH_ROWS)
+		if (std::strcmp(row.researcher, u.id) == 0) unit_researches.push_back(tech_entry(row.tech));
+	d["trained_by_units"] = trained_by_units;
+	d["trains"] = unit_trains;
+	d["researches"] = unit_researches;
 	if (u.unlock_tech != rtso::TECH_NONE) {
 		Dictionary td;
 		td["id"] = u.unlock_tech;
@@ -382,6 +401,7 @@ Dictionary RtsoReference::get_structure(int type, int civ) const {
 		a["range"] = ai.max_range / rtso::COMBAT_DISTANCE_SCALE;
 		a["arrows"] = ai.default_arrows;
 		a["max_arrows"] = ai.max_arrows;
+		a["per_unit"] = ai.garrison_arrow_multiplier;
 		a["bonuses"] = Array();
 		a["restricted"] = "";
 		d["attack"] = a;
@@ -426,6 +446,26 @@ Dictionary RtsoReference::get_tech(int id, int civ) const {
 	r["type"] = ti.researcher;
 	r["name"] = String::utf8(rtso::building_type_info(ti.researcher).name);
 	d["researched_at"] = r;
+	// getResearchedByText: every structure of the civ and every unit that researches it.
+	Array researchers;
+	const uint8_t rc = (civ >= 0 && civ < rtso::CIV_COUNT) ? (uint8_t)civ : 0;
+	for (uint8_t b = 0; b < rtso::BLD_TYPE_COUNT; ++b) {
+		if (!rtso::civ_can_build(rc, b) || !rtso::building_researches_tech(b, tid, rc)) continue;
+		Dictionary bd;
+		bd["kind"] = "structure";
+		bd["type"] = b;
+		bd["name"] = String::utf8(rtso::building_type_info(b).name);
+		researchers.push_back(bd);
+	}
+	for (const auto &row : rtso::UNIT_RESEARCH_ROWS) {
+		if (row.tech != tid) continue;
+		const uint16_t t = rtso::civ_unit_template_by_id(row.researcher);
+		if (t >= rtso::CIV_UNIT_TEMPLATE_COUNT || rtso::civ_unit_template(t).civ != rc) continue;
+		Dictionary ud = unit_entry(t);
+		ud["kind"] = "unit";
+		researchers.push_back(ud);
+	}
+	d["researchers"] = researchers;
 	if (ti.prerequisite != rtso::TECH_NONE) {
 		Dictionary p;
 		p["id"] = ti.prerequisite;
