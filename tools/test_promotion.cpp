@@ -177,6 +177,10 @@ int main() {
 		CHECK(s.units_.tmpl[j] == levy && s.units_.rank[j] == 1);
 		CHECK(s.units_.unit_type[j] == UNIT_SPEARMAN);
 		CHECK(s.units_.tmpl[veteran] == levy);
+		// "Soldier !Auxiliary": the auxiliary cavalry keep their promotion xp after the reforms.
+		const uint16_t aux = tmpl_of("rome/cavalry_javelineer_auxiliary_b");
+		const size_t k = idx(s, s.spawn_unit(9.0f, 0.0f, 0, (UnitType)civ_unit_template(aux).unit_type, 0.0f, aux));
+		CHECK(s.promotion_required_xp(k) > 0.0f);
 	}
 
 	// 5. Hoplite Tradition halves a hoplite's RequiredXp (Infantry Spearman !Hero).

@@ -97,6 +97,7 @@ CLASSES = [
     "IceHouse",  # bit 63 (Subterranean Aqueducts)
     "Wagon",  # bit 64 (Wagon Trains)
     "Colony",  # bit 65 (Wagon Trains)
+    "Auxiliary",  # bit 66 (Marian Reforms: "Soldier !Auxiliary")
 ]
 assert len(CLASSES) <= 128, "TechClasses is a 128-bit mask"
 
@@ -169,7 +170,7 @@ def stat_of(path: str):
         return "TSTAT_TRICKLE_" + m.group(1).upper()
     if re.fullmatch(r"ResourceGatherer/Capacities/(food|wood|stone|metal)", path):
         return "TSTAT_CARRY_" + path.rsplit("/", 1)[1].upper()
-    m = re.fullmatch(r"Attack/(Melee|Ranged)/Damage/(Hack|Pierce|Crush)", path)
+    m = re.fullmatch(r"Attack/(Melee|Ranged)/Damage/(Hack|Pierce|Crush|Fire)", path)
     if m:
         return "TSTAT_" + m.group(1).upper() + "_" + m.group(2).upper()
     m = re.fullmatch(r"Loot/(food|wood|stone|metal)", path)
