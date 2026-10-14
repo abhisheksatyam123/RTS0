@@ -38,6 +38,8 @@
 #include <godot_cpp/classes/curve.hpp>
 #include <godot_cpp/classes/curve_texture.hpp>
 #include <godot_cpp/classes/texture2d.hpp>
+#include <godot_cpp/classes/sprite3d.hpp>
+#include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/texture2d_array.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
@@ -174,6 +176,22 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 		v.hp_fg->set_mesh(hp_fg_mesh);
 		v.hp_fg->set_material_override(hp_green_mat);
 		add_child(v.hp_fg);
+
+		v.xp_bg = memnew(MeshInstance3D);
+		v.xp_bg->set_mesh(xp_bg_mesh);
+		v.xp_bg->set_material_override(hp_bg_mat);
+		add_child(v.xp_bg);
+
+		v.xp_fg = memnew(MeshInstance3D);
+		v.xp_fg->set_mesh(xp_fg_mesh);
+		v.xp_fg->set_material_override(xp_mat);
+		add_child(v.xp_fg);
+
+		v.rank_icon = memnew(Sprite3D);
+		v.rank_icon->set_billboard_mode(BaseMaterial3D::BILLBOARD_ENABLED);
+		v.rank_icon->set_draw_flag(SpriteBase3D::FLAG_SHADED, false);
+		v.rank_icon->set_alpha_cut_mode(SpriteBase3D::ALPHA_CUT_DISCARD);
+		add_child(v.rank_icon);
 	}
 	UnitVis &v = unit_pool[slot];
 	v.sim_id = sim_id;
@@ -181,6 +199,9 @@ RtsoWorldView::UnitVis &RtsoWorldView::acquire_unit_slot(uint32_t sim_id) {
 	v.root->set_visible(true);
 	v.hp_bg->set_visible(false);
 	v.hp_fg->set_visible(false);
+	v.xp_bg->set_visible(false);
+	v.xp_fg->set_visible(false);
+	v.rank_icon->set_visible(false);
 	unit_slot[sim_id] = slot;
 	return v;
 }
@@ -280,6 +301,15 @@ void RtsoWorldView::_ready() {
 	hp_blue_mat->set_albedo(Color(0.25f, 0.65f, 1.0f, 0.95f));
 	hp_blue_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
 
+	// The experience bar: 2/3 of a health bar's height (StatusBars AddExperienceBar).
+	xp_bg_mesh.instantiate();
+	xp_bg_mesh->set_size(Vector3(0.9f, 0.055f, 0.04f));
+	xp_fg_mesh.instantiate();
+	xp_fg_mesh->set_size(Vector3(0.88f, 0.045f, 0.05f));
+	xp_mat.instantiate();
+	xp_mat->set_albedo(Color(0.95f, 0.75f, 0.2f, 0.95f));
+	xp_mat->set_shading_mode(BaseMaterial3D::SHADING_MODE_UNSHADED);
+
 	// Terrain Plane
 	plane_mesh.instantiate();
 	plane_mesh->set_size(Vector2(rtso::Simulation::MAP_HALF * 2.0f, rtso::Simulation::MAP_HALF * 2.0f));
@@ -374,8 +404,9 @@ void RtsoWorldView::_ready() {
 		// family). Bushes and saplings are small leafy trees; a date fruit supply is a short
 		// date palm. Scales as in pick_tree_kinds.
 		static_assert(FLORA_KINDS == rtso::FLORA_COUNT, "one batch per FloraKind");
+		static_assert(rtso::FLORA_FAMILY_COUNT == 27, "kKinds lists the families");
 		struct Kind { const char *id; float scale; bool tree; };
-		static const Kind kKinds[FLORA_KINDS] = {
+		static const Kind kKinds[rtso::FLORA_FAMILY_COUNT] = {
 			{ nullptr, 1.0f, true }, { "tree", 1.0f, true }, { "pine", 1.0f, true }, { "palm", 1.0f, true },
 			{ "oak", 1.15f, true }, { "baobab", 0.45f, true }, { "acacia", 0.6f, true }, { "bamboo", 1.0f, true },
 			{ "tree", 0.45f, true }, { "fruit_bush", 1.0f, false }, { "apple", 1.0f, false }, { "palm", 0.7f, false },
@@ -387,26 +418,37 @@ void RtsoWorldView::_ready() {
 			{ "maple", 0.3f, true }, { "juniper", 0.3f, true }, { "teak", 0.21f, true },
 		};
 		for (int k = 1; k < FLORA_KINDS; ++k) {
+			// A template kind draws its own 0.28 actor (extract_0ad_assets.py ZIP_FLORA keeps
+			// 0 A.D.'s metres, as fetch_0ad_trees.py does); a fruit supply does not sway.
+			Kind kd{ nullptr, 0.3f, true };
+			if (k < rtso::FLORA_FAMILY_COUNT) kd = kKinds[k];
+			else {
+				const auto &t = rtso::flora_template_info(k - rtso::FLORA_TEMPLATE_FIRST);
+				kd = Kind{ t.model_id, 0.3f, !t.fruit };
+			}
 			rtso::ModelLibrary::Entry models[TREE_VARIANTS];
-			flora_variants[k] = tree_family_models(kKinds[k].id, models, TREE_VARIANTS);
-			flora_scale[k] = kKinds[k].scale;
+			flora_variants[k] = tree_family_models(kd.id, models, TREE_VARIANTS);
+			flora_scale[k] = kd.scale;
 			for (int v = 0; v < flora_variants[k]; ++v) {
 				const auto &e = models[v];
 				enable_instance_tint(e.mesh);
-				flora_mm[k][v] = create_multimesh(kKinds[k].tree ? wind_mesh(e.mesh) : e.mesh, true);
-				flora_y[k][v] = e.y_offset * kKinds[k].scale;
+				flora_mm[k][v] = create_multimesh(kd.tree ? wind_mesh(e.mesh) : e.mesh, true);
+				flora_y[k][v] = e.y_offset * kd.scale;
 				flora_mmi[k][v] = memnew(MultiMeshInstance3D);
 				flora_mmi[k][v]->set_multimesh(flora_mm[k][v]);
 				add_child(flora_mmi[k][v]);
 			}
 		}
 	}
-	gold_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "gold_vein").mesh), true);
-	stone_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "stone_mine").mesh), true);
+	for (int k = 0; k < MINE_KINDS; ++k) {
+		const bool metal = k == MINE_METAL_LARGE || k == MINE_METAL_SMALL;
+		mine_mm[k] = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", metal ? "gold_vein" : "stone_mine").mesh), true);
+		mine_mmi[k] = memnew(MultiMeshInstance3D);
+		mine_mmi[k]->set_multimesh(mine_mm[k]);
+		add_child(mine_mmi[k]);
+	}
 	food_mm = create_multimesh(tinted(rtso::ModelLibrary::get("vegetation", "fruit_bush").mesh), true);
 
-	gold_mmi = memnew(MultiMeshInstance3D); gold_mmi->set_multimesh(gold_mm); add_child(gold_mmi);
-	stone_mmi = memnew(MultiMeshInstance3D); stone_mmi->set_multimesh(stone_mm); add_child(stone_mmi);
 	food_mmi = memnew(MultiMeshInstance3D); food_mmi->set_multimesh(food_mm); add_child(food_mmi);
 	ruins_mm = create_multimesh(tinted(rtso::ModelLibrary::get("buildings", "ruins").mesh), true);
 	ruins_mmi = memnew(MultiMeshInstance3D); ruins_mmi->set_multimesh(ruins_mm); add_child(ruins_mmi);
@@ -1544,6 +1586,9 @@ void RtsoWorldView::hide_unit_vis(UnitVis &v) {
 	if (v.ring) v.ring->set_visible(false);
 	if (v.hp_bg) v.hp_bg->set_visible(false);
 	if (v.hp_fg) v.hp_fg->set_visible(false);
+	if (v.xp_bg) v.xp_bg->set_visible(false);
+	if (v.xp_fg) v.xp_fg->set_visible(false);
+	if (v.rank_icon) v.rank_icon->set_visible(false);
 	if (v.anim && UtilityFunctions::is_instance_valid(v.anim))
 		v.anim->set_active(false);
 }
@@ -1938,6 +1983,48 @@ Node3D *RtsoWorldView::attach_carry_prop(Node *model, uint8_t clip, bool female)
 	return first;
 }
 
+// Mine models per biome: the stoneLarge, stoneSmall, metalLarge and metalSmall templates
+// actors of the 0 A.D. random-map biome each RTS0 biome follows (maps/random/rmbiome/generic/
+// *.json, named after each row; apply_biome_environment uses the same pairing). Models are
+// assets/models/props/mine_<actor>.glb (tools/extract_0ad_assets.py ZIP_PROPS), at 0.28 size.
+void RtsoWorldView::pick_mine_models(const std::string &biome) {
+	struct Set { const char *biome; const char *ids[MINE_KINDS]; }; // metal large, metal small, stone large, stone small
+	static const Set kSets[] = {
+		{ "mediterranean", { "metal_aegean_round", "metal_aegean_small", "stonemine_aegean_large", "stonemine_aegean_small" } }, // aegean
+		{ "aegean", { "metal_aegean_round", "metal_aegean_small", "stonemine_aegean_large", "stonemine_aegean_small" } }, // aegean
+		{ "latium", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry_01", "stonemine_granite" } }, // temperate
+		{ "temperate", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry_01", "stonemine_granite" } }, // temperate
+		{ "alpine", { "metal_temperate_square", "metal_temperate_small", "stonemine_temperate_quarry_01", "stonemine_granite" } }, // alpine
+		{ "polar", { "metalmine_polar_round_snow", "metal_aegean_small", "stonemine_granite_large", "stonemine_granite" } }, // arctic
+		{ "volcanic", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry", "stonemine_granite" } }, // autumn
+		{ "autumn", { "metal_temperate_round", "metal_temperate_small", "stonemine_temperate_quarry", "stonemine_granite" } }, // autumn
+		{ "steppe", { "metal_temperate_square", "metal_temperate_small", "stonemine_temperate_quarry", "stonemine_granite" } }, // steppe
+		{ "india", { "metal_india_round", "metal_india_small", "stonemine_india_large", "stonemine_india_small" } }, // india
+		{ "tropical", { "metal_india_round", "metal_india_small", "stonemine_india_large", "stonemine_india_small" } }, // india
+		{ "savanna", { "metal_savanna_round", "metal_savanna_small", "stonemine_savanna_formations", "stonemine_savanna_small" } }, // savanna
+		{ "persia", { "metal_savanna_round", "metal_savanna_small", "stonemine_savanna_formations", "stonemine_savanna_small" } }, // nubia
+		{ "nubia", { "metal_savanna_round", "metal_savanna_small", "stonemine_savanna_formations", "stonemine_savanna_small" } }, // nubia
+		{ "desert", { "metal_sahara_round", "metal_sahara_small", "stonemine_desert_quarry", "stonemine_desert_small" } }, // sahara
+		{ "oasis", { "metal_sahara_round", "metal_sahara_small", "stonemine_desert_quarry", "stonemine_desert_small" } }, // sahara
+	};
+	const Set *set = &kSets[0];
+	for (const auto &x : kSets)
+		if (biome == x.biome) { set = &x; break; }
+	mine_biome_ = biome;
+	for (int k = 0; k < MINE_KINDS; ++k) {
+		auto e = rtso::ModelLibrary::get("props", String("mine_") + set->ids[k]);
+		if (!e.mesh.is_valid()) {
+			const bool metal = k == MINE_METAL_LARGE || k == MINE_METAL_SMALL;
+			e = rtso::ModelLibrary::get("vegetation", metal ? "gold_vein" : "stone_mine");
+		}
+		if (!e.mesh.is_valid()) continue;
+		enable_instance_tint(e.mesh);
+		mine_mm[k]->set_instance_count(0);
+		mine_mm[k]->set_mesh(e.mesh);
+		mine_y[k] = e.y_offset;
+	}
+}
+
 // Tree models per biome, from the 0 A.D. flora each biome's random maps
 // plant (maps/random/rmbiome/*.json forest templates). Scales bring the wide
 // savanna trees down and the shorter oak up to the height of the other trees.
@@ -1958,6 +2045,8 @@ void RtsoWorldView::pick_tree_kinds(const std::string &biome) {
 		{ "persia", { { "palm", 1.0f }, { "acacia", 0.5f }, { "tree", 0.9f } } },
 		{ "india", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "tree", 1.0f } } },
 		{ "tropical", { { "palm", 1.0f }, { "bamboo", 1.0f }, { "palm", 1.2f } } },
+		{ "autumn", { { "oak", 1.15f }, { "tree", 1.0f }, { "oak", 1.0f } } },
+		{ "nubia", { { "acacia", 0.6f }, { "baobab", 0.45f }, { "palm", 1.0f } } },
 		{ "volcanic", { { "pine", 1.0f }, { "tree", 0.9f }, { nullptr, 1.0f } } },
 	};
 	const Set *set = &kSets[0];
@@ -2098,6 +2187,8 @@ void RtsoWorldView::apply_biome_environment(const std::string &biome, const std:
 		{ "persia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 		{ "volcanic", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
 		{ "tropical", "default", { 1.032f, 0.995f, 0.866f }, 1.950f, 0.000f, { 0.365f, 0.376f, 0.420f }, { 0.584f, 0.824f, 0.929f }, { 0.569f, 0.965f, 0.945f }, 0.45f, { 0.875f, 0.875f, 0.875f } }, // india
+		{ "autumn", "default", { 1.032f, 0.990f, 0.866f }, 0.446f, -0.488f, { 0.365f, 0.376f, 0.420f }, { 0.420f, 0.365f, 0.314f }, { 0.502f, 0.502f, 0.247f }, 0.97f, { 0.894f, 0.894f, 0.894f } }, // autumn
+		{ "nubia", "default", { 1.100f, 1.060f, 0.992f }, 0.700f, -1.700f, { 0.354f, 0.362f, 0.389f }, { 0.337f, 0.247f, 0.078f }, { 0.337f, 0.247f, 0.078f }, 0.96f, { 0.929f, 0.875f, 0.839f } }, // nubia
 	};
 	const Env *e = &kEnvs[0];
 	for (const auto &x : kEnvs)
@@ -2585,6 +2676,8 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 
 	std::unordered_set<uint32_t> active_unit_ids;
 
+	const bool status_rank_icon = rtso::user_config::get_bool("gui.session.rankabovestatusbar");
+	const bool status_xp_bar = rtso::user_config::get_bool("gui.session.experiencestatusbar");
 	for (size_t i = 0; i < uview.count; ++i) {
 		if (!entity_visible(uview.pos_x[i], uview.pos_z[i], uview.team[i])) continue;
 		uint32_t id = uview.id[i];
@@ -2770,6 +2863,34 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Vector3 fg_offset((hp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f);
 			v.hp_fg->set_transform(Transform3D(fg_basis, hp_pos + fg_offset));
 		}
+		// StatusBars.js: the experience bar under the health bar and the rank icon on top,
+		// per gui.session.experiencestatusbar and gui.session.rankabovestatusbar.
+		const float need_xp = show_hp && status_xp_bar ? sim->promotion_required_xp(i) : 0.0f;
+		const bool show_xp = need_xp > 0.0f;
+		v.xp_bg->set_visible(show_xp);
+		v.xp_fg->set_visible(show_xp);
+		if (show_xp) {
+			const float xp_ratio = Math::clamp((float)uview.xp[i] / need_xp, 0.0f, 1.0f);
+			Vector3 xp_pos(x, v.hp_bg->get_transform().origin.y - 0.08f, z);
+			v.xp_bg->set_transform(Transform3D(Basis(), xp_pos));
+			Basis xb;
+			xb.scale(Vector3(std::max(xp_ratio, 0.001f), 1.0f, 1.0f));
+			v.xp_fg->set_transform(Transform3D(xb, xp_pos + Vector3((xp_ratio - 1.0f) * 0.44f, 0.0f, 0.01f)));
+		}
+		const uint8_t rank = show_hp && status_rank_icon ? uview.rank[i] : 0;
+		if (rank >= 2) {
+			if (v.rank_shown != rank) {
+				v.rank_shown = rank;
+				v.rank_icon->set_texture(ResourceLoader::get_singleton()->load(rank >= 3 ?
+						"res://assets/textures/ui/archive/icons/ranks/Elite.png" :
+						"res://assets/textures/ui/archive/icons/ranks/Advanced.png"));
+				const Ref<Texture2D> tex = v.rank_icon->get_texture();
+				// Half a bar wide (StatusBars AddRankIcon: BarWidth / 2).
+				if (tex.is_valid() && tex->get_width() > 0) v.rank_icon->set_pixel_size(0.45f / tex->get_width());
+			}
+			v.rank_icon->set_position(Vector3(x, v.hp_bg->get_transform().origin.y + 0.3f, z));
+		}
+		v.rank_icon->set_visible(rank >= 2);
 	}
 
 	for (size_t s = 0; s < unit_pool.size(); ++s) {
@@ -3042,13 +3163,22 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 	// =========================================================================
 	// Explored supplies show as last seen (Fogging.js); unexplored ones not at all.
 	const auto &fres = mirages_.resources();
-	size_t n_tree = 0, g = 0, st = 0, fd = 0, nru = 0, fish_n = 0;
+	size_t n_tree = 0, fd = 0, nru = 0, fish_n = 0, n_mine[MINE_KINDS] = {};
+	if (sim->current_map_biome() != mine_biome_) pick_mine_models(sim->current_map_biome());
+	if (sim->game_time() < mine_large_time_ || sim->current_map_id() != mine_large_map_) mine_large_.clear();
+	mine_large_time_ = sim->game_time();
+	mine_large_map_ = sim->current_map_id();
+	auto mine_of = [&](const rtso::FoggedResource &r) -> int {
+		auto it = mine_large_.find(r.id);
+		if (it == mine_large_.end()) it = mine_large_.emplace(r.id, r.amount > 2000).first;
+		const bool metal = r.type == rtso::RES_GOLD;
+		return it->second ? (metal ? MINE_METAL_LARGE : MINE_STONE_LARGE) : (metal ? MINE_METAL_SMALL : MINE_STONE_SMALL);
+	};
 	for (const auto &r : fres) {
 		if (r.subtype == rtso::RES_SUB_GRAIN) continue; // a field's grain; the field model shows it
 		if (r.subtype == rtso::RES_SUB_RUINS) nru++;
 		else if (r.type == rtso::RES_WOOD) n_tree++;
-		else if (r.type == rtso::RES_GOLD) g++;
-		else if (r.type == rtso::RES_STONE) st++;
+		else if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) n_mine[mine_of(r)]++;
 		else if (r.subtype == rtso::RES_SUB_FISH) fish_n++;
 		else if (r.type == rtso::RES_FOOD) fd++;
 	}
@@ -3076,18 +3206,15 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 		for (int v = 0; v < tree_variants[k]; ++v) tree_mm[k][v]->set_instance_count((int)n_kind[k][v]);
 	for (int k = 1; k < FLORA_KINDS; ++k)
 		for (int v = 0; v < flora_variants[k]; ++v) flora_mm[k][v]->set_instance_count((int)n_flora[k][v]);
-	gold_mm->set_instance_count((int)g);
-	stone_mm->set_instance_count((int)st);
+	for (int k = 0; k < MINE_KINDS; ++k) mine_mm[k]->set_instance_count((int)n_mine[k]);
 	if (food_mm.is_valid())
 		food_mm->set_instance_count((int)fd);
 	ruins_mm->set_instance_count((int)nru);
 	fish_mm->set_instance_count((int)fish_n);
 
-	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, ig = 0, ist = 0, ifd = 0, iru = 0, ifish = 0;
+	size_t ia[TREE_KINDS][TREE_VARIANTS] = {}, iflora[FLORA_KINDS][TREE_VARIANTS] = {}, imine[MINE_KINDS] = {}, ifd = 0, iru = 0, ifish = 0;
 	auto e_ruins = rtso::ModelLibrary::get("buildings", "ruins");
 	String cat_veg = "vegetation";
-	String id_gold = "gold_vein"; auto e_gold = rtso::ModelLibrary::get(cat_veg, id_gold);
-	String id_stone = "stone_mine"; auto e_stone = rtso::ModelLibrary::get(cat_veg, id_stone);
 	String id_food = "fruit_bush"; auto e_food = rtso::ModelLibrary::get(cat_veg, id_food);
 
 	for (const auto &r : fres) {
@@ -3116,14 +3243,11 @@ void RtsoWorldView::sync(const rtso::Simulation *sim, float delta, const PackedI
 			Transform3D xf(rot.scaled(Vector3(sc, sc, sc)), Vector3(rx, ry + tree_y[k][v], rz));
 			tree_mm[k][v]->set_instance_transform((int)ia[k][v], xf);
 			tree_mm[k][v]->set_instance_color((int)ia[k][v]++, tint);
-		} else if (r.type == rtso::RES_GOLD) {
-			Transform3D xf(rot, Vector3(rx, ry + e_gold.y_offset, rz));
-			gold_mm->set_instance_transform((int)ig, xf);
-			gold_mm->set_instance_color((int)ig++, tint);
-		} else if (r.type == rtso::RES_STONE) {
-			Transform3D xf(rot, Vector3(rx, ry + e_stone.y_offset, rz));
-			stone_mm->set_instance_transform((int)ist, xf);
-			stone_mm->set_instance_color((int)ist++, tint);
+		} else if (r.type == rtso::RES_GOLD || r.type == rtso::RES_STONE) {
+			const int k = mine_of(r);
+			Transform3D xf(rot, Vector3(rx, ry + mine_y[k], rz));
+			mine_mm[k]->set_instance_transform((int)imine[k], xf);
+			mine_mm[k]->set_instance_color((int)imine[k]++, tint);
 		} else if (r.subtype == rtso::RES_SUB_FISH) {
 			// 0 A.D.'s fish shoal swims just under the surface (Position/Floating).
 			// The water has no refraction pass, so the top fish break the

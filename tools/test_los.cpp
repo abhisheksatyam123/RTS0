@@ -217,6 +217,48 @@ static void test_start_territory_explored() {
 	CHECK(!t->los_explored(0, 40.0f, 40.0f - vr - 2.0f * cell), "only before the first turn, not for later territory");
 }
 
+// 0 A.D. CircularMap: LOS ends at the circle (CCmpRangeManager LosIsOffWorld), so the cells
+// outside it stay unseen, unexplored and out of the explored percentage, even with Revealed map.
+static void test_circular_map() {
+	std::printf("circular map\n");
+	CHECK(map_circular(MAP_MAINLAND) && map_circular(MAP_DANUBIUS) && !map_circular(MAP_CORSICA) &&
+	      !map_circular(MAP_LATIUM) && !map_circular(MAP_PHOENICIAN_LEVANT) && !map_circular(MAP_RANDOM_CONTINENTAL),
+	      "0.28 random maps are circular except corsica, latium and phoenician_levant; RTS0's own are square");
+	auto s = make_sim(64.0f);
+	s->set_circular_map(true);
+	CHECK(s->circular_map() && s->off_world(-62.0f, -62.0f) && !s->off_world(0.0f, -62.0f), "the corners are off the world");
+	s->spawn_unit(-60.0f, -60.0f, 0, UNIT_SPEARMAN); // stood in a corner (passability is not this test's)
+	s->spawn_unit(0.0f, 0.0f, 0, UNIT_SPEARMAN);
+	s->tick(0.25f);
+	CHECK(s->los_visible(0, 0.0f, 0.0f) && !s->los_visible(0, -62.0f, -62.0f) && !s->los_explored(0, -62.0f, -62.0f),
+	      "a unit in the corner lights nothing off the world");
+	CHECK(s->los_visible(0, -46.0f, -46.0f), "but it sees the circle's edge");
+	CHECK(s->fow_state_at(-62.0f, -62.0f, 0) == Simulation::FOW_UNEXPLORED && s->fow_state_at(-46.0f, -46.0f, 0) == Simulation::FOW_VISIBLE,
+	      "the fog matches");
+	const size_t world = s->los().in_world_cells(), all = s->los().cells();
+	CHECK(world * 100 > all * 75 && world * 100 < all * 82, "about pi/4 of the cells are in the world");
+	const char *path = "/tmp/rts0_test_los_circle.sav";
+	CHECK(s->save_state(path), "saves");
+	auto b = make_sim(64.0f);
+	CHECK(b->load_state(path) && b->circular_map() && b->los().in_world_cells() == world, "loads circular");
+	CHECK(b->los_hash() == s->los_hash(), "with the same LOS");
+	s->set_explore_map(true);
+	s->tick(0.25f);
+	CHECK(s->fow_state_at(-62.0f, -62.0f, 0) == Simulation::FOW_UNEXPLORED && s->fow_state_at(30.0f, 30.0f, 0) == Simulation::FOW_EXPLORED,
+	      "Explored map explores only the circle");
+	s->set_reveal_map(true);
+	s->tick(0.25f);
+	CHECK(s->fow_state_at(-62.0f, -62.0f, 0) == Simulation::FOW_UNEXPLORED && s->fow_state_at(30.0f, 30.0f, 0) == Simulation::FOW_VISIBLE,
+	      "Revealed map reveals only the circle (m_LosStateRevealed)");
+
+	auto g = make_sim(64.0f);
+	g->generate_random_map(MAP_MAINLAND, 3, 2, 64.0f);
+	CHECK(g->circular_map(), "Mainland generates circular");
+	g->set_circular_map_choice(2);
+	g->generate_random_map(MAP_MAINLAND, 3, 2, 64.0f);
+	CHECK(!g->circular_map() && g->los().in_world_cells() == g->los().cells(), "unless the setup asks for a square");
+}
+
 int main() {
 	test_own_and_shared_vision();
 	test_buildings_and_capture();
@@ -225,6 +267,7 @@ int main() {
 	test_fog_is_los();
 	test_revealed_and_explored_map();
 	test_start_territory_explored();
+	test_circular_map();
 	std::printf("%s (%d failures)\n", failures ? "FAIL" : "PASS", failures);
 	return failures ? 1 : 0;
 }

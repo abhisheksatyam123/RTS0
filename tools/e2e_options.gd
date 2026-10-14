@@ -47,7 +47,7 @@ func run() -> void:
 	change_scene_to_file("res://scenes/menu/options.tscn")
 	await frames(3)
 	var page = current_scene
-	check(page._tabs.get_child_count() == 7, "seven categories, as 0 A.D.'s options.json")
+	check(page._tabs.get_child_count() == 9, "nine categories, as 0 A.D.'s options.json")
 	var master: HSlider = page._controls["sound.mastergain"][1].get_child(0)
 	check(is_equal_approx(master.value, 0.9), "master volume starts at 0 A.D.'s 0.9")
 	var music_bus := AudioServer.get_bus_index("Music")

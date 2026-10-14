@@ -5414,67 +5414,67 @@
       "amount": 1000
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 54.35,
       "z": -17.16,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 55.18,
       "z": -20.0,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 55.94,
       "z": -21.88,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 56.92,
       "z": -23.1,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 57.66,
       "z": -24.07,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 58.51,
       "z": -24.23,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 59.67,
       "z": -24.35,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 58.5,
       "z": -22.85,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 57.01,
       "z": -21.4,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 54.68,
       "z": -18.54,
       "amount": 200
     },
     {
-      "type": "berry",
+      "type": "fruit/grapes",
       "x": 54.16,
       "z": -15.45,
       "amount": 200
@@ -8312,139 +8312,139 @@
       "amount": 200
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 45.35,
       "z": 17.8,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 43.77,
       "z": 14.57,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 43.03,
       "z": 12.29,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 41.54,
       "z": 9.99,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 40.72,
       "z": 8.54,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 38.96,
       "z": 5.41,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 41.64,
       "z": 4.76,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 43.23,
       "z": 6.76,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 44.74,
       "z": 10.21,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 45.48,
       "z": 12.91,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": 47.17,
       "z": 16.57,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -86.13,
       "z": 58.54,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -82.62,
       "z": 59.01,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -81.5,
       "z": 59.29,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -80.08,
       "z": 58.92,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -79.57,
       "z": 58.91,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -77.94,
       "z": 59.22,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -86.6,
       "z": 61.56,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -84.22,
       "z": 62.12,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -83.77,
       "z": 62.31,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -82.41,
       "z": 62.75,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -80.05,
       "z": 63.01,
       "amount": 400
     },
     {
-      "type": "apple",
+      "type": "fruit/apple",
       "x": -79.02,
       "z": 63.17,
       "amount": 400
@@ -8924,650 +8924,650 @@
       "amount": 1000
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -84.44,
       "z": 8.88,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -71.22,
       "z": 25.41,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -68.43,
       "z": 30.25,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -69.98,
       "z": -59.22,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -69.53,
       "z": -66.67,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -69.84,
       "z": -62.22,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -71.2,
       "z": -67.29,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -74.9,
       "z": -66.48,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -74.99,
       "z": -63.43,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -72.81,
       "z": -59.99,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -71.94,
       "z": -55.15,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -70.39,
       "z": -54.74,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -73.25,
       "z": -68.38,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -73.81,
       "z": -66.92,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -72.83,
       "z": -65.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -71.85,
       "z": -62.49,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -71.56,
       "z": -60.16,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -71.6,
       "z": -57.79,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -70.14,
       "z": -56.72,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -70.81,
       "z": -62.84,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -70.5,
       "z": -66.12,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -70.21,
       "z": -64.32,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -70.05,
       "z": -61.27,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -74.03,
       "z": -63.91,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 83.04,
       "z": -46.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 81.33,
       "z": -45.38,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 79.86,
       "z": -47.08,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 79.65,
       "z": -50.08,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 80.86,
       "z": -51.07,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 82.4,
       "z": -52.3,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 84.11,
       "z": -53.76,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 85.56,
       "z": -54.58,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 87.15,
       "z": -53.17,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 89.05,
       "z": -50.42,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 88.67,
       "z": -47.39,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 86.38,
       "z": -47.13,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 84.47,
       "z": -47.02,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 82.49,
       "z": -47.28,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 81.81,
       "z": -48.58,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 82.28,
       "z": -50.0,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 83.62,
       "z": -51.62,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 85.4,
       "z": -52.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 86.76,
       "z": -51.59,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 87.05,
       "z": -50.24,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 85.63,
       "z": -50.52,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 84.21,
       "z": -49.67,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 83.74,
       "z": -48.38,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 80.75,
       "z": -49.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 87.14,
       "z": -47.89,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 81.43,
       "z": -49.77,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 90.99,
       "z": -55.81,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 89.16,
       "z": -63.98,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 54.89,
       "z": -5.87,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 53.01,
       "z": -17.42,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 53.98,
       "z": -21.85,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 55.04,
       "z": -23.92,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 57.17,
       "z": -26.41,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 58.99,
       "z": -27.47,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 16.6,
       "z": 68.5,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 12.58,
       "z": 68.92,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 14.07,
       "z": 66.42,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 57.18,
       "z": 51.31,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 55.97,
       "z": 52.3,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 53.81,
       "z": 54.57,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 54.91,
       "z": 56.63,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 52.54,
       "z": 53.12,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 51.09,
       "z": 51.04,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 52.07,
       "z": 52.23,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 54.6,
       "z": 52.09,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 80.15,
       "z": 43.96,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 102.76,
       "z": 25.65,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 103.78,
       "z": 24.75,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": 121.76,
       "z": 19.69,
       "amount": 200
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 101.45,
       "z": 23.93,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 102.02,
       "z": 22.21,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 102.91,
       "z": 23.61,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 103.79,
       "z": 22.63,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 104.76,
       "z": 24.71,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 104.41,
       "z": 26.33,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 102.26,
       "z": 25.96,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -42.54,
       "z": 82.57,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 91.7,
       "z": 55.39,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 35.79,
       "z": 69.09,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -2.57,
       "z": 89.43,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": 5.92,
       "z": 71.14,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.08,
       "z": 98.74,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -27.37,
       "z": 98.03,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -26.47,
       "z": 99.92,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -25.68,
       "z": 102.84,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -24.2,
       "z": 100.05,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -25.21,
       "z": 95.76,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -27.75,
       "z": 99.49,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -29.63,
       "z": 95.08,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.75,
       "z": -34.92,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -30.54,
       "z": -38.22,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_short",
       "x": -34.82,
       "z": -80.7,
       "amount": 100,
       "max_gatherers": 6
     },
     {
-      "type": "palm",
+      "type": "tree/cretan_date_palm_tall",
       "x": -31.85,
       "z": -79.66,
       "amount": 200
@@ -9615,25 +9615,25 @@
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "tree/tamarix",
       "x": -79.63,
       "z": 15.3,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "tree/tamarix",
       "x": -76.99,
       "z": 6.96,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "tree/tamarix",
       "x": -70.66,
       "z": 6.52,
       "amount": 200
     },
     {
-      "type": "broadleaf",
+      "type": "tree/tamarix",
       "x": -67.59,
       "z": 18.2,
       "amount": 200
@@ -10466,6 +10466,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
@@ -10473,6 +10474,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10480,6 +10482,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10487,6 +10490,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
@@ -10494,19 +10498,22 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
       "type": "trireme",
       "player": 1,
       "x": 31.75,
-      "z": -117.25
+      "z": -117.25,
+      "template": "units/default_ship_arrow"
     },
     {
       "type": "villager",
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10514,6 +10521,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10521,6 +10529,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10528,6 +10537,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_support_civilian",
       "garrison_in": 5
     },
     {
@@ -10535,6 +10545,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
@@ -10542,6 +10553,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 5
     },
     {
@@ -10549,6 +10561,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
@@ -10556,6 +10569,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
@@ -10563,6 +10577,7 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_cavalry",
       "garrison_in": 5
     },
     {
@@ -10570,19 +10585,22 @@
       "player": 1,
       "x": 31.75,
       "z": -117.25,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 5
     },
     {
       "type": "trireme",
       "player": 2,
       "x": 35.0,
-      "z": 109.75
+      "z": 109.75,
+      "template": "units/default_ship_arrow"
     },
     {
       "type": "villager",
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10590,6 +10608,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10597,6 +10616,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10604,6 +10624,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10611,6 +10632,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     },
     {
@@ -10618,6 +10640,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     },
     {
@@ -10625,6 +10648,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10632,6 +10656,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10639,6 +10664,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_cavalry",
       "garrison_in": 16
     },
     {
@@ -10646,6 +10672,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10653,6 +10680,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10660,6 +10688,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_support_civilian",
       "garrison_in": 16
     },
     {
@@ -10667,6 +10696,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_ranged_b",
       "garrison_in": 16
     },
     {
@@ -10674,6 +10704,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     },
     {
@@ -10681,6 +10712,7 @@
       "player": 2,
       "x": 35.0,
       "z": 109.75,
+      "template": "units/default_infantry_melee_b",
       "garrison_in": 16
     }
   ],

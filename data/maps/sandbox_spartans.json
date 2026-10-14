@@ -4280,7 +4280,8 @@
       "type": "tower",
       "player": 1,
       "x": 39.38,
-      "z": -4.55
+      "z": -4.55,
+      "template": "spart/tower_bolt"
     },
     {
       "type": "tower",
@@ -4417,6 +4418,13 @@
       "player": 1,
       "x": 36.1,
       "z": -32.62
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -1.1,
+      "z": 6.41,
+      "template": "spart/royal_stoa"
     }
   ],
   "units": [

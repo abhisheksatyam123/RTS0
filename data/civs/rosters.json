@@ -21623,7 +21623,8 @@
    "specific_name": "Martiyā",
    "phase": 1,
    "trainers": [
-    "BLD_HOUSE"
+    "BLD_HOUSE",
+    "BLD_INN"
    ],
    "trained_at_0ad": [
     "apartment_block",

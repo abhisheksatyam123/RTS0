@@ -4310,13 +4310,15 @@
       "type": "tower",
       "player": 1,
       "x": 41.27,
-      "z": -18.01
+      "z": -18.01,
+      "template": "rome/tower_bolt"
     },
     {
       "type": "tower",
       "player": 1,
       "x": 38.71,
-      "z": -26.72
+      "z": -26.72,
+      "template": "rome/tower_artillery"
     },
     {
       "type": "tower",
@@ -4393,6 +4395,34 @@
       "player": 1,
       "x": 55.87,
       "z": -26.97
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -17.3,
+      "z": 15.66,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -20.92,
+      "z": 14.39,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -18.63,
+      "z": 11.92,
+      "template": "rome/tent"
+    },
+    {
+      "type": "",
+      "player": 1,
+      "x": -15.1,
+      "z": 13.79,
+      "template": "rome/tent"
     }
   ],
   "units": [

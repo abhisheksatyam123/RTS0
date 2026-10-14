@@ -14,6 +14,14 @@ extends Control
 ##   teams 0/1 via diplomacy defaults. Slot cap is 8 like 0 A.D.
 
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
+const MapBrowser = preload("res://scenes/menu/map_browser.gd")
+const L10n = preload("res://scenes/menu/l10n.gd")
+const MAP_BROWSER_HOTKEY := "gamesetup.mapbrowser.open"
+# Loaded at run time: game_description.gd preloads this page.
+var GameDescription = load("res://scenes/session/game_description.gd")
+const AIConfig = preload("res://scenes/menu/ai_config.gd")
+# The slot grid: name, kind, civ, team, AI gear, colour.
+const SLOT_COLUMNS := 6
 
 const CIVS := [
 	{"id": 0, "code": "athen", "name": "Athenians", "emblem": "res://assets/textures/ui/emblems/athenians.png", "blurb": "Silver Owls: +15% metal gather. Balanced hoplites and a strong navy."},
@@ -246,11 +254,12 @@ const DIFFS := ["Sandbox", "Very Easy", "Easy", "Medium", "Hard", "Very Hard"]
 const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressive": 3}
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
-const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
+const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India", "Autumn", "Nubia"]
 ## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
 ## them to BiomeType for the sim (map_biomes_data.h); 0.28 biomes RTS0 lacks are left out.
 const RMBIOME_INDEX := {"generic/aegean": 1, "generic/alpine": 3, "generic/sahara": 4, "generic/temperate": 5,
-	"generic/steppe": 6, "generic/savanna": 7, "generic/arctic": 8, "generic/india": 9}
+	"generic/steppe": 6, "generic/savanna": 7, "generic/arctic": 8, "generic/india": 9,
+	"generic/autumn": 10, "generic/nubia": 11}
 const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
 const SLOT_KINDS := ["Human", "AI", "Closed"]
 # rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.
@@ -315,9 +324,14 @@ var _filter_names: Array = []  # the filters the map type has maps for, in dropd
 var _want_map_id := ""         # the map to select on the next refresh_map_list
 var _was_scenario := false     # the slots hold a scenario's locked teams
 var _slot_rows: Array = []     # per-slot {kind,civ,team,diff,beh}
+var _map_browser: Control = null
+var _desc_tick := 0.0
+var _ai_buttons: Array = []
+var _hotkeys := RtsoHotkeyConfig.new()
 var _rebuilding_slots := false
 
 func _ready() -> void:
+	_build_description()
 	_load_maps()
 	_build_map_type()
 	_build_map_filter()
@@ -328,11 +342,18 @@ func _ready() -> void:
 	refresh_slots()
 	_update_preview()
 	_init_net()
+	_render_reset_buttons()
+	_build_tips()
 
 # ---------------------------------------------------------------- maps ---
 
 func _load_maps() -> void:
-	_maps.clear()
+	_maps = load_all_maps()
+
+## Every map Game Setup and the Map Browser list: data/maps scenarios and
+## skirmishes (typed by map_types.json), then the random maps.
+static func load_all_maps() -> Array:
+	var maps: Array = []
 	var dir := DirAccess.open("res://data/maps")
 	if dir != null:
 		dir.list_dir_begin()
@@ -347,13 +368,13 @@ func _load_maps() -> void:
 			file_name = dir.get_next()
 		scenario_ids.sort()
 		for sid in scenario_ids:
-			_maps.append(_read_scenario(sid))
-	if _maps.is_empty():
+			maps.append(_read_scenario(sid))
+	if maps.is_empty():
 		for p in ["acropolis_bay", "corinthian_isthmus", "atlas_valleys", "bactria", "battle_for_the_tiber"]:
-			_maps.append(_read_scenario(p))
+			maps.append(_read_scenario(p))
 	var types := _map_types_data()
 	var known: Dictionary = types.get("maps", {})
-	for m in _maps:
+	for m in maps:
 		var t: Dictionary = known.get(m["id"], {})
 		m["type"] = str(t.get("type", "skirmish"))
 		m["kind"] = "Scenario" if m["type"] == "scenario" else "Skirmish"
@@ -364,11 +385,12 @@ func _load_maps() -> void:
 	var biomes: Dictionary = types.get("random_biomes", {})
 	for r in RMS_MAPS:
 		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
-		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
+		maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
 			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
 			"players": r[3],
 			"size": r[4], "biome": r[5], "desc": r[6],
 			"biomes": [] if r[0] in OWN_RMS_MAPS else biome_values(biomes.get(rms_script(r[0]), []))})
+	return maps
 
 ## The BIOMES entries a random map's 0.28 SupportedBiomes allows, in BIOMES order.
 static func biome_values(ids: Array) -> Array:
@@ -475,7 +497,7 @@ static func matches_class_list(classes: Array, match: Array) -> bool:
 			return true
 	return false
 
-func _read_scenario(map_id: String) -> Dictionary:
+static func _read_scenario(map_id: String) -> Dictionary:
 	var d := {"id": map_id, "name": map_id, "kind": "Scenario",
 		"players": 2, "size": 256, "biome": "mediterranean", "desc": ""}
 	var path := "res://data/maps/" + map_id + ".json"
@@ -590,14 +612,30 @@ func _build_map_filter() -> void:
 	f.item_selected.connect(_on_map_filter_selected)
 	_rebuild_map_filter()
 
+## MapFilters.getAvailableMapFilters: the MAP_FILTERS entries with maps of the type.
+static func available_filters(maps: Array, map_type: String) -> Array:
+	return MAP_FILTERS.filter(func(flt): return maps.any(func(m): return m["type"] == map_type and matches_class_list(m["keywords"], flt[3])))
+
+## MapFilters.getFilteredMaps: the maps of the type the filter matches, by name,
+## after the Random entry for random maps.
+static func filtered_maps(maps: Array, map_type: String, filter_name: String) -> Array:
+	var classes: Array = MAP_FILTERS[0][3]
+	for flt in MAP_FILTERS:
+		if flt[0] == filter_name:
+			classes = flt[3]
+	var out := maps.filter(func(m): return m["type"] == map_type and matches_class_list(m["keywords"], classes))
+	out.sort_custom(func(a, b): return str(a["name"]).naturalnocasecmp_to(str(b["name"])) < 0)
+	if map_type == "random":
+		out.push_front(RANDOM_MAP)
+	return out
+
 func _rebuild_map_filter() -> void:
 	var f: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapFilterSlot.get_child(0)
 	f.clear()
 	_filter_names.clear()
-	for flt in MAP_FILTERS:
-		if _maps.any(func(m): return m["type"] == _map_type and matches_class_list(m["keywords"], flt[3])):
-			_filter_names.append(flt[0])
-			f.add_item(flt[1])
+	for flt in available_filters(_maps, _map_type):
+		_filter_names.append(flt[0])
+		f.add_item(flt[1])
 	if not _filter_names.has(_map_filter_name):
 		_map_filter_name = _filter_names[0] if not _filter_names.is_empty() else "default"
 	var shown := not _filter_names.is_empty()
@@ -644,6 +682,50 @@ func _build_map_list() -> void:
 	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
 	list.item_selected.connect(_on_map_list_selected)
+	# 0.28 Single/Buttons/MapBrowser.js "Browse Maps" and Panels/MapPreview.js: both open the Map Browser.
+	var browse := Button.new()
+	browse.name = "BrowseMaps"
+	browse.text = tr("Browse Maps")
+	var keys: Array = _hotkeys.get_hotkey_map().get(MAP_BROWSER_HOTKEY, [])
+	browse.tooltip_text = L10n.sprintf(L10n.t("Press %(hotkey)s to view the list of available maps."),
+		{"hotkey": ", ".join(PackedStringArray(keys)) if not keys.is_empty() else L10n.t("Unassigned")})
+	browse.pressed.connect(_open_map_browser)
+	list.get_parent().add_child(browse)
+	list.get_parent().move_child(browse, list.get_index() + 1)
+	var preview := $VBox/HBox/Right/Preview as Control
+	preview.tooltip_text = tr("Click to view the list of available maps.")
+	preview.mouse_filter = Control.MOUSE_FILTER_STOP
+	preview.gui_input.connect(func(ev):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			_open_map_browser())
+
+## MapBrowserPage.openPage: on the current type, filter and map; only the
+## controller picks (a client looks).
+func _open_map_browser() -> void:
+	if _map_browser != null and is_instance_valid(_map_browser):
+		return
+	_map_browser = MapBrowser.open_overlay(self, _maps, _map_type, _map_filter_name, str(_selected_map().get("id", "")), _mp_role != "client")
+	_map_browser.map_chosen.connect(_on_map_browsed)
+
+## MapBrowserPage.onSubmitMapSelection: the type, then the filter, then the map.
+func _on_map_browsed(map_id: String, map_type: String, map_filter: String) -> void:
+	if not map_type.is_empty():
+		_map_type = map_type
+		_update_map_type_tooltip()
+	if not map_filter.is_empty():
+		_map_filter_name = map_filter
+	_rebuild_map_filter()
+	if not map_id.is_empty():
+		_want_map_id = map_id
+	refresh_map_list()
+	_clamp_slots_to_map()
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	if MAP_BROWSER_HOTKEY in _hotkeys.fired(event):
+		get_viewport().set_input_as_handled()
+		_open_map_browser()
 
 ## MapFilters.getFilteredMaps: the maps of the type the filter matches, by
 ## name, after the Random entry for random maps; keeps the selected map if listed.
@@ -652,14 +734,7 @@ func refresh_map_list() -> void:
 	_want_map_id = ""
 	var list: ItemList = $VBox/HBox/LeftScroll/Left/MapList
 	list.clear()
-	_filtered.clear()
-	var match: Array = MAP_FILTERS[_filter_index(_map_filter_name)][3]
-	for m in _maps:
-		if m["type"] == _map_type and matches_class_list(m["keywords"], match):
-			_filtered.append(m)
-	_filtered.sort_custom(func(a, b): return str(a["name"]).naturalnocasecmp_to(str(b["name"])) < 0)
-	if _map_type == "random":
-		_filtered.push_front(RANDOM_MAP)
+	_filtered = filtered_maps(_maps, _map_type, _map_filter_name)
 	_sel_map = 0
 	for i in range(_filtered.size()):
 		list.add_item(str(_filtered[i]["name"]))
@@ -712,6 +787,7 @@ func _civ_pos(id: int) -> int:
 ## ceasefire, Last Man Standing, map exploration, treasures and spies are the
 ## map's, shown disabled. Only random maps let you pick the player count.
 func _apply_map_locks() -> void:
+	_render_reset_buttons()
 	var m := _selected_map()
 	var scen := _is_scenario()
 	var s: Dictionary = m.get("settings", {}) if scen else {}
@@ -848,12 +924,13 @@ static func map_preview(map_id: String) -> Texture2D:
 func _update_preview() -> void:
 	_update_map_options()
 	var m := _selected_map()
-	var lbl := $VBox/HBox/Right/Preview/Label as Label
+	var lbl := get_node_or_null("VBox/HBox/Right/Preview/Info/Label") as Label
 	var img := $VBox/HBox/Right/Preview/Image as TextureRect
+	var info := get_node_or_null("VBox/HBox/Right/Preview/Info") as Control
 	if img:
 		img.texture = null if m.is_empty() else map_preview(str(m["id"]))
 		img.visible = img.texture != null
-		if lbl: lbl.offset_left = 192.0 if img.visible else 12.0
+		if info: info.offset_left = 192.0 if img.visible else 12.0
 	var crest := $VBox/HBox/Right/CivPreview/Crest as TextureRect
 	var civ_lbl := $VBox/HBox/Right/CivPreview/CivLabel as Label
 	if m.is_empty():
@@ -861,17 +938,140 @@ func _update_preview() -> void:
 		return
 	var seed_txt := "Random seed" if int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value) == 0 else "Seed %d" % int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
 	if lbl:
-		lbl.text = "%s\n[%s • %s • %dm • %d players]\n\n%s\n\n%s" % [
-			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt, m["desc"]]
+		lbl.text = "%s • %s • %s • %dm • %d players • %s" % [
+			m["name"], m["kind"], m["biome"], int(m["size"]), int(m["players"]), seed_txt]
 		if _slot_rows.size() > 0 and int(_slot_rows[0]["kind"]) == 1:
-			lbl.text += "\n\nNo Human slot: you watch the AIs play with the map revealed."
+			lbl.text += "\nNo Human slot: you watch the AIs play with the map revealed."
+	_update_description()
 	# Civ preview follows slot 0 (the human player).
 	var civ := _civ_pos(_slot_civ(0))
 	if crest and civ >= 0:
 		var tex: Texture2D = load(CIVS[civ]["emblem"])
 		if tex: crest.texture = tex
 	if civ_lbl and civ >= 0:
-		civ_lbl.text = "%s\n\n%s" % [CIVS[civ]["name"], CIVS[civ]["blurb"]]
+		civ_lbl.text = "%s\n%s" % [CIVS[civ]["name"], CIVS[civ]["blurb"]]
+
+## 0.28 Panels/GameDescription.js: getGameDescription of the settings as they
+## stand, a line per setting, under the Map Preview's name and description.
+func _update_description() -> void:
+	var box := get_node_or_null("VBox/HBox/Right/Preview/Info/GameDescription") as RichTextLabel
+	if box == null or _rebuilding_slots:
+		return
+	var text := ""
+	var m := _selected_map()
+	if not m.is_empty():
+		text = GameDescription.describe(description_info())
+	if text != box.text:
+		box.text = text
+
+## The settings as the in-game Match Settings dialog reads them
+## (RtsoMain.get_match_settings_info keys).
+func description_info() -> Dictionary:
+	var st := _collect_setup()
+	var m: Dictionary = st.get("map", {})
+	var pop := int(st["pop_cap"])
+	if bool(st["team_pop"]) and pop > 0:
+		pop = -(pop + GameDescription.TEAM_POP_FLAG)
+	return {"map_id": str(m.get("id", "")), "map_name": str(m.get("name", "")),
+		"victory_mask": victory_mask(int(st["victory"])), "relic_min": st["relic_min"], "relic_count": st["relic_count"],
+		"regicide_garrison": st["regicide_garrison"], "wonder_min": st["wonder_min"], "lock_teams": st["lock_teams"],
+		"last_man_standing": st["lms"], "ceasefire_min": st["ceasefire"], "map_size": st["map_size"],
+		"team_placement": st["team_placement"], "trigger_difficulty": st["trigger_difficulty"], "nomad": st["nomad"],
+		"start_res": st["res"], "pop_cap": pop, "disable_treasures": st["disable_treasures"],
+		"explore_map": st["explore"], "reveal_map": st["reveal"], "ally_view": st["ally_view"],
+		"cheats": $VBox/HBox/LeftScroll/Left/MapVisRow/Cheats.button_pressed if _mp_role != "none" else true}
+
+## The description scrolls in the Map Preview panel, beside the preview under
+## the map's name line; the panel takes the page's spare height.
+# 0.28 Panels/TipsPanel.js: a hint for newcomers under the player slots, in single
+# player only (multiplayer shows the chat there), until its tick box is cleared
+# (gui.gamesetup.enabletips).
+const SP_TIP := "Although reasonably easy for an experienced player, the default AI level is quite challenging for new players yet to master the basic mechanisms of the game. Beginners are advised to start by playing against a lower level AI (Sandbox or Very Easy). Change the AI level by clicking the gear icon next to the player you want to modify in the selection panel above."
+
+func _build_tips() -> void:
+	if net_main != null or not RtsoUserConfig.new().get_bool("gui.gamesetup.enabletips"):
+		return
+	var panel := PanelContainer.new()
+	panel.name = "SPTips"
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var gear := Button.new() # _draw_gear draws on a button; this one is only the icon
+	gear.flat = true
+	gear.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	gear.focus_mode = Control.FOCUS_NONE
+	gear.custom_minimum_size = Vector2(24, 24)
+	gear.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	gear.draw.connect(func(): _draw_gear(gear))
+	row.add_child(gear)
+	var text := Label.new()
+	text.name = "AITips"
+	text.text = tr(SP_TIP)
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_font_size_override("font_size", 12)
+	row.add_child(text)
+	var tick := CheckBox.new()
+	tick.name = "DisplaySPTips"
+	tick.text = tr("Show this message in the future.")
+	tick.button_pressed = true
+	tick.toggled.connect(func(on: bool):
+		var cfg := RtsoUserConfig.new()
+		cfg.set_value("gui.gamesetup.enabletips", "true" if on else "false")
+		cfg.save())
+	box.add_child(tick)
+	$VBox/HBox/Right.add_child(panel)
+
+func _build_description() -> void:
+	var preview := $VBox/HBox/Right/Preview
+	var lbl := $VBox/HBox/Right/Preview/Label as Label
+	var info := VBoxContainer.new()
+	info.name = "Info"
+	info.set_anchors_preset(Control.PRESET_FULL_RECT)
+	info.offset_left = lbl.offset_left
+	info.offset_top = 6
+	info.offset_right = -6
+	info.offset_bottom = -6
+	preview.add_child(info)
+	lbl.reparent(info)
+	lbl.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	var box := RichTextLabel.new()
+	box.name = "GameDescription"
+	box.bbcode_enabled = true
+	box.scroll_active = true
+	box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_theme_font_size_override("normal_font_size", 13)
+	info.add_child(box)
+	var row := $VBox/HBox/Right/SlotsBox/SlotCountRow
+	for b in [["ResetCivs", "Reset Civs", "Reset any civilizations that have been selected to the default (random).", _on_reset_civs],
+			["ResetTeams", "Reset Teams", "Reset all teams to the default.", _on_reset_teams]]:
+		var btn := Button.new()
+		btn.name = b[0]
+		btn.text = tr(b[1])
+		btn.tooltip_text = tr(b[2])
+		btn.pressed.connect(b[3])
+		row.add_child(btn)
+
+## 0.28 Buttons/ResetCivsButton.js: every player's civ back to Random.
+func _on_reset_civs() -> void:
+	for r in _slot_rows:
+		r["civ"] = RANDOM_CIV
+	refresh_slots()
+	_update_preview()
+
+## 0.28 Buttons/ResetTeamsButton.js: every player back to no team.
+func _on_reset_teams() -> void:
+	for r in _slot_rows:
+		r["team"] = 0
+	refresh_slots()
+
+## The reset buttons are the controller's, and a scenario sets the civs and teams.
+func _render_reset_buttons() -> void:
+	for n in ["ResetCivs", "ResetTeams"]:
+		var b := get_node_or_null("VBox/HBox/Right/SlotsBox/SlotCountRow/" + n) as Button
+		if b:
+			b.visible = not _is_scenario() and _mp_role != "client"
 
 # ---------------------------------------------------------------- slots ---
 
@@ -920,6 +1120,7 @@ func refresh_slots() -> void:
 	var grid := _slots_grid()
 	for c in grid.get_children():
 		c.queue_free()
+	_ai_buttons.clear()
 	var n := int(_slot_count_node().value)
 	_ensure_slot_rows(n)
 	for i in range(n):
@@ -969,24 +1170,20 @@ func _add_slot_row(grid: GridContainer, i: int) -> void:
 	team.select(clampi(int(row["team"]), 0, 4))
 	team.disabled = _is_scenario()
 	team.item_selected.connect(_on_slot_team.bind(i))
-	# AI difficulty (per-slot; slot 0 uses the global default row)
-	var diff_slot := Control.new()
-	diff_slot.custom_minimum_size = Vector2(92, 28)
-	grid.add_child(diff_slot)
-	var diff := _make_option(diff_slot)
-	for dname in DIFFS:
-		diff.add_item(dname)
-	diff.select(clampi(int(row["diff"]), 0, 5))
-	diff.item_selected.connect(_on_slot_diff.bind(i))
-	# AI behaviour (per slot)
-	var beh_slot := Control.new()
-	beh_slot.custom_minimum_size = Vector2(92, 28)
-	grid.add_child(beh_slot)
-	var beh := _make_option(beh_slot)
-	for bname in BEHAVIORS:
-		beh.add_item(bname)
-	beh.select(clampi(int(row["beh"]), 0, 3))
-	beh.item_selected.connect(_on_slot_beh.bind(i))
+	# 0.28 PerPlayer/AIConfigButton.js: a gear on AI rows opens the AI Configuration dialog.
+	var ai_slot := Control.new()
+	ai_slot.custom_minimum_size = Vector2(32, 28)
+	grid.add_child(ai_slot)
+	var gear := Button.new()
+	gear.name = "AIConfigButton"
+	gear.custom_minimum_size = Vector2(28, 28)
+	gear.draw.connect(func(): _draw_gear(gear))
+	gear.pressed.connect(func(): _open_ai_config(i))
+	ai_slot.add_child(gear)
+	while _ai_buttons.size() <= i:
+		_ai_buttons.append(null)
+	_ai_buttons[i] = gear
+	_render_ai_button(i)
 	# player colour (0 A.D. PlayerColor: picking a colour in use swaps the two players' colours)
 	var col_slot := Control.new()
 	col_slot.custom_minimum_size = Vector2(56, 28)
@@ -1006,7 +1203,50 @@ func _on_slot_kind(idx: int, slot: int) -> void:
 	_slot_rows[slot]["kind"] = idx
 	if slot == 0:
 		refresh_slots.call_deferred() # the "(You)" label follows slot 1's kind
+	_render_ai_button(slot)
 	_update_preview()
+
+## The AI dialog's AI Player: Petra makes the slot an AI, None an unassigned one.
+func _set_slot_kind(slot: int, kind: int) -> void:
+	if slot < 0 or slot >= _slot_rows.size():
+		return
+	_on_slot_kind(kind, slot)
+	refresh_slots.call_deferred()
+
+## AIConfigButton.render: shown on AI rows, with "Configure AI: %(description)s."
+func _render_ai_button(slot: int) -> void:
+	if slot < 0 or slot >= _ai_buttons.size() or _ai_buttons[slot] == null or not is_instance_valid(_ai_buttons[slot]):
+		return
+	var gear: Button = _ai_buttons[slot]
+	var row: Dictionary = _slot_rows[slot]
+	var ai := int(row["kind"]) == 1
+	# Kept in the grid when hidden so the columns stay in line.
+	gear.modulate.a = 1.0 if ai else 0.0
+	gear.mouse_filter = Control.MOUSE_FILTER_STOP if ai else Control.MOUSE_FILTER_IGNORE
+	gear.tooltip_text = L10n.sprintf(L10n.t("Configure AI: %(description)s."),
+		{"description": AIConfig.describe(int(row["diff"]), int(row["beh"]), DIFFS.map(func(d): return tr(d)), BEHAVIORS.map(func(b): return tr(b)))}) if ai else ""
+
+## 0.28's ModernGear sprite, drawn: a cog of eight teeth with a hole.
+static func _draw_gear(b: Button) -> void:
+	var c := b.size / 2.0
+	var r := minf(b.size.x, b.size.y) * 0.3
+	var col := Color(0.93, 0.85, 0.6) if not b.is_hovered() else Color(1, 0.95, 0.75)
+	if b.disabled:
+		col = col.darkened(0.45)
+	for k in 8:
+		var a := k * TAU / 8.0
+		var d := Vector2.from_angle(a)
+		var n := d.orthogonal() * r * 0.28
+		b.draw_colored_polygon(PackedVector2Array([c + d * r * 0.8 - n, c + d * r * 1.35 - n, c + d * r * 1.35 + n, c + d * r * 0.8 + n]), col)
+	b.draw_circle(c, r, col)
+	b.draw_circle(c, r * 0.42, Color(0.1, 0.09, 0.08))
+
+## AIConfigPage.openPage(playerIndex, enabled): only the controller edits.
+func _open_ai_config(slot: int) -> void:
+	if get_node_or_null("AIConfigLayer") != null:
+		return
+	var dlg = AIConfig.open_overlay(self, slot, _mp_role != "client")
+	dlg.get_parent().name = "AIConfigLayer"
 
 func _on_slot_civ(idx: int, slot: int) -> void:
 	if _rebuilding_slots or slot < 0 or slot >= _slot_rows.size():
@@ -1713,6 +1953,11 @@ func _on_ready_pressed() -> void:
 	_update_net_controls()
 
 func _process(delta: float) -> void:
+	# GameDescription.updateGameDescription: the summary follows every setting.
+	_desc_tick += delta
+	if _desc_tick >= 0.3:
+		_desc_tick = 0.0
+		_update_description()
 	if _mp_role == "none":
 		return
 	_net_tick += delta
@@ -1834,9 +2079,9 @@ func _apply_mp_locks() -> void:
 	var k := int(_net_state.get("my_slot", -1))
 	var cells := _slots_grid().get_children().filter(func(c): return not c.is_queued_for_deletion())
 	if k >= 0 and not bool(_net_state.get("locked", false)):
-		for col in [2, 3, 6]:
-			if k * 7 + col < cells.size():
-				keep[cells[k * 7 + col]] = true
+		for col in [2, 3, 5]:
+			if k * SLOT_COLUMNS + col < cells.size():
+				keep[cells[k * SLOT_COLUMNS + col]] = true
 	_lock_tree($VBox/HBox, keep)
 
 func _lock_tree(n: Node, keep: Dictionary) -> void:

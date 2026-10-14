@@ -2212,6 +2212,12 @@ static BiomeFauna biome_fauna(BiomeType biome, int pick) {
 		case BIOME_POLAR: return {FAUNA_CHICKEN, FAUNA_MUSKOX, FAUNA_WALRUS, FAUNA_WOLF_ARCTIC};
 		case BIOME_INDIA: return {FAUNA_PEACOCK, FAUNA_PEACOCK, FAUNA_ELEPHANT_ASIAN, FAUNA_TIGER};
 		case BIOME_TEMPERATE: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_WOLF};
+		case BIOME_AUTUMN: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_WOLF};
+		case BIOME_NUBIA: {
+			// setupBiome_nubia's pickRandom of the main huntable animal.
+			static const uint8_t kMain[5] = {FAUNA_WILDEBEEST, FAUNA_ZEBRA, FAUNA_GIRAFFE, FAUNA_ELEPHANT_AFRICAN_BUSH, FAUNA_GAZELLE};
+			return {FAUNA_CHICKEN, kMain[(unsigned)pick % 5u], FAUNA_GAZELLE, FAUNA_LION};
+		}
 		default: return {FAUNA_CHICKEN, FAUNA_DEER, FAUNA_SHEEP, FAUNA_BOAR}; // aegean (and latium)
 	}
 }
@@ -3482,6 +3488,19 @@ void RmsGenerator::synth_survival_of_the_fittest(HeightmapGrid &hm, RmsRng &rng,
 // Count, 2 tiles apart, 6 tiles out at BUILDING_ORIENTATION - PI * (1 - j / 2).
 // `infantry_only` keeps only the templates naming "infantry" (survivalofthefittest.js).
 // A unit whose spot is under water is pulled in towards the civic centre until it is dry.
+int skirmish_replace(uint8_t civ, const char *map_template, uint16_t &out_tmpl) {
+	out_tmpl = CIV_UNIT_TEMPLATE_NONE;
+	if (std::strncmp(map_template, "units/", 6) != 0) return 0;
+	const char *name = map_template + 6;
+	const SkirmishReplacement *table = skirmish_replacement_table();
+	for (int i = 0; i < SKIRMISH_REPLACEMENT_COUNT; ++i) {
+		if (table[i].civ != civ || std::strcmp(table[i].from, name) != 0) continue;
+		if (*table[i].to) out_tmpl = civ_unit_template_by_id(table[i].to);
+		return out_tmpl != CIV_UNIT_TEMPLATE_NONE ? 1 : -1;
+	}
+	return 0;
+}
+
 static void place_start_entities(Simulation &sim, const HeightmapGrid &hm, uint8_t team, float cx, float cz,
                                  bool infantry_only = false) {
 	constexpr float kDist = 6.0f, kSpace = 2.0f, kOrientation = -0.25f * 3.14159265f;
@@ -5195,7 +5214,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 							sim.spawn_fauna(x, z, FAUNA_GOAT);
 							continue;
 						}
-						const char *id = r.kind == 0 ? "gaul/support_female_citizen" : kWarriors[rng.range_int(0, 2)];
+						const char *id = r.kind == 0 ? "gaul/support_civilian" : kWarriors[rng.range_int(0, 2)]; // oCivilian
 						const uint16_t t = civ_unit_template_by_id(id);
 						if (t != CIV_UNIT_TEMPLATE_NONE) sim.spawn_gaia_unit(x, z, (UnitType)civ_unit_template(t).unit_type, id);
 					}
@@ -5211,6 +5230,7 @@ void RmsGenerator::place_danubius_entities(Simulation &sim, const HeightmapGrid 
 				const float x = cx + std::cos(a) * (city_r - 4.0f), z = cz + std::sin(a) * (city_r - 4.0f);
 				if (kind == V_HOUSE) building(x, z, BLD_HOUSE, false);
 				else if (kind == V_TEMPLE) building(x, z, BLD_TEMPLE, false);
+				else if (size >= 320.0f && sim.nomad()) building(x, z, BLD_SENTRY_TOWER, false); // sentry_tower
 				else if (size >= 320.0f) building(x, z, BLD_TOWER, true); // gaul/defense_tower
 				else building(x, z, BLD_SENTRY_TOWER, false);              // palisades_watchtower
 			}
