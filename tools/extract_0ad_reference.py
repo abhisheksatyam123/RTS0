@@ -472,6 +472,19 @@ def collect(zad, prev=None):
             d["viewer"] = viewer(t)
             rows[str(i)] = d
         structures[civ] = rows
+    # Gaia entities the selection panel shows: animals, treasures, ruins, and the generic
+    # tree, fruit, mine and rock templates (every gaia/tree and gaia/fruit file inherits their Icon).
+    gaia = {}
+    gdir = os.path.join(sim_root, "templates", "gaia")
+    names = ["template_gaia_" + g for g in ("tree", "fruit", "ore", "rock", "ruins", "treasure")]
+    names += ["gaia/" + fn[:-4] for fn in sorted(os.listdir(gdir)) if fn.startswith("fauna_") and fn.endswith(".xml")]
+    for sub in ("treasure", "ruins"):
+        names += ["gaia/%s/%s" % (sub, fn[:-4]) for fn in sorted(os.listdir(os.path.join(gdir, sub))) if fn.endswith(".xml")]
+    for name in names:
+        if loader.exists(name):
+            d = identity(loader.load(name))
+            del d["history"]
+            gaia[name] = d
     techs = {}
     all_techs = []  # (name, json) for every 0.28 technology, in listFiles order
     tdir = os.path.join(sim_root, "data", "technologies")
@@ -511,6 +524,7 @@ def collect(zad, prev=None):
         "civs": civs,
         "units": units,
         "structures": structures,
+        "gaia": gaia,
         "techs": dict(sorted(techs.items())),
     }
 

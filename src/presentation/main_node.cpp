@@ -1146,7 +1146,10 @@ void RtsoMain::update_net_warnings() {
 void RtsoMain::update_net_status_overlay() {
 	if (net_disconnected_ || !net_status_overlay_) return;
 	const bool client = net_host_.getRole() == rtso::NetRole::Client;
-	if (client && net_game_started_ && net_host_.connectionLost()) {
+	// Before Start too, once the host let us in (0.28 gamesetup ChatInputPanel
+	// reportDisconnect): the setup page closes for "Lost connection to the server.".
+	const bool joined = net_game_started_ || net_setup_overlay_ || net_host_.authResult() == rtso::ARC_OK;
+	if (client && joined && net_host_.connectionLost()) {
 		net_disconnected_ = true;
 		finished_asked_ = true; // no quit question over the overlay
 		close_open_dialogs();
@@ -1162,10 +1165,12 @@ void RtsoMain::update_net_status_overlay() {
 			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
-		net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
+		net_status_label_->set_text((net_game_started_ ? tr("Connection to the server has been lost.")
+				: tr("Lost connection to the server.")) + "\n" + why);
 		net_loading_clients_->set_visible(false);
 		net_status_overlay_->set_visible(true);
 		if (lobby_status) lobby_status->set_text(net_status_label_->get_text().replace("\n", " "));
+		update_net_setup_overlay(); // the setup page gives way at once
 		return;
 	}
 	String status, loading;
@@ -1194,6 +1199,8 @@ void RtsoMain::update_net_status_overlay() {
 
 // disconnectedExitButton: endGame(true), the summary page.
 void RtsoMain::_on_disconnected_exit_pressed() {
+	// Lost before Start: OK goes back to the lobby, as the setup page's Back does.
+	if (!net_game_started_) return leave_net_game();
 	Ref<Script> q = ResourceLoader::get_singleton()->load("res://scenes/session/quit_confirmation.gd");
 	if (q.is_valid()) q->call("end_game", this, true);
 }
@@ -2769,6 +2776,7 @@ Dictionary RtsoMain::get_lobby_state() const {
 	for (uint8_t p = 0; sim && p < rtso::MAX_PLAYERS; ++p) ai = ai || (sim->player(p).active && sim->player(p).is_ai);
 	d["oos_ai"] = ai;
 	d["disconnected"] = net_disconnected_;
+	d["setup_page"] = net_setup_overlay_ != nullptr;
 	d["disconnect_reason"] = net_host_.disconnectReason();
 	d["net_status"] = net_status_overlay_ && net_status_overlay_->is_visible() ? net_status_label_->get_text() : String();
 	d["net_loading"] = net_loading_clients_ && net_loading_clients_->is_visible() ? net_loading_clients_->get_parsed_text() : String();
