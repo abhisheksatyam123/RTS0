@@ -163,13 +163,12 @@ void RtsoMain::_ready() {
 		mm_btns->set_offset(SIDE_BOTTOM, -206.0f);
 		mm_btns->add_theme_constant_override("separation", 4);
 		struct MmBtn { const char *label; const char *method; };
-		const MmBtn mm_btn_defs[4] = {
+		const MmBtn mm_btn_defs[3] = {
 			// 3-state shroud cycle (RtsoMiniMapView::cycle_shroud, minimap_view.h ShroudMode):
 			// On -> terrain-only -> off -> On. 0AD MiniMapPanel.js:8-11 panel buttons.
 			{"Shroud", "cycle_shroud"},
 			{"Terr", "toggle_territory"},
 			{"Res", "toggle_resources"},
-			{"Diplo", "toggle_diplomacy"},
 		};
 		for (const MmBtn &d : mm_btn_defs) {
 			Button *b = memnew(Button);
@@ -182,6 +181,7 @@ void RtsoMain::_ready() {
 		}
 		ui_layer->add_child(mm_btns);
 	}
+	minimap_panel_.build(ui_layer, this, [](const String &path) { return rtso::load_ui_texture(path); });
 
 	// =========================================================================
 	// 1. TOP HUD BAR PANEL (Civ Crest, 4 Resources, Pop, Idle, Clock, Speed, Menu)
@@ -227,22 +227,26 @@ void RtsoMain::_ready() {
 			return (combos && !combos->empty()) ? String::utf8(rtso::hotkeys::combo_to_string(combos->front()).c_str()) : String();
 		};
 		top_panel_.set_civ_icon_keys(first_key("civinfo"), first_key("structree"));
+		minimap_panel_.set_hotkeys(first_key("selection.idleworker"), first_key("session.diplomacycolors"), first_key("session.flare"));
 		top_panel_.set_dialog_tooltips(first_key("session.gui.diplomacy.toggle"),
 				first_key("session.gui.barter.toggle"),
 				first_key(rtso::hotkeys::table().get("session.gui.matchsettings.toggle") ? "session.gui.matchsettings.toggle" : "session.gui.objectives.toggle"));
 	}
 
-	time_notification_label_ = memnew(Label);
+	time_notification_label_ = memnew(RichTextLabel);
+	time_notification_label_->set_name("TimeNotificationText");
+	time_notification_label_->set_use_bbcode(true);
+	time_notification_label_->set_fit_content(true);
+	time_notification_label_->set_scroll_active(false);
 	time_notification_label_->set_anchor(SIDE_LEFT, 0.0f);
 	time_notification_label_->set_anchor(SIDE_RIGHT, 1.0f);
 	time_notification_label_->set_anchor(SIDE_TOP, 0.0f);
 	time_notification_label_->set_anchor(SIDE_BOTTOM, 0.0f);
 	time_notification_label_->set_offset(SIDE_TOP, 62.0f);
 	time_notification_label_->set_offset(SIDE_BOTTOM, 140.0f);
-	time_notification_label_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
 	time_notification_label_->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-	time_notification_label_->add_theme_font_size_override("font_size", 16);
-	time_notification_label_->add_theme_color_override("font_color", Color(1.0f, 0.92f, 0.6f));
+	time_notification_label_->add_theme_font_size_override("normal_font_size", 16);
+	time_notification_label_->add_theme_color_override("default_color", Color(1.0f, 0.92f, 0.6f));
 	time_notification_label_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
 	time_notification_label_->add_theme_constant_override("outline_size", 4);
 	time_notification_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
@@ -271,6 +275,14 @@ void RtsoMain::_ready() {
 	net_delay_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
 	net_delay_label_->set_visible(false);
 	ui_layer->add_child(net_delay_label_);
+
+	placement_tip_ = memnew(Label);
+	placement_tip_->set_name("placementTooltip");
+	placement_tip_->add_theme_font_size_override("font_size", 13);
+	placement_tip_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+	placement_tip_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+	placement_tip_->set_visible(false);
+	ui_layer->add_child(placement_tip_);
 
 	cursor_tip_ = memnew(Label);
 	cursor_tip_->add_theme_font_size_override("font_size", 13);
@@ -563,7 +575,22 @@ void RtsoMain::_ready() {
 		};
 		caption(tr("Game Paused"), -20.0f, 28);
 		pause_resume_label_ = caption(tr("Click to Resume Game"), 20.0f, 14);
-		pause_by_label_ = caption("", 50.0f, 14);
+		// "Paused by" names each client in its player's colour, so it is bbcode.
+		pause_by_label_ = memnew(RichTextLabel);
+		pause_by_label_->set_use_bbcode(true);
+		pause_by_label_->set_fit_content(true);
+		pause_by_label_->set_scroll_active(false);
+		pause_by_label_->set_anchor(SIDE_LEFT, 0.3f);
+		pause_by_label_->set_anchor(SIDE_RIGHT, 0.7f);
+		pause_by_label_->set_anchor(SIDE_TOP, 0.4f);
+		pause_by_label_->set_anchor(SIDE_BOTTOM, 0.4f);
+		pause_by_label_->set_offset(SIDE_TOP, 50.0f);
+		pause_by_label_->set_offset(SIDE_BOTTOM, 72.0f);
+		pause_by_label_->add_theme_font_size_override("normal_font_size", 14);
+		pause_by_label_->add_theme_color_override("font_outline_color", Color(0, 0, 0));
+		pause_by_label_->add_theme_constant_override("outline_size", 4);
+		pause_by_label_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		pause_overlay_->add_child(pause_by_label_);
 	}
 	ui_layer->add_child(pause_overlay_);
 
@@ -1007,15 +1034,19 @@ void RtsoMain::_process(double delta) {
 	update_hud();
 	update_net_delay_overlay(delta);
 	if (sim && time_notification_label_) {
+		// l10n.js timeToString: "mm:ss", or "HH:mm:ss" from an hour on (whole seconds dropped down).
+		auto time_to_string = [](int64_t ms) {
+			const int64_t t = std::max<int64_t>(0, ms) / 1000;
+			return t < 3600 ? vformat("%02d:%02d", t / 60, t % 60) : vformat("%02d:%02d:%02d", t / 3600, t / 60 % 60, t % 60);
+		};
 		String txt;
 		for (const rtso::TimeNotification *n : sim->time_notifications_for(local_player())) {
 			if (!txt.is_empty()) txt += "\n";
 			// GuiInterface time notifications: %(time)s is the time left (timeToString).
-			String line = String::utf8(n->text);
+			String line = String::utf8(n->text).replace("[", "[lb]"); // a map's text, not markup
 			if (line.contains("%(time)s")) {
 				const uint32_t now = sim->trigger_state().time_ms;
-				const int left_s = n->end_ms > now ? (int)((n->end_ms - now + 999) / 1000) : 0;
-				line = line.replace("%(time)s", vformat("%d:%02d", left_s / 60, left_s % 60));
+				line = line.replace("%(time)s", time_to_string(n->end_ms > now ? (int64_t)(n->end_ms - now) : 0));
 			}
 			txt += line;
 		}
@@ -1032,7 +1063,7 @@ void RtsoMain::_process(double delta) {
 					if (q != p && ((sim->participant_mask() >> q) & 1) && !sim->is_defeated(q) && mutual(p, q)) m |= (uint8_t)(1u << q);
 				return m;
 			};
-			auto clock = [](float s) { const int t = (int)std::ceil(std::max(0.0f, s)); return vformat("%d:%02d", t / 60, t % 60); };
+			auto clock = [&](float s) { return time_to_string((int64_t)(s * 1000.0f)); };
 			auto add = [&](const String &l) { if (!txt.is_empty()) txt += "\n"; txt += l; };
 			if (sim->has_victory(rtso::VK_WONDER) && !sim->is_game_over())
 				for (uint8_t p = 0; p < rtso::MAX_PLAYERS; ++p) {
@@ -1067,10 +1098,11 @@ void RtsoMain::_process(double delta) {
 		if (sim->ceasefire_seconds() > 0.0f) {
 			const float left = sim->ceasefire_seconds() - sim->game_time();
 			String line;
-			if (left > 0.0f && left <= 10.0f) line = "You can attack in 0:" + String(left > 9.0f ? "" : "0") + String::num_int64((int64_t)std::ceil(left));
+			if (left > 0.0f && left <= 10.0f) line = "You can attack in " + time_to_string((int64_t)(left * 1000.0f));
 			else if (left <= 0.0f && left > -5.0f) line = "You can attack now!";
 			if (!line.is_empty()) txt += (txt.is_empty() ? "" : "\n") + line;
 		}
+		if (!txt.is_empty()) txt = "[center]" + txt + "[/center]";
 		if (time_notification_label_->get_text() != txt) time_notification_label_->set_text(txt);
 	}
 	if (sim && chat_window_.is_ready()) {
@@ -1092,6 +1124,7 @@ void RtsoMain::_process(double delta) {
 	update_inspector();
 	update_command_panel();
 	follow_player_tick();
+	time_warp_tick();
 	const auto attacks = sim->take_attacked_events();
 	detect_attacks(attacks);
 	show_session_notices(sim->take_session_notices());
@@ -1187,9 +1220,15 @@ void RtsoMain::_process(double delta) {
 			// can't be paid for, as cmd_build_wall stops there too) on, every piece is invalid.
 			bool chain_ok = true;
 			float spent[rtso::RES_COUNT] = {};
+			float wall_cost[rtso::RES_COUNT] = {};
 			for (size_t i = 0; i < pieces.size(); ++i) {
 				const auto &p = pieces[i];
 				MeshInstance3D *g = wall_ghosts[i];
+				if (sim) {
+					float c[rtso::RES_COUNT];
+					sim->wall_piece_cost(local_player(), pieces[i], c);
+					for (int r = 0; r < rtso::RES_COUNT; ++r) wall_cost[r] += c[r];
+				}
 				// 0 A.D. previews each piece with its own actor (wall_long/medium/short, the
 				// tower): the model the world view will draw for it, turned the same way.
 				const auto entry = rtso::ModelLibrary::get("buildings", RtsoWorldView::building_visual_id(pciv, p.type, p.half_w));
@@ -1230,6 +1269,26 @@ void RtsoMain::_process(double delta) {
 					wall_ghosts[i]->set_visible(false);
 				}
 			}
+			// INPUT_BUILDING_WALL_PATHING: the wall's cost and what the stock lacks for it;
+			// after a refused click "Cannot build wall here!" until the cursor moves.
+			if (!wall_fail_tip_.is_empty() && mouse_pos.distance_to(wall_fail_mouse_) > 2.0f) wall_fail_tip_ = String();
+			if (!wall_fail_tip_.is_empty()) {
+				set_placement_tip(wall_fail_tip_, true);
+			} else if (sim && !pieces.empty()) {
+				rtso::CostTip cost;
+				cost.food = (int64_t)std::lround(wall_cost[rtso::RES_FOOD]);
+				cost.wood = (int64_t)std::lround(wall_cost[rtso::RES_WOOD]);
+				cost.stone = (int64_t)std::lround(wall_cost[rtso::RES_STONE]);
+				cost.metal = (int64_t)std::lround(wall_cost[rtso::RES_GOLD]);
+				const auto &ps = sim->player(local_player());
+				String tip = rtso::cost_tooltip(cost);
+				const String need = rtso::needed_resources_tooltip(cost, ps.res[rtso::RES_FOOD], ps.res[rtso::RES_WOOD],
+						ps.res[rtso::RES_STONE], ps.res[rtso::RES_GOLD]);
+				if (!need.is_empty()) tip += (tip.is_empty() ? String() : String("\n")) + need;
+				set_placement_tip(tip, !chain_ok);
+			} else {
+				set_placement_tip(String(), false);
+			}
 		} else {
 			for (auto *wg : wall_ghosts) {
 				if (wg && wg->is_visible()) wg->set_visible(false);
@@ -1258,12 +1317,15 @@ void RtsoMain::_process(double delta) {
 				const float ghost_angle = placement_angle_at(current_build_type, gx, gz);
 				ghost_mesh->set_rotation(Vector3(0.0f, ghost_angle - rtso::Simulation::DEFAULT_BUILDING_ROT, 0.0f));
 
-				bool can_build = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle) ==
-						rtso::Simulation::PLACE_OK;
+				const auto placed = sim->check_placement(local_player(), cell_x, cell_y, current_build_type, ghost_angle);
+				const bool can_build = placed == rtso::Simulation::PLACE_OK;
 				ghost_mesh->set_material_override(can_build ? ghost_mat_ok : ghost_mat_bad);
+				set_placement_tip(can_build ? String() : placement_failure_text(placed, (uint8_t)current_build_type, gx, gz), true);
 			}
 		}
 	} else {
+		set_placement_tip(String(), false);
+		wall_fail_tip_ = String();
 		if (ghost_mesh && ghost_mesh->is_visible()) ghost_mesh->set_visible(false);
 		for (auto *wg : wall_ghosts) {
 			if (wg && wg->is_visible()) wg->set_visible(false);

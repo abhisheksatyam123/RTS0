@@ -84,6 +84,13 @@ func _run() -> void:
 			ms.load_save_path = "user://saves/%s.rts0sav" % args["saved"]
 			ms.net_saved_game = true
 		lobby._on_host_pressed()
+	elif args.has("join_addr"):
+		# A typed address nobody answers at.
+		var addr: PackedStringArray = str(args["join_addr"]).split(":")
+		lobby._join_ip.text = addr[0]
+		lobby._join_port.text = addr[1]
+		_say("joining %s" % args["join_addr"])
+		lobby._on_join_pressed()
 	else:
 		var row = null
 		while row == null:
@@ -110,6 +117,8 @@ func _run() -> void:
 	var refused := false
 	var ready_for := -1
 	var refusals: Array = []
+	var setup_leave: bool = args.get("setup_leave", "") == "1"
+	var saw_setup := false
 	while true:
 		if Time.get_ticks_msec() > deadline:
 			return _fail("timed out at turn %s" % (main.get_lobby_state().get("turn", -1) if main else -1))
@@ -122,6 +131,34 @@ func _run() -> void:
 		if main == null:
 			continue
 		var st: Dictionary = main.get_lobby_state()
+		if args.has("join_addr"):
+			# 0.28 reportConnectionRequestTimeOut.
+			if st.get("disconnected", false):
+				_say("connect_status=%s reason=%d" % [str(st.get("net_status", "")).replace("\n", " | "),
+						int(st.get("disconnect_reason", -1))])
+				main._on_disconnected_exit_pressed()
+				await _wait(1.0)
+				_say("connect_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+				break
+			continue
+		if setup_leave:
+			# 0.28 reportDisconnect in the setup: the host leaves before Start, and
+			# the client's page gives way to "Lost connection to the server.".
+			saw_setup = saw_setup or bool(st.get("setup_page", false))
+			if role == "host" and main.is_net_pregame() and int(st.get("players", 0)) >= 2:
+				await _wait(3.0)
+				_say("leaving the setup")
+				main.leave_net_game()
+				await _wait(1.5)
+				break
+			if role == "join" and st.get("disconnected", false):
+				_say("setup_status=%s reason=%d saw_page=%s page=%s" % [str(st.get("net_status", "")).replace("\n", " | "),
+						int(st.get("disconnect_reason", -1)), str(saw_setup), str(st.get("setup_page", true))])
+				main._on_disconnected_exit_pressed()
+				await _wait(1.0)
+				_say("setup_exit_scene=" + (current_scene.scene_file_path if current_scene else ""))
+				break
+			continue
 		if not saw_wait and str(st.get("net_status", "")) != "":
 			saw_wait = true
 			_say("waiting=%s %s" % [st.get("net_status", ""), st.get("net_loading", "")])
@@ -173,6 +210,19 @@ func _run() -> void:
 					int(main.get_turn_hash(turns)), str(main.get_game_speed()), int(ms.slot_civs[1]),
 					int(ms.slot_teams[1]) if ms.slot_teams.size() > 1 else -1, int(ms.slot_colors[1]),
 					str(st.get("chat", "")).count("has rejoined the game.")])
+			# 0.28 PauseOverlay: the client sees "Paused by" the host's name in its colour.
+			if role == "host":
+				main.toggle_pause()
+				await _wait(4.0)
+				main.toggle_pause()
+			else:
+				var by := ""
+				for i in 40:
+					by = str(main.debug_dialogs().get("overlay_by", ""))
+					if by != "":
+						break
+					await _wait(0.2)
+				_say("paused_by=" + by)
 			break
 	var leave: String = args.get("leave", "")
 	if leave == role:

@@ -59,13 +59,6 @@ struct UnitSoA {
 	uint16_t *xp = nullptr; // G1 Petra/Formation - veterancy XP (Promotion.js), allocation wired below
 	int16_t *waypoint_cur = nullptr; // G1 Petra/Formation - current waypoint index (WaypointPath::cur)
 	int16_t *waypoint_count = nullptr; // G1 Petra/Formation - waypoint count (WaypointPath::count)
-	float *poison_timer = nullptr;
-	float *burning_timer = nullptr;
-	// StatusEffectsReceiver: who applied each status and their owner, credited with its damage and kill.
-	uint32_t *poison_src = nullptr;
-	uint32_t *burning_src = nullptr;
-	uint8_t *poison_owner = nullptr;
-	uint8_t *burning_owner = nullptr;
 	uint8_t *pack_state = nullptr; // PackState (0 A.D. Pack.js); PACK_NONE for units without Pack
 	float *pack_elapsed = nullptr; // seconds into the current pack/unpack
 	// 0 A.D. UnitAI order state (see UnitOrderKind): the current order, who hit the
@@ -115,8 +108,6 @@ struct UnitSoA {
 		FREE(death_timer); FREE(target_unit_id); FREE(target_resource_id); FREE(target_building_id);
 		FREE(stance); FREE(formation); FREE(kills); FREE(rank);
 		FREE(status_effects); FREE(xp); FREE(waypoint_cur); FREE(waypoint_count);
-		FREE(poison_timer); FREE(burning_timer);
-		FREE(poison_src); FREE(burning_src); FREE(poison_owner); FREE(burning_owner);
 		FREE(pack_state); FREE(pack_elapsed);
 		FREE(order_kind); FREE(order_flags); FREE(order_target); FREE(order_x); FREE(order_z); FREE(order_x2); FREE(order_z2); FREE(attacked_by); FREE(work_kind); FREE(work_target);
 		FREE(xp_partial); FREE(hunt_fauna); FREE(short_path); FREE(motion);
@@ -177,12 +168,6 @@ struct UnitSoA {
 		realloc_aligned(xp, c * sizeof(uint16_t));
 		realloc_aligned(waypoint_cur, c * sizeof(int16_t));
 		realloc_aligned(waypoint_count, c * sizeof(int16_t));
-		realloc_aligned(poison_timer, c * sizeof(float));
-		realloc_aligned(burning_timer, c * sizeof(float));
-		realloc_aligned(poison_src, c * sizeof(uint32_t));
-		realloc_aligned(burning_src, c * sizeof(uint32_t));
-		realloc_aligned(poison_owner, c * sizeof(uint8_t));
-		realloc_aligned(burning_owner, c * sizeof(uint8_t));
 		realloc_aligned(pack_state, c * sizeof(uint8_t));
 		realloc_aligned(pack_elapsed, c * sizeof(float));
 		realloc_aligned(order_kind, c * sizeof(uint8_t));
@@ -237,10 +222,6 @@ struct UnitSoA {
 		xp[i] = 0;
 		waypoint_cur[i] = 0;
 		waypoint_count[i] = 0;
-		poison_timer[i] = 0.0f;
-		burning_timer[i] = 0.0f;
-		poison_src[i] = burning_src[i] = 0;
-		poison_owner[i] = burning_owner[i] = 0xFF;
 		// 0 A.D. trains siege engines as their "_packed" template.
 		pack_state[i] = unit_has_pack(u_tmpl, u_type) ? PACK_PACKED : PACK_NONE;
 		pack_elapsed[i] = 0.0f;
@@ -303,12 +284,6 @@ struct UnitSoA {
 			xp[idx] = xp[last];
 			waypoint_cur[idx] = waypoint_cur[last];
 			waypoint_count[idx] = waypoint_count[last];
-			poison_timer[idx] = poison_timer[last];
-			burning_timer[idx] = burning_timer[last];
-			poison_src[idx] = poison_src[last];
-			burning_src[idx] = burning_src[last];
-			poison_owner[idx] = poison_owner[last];
-			burning_owner[idx] = burning_owner[last];
 			pack_state[idx] = pack_state[last];
 			pack_elapsed[idx] = pack_elapsed[last];
 			order_kind[idx] = order_kind[last];

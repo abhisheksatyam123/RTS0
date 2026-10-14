@@ -7,6 +7,7 @@
 // the selected structure, units or livestock, or the foreign entity a click inspected.
 
 #include <godot_cpp/classes/button.hpp>
+#include <godot_cpp/classes/color_rect.hpp>
 #include <godot_cpp/classes/control.hpp>
 #include <godot_cpp/classes/label.hpp>
 #include <godot_cpp/classes/node.hpp>
@@ -32,10 +33,12 @@
 
 #include "../simulation/simulation.h"
 #include "attack_detection.h"
+#include "display_colors.h"
 #include "hotkeys.h"
 #include "l10n.h"
 #include "selection_details.h"
 #include "selection_grid.h"
+#include "template_portraits.h"
 #include "top_panel.h" // rtso::load_ui_texture
 
 class RtsoInspectorHost {
@@ -92,11 +95,39 @@ public:
 		title_->add_theme_color_override("font_color", Color(1.0f, 0.88f, 0.4f));
 		panel_->add_child(title_);
 
+		// selection_details.js's player row: the name on the player colour (alpha 128), the
+		// civ emblem in grey behind it and the phase emblems, "Civ — Town Phase" as its tooltip.
+		owner_bg_ = memnew(ColorRect);
+		owner_bg_->set_position(Vector2(102, 24));
+		owner_bg_->set_size(Vector2(404, 15));
+		owner_bg_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		owner_bg_->set_visible(false);
+		panel_->add_child(owner_bg_);
+		owner_civ_ = memnew(TextureRect);
+		owner_civ_->set_position(Vector2(102, 24));
+		owner_civ_->set_size(Vector2(15, 15));
+		owner_civ_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		owner_civ_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+		owner_civ_->set_modulate(Color(0.6f, 0.6f, 0.6f, 0.8f));
+		owner_civ_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		owner_civ_->set_visible(false);
+		panel_->add_child(owner_civ_);
+		owner_phase_ = memnew(TextureRect);
+		owner_phase_->set_position(Vector2(462, 24));
+		owner_phase_->set_size(Vector2(44, 15));
+		owner_phase_->set_expand_mode(TextureRect::EXPAND_IGNORE_SIZE);
+		owner_phase_->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+		owner_phase_->set_mouse_filter(Control::MOUSE_FILTER_IGNORE);
+		owner_phase_->set_visible(false);
+		panel_->add_child(owner_phase_);
+
 		class_ = memnew(Label);
 		class_->set_position(Vector2(102, 24));
 		class_->set_size(Vector2(404, 15));
 		class_->add_theme_font_size_override("font_size", 10);
 		class_->add_theme_color_override("font_color", Color(0.7f, 0.75f, 0.85f));
+		class_->add_theme_color_override("font_outline_color", Color(0.0f, 0.0f, 0.0f));
+		class_->set_mouse_filter(Control::MOUSE_FILTER_PASS);
 		panel_->add_child(class_);
 
 		// Helper lambda to setup 5 inspector bars with PNG icons or fallback text-based glyph icon labels
@@ -212,10 +243,15 @@ public:
 	}
 	godot::Dictionary debug_state() const {
 		godot::Dictionary d;
+		d["owner"] = class_->get_text();
+		d["owner_tooltip"] = class_->get_tooltip_text();
+		d["owner_color"] = owner_bg_->is_visible() ? owner_bg_->get_color() : godot::Color(0, 0, 0, 0);
+		d["owner_phase"] = owner_phase_->is_visible() && owner_phase_->get_texture().is_valid() ? owner_phase_->get_texture()->get_path() : godot::String();
 		d["visible"] = panel_ && panel_->is_visible();
 		d["title"] = title_->get_text();
 		d["title_tooltip"] = title_->get_tooltip_text();
 		d["portrait_tooltip"] = portrait_->get_tooltip_text();
+		d["portrait"] = portrait_->get_texture().is_valid() ? portrait_->get_texture()->get_path() : godot::String();
 		d["health"] = hp_label_->get_text();
 		d["xp"] = xp_label_->is_visible() ? xp_label_->get_text() : godot::String();
 		d["stats"] = stats_->get_text();
@@ -296,6 +332,8 @@ public:
 	}
 
 	// False when the inspected entity is gone or out of sight.
+	godot::GridContainer *garrison_grid_view() const { return garrison_grid_.grid(); }
+
 	bool fill_inspected_details() {
 		rtso::Simulation *sim = host_->ui_sim();
 		if (!sim || kind_ == INSPECT_NONE) return false;
@@ -308,10 +346,6 @@ public:
 			pb->set_max(max > 0.0f ? max : 1.0f);
 			pb->set_value(value);
 			lbl->set_text(text);
-		};
-		auto owner_text = [&](uint8_t owner) {
-			return owner >= rtso::MAX_PLAYERS ? String("Gaia")
-					: host_->player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
 		};
 		auto health = [&](float hp, float max) {
 			bar(hp_bar_, hp_label_, max > 0.0f, hp, max, rtso::seldet::health(hp, max));
@@ -332,10 +366,10 @@ public:
 			const uint8_t utype = uv.unit_type[u];
 			const uint16_t tmpl = uv.tmpl ? uv.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
-			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
+			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
 			static const char *kRank[] = {"", "", "Advanced ", "Elite "};
 			title_->set_text(rank_prefix(uv.rank[u]) + String::utf8(uinfo.name));
-			class_->set_text(owner_text(uv.team[u]));
+			set_owner(*sim, uv.team[u]);
 			health(uv.hp[u], uv.max_hp[u]);
 			fill_unit_details(*sim, u, title_->get_text());
 			return true;
@@ -350,9 +384,9 @@ public:
 					(!all && !sim->is_entity_visible_to_viewer(fv.pos_x[f], fv.pos_z[f], owner, vp)))
 				return false;
 			const auto &fi = rtso::fauna_type_info(fv.fauna_type[f]);
-			portrait_->set_texture(Ref<Texture2D>());
+			portrait_->set_texture(rtso::portraits::fauna(fv.fauna_type[f]));
 			title_->set_text(String::utf8(fi.name));
-			class_->set_text(owner_text(owner));
+			set_owner(*sim, owner);
 			health(fv.hp[f], fv.max_hp[f]);
 			// An animal's Attack/Melee and Resistance as tooltips.js shows a unit's.
 			rtso::Simulation::UnitDetails d;
@@ -379,9 +413,9 @@ public:
 				if (b.id == id_) { found = &b; break; }
 			if (!found || found->wrecked || found->hp <= 0.0f) return false;
 			const auto &binfo = rtso::building_type_info(found->type);
-			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
+			portrait_->set_texture(rtso::portraits::structure(found->civ, found->type));
 			title_->set_text(String(binfo.name));
-			class_->set_text(owner_text(found->team));
+			set_owner(*sim, found->team);
 			health(found->hp, found->max_hp);
 			if (found->max_capture_points > 0.0f)
 				bar(capture_bar_, capture_label_, true, found->capture_points, found->max_capture_points,
@@ -402,9 +436,9 @@ public:
 			String reward;
 			for (int k = 0; k < 4; ++k)
 				if (ti.amount[k] > 0) reward += (reward.is_empty() ? "" : ", ") + String::num_int64(ti.amount[k]) + " " + kRes[k];
-			portrait_->set_texture(Ref<Texture2D>());
+			portrait_->set_texture(rtso::portraits::treasure(found->type));
 			title_->set_text(String::utf8(ti.name));
-			class_->set_text("Gaia");
+			set_owner(*sim, rtso::GAIA_PLAYER);
 			bar(hp_bar_, hp_label_, false);
 			stats_->set_text("Reward: " + reward + "\nCollect time: " + String::num((double)ti.collect_time, 1) + " s");
 			extra_->set_text("Collect treasures for resources.");
@@ -426,9 +460,9 @@ public:
 					: flora_title(rv.flora ? rv.flora[r] : rtso::FLORA_BERRY);
 			kind = "Food";
 		}
-		portrait_->set_texture(Ref<Texture2D>());
+		portrait_->set_texture(rtso::portraits::resource(rv.type[r], rv.subtype[r], rv.flora ? rv.flora[r] : 0));
 		title_->set_text(title);
-		class_->set_text("Gaia");
+		set_owner(*sim, rtso::GAIA_PLAYER);
 		bar(hp_bar_, hp_label_, false);
 		// resourceSection ("Wood:" and amount / max, ∞ for a field) and the gatherers count
 		// (current / max, "Current/max gatherers").
@@ -507,14 +541,12 @@ public:
 
 			if (found_b) {
 				const auto &binfo = rtso::building_type_info(found_b->type);
-				portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(binfo.portrait_id) + ".png"));
+				portrait_->set_texture(rtso::portraits::structure(found_b->civ, found_b->type));
 				title_->set_text(String(binfo.name));
 				const uint8_t owner = found_b->team;
-				String owner_name = owner == rtso::GAIA_PLAYER ? String("Gaia")
-						: host_->player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) + ")";
-				class_->set_text(owner_name + (found_b->garrison_cap > 0
+				set_owner(*sim, owner, found_b->garrison_cap > 0
 						? " - Garrison: " + String::num_int64(found_b->garrisoned_units.size()) + " / " + String::num_int64(found_b->garrison_cap)
-						: String()));
+						: String());
 
 				set_bar(hp_bar_, hp_label_, found_b->hp, found_b->max_hp, rtso::seldet::health(found_b->hp, found_b->max_hp));
 
@@ -546,11 +578,11 @@ public:
 					status = found_b->gate_locked ? "Gate: locked" : (found_b->gate_open ? "Gate: open" : "Gate: closed");
 				else if (!found_b->queue.empty())
 					status = "Production: " + String::num_int64(found_b->queue.size()) + " / " + String::num_int64((int64_t)rtso::PRODUCTION_QUEUE_MAX) +
-							" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (right-click a slot to cancel)";
-				if (const rtso::BuildingAIInfo &ai = rtso::building_ai_info(found_b->type); ai.shoots())
-					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sim->building_arrow_count(*found_b)) + " arrows of " +
-							String::num(ai.pierce, 0) + " pierce every " + String::num(ai.repeat_time, 1) + " s, range " +
-							String::num(sim->building_arrow_range(*found_b) * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
+							" in queue" + (found_b->autoqueue ? " (autoqueue on)" : "") + " (click a slot to cancel)";
+				if (const rtso::Simulation::StructureDetails sd = sim->structure_details(*found_b); sd.shoots)
+					status += String(status.is_empty() ? "" : "\n") + "Attack: " + String::num_int64(sd.arrows) + " arrows of " +
+							String::num(sd.damage[1], 0) + " pierce every " + String::num(sd.repeat_time, 1) + " s, range " +
+							String::num(sd.max_range * rtso::AttackDetection::kMetresPerUnit, 0) + " m";
 				stats_->set_text(status);
 				stats_->set_tooltip_text(structure_tooltip(*sim, *found_b));
 				// Animals penned in a corral (GarrisonHolder List Animal) unload with the same button.
@@ -561,16 +593,9 @@ public:
 							String::num_int64(rtso::CORRAL_GARRISON_MAX);
 				extra_->set_text(extra);
 
-				// Garrison panel: one icon per unit type inside, click to unload one,
-				// Shift+click (session.unloadtype) to unload that type, U unloads all. On an ally's
-				// structure only our own units inside (Commands.js unload / unload-all-by-owner).
+				// Garrison panel; U unloads all we may (Commands.js unload / unload-all-by-owner).
 				const std::vector<uint32_t> mine = sim->unloadable_by(host_->local_player(), found_b->id);
-				if (!mine.empty()) {
-					auto uview = sim->units();
-					garrison_grid_.update(RtsoSelectionGrid::group_units(uview, mine.data(), mine.size()),
-							"Click to unload one, Shift+click to unload all of this type.");
-					show_garrison_grid = true;
-				}
+				show_garrison_grid = fill_garrison_grid(*sim, found_b->id);
 				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
 				ungarrison_btn_->set_visible(!mine.empty() || (penned > 0 && owner == host_->local_player()));
 				panel_->set_visible(true);
@@ -611,7 +636,7 @@ public:
 			const uint8_t utype = uview.unit_type[u];
 			const uint16_t tmpl = uview.tmpl ? uview.tmpl[u] : rtso::CIV_UNIT_TEMPLATE_NONE;
 			const auto &uinfo = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(tmpl, utype) : rtso::unit_type_info(utype);
-			portrait_->set_texture(rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(utype)) + ".png"));
+			portrait_->set_texture(rtso::portraits::unit(tmpl, utype));
 
 			// 0 A.D. ranks: Basic, Advanced, Elite (Promotion.js).
 			const char *specific = tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(tmpl).specific_name : nullptr;
@@ -619,8 +644,7 @@ public:
 					rtso::entity_names(String::utf8(uinfo.name), String::utf8(specific ? specific : ""));
 			title_->set_text(name);
 			const uint8_t owner = uview.team[u];
-			class_->set_text(host_->player_display_name(owner) + " (" + String(rtso::civ_info(sim->player_civ(owner)).name) +
-					") - Kills: " + String::num_int64(uview.kills[u]));
+			set_owner(*sim, owner, " - Kills: " + String::num_int64(uview.kills[u]));
 
 			// Experience toward the next rank (Promotion.js GetRequiredXp after technologies).
 			if (const float need = sim->promotion_required_xp(u); need > 0.0f) {
@@ -684,14 +708,15 @@ public:
 				const size_t p_count = sim->get_transport_passenger_count((uint32_t)selected_ids[0]);
 				extra = "Passengers: " + String::num_int64(p_count) + " / " + String::num_int64(sim->get_transport_capacity((uint32_t)selected_ids[0]));
 				ungarrison_btn_->set_text("Unload all (" + String(rtso::hotkeys::table().label("session.unload").c_str()) + ")");
-				ungarrison_btn_->set_visible(p_count > 0);
+				ungarrison_btn_->set_visible(!sim->unloadable_by(host_->local_player(), (uint32_t)selected_ids[0]).empty());
+				show_garrison_grid = fill_garrison_grid(*sim, (uint32_t)selected_ids[0]);
 			} else {
 				ungarrison_btn_->set_visible(false);
 			}
 			extra_->set_text(extra);
 		} else {
 			portrait_->set_texture(groups.empty() ? Ref<Texture2D>()
-					: rtso::load_ui_texture("res://assets/textures/ui/portraits/" + String(rtso::unit_type_portrait(groups.front().unit_type)) + ".png"));
+					: rtso::portraits::unit(groups.front().tmpl, groups.front().unit_type));
 			title_->set_text(String::num_int64(selected_ids.size()) + " units selected");
 			// displayMultiple's numberOfUnits tooltip: garrison size, carried resources, loot.
 			{
@@ -716,6 +741,7 @@ public:
 				}
 				title_->set_tooltip_text(rtso::seldet::multiple_tooltip(garrison_size, carrying, loot));
 			}
+			clear_owner();
 			class_->set_text(String::num_int64(groups.size()) + (groups.size() == 1 ? " type" : " types"));
 			show_bar(xp_bar_, xp_label_, false);
 			show_bar(aura_bar_, aura_label_, false);
@@ -778,9 +804,25 @@ private:
 	// BuildingAI), resistance and garrison limit (getGarrisonTooltip).
 	static String structure_tooltip(const rtso::Simulation &sim, const rtso::Simulation::Building &b) {
 		using namespace rtso::seldet;
+		// displaySingle's detailedTooltip: attack, resistance, garrison, turrets, population
+		// bonus, projectiles, resource trickle and loot.
 		float res[3];
 		sim.structure_resistance(b, res);
-		return join_lines({resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap)});
+		const rtso::Simulation::StructureDetails d = sim.structure_details(b);
+		constexpr float kM = rtso::AttackDetection::kMetresPerUnit;
+		const String attack = d.shoots ? structure_attack_tooltip(d.damage, d.min_range * kM, d.max_range * kM, d.repeat_time,
+				d.arrows ? d.arrows : d.default_arrows) : String();
+		const rtso::LootInfo l = rtso::structure_loot(b.type, b.civ, b.half_size);
+		Amounts loot;
+		loot.res[rtso::RES_FOOD] = l.food;
+		loot.res[rtso::RES_WOOD] = l.wood;
+		loot.res[rtso::RES_STONE] = l.stone;
+		loot.res[rtso::RES_GOLD] = l.metal;
+		loot.xp = l.xp;
+		return join_lines({attack, resistance_tooltip(res), garrison_limit_tooltip(b.garrison_cap), garrison_heal_tooltip(d.heal),
+				turrets_tooltip(d.turrets), population_bonus_tooltip(d.pop_bonus),
+				projectiles_tooltip(d.projectile_limit, d.default_arrows, d.per_unit),
+				d.trickles ? trickle_tooltip(d.trickle, rtso::Simulation::TRICKLE_STRUCTURE_INTERVAL) : String(), loot_tooltip(loot)});
 	}
 	static String flora_title(uint8_t flora) {
 		static const char *const kNames[] = {"Tree", "Tree", "Pine", "Date Palm", "Oak", "Baobab", "Acacia", "Bamboo", "Bush",
@@ -798,6 +840,58 @@ private:
 	godot::TextureRect *portrait_ = nullptr;
 	godot::Label *title_ = nullptr;
 	godot::Label *class_ = nullptr;
+	godot::ColorRect *owner_bg_ = nullptr;
+	godot::TextureRect *owner_civ_ = nullptr, *owner_phase_ = nullptr;
+
+	// The player row of a single selection: the owner's name (and RTS0's suffix: kills, garrison)
+	// centred on their colour, their civ emblem and, for the viewer, its mutual allies and
+	// observers, their phase (selection_details.js displaySingle).
+	void set_owner(const rtso::Simulation &sim, uint8_t owner, const godot::String &suffix = godot::String()) {
+		using namespace godot;
+		class_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+		if (owner >= rtso::MAX_PLAYERS) {
+			clear_owner();
+			class_->set_horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER);
+			class_->set_text(rtso::tr0("Gaia") + suffix);
+			return;
+		}
+		const uint32_t rgb = rtso::display_colors::rgb(sim, owner);
+		owner_bg_->set_color(Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 128.0f / 255.0f));
+		owner_bg_->set_visible(true);
+		class_->add_theme_color_override("font_color", Color(1.0f, 1.0f, 1.0f));
+		class_->add_theme_constant_override("outline_size", 2);
+		class_->set_text(host_->player_display_name(owner) + suffix);
+		const uint8_t civ = sim.player_civ(owner);
+		owner_civ_->set_texture(civ < rtso::CIV_COUNT ? rtso::load_ui_texture(rtso::civ_info(civ).emblem_path) : Ref<Texture2D>());
+		owner_civ_->set_visible(owner_civ_->get_texture().is_valid());
+		String tip = civ < rtso::CIV_COUNT ? String(rtso::civ_info(civ).name) : String();
+		// Reveal phases to mutual allies and observers.
+		const uint8_t vp = host_->view_player();
+		const bool reveal = vp >= rtso::MAX_PLAYERS || vp == owner ||
+				(sim.get_diplomacy(vp, owner) == rtso::Simulation::DIPLO_ALLY && sim.get_diplomacy(owner, vp) == rtso::Simulation::DIPLO_ALLY);
+		const char *phase = "hidden";
+		if (reveal) {
+			static const char *kPhase[] = {"village", "town", "city"};
+			static const char *kName[] = {"Village Phase", "Town Phase", "City Phase"};
+			const int p = std::clamp<int>(sim.player_phase(owner), 1, 3) - 1;
+			phase = kPhase[p];
+			tip += String::utf8(" — ") + rtso::tr0(kName[p]);
+		}
+		owner_phase_->set_texture(rtso::load_ui_texture(String("res://assets/textures/ui/archive/panel_phase_emblems_") + phase + ".png"));
+		owner_phase_->set_visible(true);
+		class_->set_tooltip_text(tip);
+	}
+
+	// Rows that are not a player's: a group's type count.
+	void clear_owner() {
+		owner_bg_->set_visible(false);
+		owner_civ_->set_visible(false);
+		owner_phase_->set_visible(false);
+		class_->set_tooltip_text(godot::String());
+		class_->set_horizontal_alignment(godot::HORIZONTAL_ALIGNMENT_LEFT);
+		class_->add_theme_color_override("font_color", godot::Color(0.7f, 0.75f, 0.85f));
+		class_->add_theme_constant_override("outline_size", 0);
+	}
 	godot::ProgressBar *hp_bar_ = nullptr;
 	godot::Label *hp_label_ = nullptr;
 	godot::ProgressBar *capture_bar_ = nullptr;
@@ -813,6 +907,37 @@ private:
 	godot::Button *ungarrison_btn_ = nullptr;
 	RtsoSelectionGrid selection_grid_;
 	RtsoSelectionGrid garrison_grid_;
+
+	// g_SelectionPanels.Garrison for a structure, ship, ram or siege tower: up to 12 icons,
+	// one per template and owner, on the owner's colour. A click unloads one (Shift: all of
+	// that type) when we own the holder or the units; others' units show disabled and grey
+	// (not grey for an observer). False when nothing is inside.
+	bool fill_garrison_grid(const rtso::Simulation &sim, uint32_t holder) {
+		using namespace godot;
+		uint8_t holder_owner = 0xFF;
+		const std::vector<uint32_t> inside = sim.holder_contents(holder, &holder_owner);
+		if (inside.empty()) return false;
+		auto uview = sim.units();
+		std::vector<RtsoSelectionGrid::Group> groups = RtsoSelectionGrid::group_units(uview, inside.data(), inside.size(), true);
+		if (groups.size() > 12) groups.resize(12);
+		const uint8_t me = host_->local_player();
+		const bool observer = me >= rtso::MAX_PLAYERS;
+		for (auto &g : groups) {
+			g.enabled = !observer && (me == holder_owner || me == g.player);
+			g.grey = !observer;
+			const uint32_t rgb = rtso::display_colors::rgb(sim, g.player);
+			g.bg = Color(((rgb >> 16) & 0xFF) / 255.0f, ((rgb >> 8) & 0xFF) / 255.0f, (rgb & 0xFF) / 255.0f, 160.0f / 255.0f);
+			const auto &info = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_template_unit_info(g.tmpl, g.unit_type) : rtso::unit_type_info(g.unit_type);
+			const char *specific = g.tmpl != rtso::CIV_UNIT_TEMPLATE_NONE ? rtso::civ_unit_template(g.tmpl).specific_name : nullptr;
+			const String names = rtso::entity_names(String::utf8(info.name), String::utf8(specific ? specific : ""));
+			g.tip = (g.enabled ? rtso::sprintf0(rtso::tr0("Unload %(name)s"), {{"name", names}}) + String("\n") +
+							rtso::tr0("Single-click to unload 1. Shift-click to unload all of this type.")
+						: names) + String("\n") +
+					rtso::sprintf0(rtso::tr0("Player: %(playername)s"), {{"playername", host_->player_display_name(g.player)}});
+		}
+		garrison_grid_.update(groups, "");
+		return true;
+	}
 };
 
 #endif // RTSO_INSPECTOR_VIEW_H

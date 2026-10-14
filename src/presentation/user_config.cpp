@@ -98,6 +98,7 @@ const Default kDefaults[] = {
 	{"gui.session.dragdelta", "4"},
 	{"gui.session.batchtrainingsize", "5"},
 	{"gui.session.formationwalkonly", "true"},
+	{"gui.session.defaultformation", "special/formations/box"},
 	{"gui.session.selectformationasone", "true"},
 	{"gui.session.rankabovestatusbar", "true"},
 	{"gui.session.experiencestatusbar", "true"},
