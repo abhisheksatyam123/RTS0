@@ -6,6 +6,10 @@
 //    connections have come and gone, a new client still gets in.
 // 2. With NET_MAX_CLIENTS connected, one more is told the server is full
 //    (disconnect reason NDR_SERVER_FULL) instead of timing out.
+// 3. 0 A.D. NetServer's handshake checks: a client on another engine version
+//    or mods is refused (NDR_INCORRECT_SOFTWARE_VERSION); a name already in
+//    the game, the host's included, is refused (NDR_PLAYERNAME_IN_USE) unless
+//    network.duplicateplayernames, which lets it in as "Name (2)".
 #include "network/net_host.h"
 
 #include <chrono>
@@ -83,6 +87,37 @@ int main() {
 	pump(host, live, 3000, [&] { return extra.connectionLost(); });
 	CHECK(extra.connectionLost() && extra.disconnectReason() == NDR_SERVER_FULL && joined - base == (int)NET_MAX_CLIENTS,
 	      "one more is told the server is full (NDR_SERVER_FULL)");
+
+	// 3. Handshake checks, on a host of their own.
+	NetHost game;
+	game.setLocalPlayerName("alice");
+	game.startHost(c);
+	const uint16_t game_port = game.localPort();
+	std::vector<std::string> admitted;
+	game.onPeerConnected([&](uint32_t id) { admitted.push_back(game.getPeer(id)->player_name); });
+	for (auto &p : live) p->stop();
+	live.clear();
+	// Each joiner stays connected (and polled) for the next ones.
+	auto join = [&](const std::string &name, const std::string &version) {
+		live.push_back(std::make_unique<NetHost>());
+		NetHost &cl = *live.back();
+		cl.setLocalPlayerName(name);
+		if (!version.empty()) cl.setSoftwareVersion(version);
+		cl.startClient("127.0.0.1", game_port);
+		pump(game, live, 12000, [&] { return cl.connectionLost() || cl.authResult() >= 0; });
+		return cl.authResult() == ARC_OK ? -1 : cl.disconnectReason();
+	};
+	CHECK(join("bob", "") == -1 && admitted == std::vector<std::string>{"bob"}, "bob joins");
+	CHECK(join("carol", "RTS0-other") == NDR_INCORRECT_SOFTWARE_VERSION && admitted.size() == 1,
+	      "another engine version is refused (NDR_INCORRECT_SOFTWARE_VERSION)");
+	CHECK(join("bob", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1,
+	      "a second bob is refused (NDR_PLAYERNAME_IN_USE)");
+	CHECK(join("alice", "") == NDR_PLAYERNAME_IN_USE && admitted.size() == 1, "so is the host's own name");
+	game.setDuplicatePlayerNames(true);
+	CHECK(join("bob", "") == -1 && join("bob", "") == -1 &&
+	      admitted == (std::vector<std::string>{"bob", "bob (2)", "bob (3)"}),
+	      "with network.duplicateplayernames they come in as bob (2) and bob (3)");
+	for (auto &p : live) p->stop();
 
 	if (failures) {
 		std::printf("%d host check(s) failed\n", failures);

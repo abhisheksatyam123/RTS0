@@ -72,6 +72,7 @@ void RtsoMain::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_on_selection_group_gui_input", "event", "key"), &RtsoMain::_on_selection_group_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_panel_entity_gui_input", "event", "slot"), &RtsoMain::_on_panel_entity_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_research_progress_pressed", "slot"), &RtsoMain::_on_research_progress_pressed);
+	ClassDB::bind_method(D_METHOD("_on_control_group_gui_input", "event", "button"), &RtsoMain::_on_control_group_gui_input);
 	ClassDB::bind_method(D_METHOD("_on_garrison_group_clicked", "key"), &RtsoMain::_on_garrison_group_clicked);
 	ClassDB::bind_method(D_METHOD("_on_stance_selected", "stance"), &RtsoMain::_on_stance_selected);
 	ClassDB::bind_method(D_METHOD("_on_formation_selected", "formation"), &RtsoMain::_on_formation_selected);

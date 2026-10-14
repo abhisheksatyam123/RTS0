@@ -168,6 +168,9 @@ func run() -> void:
 	await frames(1)
 	check(s.series[0].size() == 2 and int(s.series[0][0].points[-1].y) == team_units.trained, "Group by team charts each team")
 	check(s.find_child("ChartLegend", true, false).get_parsed_text().contains(", "), "the legend lists the team's players")
+	var runs: Array = s.chart_lines(PackedVector2Array([Vector2(0, 1), Vector2(30, INF), Vector2(60, 3), Vector2(90, 4)]))
+	check(runs.size() == 2 and runs[0].size() == 1 and runs[1].size() == 2 and runs[1][0] == Vector2(60, 3),
+		"an infinite kill/death ratio breaks the chart's line, as CChart leaves it out")
 	await shot("charts")
 
 	print("4. back to the game")

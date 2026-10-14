@@ -1271,10 +1271,13 @@ void RtsoMain::update_net_status_overlay() {
 		String why;
 		switch (net_host_.disconnectReason()) {
 			case 2: why = tr("The host has ended the game."); break;
+			case rtso::NDR_INCORRECT_PROTOCOL_VERSION: why = tr("Incorrect network protocol version."); break;
 			case 6: why = tr("You have been kicked."); break;
 			case 7: why = tr("You have been banned."); break;
+			case rtso::NDR_PLAYERNAME_IN_USE: why = tr("Player name in use. If you were disconnected, retry in few seconds."); break;
 			case rtso::NDR_SERVER_FULL: why = tr("Server full."); break;
 			case 14: why = tr("Password is invalid."); break;
+			case rtso::NDR_INCORRECT_SOFTWARE_VERSION: why = tr("Different game engine versions or different mods loaded."); break;
 			default: why = tr("An unknown error occurred."); break;
 		}
 		net_status_label_->set_text(tr("Connection to the server has been lost.") + "\n" + why);
@@ -1507,6 +1510,14 @@ void RtsoMain::_on_entity_command(const String &name) {
 		_on_remove_guard_pressed();
 	} else if (name == "unload-all") {
 		_on_ungarrison_pressed();
+	} else if (name == "leave-turret") {
+		// unit_actions.js leaveTurretPoints: every selected unit on a turret point steps down.
+		std::vector<uint32_t> ids;
+		for (int s = 0; s < selected_ids.size(); ++s)
+			if (sim->turret_holder_of((uint32_t)(int64_t)selected_ids[s])) ids.push_back((uint32_t)(int64_t)selected_ids[s]);
+		if (ids.empty()) return;
+		if (turn_cmds()) post_lockstep(13, ids.data(), ids.size(), 0, 0, 0, 2);
+		else sim->cmd_leave_turret(local_player(), ids.data(), ids.size());
 	} else if (name == "select-trading-goods") {
 		_toggle_session_dialog("BarterDialog");
 	} else if (name == "focus-rally") {
@@ -2130,6 +2141,50 @@ void RtsoMain::_on_research_progress_pressed(int slot) {
 		if (cam_rig) cam_rig->set_target_pos(Vector3(b.x, 0, b.z));
 		return;
 	}
+}
+
+// The group's living units (dead ones leave it), then selected or added;
+// "snap" also moves the camera to the first.
+void RtsoMain::perform_group(int grp, GroupAction action) {
+	if (!sim || grp < 0 || grp > 9) return;
+	PackedInt32Array recall;
+	Vector3 first_pos;
+	auto gview = sim->units();
+	for (int m = 0; m < selected_groups[grp].size(); ++m) {
+		const int32_t gid = selected_groups[grp][m];
+		for (size_t i = 0; i < gview.count; ++i) {
+			if (gview.alive[i] && gview.id[i] == (uint32_t)gid && gview.team[i] == local_player()) {
+				if (recall.is_empty()) first_pos = Vector3(gview.pos_x[i], 0, gview.pos_z[i]);
+				recall.push_back(gid);
+				break;
+			}
+		}
+	}
+	selected_groups[grp] = recall;
+	if (recall.is_empty()) return;
+	if (action == GROUP_ADD) {
+		for (int m = 0; m < recall.size(); ++m)
+			if (!selected_ids.has(recall[m])) selected_ids.push_back(recall[m]);
+	} else {
+		selected_ids = recall;
+	}
+	selected_building_id = 0;
+	if (action == GROUP_SNAP && cam_rig) cam_rig->set_target_pos(first_pos);
+	play_civ_voice("select");
+}
+
+// session.js updateGroups: a click on a group's button selects it (selection.add
+// adds it), a double click snaps to it, a right click breaks it up.
+void RtsoMain::_on_control_group_gui_input(const Ref<InputEvent> &event, int button) {
+	Ref<InputEventMouseButton> mb = event;
+	if (mb.is_null() || !mb->is_pressed()) return;
+	const int grp = rtso::RtsoControlGroups::group_of(button);
+	if (mb->get_button_index() == MOUSE_BUTTON_RIGHT) {
+		selected_groups[grp].clear();
+		return;
+	}
+	if (mb->get_button_index() != MOUSE_BUTTON_LEFT) return;
+	perform_group(grp, mb->is_double_click() ? GROUP_SNAP : rtso::hotkeys::held("selection.add") ? GROUP_ADD : GROUP_SELECT);
 }
 
 void RtsoMain::_on_selection_group_clicked(int key) {
@@ -2962,6 +3017,15 @@ void RtsoMain::post_lockstep(uint8_t cmd_type, const uint32_t *ids, size_t n,
 	turn_mgr_.post_local_command(c);
 }
 
+// Before Host or Join: what the handshake names (the client sends it at once).
+static void apply_net_host_options(rtso::NetHost &net) {
+	net.setDuplicatePlayerNames(rtso::user_config::get_bool("network.duplicateplayernames"));
+	// Builds whose simulation state differs would fall out of sync: the
+	// handshake names the save format too, so the host refuses them up front.
+	net.setSoftwareVersion(std::string(rtso::NET_SOFTWARE_VERSION) + " save " +
+			std::to_string(rtso::Simulation::SAVE_VERSION));
+}
+
 // 0 A.D. 0.28 [network]: the host's late-observer policy, observer limit and
 // observer lag (NetServer.cpp, NetServerTurnManager.cpp), and a watcher's
 // autocatchup (NetClientTurnManager). Read again at every Host and Join.
@@ -3011,6 +3075,7 @@ void RtsoMain::_on_lobby_host_pressed() {
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
 	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
 	kicks_shown_ = 0;
+	apply_net_host_options(net_host_);
 	if (!net_host_.startHost(cfg)) {
 		if (lobby_status) lobby_status->set_text("Host bind failed");
 		return;
@@ -3145,6 +3210,7 @@ void RtsoMain::_on_lobby_join_pressed() {
 	net_host_.setLocalPlayerName(lobby_name->get_text().utf8().get_data());
 	net_host_.setPassword(lobby_password ? lobby_password->get_text().utf8().get_data() : "");
 	kicks_shown_ = 0;
+	apply_net_host_options(net_host_);
 	if (!net_host_.startClient(ip, port)) {
 		if (lobby_status) lobby_status->set_text("Join failed");
 		return;

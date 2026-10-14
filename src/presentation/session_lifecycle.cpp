@@ -603,6 +603,7 @@ void RtsoMain::_ready() {
 	tutorial_panel_.build(ui_layer, this, "_on_tutorial_ready_pressed");
 	panel_entities_.build(ui_layer, this, "_on_panel_entity_gui_input", 58.0f); // PanelEntities.xml, under the top panel
 	research_progress_.build(ui_layer, this, "_on_research_progress_pressed", 58.0f);
+	control_groups_.build(ui_layer, this, "_on_control_group_gui_input");
 	rtso::strip_engine_popups(ui_layer);
 
 	// =========================================================================
@@ -809,6 +810,12 @@ void RtsoMain::_process(double delta) {
 		if (auth == rtso::ARC_PASSWORD_INVALID) lobby_status->set_text("Wrong password");
 		else if (auth == rtso::ARC_BANNED) lobby_status->set_text("You have been banned from this game");
 		else if (net_host_.disconnectReason() == rtso::NDR_SERVER_FULL) lobby_status->set_text(tr("Server full."));
+		else if (net_host_.disconnectReason() == rtso::NDR_PLAYERNAME_IN_USE)
+			lobby_status->set_text(tr("Player name in use. If you were disconnected, retry in few seconds."));
+		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_PROTOCOL_VERSION)
+			lobby_status->set_text(tr("Incorrect network protocol version."));
+		else if (net_host_.disconnectReason() == rtso::NDR_INCORRECT_SOFTWARE_VERSION)
+			lobby_status->set_text(tr("Different game engine versions or different mods loaded."));
 		const auto &kicks = net_host_.kicks();
 		for (; kicks_shown_ < kicks.size(); ++kicks_shown_) {
 			const auto &k = kicks[kicks_shown_];
@@ -1041,6 +1048,7 @@ void RtsoMain::_process(double delta) {
 	tutorial_panel_.refresh(sim);
 	panel_entities_.refresh(*sim, view_player(), (float)Time::get_singleton()->get_ticks_msec() / 1000.0f);
 	research_progress_.refresh(*sim, view_player());
+	control_groups_.refresh(*sim, local_player(), selected_groups);
 	if (diplo_dialog_.is_open()) diplo_dialog_.refresh();
 
 	// Sound events and the music state (0 A.D. music.js: battle while
