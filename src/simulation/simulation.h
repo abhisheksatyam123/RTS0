@@ -2769,6 +2769,7 @@ private:
 	bool petra_can_fish_safely(float x, float z, uint16_t sea) const;
 	void petra_manage_buildings(float dt);
 	void petra_manage_research(float dt);
+	bool petra_skips_random_tech(uint8_t tech_id, bool has_ally) const;
 	// researchManager.js: the techs Petra could research now at a structure it owns
 	// (gamestate.js findAvailableTech, phases left out), and one research start.
 	void petra_available_techs(std::vector<uint8_t> &out) const;
