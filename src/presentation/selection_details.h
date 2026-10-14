@@ -7,6 +7,7 @@
 // built from 0.28's msgid through tr0/sprintf0 so a language can reorder it. Resource
 // names stand in for 0 A.D.'s inline resource icons; Godot tooltips have no font tags.
 
+#include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <cmath>
@@ -296,6 +297,56 @@ inline String multiple_tooltip(int64_t garrison_size, const Amounts &carrying, c
 	if (loot.any())
 		tip += sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Loot:")}, {"details", amounts_list(loot, true)}});
 	return tip.strip_edges();
+}
+
+// getSecondsString: "1 second", "7.5 seconds".
+inline String seconds_string(float seconds) {
+	return sprintf0(tr0("%(time)s %(second)s"),
+			{{"time", String::num(seconds, 3)}, {"second", tr0(std::fabs(seconds - 1.0f) < 1e-4f ? "second" : "seconds")}});
+}
+
+// getStatusEffectsTooltip for a receiver (a status icon of selection_details.js):
+// "Burning: 5.0 Fire, Interval: 1 second, Duration: 7.5 seconds, This unit is burning."
+// with the Duration still to run (Duration - _timeElapsed).
+inline String status_tooltip(uint8_t kind, float damage, float interval, float remaining) {
+	const bool burning = kind == 2;
+	String info;
+	if (damage > 0.0f)
+		info = sprintf0(tr0("%(damage)s %(damageType)s"), {{"damage", fixed(damage, 1)}, {"damageType", tr0(burning ? "Fire" : "Poison")}});
+	if (interval > 0.0f)
+		info += (info.is_empty() ? String() : comma()) +
+				sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Interval:")}, {"details", seconds_string(interval)}});
+	info += (info.is_empty() ? String() : comma()) +
+			sprintf0(tr0("%(durName)s: %(duration)s"), {{"durName", tr0("Duration")}, {"duration", seconds_string(remaining)}});
+	info += comma() + tr0(burning ? "This unit is burning." : "This unit is poisoned.");
+	return sprintf0(tr0("%(statusName)s: %(statusInfo)s"), {{"statusName", tr0(burning ? "Burning" : "Poisoned")}, {"statusInfo", info}});
+}
+
+// getVisibleEntityClassesFormatted: "Classes: Infantry, Melee, Spearman".
+inline String classes_line(const godot::Array &classes) {
+	if (classes.is_empty()) return String();
+	String list;
+	for (int i = 0; i < classes.size(); ++i) list += (i ? tr0(", ") : String()) + tr0(String(classes[i]));
+	return tr0("Classes:") + " " + list;
+}
+
+// getTreasureTooltip: "Reward: Food 100  Wood 50" (resource names for the icons), from
+// amounts in 0 A.D.'s order: food, wood, stone, metal.
+inline String reward_tooltip(const int amount[4]) {
+	static const uint8_t kRes[] = {RES_FOOD, RES_WOOD, RES_STONE, RES_GOLD};
+	String details;
+	for (int k = 0; k < 4; ++k)
+		if (amount[k] > 0)
+			details += (details.is_empty() ? "" : "  ") +
+					sprintf0(tr0("%(resourceIcon)s %(reward)s"), {{"resourceIcon", resource_name(kRes[k])}, {"reward", num(amount[k])}});
+	if (details.is_empty()) return String();
+	return sprintf0(tr0("%(label)s %(details)s"), {{"label", tr0("Reward:")}, {"details", details}});
+}
+
+// The portrait's last line: getFollowOnLeftClickTooltip (a unit) or getFocusOnLeftClickTooltip,
+// then getTemplateViewerOnRightClickTooltip.
+inline String portrait_click_line(bool unit) {
+	return tr0(unit ? "Left-click to follow." : "Left-click to focus.") + " " + tr0("Right-click for more information.");
 }
 
 // Joins the non-empty tooltips with newlines.
