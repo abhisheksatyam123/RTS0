@@ -8,6 +8,10 @@ extends Node
 
 const HEARTBEAT_S := 10.0
 const REPORT_CHECK_S := 1.0
+const NAT_TICK_S := 0.25
+const PUNCH_POLL_S := 0.5 # how often a host in game setup asks for joiners to punch towards
+const PUNCH_POLL_RUNNING_S := 2.0 # once the match runs (rejoiners and observers)
+const CLIENT_PUNCH_DELAY_S := 1.0 # 0 A.D. NetClient waits this before its own punch
 const REQUEST_TIMEOUT_S := 5.0
 
 var address := "127.0.0.1:8088" # the lobby server, "ip:port"
@@ -21,6 +25,17 @@ var _report_timer: Timer
 var _room_in_match := false # the match that hosts `room` has started
 var _room_started_at := 0 # unix time the hosted match started, 0 before
 var _reported := {} # matchID -> true: a player reports each match once
+# NAT traversal (0 A.D. StunClient + Jingle hole punching), for the match
+# hosted as `room` or joined as `join_room` (a game picked from the list).
+var join_room := ""
+var publish_lan := true # a host sends its LAN address for joiners behind its router
+var _nat_timer: Timer
+var _nat_asked := false
+var _nat_published := false
+var _nat_sent := false
+var _punch_since := 0
+var _punch_wait := 0.0
+var _punch_busy := false
 
 
 func _ready() -> void:
@@ -34,6 +49,11 @@ func _ready() -> void:
 	_report_timer.autostart = true
 	_report_timer.timeout.connect(_check_report)
 	add_child(_report_timer)
+	_nat_timer = Timer.new()
+	_nat_timer.wait_time = NAT_TICK_S
+	_nat_timer.autostart = true
+	_nat_timer.timeout.connect(_nat_tick)
+	add_child(_nat_timer)
 
 
 func signed_in() -> bool:
@@ -84,14 +104,121 @@ func sign_out() -> void:
 		post_json("/logout", {"token": token})
 	token = ""
 	room = {}
+	join_room = ""
 
 
 # The host's game: registered now and refreshed on every heartbeat.
 func host_game(game: Dictionary) -> void:
 	room = game.duplicate()
+	join_room = ""
 	_room_in_match = false
 	_room_started_at = 0
+	_reset_nat()
 	post_json("/rooms", room)
+
+
+# The game this player joins from the list ("" for a typed address, which
+# 0 A.D. joins directly, with no STUN).
+func join_game(room_id: String) -> void:
+	join_room = room_id
+	_reset_nat()
+
+
+func _reset_nat() -> void:
+	_nat_asked = false
+	_nat_published = false
+	_nat_sent = false
+	_punch_since = 0
+	_punch_wait = 0.0
+	_punch_busy = false
+
+
+# 0 A.D. default.cfg lobby.stun.server; empty means this lobby's own host.
+func stun_server() -> String:
+	var server := str(RtsoUserConfig.new().get_value("lobby.stun.server")).strip_edges()
+	return server if server != "" else address.get_slice(":", 0)
+
+
+# NAT traversal, as 0 A.D. does it through its lobby. Both sides ask a STUN
+# server for their game socket's public endpoint. The host registers that
+# endpoint as its game's address, plus its LAN address for players behind the
+# same router. A joiner sends its endpoint to the lobby (SendStunEndpointToHost)
+# and punches towards the host; the host punches towards every joiner the lobby
+# names (SendHolePunchingMessage), so both NATs let the other side in.
+func _nat_tick() -> void:
+	var main := _match_node()
+	if main == null or not main.has_method("get_net_nat_state") or token == "":
+		return
+	var hosting := not room.is_empty()
+	if not hosting and join_room == "":
+		return
+	var cfg := RtsoUserConfig.new()
+	if not cfg.get_bool("lobby.stun.enabled"):
+		return
+	if not _nat_asked:
+		_nat_asked = true
+		main.net_query_stun(stun_server(), int(cfg.get_number("lobby.stun.port")))
+		return
+	var nat: Dictionary = main.get_net_nat_state()
+	if hosting:
+		_host_nat_tick(main, nat)
+	else:
+		_join_nat_tick(main, nat)
+
+
+func _host_nat_tick(main: Node, nat: Dictionary) -> void:
+	var st: Dictionary = main.get_lobby_state()
+	if not st.get("hosting", false):
+		return
+	if not _nat_published and int(nat.get("stun", 0)) == 2:
+		_nat_published = true
+		room["host_ip"] = str(nat.get("public_ip", ""))
+		room["host_port"] = int(nat.get("public_port", 0))
+		room["local_ip"] = str(nat.get("local_ip", "")) if publish_lan else ""
+		room["local_port"] = int(nat.get("local_port", 0)) if publish_lan else 0
+		post_json("/rooms", room)
+	_punch_wait -= NAT_TICK_S
+	if _punch_busy or _punch_wait > 0.0:
+		return
+	_punch_wait = PUNCH_POLL_RUNNING_S if st.get("started", false) else PUNCH_POLL_S
+	_punch_busy = true
+	get_json("/rooms/punch?id=%s&since=%d" % [str(room.get("id", "")).uri_encode(), _punch_since],
+		func(code: int, obj) -> void:
+			_punch_busy = false
+			if code != 200 or not obj is Dictionary:
+				return
+			var m := _match_node()
+			for e in obj.get("endpoints", []):
+				if m != null and e is Dictionary:
+					m.net_hole_punch(str(e.get("ip", "")), int(e.get("port", 0)))
+			_punch_since = maxi(_punch_since, int(obj.get("last", 0))))
+
+
+func _join_nat_tick(main: Node, nat: Dictionary) -> void:
+	if _punch_wait > 0.0:
+		_punch_wait -= NAT_TICK_S
+		if _punch_wait <= 0.0:
+			main.net_hole_punch(MatchSettings.net_ip, MatchSettings.net_port)
+		return
+	if _nat_sent or int(nat.get("stun", 0)) != 2:
+		return
+	_nat_sent = true
+	post_json("/rooms/punch", {"token": token, "id": join_room, "ip": str(nat.get("public_ip", "")),
+			"port": int(nat.get("public_port", 0))},
+		func(code: int, obj) -> void:
+			var m := _match_node()
+			if m == null or code != 200 or not obj is Dictionary:
+				return
+			if str(obj.get("local_ip", "")) != "" and int(obj.get("local_port", 0)) > 0:
+				# Same router as the host: its LAN address (no NAT loopback
+				# needed), and ours for the host to punch towards (0 A.D. sends
+				# its FindLocalIP address then).
+				var mine: Dictionary = m.get_net_nat_state()
+				post_json("/rooms/punch", {"token": token, "id": join_room, "ip": str(mine.get("local_ip", "")),
+						"port": int(mine.get("local_port", 0))})
+				m.net_retarget_host(str(obj["local_ip"]), int(obj["local_port"]))
+			else:
+				_punch_wait = CLIENT_PUNCH_DELAY_S)
 
 
 func _match_node() -> Node:

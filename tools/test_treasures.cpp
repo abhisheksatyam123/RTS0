@@ -147,6 +147,22 @@ int main() {
 		CHECK(!s.is_treasure_id(t));
 	}
 
+	// 3c. A treasure's Obstruction/Static blocks foundations on it (a 20 x 10 m shipwreck too).
+	{
+		fresh(s);
+		auto place = [&](float x, float z) {
+			const int foot = building_type_info(BLD_HOUSE).footprint;
+			return s.check_placement(0, (int)std::floor(x / Simulation::GRID) - foot / 2, (int)std::floor(z / Simulation::GRID) - foot / 2, BLD_HOUSE);
+		};
+		CHECK(place(-38.0f, -50.0f) != Simulation::PLACE_OBSTRUCTED);
+		s.spawn_treasure(-38.0f, -50.0f, TREASURE_FOOD_BARREL);
+		CHECK(place(-38.0f, -50.0f) == Simulation::PLACE_OBSTRUCTED);
+		CHECK(place(-38.0f, -44.0f) != Simulation::PLACE_OBSTRUCTED);
+		s.spawn_treasure(-38.0f, -42.0f, TREASURE_SHIPWRECK);
+		CHECK(place(-38.0f, -44.0f) == Simulation::PLACE_OBSTRUCTED);
+		CHECK(treasure_type_info(TREASURE_SHIPWRECK_RAM_BOW).width == 21.0f && treasure_type_info(TREASURE_METAL).width == 1.5f);
+	}
+
 	// 4. A queued collect runs after the walk before it (Shift-click).
 	{
 		fresh(s);

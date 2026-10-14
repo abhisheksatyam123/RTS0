@@ -247,6 +247,10 @@ const AI_BEHAVIOR_IDS := {"random": 0, "defensive": 1, "balanced": 2, "aggressiv
 const BEHAVIORS := ["Random", "Defensive", "Balanced", "Aggressive"]
 # Random-map biome override (index - 1 == rtso::BiomeType) and 0 A.D. game speeds.
 const BIOMES := ["Map default", "Aegean", "Latium", "Alpine", "Oasis", "Temperate", "Steppe", "Savanna", "Polar", "India"]
+## 0.28 rmbiome ids -> BIOMES index, as tools/extract_0ad_map_types.py RTS0_BIOMES maps
+## them to BiomeType for the sim (map_biomes_data.h); 0.28 biomes RTS0 lacks are left out.
+const RMBIOME_INDEX := {"generic/aegean": 1, "generic/alpine": 3, "generic/sahara": 4, "generic/temperate": 5,
+	"generic/steppe": 6, "generic/savanna": 7, "generic/arctic": 8, "generic/india": 9}
 const SPEEDS := [[0.5, "0.5x"], [0.75, "0.75x"], [1.0, "1x"], [1.25, "1.25x"], [1.5, "1.5x"], [2.0, "2x"]]
 const SLOT_KINDS := ["Human", "AI", "Closed"]
 # rtso::PLAYER_COLORS: 0 A.D. player_defaults.json (each player's default), then PlayerColor.js DefaultColors.
@@ -304,6 +308,7 @@ var _sel_map: int = 0
 # The Player Placement picked (rtso::TeamPlacement), kept while maps change.
 var _pop_type := POP_TYPE_PLAYER
 var _team_placement := 0
+var _biome := 0 # the Biome pick (BIOMES index), kept across maps that offer it
 var _map_type := "skirmish"
 var _map_filter_name := "default"
 var _filter_names: Array = []  # the filters the map type has maps for, in dropdown order
@@ -356,17 +361,54 @@ func _load_maps() -> void:
 		m["settings"] = t.get("settings", {})
 	var random_kw: Dictionary = types.get("random_keywords", {})
 	var placements: Dictionary = types.get("player_placements", {})
+	var biomes: Dictionary = types.get("random_biomes", {})
 	for r in RMS_MAPS:
 		# 0 A.D. lists random maps by name alone: the Map Type says they are random.
 		_maps.append({"id": r[0], "name": str(r[1]).trim_suffix(" (RMS)"), "kind": r[2], "type": "random",
 			"keywords": random_kw.get(rms_script(r[0]), []), "placements": [] if r[0] in OWN_RMS_MAPS or not (PLACEMENT_EVERY_MAP or r[0] in PLACEMENT_MAPS_BEFORE) else placement_values(placements.get(rms_script(r[0]), [])),
 			"players": r[3],
-			"size": r[4], "biome": r[5], "desc": r[6]})
+			"size": r[4], "biome": r[5], "desc": r[6],
+			"biomes": [] if r[0] in OWN_RMS_MAPS else biome_values(biomes.get(rms_script(r[0]), []))})
+
+## The BIOMES entries a random map's 0.28 SupportedBiomes allows, in BIOMES order.
+static func biome_values(ids: Array) -> Array:
+	var out := []
+	for id in ids:
+		var i := int(RMBIOME_INDEX.get(str(id), 0))
+		if i > 0 and not out.has(i):
+			out.append(i)
+	out.sort()
+	return out
 
 ## The 0.28 maps/random script an RTS0 random map ports ("random_archipelago_0ad" -> "archipelago").
 static func rms_script(map_id: String) -> String:
 	var s := map_id.trim_prefix("random_").trim_suffix("_0ad")
 	return "neareastern_badlands" if s == "nearestern_badlands" else s
+
+## 0.28 gamesetup Biome: only the map's SupportedBiomes, hidden on a map with none;
+## "Map default" first (the map's own biome); the pick stays when the new map offers it.
+func _rebuild_biomes(values: Array) -> void:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot")
+	if slot == null or slot.get_child_count() == 0:
+		return
+	var bio: RtsoSafeSelect = slot.get_child(0)
+	bio.clear()
+	bio.add_item(BIOMES[0], 0)
+	for v in values:
+		bio.add_item(BIOMES[v], v)
+	bio.select(maxi(([0] + values).find(_biome), 0))
+	slot.visible = not values.is_empty()
+	$VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeLabel.visible = not values.is_empty()
+
+func _selected_biome() -> int:
+	var slot := get_node_or_null("VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot")
+	if slot == null or slot.get_child_count() == 0 or not slot.visible:
+		return 0
+	var bio: RtsoSafeSelect = slot.get_child(0)
+	return maxi(bio.get_item_id(bio.get_selected()), 0) if bio.get_selected() >= 0 else 0
+
+func _on_biome_selected(_index: int) -> void:
+	_biome = _selected_biome()
 
 ## 0.28 PlayerPlacement.render: Random, then the map's patterns; the pick stays
 ## when the new map offers it, else Random.
@@ -759,6 +801,7 @@ func _update_map_options() -> void:
 	var placements: Array = _selected_map().get("placements", [])
 	var tp := not placements.is_empty()
 	_rebuild_team_placement(placements)
+	_rebuild_biomes(_selected_map().get("biomes", []))
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementLabel.visible = tp
 	$VBox/HBox/LeftScroll/Left/MapOptionsRow/TeamPlacementSlot.visible = tp
 	var ls := id in LANDSCAPE_MAPS
@@ -1100,9 +1143,9 @@ func _build_options() -> void:
 		res.add_item(r)
 	res.select(1)
 	var bio := _make_option($VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot)
-	for b in BIOMES:
-		bio.add_item(b)
+	bio.add_item(BIOMES[0], 0)
 	bio.select(0)
+	bio.item_selected.connect(_on_biome_selected)
 	var spd := _make_option($VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot)
 	for sp in SPEEDS:
 		spd.add_item(sp[1])
@@ -1239,7 +1282,6 @@ func _restore_settings() -> void:
 
 func _apply_settings(ms: Dictionary) -> void:
 	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
-	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
 	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
 	_set_victory_mask(victory_mask(int(ms.get("victory"))))
 	$VBox/HBox/LeftScroll/Left/Waves.button_pressed = bool(ms.get("waves_enabled"))
@@ -1288,7 +1330,8 @@ func _apply_settings(ms: Dictionary) -> void:
 		if int(MAP_SIZES[i][0]) == int(ms.get("map_size")):
 			msz.select(i)
 	res.select(clampi(int(ms.get("start_res")), 0, START_RES.size() - 1))
-	bio.select(clampi(int(ms.get("biome")), 0, BIOMES.size() - 1))
+	_biome = clampi(int(ms.get("biome")), 0, BIOMES.size() - 1)
+	_rebuild_biomes(_selected_map().get("biomes", []))
 	for i in range(SPEEDS.size()):
 		if is_equal_approx(float(SPEEDS[i][0]), float(ms.get("game_speed"))):
 			spd.select(i)
@@ -1336,7 +1379,6 @@ func _collect_setup() -> Dictionary:
 	var seed := int($VBox/HBox/LeftScroll/Left/SeedRow/SpinSeed.value)
 	var vmask := _victory_mask()
 	var res: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/ResSlot.get_child(0)
-	var bio: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/BiomeSlot.get_child(0)
 	var spd: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/BiomeSpeedRow/SpeedSlot.get_child(0)
 	var msz: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/MapSizeSlot.get_child(0)
 	var pop: RtsoSafeSelect = $VBox/HBox/LeftScroll/Left/PopCapSlot.get_child(0)
@@ -1408,7 +1450,7 @@ func _collect_setup() -> Dictionary:
 		"map_daytime": maxi(dsel.get_selected(), 0) if DAYTIMES.has(str(m.get("id", ""))) else 0,
 		"map_size": int(MAP_SIZES[maxi(msz.get_selected(), 0)][0]),
 		"res": res.get_selected(), "beh": beh, "diff": diff,
-		"biome": maxi(bio.get_selected(), 0),
+		"biome": _selected_biome(),
 		"speed": float(SPEEDS[maxi(spd.get_selected(), 0)][0]),
 		"types": types, "civs": civs, "teams": teams, "diffs": diffs, "behs": behs, "colors": colors, "names": names,
 		# Nomad only on random maps, RegicideGarrison only with Regicide (as 0 A.D. settings).
