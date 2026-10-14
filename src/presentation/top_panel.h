@@ -136,13 +136,7 @@ public:
 		pop_box->add_child(pop_stats_);
 		top_hbox->add_child(pop_box);
 
-		// 5. Idle Worker Button
-		idle_worker_btn_ = memnew(Button);
-		idle_worker_btn_->set_custom_minimum_size(Vector2(90, 30));
-		idle_worker_btn_->set_text("Idle: 0");
-		idle_worker_btn_->add_theme_font_size_override("font_size", 12);
-		idle_worker_btn_->connect("pressed", Callable(owner, "_on_idle_worker_clicked"));
-		top_hbox->add_child(idle_worker_btn_);
+		// 5. (The idle worker button is on the minimap, as 0.28's MiniMapIdleWorkerButton.)
 
 		// 6. IconButtons: DiplomacyDialogButton, TradeDialogButton, MatchSettingsDialogButton.
 		// Tooltips lead with the hotkey like colorizeHotkey; owner->_toggle_session_dialog opens them.
@@ -281,10 +275,6 @@ public:
 			}));
 		}
 
-		auto idle_workers = sim->get_idle_workers(me);
-		idle_worker_btn_->set_text("Idle: " + String::num_int64(idle_workers.size()));
-		if (!idle_workers.empty()) idle_worker_btn_->add_theme_color_override("font_color", Color(1.0f, 0.85f, 0.2f));
-		else idle_worker_btn_->add_theme_color_override("font_color", Color(0.85f, 0.85f, 0.88f));
 
 		// Clock & Wave
 		int mins = (int)match_elapsed_time / 60;
@@ -417,7 +407,6 @@ private:
 	godot::Label *res_labels_[4] = {nullptr};
 	godot::TextureRect *pop_icon_ = nullptr;
 	godot::Label *pop_label_ = nullptr;
-	godot::Button *idle_worker_btn_ = nullptr;
 	godot::Label *clock_label_ = nullptr;
 	godot::Label *wave_label_ = nullptr;
 };
