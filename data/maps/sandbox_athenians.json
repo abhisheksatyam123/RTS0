@@ -18946,5 +18946,6 @@
     "saturation": 1.0,
     "bloom": 0.186523,
     "post_effect": "hdr"
-  }
+  },
+  "circular": true
 }

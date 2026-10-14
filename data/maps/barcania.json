@@ -10139,5 +10139,6 @@
       "z": 67.9,
       "template": "units/default_infantry_ranged_b"
     }
-  ]
+  ],
+  "circular": true
 }

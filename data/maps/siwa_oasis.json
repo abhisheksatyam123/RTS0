@@ -12800,5 +12800,6 @@
     ],
     "water_waviness": 8.0,
     "water_murkiness": 0.65
-  }
+  },
+  "circular": true
 }

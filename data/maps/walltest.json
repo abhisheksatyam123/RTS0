@@ -4462,5 +4462,6 @@
         "rome/infantry_swordsman_b"
       ]
     }
-  ]
+  ],
+  "circular": true
 }

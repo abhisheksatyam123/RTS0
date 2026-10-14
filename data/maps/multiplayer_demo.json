@@ -7753,5 +7753,6 @@
       "z": 27.14,
       "template": "athen/cavalry_swordsman_b"
     }
-  ]
+  ],
+  "circular": false
 }

@@ -60604,5 +60604,6 @@
       "z": -103.69,
       "template": "units/default_infantry_melee_b"
     }
-  ]
+  ],
+  "circular": true
 }

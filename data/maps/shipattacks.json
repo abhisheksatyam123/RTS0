@@ -4512,5 +4512,6 @@
       "z": -71.47,
       "template": "iber/ship_fire"
     }
-  ]
+  ],
+  "circular": true
 }

@@ -10569,5 +10569,6 @@
   ],
   "trigger_scripts": [
     "starting_economy_walkthrough"
-  ]
+  ],
+  "circular": true
 }
