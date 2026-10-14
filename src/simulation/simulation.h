@@ -1383,6 +1383,9 @@ public:
 		TECH_ERR_DISABLED // the map's trigger script disabled it (cmpPlayer.SetDisabledTechnologies)
 	};
 	ResearchCheck research_check(uint8_t player_id, uint8_t tech_id, uint32_t building_id = 0) const;
+	// What researching `tech_id` costs this player at a researcher of `bld_type` (BLD_TYPE_COUNT:
+	// a unit): Researcher/TechCostMultiplier, team bonuses and the Library of Alexandria, as paid.
+	void tech_price(uint8_t player_id, uint8_t tech_id, uint8_t bld_type, float paid[RES_COUNT], float &time) const;
 	// 0 A.D. Heal/Range and Heal/Interval after the player's technologies.
 	float healer_range(uint8_t player_id) const;
 	float healer_rate(uint8_t player_id) const; // hit points per second
