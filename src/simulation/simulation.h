@@ -487,6 +487,11 @@ public:
 		auto it = res_id_to_idx_.find(res_id);
 		return it == res_id_to_idx_.end() ? 0 : resources_.max_gatherers[it->second];
 	}
+	// ResourceSupply/Max a regrowing supply (fruit) returns to, 0 when RTS0 keeps none.
+	int32_t resource_supply_max(uint32_t res_id) const {
+		auto it = res_id_to_idx_.find(res_id);
+		return it == res_id_to_idx_.end() ? 0 : resources_.max_amount[it->second];
+	}
 	// `rot` is the building's Position angle (docks ignore it and face the sea, dock_angle).
 	uint32_t spawn_building(int cell_x, int cell_y, uint8_t type, uint8_t team = 0, float progress = 1.0f,
 			float rot = DEFAULT_BUILDING_ROT);
@@ -844,6 +849,23 @@ public:
 	// A unit's hack, pierce and crush resistance levels (template, techs, rank, armour auras).
 	void structure_resistance(const Building &b, float out[3]) const;
 	void unit_resistance(size_t i, float out[3]) const;
+	// GetEntityState for the selection details (selection_details.js, tooltips.js): unit i's
+	// live numbers in 0 A.D.'s own units (metres, metres a second), technologies, rank and
+	// auras applied.
+	struct UnitDetails {
+		float damage[4] = {};     // hack, pierce, crush, fire
+		float capture = 0.0f;     // Attack/Capture
+		float interval = 0.0f;    // seconds between attacks
+		float min_range = 0.0f, max_range = 0.0f;
+		bool ranged = false;
+		float resistance[3] = {}; // hack, pierce, crush levels
+		float walk = 0.0f, run = 0.0f;
+		float gather[7] = {};     // grain, fruit, meat, fish, wood, stone, metal a second
+		int32_t carry_max = 0;    // what it can carry of the resource it holds
+		float heal_hp = 0.0f, heal_range = 0.0f, heal_interval = 0.0f; // 0 hp: no Heal
+		LootInfo loot{};
+	};
+	UnitDetails unit_details(size_t i) const;
 	int get_transport_capacity(uint32_t transport_id) const;
 	// Ships as GarrisonHolders (template_unit_ship*.xml): capacity and List per
 	// template, LoadingRange 10 m, Pickup, EjectClassesOnDestroy. `i` is a SoA index.
@@ -2816,6 +2838,8 @@ private:
 	// wait_for_pop: queue it even with no population room, to wait in the trainer's queue as
 	// 0 A.D.'s ProductionQueue holds an item until there is room.
 	bool petra_train_template(uint8_t queue, uint32_t building_id, uint16_t tmpl, int count = 1, bool wait_for_pop = false);
+	bool petra_relic_targeted(uint32_t relic_id) const;
+	bool petra_unit_target_ok(int32_t t) const;
 	// headquarters.js trainEmergencyUnits; a civic centre of ours rallying to itself is training them.
 	bool petra_train_emergency_units(const std::vector<std::pair<float, float>> &positions);
 	bool petra_emergency_rally(const Building &b) const {
