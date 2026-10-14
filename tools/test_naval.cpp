@@ -804,6 +804,13 @@ static void test_petra_concurrent_transports() {
 	s.petra_attack_plan_.state = Simulation::AttackPlan::MUSTER;
 	s.petra_attack_plan_.target_building_id = house;
 	s.petra_attack_plan_.state_timer = 0.0f;
+	// The army is the six given above: drop the batches Petra queued for the attack before
+	// it, which the plan would wait for (updatePreparation waits for its units in training).
+	for (auto &b : s.buildings_)
+		if (b.team == 1)
+			b.queue.erase(std::remove_if(b.queue.begin(), b.queue.end(),
+			                             [](const ProductionOrder &o) { return o.petra_plan == PETRA_ORDER_ATTACK; }),
+			              b.queue.end());
 	bool both = false, shared = false;
 	std::vector<uint32_t> landed;
 	for (int k = 0; k < 120; ++k) {
