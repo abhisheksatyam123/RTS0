@@ -106,13 +106,13 @@ func run() -> void:
 	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[3]))
 	d.load_pressed()
 	await frames(1)
-	check(d.message.visible and d.message.dialog_text.contains("newer version"), "a newer save can't be loaded")
-	d.message.hide()
+	check(d.message != null and d.message.message.contains("newer version"), "a newer save can't be loaded")
+	d.message.find_child("Button1", true, false).pressed.emit() # OK
 	d.select_save(d.saves.map(func(s): return s.id).find(NAMES[2]))
 	d.load_pressed()
 	await frames(1)
-	check(d.confirm.visible and d.confirm.dialog_text.contains("Do you still want to proceed?"), "an older save asks first")
-	d.confirm.hide()
+	check(d.confirm != null and d.confirm.message.contains("Do you still want to proceed?"), "an older save asks first")
+	d.confirm.find_child("Button1", true, false).pressed.emit() # No
 
 	print("4. delete")
 	key(KEY_DELETE, true)
@@ -121,9 +121,8 @@ func run() -> void:
 	check(d.selected_save().get("id", "") == NAMES[1], "and selects the next save")
 	key(KEY_DELETE)
 	await frames(2)
-	check(d.confirm.visible and d.confirm.dialog_text.contains("permanently deleted"), "Delete asks first")
-	d.confirm.confirmed.emit()
-	d.confirm.hide()
+	check(d.confirm != null and d.confirm.message.contains("permanently deleted"), "Delete asks first")
+	d.confirm.find_child("Button2", true, false).pressed.emit() # Yes
 	await frames(1)
 	check(not FileAccess.file_exists("user://saves/%s.json" % NAMES[1]), "and deletes once confirmed")
 	d.close()
@@ -164,8 +163,8 @@ func run() -> void:
 	check(d.description.text == "e2e first", "picking a save fills in its description")
 	d.save_pressed()
 	await frames(1)
-	check(d.confirm.visible and d.confirm.dialog_text.contains("permanently overwritten"), "saving over it asks first")
-	d.confirm.confirmed.emit()
+	check(d.confirm != null and d.confirm.message.contains("permanently overwritten"), "saving over it asks first")
+	d.confirm.find_child("Button2", true, false).pressed.emit() # Yes
 	await frames(2)
 	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("user://saves/%s.json" % NAMES[4]))
 	check(not is_instance_valid(d) and meta.get("description", "") == "e2e first" and int(meta.save_version) == v, "and overwrites it")

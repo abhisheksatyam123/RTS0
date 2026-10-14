@@ -13,6 +13,7 @@ extends Control
 
 const SetupPage = preload("res://scenes/menu/gamesetup.gd")
 const ScenarioStart = preload("res://scenes/menu/scenario_start.gd")
+const MSGBOX := preload("res://scenes/common/msgbox.gd")
 const GOLD := Color(0.9, 0.75, 0.31)
 const GRAY := Color8(128, 128, 128)
 const GREEN := Color8(0, 200, 0)
@@ -35,10 +36,11 @@ var info_preview: TextureRect
 var info_desc: RichTextLabel
 var start_button: Button
 var delete_button: Button
+var saved_games_button: Button
 var empty_text: Label
 var name_dialog: ConfirmationDialog
 var name_edit: LineEdit
-var confirm: ConfirmationDialog
+var confirm: Control # the open delete question (scenes/common/msgbox.gd), null when closed
 
 func _ready() -> void:
 	mode = open_mode
@@ -104,6 +106,7 @@ func render() -> void:
 
 func render_details() -> void:
 	delete_button.visible = mode == "load"
+	saved_games_button.visible = mode == "menu"
 	delete_button.disabled = selected < 0
 	start_button.disabled = selected < 0
 	info_name.text = ""
@@ -185,8 +188,12 @@ func open_run(r: CampaignRun) -> void:
 func delete_pressed() -> void:
 	if mode != "load" or selected < 0:
 		return
-	confirm.dialog_text = tr("Are you sure you want to delete run %s? This cannot be undone.") % list.get_item_text(selected)
-	confirm.popup_centered(Vector2i(420, 140))
+	# LoadModal.js messageBox(400, 200, …, "Confirmation", No, Yes).
+	confirm = MSGBOX.open(self, 400, 200, tr("Are you sure you want to delete run %s? This cannot be undone.") % list.get_item_text(selected),
+		tr("Confirmation"), [tr("No"), tr("Yes")])
+	confirm.answered.connect(func(i: int):
+		confirm = null
+		if i == 1: delete_selected())
 
 func delete_selected() -> void:
 	if mode != "load" or selected < 0:
@@ -213,6 +220,18 @@ func start_level(level_id: String) -> void:
 	ms.campaign_level = level_id
 	run.save()
 	ms.go("res://scenes/main.tscn")
+
+## CampaignMenu.loadSavegame: the load page with this run's saves only (SavegameList
+## campaignFilter reads MatchSettings.campaign_run); loading one restores its run and level.
+func load_savegame() -> CanvasLayer:
+	var ms := get_node_or_null("/root/MatchSettings")
+	if ms == null or run == null:
+		return null
+	var before: String = ms.campaign_run
+	ms.campaign_run = run.filename
+	var d = load("res://scenes/session/savegame_dialog.gd").open(self, "load")
+	d.closed.connect(func(): ms.campaign_run = before)
+	return d
 
 func back_to_main_menu() -> void:
 	if run:
@@ -293,6 +312,8 @@ func _build() -> void:
 	bottom.add_child(_button("Main Menu", "BackButton", back_to_main_menu))
 	delete_button = _button("Delete", "DeleteButton", delete_pressed)
 	bottom.add_child(delete_button)
+	saved_games_button = _button("Saved Games", "SavedGamesButton", load_savegame)
+	bottom.add_child(saved_games_button)
 	start_button = _button("Start", "StartButton", start_pressed)
 	bottom.add_child(start_button)
 
@@ -309,10 +330,3 @@ func _build() -> void:
 	name_dialog.confirmed.connect(func(): create_run(name_edit.text.strip_edges()))
 	add_child(name_dialog)
 
-	confirm = ConfirmationDialog.new()
-	confirm.name = "DeleteConfirmation"
-	confirm.title = "Confirmation"
-	confirm.ok_button_text = "Yes"
-	confirm.cancel_button_text = "No"
-	confirm.confirmed.connect(delete_selected)
-	add_child(confirm)
